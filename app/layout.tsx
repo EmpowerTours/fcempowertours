@@ -1,26 +1,30 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-
-import { Providers } from '@/components/providers'
-import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata: Metadata = {
-  title: 'Monad Farcaster MiniApp Template',
-  description: 'A template for building mini-apps on Farcaster and Monad',
-}
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+import { ReactNode } from 'react';
+import { headers } from 'next/headers';
+import { cookieToInitialState } from 'wagmi';
+import { getConfig } from './music/config'; // Adjust path if needed
+import { WalletProvider } from '../components/wallet-provider'; // Adjust path if needed
+export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
+  // ... other metadata
+};
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  let initialState;
+  try {
+    const config = getConfig();
+    const headerList = await headers(); // Await here
+    const cookie = headerList.get('cookie');
+    initialState = cookieToInitialState(config, cookie);
+  } catch {
+    // Fallback for static prerender (no headers available) - Removed unused 'error'
+    initialState = undefined;
+  }
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
+      <body>
+        <WalletProvider initialState={initialState}>
+          {children}
+        </WalletProvider>
       </body>
     </html>
-  )
+  );
 }

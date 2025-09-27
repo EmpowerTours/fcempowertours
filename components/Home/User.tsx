@@ -1,8 +1,7 @@
-import { useFrame } from '@/components/farcaster-provider'
-
+import { useFrame } from '@/components/farcaster-provider';
+import Image from 'next/image';  // Import for optimized images
 export function User() {
-  const { context } = useFrame()
-
+  const { context } = useFrame();
   return (
     <div className="space-y-4 border border-[#333] rounded-md p-4">
       <h2 className="text-xl font-bold text-left">sdk.context</h2>
@@ -10,7 +9,7 @@ export function User() {
         {context?.user ? (
           <>
             {context?.user?.pfpUrl && (
-              <img
+              <Image
                 src={context?.user?.pfpUrl}
                 className="w-14 h-14 rounded-full"
                 alt="User Profile"
@@ -44,5 +43,5 @@ export function User() {
         )}
       </div>
     </div>
-  )
+  );
 }

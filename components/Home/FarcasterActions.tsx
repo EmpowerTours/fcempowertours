@@ -1,10 +1,8 @@
-import { useFrame } from '@/components/farcaster-provider'
-import { APP_URL } from '@/lib/constants'
-import { useMutation } from '@tanstack/react-query'
-
+import { useFrame } from '@/components/farcaster-provider';
+import { APP_URL } from '@/lib/constants';
+// Removed unused useMutation
 export function FarcasterActions() {
-  const { actions } = useFrame()
-
+  const { actions } = useFrame();
   return (
     <div className="space-y-4 border border-[#333] rounded-md p-4">
       <h2 className="text-xl font-bold text-left">sdk.actions</h2>
@@ -66,5 +64,5 @@ export function FarcasterActions() {
         )}
       </div>
     </div>
-  )
+  );
 }

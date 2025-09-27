@@ -1,21 +1,16 @@
 import { ImageResponse } from '@vercel/og';
 import { NextRequest } from 'next/server';
-
 export const dynamic = "force-dynamic";
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const username = searchParams.get('username') || 'User';
     const imageUrl = searchParams.get('image') || 'https://i.ibb.co/NdyfX1qx/Monad-Logo-Black-Logo-Mark.png';
-    
     const backgroundGradient = '#2D1B69';
-    
     // Load Inter font from public directory
     const interFontData = await fetch(
       `${request.nextUrl.origin}/Inter.ttf`
     ).then((res) => res.arrayBuffer());
-    
     return new ImageResponse(
       (
         <div
@@ -58,6 +53,7 @@ export async function GET(request: NextRequest) {
               }}
             >
               {imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={imageUrl}
                   alt={username}
@@ -84,7 +80,6 @@ export async function GET(request: NextRequest) {
                 </div>
               )}
             </div>
-
             <div
               style={{
                 display: 'flex',
