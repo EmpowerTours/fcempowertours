@@ -7,6 +7,5 @@ module.exports = {
     config.resolve.alias['@react-native-async-storage/async-storage'] = 'localforage';
     return config;
   },
-  output: 'standalone',  // Keeps serverless compatibility
-  // Removed generateStaticParams (invalid here; use per-page dynamic instead)
+  output: 'standalone',  // For serverless compatibility
 };

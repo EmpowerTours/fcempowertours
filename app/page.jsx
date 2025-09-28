@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toast';
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -22,7 +22,7 @@ export default function Home() {
 
   const handleItinerarySubmit = async () => {
     if (!itineraryPrompt) return;
-    toast('Generating itinerary...', { description: 'Please wait.' });
+    toast({ title: 'Generating itinerary...', description: 'Please wait.' });
     router.push(`/itinerary?prompt=${encodeURIComponent(itineraryPrompt)}`);
   };
 
@@ -52,7 +52,7 @@ export default function Home() {
             Connect Wallet
           </Button>
         ) : (
-          <p className="text-center text-green-600">Connected: {address?.slice(0, 6)}...{address?.slice(-4)}</p>
+          <p className="text-center text-green-600">Connected: {address.slice(0, 6)}...{address.slice(-4)}</p>
         )}
 
         <div className="flex space-x-2">

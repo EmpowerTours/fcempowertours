@@ -7,14 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { toast } from '@/components/ui/toast';
+import { toast } from 'sonner';
 import { saveItineraryDraft, encryptData, generateKey } from '@/lib/storage';
+import Image from 'next/image';
 
 export default function ItineraryPage() {
   const [destination, setDestination] = useState('');
   const [interests, setInterests] = useState('');
   const [country, setCountry] = useState('Unknown');
-  const [climbingPhoto, setClimbingPhoto] = useState(null);
+  const [climbingPhoto, setClimbingPhoto] = useState<string | null>(null);
   const [climbingGrade, setClimbingGrade] = useState('');
   const searchParams = useSearchParams();
   const { writeContract } = useWriteContract();
@@ -26,12 +27,12 @@ export default function ItineraryPage() {
       setInterests('rock climbing');
     }
     fetch('/api/geo')
-      .then(res => res.json())
+      .then((res) => res.json())
       .then(({ country }) => setCountry(country || 'Unknown'));
   }, [searchParams]);
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) setClimbingPhoto(URL.createObjectURL(file));
   };
 
@@ -40,18 +41,18 @@ export default function ItineraryPage() {
     const data = { destination, interests, climbingPhoto, climbingGrade };
     const { iv, encrypted } = await encryptData(data, key);
     saveItineraryDraft('draft-1', { iv, encrypted, data });
-    toast({ title: 'Draft Saved', description: 'Itinerary saved locally.' });
+    toast('Draft Saved', { description: 'Itinerary saved locally.' });
   };
 
   const handleMintStamp = async () => {
     const metadata = { destination, country, climbingGrade };
     await writeContract({
       address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
-      abi: [/* Your ABI */],
+      abi: [/* Your ABI from lib/abis/PassportNFT.json */],
       functionName: 'mintItinerary',
       args: [metadata, 'ipfs://...'],
     });
-    toast({ title: 'Stamp Minted', description: 'Added to your passport!' });
+    toast('Stamp Minted', { description: 'Added to your passport!' });
   };
 
   return (
@@ -79,7 +80,7 @@ export default function ItineraryPage() {
               <AccordionContent>
                 <Input type="file" accept="image/*" onChange={handlePhotoUpload} />
                 {climbingPhoto && (
-                  <img src={climbingPhoto} alt="Climbing Preview" className="w-32 h-32 object-cover mt-2" />
+                  <Image src={climbingPhoto} width={128} height={128} alt="Climbing Preview" className="object-cover mt-2" />
                 )}
                 <select
                   value={climbingGrade}

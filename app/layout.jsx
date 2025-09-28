@@ -1,16 +1,20 @@
-import { headers } from 'next/headers';
-import { cookieToInitialState } from 'wagmi';
-import { config } from '../lib/wagmiConfig'; // Adjust path if lib is not in root
-import { Providers } from './providers';
+import './globals.css';
+import { Inter } from 'next/font/google';
+import BottomNav from '@/components/BottomNav';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata = {
+  title: 'EmpowerTours',
+  description: 'AI-powered travel app on Farcaster with NFT minting and group funding.',
+};
 
 export default function RootLayout({ children }) {
-  const initialState = cookieToInitialState(config, headers().get('cookie'));
   return (
     <html lang="en">
-      <body>
-        <Providers initialState={initialState}>
-          {children}
-        </Providers>
+      <body className={`${inter.className} min-h-screen bg-gradient-to-b from-green-100 to-blue-100`}>
+        <main className="pb-16">{children}</main>
+        <BottomNav />
       </body>
     </html>
   );
