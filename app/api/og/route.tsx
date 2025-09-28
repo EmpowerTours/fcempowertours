@@ -1,4 +1,3 @@
-```typescript
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 
