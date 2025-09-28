@@ -1,136 +1,47 @@
-import { ImageResponse } from '@vercel/og';
+```typescript
+import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
-export const dynamic = "force-dynamic";
+
+export const runtime = 'edge';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username') || 'User';
-    const imageUrl = searchParams.get('image') || 'https://i.ibb.co/NdyfX1qx/Monad-Logo-Black-Logo-Mark.png';
-    const backgroundGradient = '#2D1B69';
-    // Load Inter font from public directory
-    const interFontData = await fetch(
-      `${request.nextUrl.origin}/Inter.ttf`
-    ).then((res) => res.arrayBuffer());
+    const title = searchParams.get('title') || 'EmpowerTours';
+    const description = searchParams.get('description') || 'Mint and share Travel and Music NFTs!';
+    const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+
     return new ImageResponse(
       (
         <div
           style={{
-            height: '100%',
-            width: '100%',
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: backgroundGradient,
-            padding: '40px',
-            position: 'relative',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            width: '1200px',
+            height: '630px',
+            background: 'linear-gradient(180deg, #00A55E, #1E90FF)',
+            color: '#FFFFFF',
+            fontFamily: 'Arial, sans-serif',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '32px',
-              width: '100%',
-              maxWidth: '520px',
-            }}
-          >
-            <div
-              style={{
-                width: '120px',
-                height: '120px',
-                borderRadius: '50%',
-                border: '4px solid white',
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#f0f0f0',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-              }}
-            >
-              {imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imageUrl}
-                  alt={username}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#e0e0e0',
-                    fontSize: '48px',
-                    color: '#666',
-                  }}
-                >
-                  👤
-                </div>
-              )}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                justifyContent: 'center',
-                flex: 1,
-              }}
-            >
-              <h1
-                style={{
-                  fontSize: '48px',
-                  fontWeight: 'bold',
-                  color: 'white',
-                  margin: '0 0 8px 0',
-                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                  lineHeight: '1.2',
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {username}
-              </h1>
-              <p
-                style={{
-                  fontSize: '24px',
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  margin: '0',
-                  fontWeight: '400',
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                Generated using Monad Mini App Template
-              </p>
-            </div>
-          </div>
+          <img
+            src={`${appUrl}/images/feed.png`}
+            alt="EmpowerTours Feed"
+            style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px' }}
+          />
+          <h1 style={{ fontSize: '48px', fontWeight: 'bold', margin: '20px 0' }}>{title}</h1>
+          <p style={{ fontSize: '24px', textAlign: 'center', maxWidth: '800px' }}>{description}</p>
         </div>
       ),
       {
-        width: 600,
-        height: 400,
-        fonts: [
-          {
-            name: 'Inter',
-            data: interFontData,
-            style: 'normal',
-          },
-        ],
+        width: 1200,
+        height: 630,
       }
     );
-  } catch (e) {
-    console.error('Error generating OG image:', e);
-    return new Response('Failed to generate image', { status: 500 });
+  } catch (error) {
+    console.error('OG Image Error:', error);
+    return new Response('Failed to generate OG image', { status: 500 });
   }
 }
