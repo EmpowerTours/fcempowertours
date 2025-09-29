@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import { saveItineraryDraft, encryptData, generateKey } from '@/lib/storage';
+import { ItineraryDraft } from '@/types';
 import Image from 'next/image';
 
 export default function ItineraryPage() {
@@ -40,15 +41,15 @@ export default function ItineraryPage() {
     const key = await generateKey();
     const data = { destination, interests, climbingPhoto, climbingGrade };
     const { iv, encrypted } = await encryptData(data, key);
-    saveItineraryDraft('draft-1', { iv, encrypted, data });
+    await saveItineraryDraft('draft-1', { iv, encrypted, data });
     toast('Draft Saved', { description: 'Itinerary saved locally.' });
   };
 
   const handleMintStamp = async () => {
     const metadata = { destination, country, climbingGrade };
     await writeContract({
-      address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
-      abi: [/* Your ABI from lib/abis/PassportNFT.json */],
+      address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
+      abi: (await import('@/lib/abis/PassportNFT.json')).default,
       functionName: 'mintItinerary',
       args: [metadata, 'ipfs://...'],
     });
