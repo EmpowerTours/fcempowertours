@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import { saveItineraryDraft, encryptData, generateKey } from '@/lib/storage';
-import { ItineraryDraft } from '@/types';
 import Image from 'next/image';
 
 export default function ItineraryPage() {
