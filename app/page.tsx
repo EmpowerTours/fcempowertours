@@ -19,18 +19,30 @@ interface NFT {
 
 export default function Home() {
   const [nfts, setNfts] = useState<NFT[]>([]);
+  const [passportAbi, setPassportAbi] = useState<any>(null);
+  const [musicAbi, setMusicAbi] = useState<any>(null);
   const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+
+  useEffect(() => {
+    async function loadAbis() {
+      const passport = (await import('@/lib/abis/PassportNFT.json')).default;
+      const music = (await import('@/lib/abis/MusicNFT.json')).default;
+      setPassportAbi(passport);
+      setMusicAbi(music);
+    }
+    loadAbis();
+  }, []);
 
   const { data: travelData } = useReadContract({
     address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
-    abi: (await import('@/lib/abis/PassportNFT.json')).default,
+    abi: passportAbi,
     functionName: 'getAvailableItineraries',
     args: [],
   });
 
   const { data: musicData } = useReadContract({
     address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`,
-    abi: (await import('@/lib/abis/MusicNFT.json')).default,
+    abi: musicAbi,
     functionName: 'getAvailableMusicNfts',
     args: [],
   });

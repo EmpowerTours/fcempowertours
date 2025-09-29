@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useWriteContract } from 'wagmi';
+import { useReadContract, useWriteContract } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -18,20 +18,30 @@ interface Item {
 
 export default function MarketPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [passportAbi, setPassportAbi] = useState<any>(null);
+  const [musicAbi, setMusicAbi] = useState<any>(null);
   const { writeContract } = useWriteContract();
 
-  // Fetch Travel NFTs
+  useEffect(() => {
+    async function loadAbis() {
+      const passport = (await import('@/lib/abis/PassportNFT.json')).default;
+      const music = (await import('@/lib/abis/MusicNFT.json')).default;
+      setPassportAbi(passport);
+      setMusicAbi(music);
+    }
+    loadAbis();
+  }, []);
+
   const { data: travelData } = useReadContract({
     address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
-    abi: (await import('@/lib/abis/PassportNFT.json')).default,
+    abi: passportAbi,
     functionName: 'getAvailableItineraries',
     args: [],
   });
 
-  // Fetch Music NFTs
   const { data: musicData } = useReadContract({
     address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`,
-    abi: (await import('@/lib/abis/MusicNFT.json')).default,
+    abi: musicAbi,
     functionName: 'getAvailableMusicNfts',
     args: [],
   });
@@ -67,7 +77,7 @@ export default function MarketPage() {
       type === 'travel'
         ? (process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`)
         : (process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`);
-    const abi = type === 'travel' ? (await import('@/lib/abis/PassportNFT.json')).default : (await import('@/lib/abis/MusicNFT.json')).default;
+    const abi = type === 'travel' ? passportAbi : musicAbi;
     const functionName = type === 'travel' ? 'buyItinerary' : 'buyMusicNft';
 
     await writeContract({
@@ -75,7 +85,7 @@ export default function MarketPage() {
       abi,
       functionName,
       args: [id],
-      value: BigInt(10000000000000000), // Adjust value
+      value: BigInt(10000000000000000),
     });
     toast('Purchased!', { description: `${type === 'travel' ? 'Itinerary' : 'Music NFT'} added to your passport.` });
   };
