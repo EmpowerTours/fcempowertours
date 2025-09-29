@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { createHeliaHTTP } from '@helia/http';
 import { unixfs } from '@helia/unixfs';
+import Image from 'next/image';
 
 export default function MusicPage() {
   const { writeContract } = useWriteContract();
