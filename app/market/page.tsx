@@ -5,9 +5,8 @@ import { useWriteContract } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { hub } from '@farcaster/miniapp-wagmi-connector';
+import { sdk } from '@farcaster/miniapp-sdk';
 import Image from 'next/image';
-import { useReadContract } from 'wagmi';
 
 interface Item {
   id: number;
@@ -18,65 +17,65 @@ interface Item {
 }
 
 export default function MarketPage() {
-  const [itineraries, setItineraries] = useState<Item[]>([]);
-  const [musicNfts, setMusicNfts] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const { writeContract } = useWriteContract();
 
   // Fetch Travel NFTs
   const { data: travelData } = useReadContract({
-    address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
-    abi: require('@/lib/abis/PassportNFT.json'),
-    functionName: 'getAvailableItineraries', // Adjust to your contract's function
+    address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
+    abi: (await import('@/lib/abis/PassportNFT.json')).default,
+    functionName: 'getAvailableItineraries',
     args: [],
   });
 
   // Fetch Music NFTs
   const { data: musicData } = useReadContract({
-    address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS,
-    abi: require('@/lib/abis/MusicNFT.json'),
-    functionName: 'getAvailableMusicNfts', // Adjust to your contract's function
+    address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`,
+    abi: (await import('@/lib/abis/MusicNFT.json')).default,
+    functionName: 'getAvailableMusicNfts',
     args: [],
   });
 
   useEffect(() => {
-    // Process Travel NFTs
+    const combinedItems: Item[] = [];
     if (travelData) {
-      const travelItems = (travelData as any[]).map((item) => ({
-        id: Number(item.id),
-        title: item.name || item.destination,
-        yield: item.yield || '4% APY',
-        image: item.image || '/images/screenshot3.png',
-        type: 'travel' as const,
-      }));
-      setItineraries(travelItems);
+      const travelItems = (travelData as { id: bigint; name: string; destination: string; image: string; yield: string }[]).map(
+        (item) => ({
+          id: Number(item.id),
+          title: item.name || item.destination,
+          yield: item.yield || '4% APY',
+          image: item.image || '/images/screenshot3.png',
+          type: 'travel' as const,
+        })
+      );
+      combinedItems.push(...travelItems);
     }
-
-    // Process Music NFTs
     if (musicData) {
-      const musicItems = (musicData as any[]).map((item) => ({
+      const musicItems = (musicData as { id: bigint; name: string; image: string }[]).map((item) => ({
         id: Number(item.id),
         title: item.name,
         image: item.image || '/images/screenshot3.png',
         type: 'music' as const,
       }));
-      setMusicNfts(musicItems);
+      combinedItems.push(...musicItems);
     }
+    setItems(combinedItems);
   }, [travelData, musicData]);
 
   const handleBuy = async (id: number, type: 'travel' | 'music') => {
     const contractAddress =
       type === 'travel'
-        ? process.env.NEXT_PUBLIC_ITINERARY_ADDRESS
-        : process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS;
-    const abi = type === 'travel' ? require('@/lib/abis/PassportNFT.json') : require('@/lib/abis/MusicNFT.json');
-    const functionName = type === 'travel' ? 'buyItinerary' : 'buyMusicNft'; // Adjust to your contract's function
+        ? (process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`)
+        : (process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`);
+    const abi = type === 'travel' ? (await import('@/lib/abis/PassportNFT.json')).default : (await import('@/lib/abis/MusicNFT.json')).default;
+    const functionName = type === 'travel' ? 'buyItinerary' : 'buyMusicNft';
 
     await writeContract({
       address: contractAddress,
       abi,
       functionName,
       args: [id],
-      value: BigInt(10000000000000000), // Adjust value as needed
+      value: BigInt(10000000000000000), // Adjust value
     });
     toast('Purchased!', { description: `${type === 'travel' ? 'Itinerary' : 'Music NFT'} added to your passport.` });
   };
@@ -86,7 +85,7 @@ export default function MarketPage() {
       type === 'travel'
         ? `https://fcempowertours-production-6551.up.railway.app/itinerary/${id}`
         : `https://fcempowertours-production-6551.up.railway.app/music/${id}`;
-    await hub.cast({
+    await sdk.actions.composeCast({
       text: `Bought ${title} on EmpowerTours!`,
       embeds: [{ url }],
     });
@@ -101,7 +100,7 @@ export default function MarketPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {itineraries.concat(musicNfts).map((item) => (
+            {items.map((item) => (
               <Card key={`${item.type}-${item.id}`}>
                 <CardContent className="flex justify-between items-center">
                   <div>

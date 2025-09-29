@@ -12,8 +12,9 @@
   "dependencies": {
     "@farcaster/miniapp-core": "^0.3.6",
     "@farcaster/miniapp-node": "^0.1.6",
-    "@farcaster/miniapp-sdk": "^0.1.7",
+    "@farcaster/miniapp-sdk": "^0.1.10",
     "@farcaster/miniapp-wagmi-connector": "^1.0.0",
+    "@google/generative-ai": "^0.24.1",
     "@helia/http": "^2.2.1",
     "@helia/unixfs": "^5.1.0",
     "@radix-ui/react-accordion": "^1.2.12",

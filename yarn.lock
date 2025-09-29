@@ -360,7 +360,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@farcaster/miniapp-sdk@npm:^0.1.7":
+"@farcaster/miniapp-sdk@npm:^0.1.10":
   version: 0.1.10
   resolution: "@farcaster/miniapp-sdk@npm:0.1.10"
   dependencies:
@@ -405,6 +405,13 @@ __metadata:
   peerDependencies:
     viem: ">=2.0.0"
   checksum: 10c0/6232d521833b7cf39223f1cdf8d976aa6d3ba28c5d34c9f31fafbbf4ba9ef541e11e603bfae158c49b60bae2a45ceadf521064575ab23bd075065eb6ac568aab
+  languageName: node
+  linkType: hard
+
+"@google/generative-ai@npm:^0.24.1":
+  version: 0.24.1
+  resolution: "@google/generative-ai@npm:0.24.1"
+  checksum: 10c0/8da77fc648b04fc2ecef53e75230e2ee67a8fd29a34b6b8874e77a7332b2a1e4b51d44dd9eb604fb063ed8ea46d293aac5b1e2a955ae2435e2582a265f2cb80d
   languageName: node
   linkType: hard
 
@@ -7566,8 +7573,9 @@ __metadata:
     "@biomejs/biome": "npm:1.9.4"
     "@farcaster/miniapp-core": "npm:^0.3.6"
     "@farcaster/miniapp-node": "npm:^0.1.6"
-    "@farcaster/miniapp-sdk": "npm:^0.1.7"
+    "@farcaster/miniapp-sdk": "npm:^0.1.10"
     "@farcaster/miniapp-wagmi-connector": "npm:^1.0.0"
+    "@google/generative-ai": "npm:^0.24.1"
     "@helia/http": "npm:^2.2.1"
     "@helia/unixfs": "npm:^5.1.0"
     "@radix-ui/react-accordion": "npm:^1.2.12"

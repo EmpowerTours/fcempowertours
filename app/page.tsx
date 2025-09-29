@@ -5,7 +5,6 @@ import { useReadContract } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
-import { toast } from 'sonner';
 import { sdk } from '@farcaster/miniapp-sdk';
 import BottomNav from '@/components/BottomNav';
 
@@ -22,32 +21,29 @@ export default function Home() {
   const [nfts, setNfts] = useState<NFT[]>([]);
   const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-  // Fetch sample NFTs (Travel and Music)
   const { data: travelData } = useReadContract({
-    address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
-    abi: require('@/lib/abis/PassportNFT.json'),
+    address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
+    abi: (await import('@/lib/abis/PassportNFT.json')).default,
     functionName: 'getAvailableItineraries',
     args: [],
   });
 
   const { data: musicData } = useReadContract({
-    address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS,
-    abi: require('@/lib/abis/MusicNFT.json'),
+    address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`,
+    abi: (await import('@/lib/abis/MusicNFT.json')).default,
     functionName: 'getAvailableMusicNfts',
     args: [],
   });
 
   useEffect(() => {
-    // Call sdk.actions.ready() to hide splash screen
     const initialize = async () => {
       await sdk.actions.ready();
     };
     initialize();
 
-    // Combine NFTs
     const combinedNfts: NFT[] = [];
     if (travelData) {
-      const travelNfts = (travelData as any[]).map((item) => ({
+      const travelNfts = (travelData as { id: bigint; name: string; destination: string; image: string }[]).map((item) => ({
         id: item.id.toString(),
         name: item.name || item.destination,
         destination: item.destination,
@@ -57,7 +53,7 @@ export default function Home() {
       combinedNfts.push(...travelNfts);
     }
     if (musicData) {
-      const musicNfts = (musicData as any[]).map((item) => ({
+      const musicNfts = (musicData as { id: bigint; name: string; image: string; animation_url: string }[]).map((item) => ({
         id: item.id.toString(),
         name: item.name,
         image: item.image || '/images/screenshot3.png',
@@ -66,7 +62,7 @@ export default function Home() {
       }));
       combinedNfts.push(...musicNfts);
     }
-    setNfts(combinedNfts.slice(0, 3)); // Limit to 3 for preview
+    setNfts(combinedNfts.slice(0, 3));
   }, [travelData, musicData]);
 
   return (
@@ -126,9 +122,7 @@ export default function Home() {
                         <audio controls src={nft.animation_url} className="w-full mt-2" />
                       )}
                       <p className="font-semibold">{nft.name}</p>
-                      {nft.type === 'travel' && nft.destination && (
-                        <p>{nft.destination}</p>
-                      )}
+                      {nft.type === 'travel' && nft.destination && <p>{nft.destination}</p>}
                       {nft.type === 'music' && <p>Music NFT</p>}
                     </CardContent>
                   </Card>
@@ -137,14 +131,8 @@ export default function Home() {
                 <p>No NFTs available. Check the market!</p>
               )}
             </div>
-            <Button onClick={() => window.location.href = '/market'}>
-              Visit Market
-            </Button>
-            <Button
-              variant="outline"
-              className="ml-2"
-              onClick={() => window.location.href = '/music'}
-            >
+            <Button onClick={() => window.location.href = '/market'}>Visit Market</Button>
+            <Button variant="outline" className="ml-2" onClick={() => window.location.href = '/music'}>
               Mint Music NFT
             </Button>
           </CardContent>

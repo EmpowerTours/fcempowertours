@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
 
     return new ImageResponse(
       (
+        // eslint-disable-next-line @next/next/no-img-element
         <div
           style={{
             display: 'flex',
