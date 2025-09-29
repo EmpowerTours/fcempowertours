@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { saveItinerary } from '@/lib/storage';
+import { saveItineraryDraft } from '@/lib/storage';
 
 export async function POST(request) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request) {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -19,10 +19,10 @@ export async function POST(request) {
     clearTimeout(timeoutId);
 
     const itinerary = result.response.text();
-    await saveItinerary(prompt, itinerary);
+    saveItineraryDraft(Date.now().toString(), { prompt, itinerary });
     return NextResponse.json({ itinerary });
   } catch (error) {
     console.error('Itinerary API Error:', error);
-    return NextResponse.json({ error: 'Failed to generate itinerary' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to generate itinerary' }, { status: 500 });
   }
 }

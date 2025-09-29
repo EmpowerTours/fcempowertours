@@ -18,8 +18,8 @@ interface Item {
 
 export default function MarketPage() {
   const [items, setItems] = useState<Item[]>([]);
-  const [passportAbi, setPassportAbi] = useState<any>(null);
-  const [musicAbi, setMusicAbi] = useState<any>(null);
+  const [passportAbi, setPassportAbi] = useState<unknown>(null);
+  const [musicAbi, setMusicAbi] = useState<unknown>(null);
   const { writeContract } = useWriteContract();
 
   useEffect(() => {

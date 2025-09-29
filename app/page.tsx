@@ -19,8 +19,8 @@ interface NFT {
 
 export default function Home() {
   const [nfts, setNfts] = useState<NFT[]>([]);
-  const [passportAbi, setPassportAbi] = useState<any>(null);
-  const [musicAbi, setMusicAbi] = useState<any>(null);
+  const [passportAbi, setPassportAbi] = useState<unknown>(null);
+  const [musicAbi, setMusicAbi] = useState<unknown>(null);
   const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
   useEffect(() => {
