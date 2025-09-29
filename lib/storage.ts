@@ -1,11 +1,4 @@
-interface ItineraryDraft {
-  prompt?: string;
-  itinerary?: string;
-  destination?: string;
-  interests?: string;
-  climbingPhoto?: string | null;
-  climbingGrade?: string;
-}
+import { ItineraryDraft } from '@/types';
 
 export async function generateKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey(
@@ -15,18 +8,21 @@ export async function generateKey(): Promise<CryptoKey> {
   );
 }
 
-export async function encryptData(data: ItineraryDraft, key: CryptoKey): Promise<{ iv: Uint8Array; encrypted: ArrayBuffer }> {
-  const enc = new TextEncoder();
+export async function encryptData(data: ItineraryDraft['data'], key: CryptoKey): Promise<{ iv: string; encrypted: string }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
     enc.encode(JSON.stringify(data))
   );
-  return { iv, encrypted };
+  return {
+    iv: Buffer.from(iv).toString('hex'),
+    encrypted: Buffer.from(encrypted).toString('hex'),
+  };
 }
 
-export async function decryptData(encryptedData: ArrayBuffer, key: CryptoKey, iv: Uint8Array): Promise<ItineraryDraft> {
+export async function decryptData(encryptedData: ArrayBuffer, key: CryptoKey, iv: Uint8Array): Promise<ItineraryDraft['data']> {
   const dec = new TextDecoder();
   const decrypted = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv },
