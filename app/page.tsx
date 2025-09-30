@@ -3,30 +3,31 @@
 import { useEffect, useState } from 'react';
 import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
 import { WagmiConfig, useReadContract } from 'wagmi';
-import { Abi } from 'viem';
-import { farcaster } from '@farcaster/miniapp-wagmi-connector';
+import { Abi, defineChain } from 'viem';
+import farcaster from '@farcaster/miniapp-wagmi-connector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { sdk } from '@farcaster/miniapp-sdk';
 import BottomNav from '@/components/BottomNav';
 import ItineraryMarketABI from '../lib/abis/ItineraryMarket.json';
-import MusicNFTABI from '../lib/abis/MusicNFT.json';
 
 // Configure Wagmi for Monad chain
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_WALLET_CONNECT_PROJECT_ID';
-const chains = [
-  {
-    chainId: 10143,
-    name: 'Monad',
-    currency: 'MONAD',
-    explorerUrl: 'https://explorer.monad.xyz',
-    rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz',
+const monadChain = defineChain({
+  id: 10143,
+  name: 'Monad',
+  nativeCurrency: { name: 'MONAD', symbol: 'MONAD', decimals: 18 },
+  rpcUrls: {
+    default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz'] },
   },
-];
+  blockExplorers: {
+    default: { name: 'Monad Explorer', url: 'https://explorer.monad.xyz' },
+  },
+});
 
 const wagmiConfig = defaultWagmiConfig({
-  chains,
+  chains: [monadChain],
   projectId,
   metadata: {
     name: 'EmpowerTours',
@@ -37,10 +38,9 @@ const wagmiConfig = defaultWagmiConfig({
   connectors: [farcaster()],
 });
 
-createWeb3Modal({ wagmiConfig, projectId, chains });
+createWeb3Modal({ wagmiConfig, projectId });
 
 const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4b5b9f97682a4723ebfd0086c47c70b96478c';
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS || '0xYOUR_MUSIC_NFT_ADDRESS'; // Replace with actual address
 
 interface TravelNFT {
   id: bigint;
@@ -50,33 +50,15 @@ interface TravelNFT {
   type: 'travel';
 }
 
-interface MusicNFT {
-  id: bigint;
-  name: string;
-  image: string;
-  animation_url: string;
-  type: 'music';
-}
-
-type NFT = TravelNFT | MusicNFT;
-
 export default function Home() {
-  const [nfts, setNfts] = useState<NFT[]>([]);
+  const [nfts, setNfts] = useState<TravelNFT[]>([]);
   const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
   // Fetch available itineraries
   const { data: travelData } = useReadContract({
     address: ITINERARY_MARKET_ADDRESS as `0x${string}`,
-    abi: ItineraryMarketABI.abi as Abi,
+    abi: ItineraryMarketABI as Abi,
     functionName: 'getAvailableItineraries',
-    args: [],
-  });
-
-  // Fetch available music NFTs
-  const { data: musicData } = useReadContract({
-    address: MUSIC_NFT_ADDRESS as `0x${string}`,
-    abi: MusicNFTABI.abi as Abi,
-    functionName: 'getAvailableMusicNfts',
     args: [],
   });
 
@@ -86,7 +68,6 @@ export default function Home() {
     };
     initialize();
 
-    const combinedNfts: NFT[] = [];
     if (travelData) {
       const travelNfts = (travelData as readonly { id: bigint; name: string; destination: string; image: string }[]).map(
         (item) => ({
@@ -97,22 +78,9 @@ export default function Home() {
           type: 'travel' as const,
         })
       );
-      combinedNfts.push(...travelNfts);
+      setNfts(travelNfts.slice(0, 3));
     }
-    if (musicData) {
-      const musicNfts = (musicData as readonly { id: bigint; name: string; image: string; animation_url: string }[]).map(
-        (item) => ({
-          id: item.id,
-          name: item.name,
-          image: item.image || '/images/screenshot3.png',
-          animation_url: item.animation_url,
-          type: 'music' as const,
-        })
-      );
-      combinedNfts.push(...musicNfts);
-    }
-    setNfts(combinedNfts.slice(0, 3));
-  }, [travelData, musicData]);
+  }, [travelData]);
 
   return (
     <WagmiConfig config={wagmiConfig}>
@@ -167,12 +135,8 @@ export default function Home() {
                           className="w-full rounded-lg"
                         />
                       )}
-                      {'animation_url' in nft && nft.animation_url && (
-                        <audio controls src={nft.animation_url} className="w-full mt-2" />
-                      )}
                       <p className="font-semibold">{nft.name}</p>
-                      {nft.type === 'travel' && 'destination' in nft && nft.destination && <p>{nft.destination}</p>}
-                      {nft.type === 'music' && <p>Music NFT</p>}
+                      {nft.type === 'travel' && nft.destination && <p>{nft.destination}</p>}
                     </CardContent>
                   </Card>
                 ))

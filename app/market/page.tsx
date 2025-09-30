@@ -4,26 +4,28 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
 import { WagmiConfig, useAccount, useWalletClient, useReadContract } from 'wagmi';
-import { Abi } from 'viem';
-import { farcaster } from '@farcaster/miniapp-wagmi-connector';
+import { Abi, defineChain } from 'viem';
+import farcaster from '@farcaster/miniapp-wagmi-connector';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 
 // Configure Wagmi for Monad chain
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_WALLET_CONNECT_PROJECT_ID';
-const chains = [
-  {
-    chainId: 10143,
-    name: 'Monad',
-    currency: 'MONAD',
-    explorerUrl: 'https://explorer.monad.xyz',
-    rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz',
+const monadChain = defineChain({
+  id: 10143,
+  name: 'Monad',
+  nativeCurrency: { name: 'MONAD', symbol: 'MONAD', decimals: 18 },
+  rpcUrls: {
+    default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz'] },
   },
-];
+  blockExplorers: {
+    default: { name: 'Monad Explorer', url: 'https://explorer.monad.xyz' },
+  },
+});
 
 const wagmiConfig = defaultWagmiConfig({
-  chains,
+  chains: [monadChain],
   projectId,
   metadata: {
     name: 'EmpowerTours',
@@ -34,7 +36,7 @@ const wagmiConfig = defaultWagmiConfig({
   connectors: [farcaster()],
 });
 
-createWeb3Modal({ wagmiConfig, projectId, chains });
+createWeb3Modal({ wagmiConfig, projectId });
 
 const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4b5b9f97682a4723ebfd0086c47c70b96478c';
 const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
@@ -60,10 +62,10 @@ export default function MarketPage() {
   const [price, setPrice] = useState('');
   const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
 
-  // Fetch available itineraries using useReadContract
+  // Fetch available itineraries
   const { data: travelData } = useReadContract({
     address: ITINERARY_MARKET_ADDRESS as `0x${string}`,
-    abi: ItineraryMarketABI.abi as Abi,
+    abi: ItineraryMarketABI as Abi,
     functionName: 'getAvailableItineraries',
     args: [],
   });
@@ -71,11 +73,11 @@ export default function MarketPage() {
   useEffect(() => {
     const init = async () => {
       if (walletClient) {
-        const provider = new ethers.BrowserProvider(walletClient); // No state for provider
+        const provider = new ethers.BrowserProvider(walletClient);
         const signer = await provider.getSigner();
-        const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI.abi, signer);
-        const toursContract = new ethers.Contract(TOURS_ADDRESS, ToursABI.abi, signer);
-        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI.abi, signer);
+        const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI, signer);
+        const toursContract = new ethers.Contract(TOURS_ADDRESS, ToursABI, signer);
+        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, signer);
         setItineraryContract(itineraryContract);
         setToursContract(toursContract);
         setPassportContract(passportContract);
@@ -93,7 +95,7 @@ export default function MarketPage() {
         id: itinerary.id,
         creator: itinerary.creator,
         description: itinerary.description,
-        price: ethers.formatEther(itinerary.price),
+        price: itinerary.price,
         isActive: itinerary.isActive,
       }));
       setItineraries(fetchedItineraries);
@@ -140,10 +142,10 @@ export default function MarketPage() {
     }
   };
 
-  const purchaseItinerary = async (id: number, price: string) => {
+  const purchaseItinerary = async (id: number, price: bigint) => {
     if (!itineraryContract || !toursContract) return;
     try {
-      await approveTokens(price);
+      await approveTokens(ethers.formatEther(price));
       const tx = await itineraryContract.purchaseItinerary(id);
       await tx.wait();
       alert('Itinerary purchased!');
@@ -203,7 +205,7 @@ export default function MarketPage() {
               <p>ID: {itinerary.id.toString()}</p>
               <p>Creator: {itinerary.creator}</p>
               <p>Description: {itinerary.description}</p>
-              <p>Price: {itinerary.price} TOURS</p>
+              <p>Price: {ethers.formatEther(itinerary.price)} TOURS</p>
               <p>Status: {itinerary.isActive ? 'Active' : 'Inactive'}</p>
               {itinerary.isActive && (
                 <button
