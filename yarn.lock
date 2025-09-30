@@ -3827,21 +3827,29 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react-dom@npm:^19.1.9":
-  version: 19.1.9
-  resolution: "@types/react-dom@npm:19.1.9"
-  peerDependencies:
-    "@types/react": ^19.0.0
-  checksum: 10c0/34c8dda86c1590b3ef0e7ecd38f9663a66ba2dd69113ba74fb0adc36b83bbfb8c94c1487a2505282a5f7e5e000d2ebf36f4c0fd41b3b672f5178fd1d4f1f8f58
+"@types/prop-types@npm:*":
+  version: 15.7.15
+  resolution: "@types/prop-types@npm:15.7.15"
+  checksum: 10c0/b59aad1ad19bf1733cf524fd4e618196c6c7690f48ee70a327eb450a42aab8e8a063fbe59ca0a5701aebe2d92d582292c0fb845ea57474f6a15f6994b0e260b2
   languageName: node
   linkType: hard
 
-"@types/react@npm:^19.1.16":
-  version: 19.1.16
-  resolution: "@types/react@npm:19.1.16"
+"@types/react-dom@npm:^18.3.7":
+  version: 18.3.7
+  resolution: "@types/react-dom@npm:18.3.7"
+  peerDependencies:
+    "@types/react": ^18.0.0
+  checksum: 10c0/8bd309e2c3d1604a28a736a24f96cbadf6c05d5288cfef8883b74f4054c961b6b3a5e997fd5686e492be903c8f3380dba5ec017eff3906b1256529cd2d39603e
+  languageName: node
+  linkType: hard
+
+"@types/react@npm:^18.3.25":
+  version: 18.3.25
+  resolution: "@types/react@npm:18.3.25"
   dependencies:
+    "@types/prop-types": "npm:*"
     csstype: "npm:^3.0.2"
-  checksum: 10c0/3d781f715f15f308b601d74142fae77c65679c318a3bb0a319df898f39095e738ba7ed7061cec971b19b6d33969ef9cd50fec92b034024ef3fcc25bb9a2eb3d0
+  checksum: 10c0/ef4fad7c845ce44cb454e47e826d1b04ff5081bccdac06d0260fc6e47de730268f8f9ff2ffc5085ee793d7466493c1175b2309b3d71c20916efefac0fd7612f1
   languageName: node
   linkType: hard
 
@@ -3856,6 +3864,13 @@ __metadata:
   version: 2.0.7
   resolution: "@types/trusted-types@npm:2.0.7"
   checksum: 10c0/4c4855f10de7c6c135e0d32ce462419d8abbbc33713b31d294596c0cc34ae1fa6112a2f9da729c8f7a20707782b0d69da3b1f8df6645b0366d08825ca1522e0c
+  languageName: node
+  linkType: hard
+
+"@types/use-sync-external-store@npm:^0.0.3":
+  version: 0.0.3
+  resolution: "@types/use-sync-external-store@npm:0.0.3"
+  checksum: 10c0/82824c1051ba40a00e3d47964cdf4546a224e95f172e15a9c62aa3f118acee1c7518b627a34f3aa87298a2039f982e8509f92bfcc18bea7c255c189c293ba547
   languageName: node
   linkType: hard
 
@@ -7832,6 +7847,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"immer@npm:^10.1.0":
+  version: 10.1.3
+  resolution: "immer@npm:10.1.3"
+  checksum: 10c0/b3929022c1999935c9c5e9491fce20d883c15a04072628056f3b8c51a63ac0876d1c1f25cec146e325c30c906bc7f15a636c29ed53156f0a3049150f152df4c8
+  languageName: node
+  linkType: hard
+
 "import-fresh@npm:^3.2.1":
   version: 3.3.1
   resolution: "import-fresh@npm:3.3.1"
@@ -9569,8 +9591,9 @@ __metadata:
     "@tanstack/query-core": "npm:^5.90.2"
     "@tanstack/react-query": "npm:^5.90.2"
     "@types/node": "npm:^20.17.5"
-    "@types/react": "npm:^19.1.16"
-    "@types/react-dom": "npm:^19.1.9"
+    "@types/react": "npm:^18.3.25"
+    "@types/react-dom": "npm:^18.3.7"
+    "@types/use-sync-external-store": "npm:^0.0.3"
     "@typescript-eslint/eslint-plugin": "npm:^8.45.0"
     "@typescript-eslint/parser": "npm:^8.45.0"
     "@upstash/redis": "npm:^1.35.1"
@@ -9589,6 +9612,7 @@ __metadata:
     eslint-config-next: "npm:^15.5.4"
     ethers: "npm:^6.15.0"
     framer-motion: "npm:^12.23.22"
+    immer: "npm:^10.1.0"
     ipfs-http-client: "npm:^60.0.1"
     localforage: "npm:^1.10.0"
     lucide-react: "npm:^0.544.0"
@@ -9600,16 +9624,18 @@ __metadata:
     react-dom: "npm:^18.3.1"
     sharp: "npm:^0.34.4"
     sonner: "npm:^2.0.7"
-    string-width: "npm:4.2.3"
-    strip-ansi: "npm:6.0.1"
+    string-width: "npm:^4.2.3"
+    strip-ansi: "npm:^6.0.1"
     tailwind-merge: "npm:^3.3.1"
     tailwindcss: "npm:^4.1.13"
     tailwindcss-animate: "npm:^1.0.7"
     tw-animate-css: "npm:^1.4.0"
     typescript: "npm:^5.9.2"
+    use-sync-external-store: "npm:^1.2.2"
+    valtio: "npm:^1.13.2"
     viem: "npm:^2.37.9"
     wagmi: "npm:^2.17.5"
-    yargs-parser: "npm:18.1.3"
+    yargs-parser: "npm:^18.1.3"
     zod: "npm:^3.24.1"
   languageName: unknown
   linkType: soft
@@ -10677,13 +10703,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"proxy-compare@npm:2.5.1":
-  version: 2.5.1
-  resolution: "proxy-compare@npm:2.5.1"
-  checksum: 10c0/116fc69ae9a6bb3654e6907fb09b73e84aa47c89275ca52648fc1d2ac8b35dbf54daa8bab078d7a735337c928e87eb52059e705434adf14989bbe6c5dcdd08fa
-  languageName: node
-  linkType: hard
-
 "proxy-compare@npm:2.6.0":
   version: 2.6.0
   resolution: "proxy-compare@npm:2.6.0"
@@ -10898,7 +10917,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:^18.3.1":
+"react@npm:18.3.1":
   version: 18.3.1
   resolution: "react@npm:18.3.1"
   dependencies:
@@ -11623,7 +11642,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"string-width-cjs@npm:string-width@^4.2.0, string-width@npm:4.2.3, string-width@npm:^4.1.0, string-width@npm:^4.2.0":
+"string-width-cjs@npm:string-width@^4.2.0, string-width@npm:^4.1.0, string-width@npm:^4.2.0, string-width@npm:^4.2.3":
   version: 4.2.3
   resolution: "string-width@npm:4.2.3"
   dependencies:
@@ -11750,7 +11769,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"strip-ansi-cjs@npm:strip-ansi@^6.0.1, strip-ansi@npm:6.0.1, strip-ansi@npm:^6.0.0, strip-ansi@npm:^6.0.1":
+"strip-ansi-cjs@npm:strip-ansi@^6.0.1, strip-ansi@npm:^6.0.0, strip-ansi@npm:^6.0.1":
   version: 6.0.1
   resolution: "strip-ansi@npm:6.0.1"
   dependencies:
@@ -12094,7 +12113,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.9.2":
+"typescript@npm:5.9.2":
   version: 5.9.2
   resolution: "typescript@npm:5.9.2"
   bin:
@@ -12104,7 +12123,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^5.9.2#optional!builtin<compat/typescript>":
+"typescript@patch:typescript@npm%3A5.9.2#optional!builtin<compat/typescript>":
   version: 5.9.2
   resolution: "typescript@patch:typescript@npm%3A5.9.2#optional!builtin<compat/typescript>::version=5.9.2&hash=8c6c40"
   bin:
@@ -12474,6 +12493,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"use-sync-external-store@npm:^1.2.2":
+  version: 1.5.0
+  resolution: "use-sync-external-store@npm:1.5.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/1b8663515c0be34fa653feb724fdcce3984037c78dd4a18f68b2c8be55cc1a1084c578d5b75f158d41b5ddffc2bf5600766d1af3c19c8e329bb20af2ec6f52f4
+  languageName: node
+  linkType: hard
+
 "utf-8-validate@npm:^5.0.2":
   version: 5.0.10
   resolution: "utf-8-validate@npm:5.0.10"
@@ -12526,24 +12554,6 @@ __metadata:
   bin:
     uuid: dist/bin/uuid
   checksum: 10c0/1607dd32ac7fc22f2d8f77051e6a64845c9bce5cd3dd8aa0070c074ec73e666a1f63c7b4e0f4bf2bc8b9d59dc85a15e17807446d9d2b17c8485fbc2147b27f9b
-  languageName: node
-  linkType: hard
-
-"valtio@npm:1.11.2":
-  version: 1.11.2
-  resolution: "valtio@npm:1.11.2"
-  dependencies:
-    proxy-compare: "npm:2.5.1"
-    use-sync-external-store: "npm:1.2.0"
-  peerDependencies:
-    "@types/react": ">=16.8"
-    react: ">=16.8"
-  peerDependenciesMeta:
-    "@types/react":
-      optional: true
-    react:
-      optional: true
-  checksum: 10c0/9ed337d1da4a3730d429b3415c2cb63340998000e62fb3e545e2fc05d27f55fc510abc89046d6719b4cae02742cdb733fe235bade90bfae50a0e13ece2287106
   languageName: node
   linkType: hard
 
@@ -12907,7 +12917,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yargs-parser@npm:18.1.3, yargs-parser@npm:^18.1.2":
+"yargs-parser@npm:^18.1.2, yargs-parser@npm:^18.1.3":
   version: 18.1.3
   resolution: "yargs-parser@npm:18.1.3"
   dependencies:
