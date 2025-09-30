@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
 import { WagmiConfig, useAccount, useWalletClient, useReadContract } from 'wagmi';
 import { Abi } from 'viem';
+import { farcaster } from '@farcaster/miniapp-wagmi-connector';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
@@ -17,7 +18,7 @@ const chains = [
     name: 'Monad',
     currency: 'MONAD',
     explorerUrl: 'https://explorer.monad.xyz',
-    rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz', // Replace with actual Monad RPC
+    rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz',
   },
 ];
 
@@ -30,6 +31,7 @@ const wagmiConfig = defaultWagmiConfig({
     url: 'https://yourapp.com',
     icons: ['https://yourapp.com/icon.png'],
   },
+  connectors: [farcaster()],
 });
 
 createWeb3Modal({ wagmiConfig, projectId, chains });
@@ -37,26 +39,26 @@ createWeb3Modal({ wagmiConfig, projectId, chains });
 const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4b5b9f97682a4723ebfd0086c47c70b96478c';
 const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
 const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b';
+const ESCROW_VAULT_ADDRESS = '0xdd57b4eae4f7285db943edce8777f082b2f02f79';
 
 interface Itinerary {
-  id: number;
+  id: bigint;
   creator: string;
   description: string;
-  price: string;
+  price: bigint;
   isActive: boolean;
 }
 
 export default function MarketPage() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [itineraryContract, setItineraryContract] = useState<ethers.Contract | null>(null);
   const [toursContract, setToursContract] = useState<ethers.Contract | null>(null);
   const [passportContract, setPassportContract] = useState<ethers.Contract | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
-  const [ownedPassports, setOwnedPassports] = useState<number[]>([]);
+  const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
 
   // Fetch available itineraries using useReadContract
   const { data: travelData } = useReadContract({
@@ -69,8 +71,7 @@ export default function MarketPage() {
   useEffect(() => {
     const init = async () => {
       if (walletClient) {
-        const provider = new ethers.BrowserProvider(walletClient);
-        setProvider(provider);
+        const provider = new ethers.BrowserProvider(walletClient); // No state for provider
         const signer = await provider.getSigner();
         const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI.abi, signer);
         const toursContract = new ethers.Contract(TOURS_ADDRESS, ToursABI.abi, signer);
@@ -88,8 +89,8 @@ export default function MarketPage() {
 
   useEffect(() => {
     if (travelData) {
-      const fetchedItineraries = (travelData as any[]).map((itinerary: any) => ({
-        id: Number(itinerary.id),
+      const fetchedItineraries = (travelData as readonly Itinerary[]).map((itinerary: Itinerary) => ({
+        id: itinerary.id,
         creator: itinerary.creator,
         description: itinerary.description,
         price: ethers.formatEther(itinerary.price),
@@ -102,10 +103,10 @@ export default function MarketPage() {
   const fetchOwnedPassports = async (contract: ethers.Contract, userAddress: string) => {
     try {
       const balance = await contract.balanceOf(userAddress);
-      const tokenIds: number[] = [];
-      for (let i = 0; i < balance; i++) {
+      const tokenIds: bigint[] = [];
+      for (let i = 0; i < Number(balance); i++) {
         const tokenId = await contract.tokenOfOwnerByIndex(userAddress, i);
-        tokenIds.push(Number(tokenId));
+        tokenIds.push(tokenId);
       }
       setOwnedPassports(tokenIds);
     } catch (error) {
@@ -114,9 +115,9 @@ export default function MarketPage() {
   };
 
   const approveTokens = async (amount: string) => {
-    if (!toursContract || !itineraryContract) return;
+    if (!toursContract) return;
     try {
-      const tx = await toursContract.approve(ITINERARY_MARKET_ADDRESS, ethers.parseEther(amount));
+      const tx = await toursContract.approve(ESCROW_VAULT_ADDRESS, ethers.parseEther(amount));
       await tx.wait();
       alert('Tokens approved for spending!');
     } catch (error) {
@@ -157,7 +158,7 @@ export default function MarketPage() {
 
   return (
     <WagmiConfig config={wagmiConfig}>
-      <div className="container">
+      <div style={containerStyle}>
         <h1>EmpowerTours Marketplace</h1>
         {isConnected ? (
           <p>Connected: {address}</p>
@@ -171,14 +172,16 @@ export default function MarketPage() {
           placeholder="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          style={inputStyle}
         />
         <input
           type="text"
           placeholder="Price (TOURS)"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
+          style={inputStyle}
         />
-        <button onClick={createItinerary} disabled={!isConnected}>
+        <button onClick={createItinerary} disabled={!isConnected} style={buttonStyle}>
           Create Itinerary
         </button>
 
@@ -186,7 +189,7 @@ export default function MarketPage() {
         {ownedPassports.length > 0 ? (
           <ul>
             {ownedPassports.map((tokenId) => (
-              <li key={tokenId}>Passport NFT #{tokenId}</li>
+              <li key={tokenId.toString()}>Passport NFT #{tokenId.toString()}</li>
             ))}
           </ul>
         ) : (
@@ -196,16 +199,17 @@ export default function MarketPage() {
         <h2>Available Itineraries</h2>
         <ul>
           {itineraries.map((itinerary) => (
-            <li key={itinerary.id} className="itinerary">
-              <p>ID: {itinerary.id}</p>
+            <li key={itinerary.id.toString()} style={itineraryStyle}>
+              <p>ID: {itinerary.id.toString()}</p>
               <p>Creator: {itinerary.creator}</p>
               <p>Description: {itinerary.description}</p>
               <p>Price: {itinerary.price} TOURS</p>
               <p>Status: {itinerary.isActive ? 'Active' : 'Inactive'}</p>
               {itinerary.isActive && (
                 <button
-                  onClick={() => purchaseItinerary(itinerary.id, itinerary.price)}
+                  onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
                   disabled={!isConnected}
+                  style={buttonStyle}
                 >
                   Purchase
                 </button>
@@ -214,27 +218,28 @@ export default function MarketPage() {
           ))}
         </ul>
       </div>
-
-      <style jsx>{`
-        .container {
-          padding: 20px;
-          max-width: 800px;
-          margin: 0 auto;
-        }
-        .itinerary {
-          border: 1px solid #ccc;
-          padding: 10px;
-          margin: 10px 0;
-        }
-        input {
-          margin: 10px;
-          padding: 5px;
-        }
-        button {
-          padding: 5px 10px;
-          margin: 5px;
-        }
-      `}</style>
     </WagmiConfig>
   );
 }
+
+const containerStyle: React.CSSProperties = {
+  padding: '20px',
+  maxWidth: '800px',
+  margin: '0 auto',
+};
+
+const itineraryStyle: React.CSSProperties = {
+  border: '1px solid #ccc',
+  padding: '10px',
+  margin: '10px 0',
+};
+
+const inputStyle: React.CSSProperties = {
+  margin: '10px',
+  padding: '5px',
+};
+
+const buttonStyle: React.CSSProperties = {
+  padding: '5px 10px',
+  margin: '5px',
+};
