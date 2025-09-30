@@ -1,48 +1,81 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useReadContract } from 'wagmi';
+import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
+import { WagmiConfig, useReadContract } from 'wagmi';
+import { Abi } from 'viem';
+import { farcaster } from '@farcaster/miniapp-wagmi-connector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { sdk } from '@farcaster/miniapp-sdk';
 import BottomNav from '@/components/BottomNav';
+import ItineraryMarketABI from '../lib/abis/ItineraryMarket.json';
+import MusicNFTABI from '../lib/abis/MusicNFT.json';
 
-interface NFT {
-  id: string;
+// Configure Wagmi for Monad chain
+const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_WALLET_CONNECT_PROJECT_ID';
+const chains = [
+  {
+    chainId: 10143,
+    name: 'Monad',
+    currency: 'MONAD',
+    explorerUrl: 'https://explorer.monad.xyz',
+    rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz',
+  },
+];
+
+const wagmiConfig = defaultWagmiConfig({
+  chains,
+  projectId,
+  metadata: {
+    name: 'EmpowerTours',
+    description: 'Travel Itinerary Marketplace',
+    url: 'https://yourapp.com',
+    icons: ['https://yourapp.com/icon.png'],
+  },
+  connectors: [farcaster()],
+});
+
+createWeb3Modal({ wagmiConfig, projectId, chains });
+
+const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4b5b9f97682a4723ebfd0086c47c70b96478c';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS || '0xYOUR_MUSIC_NFT_ADDRESS'; // Replace with actual address
+
+interface TravelNFT {
+  id: bigint;
   name: string;
-  destination?: string;
-  image?: string;
-  animation_url?: string;
-  type: 'travel' | 'music';
+  destination: string;
+  image: string;
+  type: 'travel';
 }
+
+interface MusicNFT {
+  id: bigint;
+  name: string;
+  image: string;
+  animation_url: string;
+  type: 'music';
+}
+
+type NFT = TravelNFT | MusicNFT;
 
 export default function Home() {
   const [nfts, setNfts] = useState<NFT[]>([]);
-  const [passportAbi, setPassportAbi] = useState<unknown>(null);
-  const [musicAbi, setMusicAbi] = useState<unknown>(null);
   const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-  useEffect(() => {
-    async function loadAbis() {
-      const passport = (await import('@/lib/abis/PassportNFT.json')).default;
-      const music = (await import('@/lib/abis/MusicNFT.json')).default;
-      setPassportAbi(passport);
-      setMusicAbi(music);
-    }
-    loadAbis();
-  }, []);
-
+  // Fetch available itineraries
   const { data: travelData } = useReadContract({
-    address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
-    abi: passportAbi,
+    address: ITINERARY_MARKET_ADDRESS as `0x${string}`,
+    abi: ItineraryMarketABI.abi as Abi,
     functionName: 'getAvailableItineraries',
     args: [],
   });
 
+  // Fetch available music NFTs
   const { data: musicData } = useReadContract({
-    address: process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS as `0x${string}`,
-    abi: musicAbi,
+    address: MUSIC_NFT_ADDRESS as `0x${string}`,
+    abi: MusicNFTABI.abi as Abi,
     functionName: 'getAvailableMusicNfts',
     args: [],
   });
@@ -55,30 +88,34 @@ export default function Home() {
 
     const combinedNfts: NFT[] = [];
     if (travelData) {
-      const travelNfts = (travelData as { id: bigint; name: string; destination: string; image: string }[]).map((item) => ({
-        id: item.id.toString(),
-        name: item.name || item.destination,
-        destination: item.destination,
-        image: item.image || '/images/screenshot3.png',
-        type: 'travel' as const,
-      }));
+      const travelNfts = (travelData as readonly { id: bigint; name: string; destination: string; image: string }[]).map(
+        (item) => ({
+          id: item.id,
+          name: item.name || item.destination,
+          destination: item.destination,
+          image: item.image || '/images/screenshot3.png',
+          type: 'travel' as const,
+        })
+      );
       combinedNfts.push(...travelNfts);
     }
     if (musicData) {
-      const musicNfts = (musicData as { id: bigint; name: string; image: string; animation_url: string }[]).map((item) => ({
-        id: item.id.toString(),
-        name: item.name,
-        image: item.image || '/images/screenshot3.png',
-        animation_url: item.animation_url,
-        type: 'music' as const,
-      }));
+      const musicNfts = (musicData as readonly { id: bigint; name: string; image: string; animation_url: string }[]).map(
+        (item) => ({
+          id: item.id,
+          name: item.name,
+          image: item.image || '/images/screenshot3.png',
+          animation_url: item.animation_url,
+          type: 'music' as const,
+        })
+      );
       combinedNfts.push(...musicNfts);
     }
     setNfts(combinedNfts.slice(0, 3));
   }, [travelData, musicData]);
 
   return (
-    <>
+    <WagmiConfig config={wagmiConfig}>
       <head>
         <meta
           name="fc:miniapp"
@@ -130,11 +167,11 @@ export default function Home() {
                           className="w-full rounded-lg"
                         />
                       )}
-                      {nft.animation_url && (
+                      {'animation_url' in nft && nft.animation_url && (
                         <audio controls src={nft.animation_url} className="w-full mt-2" />
                       )}
                       <p className="font-semibold">{nft.name}</p>
-                      {nft.type === 'travel' && nft.destination && <p>{nft.destination}</p>}
+                      {nft.type === 'travel' && 'destination' in nft && nft.destination && <p>{nft.destination}</p>}
                       {nft.type === 'music' && <p>Music NFT</p>}
                     </CardContent>
                   </Card>
@@ -151,6 +188,6 @@ export default function Home() {
         </Card>
         <BottomNav />
       </div>
-    </>
+    </WagmiConfig>
   );
 }
