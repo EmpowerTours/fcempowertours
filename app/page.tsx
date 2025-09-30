@@ -28,7 +28,6 @@ export default function Home() {
       if (!address) return;
       setLoading(true);
       try {
-        // Fetch Transfer events to/from the connected address
         const transferLogs = await publicClient.getLogs({
           address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
           event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
@@ -37,45 +36,47 @@ export default function Home() {
         });
 
         const nftList: NFT[] = [];
-        // Process each Transfer event to get token IDs
         for (const log of transferLogs) {
           const tokenId = Number(log.args.tokenId);
-          // Verify the token still exists and is owned by the address
-          const owner = await publicClient.readContract({
-            address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
-            abi: MusicNFT,
-            functionName: 'ownerOf',
-            args: [BigInt(tokenId)],
-          }) as `0x${string}`;
+          try {
+            const owner = await publicClient.readContract({
+              address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
+              abi: MusicNFT,
+              functionName: 'ownerOf',
+              args: [BigInt(tokenId)],
+            }) as `0x${string}`;
 
-          if (owner.toLowerCase() === address.toLowerCase()) {
-            const [coverArt, expiry, resalePrice] = await Promise.all([
-              publicClient.readContract({
-                address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
-                abi: MusicNFT,
-                functionName: 'getCoverArt',
-                args: [BigInt(tokenId)],
-              }) as string,
-              publicClient.readContract({
-                address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
-                abi: MusicNFT,
-                functionName: 'getExpiry',
-                args: [BigInt(tokenId)],
-              }) as bigint,
-              publicClient.readContract({
-                address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
-                abi: MusicNFT,
-                functionName: 'resalePrice',
-                args: [BigInt(tokenId)],
-              }) as bigint,
-            ]);
+            if (owner.toLowerCase() === address.toLowerCase()) {
+              const [coverArt, expiry, resalePrice] = await Promise.all([
+                publicClient.readContract({
+                  address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
+                  abi: MusicNFT,
+                  functionName: 'getCoverArt',
+                  args: [BigInt(tokenId)],
+                }) as string,
+                publicClient.readContract({
+                  address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
+                  abi: MusicNFT,
+                  functionName: 'getExpiry',
+                  args: [BigInt(tokenId)],
+                }) as bigint,
+                publicClient.readContract({
+                  address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
+                  abi: MusicNFT,
+                  functionName: 'resalePrice',
+                  args: [BigInt(tokenId)],
+                }) as bigint,
+              ]);
 
-            nftList.push({
-              tokenId,
-              coverArt,
-              expiry: Number(expiry),
-              resalePrice,
-            });
+              nftList.push({
+                tokenId,
+                coverArt,
+                expiry: Number(expiry),
+                resalePrice,
+              });
+            }
+          } catch (error) {
+            console.error(`Error processing tokenId ${tokenId}:`, error);
           }
         }
         setNfts(nftList);
