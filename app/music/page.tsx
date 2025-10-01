@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useSwitchChain, useConnect, useAccount } from "wagmi";
-import { InjectedConnector } from "wagmi/connectors/injected";
+import { InjectedConnector } from "@wagmi/core/connectors/injected";
 
 export default function MusicPage() {
   const { connect } = useConnect({ connector: new InjectedConnector() });
