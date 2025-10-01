@@ -2,41 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
-import { WagmiConfig, useAccount, useWalletClient, useReadContract } from 'wagmi';
-import { Abi, defineChain } from 'viem';
-import farcaster from '@farcaster/miniapp-wagmi-connector';
+import { useAccount, useWalletClient, useReadContract } from 'wagmi';
+import { Abi } from 'viem';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
-
-// Configure Wagmi for Monad chain
-const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_WALLET_CONNECT_PROJECT_ID';
-const monadChain = defineChain({
-  id: 10143,
-  name: 'Monad',
-  nativeCurrency: { name: 'MONAD', symbol: 'MONAD', decimals: 18 },
-  rpcUrls: {
-    default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC_URL || 'https://rpc.monad.xyz'] },
-  },
-  blockExplorers: {
-    default: { name: 'Monad Explorer', url: 'https://explorer.monad.xyz' },
-  },
-});
-
-const wagmiConfig = defaultWagmiConfig({
-  chains: [monadChain],
-  projectId,
-  metadata: {
-    name: 'EmpowerTours',
-    description: 'Travel Itinerary Marketplace',
-    url: 'https://yourapp.com',
-    icons: ['https://yourapp.com/icon.png'],
-  },
-  connectors: [farcaster()],
-});
-
-createWeb3Modal({ wagmiConfig, projectId });
 
 const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4b5b9f97682a4723ebfd0086c47c70b96478c';
 const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
@@ -65,7 +35,7 @@ export default function MarketPage() {
   // Fetch available itineraries
   const { data: travelData } = useReadContract({
     address: ITINERARY_MARKET_ADDRESS as `0x${string}`,
-    abi: ItineraryMarketABI as Abi,
+    abi: ItineraryMarketABI as unknown as Abi,  // Cast to fix TS mismatch
     functionName: 'getAvailableItineraries',
     args: [],
   });
@@ -159,68 +129,66 @@ export default function MarketPage() {
   };
 
   return (
-    <WagmiConfig config={wagmiConfig}>
-      <div style={containerStyle}>
-        <h1>EmpowerTours Marketplace</h1>
-        {isConnected ? (
-          <p>Connected: {address}</p>
-        ) : (
-          <w3m-button label="Connect Wallet" />
-        )}
+    <div style={containerStyle}>
+      <h1>EmpowerTours Marketplace</h1>
+      {isConnected ? (
+        <p>Connected: {address}</p>
+      ) : (
+        <w3m-button label="Connect Wallet" />
+      )}
 
-        <h2>Create Itinerary</h2>
-        <input
-          type="text"
-          placeholder="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          style={inputStyle}
-        />
-        <input
-          type="text"
-          placeholder="Price (TOURS)"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          style={inputStyle}
-        />
-        <button onClick={createItinerary} disabled={!isConnected} style={buttonStyle}>
-          Create Itinerary
-        </button>
+      <h2>Create Itinerary</h2>
+      <input
+        type="text"
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        style={inputStyle}
+      />
+      <input
+        type="text"
+        placeholder="Price (TOURS)"
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        style={inputStyle}
+      />
+      <button onClick={createItinerary} disabled={!isConnected} style={buttonStyle}>
+        Create Itinerary
+      </button>
 
-        <h2>Your Passports</h2>
-        {ownedPassports.length > 0 ? (
-          <ul>
-            {ownedPassports.map((tokenId) => (
-              <li key={tokenId.toString()}>Passport NFT #{tokenId.toString()}</li>
-            ))}
-          </ul>
-        ) : (
-          <p>No passports owned</p>
-        )}
-
-        <h2>Available Itineraries</h2>
+      <h2>Your Passports</h2>
+      {ownedPassports.length > 0 ? (
         <ul>
-          {itineraries.map((itinerary) => (
-            <li key={itinerary.id.toString()} style={itineraryStyle}>
-              <p>ID: {itinerary.id.toString()}</p>
-              <p>Creator: {itinerary.creator}</p>
-              <p>Description: {itinerary.description}</p>
-              <p>Price: {ethers.formatEther(itinerary.price)} TOURS</p>
-              <p>Status: {itinerary.isActive ? 'Active' : 'Inactive'}</p>
-              {itinerary.isActive && (
-                <button
-                  onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
-                  disabled={!isConnected}
-                  style={buttonStyle}
-                >
-                  Purchase
-                </button>
-              )}
-            </li>
+          {ownedPassports.map((tokenId) => (
+            <li key={tokenId.toString()}>Passport NFT #{tokenId.toString()}</li>
           ))}
         </ul>
-      </div>
-    </WagmiConfig>
+      ) : (
+        <p>No passports owned</p>
+      )}
+
+      <h2>Available Itineraries</h2>
+      <ul>
+        {itineraries.map((itinerary) => (
+          <li key={itinerary.id.toString()} style={itineraryStyle}>
+            <p>ID: {itinerary.id.toString()}</p>
+            <p>Creator: {itinerary.creator}</p>
+            <p>Description: {itinerary.description}</p>
+            <p>Price: {ethers.formatEther(itinerary.price)} TOURS</p>
+            <p>Status: {itinerary.isActive ? 'Active' : 'Inactive'}</p>
+            {itinerary.isActive && (
+              <button
+                onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
+                disabled={!isConnected}
+                style={buttonStyle}
+              >
+                Purchase
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
