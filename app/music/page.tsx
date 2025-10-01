@@ -1,41 +1,71 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSwitchChain, useConnect, useAccount } from "wagmi";
-import { injected } from 'wagmi/connectors'
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 
 export default function MusicPage() {
-  const { connect } = useConnect({ connector: new InjectedConnector() });
+  const { connect, connectors, status, error } = useConnect();
   const { isConnected, address } = useAccount();
+  const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
 
   useEffect(() => {
     if (isConnected) {
-      switchChain({ chainId: 10143 }); // Monad testnet
+      // Automatically switch to Monad testnet (10143) if connected
+      switchChain({ chainId: 10143 }).catch(() => {
+        console.warn("Could not switch chain automatically. Please switch manually in your wallet.");
+      });
     }
   }, [isConnected, switchChain]);
 
   return (
-    <div>
-      <h1>Music Page</h1>
+    <div style={{ padding: "20px" }}>
+      <h1>🎵 Music Page</h1>
+
       {isConnected ? (
-        <p>Connected: {address}</p>
+        <div>
+          <p>✅ Connected: {address}</p>
+          <button
+            onClick={() => disconnect()}
+            style={{
+              padding: "10px 20px",
+              borderRadius: "8px",
+              background: "#E53935",
+              color: "#fff",
+              cursor: "pointer",
+              marginTop: "10px",
+            }}
+          >
+            Disconnect Wallet
+          </button>
+        </div>
       ) : (
-        <button
-          onClick={() => connect()}
-          style={{
-            padding: "10px 20px",
-            borderRadius: "8px",
-            background: "#4CAF50",
-            color: "#fff",
-            cursor: "pointer",
-            marginTop: "10px"
-          }}
-        >
-          Connect Wallet
-        </button>
+        <div>
+          {connectors.map((connector) => (
+            <button
+              key={connector.uid}
+              onClick={() => connect({ connector })}
+              disabled={!connector.ready}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                background: "#4CAF50",
+                color: "#fff",
+                cursor: "pointer",
+                margin: "5px 0",
+              }}
+            >
+              Connect with {connector.name}
+            </button>
+          ))}
+          {status === "connecting" && <p>🔄 Connecting...</p>}
+          {error && <p style={{ color: "red" }}>⚠️ {error.message}</p>}
+        </div>
       )}
-      <p>Mint NFTs to treasury: 0x5fE8373C839948bFCB707A8a8A75A16E2634A725</p>
+
+      <p style={{ marginTop: "20px" }}>
+        Mint NFTs to treasury: <b>0x5fE8373C839948bFCB707A8a8A75A16E2634A725</b>
+      </p>
     </div>
   );
 }

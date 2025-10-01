@@ -1,11 +1,14 @@
-module.exports = {
-  experimental: {
-    cpus: 2,
-  },
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   webpack: (config) => {
-    config.externals.push('pino-pretty', 'encoding');
-    config.resolve.alias['@react-native-async-storage/async-storage'] = 'localforage';
+    // Prevent React Native and Node-only packages from breaking the web build
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      '@react-native-async-storage/async-storage': false,
+      'pino-pretty': false,
+    };
     return config;
   },
-  output: 'standalone',  // For serverless compatibility
 };
+
+module.exports = nextConfig;

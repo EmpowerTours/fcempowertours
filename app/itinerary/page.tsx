@@ -39,9 +39,9 @@ export default function ItineraryPage() {
   const handleSaveDraft = async () => {
     const key = await generateKey();
     const data = { destination, interests, climbingPhoto, climbingGrade };
-    const { iv, encrypted } = await encryptData(data, key);
-    await saveItineraryDraft('draft-1', { iv, encrypted, data });
-    toast('Draft Saved', { description: 'Itinerary saved locally.' });
+      const { iv, encrypted } = await encryptData(JSON.stringify(data), key);
+      await saveItineraryDraft('draft-1', { iv, encrypted, data });
+      toast('Draft Saved', { description: 'Itinerary saved locally.' });
   };
 
   const handleMintStamp = async () => {
