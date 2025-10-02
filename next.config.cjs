@@ -1,13 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
-    ignoreBuildErrors: true,  // Temp: Skips TS too for clean builds
+    ignoreBuildErrors: false,
   },
-  webpack: (config) => {
-    // Prevent React Native and Node-only packages from breaking the web build
+  experimental: {
+    serverComponentsExternalPackages: ['undici'],  // Keep for any IPFS remnants
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Client-side: Stub Node modules to prevent bundling errors
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
     config.resolve.fallback = {
       ...config.resolve.fallback,
       '@react-native-async-storage/async-storage': false,

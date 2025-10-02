@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import React from 'react';
 import { ethers } from 'ethers';
 import { useAccount, useWalletClient, useReadContract } from 'wagmi';
 import { Abi } from 'viem';

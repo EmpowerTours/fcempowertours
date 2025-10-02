@@ -1,5 +1,5 @@
-const axios = require('axios');
-require('dotenv').config({ path: '.env.local' });
+import axios from 'axios';
+import 'dotenv/config';  // ESM version of dotenv
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -11,7 +11,7 @@ async function testGemini() {
 
   try {
     const response = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + GEMINI_API_KEY,  // Append key to URL for simplicity
       {
         contents: [
           {
@@ -24,7 +24,6 @@ async function testGemini() {
       {
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
         }
       }
     );
@@ -43,4 +42,3 @@ async function testGemini() {
 }
 
 testGemini();
-

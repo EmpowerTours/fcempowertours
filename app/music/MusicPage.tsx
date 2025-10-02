@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useState, useEffect } from 'react';
+import { useAccount, useWriteContract, useSwitchChain } from 'wagmi';
 import { Abi } from 'viem';
 import { create } from 'ipfs-http-client';
 import { sdk } from '@farcaster/miniapp-sdk';
@@ -16,10 +16,25 @@ const MUSIC_NFT_ADDRESS = '0x53f8650e96d47338b1106a085b3804e77f92d9ca';
 export default function MusicPage() {
   const { address, isConnected } = useAccount();
   const { writeContract, isPending } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();  // Use async version
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
+
+  // Auto-switch to Monad testnet on connect
+  useEffect(() => {
+    const autoSwitchChain = async () => {
+      if (isConnected) {
+        try {
+          await switchChainAsync({ chainId: 10143 });
+        } catch {
+          console.warn("Could not switch chain automatically. Please switch manually in your wallet.");
+        }
+      }
+    };
+    autoSwitchChain();
+  }, [isConnected, switchChainAsync]);
 
   const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setAudioFile(e.target.files[0]);
@@ -146,7 +161,7 @@ export default function MusicPage() {
       </button>
 
       {(uploading || isPending) && <p>Processing... (IPFS then blockchain)</p>}
-      <p><small>Tip: Use short audio (<30s) to save gas on preview bytes.</small></p>
+      <p><small>Tip: Use short audio (&lt;30s) to save gas on preview bytes.</small></p>
     </div>
   );
 }

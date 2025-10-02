@@ -1,7 +1,6 @@
 "use client";
 
 import { http, createConfig } from "wagmi";
-import { monadTestnet } from "wagmi/chains"; 
 import { injected } from "wagmi/connectors";
 
 // ⚡ If wagmi doesn’t ship monadTestnet yet, we can define it manually:

@@ -12,7 +12,6 @@ export async function GET(request: NextRequest) {
 
     return new ImageResponse(
       (
-        // eslint-disable-next-line @next/next/no-img-element
         <div
           style={{
             display: 'flex',
@@ -26,6 +25,7 @@ export async function GET(request: NextRequest) {
             fontFamily: 'Arial, sans-serif',
           }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`${appUrl}/images/feed.png`}
             alt="EmpowerTours Feed"

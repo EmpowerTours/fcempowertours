@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import { Metadata } from 'next';  // Import for typing
 
 export const metadata: Metadata = {
-  metadataBase: new URL('http://localhost:3000'),  // Update to prod URL on deploy
+  metadataBase: new URL(''),  // Update to prod URL on deploy
   title: "EmpowerTours",
   description: "Farcaster Mini App for Hackathon",
 };

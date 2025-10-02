@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { useAccount } from 'wagmi';
 import { monadTestnet } from './chains';
@@ -53,19 +54,19 @@ export default function Home() {
                   abi: MusicNFT,
                   functionName: 'getCoverArt',
                   args: [BigInt(tokenId)],
-                }) as string,
+                }) as Promise<string>,
                 publicClient.readContract({
                   address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
                   abi: MusicNFT,
                   functionName: 'getExpiry',
                   args: [BigInt(tokenId)],
-                }) as bigint,
+                }) as Promise<bigint>,
                 publicClient.readContract({
                   address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
                   abi: MusicNFT,
                   functionName: 'resalePrice',
                   args: [BigInt(tokenId)],
-                }) as bigint,
+                }) as Promise<bigint>,
               ]);
 
               nftList.push({
@@ -104,9 +105,15 @@ export default function Home() {
               {nfts.map((nft) => (
                 <li key={nft.tokenId}>
                   <p>Token ID: {nft.tokenId}</p>
-                  <img src={nft.coverArt} alt="NFT Cover Art" style={{ maxWidth: '200px' }} />
+                  <Image
+                    src={nft.coverArt}
+                    alt="NFT Cover Art"
+                    width={200}
+                    height={200}
+                    style={{ maxWidth: '200px' }}
+                  />
                   <p>Expiry: {new Date(nft.expiry * 1000).toLocaleDateString()}</p>
-                  <p>Resale Price: {nft.resalePrice > 0 ? `${nft.resalePrice} Wei` : 'Not listed'}</p>
+                  <p>Resale Price: {nft.resalePrice > BigInt(0) ? `${nft.resalePrice} Wei` : 'Not listed'}</p>
                 </li>
               ))}
             </ul>
