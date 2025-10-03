@@ -2,9 +2,9 @@
 "frame": {
 "name": "EmpowerTours",
 "version": "1",
-"iconUrl": "https://fcempowertours-production-6551.up.railway.app/icon.png",
+"iconUrl": "https://fcempowertours-production-6551.up.railway.app/images/icon.png",
 "homeUrl": "https://fcempowertours-production-6551.up.railway.app",
-"imageUrl": "https://fcempowertours-production-6551.up.railway.app/image.png",
+"imageUrl": "https://fcempowertours-production-6551.up.railway.app/images/feed.png",
 "buttonTitle": "EmpowerTours",
 "splashImageUrl": "https://fcempowertours-production-6551.up.railway.app/images/splash.png",
 "splashBackgroundColor": "#353B48",
@@ -15,7 +15,7 @@
 "screenshotUrls": [
 "https://fcempowertours-production-6551.up.railway.app/images/screenshot1.png"
 ],
-"heroImageUrl": "https://fcempowertours-production-6551.up.railway.app/images/feed.png",
+"heroImageUrl": "https://fcempowertours-production-6551.up.railway.app/images/hero.png",
 "tags": [
 "travel",
 "music",

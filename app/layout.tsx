@@ -1,15 +1,22 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect } from 'react';
+import { sdk } from '@farcaster/miniapp-sdk';
+import { Providers } from "./providers";  // If missing, create as below or remove if not needed
 import "./globals.css";
-import { Providers } from "./providers";
-import { Metadata } from 'next';  // Import for typing
+import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('http://localhost:3000'),  // Update to prod URL on deploy
+  metadataBase: new URL('http://localhost:3000'),
   title: "EmpowerTours",
   description: "Farcaster Mini App for Hackathon",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    sdk.actions.ready().catch(console.error);  // Hide splash
+  }, []);
+
   return (
     <html lang="en">
       <body>

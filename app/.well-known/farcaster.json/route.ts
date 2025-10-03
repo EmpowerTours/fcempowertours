@@ -6,9 +6,9 @@ export async function GET() {
     frame: {
       name: "EmpowerTours",
       version: "1",
-      iconUrl: `${APP_URL}/icon.png`,
+      iconUrl: `${APP_URL}/images/icon.png`,
       homeUrl: `${APP_URL}`,
-      imageUrl: `${APP_URL}/image.png`,
+      imageUrl: `${APP_URL}/images/feed.png`,
       buttonTitle: "EmpowerTours",
       splashImageUrl: `${APP_URL}/images/splash.png`,
       splashBackgroundColor: "#353B48",
@@ -19,7 +19,7 @@ export async function GET() {
       screenshotUrls: [
         `${APP_URL}/images/screenshot1.png`
       ],
-      heroImageUrl: `${APP_URL}/images/feed.png`,
+      heroImageUrl: `${APP_URL}/images/hero.png`,
       tags: [
         "travel",
         "music",
