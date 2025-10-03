@@ -1,18 +1,15 @@
 'use client';
-
 import React, { useEffect, useState } from 'react';
-import { WagmiProvider, defaultWagmiConfig } from 'wagmi';
+import { WagmiProvider, type Config } from 'wagmi'; // Import Config type
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { defineChain } from 'viem';
-import { Web3Modal } from '@web3modal/wagmi/react';
+import { createWeb3Modal } from '@web3modal/wagmi/react'; // Add this for v5 modal init
+import { defaultWagmiConfig } from '@web3modal/wagmi/react/config'; // Correct v5 import
 import { sdk } from '@farcaster/miniapp-sdk';
-
 const queryClient = new QueryClient();
-
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  const [config, setConfig] = useState<any>(null);
-
+  const [config, setConfig] = useState<Config | null>(null); // Use Config type instead of any
   useEffect(() => {
     async function initConfig() {
       const { farcasterMiniApp } = await import('@farcaster/miniapp-wagmi-connector');
@@ -36,24 +33,26 @@ export function Providers({ children }: { children: React.ReactNode }) {
         connectors: [farcasterMiniApp()],
       });
       setConfig(wagmiConfig);
+      // Init modal here (replaces <Web3Modal /> in v5)
+      createWeb3Modal({
+        wagmiConfig,
+        projectId,
+        // Optional: add other options if needed, e.g., themeMode: 'light'
+      });
       setMounted(true);
     }
     initConfig();
   }, []);
-
   useEffect(() => {
     if (mounted) {
-      sdk.actions.ready().catch(console.error);  // Hide splash here
+      sdk.actions.ready().catch(console.error); // Hide splash here
     }
   }, [mounted]);
-
   if (!mounted || !config) return null;
-
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         {children}
-        <Web3Modal wagmiConfig={config} projectId={process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || ''} />
       </QueryClientProvider>
     </WagmiProvider>
   );

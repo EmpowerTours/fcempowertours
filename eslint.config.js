@@ -4,6 +4,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import { FlatCompat } from '@eslint/eslintrc';
 import nextPlugin from '@next/eslint-plugin-next';
+import globals from 'globals'; // Add this import if not already there (it's in devDeps)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,10 +13,9 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all,
 });
-
 export default tseslint.config(
   { ignores: ['.next/**', 'node_modules/**', 'dist/**', 'next-env.d.ts'] },
-  ...compat.extends('plugin:@next/next/recommended'),  // Use direct Next plugin
+  ...compat.extends('plugin:@next/next/recommended'), // Use direct Next plugin
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -28,6 +28,8 @@ export default tseslint.config(
     },
     languageOptions: {
       globals: {
+        ...globals.browser, // Add this: fixes browser globals like fetch, URL, File, setTimeout, localStorage, alert, HTMLInputElement, etc.
+        ...globals.node,    // Add this: fixes node globals like process, console, crypto, TextEncoder, etc.
         __REACT_DEVTOOLS_GLOBAL_HOOK__: 'readonly',
         _N_E: 'readonly',
         MSApp: 'readonly',

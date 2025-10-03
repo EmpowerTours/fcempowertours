@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { createPublicClient, http, parseAbiItem } from 'viem';
@@ -7,44 +6,37 @@ import { useAccount, useReadContract } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { monadTestnet } from './chains';
 import MusicNFT from '../lib/abis/MusicNFT.json';
-import PassportNFTABI from '../lib/abis/PassportNFT.json';  // Add for passport balance check
-
+import PassportNFTABI from '../lib/abis/PassportNFT.json'; // Add for passport balance check
 const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
-
 interface NFT {
   tokenId: number;
   coverArt: string;
   expiry: number;
   resalePrice: bigint;
 }
-
 const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b' as `0x${string}`;
-
 export default function Home() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);  // Custom splash
-
+  const [showSplash, setShowSplash] = useState(true); // Custom splash
   // Passport balance for redirect
   const { data: passportBalance } = useReadContract({
     address: PASSPORT_NFT_ADDRESS,
-    abi: PassportNFTABI as any,  // Cast Abi
+    abi: PassportNFTABI, // Remove 'as any' - assuming PassportNFTABI is properly typed as Abi
     functionName: 'balanceOf',
     args: [address],
     query: { enabled: !!address && isConnected },
   });
-
   // Custom splash timer
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 2000);
     return () => clearTimeout(timer);
   }, []);
-
   useEffect(() => {
     async function fetchNFTs() {
       if (!address || !isConnected) return;
@@ -107,28 +99,25 @@ export default function Home() {
     }
     fetchNFTs();
   }, [address, isConnected]);
-
   // Auto-redirect based on passport/NFTs
   useEffect(() => {
     if (isConnected && passportBalance !== undefined) {
       if ((passportBalance as bigint) === BigInt(0)) {
-        router.push('/passport');  // Mint passport if none
+        router.push('/passport'); // Mint passport if none
       } else if (nfts.length === 0) {
-        router.push('/music');  // Mint music if none
+        router.push('/music'); // Mint music if none
       } else {
-        router.push('/market');  // To market if all set
+        router.push('/market'); // To market if all set
       }
     }
   }, [isConnected, passportBalance, nfts, router]);
-
   if (showSplash) {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: '#353B48', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-        <img src="/images/splash.png" alt="Splash" style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} />
+        <Image src="/images/splash.png" alt="Splash" width={800} height={800} style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} />
       </div>
     );
   }
-
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
       <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>EmpowerTours Music NFTs</h1>
