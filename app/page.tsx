@@ -113,32 +113,47 @@ export default function Home() {
   }, [isConnected, passportBalance, nfts, router]);
   if (showSplash) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: '#353B48', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-        <Image src="/images/splash.png" alt="Splash" width={800} height={800} style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} />
+      <div className="fixed top-0 left-0 w-full h-full bg-[#353B48] flex items-center justify-center z-[9999]">
+        <Image src="/images/splash.png" alt="Splash" width={800} height={800} className="max-w-[80%] max-h-[80%] object-contain" />
+      </div>
+    );
+  }
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-background p-4 text-center">
+        <h1 className="text-2xl font-bold mb-4">Welcome to EmpowerTours</h1>
+        <p className="text-lg mb-4">Please connect your wallet to view your Music NFTs.</p>
+        {/* Add connect button if needed */}
       </div>
     );
   }
   return (
-    <div style={{ padding: '20px', textAlign: 'center' }}>
-      <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>EmpowerTours Music NFTs</h1>
+    <div className="min-h-screen bg-background p-4 text-center">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold">EmpowerTours Music NFTs</h1>
+        {address && <p className="text-sm text-muted-foreground">Connected: {address.slice(0,6)}...{address.slice(-4)}</p>}
+      </header>
       {loading ? (
-        <p style={{ fontSize: '16px', color: '#666' }}>Loading NFTs...</p>
+        <p className="text-lg text-muted-foreground">Loading NFTs...</p>
       ) : (
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px' }}>Your Music NFTs</h2>
+          <h2 className="text-xl font-bold mb-4">Your Music NFTs</h2>
           {nfts.length === 0 ? (
-            <p style={{ fontSize: '16px', color: '#666' }}>No NFTs found.</p>
+            <div>
+              <p className="text-lg text-muted-foreground mb-4">No NFTs found. Mint some!</p>
+              <button onClick={() => router.push('/music')} className="bg-primary text-primary-foreground px-4 py-2 rounded">Mint Music NFT</button>
+            </div>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0 }}>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 list-none p-0">
               {nfts.map((nft) => (
-                <li key={nft.tokenId} style={{ marginBottom: '30px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
-                  <p style={{ fontWeight: 'bold' }}>Token ID: {nft.tokenId}</p>
+                <li key={nft.tokenId} className="bg-card p-4 rounded shadow">
+                  <p className="font-bold">Token ID: {nft.tokenId}</p>
                   <Image
                     src={nft.coverArt}
                     alt="NFT Cover Art"
                     width={200}
                     height={200}
-                    style={{ maxWidth: '200px', borderRadius: '8px', margin: '10px 0' }}
+                    className="mx-auto rounded mb-2"
                   />
                   <p>Expiry: {new Date(nft.expiry * 1000).toLocaleDateString()}</p>
                   <p>Resale Price: {nft.resalePrice > BigInt(0) ? `${nft.resalePrice} Wei` : 'Not listed'}</p>
@@ -148,6 +163,9 @@ export default function Home() {
           )}
         </div>
       )}
+      <footer className="mt-8 text-sm text-muted-foreground">
+        <a href="/market" className="mx-2">Market</a> | <a href="/passport" className="mx-2">Passport</a> | <a href="/music" className="mx-2">Music</a>
+      </footer>
     </div>
   );
 }

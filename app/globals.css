@@ -1,14 +1,9 @@
-
 @import "tw-animate-css";
-
 @plugin "tailwindcss-animate";
-
 @custom-variant dark (&:is(.dark *));
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
@@ -46,7 +41,6 @@
   --sidebar-border: oklch(0.923 0.003 48.717);
   --sidebar-ring: oklch(0.709 0.01 56.259);
 }
-
 @media (prefers-color-scheme: dark) {
   :root {
     --foreground-rgb: 255, 255, 255;
@@ -54,23 +48,17 @@
     --background-end-rgb: 0, 0, 0;
   }
 }
-
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: rgb(var(--background-start-rgb)); /* Opaque background to prevent transparency */
+  margin: 0;
+  padding: 0;
 }
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 }
-
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -108,7 +96,6 @@ body {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
-
 .dark {
   --background: oklch(0.147 0.004 49.25);
   --foreground: oklch(0.985 0.001 106.423);
@@ -142,7 +129,6 @@ body {
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.553 0.013 58.071);
 }
-
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -10,6 +10,12 @@ const queryClient = new QueryClient();
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [config, setConfig] = useState<Config | null>(null); // Use Config type instead of any
+
+  // Call ready() early to hide splash ASAP
+  useEffect(() => {
+    sdk.actions.ready().catch(console.error);
+  }, []); // Runs once on mount
+
   useEffect(() => {
     async function initConfig() {
       const { farcasterMiniApp } = await import('@farcaster/miniapp-wagmi-connector');
@@ -43,11 +49,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
     initConfig();
   }, []);
-  useEffect(() => {
-    if (mounted) {
-      sdk.actions.ready().catch(console.error); // Hide splash here
-    }
-  }, [mounted]);
   if (!mounted || !config) return null;
   return (
     <WagmiProvider config={config}>
