@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import { FlatCompat } from '@eslint/eslintrc';
+import nextPlugin from '@next/eslint-plugin-next';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +15,7 @@ const compat = new FlatCompat({
 
 export default tseslint.config(
   { ignores: ['.next/**', 'node_modules/**', 'dist/**', 'next-env.d.ts'] },
-  ...compat.extends('next/core-web-vitals'),
+  ...compat.extends('plugin:@next/next/recommended'),  // Use direct Next plugin
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -22,14 +23,17 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    plugins: {
+      '@next/next': nextPlugin,
+    },
     languageOptions: {
       globals: {
         __REACT_DEVTOOLS_GLOBAL_HOOK__: 'readonly',
         _N_E: 'readonly',
         MSApp: 'readonly',
         msCrypto: 'readonly',
-        React: 'readonly',  // Fix for 'React' not defined in JSX
-        BufferSource: 'readonly',  // Fix for storage.ts
+        React: 'readonly', // Fix for 'React' not defined in JSX
+        BufferSource: 'readonly', // Fix for storage.ts
       },
     },
   },
@@ -42,7 +46,7 @@ export default tseslint.config(
         'error',
         {
           argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',  // Ignores unused vars like _mounted
+          varsIgnorePattern: '^_', // Ignores unused vars like _mounted
         }
       ],
       'no-cond-assign': 'warn',
@@ -57,10 +61,10 @@ export default tseslint.config(
       'no-redeclare': 'warn',
       'valid-typeof': 'warn',
       'no-undef': 'error',
-      '@next/next/no-img-element': 'warn',  // Demote to warning
-      '@typescript-eslint/no-require-imports': 'off',  // Allow in configs if needed
-      '@typescript-eslint/no-explicit-any': 'warn',  // Soften any usage
-      '@typescript-eslint/triple-slash-reference': 'off',  // Fully disable to avoid next-env.d.ts warnings
+      '@next/next/no-img-element': 'warn', // Demote to warning
+      '@typescript-eslint/no-require-imports': 'off', // Allow in configs if needed
+      '@typescript-eslint/no-explicit-any': 'warn', // Soften any usage
+      '@typescript-eslint/triple-slash-reference': 'off', // Fully disable to avoid next-env.d.ts warnings
     },
   },
 );
