@@ -13,7 +13,7 @@ export async function GET() {
       splashImageUrl: `${APP_URL}/images/splash.png`,
       splashBackgroundColor: "#353B48",
       webhookUrl: `${APP_URL}/api/webhook`,
-      subtitle: "Travel and get your digital passport stamped, buy/sell your experiences, listen to indie music.",
+      subtitle: "Travel Stamp Buy Experiences",
       description: "Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.",
       primaryCategory: "social",
       screenshotUrls: [
