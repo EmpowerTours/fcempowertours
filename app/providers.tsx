@@ -6,10 +6,13 @@ import { defineChain } from 'viem';
 import { createWeb3Modal } from '@web3modal/wagmi/react'; // Add this for v5 modal init
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config'; // Correct v5 import
 import { sdk } from '@farcaster/miniapp-sdk';
+import { useConnect } from 'wagmi'; // Add for auto-connect
+
 const queryClient = new QueryClient();
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [config, setConfig] = useState<Config | null>(null); // Use Config type instead of any
+  const { connect, connectors } = useConnect(); // Get connect function and connectors
 
   // Call ready() early to hide splash ASAP
   useEffect(() => {
@@ -49,6 +52,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
     initConfig();
   }, []);
+
+  // Auto-connect if in mini-app and config is ready
+  useEffect(() => {
+    if (mounted && config && sdk.isInMiniApp()) {
+      const farcasterConnector = connectors.find(c => c.id === 'farcasterMiniApp'); // Assume id from connector
+      if (farcasterConnector) {
+        connect({ connector: farcasterConnector });
+      }
+    }
+  }, [mounted, config, connect, connectors]);
+
   if (!mounted || !config) return null;
   return (
     <WagmiProvider config={config}>
