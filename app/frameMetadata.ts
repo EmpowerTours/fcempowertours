@@ -1,4 +1,3 @@
-// app/frameMetadata.ts
 const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
 export const frameMetadata = {
