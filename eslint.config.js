@@ -4,7 +4,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import { FlatCompat } from '@eslint/eslintrc';
 import nextPlugin from '@next/eslint-plugin-next';
-import globals from 'globals'; // Add this import if not already there (it's in devDeps)
+import globals from 'globals';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +15,7 @@ const compat = new FlatCompat({
 });
 export default tseslint.config(
   { ignores: ['.next/**', 'node_modules/**', 'dist/**', 'next-env.d.ts'] },
-  ...compat.extends('plugin:@next/next/recommended'), // Use direct Next plugin
+  ...compat.extends('plugin:@next/next/recommended'),
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -28,14 +28,14 @@ export default tseslint.config(
     },
     languageOptions: {
       globals: {
-        ...globals.browser, // Add this: fixes browser globals like fetch, URL, File, setTimeout, localStorage, alert, HTMLInputElement, etc.
-        ...globals.node,    // Add this: fixes node globals like process, console, crypto, TextEncoder, etc.
+        ...globals.browser,
+        ...globals.node,
         __REACT_DEVTOOLS_GLOBAL_HOOK__: 'readonly',
         _N_E: 'readonly',
         MSApp: 'readonly',
         msCrypto: 'readonly',
-        React: 'readonly', // Fix for 'React' not defined in JSX
-        BufferSource: 'readonly', // Fix for storage.ts
+        React: 'readonly',
+        BufferSource: 'readonly',
       },
     },
   },
@@ -48,7 +48,7 @@ export default tseslint.config(
         'error',
         {
           argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_', // Ignores unused vars like _mounted
+          varsIgnorePattern: '^_',
         }
       ],
       'no-cond-assign': 'warn',
@@ -63,10 +63,10 @@ export default tseslint.config(
       'no-redeclare': 'warn',
       'valid-typeof': 'warn',
       'no-undef': 'error',
-      '@next/next/no-img-element': 'warn', // Demote to warning
-      '@typescript-eslint/no-require-imports': 'off', // Allow in configs if needed
-      '@typescript-eslint/no-explicit-any': 'warn', // Soften any usage
-      '@typescript-eslint/triple-slash-reference': 'off', // Fully disable to avoid next-env.d.ts warnings
+      '@next/next/no-img-element': 'warn',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/triple-slash-reference': 'off',
     },
   },
 );
