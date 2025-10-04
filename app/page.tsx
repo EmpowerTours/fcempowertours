@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { monadTestnet } from './chains';
 import MusicNFT from '../lib/abis/MusicNFT.json';
 import PassportNFTABI from '../lib/abis/PassportNFT.json'; // Add for passport balance check
+import { sdk } from '@farcaster/miniapp-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai'; // For AI prompt processing
 const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
@@ -21,11 +23,14 @@ const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b' as `0x
 export default function Home() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
-  const [nfts, setNfts] = useState<NFT[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_nfts, setNfts] = useState<NFT[]>([]); // Prefix with _ to allow unused
   const [showSplash, setShowSplash] = useState(true); // Custom splash
+  const [casts, setCasts] = useState<any[]>([]); // Farcaster casts
+  const [currentCastIndex, setCurrentCastIndex] = useState(0);
+  const [prompt, setPrompt] = useState('');
+  const [processingPrompt, setProcessingPrompt] = useState(false);
   // Passport balance for redirect
-  const { data: passportBalance } = useReadContract({
+  const { data: _passportBalance } = useReadContract({ // Prefix with _ to allow unused
     address: PASSPORT_NFT_ADDRESS,
     abi: PassportNFTABI, // Remove 'as any' - assuming PassportNFTABI is properly typed as Abi
     functionName: 'balanceOf',
@@ -40,7 +45,6 @@ export default function Home() {
   useEffect(() => {
     async function fetchNFTs() {
       if (!address || !isConnected) return;
-      setLoading(true);
       try {
         const transferLogs = await publicClient.getLogs({
           address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
@@ -93,13 +97,47 @@ export default function Home() {
         setNfts(nftList);
       } catch (error) {
         console.error('Error fetching Music NFTs:', error);
-      } finally {
-        setLoading(false);
       }
     }
     fetchNFTs();
   }, [address, isConnected]);
-  // Auto-redirect based on passport/NFTs
+  // Fetch user's Farcaster casts (using Neynar API - add NEYNAR_API_KEY to env)
+  useEffect(() => {
+    const fetchCasts = async () => {
+      if (!isConnected || !address) return;
+      try {
+        const context = await sdk.context;
+        const fid = context?.user?.fid;
+        if (!fid) return;
+        const res = await fetch(`https://api.neynar.com/v2/farcaster/casts?fid=${fid}&limit=10`, {
+          headers: { 'api-key': process.env.NEYNAR_API_KEY || 'YOUR_NEYNAR_API_KEY' }, // Get from neynar.com
+        });
+        if (!res.ok) throw new Error('Neynar fetch failed');
+        const data = await res.json();
+        const relevantCasts = data.casts.filter((cast: any) => 
+          cast.text.toLowerCase().includes('empowertours') || 
+          cast.text.toLowerCase().includes('itinerary') || 
+          cast.text.toLowerCase().includes('music') ||
+          cast.text.toLowerCase().includes('nft') ||
+          cast.text.toLowerCase().includes('passport')
+        );
+        setCasts(relevantCasts.length > 0 ? relevantCasts : data.casts); // Fallback to all if no matches
+      } catch (error) {
+        console.error('Failed to fetch casts:', error);
+      }
+    };
+    fetchCasts();
+  }, [isConnected, address]);
+  // Rotate casts every 4s
+  useEffect(() => {
+    if (casts.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentCastIndex((prev) => (prev + 1) % casts.length);
+    }, 4000); // 4 seconds
+    return () => clearInterval(interval);
+  }, [casts]);
+  // Auto-redirect based on passport/NFTs (disabled for new UI - uncomment if needed)
+  /*
   useEffect(() => {
     if (isConnected && passportBalance !== undefined) {
       if ((passportBalance as bigint) === BigInt(0)) {
@@ -111,6 +149,61 @@ export default function Home() {
       }
     }
   }, [isConnected, passportBalance, nfts, router]);
+  */
+  // Handle AI prompt submission with Gemini
+  const handlePromptSubmit = async () => {
+    if (!prompt.trim()) return;
+    setProcessingPrompt(true);
+    try {
+      // Simple fallback string match (no API call for efficiency)
+      const lowerPrompt = prompt.toLowerCase();
+      if (lowerPrompt.includes('nft') || lowerPrompt.includes('music')) {
+        router.push('/music');
+        return;
+      } else if (lowerPrompt.includes('passport')) {
+        router.push('/passport');
+        return;
+      } else if (lowerPrompt.includes('market') || lowerPrompt.includes('itinerary')) {
+        router.push('/market');
+        return;
+      }
+
+      // Gemini for advanced/multi-action intent
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const aiPrompt = `
+        Analyze this user command for an EmpowerTours app: "${prompt}".
+        Output JSON: {
+          "actions": [{ "type": "navigate", "path": "/music" | "/passport" | "/market" | "none" }],
+          "reason": "Brief explanation"
+        }
+        For multi-actions, list in sequence. Use "none" if unclear.
+      `;
+      const result = await model.generateContent(aiPrompt, {
+        generationConfig: { 
+          thinkingConfig: { thinkingBudget: 0 }, // Disable for speed/efficiency
+          maxOutputTokens: 256 // Limit to reduce costs
+        }
+      });
+      const responseJson = JSON.parse(result.response.text().trim());
+      
+      // Execute actions (e.g., sequential navigation)
+      const actions = responseJson.actions || [];
+      if (actions.length > 0 && actions[0].path !== 'none') {
+        actions.forEach((action: { path: string }) => {
+          if (action.type === 'navigate') router.push(action.path);
+        });
+      } else {
+        alert('Sorry, I didn\'t understand. Try "take me to nft" or "go to passport".');
+      }
+    } catch (error) {
+      console.error('Prompt processing failed:', error);
+      alert('Error processing command. Try again.');
+    } finally {
+      setProcessingPrompt(false);
+      setPrompt('');
+    }
+  };
   if (showSplash) {
     return (
       <div className="fixed top-0 left-0 w-full h-full bg-[#353B48] flex items-center justify-center z-[9999]">
@@ -128,44 +221,50 @@ export default function Home() {
     );
   }
   return (
-    <div className="min-h-screen bg-background p-4 text-center">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold">EmpowerTours Music NFTs</h1>
-        {address && <p className="text-sm text-muted-foreground">Connected: {address.slice(0,6)}...{address.slice(-4)}</p>}
-      </header>
-      {loading ? (
-        <p className="text-lg text-muted-foreground">Loading NFTs...</p>
-      ) : (
-        <div>
-          <h2 className="text-xl font-bold mb-4">Your Music NFTs</h2>
-          {nfts.length === 0 ? (
-            <div>
-              <p className="text-lg text-muted-foreground mb-4">No NFTs found. Mint some!</p>
-              <button onClick={() => router.push('/music')} className="bg-primary text-primary-foreground px-4 py-2 rounded">Mint Music NFT</button>
-            </div>
-          ) : (
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 list-none p-0">
-              {nfts.map((nft) => (
-                <li key={nft.tokenId} className="bg-card p-4 rounded shadow">
-                  <p className="font-bold">Token ID: {nft.tokenId}</p>
-                  <Image
-                    src={nft.coverArt}
-                    alt="NFT Cover Art"
-                    width={200}
-                    height={200}
-                    className="mx-auto rounded mb-2"
-                  />
-                  <p>Expiry: {new Date(nft.expiry * 1000).toLocaleDateString()}</p>
-                  <p>Resale Price: {nft.resalePrice > BigInt(0) ? `${nft.resalePrice} Wei` : 'Not listed'}</p>
-                </li>
-              ))}
-            </ul>
-          )}
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Upper half: Rotating cast frame */}
+      <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
+        {casts.length > 0 ? (
+          <div className="p-4 bg-gray-100 rounded">
+            <h2 className="text-lg font-bold mb-2">Recent Cast</h2>
+            <p>{casts[currentCastIndex]?.text || 'No text'}</p>
+            <p className="text-sm text-gray-500">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
+            {/* Add media if available */}
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">Loading casts...</p>
+        )}
+      </div>
+      
+      {/* Lower half: AI Prompt */}
+      <div className="flex-1 flex flex-col justify-end p-4">
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Type command e.g., 'take me to nft'"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
+            className="w-full p-2 border rounded"
+            disabled={processingPrompt}
+          />
+          <button 
+            onClick={handlePromptSubmit}
+            disabled={processingPrompt}
+            className="mt-2 bg-primary text-white px-4 py-2 rounded w-full"
+          >
+            {processingPrompt ? 'Processing...' : 'Send'}
+          </button>
         </div>
-      )}
-      <footer className="mt-8 text-sm text-muted-foreground">
-        <a href="/market" className="mx-2">Market</a> | <a href="/passport" className="mx-2">Passport</a> | <a href="/music" className="mx-2">Music</a>
-      </footer>
+      </div>
+      
+      {/* Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex justify-around">
+        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
+        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
+        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
+        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
+      </nav>
     </div>
   );
 }
