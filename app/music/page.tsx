@@ -157,7 +157,7 @@ export default function MusicPage() {
       </div>
       <div style={{ marginBottom: '20px' }}>
         <label>Audio File (short clip for preview):</label>
-        <input type="file" accept="audio/*" onChange={handleAudioChange} />
+        <input type="file" accept="audio/mp3,audio/mpeg,audio/wav" onChange={handleAudioChange} />
         {audioFile && <p>Selected: {audioFile.name}</p>}
       </div>
       <div style={{ marginBottom: '20px' }}>

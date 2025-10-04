@@ -24,12 +24,6 @@ interface NFT {
 
 const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b' as `0x${string}`;
 
-// ✅ Action type for AI output
-type Action = {
-  path: string;
-  type?: 'navigate' | string;
-};
-
 export default function Home() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
@@ -161,7 +155,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [casts]);
 
-  // AI Prompt handler
+  // AI Prompt handler (✅ fixed config + hardened JSON parsing)
   const handlePromptSubmit = async () => {
     if (!prompt.trim()) return;
     setProcessingPrompt(true);
@@ -198,7 +192,8 @@ export default function Home() {
 
       const aiPrompt = `
         Analyze this user command for an EmpowerTours app: "${prompt}".
-        Output JSON: {
+        Output JSON ONLY, no extra text:
+        {
           "actions": [{ "type": "navigate", "path": "/music" | "/passport" | "/market" | "none" }],
           "reason": "Brief explanation"
         }
@@ -209,17 +204,24 @@ export default function Home() {
         generationConfig: { maxOutputTokens: 256 },
       });
 
-      const responseJson = JSON.parse(result.response.text().trim());
-      const actions: Action[] = responseJson.actions || [];
+      let actions: { type: string; path: string }[] = [];
+      try {
+        const rawText = result.response.text().trim();
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/); // extract first JSON block
+        if (jsonMatch) {
+          const responseJson = JSON.parse(jsonMatch[0]);
+          actions = responseJson.actions || [];
+        }
+      } catch (err) {
+        console.warn('Failed to parse Gemini response as JSON:', err);
+      }
 
       if (actions.length > 0 && actions[0].path !== 'none') {
         actions.forEach((action) => {
-          if (action.type === 'navigate') {
-            router.push(action.path);
-          }
+          if (action.type === 'navigate') router.push(action.path);
         });
       } else {
-        alert("Sorry, I didn't understand. Try \"take me to nft\" or \"go to passport\".");
+        alert('Sorry, I didn\'t understand. Try "take me to nft" or "go to passport".');
       }
     } catch (error) {
       console.error('Prompt processing failed:', error);
