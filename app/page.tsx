@@ -9,6 +9,7 @@ import MusicNFT from '../lib/abis/MusicNFT.json';
 import PassportNFTABI from '../lib/abis/PassportNFT.json';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { frameMetadata } from './frameMetadata';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
@@ -155,7 +156,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [casts]);
 
-  // AI Prompt handler (✅ fixed config + hardened JSON parsing)
+  // AI Prompt handler
   const handlePromptSubmit = async () => {
     if (!prompt.trim()) return;
     setProcessingPrompt(true);

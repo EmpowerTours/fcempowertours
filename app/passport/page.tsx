@@ -1,181 +1,117 @@
-'use client';
-import { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
-import { Abi, getContract, createPublicClient, http } from 'viem';
-import { useAppKit } from '@reown/appkit/react';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
-import * as Select from '@radix-ui/react-select';
-import { generateCountryPassportSVG } from '../../lib/gemini';
-import { countryData } from '../../lib/countries';
-import PassportABI from '../../lib/abis/PassportNFT.json';
-import { monadTestnet } from '../chains';
-import Image from 'next/image';
-export const dynamic = 'force-dynamic';
-const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT as `0x${string}`;
-const client = createPublicClient({
-  chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC!),
-});
-function ConnectButton() {
-  const { open } = useAppKit();
-  return (
-    <Button onClick={() => open({ view: 'Connect' })} className="ml-2">
-      Connect
-    </Button>
-  );
-}
+"use client";
+import React, { useState, useEffect } from "react";
+import { useWriteContract } from "wagmi";
+import PassportNFT from "@/lib/abis/PassportNFT.json";
+import { countryData } from "@/lib/countries";
+
 export default function PassportPage() {
-  const [passports, setPassports] = useState<
-    { id: bigint; name: string; image: string; tokenURI: string }[]
-  >([]);
-  const [selectedCountry, setSelectedCountry] = useState<string>('US');
-  const [minting, setMinting] = useState(false);
-  const { address, isConnected } = useAccount();
-  // Fetch passports
+  const [casts, setCasts] = useState<any[]>([]);
+  const [loadingCasts, setLoadingCasts] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [command, setCommand] = useState("");
+  const { writeContractAsync } = useWriteContract();
+
+  // Fetch Farcaster casts with Neynar
   useEffect(() => {
-    const fetchPassports = async () => {
-      if (!client || !address) return;
-      const passportNFT = getContract({
-        address: PASSPORT_NFT_ADDRESS,
-        abi: PassportABI as Abi,
-        client: { public: client },
-      });
-      const balance = await passportNFT.read.balanceOf([address]) as bigint;
-      const passportList: {
-        id: bigint;
-        name: string;
-        image: string;
-        tokenURI: string;
-      }[] = [];
-      for (let i = 0; i < Number(balance); i++) {
-        const tokenId = await passportNFT.read.tokenOfOwnerByIndex([
-          address,
-          BigInt(i),
-        ]) as bigint;
-        // ✅ Cast tokenURI to string
-        const tokenURI = (await passportNFT.read.tokenURI([tokenId])) as string;
-        const metadataResponse = await fetch(
-          tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/')
+    const fetchCasts = async () => {
+      setLoadingCasts(true);
+      try {
+        const res = await fetch(
+          "https://api.neynar.com/v2/farcaster/casts?fid=1&limit=10",
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_NEYNAR_API_KEY}`,
+            },
+          }
         );
-        const metadata = await metadataResponse.json();
-        passportList.push({
-          id: tokenId,
-          name: metadata.name || `Passport #${tokenId.toString()}`,
-          image: metadata.image,
-          tokenURI,
-        });
+        const data = await res.json();
+        setCasts(data.result?.casts || []);
+      } catch (err) {
+        console.error("Failed to fetch casts:", err);
+      } finally {
+        setLoadingCasts(false);
       }
-      setPassports(passportList);
     };
-    if (isConnected && address) fetchPassports();
-  }, [isConnected, address]);
+    fetchCasts();
+  }, []);
+
+  // Handle mint
   const handleMint = async () => {
-    if (!isConnected || !address) return;
-    setMinting(true);
+    if (!selectedCountry) {
+      alert("Please select a country first!");
+      return;
+    }
     try {
-      const countryInfo = countryData[selectedCountry] || countryData['US'];
-      const svg = await generateCountryPassportSVG(countryInfo.name);
-      // Upload SVG directly via fetch
-      const svgFormData = new FormData();
-      svgFormData.append('file', new Blob([svg], { type: 'image/svg+xml' }), `${countryInfo.name}_passport.svg`);
-      svgFormData.append('name', `${countryInfo.name}_passport.svg`);
-      const svgRes = await fetch('https://uploads.pinata.cloud/v3/files', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` },
-        body: svgFormData,
+      await writeContractAsync({
+        address: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS as `0x${string}`,
+        abi: PassportNFT,
+        functionName: "mint",
+        args: [selectedCountry],
       });
-      if (!svgRes.ok) throw new Error(`SVG upload failed: ${svgRes.statusText}`);
-      const svgJson = await svgRes.json();
-      const imageCid = svgJson.cid;
-      // Metadata upload
-      const metadata = {
-        name: `EmpowerTours Passport #${passports.length + 1}`,
-        description: `A digital passport for travel enthusiasts, representing ${countryInfo.name}.`,
-        image: `ipfs://${imageCid}`,
-        attributes: [
-          { trait_type: 'Country', value: countryInfo.name },
-          { trait_type: 'Symbol', value: countryInfo.symbol },
-        ],
-      };
-      const metadataFormData = new FormData();
-      metadataFormData.append('file', new Blob([JSON.stringify(metadata)], { type: 'application/json' }), `${countryInfo.name}_passport_metadata.json`);
-      metadataFormData.append('name', `${countryInfo.name}_passport_metadata.json`);
-      const metadataRes = await fetch('https://uploads.pinata.cloud/v3/files', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` },
-        body: metadataFormData,
-      });
-      if (!metadataRes.ok) throw new Error(`Metadata upload failed: ${metadataRes.statusText}`);
-      const metadataJson = await metadataRes.json();
-      console.log('Minted metadata at:', metadataJson.cid);
-    } catch (error) {
-      console.error('Minting failed:', error);
-    } finally {
-      setMinting(false);
+      alert(`Mint requested for ${selectedCountry}. Approve in wallet.`);
+    } catch (err) {
+      console.error("Mint failed:", err);
+      alert("Mint failed, see console for details.");
     }
   };
+
   return (
-    <div className="min-h-screen bg-background p-6">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-foreground">Your Passports</h1>
-      </header>
-      {!isConnected ? (
-        <div className="text-center">
-          <p className="text-lg text-muted-foreground mb-4">
-            Connect wallet to view passports.
-          </p>
-          <ConnectButton />
-        </div>
-      ) : passports.length ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {passports.map((passport) => (
-            <Card key={passport.id.toString()} className="shadow-md">
-              <CardHeader>
-                <h2 className="text-xl font-semibold">{passport.name}</h2>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  ID: {passport.id.toString()}
-                </p>
-                <Image
-                  src={passport.image.replace(
-                    'ipfs://',
-                    'https://ipfs.io/ipfs/'
-                  )}
-                  alt={passport.name}
-                  width={300}
-                  height={200}
-                  className="mt-2 rounded"
-                />
-              </CardContent>
-            </Card>
+    <div className="flex flex-col items-center p-6 space-y-6">
+      <h1 className="text-3xl font-bold">EmpowerTours Passport</h1>
+      {/* Country Select */}
+      <div className="w-full max-w-md space-y-2">
+        <label className="block text-sm font-medium">Select your country:</label>
+        <select
+          value={selectedCountry}
+          onChange={(e) => setSelectedCountry(e.target.value)}
+          className="w-full border rounded-lg p-2 bg-white text-black"
+        >
+          <option value="">-- Choose a country --</option>
+          {Object.entries(countryData).map(([code, { name }]) => (
+            <option key={code} value={code}>
+              {name}
+            </option>
           ))}
-        </div>
-      ) : (
-        <div className="text-center">
-          <p className="text-lg text-muted-foreground mb-4">
-            No passports found.
-          </p>
-          <Select.Root value={selectedCountry} onValueChange={setSelectedCountry}>
-            <Select.Trigger className="w-[180px] mx-auto mb-4">
-              <Select.Value placeholder="Select country" />
-            </Select.Trigger>
-            <Select.Content>
-              {Object.keys(countryData).map((code) => (
-                <Select.Item key={code} value={code}>
-                  {countryData[code].name}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-          <Button onClick={handleMint} disabled={minting}>
-            {minting ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-            Mint One!
-          </Button>
-        </div>
-      )}
+        </select>
+        <button
+          onClick={handleMint}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow"
+        >
+          Mint One
+        </button>
+      </div>
+      {/* Cast Feed */}
+      <div className="w-full max-w-2xl">
+        <h2 className="text-2xl font-semibold mb-4">Latest Casts</h2>
+        {loadingCasts ? (
+          <p>Loading casts…</p>
+        ) : casts.length === 0 ? (
+          <p>No casts found.</p>
+        ) : (
+          <div className="space-y-4">
+            {casts.map((cast: any, i: number) => (
+              <div
+                key={i}
+                className="p-4 border rounded-lg bg-gray-50 shadow-sm"
+              >
+                <p className="font-medium">{cast.author?.username}</p>
+                <p>{cast.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Command Prompt BELOW cast frame */}
+      <div className="w-full max-w-2xl mt-6">
+        <input
+          type="text"
+          value={command}
+          onChange={(e) => setCommand(e.target.value)}
+          placeholder="Type a command..."
+          className="w-full border p-2 rounded-lg shadow"
+        />
+      </div>
     </div>
   );
 }
