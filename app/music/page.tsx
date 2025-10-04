@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useSwitchChain, useWaitForTransactionReceipt, useConnect } from 'wagmi';
-import { Abi } from 'viem';
+import { Abi, isAddress } from 'viem';
 import { sdk } from '@farcaster/miniapp-sdk';
 import MusicNFTABI from '../../lib/abis/MusicNFT.json';
 import { monadTestnet } from '../chains';
@@ -38,7 +38,10 @@ export default function MusicPage() {
         await switchChainAsync({ chainId: monadTestnet.id });
         console.log('Switched to Monad Testnet');
       } catch (error) {
-        console.error('Chain switch failed:', error);
+        console.error('Chain switch failed:', {
+          message: (error as Error).message,
+          stack: (error as Error).stack,
+        });
         alert('Failed to switch to Monad Testnet. Please switch manually in your wallet.');
       }
     };
@@ -67,63 +70,84 @@ export default function MusicPage() {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          const base64 = reader.result.split(',', 2)[1];
-          if (base64) resolve(base64);
-          else reject(new Error('Failed to convert file to base64: Empty result'));
-        } else {
+        const result = reader.result;
+        if (typeof result !== 'string') {
           reject(new Error('Failed to convert file to base64: Result is not a string'));
+          return;
         }
+        const base64Match = result.match(/^data:[^;]+;base64,(.+)$/);
+        if (!base64Match) {
+          reject(new Error('Failed to convert file to base64: Invalid data URL format'));
+          return;
+        }
+        resolve(base64Match[1]);
       };
-      reader.onerror = error => reject(error);
+      reader.onerror = () => reject(new Error('FileReader failed to read the file'));
     });
 
   const uploadToPinata = async () => {
-    if (!audioFile || !coverFile || !description || !address) {
-      alert('Need audio, cover image, description, and wallet connection.');
+    if (!audioFile || !coverFile || !description || !address || !isAddress(address)) {
+      console.error('Invalid input for minting music NFT:', { audioFile, coverFile, description, address });
+      alert('Need audio, cover image, description, and a valid wallet address (40-character hex).');
       return;
     }
     if (chainId !== monadTestnet.id) {
       alert('Please switch to Monad Testnet (Chain ID 10143) in your wallet.');
       return;
     }
+    if (!process.env.MUSICNFT_ADDRESS) {
+      console.error('Music NFT contract address is not defined');
+      alert('Contract address not configured. Contact support.');
+      return;
+    }
     setUploading(true);
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
-
       // Get Farcaster FID
       const context = await sdk.context;
       const fid = context?.user?.fid?.toString() || 'Unknown';
-
       // Upload to Pinata
       const formData = new FormData();
       formData.append('audio', audioFile);
       formData.append('description', description);
       formData.append('fid', fid);
       formData.append('address', address);
-
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
-
       if (!uploadRes.ok) {
         throw new Error(`Upload failed: ${uploadRes.statusText}`);
       }
-
       const { audioCid, metadataCid } = await uploadRes.json();
       if (!audioCid || !metadataCid) {
         throw new Error('Upload failed: Invalid response from server');
       }
-
       console.log('Pinata Ready:', { audioCid, metadataCid });
-
       // Convert cover to base64
       const coverArtBase64 = await fileToBase64(coverFile);
-
       // Get audio bytes for preview
       const audioContent = await audioFile.arrayBuffer();
-
+      // Validate arguments
+      if (!isAddress(address)) {
+        throw new Error('Invalid address format');
+      }
+      if (typeof `ipfs://${metadataCid}` !== 'string') {
+        throw new Error('Invalid metadataCid format');
+      }
+      if (!(audioContent instanceof ArrayBuffer)) {
+        throw new Error('Invalid audio content format');
+      }
+      if (typeof coverArtBase64 !== 'string') {
+        throw new Error('Invalid coverArtBase64 format');
+      }
+      console.log('Minting music NFT with:', {
+        address,
+        tokenURI: `ipfs://${metadataCid}`,
+        previewLength: audioContent.byteLength,
+        coverArtBase64Length: coverArtBase64.length,
+        contractAddress: MUSIC_NFT_ADDRESS,
+      });
       // Mint on-chain
       await writeContractAsync({
         address: MUSIC_NFT_ADDRESS as `0x${string}`,
@@ -137,13 +161,18 @@ export default function MusicPage() {
           address,
         ],
         chainId: monadTestnet.id,
+        account: address,
       });
-
       setTxHash(writeData);
       alert(`Mint requested! 🎵\nMetadata: ipfs://${metadataCid}\nAudio: ipfs://${audioCid}\nWaiting for TX confirmation...`);
     } catch (error) {
-      console.error('Upload/Mint failed:', error);
-      alert(`Failed: ${(error as Error).message}`);
+      console.error('Upload/Mint failed:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        address,
+        contractAddress: MUSIC_NFT_ADDRESS,
+      });
+      alert(`Failed: ${(error as Error).message}. Check browser console for details.`);
     } finally {
       setUploading(false);
     }

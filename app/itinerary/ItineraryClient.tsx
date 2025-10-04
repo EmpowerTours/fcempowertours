@@ -1,8 +1,8 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import { use } from 'react';  // For unwrapping promised searchParams
-import { useWriteContract } from 'wagmi';
+import { use, Suspense } from 'react';
+import { useAccount, useConnect, useSwitchChain, useWriteContract } from 'wagmi';
+import { isAddress } from 'viem';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,28 +10,50 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { toast } from 'sonner';
 import { saveItineraryDraft } from '@/lib/storage';
 import Image from 'next/image';
+import { monadTestnet } from '../chains';
+import ItineraryNFTABI from '@/lib/abis/ItineraryNFT.json';
 
 interface Props {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default function ItineraryClient({ searchParams: promisedParams }: Props) {
-  const resolvedParams = use(promisedParams);  // Unwrap promised params
+  const resolvedParams = use(promisedParams);
   const [destination, setDestination] = useState('');
   const [interests, setInterests] = useState('');
-   
-  const [country, _setCountry] = useState('Unknown'); // TODO: Use setCountry for country selection
+  const [country, setCountry] = useState('Unknown');
   const [climbingPhoto, setClimbingPhoto] = useState<string | null>(null);
   const [climbingGrade, setClimbingGrade] = useState('');
-  const { writeContract } = useWriteContract();
+  const { address, isConnected, chainId } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { switchChainAsync } = useSwitchChain();
+  const { writeContractAsync } = useWriteContract();
 
   useEffect(() => {
-  const prompt = resolvedParams?.prompt;  // Direct access; ? for safety (though use() ensures non-null)
-  if (prompt) {
-    setDestination((prompt as string).split(' ').slice(0, -2).join(' '));  // Cast to string (handles single-value case)
-    setInterests('rock climbing');
-  }
-}, [resolvedParams]);
+    const prompt = resolvedParams?.prompt;
+    if (prompt) {
+      setDestination((prompt as string).split(' ').slice(0, -2).join(' '));
+      setInterests('rock climbing');
+    }
+  }, [resolvedParams]);
+
+  // Auto-switch to Monad Testnet
+  useEffect(() => {
+    if (!isConnected || chainId === monadTestnet.id) return;
+    const autoSwitchChain = async () => {
+      try {
+        await switchChainAsync({ chainId: monadTestnet.id });
+        console.log('Switched to Monad Testnet');
+      } catch (error) {
+        console.error('Chain switch failed:', {
+          message: (error as Error).message,
+          stack: (error as Error).stack,
+        });
+        alert('Failed to switch to Monad Testnet. Please switch manually in your wallet.');
+      }
+    };
+    autoSwitchChain();
+  }, [isConnected, chainId, switchChainAsync]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -39,25 +61,59 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
   };
 
   const handleSaveDraft = async () => {
-    const data = { 
-      destination, 
-      interests, 
-      climbingPhoto, 
-      climbingGrade 
+    const data = {
+      destination,
+      interests,
+      climbingPhoto,
+      climbingGrade,
     };
-    await saveItineraryDraft(data);  // Pass raw data; let saveItineraryDraft handle encryption/storage
+    await saveItineraryDraft(data);
     toast('Draft Saved', { description: 'Itinerary saved locally.' });
   };
 
   const handleMintStamp = async () => {
-    const metadata = { destination, country, climbingGrade };
-    await writeContract({
-      address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
-      abi: (await import('@/lib/abis/PassportNFT.json')).default,
-      functionName: 'mintItinerary',
-      args: [metadata, 'ipfs://...'],
-    });
-    toast('Stamp Minted', { description: 'Added to your passport!' });
+    if (!destination || !isConnected || !address || !isAddress(address)) {
+      console.error('Invalid input for minting itinerary:', { destination, isConnected, address });
+      alert('Please provide a destination and connect a valid wallet address (40-character hex).');
+      return;
+    }
+    if (chainId !== monadTestnet.id) {
+      alert('Please switch to Monad Testnet (Chain ID 10143) in your wallet.');
+      return;
+    }
+    if (!process.env.NEXT_PUBLIC_ITINERARY_ADDRESS) {
+      console.error('Itinerary contract address is not defined');
+      alert('Contract address not configured. Contact support.');
+      return;
+    }
+    try {
+      if (!isConnected) await connect({ connector: connectors[0] });
+      const metadata = { destination, country, climbingGrade };
+      console.log('Minting itinerary with:', {
+        address,
+        contractAddress: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
+        metadata,
+        climbingPhoto: climbingPhoto || 'ipfs://placeholder',
+      });
+      await writeContractAsync({
+        address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
+        abi: ItineraryNFTABI,
+        functionName: 'mintItinerary',
+        args: [metadata, climbingPhoto ? climbingPhoto : 'ipfs://placeholder'],
+        chainId: monadTestnet.id,
+        account: address,
+      });
+      toast('Stamp Minted', { description: 'Added to your passport!' });
+    } catch (error) {
+      console.error('Mint itinerary failed:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        cause: (error as Error).cause,
+        address,
+        contractAddress: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
+      });
+      alert(`Failed to mint itinerary: ${(error as Error).message}. Check browser console for details.`);
+    }
   };
 
   return (
@@ -78,7 +134,6 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
             onChange={(e) => setInterests(e.target.value)}
           />
           <p className="text-sm text-gray-600">Based on your location: {country}</p>
-
           <Accordion type="single" collapsible>
             <AccordionItem value="climbing">
               <AccordionTrigger>Add Rock Climbing</AccordionTrigger>
@@ -102,7 +157,6 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-
           <div className="flex space-x-2">
             <Button onClick={handleSaveDraft}>Save Draft</Button>
             <Button onClick={handleMintStamp} disabled={!destination}>Mint Itinerary</Button>

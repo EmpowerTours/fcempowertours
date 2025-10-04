@@ -62,7 +62,6 @@ export default function Home() {
           args: { to: address },
           fromBlock: BigInt(0),
         });
-
         const nftList: NFT[] = [];
         for (const log of transferLogs) {
           const tokenId = Number(log.args.tokenId);
@@ -73,7 +72,6 @@ export default function Home() {
               functionName: 'ownerOf',
               args: [BigInt(tokenId)],
             }) as `0x${string}`;
-
             if (owner.toLowerCase() === address.toLowerCase()) {
               const [coverArt, expiry, resalePrice] = await Promise.all([
                 publicClient.readContract({
@@ -95,7 +93,6 @@ export default function Home() {
                   args: [BigInt(tokenId)],
                 }) as Promise<bigint>,
               ]);
-
               nftList.push({
                 tokenId,
                 coverArt,
@@ -130,23 +127,24 @@ export default function Home() {
       try {
         const context = await sdk.context;
         const fid = context?.user?.fid;
-        if (!fid) {
+        if (!fid || !process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
+          console.error('Missing FID or Neynar API key:', { fid, hasApiKey: !!process.env.NEXT_PUBLIC_NEYNAR_API_KEY });
           setCasts([
             {
               author: { username: 'empowertours' },
-              text: '🌍 Connect your wallet to see community casts!',
+              text: '🌍 Unable to load casts. Please ensure wallet is connected and try again.',
             },
           ]);
           return;
         }
-
+        const headers: Record<string, string> = {
+          'api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+        };
         const res = await fetch(`https://api.neynar.com/v2/farcaster/casts?fid=${fid}&limit=10`, {
-          headers: { 'api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '8F698A8D-C272-4647-A642-2275FA1C3F89' },
+          headers,
         });
-
         if (!res.ok) throw new Error(`Neynar fetch failed: ${res.statusText}`);
         const data = await res.json();
-
         const relevantCasts = data.casts.filter((cast: any) =>
           cast.text.toLowerCase().includes('empowertours') ||
           cast.text.toLowerCase().includes('itinerary') ||
@@ -154,14 +152,16 @@ export default function Home() {
           cast.text.toLowerCase().includes('nft') ||
           cast.text.toLowerCase().includes('passport')
         );
-
         setCasts(relevantCasts.length > 0 ? relevantCasts : data.casts);
       } catch (error) {
-        console.error('Failed to fetch casts:', error);
+        console.error('Failed to fetch casts:', {
+          message: (error as Error).message,
+          stack: (error as Error).stack,
+        });
         setCasts([
           {
             author: { username: 'empowertours' },
-            text: '🌍 Unable to load casts. Try again later.',
+            text: '🌍 Unable to load casts. Please try again later.',
           },
         ]);
       }
@@ -183,6 +183,9 @@ export default function Home() {
     if (!prompt.trim()) return;
     setProcessingPrompt(true);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key is not defined');
+      }
       const lowerPrompt = prompt.toLowerCase();
       if (lowerPrompt.includes('nft') || lowerPrompt.includes('music')) {
         router.push('/music');
@@ -192,6 +195,9 @@ export default function Home() {
         return;
       } else if (lowerPrompt.includes('market') || lowerPrompt.includes('itinerary')) {
         router.push('/market');
+        return;
+      } else if (lowerPrompt.includes('profile')) {
+        router.push('/profile');
         return;
       } else if (lowerPrompt.includes('pay') || lowerPrompt.includes('buy') || lowerPrompt.includes('transaction')) {
         const frameRes = await fetch('/api/farcaster/create-frame', {
@@ -209,24 +215,20 @@ export default function Home() {
         alert(`Transaction Frame created! Cast it on Warpcast: ${createdFrameUrl}`);
         return;
       }
-
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyAHXFOe6MvhJi_svCU1sWuAYb9p4iWBbSc');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
       const aiPrompt = `
         Analyze this user command for an EmpowerTours app: "${prompt}".
         Output JSON ONLY, no extra text:
         {
-          "actions": [{ "type": "navigate", "path": "/music" | "/passport" | "/market" | "none" }],
+          "actions": [{ "type": "navigate", "path": "/music" | "/passport" | "/market" | "/profile" | "none" }],
           "reason": "Brief explanation"
         }
       `;
-
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: aiPrompt }] }],
         generationConfig: { maxOutputTokens: 256 },
       });
-
       let actions: { type: string; path: string }[] = [];
       try {
         const rawText = result.response.text().trim();
@@ -238,16 +240,18 @@ export default function Home() {
       } catch (err) {
         console.warn('Failed to parse Gemini response as JSON:', err);
       }
-
       if (actions.length > 0 && actions[0].path !== 'none') {
         actions.forEach((action) => {
           if (action.type === 'navigate') router.push(action.path);
         });
       } else {
-        alert('Sorry, I didn\'t understand. Try "take me to nft" or "go to passport".');
+        alert('Sorry, I didn\'t understand. Try "take me to nft", "go to passport", or "take me to profile".');
       }
     } catch (error) {
-      console.error('Prompt processing failed:', error);
+      console.error('Prompt processing failed:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+      });
       alert('Error processing command. Try again.');
     } finally {
       setProcessingPrompt(false);
@@ -281,13 +285,12 @@ export default function Home() {
         <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
         <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
       </nav>
-
       {/* Command Prompt */}
       <div className="w-full max-w-2xl p-4">
         <div className="flex space-x-2">
           <input
             type="text"
-            placeholder="Type command e.g., 'take me to nft'"
+            placeholder="Type command e.g., 'take me to nft' or 'take me to profile'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
@@ -308,17 +311,16 @@ export default function Home() {
           </p>
         )}
       </div>
-
       {/* Upper half: Rotating cast frame */}
       <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
         {casts.length > 0 ? (
           <div className="p-4 bg-gray-100 rounded">
             <h2 className="text-lg font-bold mb-2">Recent Cast</h2>
-            <p>{casts[currentCastIndex]?.text || 'No text'}</p>
+            <p className="text-gray-700">{casts[currentCastIndex]?.text || 'No text'}</p>
             <p className="text-sm text-gray-500">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
           </div>
         ) : (
-          <p className="text-center text-muted-foreground">Loading casts...</p>
+          <p className="text-center text-gray-700">Loading casts...</p>
         )}
       </div>
     </div>
