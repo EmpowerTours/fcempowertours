@@ -1,21 +1,43 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
+// lib/gemini.ts
 export async function generateCountryPassportSVG(country: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not set in environment variables');
+  }
+
   const prompt = `
     Generate an SVG string for a digital passport design representing ${country}.
     Include country-specific symbols (e.g., for USA: eagle and stars, France: Eiffel Tower, Japan: cherry blossoms and red sun).
     Use a rectangular passport shape (300x200px), vibrant colors, and simple vector shapes.
     Return only the raw SVG code starting with <svg> and ending with </svg>.
   `;
+
   try {
-    const result = await model.generateContent(prompt);
-    const svg = result.response.text().trim();
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            thinkingConfig: { thinkingBudget: 0 }, // Disable thinking for speed
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const svg = data.candidates[0].content.parts[0].text.trim();
+
     if (!svg.startsWith('<svg') || !svg.endsWith('</svg>')) {
       throw new Error('Invalid SVG generated');
     }
+
     return svg;
   } catch (error) {
     console.error('SVG generation failed:', error);

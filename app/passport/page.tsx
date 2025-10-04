@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import * as Select from '@radix-ui/react-select';
-import { PinataSDK } from 'pinata';
 import { generateCountryPassportSVG } from '../../lib/gemini';
 import { countryData } from '../../lib/countries';
 import PassportABI from '../../lib/abis/PassportNFT.json';
@@ -18,9 +17,6 @@ const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT as `0x${string}`;
 const client = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC!),
-});
-const pinata = new PinataSDK({
-  pinataJwt: process.env.PINATA_JWT!,
 });
 function ConnectButton() {
   const { open } = useAppKit();
@@ -81,9 +77,19 @@ export default function PassportPage() {
     try {
       const countryInfo = countryData[selectedCountry] || countryData['US'];
       const svg = await generateCountryPassportSVG(countryInfo.name);
-      const svgFile = new File([svg], `${countryInfo.name}_passport.svg`, { type: 'image/svg+xml' });
-      const svgResponse = await pinata.upload.public.file(svgFile);
-      const imageCid = svgResponse.cid;
+      // Upload SVG directly via fetch
+      const svgFormData = new FormData();
+      svgFormData.append('file', new Blob([svg], { type: 'image/svg+xml' }), `${countryInfo.name}_passport.svg`);
+      svgFormData.append('name', `${countryInfo.name}_passport.svg`);
+      const svgRes = await fetch('https://uploads.pinata.cloud/v3/files', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` },
+        body: svgFormData,
+      });
+      if (!svgRes.ok) throw new Error(`SVG upload failed: ${svgRes.statusText}`);
+      const svgJson = await svgRes.json();
+      const imageCid = svgJson.cid;
+      // Metadata upload
       const metadata = {
         name: `EmpowerTours Passport #${passports.length + 1}`,
         description: `A digital passport for travel enthusiasts, representing ${countryInfo.name}.`,
@@ -93,9 +99,17 @@ export default function PassportPage() {
           { trait_type: 'Symbol', value: countryInfo.symbol },
         ],
       };
-      const metadataFile = new File([JSON.stringify(metadata)], `${countryInfo.name}_passport_metadata.json`, { type: 'application/json' });
-      const metadataResponse = await pinata.upload.public.file(metadataFile);
-      console.log('Minted metadata at:', metadataResponse.cid);
+      const metadataFormData = new FormData();
+      metadataFormData.append('file', new Blob([JSON.stringify(metadata)], { type: 'application/json' }), `${countryInfo.name}_passport_metadata.json`);
+      metadataFormData.append('name', `${countryInfo.name}_passport_metadata.json`);
+      const metadataRes = await fetch('https://uploads.pinata.cloud/v3/files', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.PINATA_JWT}` },
+        body: metadataFormData,
+      });
+      if (!metadataRes.ok) throw new Error(`Metadata upload failed: ${metadataRes.statusText}`);
+      const metadataJson = await metadataRes.json();
+      console.log('Minted metadata at:', metadataJson.cid);
     } catch (error) {
       console.error('Minting failed:', error);
     } finally {
