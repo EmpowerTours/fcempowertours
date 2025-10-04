@@ -5,6 +5,7 @@ import { createPublicClient, http } from 'viem';
 import PassportNFT from '@/lib/abis/PassportNFT.json';
 import { countryData } from '@/lib/countries';
 import { monadTestnet } from '../chains';
+import { useRouter } from 'next/navigation';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
@@ -17,10 +18,12 @@ export default function PassportPage() {
   const [selectedCountry, setSelectedCountry] = useState('');
   const [command, setCommand] = useState('');
   const [passports, setPassports] = useState<any[]>([]);
+  const [processingPrompt, setProcessingPrompt] = useState(false);
   const { address, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const router = useRouter();
 
   // Fetch Farcaster casts via Neynar API
   useEffect(() => {
@@ -46,6 +49,12 @@ export default function PassportPage() {
         }
       } catch (err) {
         console.error('Failed to fetch casts:', err);
+        setCasts([
+          {
+            author: { username: 'empowertours' },
+            text: '🌍 Mint your first EmpowerTours Passport to begin your adventure!',
+          },
+        ]);
       } finally {
         setLoadingCasts(false);
       }
@@ -122,9 +131,37 @@ export default function PassportPage() {
 
       alert(`Mint requested for ${selectedCountry}. Approve in wallet.`);
       await fetchPassports(); // Refresh user's passports
-    } catch (err) {
-      console.error('Mint failed:', err);
-      alert('Mint failed, check console for details.');
+    } catch (err: any) {
+      console.error('Mint failed:', {
+        message: err.message,
+        stack: err.stack,
+        cause: err.cause,
+      });
+      alert(`Mint failed: ${err.message || 'Unknown error'}. Check browser console for details.`);
+    }
+  };
+
+  // Handle command prompt submission
+  const handlePromptSubmit = async () => {
+    if (!command.trim()) return;
+    setProcessingPrompt(true);
+    try {
+      const lowerCommand = command.toLowerCase();
+      if (lowerCommand.includes('nft') || lowerCommand.includes('music')) {
+        router.push('/music');
+      } else if (lowerCommand.includes('passport')) {
+        router.push('/passport');
+      } else if (lowerCommand.includes('market') || lowerCommand.includes('itinerary')) {
+        router.push('/market');
+      } else {
+        alert('Sorry, I didn\'t understand. Try "take me to nft" or "go to passport".');
+      }
+      setCommand('');
+    } catch (error) {
+      console.error('Command processing failed:', error);
+      alert('Error processing command. Try again.');
+    } finally {
+      setProcessingPrompt(false);
     }
   };
 
@@ -177,6 +214,36 @@ export default function PassportPage() {
         </div>
       )}
 
+      {/* Navigation Links */}
+      <nav className="w-full max-w-2xl flex justify-around">
+        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
+        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
+        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
+        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
+      </nav>
+
+      {/* Command Prompt */}
+      <div className="w-full max-w-2xl mt-6">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
+            placeholder="Type command e.g., 'take me to nft'"
+            className="w-full border p-2 rounded-lg shadow"
+            disabled={processingPrompt}
+          />
+          <button
+            onClick={handlePromptSubmit}
+            disabled={processingPrompt}
+            className="bg-primary text-white px-4 py-2 rounded"
+          >
+            {processingPrompt ? 'Processing...' : 'Send'}
+          </button>
+        </div>
+      </div>
+
       {/* Cast Feed */}
       <div className="w-full max-w-2xl mt-8">
         <h2 className="text-2xl font-semibold mb-4">Community Feed</h2>
@@ -195,17 +262,6 @@ export default function PassportPage() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Command Prompt */}
-      <div className="w-full max-w-2xl mt-6">
-        <input
-          type="text"
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          placeholder="Type a command..."
-          className="w-full border p-2 rounded-lg shadow"
-        />
       </div>
     </div>
   );

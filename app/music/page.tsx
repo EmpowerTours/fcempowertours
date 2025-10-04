@@ -66,7 +66,15 @@ export default function MusicPage() {
     new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = () => resolve((reader.result as string).split(',', 2)[1]);
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          const base64 = reader.result.split(',', 2)[1];
+          if (base64) resolve(base64);
+          else reject(new Error('Failed to convert file to base64: Empty result'));
+        } else {
+          reject(new Error('Failed to convert file to base64: Result is not a string'));
+        }
+      };
       reader.onerror = error => reject(error);
     });
 

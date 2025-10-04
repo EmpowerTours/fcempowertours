@@ -1,4 +1,3 @@
-// app/itinerary/ItineraryClient.tsx (Client Component)
 'use client';
 
 import { useState, useEffect } from 'react';

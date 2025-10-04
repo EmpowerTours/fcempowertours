@@ -118,17 +118,33 @@ export default function Home() {
   // Fetch Farcaster casts
   useEffect(() => {
     const fetchCasts = async () => {
-      if (!isConnected || !address) return;
+      if (!isConnected || !address) {
+        setCasts([
+          {
+            author: { username: 'empowertours' },
+            text: '🌍 Connect your wallet to see community casts!',
+          },
+        ]);
+        return;
+      }
       try {
         const context = await sdk.context;
         const fid = context?.user?.fid;
-        if (!fid) return;
+        if (!fid) {
+          setCasts([
+            {
+              author: { username: 'empowertours' },
+              text: '🌍 Connect your wallet to see community casts!',
+            },
+          ]);
+          return;
+        }
 
         const res = await fetch(`https://api.neynar.com/v2/farcaster/casts?fid=${fid}&limit=10`, {
-          headers: { 'api-key': process.env.NEYNAR_API_KEY || 'YOUR_NEYNAR_API_KEY' },
+          headers: { 'api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '8F698A8D-C272-4647-A642-2275FA1C3F89' },
         });
 
-        if (!res.ok) throw new Error('Neynar fetch failed');
+        if (!res.ok) throw new Error(`Neynar fetch failed: ${res.statusText}`);
         const data = await res.json();
 
         const relevantCasts = data.casts.filter((cast: any) =>
@@ -142,6 +158,12 @@ export default function Home() {
         setCasts(relevantCasts.length > 0 ? relevantCasts : data.casts);
       } catch (error) {
         console.error('Failed to fetch casts:', error);
+        setCasts([
+          {
+            author: { username: 'empowertours' },
+            text: '🌍 Unable to load casts. Try again later.',
+          },
+        ]);
       }
     };
     fetchCasts();
@@ -188,7 +210,7 @@ export default function Home() {
         return;
       }
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyAHXFOe6MvhJi_svCU1sWuAYb9p4iWBbSc');
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const aiPrompt = `
@@ -208,7 +230,7 @@ export default function Home() {
       let actions: { type: string; path: string }[] = [];
       try {
         const rawText = result.response.text().trim();
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/); // extract first JSON block
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const responseJson = JSON.parse(jsonMatch[0]);
           actions = responseJson.actions || [];
@@ -252,22 +274,17 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Upper half: Rotating cast frame */}
-      <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
-        {casts.length > 0 ? (
-          <div className="p-4 bg-gray-100 rounded">
-            <h2 className="text-lg font-bold mb-2">Recent Cast</h2>
-            <p>{casts[currentCastIndex]?.text || 'No text'}</p>
-            <p className="text-sm text-gray-500">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
-          </div>
-        ) : (
-          <p className="text-center text-muted-foreground">Loading casts...</p>
-        )}
-      </div>
+      {/* Navigation Links */}
+      <nav className="w-full max-w-2xl p-4 flex justify-around">
+        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
+        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
+        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
+        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
+      </nav>
 
-      {/* Lower half: AI Prompt */}
-      <div className="flex-1 flex flex-col justify-end p-4">
-        <div className="mb-4">
+      {/* Command Prompt */}
+      <div className="w-full max-w-2xl p-4">
+        <div className="flex space-x-2">
           <input
             type="text"
             placeholder="Type command e.g., 'take me to nft'"
@@ -280,25 +297,30 @@ export default function Home() {
           <button
             onClick={handlePromptSubmit}
             disabled={processingPrompt}
-            className="mt-2 bg-primary text-white px-4 py-2 rounded w-full"
+            className="bg-primary text-white px-4 py-2 rounded"
           >
             {processingPrompt ? 'Processing...' : 'Send'}
           </button>
-          {frameUrl && (
-            <p className="mt-2 text-blue-500">
-              Transaction Frame: <a href={frameUrl} target="_blank" rel="noopener noreferrer">{frameUrl}</a>
-            </p>
-          )}
         </div>
+        {frameUrl && (
+          <p className="mt-2 text-blue-500">
+            Transaction Frame: <a href={frameUrl} target="_blank" rel="noopener noreferrer">{frameUrl}</a>
+          </p>
+        )}
       </div>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex justify-around">
-        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
-        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
-        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
-        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
-      </nav>
+      {/* Upper half: Rotating cast frame */}
+      <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
+        {casts.length > 0 ? (
+          <div className="p-4 bg-gray-100 rounded">
+            <h2 className="text-lg font-bold mb-2">Recent Cast</h2>
+            <p>{casts[currentCastIndex]?.text || 'No text'}</p>
+            <p className="text-sm text-gray-500">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">Loading casts...</p>
+        )}
+      </div>
     </div>
   );
 }
