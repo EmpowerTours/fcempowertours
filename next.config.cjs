@@ -4,11 +4,32 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   experimental: {
-    serverComponentsExternalPackages: ['undici'],  // Keep for any IPFS remnants
+    serverComponentsExternalPackages: ['undici'],
+  },
+  async headers() {
+    return [
+      {
+        source: '/',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=300',
+          },
+        ],
+      },
+      {
+        source: '/images/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=300',
+          },
+        ],
+      },
+    ];
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Client-side: Stub Node modules to prevent bundling errors
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,

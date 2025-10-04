@@ -1,12 +1,11 @@
 const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-
 export const frameMetadata = {
-  version: 'next',
-  imageUrl: `${appUrl}/images/feed.png`,
+  version: '1',
+  imageUrl: `${appUrl}/images/og-image.png`,
   button: {
-    title: 'EmpowerTours',
+    title: 'Launch EmpowerTours',
     action: {
-      type: 'launch_frame',
+      type: 'launch_miniapp',
       name: 'EmpowerTours MiniApp',
       url: appUrl,
       splashImageUrl: `${appUrl}/images/splash.png`,
