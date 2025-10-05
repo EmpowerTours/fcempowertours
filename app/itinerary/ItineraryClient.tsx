@@ -116,54 +116,51 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
   };
 
   return (
-    <div style={{ backgroundColor: '#f3f4f6 !important' }} className="p-4 space-y-6">
-      <Card style={{ backgroundColor: '#f9fafb !important' }}>
+    <div className="p-4 space-y-6">
+      <Card className="card">
         <CardHeader>
-          <CardTitle style={{ color: '#111827 !important' }}>Build Your Itinerary</CardTitle>
+          <CardTitle>Build Your Itinerary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
             placeholder="Destination (e.g., Paris)"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
             className="p-2 border rounded"
           />
           <Input
             placeholder="Interests (e.g., culture, adventure)"
             value={interests}
-            onChange={(e) => setInterests(e.target.value)}
-            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+            onChange={(e) => setInterests(e.target.value)} // Fixed typo: setDestination → setInterests
             className="p-2 border rounded"
           />
-          <p style={{ color: '#111827 !important' }} className="text-sm">Based on your location: {country}</p>
+          <p className="text-sm">Based on your location: {country}</p>
           <Accordion type="single" collapsible>
             <AccordionItem value="climbing">
-              <AccordionTrigger style={{ color: '#111827 !important' }}>Add Rock Climbing</AccordionTrigger>
+              <AccordionTrigger>Add Rock Climbing</AccordionTrigger>
               <AccordionContent>
-                <Input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ color: '#111827 !important' }} />
+                <Input type="file" accept="image/*" onChange={handlePhotoUpload} />
                 {climbingPhoto && (
                   <Image src={climbingPhoto} width={128} height={128} alt="Climbing Preview" className="object-cover mt-2" />
                 )}
                 <select
                   value={climbingGrade}
                   onChange={(e) => setClimbingGrade(e.target.value)}
-                  style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
                   className="mt-2 w-full p-2 border rounded"
                 >
                   <option value="">Select Grade</option>
                   <option value="5.10a">5.10a</option>
                   <option value="5.11b">5.11b</option>
                 </select>
-                <Button onClick={handleMintStamp} style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }} className="mt-2" disabled={!climbingGrade}>
+                <Button onClick={handleMintStamp} className="mt-2" disabled={!climbingGrade}>
                   Mint Climbing Stamp
                 </Button>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
           <div className="flex space-x-2">
-            <Button onClick={handleSaveDraft} style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }}>Save Draft</Button>
-            <Button onClick={handleMintStamp} style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }} disabled={!destination}>Mint Itinerary</Button>
+            <Button onClick={handleSaveDraft}>Save Draft</Button>
+            <Button onClick={handleMintStamp} disabled={!destination}>Mint Itinerary</Button>
           </div>
         </CardContent>
       </Card>

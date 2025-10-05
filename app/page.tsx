@@ -56,7 +56,6 @@ export default function Home() {
     async function fetchNFTs() {
       if (!address || !isConnected) return;
       try {
-        // Get latest block number
         const latestBlock = await publicClient.getBlockNumber();
         const fromBlock = latestBlock - BigInt(100); // Limit to last 100 blocks
         const transferLogs = await publicClient.getLogs({
@@ -217,7 +216,7 @@ export default function Home() {
             fid: (await sdk.context.catch(() => ({ user: { fid: null } })))?.user?.fid?.toString() || '1',
           }),
         });
-        if (!frameRes.ok) throw new Error('Failed to create transaction Frame');
+        if (!frameRes.ok) throw new Error(`Failed to create transaction Frame: ${frameRes.statusText}`);
         const { frameUrl: createdFrameUrl } = await frameRes.json();
         setFrameUrl(createdFrameUrl);
         alert(`Transaction Frame created! Cast it on Warpcast: ${createdFrameUrl}`);
@@ -258,7 +257,7 @@ export default function Home() {
           if (action.type === 'navigate') router.push(action.path);
         });
       } else {
-        alert('Sorry, I didn\'t understand. Try "take me to nft", "go to passport", or "take me to profile".');
+        alert('Sorry, I didn\'t understand. Try "take me to nft", "go to passport", or "go to profile".');
       }
     } catch (error) {
       console.error('Prompt processing failed:', {
@@ -274,7 +273,7 @@ export default function Home() {
 
   if (showSplash) {
     return (
-      <div style={{ backgroundColor: '#353B48 !important' }} className="fixed top-0 left-0 w-full h-full flex items-center justify-center z-[9999]">
+      <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center z-[9999]">
         <Image src="/images/splash.png" alt="Splash" width={800} height={800} className="max-w-[80%] max-h-[80%] object-contain" />
       </div>
     );
@@ -282,20 +281,20 @@ export default function Home() {
 
   if (!isConnected) {
     return (
-      <div style={{ backgroundColor: '#f3f4f6 !important' }} className="min-h-screen p-4 text-center">
-        <h1 style={{ color: '#111827 !important' }} className="text-2xl font-bold mb-4">Welcome to EmpowerTours</h1>
-        <p style={{ color: '#111827 !important' }} className="text-lg mb-4">Please connect your wallet to view your Music NFTs.</p>
+      <div className="min-h-screen p-4 text-center">
+        <h1 className="text-2xl font-bold mb-4">Welcome to EmpowerTours</h1>
+        <p className="text-lg mb-4">Please connect your wallet to view your Music NFTs.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: '#f3f4f6 !important' }} className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <nav className="w-full max-w-2xl p-4 flex justify-around">
-        <button onClick={() => router.push('/passport')} style={{ color: '#3b82f6 !important' }}>Passport</button>
-        <button onClick={() => router.push('/music')} style={{ color: '#3b82f6 !important' }}>Music</button>
-        <button onClick={() => router.push('/market')} style={{ color: '#3b82f6 !important' }}>Market</button>
-        <button onClick={() => router.push('/profile')} style={{ color: '#3b82f6 !important' }}>Profile</button>
+        <button onClick={() => router.push('/passport')}>Passport</button>
+        <button onClick={() => router.push('/music')}>Music</button>
+        <button onClick={() => router.push('/market')}>Market</button>
+        <button onClick={() => router.push('/profile')}>Profile</button>
       </nav>
       <div className="w-full max-w-2xl p-4">
         <div className="flex space-x-2">
@@ -305,34 +304,32 @@ export default function Home() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
-            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
             className="w-full p-2 border rounded"
             disabled={processingPrompt}
           />
           <button
             onClick={handlePromptSubmit}
             disabled={processingPrompt}
-            style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }}
             className="px-4 py-2 rounded"
           >
             {processingPrompt ? 'Processing...' : 'Send'}
           </button>
         </div>
         {frameUrl && (
-          <p style={{ color: '#3b82f6 !important' }} className="mt-2">
+          <p className="mt-2">
             Transaction Frame: <a href={frameUrl} target="_blank" rel="noopener noreferrer">{frameUrl}</a>
           </p>
         )}
       </div>
       <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
         {casts.length > 0 ? (
-          <div style={{ backgroundColor: '#f9fafb !important' }} className="p-4 rounded">
-            <h2 style={{ color: '#111827 !important' }} className="text-lg font-bold mb-2">Recent Cast</h2>
-            <p style={{ color: '#111827 !important' }}>{casts[currentCastIndex]?.text || 'No text'}</p>
-            <p style={{ color: '#6b7280 !important' }} className="text-sm">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
+          <div className="p-4 rounded">
+            <h2 className="text-lg font-bold mb-2">Recent Cast</h2>
+            <p>{casts[currentCastIndex]?.text || 'No text'}</p>
+            <p className="text-sm cast-username">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
           </div>
         ) : (
-          <p style={{ color: '#111827 !important' }} className="text-center">Loading casts...</p>
+          <p className="text-center">Loading casts...</p>
         )}
       </div>
     </div>
