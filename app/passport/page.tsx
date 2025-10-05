@@ -42,6 +42,7 @@ export default function PassportPage() {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_NEYNAR_API_KEY}`,
           },
         });
+        if (!res.ok) throw new Error(`Neynar fetch failed: ${res.statusText}`);
         const data = await res.json();
         if (data?.result?.casts?.length) {
           setCasts(data.result.casts);
@@ -139,11 +140,12 @@ export default function PassportPage() {
         contractAddress: PASSPORT_NFT_ADDRESS,
         selectedCountry,
       });
+      // Assuming PassportNFT mint function is: mint(address to, string country)
       await writeContractAsync({
         address: PASSPORT_NFT_ADDRESS,
         abi: PassportNFT,
         functionName: 'mint',
-        args: [selectedCountry],
+        args: [address, selectedCountry],
         chainId: monadTestnet.id,
         account: address,
       });
@@ -231,14 +233,15 @@ export default function PassportPage() {
   };
 
   return (
-    <div className="flex flex-col items-center p-6 space-y-6 bg-gray-100">
-      <h1 className="text-3xl font-bold text-gray-900">EmpowerTours Passport</h1>
+    <div style={{ backgroundColor: '#f3f4f6 !important', color: '#111827 !important' }} className="flex flex-col items-center p-6 space-y-6">
+      <h1 style={{ color: '#111827 !important' }} className="text-3xl font-bold">EmpowerTours Passport</h1>
       <div className="w-full max-w-md space-y-2">
-        <label className="block text-sm font-medium text-gray-900">Select your country:</label>
+        <label style={{ color: '#111827 !important' }} className="block text-sm font-medium">Select your country:</label>
         <select
           value={selectedCountry}
           onChange={(e) => setSelectedCountry(e.target.value)}
-          className="w-full border rounded-lg p-2 bg-white text-gray-900"
+          style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+          className="w-full border rounded-lg p-2"
         >
           <option value="">-- Choose a country --</option>
           {Object.entries(countryData).map(([code, { name }]) => (
@@ -247,19 +250,21 @@ export default function PassportPage() {
         </select>
         <button
           onClick={handleMint}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow"
+          style={{ backgroundColor: '#9333ea !important', color: '#ffffff !important' }}
+          className="w-full hover:bg-purple-700 font-semibold py-2 px-4 rounded-lg shadow"
         >
           Mint One
         </button>
       </div>
       {passports.length > 0 && (
         <div className="w-full max-w-2xl">
-          <h2 className="text-2xl font-semibold mt-6 mb-2 text-gray-900">Your Passports</h2>
+          <h2 style={{ color: '#111827 !important' }} className="text-2xl font-semibold mt-6 mb-2">Your Passports</h2>
           <div className="grid grid-cols-2 gap-4">
             {passports.map((p, i) => (
               <div
                 key={i}
-                className="border rounded-lg p-3 shadow bg-gray-50 flex flex-col items-center"
+                style={{ backgroundColor: '#f9fafb !important' }}
+                className="border rounded-lg p-3 shadow flex flex-col items-center"
               >
                 {p.image && (
                   <img
@@ -268,17 +273,17 @@ export default function PassportPage() {
                     className="rounded-lg w-32 h-32 object-cover mb-2"
                   />
                 )}
-                <p className="font-medium text-sm text-gray-900">{p.name}</p>
+                <p style={{ color: '#111827 !important' }} className="font-medium text-sm">{p.name}</p>
               </div>
             ))}
           </div>
         </div>
       )}
       <nav className="w-full max-w-2xl flex justify-around">
-        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
-        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
-        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
-        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
+        <button onClick={() => router.push('/passport')} style={{ color: '#3b82f6 !important' }}>Passport</button>
+        <button onClick={() => router.push('/music')} style={{ color: '#3b82f6 !important' }}>Music</button>
+        <button onClick={() => router.push('/market')} style={{ color: '#3b82f6 !important' }}>Market</button>
+        <button onClick={() => router.push('/profile')} style={{ color: '#3b82f6 !important' }}>Profile</button>
       </nav>
       <div className="w-full max-w-2xl mt-4">
         <div className="flex space-x-2">
@@ -288,31 +293,34 @@ export default function PassportPage() {
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
             placeholder="Type command e.g., 'take me to nft' or 'take me to profile'"
-            className="w-full p-2 border rounded-lg bg-white text-gray-900"
+            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+            className="w-full p-2 border rounded-lg"
             disabled={processingPrompt}
           />
           <button
             onClick={handlePromptSubmit}
             disabled={processingPrompt}
-            className="bg-primary text-white px-4 py-2 rounded"
+            style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }}
+            className="px-4 py-2 rounded"
           >
             {processingPrompt ? 'Processing...' : 'Send'}
           </button>
         </div>
       </div>
       <div className="w-full max-w-2xl mt-8">
-        <h2 className="text-2xl font-semibold mb-4 text-gray-900">Community Feed</h2>
+        <h2 style={{ color: '#111827 !important' }} className="text-2xl font-semibold mb-4">Community Feed</h2>
         {loadingCasts ? (
-          <p className="text-gray-900">Loading casts…</p>
+          <p style={{ color: '#111827 !important' }}>Loading casts…</p>
         ) : (
           <div className="space-y-4">
             {casts.map((cast: any, i: number) => (
               <div
                 key={i}
-                className="p-4 border rounded-lg bg-gray-50 shadow-sm"
+                style={{ backgroundColor: '#f9fafb !important' }}
+                className="p-4 border rounded-lg shadow-sm"
               >
-                <p className="font-medium text-purple-700">{cast.author?.username}</p>
-                <p className="text-gray-900">{cast.text}</p>
+                <p style={{ color: '#7e22ce !important' }} className="font-medium">{cast.author?.username}</p>
+                <p style={{ color: '#111827 !important' }}>{cast.text}</p>
               </div>
             ))}
           </div>

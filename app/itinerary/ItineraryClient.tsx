@@ -85,17 +85,18 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
       const metadata = { destination, country, climbingGrade };
+      const photoUri = climbingPhoto || 'ipfs://placeholder';
       console.log('Minting itinerary with:', {
         address,
         contractAddress: ITINERARY_NFT_ADDRESS,
         metadata,
-        climbingPhoto: climbingPhoto || 'ipfs://placeholder',
+        climbingPhoto: photoUri,
       });
       await writeContractAsync({
         address: ITINERARY_NFT_ADDRESS,
         abi: ItineraryNFTABI,
         functionName: 'mintItinerary',
-        args: [metadata, climbingPhoto ? climbingPhoto : 'ipfs://placeholder'],
+        args: [metadata, photoUri],
         chainId: monadTestnet.id,
         account: address,
       });
@@ -107,57 +108,62 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
         cause: (error as Error).cause,
         address,
         contractAddress: ITINERARY_NFT_ADDRESS,
+        metadata: { destination, country, climbingGrade },
+        climbingPhoto: climbingPhoto || 'ipfs://placeholder',
       });
       alert(`Failed to mint itinerary: ${(error as Error).message}. Check browser console for details.`);
     }
   };
 
   return (
-    <div className="p-4 space-y-6 bg-gray-100">
-      <Card className="bg-gray-50">
+    <div style={{ backgroundColor: '#f3f4f6 !important' }} className="p-4 space-y-6">
+      <Card style={{ backgroundColor: '#f9fafb !important' }}>
         <CardHeader>
-          <CardTitle className="text-gray-900">Build Your Itinerary</CardTitle>
+          <CardTitle style={{ color: '#111827 !important' }}>Build Your Itinerary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
             placeholder="Destination (e.g., Paris)"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            className="text-gray-900 bg-white"
+            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+            className="p-2 border rounded"
           />
           <Input
             placeholder="Interests (e.g., culture, adventure)"
             value={interests}
             onChange={(e) => setInterests(e.target.value)}
-            className="text-gray-900 bg-white"
+            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+            className="p-2 border rounded"
           />
-          <p className="text-sm text-gray-900">Based on your location: {country}</p>
+          <p style={{ color: '#111827 !important' }} className="text-sm">Based on your location: {country}</p>
           <Accordion type="single" collapsible>
             <AccordionItem value="climbing">
-              <AccordionTrigger className="text-gray-900">Add Rock Climbing</AccordionTrigger>
+              <AccordionTrigger style={{ color: '#111827 !important' }}>Add Rock Climbing</AccordionTrigger>
               <AccordionContent>
-                <Input type="file" accept="image/*" onChange={handlePhotoUpload} className="text-gray-900" />
+                <Input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ color: '#111827 !important' }} />
                 {climbingPhoto && (
                   <Image src={climbingPhoto} width={128} height={128} alt="Climbing Preview" className="object-cover mt-2" />
                 )}
                 <select
                   value={climbingGrade}
                   onChange={(e) => setClimbingGrade(e.target.value)}
-                  className="mt-2 w-full p-2 border rounded text-gray-900 bg-white"
+                  style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+                  className="mt-2 w-full p-2 border rounded"
                 >
                   <option value="">Select Grade</option>
                   <option value="5.10a">5.10a</option>
                   <option value="5.11b">5.11b</option>
                 </select>
-                <Button onClick={handleMintStamp} className="mt-2" disabled={!climbingGrade}>
+                <Button onClick={handleMintStamp} style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }} className="mt-2" disabled={!climbingGrade}>
                   Mint Climbing Stamp
                 </Button>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
           <div className="flex space-x-2">
-            <Button onClick={handleSaveDraft}>Save Draft</Button>
-            <Button onClick={handleMintStamp} disabled={!destination}>Mint Itinerary</Button>
+            <Button onClick={handleSaveDraft} style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }}>Save Draft</Button>
+            <Button onClick={handleMintStamp} style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }} disabled={!destination}>Mint Itinerary</Button>
           </div>
         </CardContent>
       </Card>

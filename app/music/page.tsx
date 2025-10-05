@@ -92,8 +92,8 @@ export default function MusicPage() {
     setUploading(true);
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
-      const context = await sdk.context;
-      const fid = context?.user?.fid?.toString() || 'Unknown';
+      const context = await sdk.context.catch(() => ({ user: { fid: null } }));
+      const fid = context?.user?.fid?.toString() || '1';
       const formData = new FormData();
       formData.append('audio', audioFile);
       formData.append('description', description);
@@ -162,51 +162,50 @@ export default function MusicPage() {
   };
 
   if (!mounted) {
-    return <div className="text-gray-900">Loading...</div>;
+    return <div style={{ color: '#111827 !important' }}>Loading...</div>;
   }
 
   if (!isConnected) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }} className="bg-gray-100" suppressHydrationWarning>
-        <h1 className="text-gray-900">Music App</h1>
+      <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f3f4f6 !important' }} suppressHydrationWarning>
+        <h1 style={{ color: '#111827 !important' }}>Music App</h1>
         <appkit-connect-button label="Connect Wallet to Mint Music NFTs" />
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }} className="bg-gray-100" suppressHydrationWarning>
-      <h1 className="text-gray-900">Mint Music NFT</h1>
-      <p className="text-gray-900">Connected: {address}</p>
-      <p className="text-gray-900">Chain: {chainId === monadTestnet.id ? 'Monad Testnet (Ready)' : 'Wrong chain - Switch to ID 10143'}</p>
+    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', backgroundColor: '#f3f4f6 !important' }} suppressHydrationWarning>
+      <h1 style={{ color: '#111827 !important' }}>Mint Music NFT</h1>
+      <p style={{ color: '#111827 !important' }}>Connected: {address}</p>
+      <p style={{ color: '#111827 !important' }}>Chain: {chainId === monadTestnet.id ? 'Monad Testnet (Ready)' : 'Wrong chain - Switch to ID 10143'}</p>
       <div style={{ marginBottom: '20px' }}>
-        <label className="text-gray-900">Description:</label>
+        <label style={{ color: '#111827 !important' }}>Description:</label>
         <input
           type="text"
           placeholder="Describe your track"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          style={{ width: '100%', padding: '8px', margin: '5px 0' }}
-          className="text-gray-900 bg-white"
+          style={{ width: '100%', padding: '8px', margin: '5px 0', backgroundColor: '#ffffff !important', color: '#111827 !important' }}
         />
       </div>
       <div style={{ marginBottom: '20px' }}>
-        <label className="text-gray-900">Audio File (short clip for preview):</label>
-        <input type="file" accept="audio/mp3,audio/mpeg,audio/wav" onChange={handleAudioChange} className="text-gray-900" />
-        {audioFile && <p className="text-gray-900">Selected: {audioFile.name}</p>}
+        <label style={{ color: '#111827 !important' }}>Audio File (short clip for preview):</label>
+        <input type="file" accept="audio/mp3,audio/mpeg,audio/wav" onChange={handleAudioChange} style={{ color: '#111827 !important' }} />
+        {audioFile && <p style={{ color: '#111827 !important' }}>Selected: {audioFile.name}</p>}
       </div>
       <div style={{ marginBottom: '20px' }}>
-        <label className="text-gray-900">Cover Art (image):</label>
-        <input type="file" accept="image/*" onChange={handleCoverChange} className="text-gray-900" />
-        {coverFile && <p className="text-gray-900">Selected: {coverFile.name}</p>}
+        <label style={{ color: '#111827 !important' }}>Cover Art (image):</label>
+        <input type="file" accept="image/*" onChange={handleCoverChange} style={{ color: '#111827 !important' }} />
+        {coverFile && <p style={{ color: '#111827 !important' }}>Selected: {coverFile.name}</p>}
       </div>
       <button
         onClick={uploadToPinata}
         disabled={!audioFile || !coverFile || !description || uploading || writePending || receiptLoading}
         style={{
           padding: '10px 20px',
-          background: '#0070f3',
-          color: 'white',
+          backgroundColor: '#0070f3 !important',
+          color: '#ffffff !important',
           border: 'none',
           borderRadius: '5px',
           cursor: (uploading || writePending || receiptLoading) ? 'not-allowed' : 'pointer',
@@ -214,9 +213,9 @@ export default function MusicPage() {
       >
         {uploading ? 'Uploading to Pinata...' : writePending ? 'Awaiting Wallet Approval...' : receiptLoading ? 'Confirming TX...' : 'Upload & Mint NFT'}
       </button>
-      {(uploading || writePending || receiptLoading) && <p className="text-gray-900">Processing... (Server upload → Blockchain)</p>}
-      {txHash && <p className="text-gray-900">TX Hash: {txHash} (View on <a href={`https://explorer.monad.xyz/tx/${txHash}`} target="_blank" rel="noopener noreferrer">explorer</a>)</p>}
-      <p className="text-gray-900"><small>Tip: Use short audio (&lt;30s) to save gas on preview bytes. Free Pinata: 1GB/month.</small></p>
+      {(uploading || writePending || receiptLoading) && <p style={{ color: '#111827 !important' }}>Processing... (Server upload → Blockchain)</p>}
+      {txHash && <p style={{ color: '#111827 !important' }}>TX Hash: {txHash} (View on <a href={`https://explorer.monad.xyz/tx/${txHash}`} target="_blank" rel="noopener noreferrer">explorer</a>)</p>}
+      <p style={{ color: '#111827 !important' }}><small>Tip: Use short audio (&lt;30s) to save gas on preview bytes. Free Pinata: 1GB/month.</small></p>
     </div>
   );
 }

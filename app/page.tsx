@@ -56,11 +56,15 @@ export default function Home() {
     async function fetchNFTs() {
       if (!address || !isConnected) return;
       try {
+        // Get latest block number
+        const latestBlock = await publicClient.getBlockNumber();
+        const fromBlock = latestBlock - BigInt(100); // Limit to last 100 blocks
         const transferLogs = await publicClient.getLogs({
           address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
           event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
           args: { to: address },
-          fromBlock: BigInt(0),
+          fromBlock: fromBlock > 0 ? fromBlock : BigInt(0),
+          toBlock: latestBlock,
         });
         const nftList: NFT[] = [];
         for (const log of transferLogs) {
@@ -106,7 +110,10 @@ export default function Home() {
         }
         setNfts(nftList);
       } catch (error) {
-        console.error('Error fetching Music NFTs:', error);
+        console.error('Error fetching Music NFTs:', {
+          message: (error as Error).message,
+          stack: (error as Error).stack,
+        });
       }
     }
     fetchNFTs();
@@ -125,14 +132,14 @@ export default function Home() {
         return;
       }
       try {
-        const context = await sdk.context;
-        const fid = context?.user?.fid;
-        if (!fid || !process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
-          console.error('Missing FID or Neynar API key:', { fid, hasApiKey: !!process.env.NEXT_PUBLIC_NEYNAR_API_KEY });
+        const context = await sdk.context.catch(() => ({ user: { fid: null } }));
+        const fid = context?.user?.fid || 1; // Fallback to FID 1
+        if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
+          console.error('Neynar API key is not defined');
           setCasts([
             {
               author: { username: 'empowertours' },
-              text: '🌍 Unable to load casts. Please ensure wallet is connected and try again.',
+              text: '🌍 Unable to load casts due to missing API key.',
             },
           ]);
           return;
@@ -207,7 +214,7 @@ export default function Home() {
           body: JSON.stringify({
             prompt,
             address,
-            fid: (await sdk.context)?.user?.fid?.toString() || 'Unknown',
+            fid: (await sdk.context.catch(() => ({ user: { fid: null } })))?.user?.fid?.toString() || '1',
           }),
         });
         if (!frameRes.ok) throw new Error('Failed to create transaction Frame');
@@ -267,7 +274,7 @@ export default function Home() {
 
   if (showSplash) {
     return (
-      <div className="fixed top-0 left-0 w-full h-full bg-[#353B48] flex items-center justify-center z-[9999]">
+      <div style={{ backgroundColor: '#353B48 !important' }} className="fixed top-0 left-0 w-full h-full flex items-center justify-center z-[9999]">
         <Image src="/images/splash.png" alt="Splash" width={800} height={800} className="max-w-[80%] max-h-[80%] object-contain" />
       </div>
     );
@@ -275,20 +282,20 @@ export default function Home() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-100 p-4 text-center">
-        <h1 className="text-2xl font-bold mb-4 text-gray-900">Welcome to EmpowerTours</h1>
-        <p className="text-lg mb-4 text-gray-900">Please connect your wallet to view your Music NFTs.</p>
+      <div style={{ backgroundColor: '#f3f4f6 !important' }} className="min-h-screen p-4 text-center">
+        <h1 style={{ color: '#111827 !important' }} className="text-2xl font-bold mb-4">Welcome to EmpowerTours</h1>
+        <p style={{ color: '#111827 !important' }} className="text-lg mb-4">Please connect your wallet to view your Music NFTs.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div style={{ backgroundColor: '#f3f4f6 !important' }} className="min-h-screen flex flex-col">
       <nav className="w-full max-w-2xl p-4 flex justify-around">
-        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
-        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
-        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
-        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
+        <button onClick={() => router.push('/passport')} style={{ color: '#3b82f6 !important' }}>Passport</button>
+        <button onClick={() => router.push('/music')} style={{ color: '#3b82f6 !important' }}>Music</button>
+        <button onClick={() => router.push('/market')} style={{ color: '#3b82f6 !important' }}>Market</button>
+        <button onClick={() => router.push('/profile')} style={{ color: '#3b82f6 !important' }}>Profile</button>
       </nav>
       <div className="w-full max-w-2xl p-4">
         <div className="flex space-x-2">
@@ -298,32 +305,34 @@ export default function Home() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
-            className="w-full p-2 border rounded bg-white text-gray-900"
+            style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
+            className="w-full p-2 border rounded"
             disabled={processingPrompt}
           />
           <button
             onClick={handlePromptSubmit}
             disabled={processingPrompt}
-            className="bg-primary text-white px-4 py-2 rounded"
+            style={{ backgroundColor: '#2563eb !important', color: '#ffffff !important' }}
+            className="px-4 py-2 rounded"
           >
             {processingPrompt ? 'Processing...' : 'Send'}
           </button>
         </div>
         {frameUrl && (
-          <p className="mt-2 text-blue-500">
+          <p style={{ color: '#3b82f6 !important' }} className="mt-2">
             Transaction Frame: <a href={frameUrl} target="_blank" rel="noopener noreferrer">{frameUrl}</a>
           </p>
         )}
       </div>
       <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
         {casts.length > 0 ? (
-          <div className="p-4 bg-gray-50 rounded">
-            <h2 className="text-lg font-bold mb-2 text-gray-900">Recent Cast</h2>
-            <p className="text-gray-900">{casts[currentCastIndex]?.text || 'No text'}</p>
-            <p className="text-sm text-gray-500">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
+          <div style={{ backgroundColor: '#f9fafb !important' }} className="p-4 rounded">
+            <h2 style={{ color: '#111827 !important' }} className="text-lg font-bold mb-2">Recent Cast</h2>
+            <p style={{ color: '#111827 !important' }}>{casts[currentCastIndex]?.text || 'No text'}</p>
+            <p style={{ color: '#6b7280 !important' }} className="text-sm">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
           </div>
         ) : (
-          <p className="text-center text-gray-900">Loading casts...</p>
+          <p style={{ color: '#111827 !important' }} className="text-center">Loading casts...</p>
         )}
       </div>
     </div>
