@@ -183,9 +183,6 @@ export default function Home() {
     if (!prompt.trim()) return;
     setProcessingPrompt(true);
     try {
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error('Gemini API key is not defined');
-      }
       const lowerPrompt = prompt.toLowerCase();
       if (lowerPrompt.includes('nft') || lowerPrompt.includes('music')) {
         router.push('/music');
@@ -200,6 +197,10 @@ export default function Home() {
         router.push('/profile');
         return;
       } else if (lowerPrompt.includes('pay') || lowerPrompt.includes('buy') || lowerPrompt.includes('transaction')) {
+        if (!address || !isConnected) {
+          alert('Please connect your wallet to create a transaction.');
+          return;
+        }
         const frameRes = await fetch('/api/farcaster/create-frame', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -213,6 +214,11 @@ export default function Home() {
         const { frameUrl: createdFrameUrl } = await frameRes.json();
         setFrameUrl(createdFrameUrl);
         alert(`Transaction Frame created! Cast it on Warpcast: ${createdFrameUrl}`);
+        return;
+      }
+      if (!process.env.GEMINI_API_KEY) {
+        console.error('Gemini API key is not defined');
+        alert('Command processing unavailable. Try basic commands like "take me to nft" or "go to profile".');
         return;
       }
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -252,7 +258,7 @@ export default function Home() {
         message: (error as Error).message,
         stack: (error as Error).stack,
       });
-      alert('Error processing command. Try again.');
+      alert(`Error processing command: ${(error as Error).message}. Try basic commands like "take me to nft".`);
     } finally {
       setProcessingPrompt(false);
       setPrompt('');
@@ -269,23 +275,21 @@ export default function Home() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-background p-4 text-center">
-        <h1 className="text-2xl font-bold mb-4">Welcome to EmpowerTours</h1>
-        <p className="text-lg mb-4">Please connect your wallet to view your Music NFTs.</p>
+      <div className="min-h-screen bg-gray-100 p-4 text-center">
+        <h1 className="text-2xl font-bold mb-4 text-gray-900">Welcome to EmpowerTours</h1>
+        <p className="text-lg mb-4 text-gray-900">Please connect your wallet to view your Music NFTs.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Navigation Links */}
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       <nav className="w-full max-w-2xl p-4 flex justify-around">
         <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
         <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
         <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
         <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
       </nav>
-      {/* Command Prompt */}
       <div className="w-full max-w-2xl p-4">
         <div className="flex space-x-2">
           <input
@@ -294,7 +298,7 @@ export default function Home() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border rounded bg-white text-gray-900"
             disabled={processingPrompt}
           />
           <button
@@ -311,16 +315,15 @@ export default function Home() {
           </p>
         )}
       </div>
-      {/* Upper half: Rotating cast frame */}
       <div className="flex-1 max-h-[50vh] overflow-hidden border-b border-gray-300 mb-4">
         {casts.length > 0 ? (
-          <div className="p-4 bg-gray-100 rounded">
-            <h2 className="text-lg font-bold mb-2">Recent Cast</h2>
-            <p className="text-gray-700">{casts[currentCastIndex]?.text || 'No text'}</p>
+          <div className="p-4 bg-gray-50 rounded">
+            <h2 className="text-lg font-bold mb-2 text-gray-900">Recent Cast</h2>
+            <p className="text-gray-900">{casts[currentCastIndex]?.text || 'No text'}</p>
             <p className="text-sm text-gray-500">By: {casts[currentCastIndex]?.author?.username || 'Unknown'}</p>
           </div>
         ) : (
-          <p className="text-center text-gray-700">Loading casts...</p>
+          <p className="text-center text-gray-900">Loading casts...</p>
         )}
       </div>
     </div>

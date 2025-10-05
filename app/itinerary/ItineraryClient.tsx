@@ -13,6 +13,8 @@ import Image from 'next/image';
 import { monadTestnet } from '../chains';
 import ItineraryNFTABI from '@/lib/abis/ItineraryNFT.json';
 
+const ITINERARY_NFT_ADDRESS = '0x382072Abe7Eb9f72c08b1BDB252FE320F0d00934' as `0x${string}`;
+
 interface Props {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
@@ -24,7 +26,7 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
   const [country, setCountry] = useState('Unknown');
   const [climbingPhoto, setClimbingPhoto] = useState<string | null>(null);
   const [climbingGrade, setClimbingGrade] = useState('');
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, isConnecting, isDisconnected, chainId } = useAccount();
   const { connect, connectors } = useConnect();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
@@ -37,7 +39,6 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
     }
   }, [resolvedParams]);
 
-  // Auto-switch to Monad Testnet
   useEffect(() => {
     if (!isConnected || chainId === monadTestnet.id) return;
     const autoSwitchChain = async () => {
@@ -72,8 +73,8 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
   };
 
   const handleMintStamp = async () => {
-    if (!destination || !isConnected || !address || !isAddress(address)) {
-      console.error('Invalid input for minting itinerary:', { destination, isConnected, address });
+    if (!destination || !isConnected || isConnecting || isDisconnected || !address || !isAddress(address)) {
+      console.error('Invalid input for minting itinerary:', { destination, isConnected, isConnecting, isDisconnected, address });
       alert('Please provide a destination and connect a valid wallet address (40-character hex).');
       return;
     }
@@ -81,22 +82,17 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
       alert('Please switch to Monad Testnet (Chain ID 10143) in your wallet.');
       return;
     }
-    if (!process.env.NEXT_PUBLIC_ITINERARY_ADDRESS) {
-      console.error('Itinerary contract address is not defined');
-      alert('Contract address not configured. Contact support.');
-      return;
-    }
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
       const metadata = { destination, country, climbingGrade };
       console.log('Minting itinerary with:', {
         address,
-        contractAddress: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
+        contractAddress: ITINERARY_NFT_ADDRESS,
         metadata,
         climbingPhoto: climbingPhoto || 'ipfs://placeholder',
       });
       await writeContractAsync({
-        address: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS as `0x${string}`,
+        address: ITINERARY_NFT_ADDRESS,
         abi: ItineraryNFTABI,
         functionName: 'mintItinerary',
         args: [metadata, climbingPhoto ? climbingPhoto : 'ipfs://placeholder'],
@@ -110,42 +106,44 @@ export default function ItineraryClient({ searchParams: promisedParams }: Props)
         stack: (error as Error).stack,
         cause: (error as Error).cause,
         address,
-        contractAddress: process.env.NEXT_PUBLIC_ITINERARY_ADDRESS,
+        contractAddress: ITINERARY_NFT_ADDRESS,
       });
       alert(`Failed to mint itinerary: ${(error as Error).message}. Check browser console for details.`);
     }
   };
 
   return (
-    <div className="p-4 space-y-6">
-      <Card>
+    <div className="p-4 space-y-6 bg-gray-100">
+      <Card className="bg-gray-50">
         <CardHeader>
-          <CardTitle>Build Your Itinerary</CardTitle>
+          <CardTitle className="text-gray-900">Build Your Itinerary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
             placeholder="Destination (e.g., Paris)"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
+            className="text-gray-900 bg-white"
           />
           <Input
             placeholder="Interests (e.g., culture, adventure)"
             value={interests}
             onChange={(e) => setInterests(e.target.value)}
+            className="text-gray-900 bg-white"
           />
-          <p className="text-sm text-gray-600">Based on your location: {country}</p>
+          <p className="text-sm text-gray-900">Based on your location: {country}</p>
           <Accordion type="single" collapsible>
             <AccordionItem value="climbing">
-              <AccordionTrigger>Add Rock Climbing</AccordionTrigger>
+              <AccordionTrigger className="text-gray-900">Add Rock Climbing</AccordionTrigger>
               <AccordionContent>
-                <Input type="file" accept="image/*" onChange={handlePhotoUpload} />
+                <Input type="file" accept="image/*" onChange={handlePhotoUpload} className="text-gray-900" />
                 {climbingPhoto && (
                   <Image src={climbingPhoto} width={128} height={128} alt="Climbing Preview" className="object-cover mt-2" />
                 )}
                 <select
                   value={climbingGrade}
                   onChange={(e) => setClimbingGrade(e.target.value)}
-                  className="mt-2 w-full p-2 border rounded"
+                  className="mt-2 w-full p-2 border rounded text-gray-900 bg-white"
                 >
                   <option value="">Select Grade</option>
                   <option value="5.10a">5.10a</option>

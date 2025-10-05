@@ -6,11 +6,14 @@ import PassportNFT from '@/lib/abis/PassportNFT.json';
 import { countryData } from '@/lib/countries';
 import { monadTestnet } from '../chains';
 import { useRouter } from 'next/navigation';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
+
+const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b' as `0x${string}`;
 
 export default function PassportPage() {
   const [casts, setCasts] = useState<any[]>([]);
@@ -19,7 +22,7 @@ export default function PassportPage() {
   const [command, setCommand] = useState('');
   const [passports, setPassports] = useState<any[]>([]);
   const [processingPrompt, setProcessingPrompt] = useState(false);
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, isConnecting, isDisconnected } = useAccount();
   const { connect, connectors } = useConnect();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
@@ -71,12 +74,12 @@ export default function PassportPage() {
   // Fetch user's minted passports
   const fetchPassports = async () => {
     if (!address || !isAddress(address)) {
-      console.error('Invalid or missing address for fetching passports:', { address });
+      console.error('Invalid or missing address for fetching passports:', { address, isConnected });
       return;
     }
     try {
       const balance = await publicClient.readContract({
-        address: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS as `0x${string}`,
+        address: PASSPORT_NFT_ADDRESS,
         abi: PassportNFT,
         functionName: 'balanceOf',
         args: [address],
@@ -84,13 +87,13 @@ export default function PassportPage() {
       const passportList: any[] = [];
       for (let i = 0; i < Number(balance); i++) {
         const tokenId = await publicClient.readContract({
-          address: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS as `0x${string}`,
+          address: PASSPORT_NFT_ADDRESS,
           abi: PassportNFT,
           functionName: 'tokenOfOwnerByIndex',
           args: [address, BigInt(i)],
         }) as bigint;
         const tokenURI = await publicClient.readContract({
-          address: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS as `0x${string}`,
+          address: PASSPORT_NFT_ADDRESS,
           abi: PassportNFT,
           functionName: 'tokenURI',
           args: [tokenId],
@@ -123,14 +126,9 @@ export default function PassportPage() {
       alert('Please select a country first!');
       return;
     }
-    if (!isConnected || !address || !isAddress(address)) {
-      console.error('Invalid or missing address for minting:', { address, isConnected });
+    if (!isConnected || isConnecting || isDisconnected || !address || !isAddress(address)) {
+      console.error('Wallet not properly connected for minting:', { address, isConnected, isConnecting, isDisconnected });
       alert('Please connect a valid wallet address (40-character hex).');
-      return;
-    }
-    if (!process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS) {
-      console.error('Passport NFT contract address is not defined');
-      alert('Contract address not configured. Contact support.');
       return;
     }
     try {
@@ -138,11 +136,11 @@ export default function PassportPage() {
       await switchChainAsync({ chainId: monadTestnet.id });
       console.log('Minting passport with:', {
         address,
-        contractAddress: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS,
+        contractAddress: PASSPORT_NFT_ADDRESS,
         selectedCountry,
       });
       await writeContractAsync({
-        address: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS as `0x${string}`,
+        address: PASSPORT_NFT_ADDRESS,
         abi: PassportNFT,
         functionName: 'mint',
         args: [selectedCountry],
@@ -150,14 +148,14 @@ export default function PassportPage() {
         account: address,
       });
       alert(`Mint requested for ${selectedCountry}. Approve in wallet.`);
-      await fetchPassports(); // Refresh user's passports
+      await fetchPassports();
     } catch (err: any) {
       console.error('Mint failed:', {
         message: err.message,
         stack: err.stack,
         cause: err.cause,
         address,
-        contractAddress: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS,
+        contractAddress: PASSPORT_NFT_ADDRESS,
         selectedCountry,
       });
       alert(`Mint failed: ${err.message || 'Unknown error'}. Check browser console for details.`);
@@ -172,37 +170,75 @@ export default function PassportPage() {
       const lowerCommand = command.toLowerCase();
       if (lowerCommand.includes('nft') || lowerCommand.includes('music')) {
         router.push('/music');
+        return;
       } else if (lowerCommand.includes('passport')) {
         router.push('/passport');
+        return;
       } else if (lowerCommand.includes('market') || lowerCommand.includes('itinerary')) {
         router.push('/market');
+        return;
       } else if (lowerCommand.includes('profile')) {
         router.push('/profile');
+        return;
+      }
+      if (!process.env.GEMINI_API_KEY) {
+        console.error('Gemini API key is not defined');
+        alert('Command processing unavailable. Try basic commands like "take me to nft" or "go to profile".');
+        return;
+      }
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const aiPrompt = `
+        Analyze this user command for an EmpowerTours app: "${command}".
+        Output JSON ONLY, no extra text:
+        {
+          "actions": [{ "type": "navigate", "path": "/music" | "/passport" | "/market" | "/profile" | "none" }],
+          "reason": "Brief explanation"
+        }
+      `;
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: aiPrompt }] }],
+        generationConfig: { maxOutputTokens: 256 },
+      });
+      let actions: { type: string; path: string }[] = [];
+      try {
+        const rawText = result.response.text().trim();
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const responseJson = JSON.parse(jsonMatch[0]);
+          actions = responseJson.actions || [];
+        }
+      } catch (err) {
+        console.warn('Failed to parse Gemini response as JSON:', err);
+      }
+      if (actions.length > 0 && actions[0].path !== 'none') {
+        actions.forEach((action) => {
+          if (action.type === 'navigate') router.push(action.path);
+        });
       } else {
         alert('Sorry, I didn\'t understand. Try "take me to nft", "go to passport", or "take me to profile".');
       }
-      setCommand('');
     } catch (error) {
-      console.error('Command processing failed:', {
+      console.error('Prompt processing failed:', {
         message: (error as Error).message,
         stack: (error as Error).stack,
       });
-      alert('Error processing command. Try again.');
+      alert(`Error processing command: ${(error as Error).message}. Try basic commands like "take me to nft".`);
     } finally {
       setProcessingPrompt(false);
+      setCommand('');
     }
   };
 
   return (
-    <div className="flex flex-col items-center p-6 space-y-6">
-      <h1 className="text-3xl font-bold">EmpowerTours Passport</h1>
-      {/* Country Select */}
+    <div className="flex flex-col items-center p-6 space-y-6 bg-gray-100">
+      <h1 className="text-3xl font-bold text-gray-900">EmpowerTours Passport</h1>
       <div className="w-full max-w-md space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Select your country:</label>
+        <label className="block text-sm font-medium text-gray-900">Select your country:</label>
         <select
           value={selectedCountry}
           onChange={(e) => setSelectedCountry(e.target.value)}
-          className="w-full border rounded-lg p-2 bg-white text-black"
+          className="w-full border rounded-lg p-2 bg-white text-gray-900"
         >
           <option value="">-- Choose a country --</option>
           {Object.entries(countryData).map(([code, { name }]) => (
@@ -216,10 +252,9 @@ export default function PassportPage() {
           Mint One
         </button>
       </div>
-      {/* User Passports */}
       {passports.length > 0 && (
         <div className="w-full max-w-2xl">
-          <h2 className="text-2xl font-semibold mt-6 mb-2">Your Passports</h2>
+          <h2 className="text-2xl font-semibold mt-6 mb-2 text-gray-900">Your Passports</h2>
           <div className="grid grid-cols-2 gap-4">
             {passports.map((p, i) => (
               <div
@@ -233,20 +268,18 @@ export default function PassportPage() {
                     className="rounded-lg w-32 h-32 object-cover mb-2"
                   />
                 )}
-                <p className="font-medium text-sm">{p.name}</p>
+                <p className="font-medium text-sm text-gray-900">{p.name}</p>
               </div>
             ))}
           </div>
         </div>
       )}
-      {/* Navigation Links */}
       <nav className="w-full max-w-2xl flex justify-around">
         <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
         <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
         <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
         <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
       </nav>
-      {/* Command Prompt */}
       <div className="w-full max-w-2xl mt-4">
         <div className="flex space-x-2">
           <input
@@ -255,7 +288,7 @@ export default function PassportPage() {
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
             placeholder="Type command e.g., 'take me to nft' or 'take me to profile'"
-            className="w-full p-2 border rounded-lg shadow"
+            className="w-full p-2 border rounded-lg bg-white text-gray-900"
             disabled={processingPrompt}
           />
           <button
@@ -267,11 +300,10 @@ export default function PassportPage() {
           </button>
         </div>
       </div>
-      {/* Cast Feed */}
       <div className="w-full max-w-2xl mt-8">
-        <h2 className="text-2xl font-semibold mb-4">Community Feed</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-gray-900">Community Feed</h2>
         {loadingCasts ? (
-          <p className="text-gray-700">Loading casts…</p>
+          <p className="text-gray-900">Loading casts…</p>
         ) : (
           <div className="space-y-4">
             {casts.map((cast: any, i: number) => (
@@ -280,7 +312,7 @@ export default function PassportPage() {
                 className="p-4 border rounded-lg bg-gray-50 shadow-sm"
               >
                 <p className="font-medium text-purple-700">{cast.author?.username}</p>
-                <p className="text-gray-700">{cast.text}</p>
+                <p className="text-gray-900">{cast.text}</p>
               </div>
             ))}
           </div>
