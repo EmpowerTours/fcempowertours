@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import FormData from "form-data";
 import { Redis } from "@upstash/redis";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize Upstash Redis
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +23,7 @@ export async function POST(req: NextRequest) {
     // Debug environment variables
     console.log("PINATA_JWT:", process.env.PINATA_JWT ? "Set" : "Missing");
     console.log("PINATA_GATEWAY:", process.env.PINATA_GATEWAY);
-    console.log("DEEPAI_API_KEY:", process.env.DEEPAI_API_KEY ? "Set" : "Missing");
+    console.log("GEMINI_API_KEY:", process.env.GEMINI_API_KEY ? "Set" : "Missing");
 
     // 1️⃣ Check Redis cache
     const cacheKey = `passport:${countryCode}`;
@@ -29,69 +33,90 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ tokenURI: cachedURI });
     }
 
-    // 2️⃣ Generate AI Passport Image with DeepAI
-    const prompt = `A high-quality digital passport cover for ${countryName}. Elegant modern travel aesthetic, gold embossed text 'EmpowerTours Passport - ${countryName}', subtle global elements like faint world map overlay or vintage stamp texture. Clean composition, passport-blue color scheme.`;
-    
-    console.log("Generating image with DeepAI for:", countryName);
-    const deepAIRes = await axios.post(
-      "https://api.deepai.org/api/text2img",
-      {
-        text: prompt,
-        grid_size: 1,
-        width: 512,
-        height: 512,
-      },
-      {
-        headers: {
-          "api-key": process.env.DEEPAI_API_KEY!, // Ensure set in .env.local
-        },
-      }
-    ).catch((error) => {
-      throw new Error(`DeepAI image generation failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
-    });
-    
-    if (!deepAIRes.data.output_url) throw new Error("DeepAI image generation failed: No output URL");
-    console.log("DeepAI image URL:", deepAIRes.data.output_url);
-    const imageRes = await axios.get(deepAIRes.data.output_url, { responseType: "arraybuffer" });
-    const imageBuffer = Buffer.from(imageRes.data);
+    // 2️⃣ Fetch splash.png and convert to base64
+    const splashUrl = "https://fcempowertours-production-6551.up.railway.app/images/splash.png";
+    console.log("Fetching splash.png from:", splashUrl);
+    const splashRes = await axios.get(splashUrl, { responseType: "arraybuffer" });
+    const splashBuffer = Buffer.from(splashRes.data);
+    const splashBase64 = splashBuffer.toString("base64");
 
-    // 3️⃣ Upload Image to Pinata
-    const form = new FormData();
-    form.append("file", imageBuffer, {
-      filename: `passport-${countryCode}.png`,
-      contentType: "image/png",
-    });
-    console.log("Uploading image to Pinata...");
-    const uploadRes = await axios.post(
-      "https://api.pinata.cloud/pinning/pinFileToIPFS",
-      form,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PINATA_JWT}`,
-          ...form.getHeaders(),
-        },
-      }
-    ).catch((error) => {
-      throw new Error(`Pinata image upload failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
-    });
-    const imageCID = uploadRes.data.IpfsHash;
-    const imageURI = `ipfs://${imageCID}`;
-    console.log("Image uploaded to IPFS:", imageURI);
+    // 3️⃣ Generate edited image with Gemini
+    const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition of the image. Output a square 1:1 aspect ratio image.`;
+    console.log("Generating edited image with Gemini for:", countryName);
 
-    // 4️⃣ Create NFT metadata
+    let imageURI = "ipfs://QmdbDrCJujsHaLVR4fXYJoTExMnmPvSt9ccWEuK41UVyV3"; // Fallback image
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.5-flash-image",
+          generationConfig: { responseMimeType: "image/png" },
+        });
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              data: splashBase64,
+              mimeType: "image/png",
+            },
+          },
+          { text: prompt },
+        ]);
+        const response = await result.response;
+        const imagePart = response.candidates?.[0]?.content?.parts?.find(
+          (part: any) => part.inlineData
+        );
+
+        if (imagePart?.inlineData) {
+          console.log("Gemini image edited successfully");
+          const imageBuffer = Buffer.from(imagePart.inlineData.data, "base64");
+
+          // 4️⃣ Upload edited image to Pinata
+          const form = new FormData();
+          form.append("file", imageBuffer, {
+            filename: `passport-${countryCode}.png`,
+            contentType: "image/png",
+          });
+          console.log("Uploading image to Pinata...");
+          const uploadRes = await axios.post(
+            "https://api.pinata.cloud/pinning/pinFileToIPFS",
+            form,
+            {
+              headers: {
+                Authorization: `Bearer ${process.env.PINATA_JWT}`,
+                ...form.getHeaders(),
+              },
+            }
+          );
+          imageURI = `ipfs://${uploadRes.data.IpfsHash}`;
+          console.log("Image uploaded to IPFS:", imageURI);
+        } else {
+          throw new Error("Gemini image editing failed: No inline data in response");
+        }
+      } catch (geminiError: any) {
+        console.error("Gemini error:", {
+          message: geminiError.message,
+          status: geminiError.response?.status,
+          details: geminiError.response?.data,
+        });
+        // Use fallback image
+      }
+    } else {
+      console.warn("GEMINI_API_KEY is missing; using default image");
+    }
+
+    // 5️⃣ Create NFT metadata
     const metadata = {
       name: `EmpowerTours Passport - ${countryName}`,
-      description: `Official EmpowerTours digital travel passport for ${countryName}. AI-generated cover.`,
+      description: `Official EmpowerTours digital travel passport for ${countryName}. AI-edited cover with Gemini, based on the original splash image.`,
       image: imageURI,
       attributes: [
         { trait_type: "Country", value: countryName },
         { trait_type: "Code", value: countryCode },
         { trait_type: "Collection", value: "EmpowerTours Passport" },
-        { trait_type: "GeneratedBy", value: "DeepAI" },
+        { trait_type: "GeneratedBy", value: "Gemini 2.5 Flash Image" },
       ],
     };
 
-    // 5️⃣ Upload metadata JSON to Pinata
+    // 6️⃣ Upload metadata JSON to Pinata
     const metaForm = new FormData();
     metaForm.append(
       "file",
@@ -105,17 +130,15 @@ export async function POST(req: NextRequest) {
       {
         headers: {
           Authorization: `Bearer ${process.env.PINATA_JWT}`,
-          ...form.getHeaders(),
+          ...metaForm.getHeaders(),
         },
       }
-    ).catch((error) => {
-      throw new Error(`Pinata metadata upload failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
-    });
+    );
     const metadataCID = metaRes.data.IpfsHash;
     const tokenURI = `ipfs://${metadataCID}`;
     console.log("Metadata uploaded to IPFS:", tokenURI);
 
-    // 6️⃣ Cache in Redis (30 days)
+    // 7️⃣ Cache in Redis (30 days)
     await redis.set(cacheKey, tokenURI, { ex: 60 * 60 * 24 * 30 });
     console.log("✅ AI Passport generated and cached:", tokenURI);
 
@@ -129,7 +152,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(
       { error: error.message || "Generation failed" },
-      { status: 500 }
+      { status: error.response?.status || 500 }
     );
   }
 }
