@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import axios from "axios";
 import FormData from "form-data";
 import sharp from "sharp";
 import { Redis } from "@upstash/redis";
-
-// Initialize Gemini (now with image-capable model)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 // Initialize Upstash Redis
 const redis = new Redis({
@@ -26,22 +22,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ tokenURI: cachedURI });
     }
 
-    // 2️⃣ Generate AI Passport Image with Gemini (Imagen 3)
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" }); // Image-gen enabled
-    const prompt = `Generate a high-quality digital passport cover image for ${countryName}. Elegant modern travel aesthetic, gold embossed text 'EmpowerTours Passport - ${countryName}', subtle global elements like faint world map overlay or vintage stamp texture. Clean composition, passport-blue color scheme.`;
+    // 2️⃣ Generate AI Passport Image with DeepAI
+    const prompt = `A high-quality digital passport cover for ${countryName}. Elegant modern travel aesthetic, gold embossed text 'EmpowerTours Passport - ${countryName}', subtle global elements like faint world map overlay or vintage stamp texture. Clean composition, passport-blue color scheme.`;
     
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "image/png", // Output as PNG
-        responseModalities: ["image"], // Force image response
+    const deepAIRes = await axios.post(
+      "https://api.deepai.org/api/text2img",
+      {
+        text: prompt,
+        grid_size: 1,
+        width: 512,
+        height: 512,
       },
-    });
+      {
+        headers: {
+          "api-key": process.env.DEEPAI_API_KEY!, // Add to .env.local
+        },
+      }
+    );
     
-    const imagePart = result.response.candidates?.[0]?.content?.parts?.find((part: any) => part.inlineData?.mimeType === "image/png");
-    if (!imagePart?.inlineData?.data) throw new Error("Failed to generate image from Gemini");
-    
-    let imageBuffer = Buffer.from(imagePart.inlineData.data, "base64");
+    if (!deepAIRes.data.output_url) throw new Error("DeepAI image generation failed");
+    const imageRes = await axios.get(deepAIRes.data.output_url, { responseType: "arraybuffer" });
+    let imageBuffer = Buffer.from(imageRes.data);
 
     // 3️⃣ Add Watermark (Hologram Effect)
     const logoUrl = "https://fcempowertours-production-6551.up.railway.app/images/feed.png";
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
         { trait_type: "Country", value: countryName },
         { trait_type: "Code", value: countryCode },
         { trait_type: "Collection", value: "EmpowerTours Passport" },
-        { trait_type: "GeneratedBy", value: "Gemini Imagen 3" },
+        { trait_type: "GeneratedBy", value: "DeepAI" },
       ],
     };
 
