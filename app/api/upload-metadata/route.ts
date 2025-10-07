@@ -5,7 +5,7 @@ import FormData from "form-data";
 import sharp from "sharp";
 import { Redis } from "@upstash/redis";
 
-// Initialize Gemini
+// Initialize Gemini (now with image-capable model)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 // Initialize Upstash Redis
@@ -26,41 +26,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ tokenURI: cachedURI });
     }
 
-    // 2️⃣ Generate AI Passport Image
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `Generate a high-quality digital passport cover image for ${countryName}.
-    The design should look elegant, with a modern travel aesthetic.
-    Include gold embossed text 'EmpowerTours Passport - ${countryName}'
-    and subtle global elements (like a map or stamp texture).`;
-    const imageResult = await model.generateImage({
-      prompt,
-      size: "512x512",
-      mimeType: "image/png",
+    // 2️⃣ Generate AI Passport Image with Gemini (Imagen 3)
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" }); // Image-gen enabled
+    const prompt = `Generate a high-quality digital passport cover image for ${countryName}. Elegant modern travel aesthetic, gold embossed text 'EmpowerTours Passport - ${countryName}', subtle global elements like faint world map overlay or vintage stamp texture. Clean composition, passport-blue color scheme.`;
+    
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "image/png", // Output as PNG
+        responseModalities: ["image"], // Force image response
+      },
     });
-    const imageBase64 = imageResult.response.image?.data;
-    if (!imageBase64) throw new Error("Failed to generate image from Gemini");
-    let imageBuffer = Buffer.from(imageBase64, "base64");
+    
+    const imagePart = result.response.candidates?.[0]?.content?.parts?.find((part: any) => part.inlineData?.mimeType === "image/png");
+    if (!imagePart?.inlineData?.data) throw new Error("Failed to generate image from Gemini");
+    
+    let imageBuffer = Buffer.from(imagePart.inlineData.data, "base64");
 
     // 3️⃣ Add Watermark (Hologram Effect)
-    const logoUrl = "https://fcempowertours-production-6551.up.railway.app/images/feed.png"; // EmpowerTours logo URL
+    const logoUrl = "https://fcempowertours-production-6551.up.railway.app/images/feed.png";
     const logoRes = await axios.get(logoUrl, { responseType: "arraybuffer" });
     const logoBuffer = Buffer.from(logoRes.data);
 
-    // Use Sharp for watermarking
     imageBuffer = await sharp(imageBuffer)
+      .resize(512, 512) // Ensure consistent size
       .composite([
         {
           input: await sharp(logoBuffer)
-            .resize(200) // Resize logo to fit
-            .modulate({ lightness: 20 }) // Slight hologram effect (adjust lightness)
+            .resize(200)
+            .modulate({ lightness: 20 }) // Hologram glow
             .toBuffer(),
           gravity: "center",
           blend: "over",
-          left: 0,
-          top: 0,
-          opacity: 0.5, // Semi-transparent hologram
+          opacity: 0.5,
         },
       ])
+      .png() // Ensure PNG output
       .toBuffer();
 
     // 4️⃣ Upload Image to Pinata
@@ -85,12 +86,13 @@ export async function POST(req: NextRequest) {
     // 5️⃣ Create NFT metadata
     const metadata = {
       name: `EmpowerTours Passport - ${countryName}`,
-      description: `Official EmpowerTours digital travel passport for ${countryName}.`,
+      description: `Official EmpowerTours digital travel passport for ${countryName}. AI-generated cover with hologram branding.`,
       image: imageURI,
       attributes: [
         { trait_type: "Country", value: countryName },
         { trait_type: "Code", value: countryCode },
         { trait_type: "Collection", value: "EmpowerTours Passport" },
+        { trait_type: "GeneratedBy", value: "Gemini Imagen 3" },
       ],
     };
 
@@ -107,23 +109,22 @@ export async function POST(req: NextRequest) {
       {
         headers: {
           Authorization: `Bearer ${process.env.PINATA_JWT}`,
-          ...form.getHeaders(),
+          ...metaForm.getHeaders(),
         },
       }
     );
     const metadataCID = metaRes.data.IpfsHash;
     const tokenURI = `ipfs://${metadataCID}`;
 
-    // 7️⃣ Cache in Redis (expires in 30 days)
+    // 7️⃣ Cache in Redis (30 days)
     await redis.set(cacheKey, tokenURI, { ex: 60 * 60 * 24 * 30 });
-    console.log("✅ Passport metadata uploaded and cached:", tokenURI);
+    console.log("✅ AI Passport generated, watermarked, and cached:", tokenURI);
 
-    // Return the metadata URI
     return NextResponse.json({ tokenURI });
   } catch (error: any) {
-    console.error("❌ Error generating metadata:", error);
+    console.error("❌ Error:", error);
     return NextResponse.json(
-      { error: error.message || "Upload failed" },
+      { error: error.message || "Generation failed" },
       { status: 500 }
     );
   }
