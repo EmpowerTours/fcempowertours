@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useAccount, useConnect, useSwitchChain, useWriteContract } from 'wagmi';
-import { createPublicClient, http, isAddress } from 'viem';
+import { createPublicClient, http, isAddress, parseEventLogs } from 'viem';
 import PassportNFT from '@/lib/abis/PassportNFT.json';
 import { countryData } from '@/lib/countries';
 import { monadTestnet } from '../chains';
@@ -12,7 +12,7 @@ const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
-const PASSPORT_NFT_ADDRESS = '0x92D5a2b741b411988468549a5f117174A1aC8D7b' as `0x${string}`;
+const PASSPORT_NFT_ADDRESS = '0x6b9ebdcd978f718e415e58c5ba8f00de76d91655' as `0x${string}`; // From .env.local
 
 export default function PassportPage() {
   const [casts, setCasts] = useState<any[]>([]);
@@ -184,9 +184,13 @@ export default function PassportPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ countryCode, countryName }),
       });
+      if (!metadataResponse.ok) {
+        const errorData = await metadataResponse.json();
+        throw new Error(`Metadata upload failed: ${errorData.error || metadataResponse.statusText}`);
+      }
       const { tokenURI } = await metadataResponse.json();
       if (!tokenURI) {
-        throw new Error('Failed to upload metadata to IPFS');
+        throw new Error('No tokenURI returned from metadata upload');
       }
       console.log('Minting passport with:', {
         address,
@@ -199,24 +203,20 @@ export default function PassportPage() {
         address: PASSPORT_NFT_ADDRESS,
         abi: PassportNFT,
         functionName: 'mint',
-        args: [address], // Only address, per ABI
+        args: [address, tokenURI], // Assume mint takes address and tokenURI
         chainId: monadTestnet.id,
         account: address,
       });
-      // Set tokenURI (assumes a setTokenURI function exists; adjust if not)
-      const tokenId = await publicClient.getTransactionReceipt({ hash: tx })
-        .then(receipt => {
-          // Parse logs to get tokenId (simplified; use event parsing if needed)
-          return BigInt(receipt.logs[0]?.topics[3] || 0); // Adjust based on Transfer event
-        });
-      await writeContractAsync({
-        address: PASSPORT_NFT_ADDRESS,
+      // Get tokenId from Transfer event
+      const receipt = await publicClient.getTransactionReceipt({ hash: tx });
+      const transferLogs = parseEventLogs({
         abi: PassportNFT,
-        functionName: 'setTokenURI', // Confirm this exists in your contract
-        args: [tokenId, tokenURI],
-        chainId: monadTestnet.id,
-        account: address,
+        eventName: 'Transfer',
+        logs: receipt.logs,
       });
+      const tokenId = transferLogs[0]?.args.tokenId;
+      if (!tokenId) throw new Error('Failed to retrieve tokenId from mint transaction');
+      console.log('Minted passport with tokenId:', tokenId.toString());
       alert(`Mint requested for ${countryName}. Approve in wallet.`);
       await fetchPassports();
     } catch (err: any) {
