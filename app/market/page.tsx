@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import { ethers, InterfaceAbi } from 'ethers';
 import { useAccount, useWalletClient } from 'wagmi';
@@ -8,17 +7,13 @@ import { useRouter } from 'next/navigation';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
-
-const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
+const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_MARKET || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
 const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
 const PASSPORT_NFT_ADDRESS = '0x2c26632f67f5e516704c3b6bf95b2abbd9fc2bb4';
-
 const itineraryABI: InterfaceAbi = ItineraryMarketABI;
 const toursABI: InterfaceAbi = ToursABI;
 const passportABI: InterfaceAbi = PassportNFTABI;
-
 parseAbi(ItineraryMarketABI as any); // For wagmi compatibility, if needed
-
 interface Itinerary {
   id: bigint;
   creator: string;
@@ -26,7 +21,6 @@ interface Itinerary {
   price: bigint;
   isActive: boolean;
 }
-
 export default function MarketPage() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -38,7 +32,6 @@ export default function MarketPage() {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
-
   useEffect(() => {
     const init = async () => {
       if (walletClient) {
@@ -58,11 +51,10 @@ export default function MarketPage() {
     };
     init();
   }, [walletClient, address]);
-
   const fetchAvailableItineraries = async (contract: ethers.Contract) => {
     try {
-      // Fix: Call length as a function
-      const length = await contract.itineraries.length.call();
+      // Fix: Call length as a function without .call()
+      const length = await contract.itineraries.length();
       const fetchedItineraries: Itinerary[] = [];
       for (let i = 0; i < Number(length); i++) {
         const itinerary = await contract.itineraries(i);
@@ -81,7 +73,6 @@ export default function MarketPage() {
       console.error('Error fetching itineraries:', error);
     }
   };
-
   const fetchOwnedPassports = async (contract: ethers.Contract, userAddress: string) => {
     try {
       const filter = contract.filters.Transfer(null, userAddress);
@@ -95,7 +86,6 @@ export default function MarketPage() {
       console.error('Error fetching owned passports:', error);
     }
   };
-
   const approveTokens = async (amount: string) => {
     if (!toursContract) return;
     try {
@@ -107,7 +97,6 @@ export default function MarketPage() {
       alert('Failed to approve tokens');
     }
   };
-
   const createItinerary = async () => {
     if (!itineraryContract || !description || !price) return;
     try {
@@ -122,7 +111,6 @@ export default function MarketPage() {
       alert('Failed to create itinerary');
     }
   };
-
   const purchaseItinerary = async (id: number, price: bigint) => {
     if (!itineraryContract || !toursContract) return;
     try {
@@ -139,7 +127,6 @@ export default function MarketPage() {
       alert('Failed to purchase itinerary');
     }
   };
-
   return (
     <div style={containerStyle}>
       <nav>
@@ -154,7 +141,6 @@ export default function MarketPage() {
       ) : (
         <w3m-button label="Connect Wallet" />
       )}
-
       <h2>Create Itinerary</h2>
       <input
         type="text"
@@ -173,7 +159,6 @@ export default function MarketPage() {
       <button onClick={createItinerary} disabled={!isConnected} style={buttonStyle}>
         Create Itinerary
       </button>
-
       <h2>Your Passports</h2>
       {ownedPassports.length > 0 ? (
         <ul>
@@ -184,7 +169,6 @@ export default function MarketPage() {
       ) : (
         <p>No passports owned</p>
       )}
-
       <h2>Available Itineraries</h2>
       <ul>
         {itineraries.map((itinerary) => (
@@ -209,23 +193,19 @@ export default function MarketPage() {
     </div>
   );
 }
-
 const containerStyle: React.CSSProperties = {
   padding: '20px',
   maxWidth: '800px',
   margin: '0 auto',
 };
-
 const inputStyle: React.CSSProperties = {
   margin: '10px',
   padding: '5px',
 };
-
 const buttonStyle: React.CSSProperties = {
   padding: '5px 10px',
   margin: '5px',
 };
-
 const itineraryStyle: React.CSSProperties = {
   border: '1px solid #ccc',
   padding: '10px',
