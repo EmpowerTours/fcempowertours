@@ -41,16 +41,13 @@ export async function POST(req: NextRequest) {
     const splashBase64 = splashBuffer.toString("base64");
 
     // 3️⃣ Generate edited image with Gemini
-    const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition of the image. Output a square 1:1 aspect ratio image.`;
+    const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition of the image. Output a square 1:1 aspect ratio image as a base64-encoded PNG.`;
     console.log("Generating edited image with Gemini for:", countryName);
 
     let imageURI = "ipfs://QmdbDrCJujsHaLVR4fXYJoTExMnmPvSt9ccWEuK41UVyV3"; // Fallback image
     if (process.env.GEMINI_API_KEY) {
       try {
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash-image",
-          generationConfig: { responseMimeType: "image/png" },
-        });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
         const result = await model.generateContent([
           {
             inlineData: {
@@ -61,13 +58,16 @@ export async function POST(req: NextRequest) {
           { text: prompt },
         ]);
         const response = await result.response;
-        const imagePart = response.candidates?.[0]?.content?.parts?.find(
-          (part: any) => part.inlineData
-        );
+        console.log("Gemini response:", JSON.stringify(response, null, 2)); // Debug
 
-        if (imagePart?.inlineData) {
+        // Assume response contains base64 image in text (adjust based on actual response)
+        const textPart = response.candidates?.[0]?.content?.parts?.find(
+          (part: any) => part.text
+        );
+        if (textPart?.text) {
+          const imageBase64 = textPart.text; // Adjust if response structure differs
+          const imageBuffer = Buffer.from(imageBase64, "base64");
           console.log("Gemini image edited successfully");
-          const imageBuffer = Buffer.from(imagePart.inlineData.data, "base64");
 
           // 4️⃣ Upload edited image to Pinata
           const form = new FormData();
@@ -85,11 +85,13 @@ export async function POST(req: NextRequest) {
                 ...form.getHeaders(),
               },
             }
-          );
+          ).catch((error) => {
+            throw new Error(`Pinata image upload failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
+          });
           imageURI = `ipfs://${uploadRes.data.IpfsHash}`;
           console.log("Image uploaded to IPFS:", imageURI);
         } else {
-          throw new Error("Gemini image editing failed: No inline data in response");
+          throw new Error("Gemini image editing failed: No base64 image data in response");
         }
       } catch (geminiError: any) {
         console.error("Gemini error:", {
@@ -133,7 +135,9 @@ export async function POST(req: NextRequest) {
           ...metaForm.getHeaders(),
         },
       }
-    );
+    ).catch((error) => {
+      throw new Error(`Pinata metadata upload failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
+    });
     const metadataCID = metaRes.data.IpfsHash;
     const tokenURI = `ipfs://${metadataCID}`;
     console.log("Metadata uploaded to IPFS:", tokenURI);
