@@ -6,6 +6,7 @@ import PassportNFT from '@/lib/abis/PassportNFT.json';
 import { countryData } from '@/lib/countries';
 import { monadTestnet } from '../chains';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
@@ -16,7 +17,7 @@ const PASSPORT_NFT_ADDRESS = '0x92D5a2b741b411988468549a5f117174A1aC8D7b' as `0x
 export default function PassportPage() {
   const [casts, setCasts] = useState<any[]>([]);
   const [loadingCasts, setLoadingCasts] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState('');
+  const [userLocation, setUserLocation] = useState<{ countryCode: string; countryName: string } | null>(null);
   const [command, setCommand] = useState('');
   const [passports, setPassports] = useState<any[]>([]);
   const [processingPrompt, setProcessingPrompt] = useState(false);
@@ -26,6 +27,51 @@ export default function PassportPage() {
   const { writeContractAsync } = useWriteContract();
   const router = useRouter();
 
+  // Fetch user's location via Farcaster or IP
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      if (!isConnected || !address || !isAddress(address)) return;
+      try {
+        const res = await axios.get(`https://api.neynar.com/v2/farcaster/user/by/address?address=${address}`, {
+          headers: { 'x-api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY! },
+        });
+        const user = res.data.result?.users?.[0];
+        if (user?.location?.place_name) {
+          const location = user.location.place_name.toLowerCase();
+          const countryEntry = Object.entries(countryData).find(([code, { name }]) =>
+            location.includes(name.toLowerCase())
+          );
+          if (countryEntry) {
+            setUserLocation({ countryCode: countryEntry[0], countryName: countryEntry[1].name });
+          } else {
+            // Fallback to IP-based geolocation
+            const geoRes = await axios.get('https://ipapi.co/json/');
+            const countryCode = geoRes.data.country_code;
+            const countryName = countryData[countryCode]?.name || geoRes.data.country_name;
+            setUserLocation({ countryCode, countryName });
+          }
+        } else {
+          // Fallback to IP-based geolocation
+          const geoRes = await axios.get('https://ipapi.co/json/');
+          const countryCode = geoRes.data.country_code;
+          const countryName = countryData[countryCode]?.name || geoRes.data.country_name;
+          setUserLocation({ countryCode, countryName });
+        }
+      } catch (err) {
+        console.error('Failed to fetch user location:', {
+          message: (err as Error).message,
+          stack: (err as Error).stack,
+        });
+        // Fallback to IP-based geolocation
+        const geoRes = await axios.get('https://ipapi.co/json/');
+        const countryCode = geoRes.data.country_code;
+        const countryName = countryData[countryCode]?.name || geoRes.data.country_name;
+        setUserLocation({ countryCode, countryName });
+      }
+    };
+    fetchUserLocation();
+  }, [isConnected, address]);
+
   // Fetch Farcaster casts for @empowertoursbot
   useEffect(() => {
     const fetchCasts = async () => {
@@ -34,14 +80,14 @@ export default function PassportPage() {
         if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
           throw new Error('Neynar API key is not defined');
         }
-        const res = await fetch('https://api.neynar.com/v2/farcaster/casts?fid=1368808&limit=10', {
+        const res = await axios.get('https://api.neynar.com/v2/farcaster/casts?fid=1368808&limit=10', {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
           },
         });
         if (!res.ok) throw new Error(`Neynar fetch failed: ${res.statusText}`);
-        const data = await res.json();
+        const data = res.data;
         if (data?.result?.casts?.length) {
           setCasts(data.result.casts);
         } else {
@@ -118,9 +164,10 @@ export default function PassportPage() {
     if (isConnected && address && isAddress(address)) fetchPassports();
   }, [isConnected, address]);
 
-  const handleMint = async () => {
-    if (!selectedCountry) {
-      alert('Please select a country first!');
+  // Mint function with metadata
+  const handleMint = async (countryCode: string, countryName: string) => {
+    if (!countryCode) {
+      alert('No country detected! Please try again.');
       return;
     }
     if (!isConnected || isConnecting || isDisconnected || !address || !isAddress(address)) {
@@ -131,20 +178,50 @@ export default function PassportPage() {
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
       await switchChainAsync({ chainId: monadTestnet.id });
+
+      // Upload metadata to IPFS
+      const metadataResponse = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/upload-metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ countryCode, countryName }),
+      });
+      const { tokenURI } = await metadataResponse.json();
+      if (!tokenURI) {
+        throw new Error('Failed to upload metadata to IPFS');
+      }
+
       console.log('Minting passport with:', {
         address,
         contractAddress: PASSPORT_NFT_ADDRESS,
-        selectedCountry,
+        countryCode,
+        tokenURI,
       });
-      await writeContractAsync({
+      // Mint NFT to user address
+      const tx = await writeContractAsync({
         address: PASSPORT_NFT_ADDRESS,
         abi: PassportNFT,
         functionName: 'mint',
-        args: [selectedCountry],
+        args: [address], // Only address, per ABI
         chainId: monadTestnet.id,
         account: address,
       });
-      alert(`Mint requested for ${selectedCountry}. Approve in wallet.`);
+
+      // Set tokenURI (assumes a setTokenURI function exists; adjust if not)
+      const tokenId = await publicClient.getTransactionReceipt({ hash: tx })
+        .then(receipt => {
+          // Parse logs to get tokenId (simplified; use event parsing if needed)
+          return BigInt(receipt.logs[0]?.topics[3] || 0); // Adjust based on Transfer event
+        });
+      await writeContractAsync({
+        address: PASSPORT_NFT_ADDRESS,
+        abi: PassportNFT,
+        functionName: 'setTokenURI', // Confirm this exists in your contract
+        args: [tokenId, tokenURI],
+        chainId: monadTestnet.id,
+        account: address,
+      });
+
+      alert(`Mint requested for ${countryName}. Approve in wallet.`);
       await fetchPassports();
     } catch (err: any) {
       console.error('Mint failed:', {
@@ -153,50 +230,50 @@ export default function PassportPage() {
         cause: err.cause,
         address,
         contractAddress: PASSPORT_NFT_ADDRESS,
-        selectedCountry,
+        countryCode,
       });
       alert(`Mint failed: ${err.message || 'Unknown error'}. Check browser console for details.`);
     }
   };
 
+  // Handle AI command submission
   const handlePromptSubmit = async () => {
     if (!command.trim()) return;
     setProcessingPrompt(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/agent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, address }),
       });
       const { results, reason } = await res.json();
       if (!res.ok) {
-        throw new Error(`Agent API error: ${results?.error || "Unknown error"}`);
+        throw new Error(`Agent API error: ${results?.error || 'Unknown error'}`);
       }
 
       for (const result of results) {
-        if (result.type === "navigate") {
+        if (result.type === 'navigate') {
           router.push(result.path);
-        } else if (result.type === "mint_passport") {
-          setSelectedCountry(result.params.country);
-          await handleMint();
-        } else if (result.type === "create_pay_frame") {
-          alert("✅ Transaction frame created and cast shared!");
-        } else if (result.type === "post_cast") {
-          alert("✅ Cast posted!");
+        } else if (result.type === 'mint_passport') {
+          await handleMint(result.params.country, result.params.countryName);
+        } else if (result.type === 'create_pay_frame') {
+          alert('✅ Transaction frame created and cast shared!');
+        } else if (result.type === 'post_cast') {
+          alert('✅ Cast posted!');
         }
       }
-      if (!results.some((r: any) => r.type === "navigate")) {
+      if (!results.some((r: any) => r.type === 'navigate')) {
         alert(`Action processed: ${reason}`);
       }
     } catch (error) {
-      console.error("Prompt processing failed:", {
+      console.error('Prompt processing failed:', {
         message: (error as Error).message,
         stack: (error as Error).stack,
       });
-      alert(`Error: ${(error as Error).message}. Try commands like "book a trip to Japan" or "mint passport for France".`);
+      alert(`Error: ${(error as Error).message}. Try commands like "book a trip to Japan" or "mint passport".`);
     } finally {
       setProcessingPrompt(false);
-      setCommand("");
+      setCommand('');
     }
   };
 
@@ -204,23 +281,19 @@ export default function PassportPage() {
     <div className="flex flex-col items-center p-6 space-y-6">
       <h1 className="text-3xl font-bold">EmpowerTours Passport</h1>
       <div className="w-full max-w-md space-y-2">
-        <label className="block text-sm font-medium">Select your country:</label>
-        <select
-          value={selectedCountry}
-          onChange={(e) => setSelectedCountry(e.target.value)}
-          className="w-full border rounded-lg p-2"
-        >
-          <option value="">-- Choose a country --</option>
-          {Object.entries(countryData).map(([code, { name }]) => (
-            <option key={code} value={code}>{name}</option>
-          ))}
-        </select>
-        <button
-          onClick={handleMint}
-          className="w-full hover:bg-purple-700 font-semibold py-2 px-4 rounded-lg shadow"
-        >
-          Mint One
-        </button>
+        {userLocation ? (
+          <div className="text-center">
+            <p className="text-sm font-medium">Detected location: {userLocation.countryName}</p>
+            <button
+              onClick={() => handleMint(userLocation.countryCode, userLocation.countryName)}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow"
+            >
+              Mint Passport for {userLocation.countryName}
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm font-medium">Detecting your location...</p>
+        )}
       </div>
       {passports.length > 0 && (
         <div className="w-full max-w-2xl">
@@ -257,14 +330,14 @@ export default function PassportPage() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
-            placeholder="Type command e.g., 'book a trip to Japan' or 'mint passport for France'"
+            placeholder="Type command e.g., 'book a trip to Japan' or 'mint passport'"
             className="w-full p-2 border rounded-lg"
             disabled={processingPrompt}
           />
           <button
             onClick={handlePromptSubmit}
             disabled={processingPrompt}
-            className="px-4 py-2 rounded"
+            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
           >
             {processingPrompt ? 'Processing...' : 'Send'}
           </button>
