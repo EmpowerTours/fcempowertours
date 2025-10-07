@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
       {
         headers: {
           Authorization: `Bearer ${process.env.PINATA_JWT}`,
-          ...metaForm.getHeaders(),
+          ...form.getHeaders(),
         },
       }
     ).catch((error) => {

@@ -213,8 +213,8 @@ export default function PassportPage() {
         abi: PassportNFT,
         eventName: 'Transfer',
         logs: receipt.logs,
-      });
-      const tokenId = transferLogs[0]?.args.tokenId;
+      }) as { args: { from: string; to: string; tokenId: bigint } }[];
+      const tokenId = transferLogs[0]?.args?.tokenId;
       if (!tokenId) throw new Error('Failed to retrieve tokenId from mint transaction');
       console.log('Minted passport with tokenId:', tokenId.toString());
       alert(`Mint requested for ${countryName}. Approve in wallet.`);
