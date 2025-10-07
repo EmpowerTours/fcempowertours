@@ -33,21 +33,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ tokenURI: cachedURI });
     }
 
-    // 2️⃣ Fetch splash.png and convert to base64
-    const splashUrl = "https://fcempowertours-production-6551.up.railway.app/images/splash.png";
-    console.log("Fetching splash.png from:", splashUrl);
-    const splashRes = await axios.get(splashUrl, { responseType: "arraybuffer" });
-    const splashBuffer = Buffer.from(splashRes.data);
-    const splashBase64 = splashBuffer.toString("base64");
-
-    // 3️⃣ Generate edited image with Gemini
-    const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition of the image. Output a square 1:1 aspect ratio image as a base64-encoded PNG.`;
-    console.log("Generating edited image with Gemini for:", countryName);
-
-    let imageURI = "ipfs://QmdbDrCJujsHaLVR4fXYJoTExMnmPvSt9ccWEuK41UVyV3"; // Fallback image
-    if (process.env.GEMINI_API_KEY) {
+    // 2️⃣ Generate edited image with Gemini (optional)
+    let imageURI = "ipfs://QmdbDrCJujsHaLVR4fXYJoTExMnmPvSt9ccWEuK41UVyV3"; // Fallback
+    const useGemini = process.env.USE_GEMINI === "true";
+    if (useGemini && process.env.GEMINI_API_KEY) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+        // Fetch splash.png
+        const splashUrl = "https://fcempowertours-production-6551.up.railway.app/images/splash.png";
+        const splashRes = await axios.get(splashUrl, { responseType: "arraybuffer" });
+        const splashBase64 = Buffer.from(splashRes.data).toString("base64");
+
+        // Gemini prompt
+        const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition. Output a base64-encoded PNG string.`;
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const result = await model.generateContent([
           {
             inlineData: {
@@ -58,24 +56,21 @@ export async function POST(req: NextRequest) {
           { text: prompt },
         ]);
         const response = await result.response;
-        console.log("Gemini response:", JSON.stringify(response, null, 2)); // Debug
+        console.log("Gemini response:", JSON.stringify(response, null, 2));
 
-        // Assume response contains base64 image in text (adjust based on actual response)
         const textPart = response.candidates?.[0]?.content?.parts?.find(
           (part: any) => part.text
         );
-        if (textPart?.text) {
-          const imageBase64 = textPart.text; // Adjust if response structure differs
-          const imageBuffer = Buffer.from(imageBase64, "base64");
-          console.log("Gemini image edited successfully");
+        if (textPart?.text && textPart.text.startsWith("data:image/png;base64,")) {
+          const base64Data = textPart.text.split(",")[1];
+          const imageBuffer = Buffer.from(base64Data, "base64");
 
-          // 4️⃣ Upload edited image to Pinata
+          // Upload to Pinata
           const form = new FormData();
           form.append("file", imageBuffer, {
             filename: `passport-${countryCode}.png`,
             contentType: "image/png",
           });
-          console.log("Uploading image to Pinata...");
           const uploadRes = await axios.post(
             "https://api.pinata.cloud/pinning/pinFileToIPFS",
             form,
@@ -85,40 +80,35 @@ export async function POST(req: NextRequest) {
                 ...form.getHeaders(),
               },
             }
-          ).catch((error) => {
-            throw new Error(`Pinata image upload failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
-          });
+          );
           imageURI = `ipfs://${uploadRes.data.IpfsHash}`;
-          console.log("Image uploaded to IPFS:", imageURI);
+          console.log("Gemini image uploaded to IPFS:", imageURI);
         } else {
-          throw new Error("Gemini image editing failed: No base64 image data in response");
+          throw new Error("Gemini failed to return base64 image");
         }
       } catch (geminiError: any) {
-        console.error("Gemini error:", {
-          message: geminiError.message,
-          status: geminiError.response?.status,
-          details: geminiError.response?.data,
-        });
-        // Use fallback image
+        console.error("Gemini error:", geminiError.message);
+        if (geminiError.message.includes("429") || geminiError.message.includes("quota")) {
+          console.warn("Gemini quota exceeded; using fallback image");
+        }
+        // Fallback
       }
-    } else {
-      console.warn("GEMINI_API_KEY is missing; using default image");
     }
 
-    // 5️⃣ Create NFT metadata
+    // 3️⃣ Create NFT metadata
     const metadata = {
       name: `EmpowerTours Passport - ${countryName}`,
-      description: `Official EmpowerTours digital travel passport for ${countryName}. AI-edited cover with Gemini, based on the original splash image.`,
+      description: `Official EmpowerTours digital travel passport for ${countryName}. ${useGemini ? "AI-edited cover with Gemini" : "Standard cover image"}.`,
       image: imageURI,
       attributes: [
         { trait_type: "Country", value: countryName },
         { trait_type: "Code", value: countryCode },
         { trait_type: "Collection", value: "EmpowerTours Passport" },
-        { trait_type: "GeneratedBy", value: "Gemini 2.5 Flash Image" },
+        { trait_type: "GeneratedBy", value: useGemini ? "Gemini 1.5 Flash" : "Static Image" },
       ],
     };
 
-    // 6️⃣ Upload metadata JSON to Pinata
+    // 4️⃣ Upload metadata to Pinata
     const metaForm = new FormData();
     metaForm.append(
       "file",
@@ -135,16 +125,13 @@ export async function POST(req: NextRequest) {
           ...metaForm.getHeaders(),
         },
       }
-    ).catch((error) => {
-      throw new Error(`Pinata metadata upload failed: ${error.response?.status} - ${error.response?.data?.error || error.message}`);
-    });
-    const metadataCID = metaRes.data.IpfsHash;
-    const tokenURI = `ipfs://${metadataCID}`;
+    );
+    const tokenURI = `ipfs://${metaRes.data.IpfsHash}`;
     console.log("Metadata uploaded to IPFS:", tokenURI);
 
-    // 7️⃣ Cache in Redis (30 days)
+    // 5️⃣ Cache in Redis (30 days)
     await redis.set(cacheKey, tokenURI, { ex: 60 * 60 * 24 * 30 });
-    console.log("✅ AI Passport generated and cached:", tokenURI);
+    console.log("✅ Passport metadata generated and cached:", tokenURI);
 
     return NextResponse.json({ tokenURI });
   } catch (error: any) {
