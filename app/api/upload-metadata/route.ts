@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import FormData from "form-data";
-import sharp from "sharp";
 import { Redis } from "@upstash/redis";
 
 // Initialize Upstash Redis
@@ -42,30 +41,9 @@ export async function POST(req: NextRequest) {
     
     if (!deepAIRes.data.output_url) throw new Error("DeepAI image generation failed");
     const imageRes = await axios.get(deepAIRes.data.output_url, { responseType: "arraybuffer" });
-    let imageBuffer = Buffer.from(imageRes.data);
+    const imageBuffer = Buffer.from(imageRes.data);
 
-    // 3️⃣ Add Watermark (Hologram Effect)
-    const logoUrl = "https://fcempowertours-production-6551.up.railway.app/images/feed.png";
-    const logoRes = await axios.get(logoUrl, { responseType: "arraybuffer" });
-    const logoBuffer = Buffer.from(logoRes.data);
-
-    imageBuffer = await sharp(imageBuffer)
-      .resize(512, 512) // Ensure consistent size
-      .composite([
-        {
-          input: await sharp(logoBuffer)
-            .resize(200)
-            .modulate({ lightness: 20 }) // Hologram glow
-            .toBuffer(),
-          gravity: "center",
-          blend: "over",
-          opacity: 0.5,
-        },
-      ])
-      .png() // Ensure PNG output
-      .toBuffer();
-
-    // 4️⃣ Upload Image to Pinata
+    // 3️⃣ Upload Image to Pinata
     const form = new FormData();
     form.append("file", imageBuffer, {
       filename: `passport-${countryCode}.png`,
@@ -84,10 +62,10 @@ export async function POST(req: NextRequest) {
     const imageCID = uploadRes.data.IpfsHash;
     const imageURI = `ipfs://${imageCID}`;
 
-    // 5️⃣ Create NFT metadata
+    // 4️⃣ Create NFT metadata
     const metadata = {
       name: `EmpowerTours Passport - ${countryName}`,
-      description: `Official EmpowerTours digital travel passport for ${countryName}. AI-generated cover with hologram branding.`,
+      description: `Official EmpowerTours digital travel passport for ${countryName}. AI-generated cover.`,
       image: imageURI,
       attributes: [
         { trait_type: "Country", value: countryName },
@@ -97,7 +75,7 @@ export async function POST(req: NextRequest) {
       ],
     };
 
-    // 6️⃣ Upload metadata JSON to Pinata
+    // 5️⃣ Upload metadata JSON to Pinata
     const metaForm = new FormData();
     metaForm.append(
       "file",
@@ -117,9 +95,9 @@ export async function POST(req: NextRequest) {
     const metadataCID = metaRes.data.IpfsHash;
     const tokenURI = `ipfs://${metadataCID}`;
 
-    // 7️⃣ Cache in Redis (30 days)
+    // 6️⃣ Cache in Redis (30 days)
     await redis.set(cacheKey, tokenURI, { ex: 60 * 60 * 24 * 30 });
-    console.log("✅ AI Passport generated, watermarked, and cached:", tokenURI);
+    console.log("✅ AI Passport generated and cached:", tokenURI);
 
     return NextResponse.json({ tokenURI });
   } catch (error: any) {
