@@ -6,14 +6,12 @@ import PassportNFT from '@/lib/abis/PassportNFT.json';
 import { countryData } from '@/lib/countries';
 import { monadTestnet } from '../chains';
 import { useRouter } from 'next/navigation';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
-
-const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b' as `0x${string}`;
+const PASSPORT_NFT_ADDRESS = '0x92D5a2b741b411988468549a5f117174A1aC8D7b' as `0x${string}`;
 
 export default function PassportPage() {
   const [casts, setCasts] = useState<any[]>([]);
@@ -28,7 +26,7 @@ export default function PassportPage() {
   const { writeContractAsync } = useWriteContract();
   const router = useRouter();
 
-  // Fetch Farcaster casts via Neynar API
+  // Fetch Farcaster casts for @empowertoursbot
   useEffect(() => {
     const fetchCasts = async () => {
       setLoadingCasts(true);
@@ -36,10 +34,10 @@ export default function PassportPage() {
         if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
           throw new Error('Neynar API key is not defined');
         }
-        const res = await fetch('https://api.neynar.com/v2/farcaster/casts?fid=1&limit=10', {
+        const res = await fetch('https://api.neynar.com/v2/farcaster/casts?fid=1368808&limit=10', {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_NEYNAR_API_KEY}`,
+            'x-api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
           },
         });
         if (!res.ok) throw new Error(`Neynar fetch failed: ${res.statusText}`);
@@ -49,7 +47,7 @@ export default function PassportPage() {
         } else {
           setCasts([
             {
-              author: { username: 'empowertours' },
+              author: { username: 'empowertoursbot' },
               text: '🌍 Mint your first EmpowerTours Passport to begin your adventure!',
             },
           ]);
@@ -61,7 +59,7 @@ export default function PassportPage() {
         });
         setCasts([
           {
-            author: { username: 'empowertours' },
+            author: { username: 'empowertoursbot' },
             text: '🌍 Mint your first EmpowerTours Passport to begin your adventure!',
           },
         ]);
@@ -99,7 +97,7 @@ export default function PassportPage() {
           functionName: 'tokenURI',
           args: [tokenId],
         }) as string;
-        const metadataResponse = await fetch(tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/'));
+        const metadataResponse = await fetch(tokenURI.replace('ipfs://', `https://${process.env.PINATA_GATEWAY}/ipfs/`));
         const metadata = await metadataResponse.json();
         passportList.push({
           id: tokenId.toString(),
@@ -116,12 +114,10 @@ export default function PassportPage() {
     }
   };
 
-  // Load passports when wallet connects
   useEffect(() => {
     if (isConnected && address && isAddress(address)) fetchPassports();
   }, [isConnected, address]);
 
-  // Handle mint interaction with Monad wallet
   const handleMint = async () => {
     if (!selectedCountry) {
       alert('Please select a country first!');
@@ -163,71 +159,44 @@ export default function PassportPage() {
     }
   };
 
-  // Handle command prompt submission
   const handlePromptSubmit = async () => {
     if (!command.trim()) return;
     setProcessingPrompt(true);
     try {
-      const lowerCommand = command.toLowerCase();
-      if (lowerCommand.includes('nft') || lowerCommand.includes('music')) {
-        router.push('/music');
-        return;
-      } else if (lowerCommand.includes('passport')) {
-        router.push('/passport');
-        return;
-      } else if (lowerCommand.includes('market') || lowerCommand.includes('itinerary')) {
-        router.push('/market');
-        return;
-      } else if (lowerCommand.includes('profile')) {
-        router.push('/profile');
-        return;
-      }
-      if (!process.env.GEMINI_API_KEY) {
-        console.error('Gemini API key is not defined');
-        alert('Command processing unavailable. Try basic commands like "take me to nft" or "go to profile".');
-        return;
-      }
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const aiPrompt = `
-        Analyze this user command for an EmpowerTours app: "${command}".
-        Output JSON ONLY, no extra text:
-        {
-          "actions": [{ "type": "navigate", "path": "/music" | "/passport" | "/market" | "/profile" | "none" }],
-          "reason": "Brief explanation"
-        }
-      `;
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: aiPrompt }] }],
-        generationConfig: { maxOutputTokens: 256 },
+      const res = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/agent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command }),
       });
-      let actions: { type: string; path: string }[] = [];
-      try {
-        const rawText = result.response.text().trim();
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const responseJson = JSON.parse(jsonMatch[0]);
-          actions = responseJson.actions || [];
-        }
-      } catch (err) {
-        console.warn('Failed to parse Gemini response as JSON:', err);
+      const { results, reason } = await res.json();
+      if (!res.ok) {
+        throw new Error(`Agent API error: ${results?.error || "Unknown error"}`);
       }
-      if (actions.length > 0 && actions[0].path !== 'none') {
-        actions.forEach((action) => {
-          if (action.type === 'navigate') router.push(action.path);
-        });
-      } else {
-        alert('Sorry, I didn\'t understand. Try "take me to nft", "go to passport", or "go to profile".');
+
+      for (const result of results) {
+        if (result.type === "navigate") {
+          router.push(result.path);
+        } else if (result.type === "mint_passport") {
+          setSelectedCountry(result.params.country);
+          await handleMint();
+        } else if (result.type === "create_pay_frame") {
+          alert("✅ Transaction frame created and cast shared!");
+        } else if (result.type === "post_cast") {
+          alert("✅ Cast posted!");
+        }
+      }
+      if (!results.some((r: any) => r.type === "navigate")) {
+        alert(`Action processed: ${reason}`);
       }
     } catch (error) {
-      console.error('Prompt processing failed:', {
+      console.error("Prompt processing failed:", {
         message: (error as Error).message,
         stack: (error as Error).stack,
       });
-      alert(`Error processing command: ${(error as Error).message}. Try basic commands like "take me to nft".`);
+      alert(`Error: ${(error as Error).message}. Try commands like "book a trip to Japan" or "mint passport for France".`);
     } finally {
       setProcessingPrompt(false);
-      setCommand('');
+      setCommand("");
     }
   };
 
@@ -264,7 +233,7 @@ export default function PassportPage() {
               >
                 {p.image && (
                   <img
-                    src={p.image.replace('ipfs://', 'https://ipfs.io/ipfs/')}
+                    src={p.image.replace('ipfs://', `https://${process.env.PINATA_GATEWAY}/ipfs/`)}
                     alt={p.name}
                     className="rounded-lg w-32 h-32 object-cover mb-2"
                   />
@@ -288,7 +257,7 @@ export default function PassportPage() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
-            placeholder="Type command e.g., 'take me to nft' or 'take me to profile'"
+            placeholder="Type command e.g., 'book a trip to Japan' or 'mint passport for France'"
             className="w-full p-2 border rounded-lg"
             disabled={processingPrompt}
           />

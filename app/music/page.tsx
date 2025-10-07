@@ -7,208 +7,137 @@ import MusicNFTABI from '../../lib/abis/MusicNFT.json';
 import { monadTestnet } from '../chains';
 
 const MUSIC_NFT_ADDRESS = '0x53f8650e96d47338b1106a085b3804e77f92d9ca';
-
 export const dynamic = 'force-dynamic';
 
 export default function MusicPage() {
-  const { address, isConnected, chainId, isConnecting, isDisconnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { writeContractAsync, isPending: writePending, data: writeData } = useWriteContract();
   const { switchChainAsync } = useSwitchChain();
   const { connect, connectors } = useConnect();
   const { data: receipt, isLoading: receiptLoading } = useWaitForTransactionReceipt({ hash: writeData });
-  const [audioFile, setAudioFile] = useState<File | null>(null);
+
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
 
+  // Auto switch to Monad Testnet
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!isConnected || chainId === monadTestnet.id) return;
+    switchChainAsync({ chainId: monadTestnet.id }).catch(() =>
+      alert('Please switch to Monad Testnet manually in your wallet.')
+    );
+  }, [isConnected, chainId, switchChainAsync]);
 
-  useEffect(() => {
-    if (!mounted || !isConnected || chainId === monadTestnet.id) return;
-    const autoSwitchChain = async () => {
-      try {
-        await switchChainAsync({ chainId: monadTestnet.id });
-        console.log('Switched to Monad Testnet');
-      } catch (error) {
-        console.error('Chain switch failed:', {
-          message: (error as Error).message,
-          stack: (error as Error).stack,
-        });
-        alert('Failed to switch to Monad Testnet. Please switch manually in your wallet.');
-      }
-    };
-    autoSwitchChain();
-  }, [mounted, isConnected, chainId, switchChainAsync]);
-
+  // Handle confirmed transaction
   useEffect(() => {
     if (receipt) {
       setTxHash(receipt.transactionHash);
-      alert(`TX Confirmed! Hash: ${receipt.transactionHash}\nView on explorer: https://explorer.monad.xyz/tx/${receipt.transactionHash}`);
+      alert(`✅ TX Confirmed: https://explorer.monad.xyz/tx/${receipt.transactionHash}`);
     }
   }, [receipt]);
 
-  const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setAudioFile(e.target.files[0]);
-  };
+  const handleFileChange = (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) setter(e.target.files[0]);
+    };
 
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setCoverFile(e.target.files[0]);
-  };
-
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result;
-        if (typeof result !== 'string') {
-          reject(new Error('Failed to convert file to base64: Result is not a string'));
-          return;
-        }
-        const base64Match = result.match(/^data:[^;]+;base64,(.+)$/);
-        if (!base64Match) {
-          reject(new Error('Failed to convert file to base64: Invalid data URL format'));
-          return;
-        }
-        resolve(base64Match[1]);
-      };
-      reader.onerror = () => reject(new Error('FileReader failed to read the file'));
-    });
-
-  const uploadToPinata = async () => {
-    if (!audioFile || !coverFile || !description || !address || !isAddress(address)) {
-      console.error('Invalid input for minting music NFT:', { audioFile, coverFile, description, address, isConnected, isConnecting, isDisconnected });
-      alert('Need audio, cover image, description, and a valid wallet address (40-character hex).');
+  const uploadAndMint = async () => {
+    if (!previewFile || !fullFile || !coverFile || !description || !address) {
+      alert('Please upload all required files and connect your wallet.');
       return;
     }
     if (chainId !== monadTestnet.id) {
-      alert('Please switch to Monad Testnet (Chain ID 10143) in your wallet.');
+      alert('Switch to Monad Testnet first.');
       return;
     }
+
     setUploading(true);
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
+
       const context = await sdk.context.catch(() => ({ user: { fid: null } }));
       const fid = context?.user?.fid?.toString() || '1';
+
       const formData = new FormData();
-      formData.append('audio', audioFile);
+      formData.append('previewAudio', previewFile);
+      formData.append('fullAudio', fullFile);
+      formData.append('cover', coverFile);
       formData.append('description', description);
       formData.append('fid', fid);
       formData.append('address', address);
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!uploadRes.ok) {
-        throw new Error(`Upload failed: ${uploadRes.statusText}`);
-      }
-      const { audioCid, metadataCid } = await uploadRes.json();
-      if (!audioCid || !metadataCid) {
-        throw new Error('Upload failed: Invalid response from server');
-      }
-      console.log('Pinata Ready:', { audioCid, metadataCid });
-      const coverArtBase64 = await fileToBase64(coverFile);
-      const audioContent = await audioFile.arrayBuffer();
-      if (!isAddress(address)) {
-        throw new Error('Invalid address format');
-      }
-      if (typeof `ipfs://${metadataCid}` !== 'string') {
-        throw new Error('Invalid metadataCid format');
-      }
-      if (!(audioContent instanceof ArrayBuffer)) {
-        throw new Error('Invalid audio content format');
-      }
-      if (typeof coverArtBase64 !== 'string') {
-        throw new Error('Invalid coverArtBase64 format');
-      }
-      console.log('Minting music NFT with:', {
-        address,
-        tokenURI: `ipfs://${metadataCid}`,
-        previewLength: audioContent.byteLength,
-        coverArtBase64Length: coverArtBase64.length,
-        contractAddress: MUSIC_NFT_ADDRESS,
-      });
+
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.statusText}`);
+      const { metadataCid, previewCid, fullCid } = await uploadRes.json();
+
+      console.log('Pinata upload complete:', { metadataCid, previewCid, fullCid });
+
       await writeContractAsync({
         address: MUSIC_NFT_ADDRESS,
         abi: MusicNFTABI as Abi,
         functionName: 'mint',
-        args: [
-          address,
-          `ipfs://${metadataCid}`,
-          new Uint8Array(audioContent),
-          coverArtBase64,
-          address,
-        ],
+        args: [address, `ipfs://${metadataCid}`],
         chainId: monadTestnet.id,
         account: address,
       });
-      setTxHash(writeData);
-      alert(`Mint requested! 🎵\nMetadata: ipfs://${metadataCid}\nAudio: ipfs://${audioCid}\nWaiting for TX confirmation...`);
+
+      alert(`🎵 Mint requested! Metadata: ipfs://${metadataCid}`);
     } catch (error) {
-      console.error('Upload/Mint failed:', {
-        message: (error as Error).message,
-        stack: (error as Error).stack,
-        address,
-        contractAddress: MUSIC_NFT_ADDRESS,
-      });
-      alert(`Failed: ${(error as Error).message}. Check browser console for details.`);
+      console.error('Mint failed:', error);
+      alert(`Error: ${(error as Error).message}`);
     } finally {
       setUploading(false);
     }
   };
 
-  if (!mounted) {
-    return <div>Loading...</div>;
-  }
-
-  if (!isConnected) {
-    return (
-      <div className="p-4 text-center">
-        <h1>Music App</h1>
-        <appkit-connect-button label="Connect Wallet to Mint Music NFTs" />
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 max-w-[600px] mx-auto">
-      <h1>Mint Music NFT</h1>
-      <p>Connected: {address}</p>
-      <p>Chain: {chainId === monadTestnet.id ? 'Monad Testnet (Ready)' : 'Wrong chain - Switch to ID 10143'}</p>
-      <div className="mb-5">
-        <label>Description:</label>
-        <input
-          type="text"
-          placeholder="Describe your track"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border rounded mt-1"
-        />
-      </div>
-      <div className="mb-5">
-        <label>Audio File (short clip for preview):</label>
-        <input type="file" accept="audio/mp3,audio/mpeg,audio/wav" onChange={handleAudioChange} className="mt-1" />
-        {audioFile && <p className="mt-1">Selected: {audioFile.name}</p>}
-      </div>
-      <div className="mb-5">
-        <label>Cover Art (image):</label>
-        <input type="file" accept="image/*" onChange={handleCoverChange} className="mt-1" />
-        {coverFile && <p className="mt-1">Selected: {coverFile.name}</p>}
-      </div>
+      <h1 className="text-2xl font-bold mb-3">Mint Streaming Music NFT</h1>
+      <p>Connected: {address || 'Not connected'}</p>
+      <p className="mb-3">
+        Chain: {chainId === monadTestnet.id ? 'Monad Testnet ✅' : 'Wrong chain ❌'}
+      </p>
+
+      <label>Description:</label>
+      <input
+        type="text"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Describe your track"
+        className="w-full p-2 border rounded mb-4"
+      />
+
+      <label>🎧 Preview Audio (3s NFT Clip)</label>
+      <input type="file" accept="audio/*" onChange={handleFileChange(setPreviewFile)} className="mb-2" />
+      {previewFile && <p>Selected: {previewFile.name}</p>}
+
+      <label>🎵 Full Track (for streaming)</label>
+      <input type="file" accept="audio/*" onChange={handleFileChange(setFullFile)} className="mb-2" />
+      {fullFile && <p>Selected: {fullFile.name}</p>}
+
+      <label>🖼️ Cover Art</label>
+      <input type="file" accept="image/*" onChange={handleFileChange(setCoverFile)} className="mb-4" />
+      {coverFile && <p>Selected: {coverFile.name}</p>}
+
       <button
-        onClick={uploadToPinata}
-        disabled={!audioFile || !coverFile || !description || uploading || writePending || receiptLoading}
+        onClick={uploadAndMint}
+        disabled={uploading || writePending || receiptLoading}
         className="w-full p-2 border rounded disabled:opacity-50"
       >
-        {uploading ? 'Uploading to Pinata...' : writePending ? 'Awaiting Wallet Approval...' : receiptLoading ? 'Confirming TX...' : 'Upload & Mint NFT'}
+        {uploading ? 'Uploading...' : writePending ? 'Awaiting Wallet...' : 'Upload & Mint'}
       </button>
-      {(uploading || writePending || receiptLoading) && <p className="mt-2">Processing... (Server upload → Blockchain)</p>}
-      {txHash && <p className="mt-2">TX Hash: {txHash} (View on <a href={`https://explorer.monad.xyz/tx/${txHash}`} target="_blank" rel="noopener noreferrer">explorer</a>)</p>}
-      <p className="mt-2 text-sm"><small>Tip: Use short audio (&lt;30s) to save gas on preview bytes. Free Pinata: 1GB/month.</small></p>
+
+      {txHash && (
+        <p className="mt-3">
+          TX Hash:{' '}
+          <a href={`https://explorer.monad.xyz/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
+            {txHash}
+          </a>
+        </p>
+      )}
     </div>
   );
 }
