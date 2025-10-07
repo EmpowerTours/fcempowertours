@@ -12,7 +12,7 @@ const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
-const PASSPORT_NFT_ADDRESS = '0x6b9ebdcd978f718e415e58c5ba8f00de76d91655' as `0x${string}`; // From .env.local
+const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT as `0x${string}`;
 
 export default function PassportPage() {
   const [casts, setCasts] = useState<any[]>([]);
@@ -44,14 +44,12 @@ export default function PassportPage() {
           if (countryEntry) {
             setUserLocation({ countryCode: countryEntry[0], countryName: countryEntry[1].name });
           } else {
-            // Fallback to IP-based geolocation
             const geoRes = await axios.get('https://ipapi.co/json/');
             const countryCode = geoRes.data.country_code;
             const countryName = countryData[countryCode]?.name || geoRes.data.country_name;
             setUserLocation({ countryCode, countryName });
           }
         } else {
-          // Fallback to IP-based geolocation
           const geoRes = await axios.get('https://ipapi.co/json/');
           const countryCode = geoRes.data.country_code;
           const countryName = countryData[countryCode]?.name || geoRes.data.country_name;
@@ -62,7 +60,6 @@ export default function PassportPage() {
           message: (err as Error).message,
           stack: (err as Error).stack,
         });
-        // Fallback to IP-based geolocation
         const geoRes = await axios.get('https://ipapi.co/json/');
         const countryCode = geoRes.data.country_code;
         const countryName = countryData[countryCode]?.name || geoRes.data.country_name;
@@ -203,7 +200,8 @@ export default function PassportPage() {
         address: PASSPORT_NFT_ADDRESS,
         abi: PassportNFT,
         functionName: 'mint',
-        args: [address, tokenURI], // Assume mint takes address and tokenURI
+        args: [address],
+        value: BigInt('10000000000000000'), // 0.01 MON for MINT_PRICE
         chainId: monadTestnet.id,
         account: address,
       });
@@ -213,10 +211,20 @@ export default function PassportPage() {
         abi: PassportNFT,
         eventName: 'Transfer',
         logs: receipt.logs,
-      }) as { args: { from: string; to: string; tokenId: bigint } }[];
+      }) as unknown as { args: { from: `0x${string}`; to: `0x${string}`; tokenId: bigint } }[];
       const tokenId = transferLogs[0]?.args?.tokenId;
       if (!tokenId) throw new Error('Failed to retrieve tokenId from mint transaction');
       console.log('Minted passport with tokenId:', tokenId.toString());
+      // Set tokenURI
+      await writeContractAsync({
+        address: PASSPORT_NFT_ADDRESS,
+        abi: PassportNFT,
+        functionName: 'setTokenURI',
+        args: [tokenId, tokenURI],
+        chainId: monadTestnet.id,
+        account: address,
+      });
+      console.log('Set tokenURI for tokenId:', tokenId.toString(), 'to:', tokenURI);
       alert(`Mint requested for ${countryName}. Approve in wallet.`);
       await fetchPassports();
     } catch (err: any) {
