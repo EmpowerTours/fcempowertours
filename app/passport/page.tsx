@@ -86,7 +86,7 @@ export default function PassportPage() {
             'x-api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
           },
         });
-        if (!res.ok) throw new Error(`Neynar fetch failed: ${res.statusText}`);
+        if (res.status !== 200) throw new Error(`Neynar fetch failed: ${res.statusText}`);
         const data = res.data;
         if (data?.result?.casts?.length) {
           setCasts(data.result.casts);
@@ -178,7 +178,6 @@ export default function PassportPage() {
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
       await switchChainAsync({ chainId: monadTestnet.id });
-
       // Upload metadata to IPFS
       const metadataResponse = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/upload-metadata`, {
         method: 'POST',
@@ -189,7 +188,6 @@ export default function PassportPage() {
       if (!tokenURI) {
         throw new Error('Failed to upload metadata to IPFS');
       }
-
       console.log('Minting passport with:', {
         address,
         contractAddress: PASSPORT_NFT_ADDRESS,
@@ -205,7 +203,6 @@ export default function PassportPage() {
         chainId: monadTestnet.id,
         account: address,
       });
-
       // Set tokenURI (assumes a setTokenURI function exists; adjust if not)
       const tokenId = await publicClient.getTransactionReceipt({ hash: tx })
         .then(receipt => {
@@ -220,7 +217,6 @@ export default function PassportPage() {
         chainId: monadTestnet.id,
         account: address,
       });
-
       alert(`Mint requested for ${countryName}. Approve in wallet.`);
       await fetchPassports();
     } catch (err: any) {
@@ -250,7 +246,6 @@ export default function PassportPage() {
       if (!res.ok) {
         throw new Error(`Agent API error: ${results?.error || 'Unknown error'}`);
       }
-
       for (const result of results) {
         if (result.type === 'navigate') {
           router.push(result.path);

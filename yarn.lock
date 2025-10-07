@@ -7173,7 +7173,6 @@ __metadata:
     qrcode.react: "npm:^4.2.0"
     react: "npm:^18.3.1"
     react-dom: "npm:^18.3.1"
-    sharp: "npm:^0.34.4"
     sonner: "npm:^2.0.7"
     string-width: "npm:^4.2.3"
     strip-ansi: "npm:^6.0.1"
@@ -11336,7 +11335,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sharp@npm:^0.34.3, sharp@npm:^0.34.4":
+"sharp@npm:^0.34.3":
   version: 0.34.4
   resolution: "sharp@npm:0.34.4"
   dependencies:
