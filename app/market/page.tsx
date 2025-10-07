@@ -1,18 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import React from 'react';
-import { ethers } from 'ethers';
+import { ethers, InterfaceAbi } from 'ethers';
 import { useAccount, useWalletClient, useReadContract } from 'wagmi';
-import { Abi } from 'viem';
+import { parseAbi } from 'viem';
+import { useRouter } from 'next/navigation';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
+import EscrowVaultABI from '../../lib/abis/EscrowVault.json';
 
-const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4b5b9f97682a4723ebfd0086c47c70b96478c';
+const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
 const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
-const PASSPORT_NFT_ADDRESS = '0x92d5a2b741b411988468549a5f117174a1ac8d7b';
-const ESCROW_VAULT_ADDRESS = '0xdd57b4eae4f7285db943edce8777f082b2f02f79';
+const PASSPORT_NFT_ADDRESS = '0x2c26632f67f5e516704c3b6bf95b2abbd9fc2bb4';
+const ESCROW_VAULT_ADDRESS = '0xDd57B4eae4f7285DB943edCe8777f082b2f02f79';
+
+// Type ABIs for ethers
+const itineraryABI: InterfaceAbi = ItineraryMarketABI;
+const toursABI: InterfaceAbi = ToursABI;
+const passportABI: InterfaceAbi = PassportNFTABI;
+const escrowABI: InterfaceAbi = EscrowVaultABI;
+
+// Parse ABI for wagmi/viem (not used for read, since no getAvailableItineraries)
+const itineraryViemABI = parseAbi(ItineraryMarketABI as any);
 
 interface Itinerary {
   id: bigint;
@@ -25,62 +35,65 @@ interface Itinerary {
 export default function MarketPage() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const router = useRouter();
   const [itineraryContract, setItineraryContract] = useState<ethers.Contract | null>(null);
   const [toursContract, setToursContract] = useState<ethers.Contract | null>(null);
   const [passportContract, setPassportContract] = useState<ethers.Contract | null>(null);
+  const [escrowContract, setEscrowContract] = useState<ethers.Contract | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
-  const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
-
-  // Fetch available itineraries
-  const { data: travelData } = useReadContract({
-    address: ITINERARY_MARKET_ADDRESS as `0x${string}`,
-    abi: ItineraryMarketABI as unknown as Abi,  // Cast to fix TS mismatch
-    functionName: 'getAvailableItineraries',
-    args: [],
-  });
+  const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]); // Token IDs from events
 
   useEffect(() => {
     const init = async () => {
       if (walletClient) {
         const provider = new ethers.BrowserProvider(walletClient);
         const signer = await provider.getSigner();
-        const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI, signer);
-        const toursContract = new ethers.Contract(TOURS_ADDRESS, ToursABI, signer);
-        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, signer);
+        const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, itineraryABI, signer);
+        const toursContract = new ethers.Contract(TOURS_ADDRESS, toursABI, signer);
+        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, passportABI, signer);
+        const escrowContract = new ethers.Contract(ESCROW_VAULT_ADDRESS, escrowABI, signer);
         setItineraryContract(itineraryContract);
         setToursContract(toursContract);
         setPassportContract(passportContract);
+        setEscrowContract(escrowContract);
         if (address) {
           await fetchOwnedPassports(passportContract, address);
         }
+        await fetchAvailableItineraries(itineraryContract);
       }
     };
     init();
   }, [walletClient, address]);
 
-  useEffect(() => {
-    if (travelData) {
-      const fetchedItineraries = (travelData as readonly Itinerary[]).map((itinerary: Itinerary) => ({
-        id: itinerary.id,
-        creator: itinerary.creator,
-        description: itinerary.description,
-        price: itinerary.price,
-        isActive: itinerary.isActive,
-      }));
+  const fetchAvailableItineraries = async (contract: ethers.Contract) => {
+    try {
+      const length = await contract.itineraries.length();
+      const fetchedItineraries: Itinerary[] = [];
+      for (let i = 0; i < Number(length); i++) {
+        const itinerary = await contract.itineraries(i);
+        if (itinerary.isActive) {
+          fetchedItineraries.push({
+            id: itinerary[0],
+            creator: itinerary[1],
+            description: itinerary[2],
+            price: itinerary[3],
+            isActive: itinerary[4],
+          });
+        }
+      }
       setItineraries(fetchedItineraries);
+    } catch (error) {
+      console.error('Error fetching itineraries:', error);
     }
-  }, [travelData]);
+  };
 
   const fetchOwnedPassports = async (contract: ethers.Contract, userAddress: string) => {
     try {
-      const balance = await contract.balanceOf(userAddress);
-      const tokenIds: bigint[] = [];
-      for (let i = 0; i < Number(balance); i++) {
-        const tokenId = await contract.tokenOfOwnerByIndex(userAddress, i);
-        tokenIds.push(tokenId);
-      }
+      const filter = contract.filters.Transfer(null, userAddress);
+      const events = await contract.queryFilter(filter, 0, 'latest');
+      const tokenIds = events.map(event => event.args.tokenId).filter(id => id != null);
       setOwnedPassports(tokenIds);
     } catch (error) {
       console.error('Error fetching owned passports:', error);
@@ -107,6 +120,7 @@ export default function MarketPage() {
       alert('Itinerary created!');
       setDescription('');
       setPrice('');
+      await fetchAvailableItineraries(itineraryContract);
     } catch (error) {
       console.error('Error creating itinerary:', error);
       alert('Failed to create itinerary');
@@ -123,6 +137,7 @@ export default function MarketPage() {
       if (passportContract && address) {
         await fetchOwnedPassports(passportContract, address);
       }
+      await fetchAvailableItineraries(itineraryContract);
     } catch (error) {
       console.error('Error purchasing itinerary:', error);
       alert('Failed to purchase itinerary');
@@ -131,6 +146,12 @@ export default function MarketPage() {
 
   return (
     <div style={containerStyle}>
+      <nav>
+        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
+        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
+        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
+        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
+      </nav>
       <h1>EmpowerTours Marketplace</h1>
       {isConnected ? (
         <p>Connected: {address}</p>
@@ -199,12 +220,6 @@ const containerStyle: React.CSSProperties = {
   margin: '0 auto',
 };
 
-const itineraryStyle: React.CSSProperties = {
-  border: '1px solid #ccc',
-  padding: '10px',
-  margin: '10px 0',
-};
-
 const inputStyle: React.CSSProperties = {
   margin: '10px',
   padding: '5px',
@@ -213,4 +228,10 @@ const inputStyle: React.CSSProperties = {
 const buttonStyle: React.CSSProperties = {
   padding: '5px 10px',
   margin: '5px',
+};
+
+const itineraryStyle: React.CSSProperties = {
+  border: '1px solid #ccc',
+  padding: '10px',
+  margin: '10px 0',
 };
