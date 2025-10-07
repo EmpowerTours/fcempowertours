@@ -2,27 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { ethers, InterfaceAbi } from 'ethers';
-import { useAccount, useWalletClient, useReadContract } from 'wagmi';
+import { useAccount, useWalletClient } from 'wagmi';
 import { parseAbi } from 'viem';
 import { useRouter } from 'next/navigation';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
-import EscrowVaultABI from '../../lib/abis/EscrowVault.json';
 
 const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
 const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
 const PASSPORT_NFT_ADDRESS = '0x2c26632f67f5e516704c3b6bf95b2abbd9fc2bb4';
-const ESCROW_VAULT_ADDRESS = '0xDd57B4eae4f7285DB943edCe8777f082b2f02f79';
 
-// Type ABIs for ethers
 const itineraryABI: InterfaceAbi = ItineraryMarketABI;
 const toursABI: InterfaceAbi = ToursABI;
 const passportABI: InterfaceAbi = PassportNFTABI;
-const escrowABI: InterfaceAbi = EscrowVaultABI;
 
-// Parse ABI for wagmi/viem (not used for read, since no getAvailableItineraries)
-const itineraryViemABI = parseAbi(ItineraryMarketABI as any);
+parseAbi(ItineraryMarketABI as any); // For wagmi compatibility, if needed
 
 interface Itinerary {
   id: bigint;
@@ -39,11 +34,10 @@ export default function MarketPage() {
   const [itineraryContract, setItineraryContract] = useState<ethers.Contract | null>(null);
   const [toursContract, setToursContract] = useState<ethers.Contract | null>(null);
   const [passportContract, setPassportContract] = useState<ethers.Contract | null>(null);
-  const [escrowContract, setEscrowContract] = useState<ethers.Contract | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
-  const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]); // Token IDs from events
+  const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
 
   useEffect(() => {
     const init = async () => {
@@ -53,11 +47,9 @@ export default function MarketPage() {
         const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, itineraryABI, signer);
         const toursContract = new ethers.Contract(TOURS_ADDRESS, toursABI, signer);
         const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, passportABI, signer);
-        const escrowContract = new ethers.Contract(ESCROW_VAULT_ADDRESS, escrowABI, signer);
         setItineraryContract(itineraryContract);
         setToursContract(toursContract);
         setPassportContract(passportContract);
-        setEscrowContract(escrowContract);
         if (address) {
           await fetchOwnedPassports(passportContract, address);
         }
@@ -69,11 +61,12 @@ export default function MarketPage() {
 
   const fetchAvailableItineraries = async (contract: ethers.Contract) => {
     try {
-      const length = await contract.itineraries.length();
+      // Fix: Call length as a function
+      const length = await contract.itineraries.length.call();
       const fetchedItineraries: Itinerary[] = [];
       for (let i = 0; i < Number(length); i++) {
         const itinerary = await contract.itineraries(i);
-        if (itinerary.isActive) {
+        if (itinerary[4]) { // isActive is index 4
           fetchedItineraries.push({
             id: itinerary[0],
             creator: itinerary[1],
@@ -93,8 +86,11 @@ export default function MarketPage() {
     try {
       const filter = contract.filters.Transfer(null, userAddress);
       const events = await contract.queryFilter(filter, 0, 'latest');
-      const tokenIds = events.map(event => event.args.tokenId).filter(id => id != null);
-      setOwnedPassports(tokenIds);
+      const tokenIds = events
+        .filter(event => event.args.to.toLowerCase() === userAddress.toLowerCase())
+        .map(event => event.args.tokenId)
+        .filter(id => id != null);
+      setOwnedPassports([...new Set(tokenIds)]);
     } catch (error) {
       console.error('Error fetching owned passports:', error);
     }
@@ -103,7 +99,7 @@ export default function MarketPage() {
   const approveTokens = async (amount: string) => {
     if (!toursContract) return;
     try {
-      const tx = await toursContract.approve(ESCROW_VAULT_ADDRESS, ethers.parseEther(amount));
+      const tx = await toursContract.approve(ITINERARY_MARKET_ADDRESS, ethers.parseEther(amount));
       await tx.wait();
       alert('Tokens approved for spending!');
     } catch (error) {
