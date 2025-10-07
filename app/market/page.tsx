@@ -59,7 +59,6 @@ export default function MarketPage() {
 
   const fetchAvailableItineraries = async (contract: ethers.Contract) => {
     try {
-      // Access length as a property
       const length = await contract.itineraries.length;
       const fetchedItineraries: Itinerary[] = [];
       for (let i = 0; i < Number(length); i++) {
@@ -85,7 +84,7 @@ export default function MarketPage() {
       const filter = contract.filters.Transfer(null, userAddress);
       const events = await contract.queryFilter(filter, 0, 'latest');
       const tokenIds = events
-        .filter((event): event is ethers.EventLog => 'args' in event) // Ensure event is EventLog
+        .filter((event): event is ethers.EventLog => 'args' in event)
         .filter(event => event.args.to.toLowerCase() === userAddress.toLowerCase())
         .map(event => event.args.tokenId)
         .filter(id => id != null);
@@ -133,9 +132,13 @@ export default function MarketPage() {
         await fetchOwnedPassports(passportContract, address);
       }
       await fetchAvailableItineraries(itineraryContract);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error purchasing itinerary:', error);
-      alert('Failed to purchase itinerary');
+      if (error.message.includes('DeepAI image generation failed')) {
+        alert('Failed to purchase itinerary: Metadata upload failed due to DeepAI error. Please try again later.');
+      } else {
+        alert('Failed to purchase itinerary: ' + error.message);
+      }
     }
   };
 
