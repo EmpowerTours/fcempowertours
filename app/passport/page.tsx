@@ -23,6 +23,7 @@ export default function PassportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoDetected, setAutoDetected] = useState(false);
   const [error, setError] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   // Initialize contract and provider
   useEffect(() => {
@@ -122,9 +123,15 @@ export default function PassportPage() {
   };
 
   // Force Farcaster login
-  const handleLogin = () => {
+  const handleLogin = async () => {
     console.log('Forcing Farcaster login');
-    login(); // Removed invalid loginMethod option
+    try {
+      await login({ redirectTo: window.location.href });
+      console.log('Login attempt completed');
+    } catch (err) {
+      console.error('Login error:', err);
+      setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
+    }
   };
 
   // Mint passport
@@ -158,63 +165,59 @@ export default function PassportPage() {
       setError('Please enter country details');
       return;
     }
-    if (!userAddress) {
-      setError('Please connect your wallet');
-      return;
-    }
-    if (!contract || !provider) {
-      setError('Contract or provider not initialized');
-      return;
-    }
 
     setIsLoading(true);
     setError('');
 
     try {
-      // Try client-side mint with Privy (user pays 0.01 MON)
-      console.log('Attempting client-side mint with Privy...');
-      const tx = await sendTransaction({
-        chainId: 10143, // Monad testnet
-        to: PASSPORT_NFT_ADDRESS,
-        data: contract.interface.encodeFunctionData('mint', [userAddress]),
-        value: ethers.parseEther("0.01"),
-      });
-      console.log('Tx sent:', tx.hash);
-      const receipt = await provider.waitForTransaction(tx.hash);
-      if (!receipt) {
-        throw new Error('Transaction receipt not found');
-      }
-      if (receipt.status !== 1) {
-        throw new Error('Mint transaction reverted');
-      }
-      const tokenId = receipt.logs
-        .map((log: any) => contract.interface.parseLog(log))
-        .find((log: any) => log?.name === 'Transfer' && log.args.from === ethers.ZeroAddress)?.args.tokenId;
-      if (!tokenId) {
-        throw new Error('Failed to extract tokenId');
-      }
+      if (userAddress && contract && provider) {
+        // Try client-side mint with Privy (user pays 0.01 MON)
+        console.log('Attempting client-side mint with Privy...');
+        const tx = await sendTransaction({
+          chainId: 10143, // Monad testnet
+          to: PASSPORT_NFT_ADDRESS,
+          data: contract.interface.encodeFunctionData('mint', [userAddress]),
+          value: ethers.parseEther("0.01"),
+        });
+        console.log('Tx sent:', tx.hash);
+        const receipt = await provider.waitForTransaction(tx.hash);
+        if (!receipt) {
+          throw new Error('Transaction receipt not found');
+        }
+        if (receipt.status !== 1) {
+          throw new Error('Mint transaction reverted');
+        }
+        const tokenId = receipt.logs
+          .map((log: any) => contract.interface.parseLog(log))
+          .find((log: all) => log?.name === 'Transfer' && log.args.from === ethers.ZeroAddress)?.args.tokenId;
+        if (!tokenId) {
+          throw new Error('Failed to extract tokenId');
+        }
 
-      // Call API to set tokenURI (onlyOwner) and post cast
-      console.log('Calling /api/mint-passport for tokenURI and cast...', { tokenId });
-      const mintResponse = await fetch('/api/mint-passport', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fid: user.farcaster.fid,
-          countryCode: form.countryCode,
-          countryName: form.countryName,
-          userAddress,
-          tokenId: Number(tokenId),
-        }),
-      });
-      if (!mintResponse.ok) {
-        throw new Error(`API error: ${mintResponse.status} ${await mintResponse.text()}`);
+        // Call API to set tokenURI (onlyOwner) and post cast
+        console.log('Calling /api/mint-passport for tokenURI and cast...', { tokenId });
+        const mintResponse = await fetch('/api/mint-passport', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fid: user.farcaster.fid,
+            countryCode: form.countryCode,
+            countryName: form.countryName,
+            userAddress,
+            tokenId: Number(tokenId),
+          }),
+        });
+        if (!mintResponse.ok) {
+          throw new Error(`API error: ${mintResponse.status} ${await mintResponse.text()}`);
+        }
+        const { txHash, tokenURI } = await mintResponse.json();
+        alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
+      } else {
+        throw new Error('Client-side mint skipped: Missing wallet, contract, or provider');
       }
-      const { txHash, tokenURI } = await mintResponse.json();
-      alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
     } catch (err: any) {
       console.error('Client mint error:', err);
-      // Fallback to server-side mint (deployer pays)
+      // Fallback to server-side mint (deployer pays, no userAddress needed)
       try {
         console.log('Falling back to server-side mint...');
         const mintResponse = await fetch('/api/mint-passport', {
@@ -224,7 +227,6 @@ export default function PassportPage() {
             fid: user.farcaster.fid,
             countryCode: form.countryCode,
             countryName: form.countryName,
-            userAddress,
           }),
         });
         if (!mintResponse.ok) {
@@ -251,6 +253,7 @@ export default function PassportPage() {
           Connect with Farcaster
         </button>
       )}
+      {loginError && <p style={{ color: 'red' }}>Login Error: {loginError}</p>}
       <h2>{autoDetected ? 'Detected Location:' : 'Enter Country Details:'}</h2>
       {error && <p style={{ color: 'red' }}>{error}</p>}
       {autoDetected && <p style={{ color: 'green' }}>Auto-filled from your location!</p>}
@@ -275,7 +278,7 @@ export default function PassportPage() {
       </form>
       <button
         onClick={handleMint}
-        disabled={!ready || !authenticated || !userAddress || isLoading || !form.countryCode || !form.countryName}
+        disabled={!ready || !authenticated || isLoading || !form.countryCode || !form.countryName}
         style={{ padding: '10px 20px', margin: '10px' }}
       >
         {isLoading ? 'Minting...' : 'Mint Passport'}
