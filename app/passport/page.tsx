@@ -27,19 +27,35 @@ export default function PassportPage() {
   // Initialize contract and provider
   useEffect(() => {
     const init = async () => {
-      const provider = new ethers.JsonRpcProvider(MONAD_RPC);
-      const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
-      setProvider(provider);
-      setContract(passportContract);
+      try {
+        const provider = new ethers.JsonRpcProvider(MONAD_RPC);
+        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+        setProvider(provider);
+        setContract(passportContract);
+        console.log('Contract initialized:', PASSPORT_NFT_ADDRESS);
+      } catch (err) {
+        console.error('Contract init failed:', err);
+        setError('Failed to initialize contract');
+      }
     };
     init();
   }, []);
 
   // Auto-detect location or use cookie
   useEffect(() => {
-    if (!ready) return;
+    if (!ready) {
+      console.log('Privy not ready');
+      return;
+    }
     // Log Privy state for debugging
-    console.log('Privy state:', { ready, authenticated, user, fid: user?.farcaster?.fid });
+    console.log('Privy state:', {
+      ready,
+      authenticated,
+      user,
+      fid: user?.farcaster?.fid,
+      wallet: user?.wallet?.address,
+    });
+
     // Check cookie first
     const countryCookie = document.cookie
       .split('; ')
@@ -72,6 +88,8 @@ export default function PassportPage() {
             setForm({ countryCode, countryName });
             setAutoDetected(true);
             console.log('Auto-detected country:', { countryCode, countryName });
+          } else {
+            setError('No country data found, please enter manually');
           }
         } catch (err) {
           console.error('Geocode failed:', err);
@@ -84,13 +102,29 @@ export default function PassportPage() {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5 * 60 * 1000 }
     );
-  }, [ready, userAddress]);
+  }, [ready]);
+
+  // Monitor Privy state changes
+  useEffect(() => {
+    if (ready && authenticated && user) {
+      console.log('Privy updated:', { fid: user.farcaster?.fid, wallet: user.wallet?.address });
+      if (!user.farcaster?.fid) {
+        setError('Farcaster FID not found, please try logging in again');
+      }
+    }
+  }, [ready, authenticated, user]);
 
   // Manual form change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setAutoDetected(false);
+  };
+
+  // Force Farcaster login
+  const handleLogin = () => {
+    console.log('Forcing Farcaster login');
+    login(); // Removed invalid loginMethod option
   };
 
   // Mint passport
@@ -112,12 +146,12 @@ export default function PassportPage() {
     }
     if (!authenticated) {
       setError('Please log in with Farcaster');
-      login();
+      handleLogin();
       return;
     }
     if (!user?.farcaster?.fid) {
       setError('Farcaster authentication failed: FID not found');
-      login();
+      handleLogin();
       return;
     }
     if (!form.countryCode || !form.countryName) {
@@ -213,7 +247,7 @@ export default function PassportPage() {
       {ready && authenticated && userAddress ? (
         <p>Wallet: {userAddress.slice(0, 6)}...{userAddress.slice(-4)}</p>
       ) : (
-        <button onClick={login} style={{ padding: '10px 20px', margin: '10px' }}>
+        <button onClick={handleLogin} style={{ padding: '10px 20px', margin: '10px' }}>
           Connect with Farcaster
         </button>
       )}
@@ -245,6 +279,12 @@ export default function PassportPage() {
         style={{ padding: '10px 20px', margin: '10px' }}
       >
         {isLoading ? 'Minting...' : 'Mint Passport'}
+      </button>
+      <button
+        onClick={() => console.log('Debug Privy:', { ready, authenticated, user, fid: user?.farcaster?.fid })}
+        style={{ padding: '10px 20px', margin: '10px', background: '#ccc' }}
+      >
+        Debug Privy State
       </button>
       <p><small>Uses browser location (HTTPS only). Fallback to manual entry.</small></p>
     </div>
