@@ -38,6 +38,8 @@ export default function PassportPage() {
   // Auto-detect location or use cookie
   useEffect(() => {
     if (!ready) return;
+    // Log Privy state for debugging
+    console.log('Privy state:', { ready, authenticated, user, fid: user?.farcaster?.fid });
     // Check cookie first
     const countryCookie = document.cookie
       .split('; ')
@@ -93,7 +95,22 @@ export default function PassportPage() {
 
   // Mint passport
   const handleMint = async () => {
-    if (!ready || !authenticated) {
+    console.log('handleMint called with:', {
+      ready,
+      authenticated,
+      fid: user?.farcaster?.fid,
+      userAddress,
+      countryCode: form.countryCode,
+      countryName: form.countryName,
+      contract: !!contract,
+      provider: !!provider,
+    });
+
+    if (!ready) {
+      setError('App not ready, please wait');
+      return;
+    }
+    if (!authenticated) {
       setError('Please log in with Farcaster');
       login();
       return;
@@ -144,6 +161,7 @@ export default function PassportPage() {
       }
 
       // Call API to set tokenURI (onlyOwner) and post cast
+      console.log('Calling /api/mint-passport for tokenURI and cast...', { tokenId });
       const mintResponse = await fetch('/api/mint-passport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,7 +174,7 @@ export default function PassportPage() {
         }),
       });
       if (!mintResponse.ok) {
-        throw new Error(`API error: ${mintResponse.status}`);
+        throw new Error(`API error: ${mintResponse.status} ${await mintResponse.text()}`);
       }
       const { txHash, tokenURI } = await mintResponse.json();
       alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
@@ -176,7 +194,7 @@ export default function PassportPage() {
           }),
         });
         if (!mintResponse.ok) {
-          throw new Error(`Server mint failed: ${mintResponse.status}`);
+          throw new Error(`Server mint failed: ${mintResponse.status} ${await mintResponse.text()}`);
         }
         const { tokenId, txHash, tokenURI } = await mintResponse.json();
         alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);

@@ -107,6 +107,7 @@ async function uploadToPinata(metadata: any) {
 export async function POST(req: NextRequest) {
   try {
     const { fid, countryCode, countryName, userAddress, tokenId } = await req.json();
+    console.log('API received:', { fid, countryCode, countryName, userAddress, tokenId });
     if (!fid || !countryCode || !countryName) {
       throw new Error("Missing fid, countryCode, or countryName");
     }
