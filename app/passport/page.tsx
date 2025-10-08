@@ -126,9 +126,9 @@ export default function PassportPage() {
   const handleLogin = async () => {
     console.log('Forcing Farcaster login');
     try {
-      await login({ redirectTo: window.location.href });
+      await login();
       console.log('Login attempt completed');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login error:', err);
       setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
     }
@@ -189,7 +189,7 @@ export default function PassportPage() {
         }
         const tokenId = receipt.logs
           .map((log: any) => contract.interface.parseLog(log))
-          .find((log: all) => log?.name === 'Transfer' && log.args.from === ethers.ZeroAddress)?.args.tokenId;
+          .find((log: any) => log?.name === 'Transfer' && log.args.from === ethers.ZeroAddress)?.args.tokenId;
         if (!tokenId) {
           throw new Error('Failed to extract tokenId');
         }
@@ -213,13 +213,8 @@ export default function PassportPage() {
         const { txHash, tokenURI } = await mintResponse.json();
         alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
       } else {
-        throw new Error('Client-side mint skipped: Missing wallet, contract, or provider');
-      }
-    } catch (err: any) {
-      console.error('Client mint error:', err);
-      // Fallback to server-side mint (deployer pays, no userAddress needed)
-      try {
-        console.log('Falling back to server-side mint...');
+        // Fallback to server-side mint without userAddress
+        console.log('Client-side mint skipped, falling back to server-side mint...');
         const mintResponse = await fetch('/api/mint-passport', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -234,10 +229,10 @@ export default function PassportPage() {
         }
         const { tokenId, txHash, tokenURI } = await mintResponse.json();
         alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
-      } catch (serverErr: any) {
-        console.error('Server mint error:', serverErr);
-        setError(`Mint failed: ${serverErr.message || 'Unknown error'}`);
       }
+    } catch (err: any) {
+      console.error('Mint error:', err);
+      setError(`Mint failed: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
