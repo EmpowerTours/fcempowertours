@@ -38,7 +38,6 @@ export default function PassportPage() {
   // Auto-detect location or use cookie
   useEffect(() => {
     if (!ready) return;
-
     // Check cookie first
     const countryCookie = document.cookie
       .split('; ')
@@ -51,13 +50,11 @@ export default function PassportPage() {
       console.log('Country from cookie:', countryCookie);
       return;
     }
-
     if (!navigator.geolocation) {
       console.log('Geolocation not supported');
       setError('Geolocation not supported, please enter country manually');
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
@@ -96,15 +93,29 @@ export default function PassportPage() {
 
   // Mint passport
   const handleMint = async () => {
-    if (!contract || !provider || !userAddress || !form.countryCode || !form.countryName) {
-      setError('Please connect wallet and enter country details');
-      return;
-    }
     if (!ready || !authenticated) {
       setError('Please log in with Farcaster');
       login();
       return;
     }
+    if (!user?.farcaster?.fid) {
+      setError('Farcaster authentication failed: FID not found');
+      login();
+      return;
+    }
+    if (!form.countryCode || !form.countryName) {
+      setError('Please enter country details');
+      return;
+    }
+    if (!userAddress) {
+      setError('Please connect your wallet');
+      return;
+    }
+    if (!contract || !provider) {
+      setError('Contract or provider not initialized');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -112,7 +123,7 @@ export default function PassportPage() {
       // Try client-side mint with Privy (user pays 0.01 MON)
       console.log('Attempting client-side mint with Privy...');
       const tx = await sendTransaction({
-        chainId: 10143,
+        chainId: 10143, // Monad testnet
         to: PASSPORT_NFT_ADDRESS,
         data: contract.interface.encodeFunctionData('mint', [userAddress]),
         value: ethers.parseEther("0.01"),
@@ -137,7 +148,7 @@ export default function PassportPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fid: user?.farcaster?.fid,
+          fid: user.farcaster.fid,
           countryCode: form.countryCode,
           countryName: form.countryName,
           userAddress,
@@ -158,7 +169,7 @@ export default function PassportPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fid: user?.farcaster?.fid,
+            fid: user.farcaster.fid,
             countryCode: form.countryCode,
             countryName: form.countryName,
             userAddress,

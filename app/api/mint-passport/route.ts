@@ -50,7 +50,6 @@ const contract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PASSPORT_ABI, wallet)
 
 async function generateMetadata(countryCode: string, countryName: string) {
   try {
-    // Replace with your actual Gemini API call (based on your logs)
     const geminiResponse = await axios.post(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
       {
@@ -69,19 +68,16 @@ async function generateMetadata(countryCode: string, countryName: string) {
         },
       }
     );
-
     const generatedContent = geminiResponse.data.candidates[0].content.parts[0].text;
-    // Parse or format the response as needed
     const metadata = {
       name: `EmpowerTours Passport: ${countryName}`,
       description: generatedContent || `A unique NFT passport for ${countryName} (Code: ${countryCode})`,
-      image: `https://harlequin-used-hare-224.mypinata.cloud/ipfs/QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W`, // Your logged CID
+      image: `https://harlequin-used-hare-224.mypinata.cloud/ipfs/QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W`,
       attributes: [
         { trait_type: "Country Code", value: countryCode },
         { trait_type: "Country Name", value: countryName },
       ],
     };
-
     return metadata;
   } catch (error: any) {
     throw new Error(`Metadata generation failed: ${error.message}`);
@@ -111,31 +107,40 @@ async function uploadToPinata(metadata: any) {
 export async function POST(req: NextRequest) {
   try {
     const { fid, countryCode, countryName, userAddress, tokenId } = await req.json();
-    if (!fid || !countryCode || !countryName || !userAddress) {
-      throw new Error("Missing fid, countryCode, countryName, or userAddress");
+    if (!fid || !countryCode || !countryName) {
+      throw new Error("Missing fid, countryCode, or countryName");
     }
 
-    // 1️⃣ Get user wallet from FID
-    const accountRes = await fetch(`https://fnames.farcaster.xyz/transfers?fid=${fid}`);
-    const accountData = await accountRes.json();
-    const fetchedAddress = accountData.transfers?.[0]?.owner;
-    if (!fetchedAddress || fetchedAddress.toLowerCase() !== userAddress.toLowerCase()) {
-      throw new Error("FID wallet does not match provided userAddress");
+    // Resolve FID to wallet address via Neynar
+    const neynarRes = await axios.get(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+      { headers: { api_key: NEYNAR_API_KEY } }
+    );
+    const userData = neynarRes.data.users[0];
+    if (!userData || !userData.custody_address) {
+      throw new Error("User not found or no custody address for FID");
     }
+    const fetchedAddress = userData.custody_address;
+    const username = userData.username || "unknown";
 
-    // 2️⃣ Check balance (no multiples)
-    const balance = await contract.balanceOf(userAddress);
+    // Verify userAddress if provided (for client-side mint)
+    if (userAddress && userAddress.toLowerCase() !== fetchedAddress.toLowerCase()) {
+      throw new Error("Provided userAddress does not match FID's custody address");
+    }
+    const recipientAddress = userAddress || fetchedAddress; // Use provided or resolved address
+
+    // Check balance (no multiples)
+    const balance = await contract.balanceOf(recipientAddress);
     if (balance > 0 && !tokenId) {
       return NextResponse.json({ error: "Already owns a passport" }, { status: 400 });
     }
 
     let transaction_hash, newTokenId;
-
-    // 3️⃣ Generate and upload metadata to Pinata
+    // Generate and upload metadata
     const metadata = await generateMetadata(countryCode, countryName);
     const tokenURI = await uploadToPinata(metadata);
 
-    // 4️⃣ If tokenId provided, only set tokenURI (client-side mint)
+    // If tokenId provided, only set tokenURI (client-side mint)
     if (tokenId) {
       console.log("Setting tokenURI for existing token:", tokenId);
       const gasEstimateUri = await contract.setTokenURI.estimateGas(tokenId, tokenURI);
@@ -147,27 +152,23 @@ export async function POST(req: NextRequest) {
       transaction_hash = setUriTx.hash;
       newTokenId = tokenId;
     } else {
-      // 5️⃣ Server-side mint (deployer pays 0.01 MON)
-      console.log("Minting directly to:", userAddress);
-      const gasEstimate = await contract.mint.estimateGas(userAddress);
+      // Server-side mint (deployer pays 0.01 MON)
+      console.log("Minting directly to:", recipientAddress);
+      const gasEstimate = await contract.mint.estimateGas(recipientAddress);
       console.log("Gas estimate:", gasEstimate.toString());
-
-      const tx = await contract.mint(userAddress, {
+      const tx = await contract.mint(recipientAddress, {
         gasLimit: gasEstimate * 120n / 100n,
         value: ethers.parseEther("0.01"),
       });
       console.log("Mint tx sent:", tx.hash);
-
       const receipt = await tx.wait();
       if (receipt.status !== 1) {
         throw new Error(`Mint reverted: Check logs for reason`);
       }
-
       newTokenId = receipt.logs
         .filter((log: any) => log.address.toLowerCase() === PASSPORT_NFT_ADDRESS.toLowerCase())
         .map((log: any) => contract.interface.parseLog(log))
         .find((log: any) => log?.name === "Transfer" && log.args.from === ethers.ZeroAddress)?.args.tokenId;
-
       if (!newTokenId) {
         throw new Error("Failed to extract tokenId from receipt");
       }
@@ -182,12 +183,12 @@ export async function POST(req: NextRequest) {
       transaction_hash = tx.hash;
     }
 
-    // 6️⃣ Post cast via empowertoursbot
+    // Post cast via empowertoursbot
     try {
       await axios.post(
         "https://api.neynar.com/v2/farcaster/cast",
         {
-          text: `Minted a new EmpowerTours Passport for ${countryName} to @${accountData.transfers?.[0]?.username}! Token ID: ${newTokenId} 🎉 View at https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
+          text: `Minted a new EmpowerTours Passport for ${countryName} to @${username}! Token ID: ${newTokenId} 🎉 View at https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
           signer_uuid: process.env.BOT_SIGNER_UUID,
         },
         {
