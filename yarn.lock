@@ -4487,7 +4487,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/react-query@npm:^5.90.2":
+"@tanstack/react-query@npm:^5.0.0":
   version: 5.90.2
   resolution: "@tanstack/react-query@npm:5.90.2"
   dependencies:
@@ -8179,7 +8179,7 @@ __metadata:
     "@swc/core": "npm:^1.13.20"
     "@tailwindcss/postcss": "npm:^4.1.13"
     "@tanstack/query-core": "npm:^5.90.2"
-    "@tanstack/react-query": "npm:^5.90.2"
+    "@tanstack/react-query": "npm:^5.0.0"
     "@types/node": "npm:^20.17.5"
     "@types/react": "npm:^18.3.25"
     "@types/react-dom": "npm:^18.3.7"
@@ -8209,6 +8209,7 @@ __metadata:
     lucide-react: "npm:^0.544.0"
     next: "npm:^15.5.4"
     next-themes: "npm:^0.4.6"
+    node-ipinfo: "npm:^4.1.0"
     pinata: "npm:^2.5.0"
     pino-pretty: "npm:^13.1.1"
     postcss: "npm:^8.5.6"
@@ -10404,6 +10405,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lru-cache@npm:^7.18.3":
+  version: 7.18.3
+  resolution: "lru-cache@npm:7.18.3"
+  checksum: 10c0/b3a452b491433db885beed95041eb104c157ef7794b9c9b4d647be503be91769d11206bb573849a16b4cc0d03cbd15ffd22df7960997788b74c1d399ac7a4fed
+  languageName: node
+  linkType: hard
+
 "lucide-react@npm:^0.383.0":
   version: 0.383.0
   resolution: "lucide-react@npm:0.383.0"
@@ -11021,6 +11029,17 @@ __metadata:
   bin:
     node-gyp: bin/node-gyp.js
   checksum: 10c0/0bfd3e96770ed70f07798d881dd37b4267708966d868a0e585986baac487d9cf5831285579fd629a83dc4e434f53e6416ce301097f2ee464cb74d377e4d8bdbe
+  languageName: node
+  linkType: hard
+
+"node-ipinfo@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "node-ipinfo@npm:4.1.0"
+  dependencies:
+    lru-cache: "npm:^7.18.3"
+    node-fetch: "npm:^2.7.0"
+    subnet-check: "npm:^1.10.1"
+  checksum: 10c0/4cf142060fd9a51f729bf9c6d4bcc9cd20aea5d00813e29a8faf619b2b511101614b5499f89e534d9efc99915ed413e123d772f94d79936431f2f736aa211781
   languageName: node
   linkType: hard
 
@@ -13184,6 +13203,13 @@ __metadata:
   version: 4.3.6
   resolution: "stylis@npm:4.3.6"
   checksum: 10c0/e736d484983a34f7c65d362c67dc79b7bce388054b261c2b7b23d02eaaf280617033f65d44b1ea341854f4331a5074b885668ac8741f98c13a6cfd6443ae85d0
+  languageName: node
+  linkType: hard
+
+"subnet-check@npm:^1.10.1":
+  version: 1.10.1
+  resolution: "subnet-check@npm:1.10.1"
+  checksum: 10c0/6f261ff1b4d620088e5d0b48c4efebced3c16fb487a54a2b726a76dff495410be6b32635e9195c314fbbabc8c41a5fb06c36233b06bfbe1f0787b02818deacd1
   languageName: node
   linkType: hard
 
