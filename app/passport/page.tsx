@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
-import { usePrivy, useLogin } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
+import { useLoginToMiniApp } from '@privy-io/react-auth/farcaster';
+import miniappSdk from '@farcaster/miniapp-sdk';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 
 const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
@@ -17,6 +19,7 @@ export default function PassportPage() {
   const { address: userAddress } = useAccount();
   const { authenticated, ready, user, login } = usePrivy();
   const { sendTransaction } = usePrivy();
+  const { initLoginToMiniApp, loginToMiniApp } = useLoginToMiniApp();
   const [contract, setContract] = useState<ethers.Contract | null>(null);
   const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
   const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '' });
@@ -34,8 +37,8 @@ export default function PassportPage() {
         setProvider(provider);
         setContract(passportContract);
         console.log('Contract initialized:', PASSPORT_NFT_ADDRESS);
-      } catch (err) {
-        console.error('Contract init failed:', err);
+      } catch (err: any) {
+        console.error('Contract init failed:', err.message || err);
         setError('Failed to initialize contract');
       }
     };
@@ -92,8 +95,8 @@ export default function PassportPage() {
           } else {
             setError('No country data found, please enter manually');
           }
-        } catch (err) {
-          console.error('Geocode failed:', err);
+        } catch (err: any) {
+          console.error('Geocode failed:', err.message || err);
           setError('Auto-detection failed, please enter manually');
         }
       },
@@ -115,6 +118,30 @@ export default function PassportPage() {
     }
   }, [ready, authenticated, user]);
 
+  // Automatic Mini App Farcaster Login
+  useEffect(() => {
+    if (ready && !authenticated) {
+      const performLogin = async () => {
+        try {
+          console.log('Initiating Mini App login...');
+          const { nonce } = await initLoginToMiniApp();
+          console.log('Got nonce:', nonce);
+          const result = await miniappSdk.actions.signIn({ nonce });
+          console.log('SIWF result:', result);
+          await loginToMiniApp({
+            message: result.message,
+            signature: result.signature,
+          });
+          console.log('Mini App login completed');
+        } catch (err: any) {
+          console.error('Mini App login error:', err.message || err);
+          setLoginError(`Farcaster Mini App login failed: ${err.message || 'Unknown error'}`);
+        }
+      };
+      performLogin();
+    }
+  }, [ready, authenticated, initLoginToMiniApp, loginToMiniApp]);
+
   // Manual form change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -129,7 +156,7 @@ export default function PassportPage() {
       await login();
       console.log('Login attempt completed');
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('Login error:', err.message || err);
       setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
     }
   };
@@ -231,7 +258,7 @@ export default function PassportPage() {
         alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
       }
     } catch (err: any) {
-      console.error('Mint error:', err);
+      console.error('Mint error:', err.message || err);
       setError(`Mint failed: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
