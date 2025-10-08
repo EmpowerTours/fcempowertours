@@ -1,22 +1,25 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { useAccount } from 'wagmi';
-import { createPublicClient, http } from 'viem';
-import PassportNFT from '@/lib/abis/PassportNFT.json';
-import MusicNFT from '@/lib/abis/MusicNFT.json';
-import { monadTestnet } from '../chains';
+import { ethers } from 'ethers';
+import PassportNFTABI from '@/lib/abis/PassportNFT.json';
+import MusicNFTABI from '@/lib/abis/MusicNFT.json';
 
-const publicClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
-});
+const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
+const MUSIC_NFT_ADDRESS = process.env.MUSICNFT_ADDRESS; // From env
+const MONAD_RPC = 'https://testnet-rpc.monad.xyz';
+
+// Type guard for EventLog
+function isEventLog(event: ethers.Log | ethers.EventLog): event is ethers.EventLog {
+  return 'args' in event;
+}
 
 export default function ProfilePage() {
   const [fid, setFid] = useState<string>('Not logged in');
   const [passports, setPassports] = useState<any[]>([]);
   const [musicNfts, setMusicNfts] = useState<any[]>([]);
-  const { address, chain } = useAccount();
+  const { address: userAddress } = useAccount();
 
   useEffect(() => {
     async function fetchContext() {
@@ -31,42 +34,34 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
+    if (!userAddress) return;
+
+    const provider = new ethers.JsonRpcProvider(MONAD_RPC);
+
     async function loadPassports() {
-      if (!address) return;
       try {
-        const contract = {
-          address: process.env.NEXT_PUBLIC_PASSPORTNFT_ADDRESS as `0x${string}`,
-          abi: PassportNFT,
-        };
-        const balance = await publicClient.readContract({
-          ...contract,
-          functionName: 'balanceOf',
-          args: [address],
-        }) as bigint;
+        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+        const filter = passportContract.filters.Transfer(null, userAddress);
+        const events = await passportContract.queryFilter(filter, 0, 'latest');
+        const tokenIds = events
+          .filter(isEventLog)
+          .filter((event) => userAddress && event.args.to.toLowerCase() === userAddress.toLowerCase())
+          .map((event) => event.args.tokenId)
+          .filter((id): id is bigint => id != null);
 
-        const passportsArr: any[] = [];
-        for (let i = 0; i < Number(balance); i++) {
-          const tokenId = await publicClient.readContract({
-            ...contract,
-            functionName: 'tokenOfOwnerByIndex',
-            args: [address, BigInt(i)],
-          }) as bigint;
-
-          const tokenURI = await publicClient.readContract({
-            ...contract,
-            functionName: 'tokenURI',
-            args: [tokenId],
-          }) as string;
-
-          const metadataRes = await fetch(tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/'));
-          const metadata = await metadataRes.json();
-
-          passportsArr.push({
-            id: tokenId.toString(),
-            name: metadata.name || `Passport #${tokenId}`,
-            image: metadata.image,
-          });
-        }
+        const uniqueTokenIds = [...new Set(tokenIds)];
+        const passportsArr = await Promise.all(
+          uniqueTokenIds.map(async (tokenId) => {
+            const tokenURI = await passportContract.tokenURI(tokenId);
+            const metadataRes = await fetch(tokenURI.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/'));
+            const metadata = await metadataRes.json();
+            return {
+              id: tokenId.toString(),
+              name: metadata.name || `Passport #${tokenId}`,
+              image: metadata.image?.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/'),
+            };
+          })
+        );
         setPassports(passportsArr);
       } catch (err) {
         console.error('Failed to load passports:', err);
@@ -74,66 +69,46 @@ export default function ProfilePage() {
     }
 
     async function loadMusicNfts() {
-      if (!address) return;
+      if (!MUSIC_NFT_ADDRESS) return;
       try {
-        const contract = {
-          address: process.env.MUSICNFT_ADDRESS as `0x${string}`,
-          abi: MusicNFT,
-        };
-        const balance = await publicClient.readContract({
-          ...contract,
-          functionName: 'balanceOf',
-          args: [address],
-        }) as bigint;
+        const musicContract = new ethers.Contract(MUSIC_NFT_ADDRESS, MusicNFTABI, provider);
+        const filter = musicContract.filters.Transfer(null, userAddress);
+        const events = await musicContract.queryFilter(filter, 0, 'latest');
+        const tokenIds = events
+          .filter(isEventLog)
+          .filter((event) => userAddress && event.args.to.toLowerCase() === userAddress.toLowerCase())
+          .map((event) => event.args.tokenId)
+          .filter((id): id is bigint => id != null);
 
-        const musicNftsArr: any[] = [];
-        for (let i = 0; i < Number(balance); i++) {
-          const tokenId = await publicClient.readContract({
-            ...contract,
-            functionName: 'tokenOfOwnerByIndex',
-            args: [address, BigInt(i)],
-          }) as bigint;
-
-          const tokenURI = await publicClient.readContract({
-            ...contract,
-            functionName: 'tokenURI',
-            args: [tokenId],
-          }) as string;
-
-          const coverArt = await publicClient.readContract({
-            ...contract,
-            functionName: 'getCoverArt',
-            args: [tokenId],
-          }) as string;
-
-          const metadataRes = await fetch(tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/'));
-          const metadata = await metadataRes.json();
-
-          musicNftsArr.push({
-            id: tokenId.toString(),
-            name: metadata.name || `Music NFT #${tokenId}`,
-            image: coverArt,
-          });
-        }
+        const uniqueTokenIds = [...new Set(tokenIds)];
+        const musicNftsArr = await Promise.all(
+          uniqueTokenIds.map(async (tokenId) => {
+            const tokenURI = await musicContract.tokenURI(tokenId);
+            const coverArt = await musicContract.getCoverArt(tokenId);
+            const metadataRes = await fetch(tokenURI.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/'));
+            const metadata = await metadataRes.json();
+            return {
+              id: tokenId.toString(),
+              name: metadata.name || `Music NFT #${tokenId}`,
+              image: coverArt?.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/'),
+            };
+          })
+        );
         setMusicNfts(musicNftsArr);
       } catch (err) {
         console.error('Failed to load music NFTs:', err);
       }
     }
 
-    if (address) {
-      loadPassports();
-      loadMusicNfts();
-    }
-  }, [address]);
+    loadPassports();
+    loadMusicNfts();
+  }, [userAddress]);
 
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold">Profile</h1>
       <p className="mt-2 text-gray-700">FID: {fid}</p>
-      <p className="text-gray-700">Wallet: {address || 'Not connected'}</p>
-      <p className="text-gray-700">Network: {chain?.name || 'Unknown network'}</p>
-
+      <p className="text-gray-700">Wallet: {userAddress || 'Not connected'}</p>
       {passports.length > 0 && (
         <div className="mt-6">
           <h2 className="text-xl font-semibold">Your Passports</h2>
@@ -145,7 +120,7 @@ export default function ProfilePage() {
               >
                 {p.image && (
                   <img
-                    src={p.image.replace('ipfs://', 'https://ipfs.io/ipfs/')}
+                    src={p.image}
                     alt={p.name}
                     className="rounded-lg w-24 h-24 object-cover mb-2"
                   />
@@ -156,7 +131,6 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-
       {musicNfts.length > 0 && (
         <div className="mt-6">
           <h2 className="text-xl font-semibold">Your Music NFTs</h2>

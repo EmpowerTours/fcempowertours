@@ -1,17 +1,17 @@
-// app/itinerary/page.tsx (Server Component)
 import { Suspense } from 'react';
-import ItineraryClient from './ItineraryClient';
+import ItineraryWrapper from './ItineraryWrapper';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic'; // Disable static generation
 
 interface PageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>> | undefined;
 }
 
-export default async function ItineraryPage({ searchParams }: PageProps) {
+export default function ItineraryPage({ searchParams }: PageProps) {
   return (
-    <div>
-      <Suspense fallback={<div className="p-4">Loading itinerary...</div>}>
-        <ItineraryClient searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Suspense fallback={<div className="p-6 text-center text-gray-600">Loading itinerary...</div>}>
+      <ItineraryWrapper searchParams={searchParams ?? Promise.resolve({})} />
+    </Suspense>
   );
 }

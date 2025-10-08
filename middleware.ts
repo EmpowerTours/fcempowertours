@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(req: NextRequest) {
-  const country = req.geo?.country || 'US'; // Fallback to 'US' if geo unavailable
   const res = NextResponse.next();
-  res.cookies.set('country', country);
+  res.cookies.set('country', 'US'); // Hardcode fallback
   return res;
 }
 
 export const config = {
-  matcher: ['/passport', '/api/mint-passport'], // Apply to relevant routes
+  matcher: ['/passport', '/profile', '/:path*'], // Include all paths for not-found
+  runtime: 'nodejs',
 };

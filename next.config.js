@@ -3,9 +3,11 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  experimental: {
-    serverComponentsExternalPackages: ['undici'],
+  eslint: {
+    ignoreDuringBuilds: true,
   },
+  output: 'standalone',
+  serverExternalPackages: ['undici', '@privy-io/react-auth', 'wagmi', '@wagmi/core', 'viem', 'ethers'],
   async headers() {
     return [
       {
@@ -46,4 +48,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

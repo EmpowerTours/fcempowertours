@@ -1,7 +1,9 @@
 import React from 'react';
-import { Providers } from "./providers";
-import "./globals.css";
 import { Metadata } from 'next';
+import ClientLayout from './ClientLayout';
+import './globals.css';
+
+export const runtime = 'nodejs';
 
 export async function generateMetadata(): Promise<Metadata> {
   const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
@@ -43,7 +45,7 @@ export async function generateMetadata(): Promise<Metadata> {
           ...miniAppEmbed.button,
           action: {
             ...miniAppEmbed.button.action,
-            type: 'launch_frame', // Backward compatibility
+            type: 'launch_frame',
           },
         },
       }),
@@ -55,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );

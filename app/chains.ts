@@ -1,4 +1,6 @@
-export const monadTestnet = {
+import { defineChain } from 'viem';
+
+export const monadTestnet = defineChain({
   id: 10143,
   name: 'Monad Testnet',
   network: 'monad-testnet',
@@ -19,4 +21,4 @@ export const monadTestnet = {
     default: { name: 'Monad Explorer', url: 'https://explorer.monad.xyz' },
   },
   testnet: true,
-};
+});
