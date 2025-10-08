@@ -1,51 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { ethers } from "ethers"; // Correct ethers v6 import
+import { ethers } from "ethers";
 
-// Contract details
 const PASSPORT_NFT_ADDRESS = "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4";
 const NEYNAR_API_URL = "https://api.neynar.com/v2/farcaster/nft/mint/";
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
-const NEYNAR_WALLET_ID = process.env.NEYNAR_WALLET_ID!; // Add to .env.local
+const NEYNAR_WALLET_ID = process.env.NEYNAR_WALLET_ID!;
 const PASSPORT_ABI = [
   {
-    "inputs": [
-      { "internalType": "address", "name": "to", "type": "address" }
-    ],
-    "name": "mint",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
+    inputs: [{ internalType: "address", name: "to", type: "address" }],
+    name: "mint",
+    outputs: [],
+    stateMutability: "payable",
+    type: "function",
   },
   {
-    "inputs": [
-      { "internalType": "uint256", "name": "tokenId", "type": "uint256" },
-      { "internalType": "string", "name": "uri", "type": "string" }
+    inputs: [
+      { internalType: "uint256", name: "tokenId", type: "uint256" },
+      { internalType: "string", name: "uri", type: "string" },
     ],
-    "name": "setTokenURI",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    name: "setTokenURI",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
   },
   {
-    "inputs": [
-      { "internalType": "address", "name": "owner", "type": "address" }
-    ],
-    "name": "balanceOf",
-    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-    "stateMutability": "view",
-    "type": "function"
+    inputs: [{ internalType: "address", name: "owner", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
   },
   {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": true, "internalType": "address", "name": "from", "type": "address" },
-      { "indexed": true, "internalType": "address", "name": "to", "type": "address" },
-      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" }
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "address", name: "from", type: "address" },
+      { indexed: true, internalType: "address", name: "to", type: "address" },
+      { indexed: true, internalType: "uint256", name: "tokenId", type: "uint256" },
     ],
-    "name": "Transfer",
-    "type": "event"
-  }
+    name: "Transfer",
+    type: "event",
+  },
 ];
 
 const provider = new ethers.JsonRpcProvider("https://testnet-rpc.monad.xyz");
@@ -73,73 +68,121 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Already owns a passport" }, { status: 400 });
     }
 
-    // 3️⃣ Gasless mint via Neynar's Farcaster NFT Mint API
-    const mintResponse = await axios.post(
-      NEYNAR_API_URL,
-      {
-        network: "monad-testnet",
-        contract_address: PASSPORT_NFT_ADDRESS,
-        function_signature: "mint(address)",
-        args: [userAddress],
-        recipients: [
-          {
-            fid: fid,
-            quantity: 1
-          }
-        ],
-        async: false
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": NEYNAR_API_KEY,
-          "x-wallet-id": NEYNAR_WALLET_ID
+    // 3️⃣ Attempt gasless mint via Neynar
+    let transaction_hash, tokenId;
+    try {
+      console.log("Attempting Neynar mint...");
+      const mintResponse = await axios.post(
+        NEYNAR_API_URL,
+        {
+          network: "monad-testnet", // Ensure this matches Neynar's expected format
+          contract_address: PASSPORT_NFT_ADDRESS,
+          function_signature: "mint(address)",
+          args: [userAddress],
+          recipients: [{ fid, quantity: 1 }],
+          async: false,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": NEYNAR_API_KEY,
+            "x-wallet-id": NEYNAR_WALLET_ID,
+          },
         }
+      );
+
+      if (mintResponse.status !== 200) {
+        throw new Error(`Neynar API error: ${mintResponse.data?.message || mintResponse.statusText}`);
       }
-    );
 
-    if (mintResponse.status !== 200) {
-      throw new Error(`Neynar mint failed: ${mintResponse.data.message || mintResponse.statusText}`);
+      const { transactions } = mintResponse.data;
+      if (!transactions?.[0]?.transaction_hash || !transactions[0]?.receipt) {
+        throw new Error("Neynar response missing transaction or receipt");
+      }
+
+      transaction_hash = transactions[0].transaction_hash;
+      const receipt = transactions[0].receipt;
+
+      if (receipt.status !== "1") {
+        throw new Error(`Mint transaction reverted: ${transaction_hash}`);
+      }
+
+      // Extract tokenId from Transfer event
+      tokenId = receipt.logs
+        .filter((log: any) => log.address.toLowerCase() === PASSPORT_NFT_ADDRESS.toLowerCase())
+        .map((log: any) => contract.interface.parseLog(log))
+        .find((log: any) => log?.name === "Transfer")?.args.tokenId;
+
+      if (!tokenId) {
+        throw new Error("Failed to extract tokenId from mint receipt");
+      }
+    } catch (neynarError: any) {
+      console.error("Neynar mint failed:", neynarError.message);
+
+      // 4️⃣ Fallback to direct mint with deployer wallet
+      console.log("Falling back to direct mint...");
+      try {
+        console.log("Estimating gas for mint...");
+        const gasEstimate = await contract.mint.estimateGas(userAddress);
+        console.log("Gas estimate:", gasEstimate.toString());
+
+        const tx = await contract.mint(userAddress, {
+          gasLimit: gasEstimate * 120n / 100n, // 20% buffer
+          value: 0, // Adjust if contract requires payment
+        });
+        console.log("Mint tx sent:", tx.hash);
+
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) {
+          throw new Error("Direct mint transaction reverted");
+        }
+
+        transaction_hash = tx.hash;
+        tokenId = receipt.logs
+          .filter((log: any) => log.address.toLowerCase() === PASSPORT_NFT_ADDRESS.toLowerCase())
+          .map((log: any) => contract.interface.parseLog(log))
+          .find((log: any) => log?.name === "Transfer")?.args.tokenId;
+
+        if (!tokenId) {
+          throw new Error("Failed to extract tokenId from direct mint receipt");
+        }
+      } catch (directMintError: any) {
+        throw new Error(`Direct mint failed: ${directMintError.reason || directMintError.message}`);
+      }
     }
 
-    const { transactions } = mintResponse.data;
-    const { transaction_hash, receipt } = transactions[0];
-    if (!receipt?.status || receipt.status !== "1") {
-      throw new Error(`Mint transaction failed: ${transaction_hash}`);
-    }
+    // 5️⃣ Set tokenURI
+    console.log("Estimating gas for setTokenURI...");
+    const gasEstimateUri = await contract.setTokenURI.estimateGas(tokenId, tokenURI);
+    console.log("setTokenURI gas estimate:", gasEstimateUri.toString());
 
-    // 4️⃣ Extract tokenId from receipt logs
-    const tokenId = receipt.logs
-      .filter((log: any) => log.address.toLowerCase() === PASSPORT_NFT_ADDRESS.toLowerCase())
-      .map((log: any) => contract.interface.parseLog(log))
-      .find((log: any) => log?.name === "Transfer")?.args.tokenId;
-
-    if (!tokenId) {
-      throw new Error("Failed to extract tokenId from mint receipt");
-    }
-
-    // 5️⃣ Set tokenURI using deployer wallet
-    const setUriTx = await contract.setTokenURI(tokenId, tokenURI);
+    const setUriTx = await contract.setTokenURI(tokenId, tokenURI, {
+      gasLimit: gasEstimateUri * 120n / 100n,
+    });
     await setUriTx.wait();
     console.log(`Set tokenURI for token ${tokenId}: ${tokenURI}`);
 
     // 6️⃣ Post cast via empowertoursbot
-    await axios.post(
-      "https://api.neynar.com/v2/farcaster/cast",
-      {
-        text: `Minted a new EmpowerTours Passport for ${countryName} to @${accountData.transfers?.[0]?.username}! Token ID: ${tokenId} 🎉 View at https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
-        signer_uuid: process.env.BOT_SIGNER_UUID
-      },
-      {
-        headers: { api_key: NEYNAR_API_KEY }
-      }
-    );
-    console.log("Cast posted via empowertoursbot");
+    try {
+      await axios.post(
+        "https://api.neynar.com/v2/farcaster/cast",
+        {
+          text: `Minted a new EmpowerTours Passport for ${countryName} to @${accountData.transfers?.[0]?.username}! Token ID: ${tokenId} 🎉 View at https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
+          signer_uuid: process.env.BOT_SIGNER_UUID,
+        },
+        {
+          headers: { api_key: NEYNAR_API_KEY },
+        }
+      );
+      console.log("Cast posted via empowertoursbot");
+    } catch (castError: any) {
+      console.warn("Failed to post cast, proceeding:", castError.message);
+    }
 
     return NextResponse.json({
       success: true,
       txHash: transaction_hash,
-      tokenId: Number(tokenId)
+      tokenId: Number(tokenId),
     });
   } catch (error: any) {
     console.error("Mint error:", error);

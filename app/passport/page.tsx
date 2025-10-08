@@ -1,154 +1,180 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import { ethers } from 'ethers'; // Correct ethers v6 import
+import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
-import { useRouter } from 'next/navigation';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 
 const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
+const MONAD_RPC = 'https://testnet-rpc.monad.xyz';
+
+interface PassportForm {
+  countryCode: string;
+  countryName: string;
+}
 
 export default function PassportPage() {
   const { address: userAddress } = useAccount();
-  const router = useRouter();
-  const [passportContract, setPassportContract] = useState<ethers.Contract | null>(null);
-  const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
-  const [countryCode, setCountryCode] = useState('');
-  const [countryName, setCountryName] = useState('');
+  const [contract, setContract] = useState<ethers.Contract | null>(null);
+  const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [autoDetected, setAutoDetected] = useState(false);
+  const [error, setError] = useState('');
 
-  const getUserLocation = useCallback(async () => {
-    try {
-      const response = await fetch('https://ipapi.co/json/');
-      const data = await response.json();
-      return { countryCode: data.country_code, countryName: data.country_name };
-    } catch (error) {
-      console.error('Error fetching location:', error);
-      return { countryCode: 'MX', countryName: 'Mexico' }; // Fallback
-    }
-  }, []);
-
+  // Initialize contract
   useEffect(() => {
     const init = async () => {
-      try {
-        const provider = new ethers.JsonRpcProvider("https://testnet-rpc.monad.xyz");
-        const contract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
-        setPassportContract(contract);
-        if (userAddress) {
-          await fetchOwnedPassports(contract, userAddress);
-        }
-        const { countryCode, countryName } = await getUserLocation();
-        setCountryCode(countryCode);
-        setCountryName(countryName);
-      } catch (error) {
-        console.error('Error initializing contract:', error);
-      }
+      const provider = new ethers.JsonRpcProvider(MONAD_RPC);
+      const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+      setContract(passportContract);
     };
-    if (window.ethereum) init();
-  }, [userAddress, getUserLocation]);
+    init();
+  }, []);
 
-  const fetchOwnedPassports = async (contract: ethers.Contract, userAddress: string) => {
-    try {
-      const filter = contract.filters.Transfer(null, userAddress);
-      const events = await contract.queryFilter(filter, 0, 'latest') as (ethers.Log | ethers.EventLog)[];
-      const tokenIds = events
-        .filter((event): event is ethers.EventLog => 'args' in event && !!event.args)
-        .filter((event: ethers.EventLog) => event.args.to.toLowerCase() === userAddress.toLowerCase())
-        .map((event: ethers.EventLog) => event.args.tokenId)
-        .filter((id: ethers.BigNumberish): id is bigint => id != null);
-      setOwnedPassports([...new Set(tokenIds)]);
-    } catch (error) {
-      console.error('Error fetching owned passports:', error);
+  // Auto-detect location on mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      console.log('Geolocation not supported');
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          console.log('Detected coords:', { latitude, longitude });
+
+          // Reverse geocode to country via free Nominatim API
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+          );
+          const data = await response.json();
+
+          if (data && data.address) {
+            const countryCode = data.address.country_code?.toUpperCase() || '';
+            const countryName = data.address.country || '';
+            setForm({ countryCode, countryName });
+            setAutoDetected(true);
+            console.log('Auto-detected country:', { countryCode, countryName });
+
+            // Optional: Auto-trigger mint if wallet connected
+            if (userAddress && countryCode) {
+              await handleMint();
+            }
+          }
+        } catch (err) {
+          console.error('Geocode failed:', err);
+          setError('Auto-detection failed, please enter manually');
+        }
+      },
+      (err) => {
+        console.log('Geolocation denied:', err);
+        setError('Location access denied, please enter country manually');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5 * 60 * 1000 } // 5min cache
+    );
+  }, [userAddress]);
+
+  // Manual form change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setAutoDetected(false); // Reset if manual edit
   };
 
-  const mintPassport = async () => {
+  // Mint passport
+  const handleMint = async () => {
+    if (!contract || !userAddress || !form.countryCode || !form.countryName) {
+      setError('Please connect wallet and enter country details');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
     try {
-      const metadataRes = await fetch('/api/upload-metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ countryCode: countryCode || 'MX', countryName: countryName || 'Mexico' }),
-      });
-      const { tokenURI } = await metadataRes.json();
-      if (!tokenURI) throw new Error('Metadata generation failed');
-      const mintRes = await fetch('/api/mint-passport', {
+      // Call your existing API for metadata/IPFS
+      const mintResponse = await fetch('/api/mint-passport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fid: 1368808, // empowertoursbot FID for testing
-          countryCode: countryCode || 'MX',
-          countryName: countryName || 'Mexico',
-          tokenURI,
+          countryCode: form.countryCode,
+          countryName: form.countryName,
+          userAddress, // Pass if needed for ownership
         }),
       });
-      const mintData = await mintRes.json();
-      if (mintData.error) throw new Error(mintData.error);
-      alert(`Passport minted! Token ID: ${mintData.tokenId}`);
-      if (passportContract && userAddress) {
-        await fetchOwnedPassports(passportContract, userAddress);
+
+      if (!mintResponse.ok) {
+        throw new Error(`API Error: ${mintResponse.status}`);
       }
-    } catch (error: any) {
-      console.error('Error minting passport:', error);
-      alert('Failed to mint passport: ' + error.message);
+
+      const { uri } = await mintResponse.json(); // Assume API returns { uri: 'ipfs://...' }
+      console.log('Metadata URI:', uri);
+
+      // Sign and mint
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send('eth_requestAccounts', []); // Ensure connected
+      const signer = await provider.getSigner();
+      const contractWithSigner = contract.connect(signer);
+
+      console.log('Estimating gas...');
+      const gasEstimate = await contractWithSigner.mint.estimateGas(uri);
+      console.log('Gas estimate:', gasEstimate.toString());
+
+      const tx = await contractWithSigner.mint(uri, { gasLimit: gasEstimate * 120n / 100n }); // 20% buffer
+      console.log('Tx sent:', tx.hash);
+
+      const receipt = await tx.wait();
+      if (receipt.status === 1) {
+        alert(`Passport minted! Token ID: ${receipt.logs?.length || 'Check explorer'}`);
+      } else {
+        throw new Error('Mint failed - transaction reverted');
+      }
+    } catch (err: any) {
+      console.error('Mint error:', err);
+      setError(`Mint failed: ${err.message || err.reason || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div style={containerStyle}>
-      <nav>
-        <button onClick={() => router.push('/passport')} className="text-blue-500">Passport</button>
-        <button onClick={() => router.push('/music')} className="text-blue-500">Music</button>
-        <button onClick={() => router.push('/market')} className="text-blue-500">Market</button>
-        <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
-      </nav>
-      <h1>EmpowerTours Passport</h1>
-      {userAddress ? (
-        <p>Connected: {userAddress}</p>
-      ) : (
-        <button onClick={() => window.ethereum.request({ method: 'eth_requestAccounts' })}>
-          Connect Wallet
-        </button>
-      )}
-      <h2>Mint Passport</h2>
-      <input
-        type="text"
-        placeholder="Country Code (e.g., MX)"
-        value={countryCode}
-        onChange={(e) => setCountryCode(e.target.value)}
-        style={inputStyle}
-      />
-      <input
-        type="text"
-        placeholder="Country Name (e.g., Mexico)"
-        value={countryName}
-        onChange={(e) => setCountryName(e.target.value)}
-        style={inputStyle}
-      />
-      <button onClick={mintPassport} disabled={!userAddress} style={buttonStyle}>
-        Mint Passport
+    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+      <h1>Mint Your Travel Passport NFT</h1>
+      {userAddress ? <p>Wallet: {userAddress.slice(0, 6)}...{userAddress.slice(-4)}</p> : <p>Please connect wallet</p>}
+
+      <h2>{autoDetected ? 'Detected Location:' : 'Enter Country Details:'}</h2>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {autoDetected && <p style={{ color: 'green' }}>Auto-filled from your location!</p>}
+
+      <form>
+        <input
+          type="text"
+          name="countryCode"
+          placeholder="Country Code (e.g., MX)"
+          value={form.countryCode}
+          onChange={handleInputChange}
+          style={{ margin: '10px', padding: '8px', width: '200px' }}
+          maxLength={2}
+        />
+        <input
+          type="text"
+          name="countryName"
+          placeholder="Country Name (e.g., Mexico)"
+          value={form.countryName}
+          onChange={handleInputChange}
+          style={{ margin: '10px', padding: '8px', width: '300px' }}
+        />
+      </form>
+
+      <button
+        onClick={handleMint}
+        disabled={!userAddress || isLoading || (!form.countryCode && !form.countryName)}
+        style={{ padding: '10px 20px', margin: '10px' }}
+      >
+        {isLoading ? 'Minting...' : 'Mint Passport'}
       </button>
-      <h2>Your Passports</h2>
-      {ownedPassports.length > 0 ? (
-        <ul>
-          {ownedPassports.map((tokenId) => (
-            <li key={tokenId.toString()}>Passport NFT #{tokenId.toString()}</li>
-          ))}
-        </ul>
-      ) : (
-        <p>No passports owned</p>
-      )}
+
+      <p><small>Uses browser location (HTTPS only). Fallback to manual entry.</small></p>
     </div>
   );
 }
-
-const containerStyle: React.CSSProperties = {
-  padding: '20px',
-  maxWidth: '800px',
-  margin: '0 auto',
-};
-const inputStyle: React.CSSProperties = {
-  margin: '10px',
-  padding: '5px',
-};
-const buttonStyle: React.CSSProperties = {
-  padding: '5px 10px',
-  margin: '5px',
-};
