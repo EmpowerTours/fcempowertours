@@ -1,21 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ethers, InterfaceAbi } from 'ethers';
-import { useAccount, useWalletClient } from 'wagmi';
-import { parseAbi } from 'viem';
+import { ethers } from 'ethers';
+import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
+import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
-import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 
-const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_MARKET || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
-const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
-const PASSPORT_NFT_ADDRESS = '0x2c26632f67f5e516704c3b6bf95b2abbd9fc2bb4';
+// ✅ Define TypeScript type for TOURS (ERC-20) contract
+type ToursContract = ethers.Contract & {
+  approve(spender: string, amount: ethers.BigNumberish): Promise<ethers.TransactionResponse>;
+  balanceOf(owner: string): Promise<bigint>;
+  transfer(to: string, amount: ethers.BigNumberish): Promise<ethers.TransactionResponse>;
+};
 
-const itineraryABI: InterfaceAbi = ItineraryMarketABI;
-const toursABI: InterfaceAbi = ToursABI;
-const passportABI: InterfaceAbi = PassportNFTABI;
-parseAbi(ItineraryMarketABI as any); // For wagmi compatibility, if needed
+// ✅ Define TypeScript type for ItineraryMarket contract
+type ItineraryMarketContract = ethers.Contract & {
+  createItinerary(description: string, price: ethers.BigNumberish): Promise<ethers.TransactionResponse>;
+  purchaseItinerary(id: number): Promise<ethers.TransactionResponse>;
+  itineraries(index: number): Promise<[bigint, string, string, bigint, boolean]>;
+};
 
 interface Itinerary {
   id: bigint;
@@ -25,52 +29,68 @@ interface Itinerary {
   isActive: boolean;
 }
 
+const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
+const ITINERARY_MARKET_ADDRESS =
+  process.env.NEXT_PUBLIC_MARKET || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
+const TOURS_ADDRESS = '0xa123600c82e69cb311b0e068b06bfa9f787699b7';
+
 export default function MarketPage() {
-  const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { address: userAddress } = useAccount();
   const router = useRouter();
-  const [itineraryContract, setItineraryContract] = useState<ethers.Contract | null>(null);
-  const [toursContract, setToursContract] = useState<ethers.Contract | null>(null);
+  const [itineraryContract, setItineraryContract] = useState<ItineraryMarketContract | null>(null);
+  const [toursContract, setToursContract] = useState<ToursContract | null>(null);
   const [passportContract, setPassportContract] = useState<ethers.Contract | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [ownedPassports, setOwnedPassports] = useState<bigint[]>([]);
 
+  // Initialize contracts
   useEffect(() => {
     const init = async () => {
-      if (walletClient) {
-        const provider = new ethers.BrowserProvider(walletClient);
-        const signer = await provider.getSigner();
-        const itineraryContract = new ethers.Contract(ITINERARY_MARKET_ADDRESS, itineraryABI, signer);
-        const toursContract = new ethers.Contract(TOURS_ADDRESS, toursABI, signer);
-        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, passportABI, signer);
-        setItineraryContract(itineraryContract);
-        setToursContract(toursContract);
-        setPassportContract(passportContract);
-        if (address) {
-          await fetchOwnedPassports(passportContract, address);
+      try {
+        const provider = new ethers.JsonRpcProvider('https://testnet-rpc.monad.xyz');
+        const itinerary = new ethers.Contract(
+          ITINERARY_MARKET_ADDRESS,
+          ItineraryMarketABI,
+          provider
+        ) as ItineraryMarketContract;
+        const tours = new ethers.Contract(TOURS_ADDRESS, ToursABI, provider) as ToursContract;
+        const passport = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+        setItineraryContract(itinerary);
+        setToursContract(tours);
+        setPassportContract(passport);
+        if (userAddress) {
+          await fetchOwnedPassports(passport, userAddress);
         }
-        await fetchAvailableItineraries(itineraryContract);
+        await fetchAvailableItineraries(itinerary);
+      } catch (error) {
+        console.error('Error initializing contracts:', error);
       }
     };
-    init();
-  }, [walletClient, address]);
+    if (window.ethereum) init();
+  }, [userAddress]);
 
-  const fetchAvailableItineraries = async (contract: ethers.Contract) => {
+  // Fetch all active itineraries
+  const fetchAvailableItineraries = async (contract: ItineraryMarketContract) => {
     try {
-      const length = await contract.itineraries.length;
       const fetchedItineraries: Itinerary[] = [];
-      for (let i = 0; i < Number(length); i++) {
-        const itinerary = await contract.itineraries(i);
-        if (itinerary[4]) { // isActive is index 4
-          fetchedItineraries.push({
-            id: itinerary[0],
-            creator: itinerary[1],
-            description: itinerary[2],
-            price: itinerary[3],
-            isActive: itinerary[4],
-          });
+      let index = 0;
+      while (true) {
+        try {
+          const itinerary = await contract.itineraries(index);
+          if (itinerary[4]) {
+            fetchedItineraries.push({
+              id: itinerary[0],
+              creator: itinerary[1],
+              description: itinerary[2],
+              price: itinerary[3],
+              isActive: itinerary[4],
+            });
+          }
+          index++;
+        } catch {
+          break; // stop when out of range
         }
       }
       setItineraries(fetchedItineraries);
@@ -79,25 +99,36 @@ export default function MarketPage() {
     }
   };
 
+  // Fetch all Passport NFTs owned by the user
   const fetchOwnedPassports = async (contract: ethers.Contract, userAddress: string) => {
     try {
       const filter = contract.filters.Transfer(null, userAddress);
-      const events = await contract.queryFilter(filter, 0, 'latest');
+      const events = (await contract.queryFilter(filter, 0, 'latest')) as (
+        | ethers.Log
+        | ethers.EventLog
+      )[];
       const tokenIds = events
-        .filter((event): event is ethers.EventLog => 'args' in event)
-        .filter(event => event.args.to.toLowerCase() === userAddress.toLowerCase())
-        .map(event => event.args.tokenId)
-        .filter(id => id != null);
+        .filter((event): event is ethers.EventLog => 'args' in event && !!event.args)
+        .filter((event: ethers.EventLog) => event.args.to.toLowerCase() === userAddress.toLowerCase())
+        .map((event: ethers.EventLog) => event.args.tokenId)
+        .filter((id: ethers.BigNumberish): id is bigint => id != null);
       setOwnedPassports([...new Set(tokenIds)]);
     } catch (error) {
       console.error('Error fetching owned passports:', error);
     }
   };
 
+  // ✅ Approve TOURS tokens
   const approveTokens = async (amount: string) => {
     if (!toursContract) return;
     try {
-      const tx = await toursContract.approve(ITINERARY_MARKET_ADDRESS, ethers.parseEther(amount));
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contractWithSigner = toursContract.connect(signer) as ToursContract;
+      const tx = await contractWithSigner.approve(
+        ITINERARY_MARKET_ADDRESS,
+        ethers.parseEther(amount)
+      );
       await tx.wait();
       alert('Tokens approved for spending!');
     } catch (error) {
@@ -106,10 +137,14 @@ export default function MarketPage() {
     }
   };
 
+  // ✅ Create new itinerary
   const createItinerary = async () => {
     if (!itineraryContract || !description || !price) return;
     try {
-      const tx = await itineraryContract.createItinerary(description, ethers.parseEther(price));
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contractWithSigner = itineraryContract.connect(signer) as ItineraryMarketContract;
+      const tx = await contractWithSigner.createItinerary(description, ethers.parseEther(price));
       await tx.wait();
       alert('Itinerary created!');
       setDescription('');
@@ -121,24 +156,22 @@ export default function MarketPage() {
     }
   };
 
+  // ✅ Purchase itinerary
   const purchaseItinerary = async (id: number, price: bigint) => {
-    if (!itineraryContract || !toursContract) return;
+    if (!itineraryContract || !toursContract || !passportContract || !userAddress) return;
     try {
       await approveTokens(ethers.formatEther(price));
-      const tx = await itineraryContract.purchaseItinerary(id);
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contractWithSigner = itineraryContract.connect(signer) as ItineraryMarketContract;
+      const tx = await contractWithSigner.purchaseItinerary(id);
       await tx.wait();
       alert('Itinerary purchased!');
-      if (passportContract && address) {
-        await fetchOwnedPassports(passportContract, address);
-      }
+      await fetchOwnedPassports(passportContract, userAddress);
       await fetchAvailableItineraries(itineraryContract);
     } catch (error: any) {
       console.error('Error purchasing itinerary:', error);
-      if (error.message.includes('DeepAI image generation failed')) {
-        alert('Failed to purchase itinerary: Metadata upload failed due to DeepAI error. Please try again later.');
-      } else {
-        alert('Failed to purchase itinerary: ' + error.message);
-      }
+      alert('Failed to purchase itinerary: ' + error.message);
     }
   };
 
@@ -151,10 +184,12 @@ export default function MarketPage() {
         <button onClick={() => router.push('/profile')} className="text-blue-500">Profile</button>
       </nav>
       <h1>EmpowerTours Marketplace</h1>
-      {isConnected ? (
-        <p>Connected: {address}</p>
+      {userAddress ? (
+        <p>Connected: {userAddress}</p>
       ) : (
-        <w3m-button label="Connect Wallet" />
+        <button onClick={() => window.ethereum.request({ method: 'eth_requestAccounts' })}>
+          Connect Wallet
+        </button>
       )}
       <h2>Create Itinerary</h2>
       <input
@@ -171,7 +206,7 @@ export default function MarketPage() {
         onChange={(e) => setPrice(e.target.value)}
         style={inputStyle}
       />
-      <button onClick={createItinerary} disabled={!isConnected} style={buttonStyle}>
+      <button onClick={createItinerary} disabled={!userAddress} style={buttonStyle}>
         Create Itinerary
       </button>
       <h2>Your Passports</h2>
@@ -196,7 +231,7 @@ export default function MarketPage() {
             {itinerary.isActive && (
               <button
                 onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
-                disabled={!isConnected}
+                disabled={!userAddress}
                 style={buttonStyle}
               >
                 Purchase
@@ -209,6 +244,7 @@ export default function MarketPage() {
   );
 }
 
+// ✅ Basic styles
 const containerStyle: React.CSSProperties = {
   padding: '20px',
   maxWidth: '800px',
