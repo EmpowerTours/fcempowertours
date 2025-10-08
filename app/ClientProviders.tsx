@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { PrivyProvider } from '@privy-io/react-auth';
+import { sdk } from '@farcaster/miniapp-sdk';
 import { monadTestnet } from './chains';
 
 const config = createConfig({
@@ -17,6 +18,8 @@ export default function ClientProviders({ children }: { children: React.ReactNod
       console.error('ClientProviders executed on server-side');
     } else {
       console.log('ClientProviders executed on client-side');
+      // Signal Farcaster app is ready to dismiss splash screen
+      sdk.actions.ready();
     }
   }, []);
 
