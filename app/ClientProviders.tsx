@@ -1,41 +1,35 @@
 'use client';
-import { useEffect, Component, ErrorInfo } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { PrivyProvider } from '@privy-io/react-auth';
-import { sdk } from '@farcaster/miniapp-sdk';
 import { monadTestnet } from './chains';
 
 // Error boundary component
-class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
+function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  const [hasError, setHasError] = useState(false);
 
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true };
-  }
+  useEffect(() => {
+    const errorHandler = (error: Error, errorInfo: any) => {
+      console.error('ErrorBoundary caught:', error, errorInfo);
+      setHasError(true);
+    };
+    window.addEventListener('error', errorHandler as any);
+    return () => window.removeEventListener('error', errorHandler as any);
+  }, []);
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo);
+  if (hasError) {
+    return <div>Something went wrong. Please refresh.</div>;
   }
-
-  render() {
-    if (this.state.hasError) {
-      return <div>Something went wrong. Please refresh.</div>;
-    }
-    return this.props.children;
-  }
+  return <>{children}</>;
 }
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: (failureCount, error: unknown) => {
-        // Safely check for status property
-        if (error instanceof Error && 'status' in error && error.status === 404) {
+      retry: (failureCount, error: any) => {
+        if (error?.status === 404) {
           return false;
         }
         return failureCount < 3;
@@ -44,40 +38,34 @@ const queryClient = new QueryClient({
   },
 });
 
-const config = createConfig({
+const wagmiConfig = createConfig({
   chains: [monadTestnet],
   transports: {
-    [monadTestnet.id]: http(),
+    [monadTestnet.id]: http('https://testnet-rpc.monad.xyz'),
   },
 });
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      console.error('ClientProviders executed on server-side');
-      return;
-    }
-    console.log('ClientProviders executed on client-side');
-    try {
-      sdk.actions.ready();
-      console.log('Farcaster SDK ready called');
-    } catch (error) {
-      console.error('Farcaster SDK ready error:', error);
-    }
-  }, []);
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <PrivyProvider
-          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
-          config={{
-            supportedChains: [monadTestnet],
-            appearance: { theme: 'light' },
-          }}
-        >
-          <WagmiProvider config={config}>{children}</WagmiProvider>
-        </PrivyProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <PrivyProvider
+            appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
+            config={{
+              loginMethods: ['farcaster'],
+              embeddedWallets: { createOnLogin: 'users-without-wallets' },
+              appearance: {
+                theme: 'light',
+                accentColor: '#6763F5', // Explicitly supported prop
+                logo: undefined, // Avoid any potential invalid props
+              },
+              additionalAllowedDomains: ['https://farcaster.xyz'],
+            }}
+          >
+            {children}
+          </PrivyProvider>
+        </WagmiProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

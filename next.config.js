@@ -7,25 +7,28 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   output: 'standalone',
-  serverExternalPackages: ['undici', '@privy-io/react-auth', 'wagmi', '@wagmi/core', 'viem', 'ethers'],
+  serverExternalPackages: [
+    'undici',
+    '@privy-io/react-auth',
+    '@privy-io/server-auth',
+    '@farcaster/miniapp-sdk',
+    'wagmi',
+    '@wagmi/core',
+    'viem',
+    'ethers',
+  ],
   async headers() {
     return [
       {
         source: '/',
         headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=300',
-          },
+          { key: 'Cache-Control', value: 'public, max-age=300' },
         ],
       },
       {
         source: '/images/(.*)',
         headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=300',
-          },
+          { key: 'Cache-Control', value: 'public, max-age=300' },
         ],
       },
     ];
@@ -47,5 +50,4 @@ const nextConfig = {
     return config;
   },
 };
-
 export default nextConfig;

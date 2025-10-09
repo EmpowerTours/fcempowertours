@@ -1,9 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
-import { usePrivy } from '@privy-io/react-auth';
-import { useLoginToMiniApp } from '@privy-io/react-auth/farcaster';
+import { usePrivy, useLogin } from '@privy-io/react-auth';
 import miniappSdk from '@farcaster/miniapp-sdk';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 
@@ -13,22 +12,24 @@ const MONAD_RPC = 'https://testnet-rpc.monad.xyz';
 interface PassportForm {
   countryCode: string;
   countryName: string;
+  manualFid?: string;
 }
 
 export default function PassportPage() {
   const { address: userAddress } = useAccount();
   const { authenticated, ready, user, login } = usePrivy();
   const { sendTransaction } = usePrivy();
-  const { initLoginToMiniApp, loginToMiniApp } = useLoginToMiniApp();
   const [contract, setContract] = useState<ethers.Contract | null>(null);
   const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
-  const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '' });
+  const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '', manualFid: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [autoDetected, setAutoDetected] = useState(false);
   const [error, setError] = useState('');
   const [loginError, setLoginError] = useState('');
+  const loginAttempted = useRef(false);
 
-  // Initialize contract and provider
+  const isWarpcast = navigator.userAgent.includes('warpcast');
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -45,29 +46,27 @@ export default function PassportPage() {
     init();
   }, []);
 
-  // Auto-detect location or use cookie
   useEffect(() => {
     if (!ready) {
       console.log('Privy not ready');
       return;
     }
-    // Log Privy state for debugging
     console.log('Privy state:', {
       ready,
       authenticated,
       user,
       fid: user?.farcaster?.fid,
       wallet: user?.wallet?.address,
+      isWarpcast,
     });
 
-    // Check cookie first
     const countryCookie = document.cookie
       .split('; ')
       .find((row) => row.startsWith('country='))
       ?.split('=')[1];
     if (countryCookie) {
       const countryName = countryCookie === 'MX' ? 'Mexico' : countryCookie;
-      setForm({ countryCode: countryCookie, countryName });
+      setForm((prev) => ({ ...prev, countryCode: countryCookie, countryName }));
       setAutoDetected(true);
       console.log('Country from cookie:', countryCookie);
       return;
@@ -89,7 +88,7 @@ export default function PassportPage() {
           if (data && data.address) {
             const countryCode = data.address.country_code?.toUpperCase() || '';
             const countryName = data.address.country || '';
-            setForm({ countryCode, countryName });
+            setForm((prev) => ({ ...prev, countryCode, countryName }));
             setAutoDetected(true);
             console.log('Auto-detected country:', { countryCode, countryName });
           } else {
@@ -108,65 +107,54 @@ export default function PassportPage() {
     );
   }, [ready]);
 
-  // Monitor Privy state changes
   useEffect(() => {
     if (ready && authenticated && user) {
       console.log('Privy updated:', { fid: user.farcaster?.fid, wallet: user.wallet?.address });
-      if (!user.farcaster?.fid) {
-        setError('Farcaster FID not found, please try logging in again');
+      if (!user.farcaster?.fid && !form.manualFid) {
+        setError('Farcaster FID not found, please try logging in again or enter FID manually');
       }
     }
-  }, [ready, authenticated, user]);
+  }, [ready, authenticated, user, form.manualFid]);
 
-  // Automatic Mini App Farcaster Login
   useEffect(() => {
-    if (ready && !authenticated) {
+    if (ready && !authenticated && !loginAttempted.current) {
       const performLogin = async () => {
+        loginAttempted.current = true;
         try {
-          console.log('Initiating Mini App login...');
-          const { nonce } = await initLoginToMiniApp();
-          console.log('Got nonce:', nonce);
-          const result = await miniappSdk.actions.signIn({ nonce });
-          console.log('SIWF result:', result);
-          await loginToMiniApp({
-            message: result.message,
-            signature: result.signature,
-          });
-          console.log('Mini App login completed');
+          console.log('Initiating Farcaster login...', { isWarpcast });
+          await login();
+          console.log('Farcaster login completed');
         } catch (err: any) {
-          console.error('Mini App login error:', err.message || err);
-          setLoginError(`Farcaster Mini App login failed: ${err.message || 'Unknown error'}`);
+          console.error('Login error:', err.message || err);
+          setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
         }
       };
       performLogin();
     }
-  }, [ready, authenticated, initLoginToMiniApp, loginToMiniApp]);
+  }, [ready, authenticated, login]);
 
-  // Manual form change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    setAutoDetected(false);
+    setAutoDetected(name !== 'countryCode' && name !== 'countryName' ? autoDetected : false);
   };
 
-  // Force Farcaster login
   const handleLogin = async () => {
-    console.log('Forcing Farcaster login');
+    console.log('Forcing Farcaster login', { isWarpcast });
     try {
       await login();
-      console.log('Login attempt completed');
+      console.log('Farcaster login completed');
     } catch (err: any) {
       console.error('Login error:', err.message || err);
       setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
     }
   };
 
-  // Mint passport
   const handleMint = async () => {
     console.log('handleMint called with:', {
       ready,
       authenticated,
-      fid: user?.farcaster?.fid,
+      fid: user?.farcaster?.fid || form.manualFid,
       userAddress,
       countryCode: form.countryCode,
       countryName: form.countryName,
@@ -178,12 +166,12 @@ export default function PassportPage() {
       setError('App not ready, please wait');
       return;
     }
-    if (!authenticated) {
-      setError('Please log in with Farcaster');
+    if (!authenticated && !form.manualFid) {
+      setError('Please log in with Farcaster or enter FID manually');
       handleLogin();
       return;
     }
-    if (!user?.farcaster?.fid) {
+    if (!user?.farcaster?.fid && !form.manualFid) {
       setError('Farcaster authentication failed: FID not found');
       handleLogin();
       return;
@@ -198,10 +186,9 @@ export default function PassportPage() {
 
     try {
       if (userAddress && contract && provider) {
-        // Try client-side mint with Privy (user pays 0.01 MON)
         console.log('Attempting client-side mint with Privy...');
         const tx = await sendTransaction({
-          chainId: 10143, // Monad testnet
+          chainId: 10143,
           to: PASSPORT_NFT_ADDRESS,
           data: contract.interface.encodeFunctionData('mint', [userAddress]),
           value: ethers.parseEther("0.01"),
@@ -221,13 +208,12 @@ export default function PassportPage() {
           throw new Error('Failed to extract tokenId');
         }
 
-        // Call API to set tokenURI (onlyOwner) and post cast
         console.log('Calling /api/mint-passport for tokenURI and cast...', { tokenId });
         const mintResponse = await fetch('/api/mint-passport', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fid: user.farcaster.fid,
+            fid: user?.farcaster?.fid || form.manualFid,
             countryCode: form.countryCode,
             countryName: form.countryName,
             userAddress,
@@ -240,13 +226,12 @@ export default function PassportPage() {
         const { txHash, tokenURI } = await mintResponse.json();
         alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
       } else {
-        // Fallback to server-side mint without userAddress
         console.log('Client-side mint skipped, falling back to server-side mint...');
         const mintResponse = await fetch('/api/mint-passport', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fid: user.farcaster.fid,
+            fid: user?.farcaster?.fid || form.manualFid,
             countryCode: form.countryCode,
             countryName: form.countryName,
           }),
@@ -297,10 +282,18 @@ export default function PassportPage() {
           onChange={handleInputChange}
           style={{ margin: '10px', padding: '8px', width: '300px' }}
         />
+        <input
+          type="text"
+          name="manualFid"
+          placeholder="Enter FID manually (if login fails)"
+          value={form.manualFid}
+          onChange={handleInputChange}
+          style={{ margin: '10px', padding: '8px', width: '200px' }}
+        />
       </form>
       <button
         onClick={handleMint}
-        disabled={!ready || !authenticated || isLoading || !form.countryCode || !form.countryName}
+        disabled={!ready || isLoading || !form.countryCode || !form.countryName || (!user?.farcaster?.fid && !form.manualFid)}
         style={{ padding: '10px 20px', margin: '10px' }}
       >
         {isLoading ? 'Minting...' : 'Mint Passport'}
@@ -311,7 +304,7 @@ export default function PassportPage() {
       >
         Debug Privy State
       </button>
-      <p><small>Uses browser location (HTTPS only). Fallback to manual entry.</small></p>
+      <p><small>Uses browser location (HTTPS only). Fallback to manual FID entry if login fails.</small></p>
     </div>
   );
 }
