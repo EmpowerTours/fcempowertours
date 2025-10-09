@@ -192,13 +192,13 @@ export default function PassportPage() {
           data: contract.interface.encodeFunctionData('mint', [userAddress]),
           value: ethers.parseEther("0.01"),
         });
-        console.log('Tx sent:', tx.hash);
-        const receipt = await provider.waitForTransaction(tx.hash);
+        console.log('Tx sent:', tx.transactionHash);
+        const receipt = await provider.waitForTransaction(tx.transactionHash);
         if (!receipt) {
           throw new Error('Transaction receipt not found');
         }
         if (receipt.status !== 1) {
-          throw new Error('Mint transaction reverted');
+          throw new Error('Transaction receipt failed');
         }
         const tokenId = receipt.logs
           .map((log: any) => contract.interface.parseLog(log))
