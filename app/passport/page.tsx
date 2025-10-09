@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
 import { usePrivy, useLogin } from '@privy-io/react-auth';
+import { sdk } from '@farcaster/miniapp-sdk';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
 
 const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
@@ -28,6 +29,18 @@ export default function PassportPage() {
   const loginAttempted = useRef(false);
 
   const isWarpcast = navigator.userAgent.includes('warpcast');
+
+  // Signal Farcaster SDK ready
+  useEffect(() => {
+    if (isWarpcast) {
+      try {
+        sdk.actions.ready();
+        console.log('Farcaster SDK ready called');
+      } catch (err: any) {
+        console.error('Farcaster SDK ready error:', err.message || err);
+      }
+    }
+  }, [isWarpcast]);
 
   useEffect(() => {
     const init = async () => {
