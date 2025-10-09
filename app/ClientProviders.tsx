@@ -57,10 +57,8 @@ export default function ClientProviders({ children }: { children: React.ReactNod
               embeddedWallets: { createOnLogin: 'users-without-wallets' },
               appearance: {
                 theme: 'light',
-                accentColor: '#6763F5', // Explicitly supported prop
-                logo: undefined, // Avoid any potential invalid props
+                accentColor: '#6763F5',
               },
-              additionalAllowedDomains: ['https://farcaster.xyz'],
             }}
           >
             {children}
