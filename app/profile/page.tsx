@@ -1,8 +1,11 @@
 'use client';
+
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { useAccount } from 'wagmi';
-import { ethers } from 'ethers';
+import { JsonRpcProvider, Contract, Log, EventLog } from 'ethers';
 import PassportNFTABI from '@/lib/abis/PassportNFT.json';
 import MusicNFTABI from '@/lib/abis/MusicNFT.json';
 
@@ -11,7 +14,7 @@ const MUSIC_NFT_ADDRESS = process.env.MUSICNFT_ADDRESS; // From env
 const MONAD_RPC = 'https://testnet-rpc.monad.xyz';
 
 // Type guard for EventLog
-function isEventLog(event: ethers.Log | ethers.EventLog): event is ethers.EventLog {
+function isEventLog(event: Log | EventLog): event is EventLog {
   return 'args' in event;
 }
 
@@ -36,11 +39,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!userAddress) return;
 
-    const provider = new ethers.JsonRpcProvider(MONAD_RPC);
+    const provider = new JsonRpcProvider(MONAD_RPC);
 
     async function loadPassports() {
       try {
-        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+        const passportContract = new Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
         const filter = passportContract.filters.Transfer(null, userAddress);
         const events = await passportContract.queryFilter(filter, 0, 'latest');
         const tokenIds = events
@@ -71,7 +74,7 @@ export default function ProfilePage() {
     async function loadMusicNfts() {
       if (!MUSIC_NFT_ADDRESS) return;
       try {
-        const musicContract = new ethers.Contract(MUSIC_NFT_ADDRESS, MusicNFTABI, provider);
+        const musicContract = new Contract(MUSIC_NFT_ADDRESS, MusicNFTABI, provider);
         const filter = musicContract.filters.Transfer(null, userAddress);
         const events = await musicContract.queryFilter(filter, 0, 'latest');
         const tokenIds = events

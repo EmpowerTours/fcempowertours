@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { ethers } from "ethers";
+import { JsonRpcProvider, Wallet, Contract, ZeroAddress, parseEther, Log, LogDescription } from "ethers";
 
 const PASSPORT_NFT_ADDRESS = "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4";
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
@@ -44,9 +44,9 @@ const PASSPORT_ABI = [
   },
 ];
 
-const provider = new ethers.JsonRpcProvider("https://testnet-rpc.monad.xyz");
-const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY || "", provider);
-const contract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PASSPORT_ABI, wallet);
+const provider = new JsonRpcProvider("https://testnet-rpc.monad.xyz");
+const wallet = new Wallet(process.env.DEPLOYER_PRIVATE_KEY || "", provider);
+const contract = new Contract(PASSPORT_NFT_ADDRESS, PASSPORT_ABI, wallet);
 
 async function generateMetadata(countryCode: string, countryName: string) {
   try {
@@ -159,17 +159,16 @@ export async function POST(req: NextRequest) {
       console.log("Gas estimate:", gasEstimate.toString());
       const tx = await contract.mint(recipientAddress, {
         gasLimit: gasEstimate * 120n / 100n,
-        value: ethers.parseEther("0.01"),
+        value: parseEther("0.01"),
       });
       console.log("Mint tx sent:", tx.hash);
       const receipt = await tx.wait();
-      if (receipt.status !== 1) {
+      if (receipt?.status !== 1) {
         throw new Error(`Mint reverted: Check logs for reason`);
       }
       newTokenId = receipt.logs
-        .filter((log: any) => log.address.toLowerCase() === PASSPORT_NFT_ADDRESS.toLowerCase())
-        .map((log: any) => contract.interface.parseLog(log))
-        .find((log: any) => log?.name === "Transfer" && log.args.from === ethers.ZeroAddress)?.args.tokenId;
+        .map((log: Log) => contract.interface.parseLog(log))
+        .find((parsedLog: LogDescription | null) => parsedLog?.name === "Transfer" && parsedLog.args.from === ZeroAddress)?.args.tokenId;
       if (!newTokenId) {
         throw new Error("Failed to extract tokenId from receipt");
       }

@@ -1,6 +1,9 @@
 'use client';
+
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import { JsonRpcProvider, BrowserProvider, parseEther, formatEther, Contract, BigNumberish, TransactionResponse, Log, EventLog } from 'ethers';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import PassportNFTABI from '../../lib/abis/PassportNFT.json';
@@ -8,16 +11,16 @@ import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 
 // ✅ Define TypeScript type for TOURS (ERC-20) contract
-type ToursContract = ethers.Contract & {
-  approve(spender: string, amount: ethers.BigNumberish): Promise<ethers.TransactionResponse>;
+type ToursContract = Contract & {
+  approve(spender: string, amount: BigNumberish): Promise<TransactionResponse>;
   balanceOf(owner: string): Promise<bigint>;
-  transfer(to: string, amount: ethers.BigNumberish): Promise<ethers.TransactionResponse>;
+  transfer(to: string, amount: BigNumberish): Promise<TransactionResponse>;
 };
 
 // ✅ Define TypeScript type for ItineraryMarket contract
-type ItineraryMarketContract = ethers.Contract & {
-  createItinerary(description: string, price: ethers.BigNumberish): Promise<ethers.TransactionResponse>;
-  purchaseItinerary(id: number): Promise<ethers.TransactionResponse>;
+type ItineraryMarketContract = Contract & {
+  createItinerary(description: string, price: BigNumberish): Promise<TransactionResponse>;
+  purchaseItinerary(id: number): Promise<TransactionResponse>;
   itineraries(index: number): Promise<[bigint, string, string, bigint, boolean]>;
 };
 
@@ -39,7 +42,7 @@ export default function MarketPage() {
   const router = useRouter();
   const [itineraryContract, setItineraryContract] = useState<ItineraryMarketContract | null>(null);
   const [toursContract, setToursContract] = useState<ToursContract | null>(null);
-  const [passportContract, setPassportContract] = useState<ethers.Contract | null>(null);
+  const [passportContract, setPassportContract] = useState<Contract | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -49,14 +52,14 @@ export default function MarketPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const provider = new ethers.JsonRpcProvider('https://testnet-rpc.monad.xyz');
-        const itinerary = new ethers.Contract(
+        const provider = new JsonRpcProvider('https://testnet-rpc.monad.xyz');
+        const itinerary = new Contract(
           ITINERARY_MARKET_ADDRESS,
           ItineraryMarketABI,
           provider
-        ) as ItineraryMarketContract;
-        const tours = new ethers.Contract(TOURS_ADDRESS, ToursABI, provider) as ToursContract;
-        const passport = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+        ) as unknown as ItineraryMarketContract;
+        const tours = new Contract(TOURS_ADDRESS, ToursABI, provider) as unknown as ToursContract;
+        const passport = new Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
         setItineraryContract(itinerary);
         setToursContract(tours);
         setPassportContract(passport);
@@ -100,18 +103,15 @@ export default function MarketPage() {
   };
 
   // Fetch all Passport NFTs owned by the user
-  const fetchOwnedPassports = async (contract: ethers.Contract, userAddress: string) => {
+  const fetchOwnedPassports = async (contract: Contract, userAddress: string) => {
     try {
       const filter = contract.filters.Transfer(null, userAddress);
-      const events = (await contract.queryFilter(filter, 0, 'latest')) as (
-        | ethers.Log
-        | ethers.EventLog
-      )[];
+      const events = await contract.queryFilter(filter, 0, 'latest') as (Log | EventLog)[];
       const tokenIds = events
-        .filter((event): event is ethers.EventLog => 'args' in event && !!event.args)
-        .filter((event: ethers.EventLog) => event.args.to.toLowerCase() === userAddress.toLowerCase())
-        .map((event: ethers.EventLog) => event.args.tokenId)
-        .filter((id: ethers.BigNumberish): id is bigint => id != null);
+        .filter((event): event is EventLog => 'args' in event && !!event.args)
+        .filter((event: EventLog) => event.args.to.toLowerCase() === userAddress.toLowerCase())
+        .map((event: EventLog) => event.args.tokenId)
+        .filter((id: BigNumberish): id is bigint => id != null);
       setOwnedPassports([...new Set(tokenIds)]);
     } catch (error) {
       console.error('Error fetching owned passports:', error);
@@ -122,12 +122,12 @@ export default function MarketPage() {
   const approveTokens = async (amount: string) => {
     if (!toursContract) return;
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contractWithSigner = toursContract.connect(signer) as ToursContract;
       const tx = await contractWithSigner.approve(
         ITINERARY_MARKET_ADDRESS,
-        ethers.parseEther(amount)
+        parseEther(amount)
       );
       await tx.wait();
       alert('Tokens approved for spending!');
@@ -141,10 +141,10 @@ export default function MarketPage() {
   const createItinerary = async () => {
     if (!itineraryContract || !description || !price) return;
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contractWithSigner = itineraryContract.connect(signer) as ItineraryMarketContract;
-      const tx = await contractWithSigner.createItinerary(description, ethers.parseEther(price));
+      const tx = await contractWithSigner.createItinerary(description, parseEther(price));
       await tx.wait();
       alert('Itinerary created!');
       setDescription('');
@@ -160,8 +160,8 @@ export default function MarketPage() {
   const purchaseItinerary = async (id: number, price: bigint) => {
     if (!itineraryContract || !toursContract || !passportContract || !userAddress) return;
     try {
-      await approveTokens(ethers.formatEther(price));
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      await approveTokens(formatEther(price));
+      const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contractWithSigner = itineraryContract.connect(signer) as ItineraryMarketContract;
       const tx = await contractWithSigner.purchaseItinerary(id);
@@ -226,7 +226,7 @@ export default function MarketPage() {
             <p>ID: {itinerary.id.toString()}</p>
             <p>Creator: {itinerary.creator}</p>
             <p>Description: {itinerary.description}</p>
-            <p>Price: {ethers.formatEther(itinerary.price)} TOURS</p>
+            <p>Price: {formatEther(itinerary.price)} TOURS</p>
             <p>Status: {itinerary.isActive ? 'Active' : 'Inactive'}</p>
             {itinerary.isActive && (
               <button

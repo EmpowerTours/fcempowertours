@@ -1,4 +1,6 @@
 'use client';
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useSwitchChain, useWaitForTransactionReceipt, useConnect } from 'wagmi';
 import { Abi, isAddress } from 'viem';
@@ -7,7 +9,6 @@ import MusicNFTABI from '../../lib/abis/MusicNFT.json';
 import { monadTestnet } from '../chains';
 
 const MUSIC_NFT_ADDRESS = '0x53f8650e96d47338b1106a085b3804e77f92d9ca';
-export const dynamic = 'force-dynamic';
 
 export default function MusicPage() {
   const { address, isConnected, chainId } = useAccount();

@@ -54,7 +54,9 @@ export default function ClientProviders({ children }: { children: React.ReactNod
             appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
             config={{
               loginMethods: ['farcaster'],
-              embeddedWallets: { createOnLogin: 'users-without-wallets' },
+              embeddedWallets: {
+                ethereum: { createOnLogin: 'users-without-wallets' }
+              },
               appearance: {
                 theme: 'light',
                 accentColor: '#6763F5',

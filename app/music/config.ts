@@ -1,15 +1,15 @@
-import { createConfig, http, cookieStorage, createStorage } from "wagmi";
-import { sepolia } from "wagmi/chains";
-import { injected } from "wagmi/connectors";
+import { createConfig, http, cookieStorage, createStorage } from 'wagmi';
+import { monadTestnet } from '../chains';
+import { injected } from '@wagmi/connectors';
 
 export function getConfig() {
   return createConfig({
-    chains: [sepolia],
+    chains: [monadTestnet],
     connectors: [injected({ shimDisconnect: true })],
     ssr: true,
     storage: createStorage({ storage: cookieStorage }),
     transports: {
-      [sepolia.id]: http(),
+      [monadTestnet.id]: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
     },
   });
 }

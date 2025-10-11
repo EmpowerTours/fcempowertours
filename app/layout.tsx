@@ -1,63 +1,32 @@
 import React from 'react';
-import { Metadata } from 'next';
-import ClientLayout from './ClientLayout';
+import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { cookieToInitialState } from 'wagmi';
+import BottomNav from '@/components/BottomNav';
+import { Providers } from './providers';
+import { getConfig } from './music/config';
 import './globals.css';
 
-export const runtime = 'nodejs';
+export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'),
+  title: 'EmpowerTours',
+  description: 'Plan, mint, and explore with EmpowerTours',
+};
 
-export async function generateMetadata(): Promise<Metadata> {
-  const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-  const miniAppEmbed = {
-    version: '1',
-    imageUrl: `${appUrl}/images/og-image.png`,
-    button: {
-      title: 'Launch EmpowerTours',
-      action: {
-        type: 'launch_miniapp',
-        name: 'EmpowerTours MiniApp',
-        url: appUrl,
-        splashImageUrl: `${appUrl}/images/splash.png`,
-        splashBackgroundColor: '#353B48',
-      },
-    },
-  };
-  return {
-    metadataBase: new URL('https://fcempowertours-production-6551.up.railway.app'),
-    title: 'EmpowerTours MiniApp',
-    description: 'Explore NFTs and travel with EmpowerTours on Farcaster',
-    openGraph: {
-      title: 'EmpowerTours MiniApp',
-      description: 'Explore NFTs and travel with EmpowerTours on Farcaster',
-      images: [`${appUrl}/images/og-image.png`],
-      type: 'website',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: 'EmpowerTours MiniApp',
-      description: 'Explore NFTs and travel with EmpowerTours on Farcaster',
-      images: [`${appUrl}/images/og-image.png`],
-    },
-    other: {
-      'fc:miniapp': JSON.stringify(miniAppEmbed),
-      'fc:frame': JSON.stringify({
-        ...miniAppEmbed,
-        button: {
-          ...miniAppEmbed.button,
-          action: {
-            ...miniAppEmbed.button.action,
-            type: 'launch_frame',
-          },
-        },
-      }),
-    },
-  };
-}
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const headersList = await headers();
+  const cookie = headersList.get('cookie');
+  const initialState = cookieToInitialState(getConfig(), cookie);
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        <ClientLayout>{children}</ClientLayout>
+    <html lang="en" className="h-full">
+      <body className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#0b1223] to-[#08111e] text-foreground antialiased">
+        <Providers initialState={initialState}>
+          <div className="mx-auto max-w-xl px-3 pt-3 pb-20">
+            {children}
+            <BottomNav />
+          </div>
+        </Providers>
       </body>
     </html>
   );

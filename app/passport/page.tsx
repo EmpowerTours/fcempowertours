@@ -1,6 +1,8 @@
 'use client';
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useRef } from 'react';
-import { ethers } from 'ethers';
+import { JsonRpcProvider, parseEther, ZeroAddress, Contract } from 'ethers';
 import { useAccount } from 'wagmi';
 import { usePrivy, useLogin } from '@privy-io/react-auth';
 import { sdk } from '@farcaster/miniapp-sdk';
@@ -19,8 +21,8 @@ export default function PassportPage() {
   const { address: userAddress } = useAccount();
   const { authenticated, ready, user, login } = usePrivy();
   const { sendTransaction } = usePrivy();
-  const [contract, setContract] = useState<ethers.Contract | null>(null);
-  const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [provider, setProvider] = useState<JsonRpcProvider | null>(null);
   const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '', manualFid: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [autoDetected, setAutoDetected] = useState(false);
@@ -45,8 +47,8 @@ export default function PassportPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const provider = new ethers.JsonRpcProvider(MONAD_RPC);
-        const passportContract = new ethers.Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
+        const provider = new JsonRpcProvider(MONAD_RPC);
+        const passportContract = new Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
         setProvider(provider);
         setContract(passportContract);
         console.log('Contract initialized:', PASSPORT_NFT_ADDRESS);
@@ -203,10 +205,10 @@ export default function PassportPage() {
           chainId: 10143,
           to: PASSPORT_NFT_ADDRESS,
           data: contract.interface.encodeFunctionData('mint', [userAddress]),
-          value: ethers.parseEther("0.01"),
+          value: parseEther("0.01"),
         });
-        console.log('Tx sent:', tx.transactionHash);
-        const receipt = await provider.waitForTransaction(tx.transactionHash);
+        console.log('Tx sent:', tx.hash);
+        const receipt = await provider.waitForTransaction(tx.hash);
         if (!receipt) {
           throw new Error('Transaction receipt not found');
         }
@@ -215,7 +217,7 @@ export default function PassportPage() {
         }
         const tokenId = receipt.logs
           .map((log: any) => contract.interface.parseLog(log))
-          .find((log: any) => log?.name === 'Transfer' && log.args.from === ethers.ZeroAddress)?.args.tokenId;
+          .find((log: any) => log?.name === 'Transfer' && log.args.from === ZeroAddress)?.args.tokenId;
         if (!tokenId) {
           throw new Error('Failed to extract tokenId');
         }
