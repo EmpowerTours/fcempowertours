@@ -125,7 +125,6 @@
     "undici": "6.19.8",
     "commander": "12.1.0"
   },
-  "packageManager": "npm@9.2.0",
   "description": "The template demonstrates all Mini App capabilities and lets you easily modify it, so you can build Mini Apps.",
   "main": "eslint.config.js",
   "directories": {
