@@ -4,7 +4,6 @@ import { cookieToInitialState } from 'wagmi';
 import { Providers } from './providers';
 import { getConfig } from './music/config';
 import './globals.css';
-import ClientLayout from './ClientLayout.tsx';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'),
@@ -37,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className="h-full">
       <body className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#0b1223] to-[#08111e] text-foreground antialiased flex flex-col">
         <Providers initialState={initialState}>
-          <ClientLayout>{children}</ClientLayout>
+          <main className="flex-1 mx-auto max-w-xl px-3 pt-3 overflow-y-auto">{children}</main>
         </Providers>
       </body>
     </html>

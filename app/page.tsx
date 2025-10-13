@@ -224,7 +224,7 @@ export default function Home() {
             fid: (await sdk.context)?.user?.fid?.toString() || '1',
           }),
         });
-        if (!frameRes.ok) throw new Error(`Failed to create transaction Frame: ${res.statusText}`);
+        if (!frameRes.ok) throw new Error(`Failed to create transaction Frame: ${frameRes.statusText}`);
         const { frameUrl: createdFrameUrl } = await frameRes.json();
         setFrameUrl(createdFrameUrl);
         alert(`Transaction Frame created! Cast it on Warpcast: ${String(createdFrameUrl)}`);

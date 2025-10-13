@@ -157,19 +157,19 @@ export default function AdminPage() {
     <div className="min-h-screen flex flex-col">
       <div style={{ padding: '20px' }}>
         <h1>TokenSwap Admin</h1>
-        <p>Current Rate: {String((Number(exchangeRate) / 1e18) || 0).toFixed(0)} $TOURS/MON</p>
-        <p>Current Min MON: {String((Number(minMon) / 1e18) || 0).toFixed(2)}</p>
+        <p>Current Rate: {((Number(exchangeRate) / 1e18) || 0).toFixed(0)} $TOURS/MON</p>
+        <p>Current Min MON: {((Number(minMon) / 1e18) || 0).toFixed(2)}</p>
         <div>
-          <input placeholder="New Rate (e.g., 100)" value={String(newRate)} onChange={(e) => setNewRate(e.target.value)} />
+          <input placeholder="New Rate (e.g., 100)" value={newRate} onChange={(e) => setNewRate(e.target.value)} />
           <button onClick={setExchangeRate}>Set Rate</button>
         </div>
         <div>
-          <input placeholder="New Min MON (e.g., 0.01)" value={String(newMin)} onChange={(e) => setNewMin(e.target.value)} />
+          <input placeholder="New Min MON (e.g., 0.01)" value={newMin} onChange={(e) => setNewMin(e.target.value)} />
           <button onClick={setMinMon}>Set Min</button>
         </div>
         <button onClick={withdrawMon}>Withdraw All MON</button>
         <div>
-          <input placeholder="Withdraw TOURS Amount" value={String(withdrawAmount)} onChange={(e) => setWithdrawAmount(e.target.value)} />
+          <input placeholder="Withdraw TOURS Amount" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
           <button onClick={withdrawTours}>Withdraw TOURS</button>
         </div>
       </div>

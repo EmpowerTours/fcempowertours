@@ -9,9 +9,9 @@ import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import TokenSwapABI from '../../lib/abis/TokenSwap.json';
 
-const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
-const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_MARKET || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
-const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4' as `0x${string}`;
+const ITINERARY_MARKET_ADDRESS = (process.env.NEXT_PUBLIC_MARKET || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C') as `0x${string}`;
+const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7' as `0x${string}`;
 const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA' as const;
 
 interface Itinerary {
@@ -28,8 +28,10 @@ function isEventLog(event: Log | EventLog): event is EventLog {
 
 export default function MarketPage() {
   const { address: userAddress } = useAccount();
-  const { writeContractAsync, isPending: writePending } = useWriteContract();
-  const { data: receipt, isLoading: receiptLoading } = useWaitForTransactionReceipt({ hash: writePending ? 'dummy' : undefined });
+  const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
+  const { isLoading: receiptLoading } = useWaitForTransactionReceipt({ 
+    hash: txHash as `0x${string}` | undefined 
+  });
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -39,8 +41,6 @@ export default function MarketPage() {
   const [isLoadingPassports, setIsLoadingPassports] = useState(false);
 
   useEffect(() => setIsMounted(true), []);
-
-  if (!isMounted) return <div>Loading...</div>;
 
   const fetchAvailableItineraries = useCallback(async () => {
     setIsLoadingItineraries(true);
@@ -109,7 +109,7 @@ export default function MarketPage() {
     if (!description || !price) return;
     try {
       await writeContractAsync({
-        address: ITINERARY_MARKET_ADDRESS as const,
+        address: ITINERARY_MARKET_ADDRESS,
         abi: ItineraryMarketABI,
         functionName: 'createItinerary',
         args: [description, parseEther(price)],
@@ -126,13 +126,13 @@ export default function MarketPage() {
     if (!userAddress) return;
     try {
       await writeContractAsync({
-        address: TOURS_ADDRESS as const,
+        address: TOURS_ADDRESS,
         abi: ToursABI,
         functionName: 'approve',
         args: [ITINERARY_MARKET_ADDRESS, price],
       });
       await writeContractAsync({
-        address: ITINERARY_MARKET_ADDRESS as const,
+        address: ITINERARY_MARKET_ADDRESS,
         abi: ItineraryMarketABI,
         functionName: 'purchaseItinerary',
         args: [BigInt(id)],
@@ -143,79 +143,100 @@ export default function MarketPage() {
     }
   };
 
+  if (!isMounted) {
+    return <div className="p-5 max-w-3xl mx-auto">Loading...</div>;
+  }
+
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>EmpowerTours Marketplace</h1>
+    <div className="p-5 max-w-3xl mx-auto">
+      <h1 className="text-3xl font-bold mb-4">EmpowerTours Marketplace</h1>
       {userAddress ? (
-        <p>Connected: {String(userAddress).slice(0, 6)}...{String(userAddress).slice(-4)}</p>
+        <p className="mb-4">Connected: {String(userAddress).slice(0, 6)}...{String(userAddress).slice(-4)}</p>
       ) : (
-        <button onClick={() => window.ethereum.request({ method: 'eth_requestAccounts' })}>
+        <button 
+          onClick={() => window.ethereum?.request({ method: 'eth_requestAccounts' })}
+          className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
+        >
           Connect Wallet
         </button>
       )}
+      
       <SwapWidget />
-      <h2>Create Itinerary</h2>
-      <input
-        type="text"
-        placeholder="Description"
-        value={String(description)}
-        onChange={(e) => setDescription(e.target.value)}
-        style={{ margin: '10px', padding: '5px', width: '100%' }}
-      />
-      <input
-        type="text"
-        placeholder="Price (TOURS)"
-        value={String(price)}
-        onChange={(e) => setPrice(e.target.value)}
-        style={{ margin: '10px', padding: '5px', width: '100%' }}
-      />
-      <button onClick={createItinerary} disabled={writePending || !userAddress} style={{ padding: '5px 10px', margin: '5px' }}>
-        {writePending ? 'Creating...' : 'Create Itinerary'}
-      </button>
-      <h2>Your Passports</h2>
-      {isLoadingPassports ? (
-        <p className="text-gray-500">Loading passports...</p>
-      ) : ownedPassports.length > 0 ? (
-        <ul>
-          {ownedPassports.map((tokenId) => (
-            <li key={String(tokenId)}>{`Passport NFT #${String(tokenId)}`}</li>
-          ))}
-        </ul>
-      ) : (
-        <p>No passports owned</p>
-      )}
-      <h2>Available Itineraries</h2>
-      {isLoadingItineraries ? (
-        <p className="text-gray-500">Loading itineraries...</p>
-      ) : (
-        <ul>
-          {itineraries.map((itinerary) => (
-            <li key={String(itinerary.id)} style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0' }}>
-              <p>ID: {String(itinerary.id)}</p>
-              <p>Creator: {String(itinerary.creator)}</p>
-              <p>Description: {String(itinerary.description)}</p>
-              <p>Price: {String(formatEther(itinerary.price))} TOURS</p>
-              <p>Status: {itinerary.isActive ? 'Active' : 'Inactive'}</p>
-              {itinerary.isActive && (
-                <button
-                  onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
-                  disabled={writePending || !userAddress}
-                  style={{ padding: '5px 10px', margin: '5px' }}
-                >
-                  {writePending ? 'Purchasing...' : 'Purchase'}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      
+      <div className="my-8">
+        <h2 className="text-2xl font-semibold mb-4">Create Itinerary</h2>
+        <input
+          type="text"
+          placeholder="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full p-2 border rounded mb-2"
+        />
+        <input
+          type="text"
+          placeholder="Price (TOURS)"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          className="w-full p-2 border rounded mb-2"
+        />
+        <button 
+          onClick={createItinerary} 
+          disabled={writePending || receiptLoading || !userAddress}
+          className="bg-green-500 text-white px-4 py-2 rounded disabled:bg-gray-400"
+        >
+          {writePending || receiptLoading ? 'Creating...' : 'Create Itinerary'}
+        </button>
+      </div>
+
+      <div className="my-8">
+        <h2 className="text-2xl font-semibold mb-4">Your Passports</h2>
+        {isLoadingPassports ? (
+          <p className="text-gray-500">Loading passports...</p>
+        ) : ownedPassports.length > 0 ? (
+          <ul className="list-disc pl-5">
+            {ownedPassports.map((tokenId) => (
+              <li key={String(tokenId)}>{`Passport NFT #${String(tokenId)}`}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-gray-500">No passports owned</p>
+        )}
+      </div>
+
+      <div className="my-8">
+        <h2 className="text-2xl font-semibold mb-4">Available Itineraries</h2>
+        {isLoadingItineraries ? (
+          <p className="text-gray-500">Loading itineraries...</p>
+        ) : (
+          <ul className="space-y-4">
+            {itineraries.map((itinerary) => (
+              <li key={String(itinerary.id)} className="border border-gray-300 p-4 rounded">
+                <p><strong>ID:</strong> {String(itinerary.id)}</p>
+                <p><strong>Creator:</strong> {String(itinerary.creator)}</p>
+                <p><strong>Description:</strong> {String(itinerary.description)}</p>
+                <p><strong>Price:</strong> {String(formatEther(itinerary.price))} TOURS</p>
+                <p><strong>Status:</strong> {itinerary.isActive ? 'Active' : 'Inactive'}</p>
+                {itinerary.isActive && (
+                  <button
+                    onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
+                    disabled={writePending || receiptLoading || !userAddress}
+                    className="bg-blue-500 text-white px-4 py-2 rounded mt-2 disabled:bg-gray-400"
+                  >
+                    {writePending || receiptLoading ? 'Purchasing...' : 'Purchase'}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
 
 function SwapWidget() {
   const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync, isPending } = useWriteContract();
   const { data: exchangeRate } = useReadContract({
     address: TOKEN_SWAP_ADDRESS,
     abi: TokenSwapABI,
@@ -227,14 +248,14 @@ function SwapWidget() {
     functionName: 'minMon',
   });
   const { data: toursBalance } = useReadContract({
-    address: TOURS_ADDRESS as const,
+    address: TOURS_ADDRESS,
     abi: ToursABI,
     functionName: 'balanceOf',
     args: [address!],
     query: { enabled: !!address },
   });
   const { data: contractToursBalance } = useReadContract({
-    address: TOURS_ADDRESS as const,
+    address: TOURS_ADDRESS,
     abi: ToursABI,
     functionName: 'balanceOf',
     args: [TOKEN_SWAP_ADDRESS],
@@ -258,14 +279,18 @@ function SwapWidget() {
   };
 
   return (
-    <div style={{ padding: '20px', border: '1px solid #ccc', margin: '20px 0', borderRadius: '8px' }}>
-      <h3>Get $TOURS (Swap MON)</h3>
-      <p>Rate: 1 MON = {String((Number(exchangeRate) / 1e18) || 0).toFixed(0)} $TOURS</p>
-      <p>Min: {String((Number(minMon) / 1e18) || 0).toFixed(2)} MON</p>
-      <p>Contract Balance: {String((Number(contractToursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
-      <p>Your Balance: {String((Number(toursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
-      <button onClick={() => handleSwap(0.1)} disabled={!address} style={{ padding: '5px 10px', margin: '5px' }}>
-        Swap 0.1 MON
+    <div className="p-5 border border-gray-300 rounded-lg my-5">
+      <h3 className="text-xl font-semibold mb-4">Get $TOURS (Swap MON)</h3>
+      <p className="mb-2">Rate: 1 MON = {((Number(exchangeRate) / 1e18) || 0).toFixed(0)} $TOURS</p>
+      <p className="mb-2">Min: {((Number(minMon) / 1e18) || 0).toFixed(2)} MON</p>
+      <p className="mb-2">Contract Balance: {((Number(contractToursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
+      <p className="mb-4">Your Balance: {((Number(toursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
+      <button 
+        onClick={() => handleSwap(0.1)} 
+        disabled={!address || isPending}
+        className="bg-purple-500 text-white px-4 py-2 rounded disabled:bg-gray-400"
+      >
+        {isPending ? 'Swapping...' : 'Swap 0.1 MON'}
       </button>
     </div>
   );

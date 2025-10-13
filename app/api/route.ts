@@ -1,22 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NeynarAPIClient, Cast } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createWalletClient, http, encodeFunctionData, parseEther } from 'viem';
-import { monadTestnet } from '@/app/chains';
+import { createWalletClient, createPublicClient, http, encodeFunctionData, parseEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import TokenSwapABI from '@/lib/abis/TokenSwap.json'; // Add this ABI file if missing
+import { monadTestnet } from '@/app/chains';
+import TokenSwapABI from '@/lib/abis/TokenSwap.json';
 import MusicNFTABI from '@/lib/abis/MusicNFT.json';
 import PassportNFTABI from '@/lib/abis/PassportNFT.json';
-import ItineraryABI from '@/lib/abis/Itinerary.json'; // Assume exists; add if missing
+import ItineraryABI from '@/lib/abis/Itinerary.json';
 
-const neynar = new NeynarAPIClient(process.env.NEXT_PUBLIC_NEYNAR_API_KEY!);
+const config = new Configuration({
+  apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
+  baseOptions: {
+    headers: {
+      'x-neynar-experimental': 'true',
+    },
+  },
+});
+
+const neynar = new NeynarAPIClient(config);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const PIMLICO_URL = 'https://api.pimlico.io/v1/monad/10143/api/v2';
 const API_KEY = process.env.PIMLICO_API_KEY!;
-const BOT_FID = process.env.BOT_FID!;
+const BOT_FID = Number(process.env.BOT_FID!);
+const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID!;
 
 const walletClient = createWalletClient({
-  account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`!), // Bot signer
+  account: privateKeyToAccount(
+    process.env.DEPLOYER_PRIVATE_KEY!.startsWith('0x') 
+      ? process.env.DEPLOYER_PRIVATE_KEY! as `0x${string}`
+      : `0x${process.env.DEPLOYER_PRIVATE_KEY!}` as `0x${string}`
+  ),
+  chain: monadTestnet,
+  transport: http(),
+});
+
+const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(),
 });
@@ -24,8 +43,8 @@ const walletClient = createWalletClient({
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const cast: Cast = body.data; // Neynar webhook payload
-    if (cast.replies?.to_fid !== Number(BOT_FID)) return NextResponse.json({ ok: true });
+    const cast = body.data;
+    if (cast.replies?.to_fid !== BOT_FID) return NextResponse.json({ ok: true });
 
     const text = cast.text.toLowerCase();
     let command = await parseCommand(text, cast.fid);
@@ -39,14 +58,12 @@ export async function POST(req: NextRequest) {
         txHash = await mintNFT('music', cast.fid);
         break;
       case 'mint_passport':
-        // Assume country from IP or prompt; simplify to default
         txHash = await mintNFT('passport', cast.fid, { countryCode: 'US', countryName: 'United States' });
         break;
       case 'buy_itinerary':
         txHash = await buyItinerary(command.id!, cast.fid);
         break;
       case 'view_casts':
-        // No tx, just reply with casts
         await replyCast(cast.hash, `Your recent casts: [list via Neynar]`);
         return NextResponse.json({ ok: true });
       default:
@@ -60,7 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('Bot webhook error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: String(err.message || err) }, { status: 500 });
   }
 }
 
@@ -93,7 +110,10 @@ async function parseCommand(text: string, fid: number) {
 async function executeUserOp(callData: string) {
   const userOp = {
     sender: process.env.NEYNAR_WALLET_ID! as `0x${string}`,
-    nonce: await walletClient.getTransactionCount({ blockTag: 'pending' }),
+    nonce: await publicClient.getTransactionCount({ 
+      address: process.env.NEYNAR_WALLET_ID! as `0x${string}`,
+      blockTag: 'pending' 
+    }),
     initCode: '0x',
     callData,
     callGasLimit: 500000n,
@@ -102,7 +122,7 @@ async function executeUserOp(callData: string) {
     maxFeePerGas: 1000000000n,
     maxPriorityFeePerGas: 1000000000n,
     paymasterAndData: '0x',
-    signature: '0x', // Sign with bot private key; expand for prod
+    signature: '0x',
   };
 
   // Simulate
@@ -123,14 +143,13 @@ async function executeUserOp(callData: string) {
 }
 
 async function executeSwap(amount: number, fid: number) {
-  const userAddress = await getUserAddress(fid); // Implement via Neynar fetchUser(fid)
+  const userAddress = await getUserAddress(fid);
   const callData = encodeFunctionData({
     abi: TokenSwapABI,
     functionName: 'swap',
     args: [parseEther(amount.toString())],
   });
   const txHash = await executeUserOp(callData);
-  // Send value via paymaster or separate tx
   return txHash;
 }
 
@@ -138,20 +157,26 @@ async function mintNFT(type: 'music' | 'passport' | 'itinerary', fid: number, ex
   const userAddress = await getUserAddress(fid);
   let abi, address, args: any[] = [userAddress];
   switch (type) {
-    case 'music': abi = MusicNFTABI; address = process.env.MUSICNFT_ADDRESS!; break;
-    case 'passport': 
-      abi = PassportNFTABI; 
-      address = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4'; 
+    case 'music': 
+      abi = MusicNFTABI; 
+      address = process.env.MUSICNFT_ADDRESS!; 
+      break;
+    case 'passport':
+      abi = PassportNFTABI;
+      address = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
       args.push(extra?.countryCode, extra?.countryName);
       break;
-    case 'itinerary': abi = ItineraryABI; address = '0x382072Abe7Eb9f72c08b1BDB252FE320F0d00934'; args.push(1); // e.g., ID 1
+    case 'itinerary': 
+      abi = ItineraryABI; 
+      address = '0x382072Abe7Eb9f72c08b1BDB252FE320F0d00934'; 
+      args.push(1);
+      break;
   }
   const callData = encodeFunctionData({ abi, functionName: 'mint', args });
   return await executeUserOp(callData);
 }
 
 async function buyItinerary(id: number, fid: number) {
-  // Similar to mint, call market/buy on Itinerary contract
   const userAddress = await getUserAddress(fid);
   const callData = encodeFunctionData({
     abi: ItineraryABI,
@@ -162,14 +187,13 @@ async function buyItinerary(id: number, fid: number) {
 }
 
 async function getUserAddress(fid: number): Promise<`0x${string}`> {
-  // Fetch via Neynar: neynar.fetchUser(fid).wallet.address or derive
-  return process.env.NEYNAR_WALLET_ID! as `0x${string}`; // Placeholder
+  return process.env.NEYNAR_WALLET_ID! as `0x${string}`;
 }
 
 async function replyCast(parentHash: string, text: string) {
   await neynar.publishCast({
-    fid: Number(BOT_FID),
+    signerUuid: BOT_SIGNER_UUID,
     text,
-    replyTo: parentHash,
+    parent: parentHash,
   });
 }
