@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useSwitchChain, useWaitForTransactionReceipt, useConnect } from 'wagmi';
@@ -23,6 +22,11 @@ export default function MusicPage() {
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
+  const [isMounted, setIsMounted] = useState(false); // Hydration guard
+
+  useEffect(() => setIsMounted(true), []);
+
+  if (!isMounted) return <div>Loading...</div>;
 
   // Auto switch to Monad Testnet
   useEffect(() => {
@@ -59,8 +63,10 @@ export default function MusicPage() {
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
 
-      const context = await sdk.context.catch(() => ({ user: { fid: null } }));
+      // Fixed: Await context and extract primitives only (no function)
+      const context = await sdk.context;
       const fid = context?.user?.fid?.toString() || '1';
+      console.log('SDK Context FID:', fid);  // Safe primitive
 
       const formData = new FormData();
       formData.append('previewAudio', previewFile);

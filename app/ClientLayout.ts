@@ -7,20 +7,16 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    console.log('ClientLayout: Mounted');
+    console.log('ClientLayout mounted');
     setIsMounted(true);
   }, []);
 
-  console.log('ClientLayout: Rendering', {
-    isMounted,
-    childrenType: typeof children,
-  });
-
   if (!isMounted) {
-    console.log('ClientLayout: Returning loading state');
+    console.log('ClientLayout: Rendering loading state');
     return <div>Loading layout...</div>;
   }
 
+  console.log('ClientLayout: Rendering main content', { children: typeof children });
   return (
     <>
       <ClientNav />

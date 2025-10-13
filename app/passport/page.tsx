@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { JsonRpcProvider, parseEther, ZeroAddress, Contract } from 'ethers';
@@ -17,7 +16,15 @@ interface PassportForm {
   manualFid?: string;
 }
 
-export default function PassportPage() {
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+function ClientOnlyPassport() {
   const { address: userAddress } = useAccount();
   const { authenticated, ready, user, login } = usePrivy();
   const { sendTransaction } = usePrivy();
@@ -25,27 +32,28 @@ export default function PassportPage() {
   const [provider, setProvider] = useState<JsonRpcProvider | null>(null);
   const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '', manualFid: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingContract, setIsLoadingContract] = useState(true);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [autoDetected, setAutoDetected] = useState(false);
   const [error, setError] = useState('');
   const [loginError, setLoginError] = useState('');
   const loginAttempted = useRef(false);
-
   const isWarpcast = navigator.userAgent.includes('warpcast');
 
-  // Signal Farcaster SDK ready
   useEffect(() => {
     if (isWarpcast) {
       try {
         sdk.actions.ready();
         console.log('Farcaster SDK ready called');
       } catch (err: any) {
-        console.error('Farcaster SDK ready error:', err.message || err);
+        console.error('Farcaster SDK ready error:', String(err.message || err));
       }
     }
   }, [isWarpcast]);
 
   useEffect(() => {
     const init = async () => {
+      setIsLoadingContract(true);
       try {
         const provider = new JsonRpcProvider(MONAD_RPC);
         const passportContract = new Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
@@ -53,8 +61,10 @@ export default function PassportPage() {
         setContract(passportContract);
         console.log('Contract initialized:', PASSPORT_NFT_ADDRESS);
       } catch (err: any) {
-        console.error('Contract init failed:', err.message || err);
+        console.error('Contract init failed:', String(err.message || err));
         setError('Failed to initialize contract');
+      } finally {
+        setIsLoadingContract(false);
       }
     };
     init();
@@ -65,60 +75,32 @@ export default function PassportPage() {
       console.log('Privy not ready');
       return;
     }
+    setIsLoadingAuth(false);
     console.log('Privy state:', {
       ready,
       authenticated,
-      user,
-      fid: user?.farcaster?.fid,
-      wallet: user?.wallet?.address,
+      user: user ? { fid: user.farcaster?.fid, wallet: user.wallet?.address } : null,
       isWarpcast,
     });
 
-    const countryCookie = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith('country='))
-      ?.split('=')[1];
+    const countryCookie = getCookie('country');
     if (countryCookie) {
-      const countryName = countryCookie === 'MX' ? 'Mexico' : countryCookie;
+      const countryMap: Record<string, string> = {
+        US: 'United States',
+        CA: 'Canada',
+        GB: 'United Kingdom',
+        FR: 'France',
+        DE: 'Germany',
+      };
+      const countryName = countryMap[countryCookie] || countryCookie;
       setForm((prev) => ({ ...prev, countryCode: countryCookie, countryName }));
       setAutoDetected(true);
-      console.log('Country from cookie:', countryCookie);
-      return;
+      console.log('Cookie-detected location:', { countryCode: countryCookie, countryName });
+    } else {
+      setError('No country data available; using default (US).');
+      setForm((prev) => ({ ...prev, countryCode: 'US', countryName: 'United States' }));
+      setAutoDetected(true);
     }
-    if (!navigator.geolocation) {
-      console.log('Geolocation not supported');
-      setError('Geolocation not supported, please enter country manually');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          console.log('Detected coords:', { latitude, longitude });
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
-          );
-          const data = await response.json();
-          if (data && data.address) {
-            const countryCode = data.address.country_code?.toUpperCase() || '';
-            const countryName = data.address.country || '';
-            setForm((prev) => ({ ...prev, countryCode, countryName }));
-            setAutoDetected(true);
-            console.log('Auto-detected country:', { countryCode, countryName });
-          } else {
-            setError('No country data found, please enter manually');
-          }
-        } catch (err: any) {
-          console.error('Geocode failed:', err.message || err);
-          setError('Auto-detection failed, please enter manually');
-        }
-      },
-      (err) => {
-        console.log('Geolocation denied:', err);
-        setError('Location access denied, please enter country manually');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5 * 60 * 1000 }
-    );
   }, [ready]);
 
   useEffect(() => {
@@ -134,13 +116,16 @@ export default function PassportPage() {
     if (ready && !authenticated && !loginAttempted.current) {
       const performLogin = async () => {
         loginAttempted.current = true;
+        setIsLoadingAuth(true);
         try {
           console.log('Initiating Farcaster login...', { isWarpcast });
           await login();
           console.log('Farcaster login completed');
         } catch (err: any) {
-          console.error('Login error:', err.message || err);
-          setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
+          console.error('Login error:', String(err.message || err));
+          setLoginError(`Farcaster login failed: ${String(err.message || 'Unknown error')}`);
+        } finally {
+          setIsLoadingAuth(false);
         }
       };
       performLogin();
@@ -150,17 +135,19 @@ export default function PassportPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    setAutoDetected(name !== 'countryCode' && name !== 'countryName' ? autoDetected : false);
   };
 
   const handleLogin = async () => {
     console.log('Forcing Farcaster login', { isWarpcast });
+    setIsLoadingAuth(true);
     try {
       await login();
       console.log('Farcaster login completed');
     } catch (err: any) {
-      console.error('Login error:', err.message || err);
-      setLoginError(`Farcaster login failed: ${err.message || 'Unknown error'}`);
+      console.error('Login error:', String(err.message || err));
+      setLoginError(`Farcaster login failed: ${String(err.message || 'Unknown error')}`);
+    } finally {
+      setIsLoadingAuth(false);
     }
   };
 
@@ -191,7 +178,7 @@ export default function PassportPage() {
       return;
     }
     if (!form.countryCode || !form.countryName) {
-      setError('Please enter country details');
+      setError('Country details not detected');
       return;
     }
 
@@ -257,68 +244,75 @@ export default function PassportPage() {
         alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
       }
     } catch (err: any) {
-      console.error('Mint error:', err.message || err);
-      setError(`Mint failed: ${err.message || 'Unknown error'}`);
+      console.error('Mint error:', String(err.message || err));
+      setError(`Mint failed: ${String(err.message || 'Unknown error')}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h1>Mint Your Travel Passport NFT</h1>
-      {ready && authenticated && userAddress ? (
-        <p>Wallet: {userAddress.slice(0, 6)}...{userAddress.slice(-4)}</p>
-      ) : (
-        <button onClick={handleLogin} style={{ padding: '10px 20px', margin: '10px' }}>
-          Connect with Farcaster
+    <div className="min-h-screen flex flex-col">
+      <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+        <h1>Mint Your Travel Passport NFT</h1>
+        {isLoadingContract ? (
+          <p className="text-gray-500">Loading contract...</p>
+        ) : isLoadingAuth ? (
+          <p className="text-gray-500">Authenticating with Farcaster...</p>
+        ) : ready && authenticated && userAddress ? (
+          <p>Wallet: {String(userAddress).slice(0, 6)}...{String(userAddress).slice(-4)}</p>
+        ) : (
+          <button onClick={handleLogin} style={{ padding: '10px 20px', margin: '10px' }} disabled={isLoadingAuth}>
+            {isLoadingAuth ? 'Logging in...' : 'Connect with Farcaster'}
+          </button>
+        )}
+        {loginError && <p style={{ color: 'red' }}>{String(loginError)}</p>}
+        {error && <p style={{ color: 'red' }}>{String(error)}</p>}
+        {isLoadingContract || isLoadingAuth ? null : autoDetected ? (
+          <>
+            <h2>Detected Location:</h2>
+            <p style={{ color: 'green' }}>Auto-filled from your IP (via cookie)!</p>
+            <p><strong>Country Code:</strong> {String(form.countryCode)}</p>
+            <p><strong>Country Name:</strong> {String(form.countryName)}</p>
+          </>
+        ) : (
+          <p className="text-gray-500">Detecting location...</p>
+        )}
+        <form>
+          <input
+            type="text"
+            name="manualFid"
+            placeholder="Enter FID manually (if login fails)"
+            value={String(form.manualFid || '')}
+            onChange={handleInputChange}
+            style={{ margin: '10px', padding: '8px', width: '200px' }}
+            disabled={isLoading}
+          />
+        </form>
+        <button
+          onClick={handleMint}
+          disabled={!ready || isLoading || isLoadingContract || isLoadingAuth || !form.countryCode || !form.countryName || (!user?.farcaster?.fid && !form.manualFid)}
+          style={{ padding: '10px 20px', margin: '10px' }}
+        >
+          {isLoading ? 'Minting...' : 'Mint Passport'}
         </button>
-      )}
-      {loginError && <p style={{ color: 'red' }}>Login Error: {loginError}</p>}
-      <h2>{autoDetected ? 'Detected Location:' : 'Enter Country Details:'}</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {autoDetected && <p style={{ color: 'green' }}>Auto-filled from your location!</p>}
-      <form>
-        <input
-          type="text"
-          name="countryCode"
-          placeholder="Country Code (e.g., MX)"
-          value={form.countryCode}
-          onChange={handleInputChange}
-          style={{ margin: '10px', padding: '8px', width: '200px' }}
-          maxLength={2}
-        />
-        <input
-          type="text"
-          name="countryName"
-          placeholder="Country Name (e.g., Mexico)"
-          value={form.countryName}
-          onChange={handleInputChange}
-          style={{ margin: '10px', padding: '8px', width: '300px' }}
-        />
-        <input
-          type="text"
-          name="manualFid"
-          placeholder="Enter FID manually (if login fails)"
-          value={form.manualFid}
-          onChange={handleInputChange}
-          style={{ margin: '10px', padding: '8px', width: '200px' }}
-        />
-      </form>
-      <button
-        onClick={handleMint}
-        disabled={!ready || isLoading || !form.countryCode || !form.countryName || (!user?.farcaster?.fid && !form.manualFid)}
-        style={{ padding: '10px 20px', margin: '10px' }}
-      >
-        {isLoading ? 'Minting...' : 'Mint Passport'}
-      </button>
-      <button
-        onClick={() => console.log('Debug Privy:', { ready, authenticated, user, fid: user?.farcaster?.fid })}
-        style={{ padding: '10px 20px', margin: '10px', background: '#ccc' }}
-      >
-        Debug Privy State
-      </button>
-      <p><small>Uses browser location (HTTPS only). Fallback to manual FID entry if login fails.</small></p>
+        <button
+          onClick={() => console.log('Debug Privy:', { ready, authenticated, user: user ? { fid: user.farcaster?.fid } : null, fid: user?.farcaster?.fid })}
+          style={{ padding: '10px 20px', margin: '10px', background: '#ccc' }}
+        >
+          Debug Privy State
+        </button>
+        <p><small>Detected via IP geolocation cookie. Manual FID fallback if login fails.</small></p>
+      </div>
     </div>
   );
+}
+
+export default function PassportPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
+  if (!isMounted) return <div>Loading...</div>;
+
+  return <ClientOnlyPassport />;
 }

@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",
-    "@farcaster/hub-nodejs": "^0.15.8",
+    "@farcaster/hub-nodejs": "^0.15.9",
     "@farcaster/miniapp-core": "^0.3.9",
     "@farcaster/miniapp-node": "^0.1.9",
     "@farcaster/miniapp-sdk": "^0.2.0",
@@ -23,6 +23,7 @@
     "@google/generative-ai": "^0.24.1",
     "@metamask/delegation-toolkit": "^0.13.0",
     "@metamask/sdk": "^0.33.1",
+    "@neynar/nodejs-sdk": "^3.34.0",
     "@privy-io/react-auth": "^3.0.1",
     "@privy-io/server-auth": "1.32.5",
     "@radix-ui/react-accordion": "^1.2.12",
