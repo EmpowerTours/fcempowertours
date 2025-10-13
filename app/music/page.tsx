@@ -15,20 +15,17 @@ export default function MusicPage() {
   const { switchChainAsync } = useSwitchChain();
   const { connect, connectors } = useConnect();
   const { data: receipt, isLoading: receiptLoading } = useWaitForTransactionReceipt({ hash: writeData });
-
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
-  const [isMounted, setIsMounted] = useState(false); // Hydration guard
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => setIsMounted(true), []);
 
-  if (!isMounted) return <div>Loading...</div>;
-
-  // Auto switch to Monad Testnet
+  // Auto switch to Monad Testnet (moved before return)
   useEffect(() => {
     if (!isConnected || chainId === monadTestnet.id) return;
     switchChainAsync({ chainId: monadTestnet.id }).catch(() =>
@@ -63,10 +60,9 @@ export default function MusicPage() {
     try {
       if (!isConnected) await connect({ connector: connectors[0] });
 
-      // Fixed: Await context and extract primitives only (no function)
       const context = await sdk.context;
       const fid = context?.user?.fid?.toString() || '1';
-      console.log('SDK Context FID:', fid);  // Safe primitive
+      console.log('SDK Context FID:', fid);
 
       const formData = new FormData();
       formData.append('previewAudio', previewFile);
@@ -99,6 +95,8 @@ export default function MusicPage() {
       setUploading(false);
     }
   };
+
+  if (!isMounted) return <div>Loading...</div>;
 
   return (
     <div className="p-4 max-w-[600px] mx-auto">

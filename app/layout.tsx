@@ -4,7 +4,7 @@ import { cookieToInitialState } from 'wagmi';
 import { Providers } from './providers';
 import { getConfig } from './music/config';
 import './globals.css';
-import ClientLayout from './ClientLayout.tsx'; // Updated to .tsx
+import ClientLayout from './ClientLayout.tsx';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'),
