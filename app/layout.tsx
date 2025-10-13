@@ -4,7 +4,7 @@ import { cookieToInitialState } from 'wagmi';
 import { Providers } from './providers';
 import { getConfig } from './music/config';
 import './globals.css';
-import ClientLayout from './ClientLayout';
+import ClientLayout from './ClientLayout.tsx'; // Updated to .tsx
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'),
@@ -18,6 +18,12 @@ export const metadata: Metadata = {
     siteName: 'EmpowerTours',
     locale: 'en_US',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'EmpowerTours - Digital Passport',
+    description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
+    images: ['/images/og-image.png'],
   },
 };
 
