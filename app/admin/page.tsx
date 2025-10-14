@@ -11,26 +11,31 @@ const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA' as const
 // Add authorized admin addresses here (lowercase)
 const AUTHORIZED_ADMINS = [
   '0x6d11a83feeefa14ef1b38dce97be3995441c9fec3', // Treasury address (owner)
-  // Add more admin addresses here:
-  '0x7291Ed98c8b2830FDEb3a450aDE60381952a45fb',
+  '0x7291ed98c8b2830fdeb3a450ade60381952a45fb',
   '0xe67e13d545c76c2b4e28dfe27ad827e1fc18e8d9',
-  '0x33fFCcb1802e13a7eead232BCd4706a2269582b0',
-  '0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9',
+  '0x33ffccb1802e13a7eead232bcd4706a2269582b0',
 ].map(addr => addr.toLowerCase());
 
 export default function AdminPage() {
+  // ========================================
+  // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL RETURNS
+  // ========================================
+  
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  
   const { data: owner } = useReadContract({
     address: TOKEN_SWAP_ADDRESS,
     abi: TokenSwapABI,
     functionName: 'owner',
   });
+  
   const { data: exchangeRate } = useReadContract({
     address: TOKEN_SWAP_ADDRESS,
     abi: TokenSwapABI,
     functionName: 'exchangeRate',
   });
+  
   const { data: minMon } = useReadContract({
     address: TOKEN_SWAP_ADDRESS,
     abi: TokenSwapABI,
@@ -56,6 +61,144 @@ export default function AdminPage() {
     }
   }, [address, owner]);
 
+  // ========================================
+  // ALL useCallback HOOKS - MUST BE HERE BEFORE RETURNS
+  // ========================================
+
+  const setExchangeRate = useCallback(async () => {
+    if (!newRate) return;
+    try {
+      const hash = await writeContractAsync({
+        address: TOKEN_SWAP_ADDRESS,
+        abi: TokenSwapABI,
+        functionName: 'setExchangeRate',
+        args: [parseEther(newRate)],
+      });
+
+      alert(`Exchange rate updated! Tx: ${hash}`);
+
+      try {
+        const context = await sdk.context;
+        await fetch('/api/neynar-publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `🔧 Updated TokenSwap rate to ${newRate} $TOURS/MON\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
+            fid: context.user?.fid || Number(process.env.BOT_FID),
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to publish cast:', String(err));
+      }
+
+      setNewRate('');
+    } catch (err) {
+      console.error('Set exchange rate error:', String(err));
+      alert(`Failed to set exchange rate: ${String(err)}`);
+    }
+  }, [writeContractAsync, newRate]);
+
+  const setMinMon = useCallback(async () => {
+    if (!newMin) return;
+    try {
+      const hash = await writeContractAsync({
+        address: TOKEN_SWAP_ADDRESS,
+        abi: TokenSwapABI,
+        functionName: 'setMinMon',
+        args: [parseEther(newMin)],
+      });
+
+      alert(`Min MON updated! Tx: ${hash}`);
+
+      try {
+        await fetch('/api/neynar-publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `🔧 Updated min MON to ${newMin}\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
+            fid: Number(process.env.BOT_FID),
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to publish cast:', String(err));
+      }
+
+      setNewMin('');
+    } catch (err) {
+      console.error('Set min MON error:', String(err));
+      alert(`Failed to set min MON: ${String(err)}`);
+    }
+  }, [writeContractAsync, newMin]);
+
+  const withdrawMon = useCallback(async () => {
+    if (!confirm('Withdraw all MON from the contract?')) return;
+
+    try {
+      const hash = await writeContractAsync({
+        address: TOKEN_SWAP_ADDRESS,
+        abi: TokenSwapABI,
+        functionName: 'withdrawMon',
+      });
+
+      alert(`MON withdrawn! Tx: ${hash}`);
+
+      try {
+        await fetch('/api/neynar-publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `💰 Withdrew MON from TokenSwap\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
+            fid: Number(process.env.BOT_FID),
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to publish cast:', String(err));
+      }
+    } catch (err) {
+      console.error('Withdraw MON error:', String(err));
+      alert(`Failed to withdraw MON: ${String(err)}`);
+    }
+  }, [writeContractAsync]);
+
+  const withdrawTours = useCallback(async () => {
+    if (!withdrawAmount) return;
+    if (!confirm(`Withdraw ${withdrawAmount} $TOURS from the contract?`)) return;
+
+    try {
+      const hash = await writeContractAsync({
+        address: TOKEN_SWAP_ADDRESS,
+        abi: TokenSwapABI,
+        functionName: 'withdrawTours',
+        args: [parseEther(withdrawAmount)],
+      });
+
+      alert(`$TOURS withdrawn! Tx: ${hash}`);
+
+      try {
+        await fetch('/api/neynar-publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `💰 Withdrew ${withdrawAmount} $TOURS from TokenSwap\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
+            fid: Number(process.env.BOT_FID),
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to publish cast:', String(err));
+      }
+
+      setWithdrawAmount('');
+    } catch (err) {
+      console.error('Withdraw TOURS error:', String(err));
+      alert(`Failed to withdraw TOURS: ${String(err)}`);
+    }
+  }, [writeContractAsync, withdrawAmount]);
+
+  // ========================================
+  // NOW IT'S SAFE TO DO CONDITIONAL RETURNS
+  // ALL HOOKS HAVE BEEN CALLED ABOVE
+  // ========================================
+
   if (!isMounted) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -80,140 +223,11 @@ export default function AdminPage() {
     );
   }
 
-  const setExchangeRate = useCallback(async () => {
-    if (!newRate) return;
-    try {
-      const hash = await writeContractAsync({
-        address: TOKEN_SWAP_ADDRESS,
-        abi: TokenSwapABI,
-        functionName: 'setExchangeRate',
-        args: [parseEther(newRate)],
-      });
-      
-      alert(`Exchange rate updated! Tx: ${hash}`);
-      
-      try {
-        const context = await sdk.context;
-        await fetch('/api/neynar-publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: `🔧 Updated TokenSwap rate to ${newRate} $TOURS/MON\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
-            fid: context.user?.fid || Number(process.env.BOT_FID),
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to publish cast:', String(err));
-      }
-      
-      setNewRate('');
-    } catch (err) {
-      console.error('Set exchange rate error:', String(err));
-      alert(`Failed to set exchange rate: ${String(err)}`);
-    }
-  }, [writeContractAsync, newRate]);
-
-  const setMinMon = useCallback(async () => {
-    if (!newMin) return;
-    try {
-      const hash = await writeContractAsync({
-        address: TOKEN_SWAP_ADDRESS,
-        abi: TokenSwapABI,
-        functionName: 'setMinMon',
-        args: [parseEther(newMin)],
-      });
-      
-      alert(`Min MON updated! Tx: ${hash}`);
-      
-      try {
-        await fetch('/api/neynar-publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: `🔧 Updated min MON to ${newMin}\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
-            fid: Number(process.env.BOT_FID),
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to publish cast:', String(err));
-      }
-      
-      setNewMin('');
-    } catch (err) {
-      console.error('Set min MON error:', String(err));
-      alert(`Failed to set min MON: ${String(err)}`);
-    }
-  }, [writeContractAsync, newMin]);
-
-  const withdrawMon = useCallback(async () => {
-    if (!confirm('Withdraw all MON from the contract?')) return;
-    
-    try {
-      const hash = await writeContractAsync({
-        address: TOKEN_SWAP_ADDRESS,
-        abi: TokenSwapABI,
-        functionName: 'withdrawMon',
-      });
-      
-      alert(`MON withdrawn! Tx: ${hash}`);
-      
-      try {
-        await fetch('/api/neynar-publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: `💰 Withdrew MON from TokenSwap\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
-            fid: Number(process.env.BOT_FID),
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to publish cast:', String(err));
-      }
-    } catch (err) {
-      console.error('Withdraw MON error:', String(err));
-      alert(`Failed to withdraw MON: ${String(err)}`);
-    }
-  }, [writeContractAsync]);
-
-  const withdrawTours = useCallback(async () => {
-    if (!withdrawAmount) return;
-    if (!confirm(`Withdraw ${withdrawAmount} $TOURS from the contract?`)) return;
-    
-    try {
-      const hash = await writeContractAsync({
-        address: TOKEN_SWAP_ADDRESS,
-        abi: TokenSwapABI,
-        functionName: 'withdrawTours',
-        args: [parseEther(withdrawAmount)],
-      });
-      
-      alert(`$TOURS withdrawn! Tx: ${hash}`);
-      
-      try {
-        await fetch('/api/neynar-publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: `💰 Withdrew ${withdrawAmount} $TOURS from TokenSwap\n\nTx: https://testnet.monadscan.com/tx/${hash}`,
-            fid: Number(process.env.BOT_FID),
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to publish cast:', String(err));
-      }
-      
-      setWithdrawAmount('');
-    } catch (err) {
-      console.error('Withdraw TOURS error:', String(err));
-      alert(`Failed to withdraw TOURS: ${String(err)}`);
-    }
-  }, [writeContractAsync, withdrawAmount]);
-
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">TokenSwap Admin Panel</h1>
-        
+
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Current Settings</h2>
           <div className="space-y-2">
@@ -279,7 +293,7 @@ export default function AdminPage() {
               >
                 Withdraw All MON
               </button>
-              
+
               <div className="flex gap-3">
                 <input
                   type="number"

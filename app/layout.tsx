@@ -1,58 +1,100 @@
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
-import { cookieToInitialState } from 'wagmi';
-import { Providers } from './providers';
-import { getConfig } from './music/config';
-import ClientNav from './components/ClientNav';
 import './globals.css';
-
-const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
-  title: 'EmpowerTours - Digital Passport',
+  title: 'EmpowerTours - DigitalPassport',
   description: 'Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.',
+  keywords: ['travel', 'music', 'nfts', 'farcaster', 'monad', 'blockchain', 'web3'],
+  authors: [{ name: 'EmpowerTours Team' }],
+  creator: 'EmpowerTours',
+  publisher: 'EmpowerTours',
+  
+  // Open Graph meta tags for Farcaster
   openGraph: {
-    title: 'EmpowerTours - Digital Passport',
+    title: 'EmpowerTours - DigitalPassport',
     description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
+    url: 'https://fcempowertours-production-6551.up.railway.app',
+    siteName: 'EmpowerTours',
     images: [
       {
-        url: `${baseUrl}/images/og-image.png`,
+        url: 'https://fcempowertours-production-6551.up.railway.app/images/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'EmpowerTours',
-      }
+        alt: 'EmpowerTours - Travel and Music NFTs',
+      },
     ],
-    url: baseUrl,
-    siteName: 'EmpowerTours',
     locale: 'en_US',
     type: 'website',
   },
+  
+  // Twitter Card meta tags
   twitter: {
     card: 'summary_large_image',
-    title: 'EmpowerTours - Digital Passport',
+    title: 'EmpowerTours - DigitalPassport',
     description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
-    images: [`${baseUrl}/images/og-image.png`],
+    creator: '@empowertours',
+    images: ['https://fcempowertours-production-6551.up.railway.app/images/og-image.png'],
   },
+  
+  // Icons
+  icons: {
+    icon: '/images/icon.png',
+    shortcut: '/images/icon.png',
+    apple: '/images/icon.png',
+  },
+  
+  // Manifest
+  manifest: '/manifest.json',
+  
+  // App configuration
+  applicationName: 'EmpowerTours',
+  appleWebApp: {
+    capable: true,
+    title: 'EmpowerTours',
+    statusBarStyle: 'black-translucent',
+  },
+  
+  // Viewport
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+  },
+  
+  // Other metadata
+  metadataBase: new URL('https://fcempowertours-production-6551.up.railway.app'),
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const headersList = await headers();
-  const cookie = headersList.get('cookie');
-  const config = getConfig();
-  const initialState = cookieToInitialState(config, cookie);
-
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en">
       <head>
-        <link rel="icon" href="/images/icon.png" />
+        {/* Farcaster Frame meta tags - must be in <head> */}
+        <meta property="fc:frame" content="vNext" />
+        <meta property="fc:frame:image" content="https://fcempowertours-production-6551.up.railway.app/images/feed.png" />
+        <meta property="fc:frame:button:1" content="Open EmpowerTours" />
+        <meta property="fc:frame:button:1:action" content="link" />
+        <meta property="fc:frame:button:1:target" content="https://fcempowertours-production-6551.up.railway.app" />
+        
+        {/* Additional SEO tags */}
+        <meta name="robots" content="index, follow" />
+        <meta name="googlebot" content="index, follow" />
+        
+        {/* Theme color */}
+        <meta name="theme-color" content="#353B48" />
+        <meta name="msapplication-TileColor" content="#353B48" />
+        
+        {/* Canonical URL */}
+        <link rel="canonical" href="https://fcempowertours-production-6551.up.railway.app" />
       </head>
-      <body className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#0b1223] to-[#08111e] text-foreground antialiased flex flex-col">
-        <Providers initialState={initialState}>
-          <ClientNav />
-          <main className="flex-1 mx-auto max-w-xl px-3 pt-3 overflow-y-auto">
-            {children}
-          </main>
+      <body>
+        <Providers>
+          {children}
         </Providers>
       </body>
     </html>
