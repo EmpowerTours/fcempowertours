@@ -9,7 +9,6 @@ import MusicNFT from '../lib/abis/MusicNFT.json';
 import PassportNFTABI from '../lib/abis/PassportNFT.json';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { frameMetadata } from './frameMetadata';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,

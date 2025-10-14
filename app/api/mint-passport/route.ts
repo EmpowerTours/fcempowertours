@@ -50,13 +50,16 @@ const contract = new Contract(PASSPORT_NFT_ADDRESS, PASSPORT_ABI, wallet);
 
 async function generateMetadata(countryCode: string, countryName: string) {
   try {
+    // Use the correct Gemini API v1beta endpoint
     const geminiResponse = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         contents: [
           {
             parts: [
-              { text: `Generate NFT metadata for a travel passport in ${countryName}. Include a description and image URL.` }
+              { 
+                text: `Generate a brief, exciting description (2-3 sentences) for a travel passport NFT representing ${countryName}. Focus on adventure and exploration.` 
+              }
             ],
           },
         ],
@@ -64,23 +67,38 @@ async function generateMetadata(countryCode: string, countryName: string) {
       {
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": GEMINI_API_KEY,
         },
       }
     );
-    const generatedContent = geminiResponse.data.candidates[0].content.parts[0].text;
+    
+    const generatedContent = geminiResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || 
+      `A unique digital passport commemorating your adventures in ${countryName}. Collect these NFTs as proof of your global travels!`;
+    
     const metadata = {
       name: `EmpowerTours Passport: ${countryName}`,
-      description: generatedContent || `A unique NFT passport for ${countryName} (Code: ${countryCode})`,
+      description: generatedContent,
       image: `https://harlequin-used-hare-224.mypinata.cloud/ipfs/QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W`,
       attributes: [
         { trait_type: "Country Code", value: countryCode },
         { trait_type: "Country Name", value: countryName },
+        { trait_type: "Minted On", value: new Date().toISOString() },
       ],
     };
     return metadata;
   } catch (error: any) {
-    throw new Error(`Metadata generation failed: ${error.message}`);
+    console.error("Gemini API error:", error.response?.data || error.message);
+    // Fallback to basic metadata if Gemini fails
+    const metadata = {
+      name: `EmpowerTours Passport: ${countryName}`,
+      description: `A unique digital passport NFT commemorating your travels to ${countryName}. Part of the EmpowerTours collection powered by Monad and Farcaster.`,
+      image: `https://harlequin-used-hare-224.mypinata.cloud/ipfs/QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W`,
+      attributes: [
+        { trait_type: "Country Code", value: countryCode },
+        { trait_type: "Country Name", value: countryName },
+        { trait_type: "Minted On", value: new Date().toISOString() },
+      ],
+    };
+    return metadata;
   }
 }
 
@@ -100,6 +118,7 @@ async function uploadToPinata(metadata: any) {
     console.log("Metadata uploaded to IPFS:", `ipfs://${cid}`);
     return `ipfs://${cid}`;
   } catch (error: any) {
+    console.error("Pinata upload error:", error.response?.data || error.message);
     throw new Error(`Pinata upload failed: ${error.message}`);
   }
 }
@@ -108,6 +127,7 @@ export async function POST(req: NextRequest) {
   try {
     const { fid, countryCode, countryName, userAddress, tokenId } = await req.json();
     console.log('API received:', { fid, countryCode, countryName, userAddress, tokenId });
+    
     if (!fid || !countryCode || !countryName) {
       throw new Error("Missing fid, countryCode, or countryName");
     }
@@ -128,7 +148,7 @@ export async function POST(req: NextRequest) {
     if (userAddress && userAddress.toLowerCase() !== fetchedAddress.toLowerCase()) {
       throw new Error("Provided userAddress does not match FID's custody address");
     }
-    const recipientAddress = userAddress || fetchedAddress; // Use provided or resolved address
+    const recipientAddress = userAddress || fetchedAddress;
 
     // Check balance (no multiples)
     const balance = await contract.balanceOf(recipientAddress);
@@ -137,6 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     let transaction_hash, newTokenId;
+    
     // Generate and upload metadata
     const metadata = await generateMetadata(countryCode, countryName);
     const tokenURI = await uploadToPinata(metadata);
@@ -188,7 +209,7 @@ export async function POST(req: NextRequest) {
       await axios.post(
         "https://api.neynar.com/v2/farcaster/cast",
         {
-          text: `Minted a new EmpowerTours Passport for ${countryName} to @${username}! Token ID: ${newTokenId} 🎉 View at https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
+          text: `🌍 New EmpowerTours Passport minted for ${countryName}! @${username} Token #${newTokenId}\n\nView: https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
           signer_uuid: process.env.BOT_SIGNER_UUID,
         },
         {
@@ -211,6 +232,7 @@ export async function POST(req: NextRequest) {
       message: error.message,
       reason: error.reason || error.shortMessage,
       data: error.data,
+      response: error.response?.data,
     });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

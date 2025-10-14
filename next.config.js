@@ -20,15 +20,25 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/',
+        source: '/:path*',
         headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cache-Control', value: 'public, max-age=300' },
         ],
       },
       {
-        source: '/images/(.*)',
+        source: '/images/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=300' },
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+        ],
+      },
+      {
+        source: '/.well-known/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+          { key: 'Content-Type', value: 'application/json' },
         ],
       },
     ];
@@ -50,4 +60,5 @@ const nextConfig = {
     return config;
   },
 };
+
 export default nextConfig;

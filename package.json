@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production node .next/standalone/server.js",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "audit": "npm audit",
     "audit:fix": "npm audit fix",

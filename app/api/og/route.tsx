@@ -1,38 +1,35 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const title = searchParams.get('title') || 'EmpowerTours';
-    const description = searchParams.get('description') || 'Mint and share Travel and Music NFTs!';
-    const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-
     return new ImageResponse(
       (
         <div
           style={{
+            fontSize: 60,
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+            width: '100%',
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '1200px',
-            height: '630px',
-            background: 'linear-gradient(180deg, #00A55E, #1E90FF)',
-            color: '#FFFFFF',
-            fontFamily: 'Arial, sans-serif',
+            color: 'white',
+            fontFamily: 'system-ui',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`${appUrl}/images/feed.png`}
-            alt="EmpowerTours Feed"
-            style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px' }}
-          />
-          <h1 style={{ fontSize: '48px', fontWeight: 'bold', margin: '20px 0' }}>{title}</h1>
-          <p style={{ fontSize: '24px', textAlign: 'center', maxWidth: '800px' }}>{description}</p>
+          <div style={{ display: 'flex', fontSize: 100, fontWeight: 'bold', marginBottom: 30 }}>
+            🌍 EmpowerTours
+          </div>
+          <div style={{ fontSize: 45, opacity: 0.9, textAlign: 'center' }}>
+            Digital Passport & Travel NFTs
+          </div>
+          <div style={{ fontSize: 32, opacity: 0.7, marginTop: 30 }}>
+            Powered by Monad & Farcaster
+          </div>
         </div>
       ),
       {
@@ -40,8 +37,8 @@ export async function GET(request: NextRequest) {
         height: 630,
       }
     );
-  } catch (error) {
-    console.error('OG Image Error:', error);
+  } catch (e: any) {
+    console.error('OG Image generation error:', e);
     return new Response('Failed to generate OG image', { status: 500 });
   }
 }

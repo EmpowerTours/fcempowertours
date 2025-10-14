@@ -262,18 +262,22 @@ function SwapWidget() {
   });
 
   const handleSwap = async (amount: number) => {
-    if (!address) return;
+    if (!address) {
+      alert('Please connect your wallet');
+      return;
+    }
     const monValue = parseEther(amount.toString());
     try {
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: TOKEN_SWAP_ADDRESS,
         abi: TokenSwapABI,
         functionName: 'swap',
-        args: [monValue],
-        value: monValue,
+        args: [],  // IMPORTANT: swap() takes no arguments
+        value: monValue,  // The MON amount is sent as value
       });
+      alert(`Swap successful! Tx: ${hash}`);
     } catch (err) {
-      console.error('Swap error:', String(err));
+      console.error('Swap error:', err);
       alert(`Failed to swap: ${String(err)}`);
     }
   };
