@@ -6564,6 +6564,7 @@ __metadata:
     next: "npm:^15.0.0"
     next-themes: "npm:^0.4.6"
     node-ipinfo: "npm:^4.1.0"
+    permissionless: "npm:^0.2.57"
     pinata: "npm:^2.5.0"
     postcss: "npm:^8.5.6"
     react: "npm:18.3.1"
@@ -6574,7 +6575,7 @@ __metadata:
     tailwindcss-animate: "npm:^1.0.7"
     tw-animate-css: "npm:^1.4.0"
     typescript: "npm:^5.5.4"
-    viem: "npm:2.x"
+    viem: "npm:^2.38.3"
     wagmi: "npm:^2.18.1"
   languageName: unknown
   linkType: soft
@@ -8971,6 +8972,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"permissionless@npm:^0.2.57":
+  version: 0.2.57
+  resolution: "permissionless@npm:0.2.57"
+  peerDependencies:
+    ox: ^0.8.0
+    viem: ^2.28.1
+  peerDependenciesMeta:
+    ox:
+      optional: true
+  checksum: 10c0/b0c11a511809df3db7da5b22aad82c45481c43f8d14d558ebb2a6c449a2f5593eb5d7fcc9bb4e9fd57f20dd787e35d2d2de22be4760b41a1b317df526377d710
+  languageName: node
+  linkType: hard
+
 "picocolors@npm:^1.0.0, picocolors@npm:^1.1.1":
   version: 1.1.1
   resolution: "picocolors@npm:1.1.1"
@@ -11241,7 +11255,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"viem@npm:2.x, viem@npm:>=2.29.0, viem@npm:^2, viem@npm:^2.1.1, viem@npm:^2.17.4, viem@npm:^2.21.44, viem@npm:^2.27.2, viem@npm:^2.31.7, viem@npm:^2.32.0":
+"viem@npm:>=2.29.0, viem@npm:^2, viem@npm:^2.1.1, viem@npm:^2.17.4, viem@npm:^2.21.44, viem@npm:^2.27.2, viem@npm:^2.31.7, viem@npm:^2.32.0, viem@npm:^2.38.3":
   version: 2.38.3
   resolution: "viem@npm:2.38.3"
   dependencies:
