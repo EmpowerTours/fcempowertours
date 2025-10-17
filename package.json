@@ -17,6 +17,7 @@
     "@farcaster/miniapp-sdk": "^0.2.0",
     "@farcaster/miniapp-wagmi-connector": "^1.1.0",
     "@google/generative-ai": "^0.24.1",
+    "@metamask/delegation-toolkit": "^0.13.0",
     "@neynar/nodejs-sdk": "^3.34.0",
     "@privy-io/react-auth": "^3.0.1",
     "@privy-io/server-auth": "1.32.5",
