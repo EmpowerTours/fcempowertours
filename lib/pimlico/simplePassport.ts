@@ -21,23 +21,14 @@ export async function mintPassportWithPimlico(recipientAddress: string, countryC
   console.log('✅ Pimlico client connected');
 
   try {
-    // 3. Create MetaMask Smart Account with proper signer config
+    // 3. Create MetaMask Smart Account
     console.log('Creating MetaMask Smart Account...');
     const smartAccount = await toMetaMaskSmartAccount({
       client: publicClient,
       implementation: Implementation.Hybrid,
       deployParams: [owner.address, [], [], []],
       deploySalt: '0x',
-      signer: {
-        getAddress: async () => owner.address,
-        signMessage: async ({ message }: { message: any }) => {
-          if (typeof message === 'string') {
-            return owner.signMessage({ message });
-          }
-          return owner.signMessage({ message: message.raw });
-        },
-        signTypedData: async (typedData: any) => owner.signTypedData(typedData),
-      },
+      signer: owner as any, // Type cast to bypass strict typing
     });
     console.log('✅ Smart account created at:', smartAccount.address);
 
