@@ -3,94 +3,92 @@ import { Implementation, toMetaMaskSmartAccount } from '@metamask/delegation-too
 import { createSmartAccountClient } from 'permissionless';
 import { http, encodeFunctionData } from 'viem';
 import { publicClient, monadTestnet, createPimlicoClientForMonad } from './config';
+import PassportNFTABI from '../abis/PassportNFT.json';
 
-// Simple gasless passport mint
-export async function mintPassportGasless(userAddress: string) {
-  console.log('🎫 Starting gasless passport mint for:', userAddress);
+const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT as `0x${string}`;
+
+export async function mintPassportWithPimlico(recipientAddress: string, countryCode: string) {
+  console.log('🚀 Starting Pimlico Gasless Passport Mint...');
   
-  // 1. Get or create private key for this user (stored in localStorage for demo)
-  let privateKey = localStorage.getItem(`pk_${userAddress}`);
-  if (!privateKey) {
-    console.log('Generating new private key for user...');
-    privateKey = generatePrivateKey();
-    localStorage.setItem(`pk_${userAddress}`, privateKey);
-    console.log('✅ New private key generated and stored');
-  } else {
-    console.log('✅ Using existing private key');
-  }
+  // 1. Generate a temporary owner account
+  console.log('Generating temporary owner account...');
+  const ownerPrivateKey = generatePrivateKey();
+  const owner = privateKeyToAccount(ownerPrivateKey);
+  console.log('✅ Owner account created:', owner.address);
 
-  // 2. Create owner account from private key
-  const owner = privateKeyToAccount(privateKey as `0x${string}`);
-  console.log('Owner address:', owner.address);
-
-  // 3. Create Pimlico client for gas sponsorship
-  console.log('Creating Pimlico client...');
+  // 2. Create Pimlico bundler client
   const pimlicoClient = createPimlicoClientForMonad();
-  console.log('✅ Pimlico client created');
+  console.log('✅ Pimlico client connected');
 
-  // 4. Create MetaMask Smart Account
-  console.log('Creating MetaMask Smart Account...');
-  const smartAccount = await toMetaMaskSmartAccount({
-    client: publicClient,
-    implementation: Implementation.Hybrid,
-    deployParams: [owner.address, [], [], []],
-    deploySalt: '0x',
-    signer: owner,
-  });
-  console.log('✅ Smart account created at:', smartAccount.address);
-
-  // 5. Create smart account client with Pimlico paymaster (this makes it GASLESS!)
-  console.log('Creating smart account client with paymaster...');
-  const smartAccountClient = createSmartAccountClient({
-    account: smartAccount,
-    chain: monadTestnet,
-    bundlerTransport: http(`https://api.pimlico.io/v2/monad-testnet/rpc?apikey=${process.env.NEXT_PUBLIC_PIMLICO_API_KEY}`),
-    paymaster: pimlicoClient, // Pimlico sponsors the gas!
-    userOperation: {
-      estimateFeesPerGas: async () => {
-        const gasPrice = await pimlicoClient.getUserOperationGasPrice();
-        return gasPrice.fast;
+  try {
+    // 3. Create MetaMask Smart Account with proper signer config
+    console.log('Creating MetaMask Smart Account...');
+    const smartAccount = await toMetaMaskSmartAccount({
+      client: publicClient,
+      implementation: Implementation.Hybrid,
+      deployParams: [owner.address, [], [], []],
+      deploySalt: '0x',
+      signer: {
+        type: 'local' as const,
+        getAddress: async () => owner.address,
+        signMessage: async ({ message }: { message: any }) => {
+          if (typeof message === 'string') {
+            return owner.signMessage({ message });
+          }
+          return owner.signMessage({ message: message.raw });
+        },
+        signTypedData: async (typedData: any) => owner.signTypedData(typedData),
       },
-    },
-  });
-  console.log('✅ Smart account client created with Pimlico paymaster');
+    });
+    console.log('✅ Smart account created at:', smartAccount.address);
 
-  // 6. Encode the passport mint function call
-  const passportAddress = (process.env.NEXT_PUBLIC_PASSPORT || '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4') as `0x${string}`;
-  console.log('Passport contract:', passportAddress);
-  
-  const mintCalldata = encodeFunctionData({
-    abi: [
-      {
-        inputs: [{ name: 'to', type: 'address' }],
-        name: 'mintPassport',
-        outputs: [],
-        stateMutability: 'nonpayable',
-        type: 'function',
+    // 4. Create smart account client with Pimlico paymaster
+    console.log('Creating smart account client with paymaster...');
+    const smartAccountClient = createSmartAccountClient({
+      account: smartAccount,
+      chain: monadTestnet,
+      bundlerTransport: http(pimlicoClient.transport.url),
+      paymaster: pimlicoClient,
+      userOperation: {
+        estimateFeesPerGas: async () => {
+          return (await pimlicoClient.getUserOperationGasPrice()).fast;
+        },
       },
-    ],
-    functionName: 'mintPassport',
-    args: [userAddress as `0x${string}`],
-  });
-  console.log('✅ Mint calldata encoded');
+    });
+    console.log('✅ Smart account client created');
 
-  // 7. Send the gasless transaction!
-  console.log('Sending gasless transaction via Pimlico...');
-  console.log('⏳ This may take 10-20 seconds...');
-  
-  const txHash = await smartAccountClient.sendTransaction({
-    to: passportAddress,
-    data: mintCalldata,
-    value: 0n,
-  });
+    // 5. Encode the mint call
+    const mintCallData = encodeFunctionData({
+      abi: PassportNFTABI,
+      functionName: 'mint',
+      args: [recipientAddress, countryCode],
+    });
 
-  console.log('🎉 SUCCESS! Passport minted (gasless)!');
-  console.log('Transaction hash:', txHash);
-  console.log('Smart account used:', smartAccount.address);
+    // 6. Send the gasless transaction
+    console.log('Sending gasless mint transaction...');
+    const userOpHash = await smartAccountClient.sendUserOperation({
+      calls: [{
+        to: PASSPORT_NFT_ADDRESS,
+        data: mintCallData,
+        value: 0n,
+      }],
+    });
+    console.log('✅ UserOp sent:', userOpHash);
 
-  return { 
-    txHash, 
-    smartAccountAddress: smartAccount.address,
-    ownerAddress: owner.address 
-  };
+    // 7. Wait for the transaction to be mined
+    console.log('Waiting for transaction confirmation...');
+    const receipt = await smartAccountClient.waitForUserOperationReceipt({
+      hash: userOpHash,
+    });
+    console.log('✅ Transaction confirmed:', receipt.receipt.transactionHash);
+
+    return {
+      success: true,
+      txHash: receipt.receipt.transactionHash,
+      userOpHash,
+    };
+  } catch (error: any) {
+    console.error('❌ Pimlico mint failed:', error);
+    throw new Error(error.message || 'Gasless mint failed');
+  }
 }
