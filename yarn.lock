@@ -318,6 +318,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@farcaster/miniapp-node@npm:^0.1.11":
+  version: 0.1.11
+  resolution: "@farcaster/miniapp-node@npm:0.1.11"
+  dependencies:
+    "@farcaster/miniapp-core": "npm:0.4.1"
+    "@noble/curves": "npm:^1.7.0"
+    ox: "npm:^0.4.4"
+    zod: "npm:^3.24.1"
+  checksum: 10c0/8573861b292b72dd69a388c1c5e1fb04f582903035f94033b8e8bea29c2e6111890ab4d2b700d9b63c3d869c8e9ba7b10d0188dd0c9044bbbdd2a2658d412059
+  languageName: node
+  linkType: hard
+
 "@farcaster/miniapp-sdk@npm:^0.2.0":
   version: 0.2.1
   resolution: "@farcaster/miniapp-sdk@npm:0.2.1"
@@ -1364,7 +1376,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@noble/curves@npm:^1.0.0, @noble/curves@npm:^1.4.2, @noble/curves@npm:^1.6.0, @noble/curves@npm:^1.9.7, @noble/curves@npm:~1.9.0":
+"@noble/curves@npm:^1.0.0, @noble/curves@npm:^1.4.2, @noble/curves@npm:^1.6.0, @noble/curves@npm:^1.7.0, @noble/curves@npm:^1.9.7, @noble/curves@npm:~1.9.0":
   version: 1.9.7
   resolution: "@noble/curves@npm:1.9.7"
   dependencies:
@@ -6178,6 +6190,7 @@ __metadata:
   resolution: "fcempowertours@workspace:."
   dependencies:
     "@farcaster/hub-nodejs": "npm:^0.15.9"
+    "@farcaster/miniapp-node": "npm:^0.1.11"
     "@farcaster/miniapp-sdk": "npm:^0.2.0"
     "@google/generative-ai": "npm:^0.24.1"
     "@neynar/nodejs-sdk": "npm:^3.34.0"
@@ -6211,6 +6224,7 @@ __metadata:
     postcss: "npm:^8.5.6"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
+    sonner: "npm:^2.0.7"
     tailwind-merge: "npm:2.5.2"
     tailwindcss: "npm:^4.1.14"
     tailwindcss-animate: "npm:^1.0.7"
@@ -9759,6 +9773,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sonner@npm:^2.0.7":
+  version: 2.0.7
+  resolution: "sonner@npm:2.0.7"
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+    react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+  checksum: 10c0/6966ab5e892ed6aab579a175e4a24f3b48747f0fc21cb68c3e33cb41caa7a0eebeb098c210545395e47a18d585eb8734ae7dd12d2bd18c8a3294a1ee73f997d9
+  languageName: node
+  linkType: hard
+
 "source-map-js@npm:^1.0.2, source-map-js@npm:^1.2.1":
   version: 1.2.1
   resolution: "source-map-js@npm:1.2.1"
@@ -11262,7 +11286,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.24.3, zod@npm:^3.25.0, zod@npm:^3.25.1":
+"zod@npm:^3.24.1, zod@npm:^3.24.3, zod@npm:^3.25.0, zod@npm:^3.25.1":
   version: 3.25.76
   resolution: "zod@npm:3.25.76"
   checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
