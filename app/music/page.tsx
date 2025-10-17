@@ -1,16 +1,44 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useAccount, useWriteContract } from 'wagmi';
 
 const MUSIC_NFT_V3_ADDRESS = '0x821ad43127ED630aAe974BA0Aa063235af8d00Dd';
 const MAX_WALLET_WAIT_RETRIES = 3;
 
 export default function MusicPage() {
+  // ========================================
+  // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL LOGIC
+  // ========================================
+  
+  // Privy hooks
   const { ready, authenticated, user, login } = usePrivy();
+  
+  // Wagmi hooks (even if not used, call them to avoid conditional hook issues)
+  const { address: wagmiAddress } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  
+  // State hooks
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [fullFile, setFullFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [description, setDescription] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [minting, setMinting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
+  const [waitingForWallet, setWaitingForWallet] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Refs
   const retryCount = useRef(0);
   const hasCheckedWallet = useRef(false);
 
-  // ✅ IMPROVED WALLET DETECTION
+  // ========================================
+  // DERIVED VALUES (AFTER ALL HOOKS)
+  // ========================================
+  
   const getWalletAddress = () => {
     if (!user) return null;
     if (user.wallet?.address) {
@@ -33,15 +61,13 @@ export default function MusicPage() {
   const walletAddress = getWalletAddress();
   const farcasterFid = user?.farcaster?.fid;
 
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
-  const [fullFile, setFullFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [description, setDescription] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [minting, setMinting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
-  const [waitingForWallet, setWaitingForWallet] = useState(false);
+  // ========================================
+  // EFFECTS (AFTER ALL HOOKS AND STATE)
+  // ========================================
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -55,21 +81,18 @@ export default function MusicPage() {
     }
   }, [authenticated, walletAddress, user]);
 
-  // ✅ FIXED: Auto-reload with retry limit and better logic
+  // Auto-reload with retry limit and better logic
   useEffect(() => {
-    // Only run this once authentication is complete
     if (!authenticated || !user || hasCheckedWallet.current) return;
 
     hasCheckedWallet.current = true;
 
-    // If we have a wallet, we're good
     if (walletAddress) {
       console.log('✅ Wallet found immediately');
       setWaitingForWallet(false);
       return;
     }
 
-    // If Privy is still creating the wallet
     if (!user.wallet && retryCount.current < MAX_WALLET_WAIT_RETRIES) {
       console.log(`🔄 Waiting for Privy to create embedded wallet... (attempt ${retryCount.current + 1}/${MAX_WALLET_WAIT_RETRIES})`);
       setWaitingForWallet(true);
@@ -78,12 +101,11 @@ export default function MusicPage() {
         retryCount.current += 1;
         console.log(`⚠️ Retry ${retryCount.current}/${MAX_WALLET_WAIT_RETRIES}: Reloading...`);
         window.location.reload();
-      }, 5000); // Wait 5 seconds between retries
+      }, 5000);
 
       return () => clearTimeout(timer);
     }
 
-    // If we've exceeded retries, show error instead of infinite loop
     if (retryCount.current >= MAX_WALLET_WAIT_RETRIES) {
       console.error('❌ Max retries exceeded, wallet not created');
       setWaitingForWallet(false);
@@ -91,6 +113,10 @@ export default function MusicPage() {
     }
   }, [authenticated, walletAddress, user]);
 
+  // ========================================
+  // EVENT HANDLERS (AFTER ALL HOOKS)
+  // ========================================
+  
   const handleFileChange = (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
@@ -124,6 +150,7 @@ export default function MusicPage() {
       setError(`Please fill all fields: ${missing.join(', ')}`);
       return;
     }
+    
     setUploading(true);
     setError(null);
     
@@ -183,6 +210,21 @@ export default function MusicPage() {
       setMinting(false);
     }
   };
+
+  // ========================================
+  // CONDITIONAL RETURNS (AFTER ALL HOOKS)
+  // ========================================
+  
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!ready) {
     return (
@@ -283,6 +325,10 @@ export default function MusicPage() {
     );
   }
 
+  // ========================================
+  // MAIN RENDER
+  // ========================================
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">

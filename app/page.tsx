@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import Image from 'next/image';
 
 interface Cast {
   text: string;
@@ -13,7 +12,7 @@ interface Cast {
   timestamp?: string;
 }
 
-export default function Home() {
+export default function HomePage() {
   const { ready, authenticated, user } = usePrivy();
   const [showSplash, setShowSplash] = useState(true);
   const [casts, setCasts] = useState<Cast[]>([]);
@@ -136,14 +135,25 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [casts]);
 
+  // Early return if not ready - AFTER all hooks
+  if (!ready) {
+    return (
+      <div className="fixed top-0 left-0 w-full h-full flex flex-col items-center justify-center z-[9999] bg-gradient-to-br from-purple-900 to-blue-900">
+        <div className="text-8xl mb-4 animate-pulse">🎵</div>
+        <h1 className="text-4xl font-bold text-white">Loading...</h1>
+      </div>
+    );
+  }
+
   if (showSplash) {
-  return (
-    <div className="fixed top-0 left-0 w-full h-full flex flex-col items-center justify-center z-[9999] bg-gradient-to-br from-purple-900 to-blue-900">
-      <div className="text-8xl mb-4 animate-pulse">🎵</div>
-      <h1 className="text-4xl font-bold text-white">EmpowerTours</h1>
-    </div>
-  );
-}
+    return (
+      <div className="fixed top-0 left-0 w-full h-full flex flex-col items-center justify-center z-[9999] bg-gradient-to-br from-purple-900 to-blue-900">
+        <div className="text-8xl mb-4 animate-pulse">🎵</div>
+        <h1 className="text-4xl font-bold text-white">EmpowerTours</h1>
+      </div>
+    );
+  }
+
   const currentCast = casts[currentCastIndex];
 
   return (
@@ -167,9 +177,6 @@ export default function Home() {
             </div>
           )}
         </div>
-
-        {/* Bot commands appear here (via ClientBotFrame - separate component) */}
-        {/* Space reserved for floating bot frame */}
 
         {/* Live Farcaster Feed */}
         <div className="mb-12">

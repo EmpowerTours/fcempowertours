@@ -7,13 +7,24 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   output: 'standalone',
+  reactStrictMode: true,
+  experimental: {
+    optimizePackageImports: ['@privy-io/react-auth', '@tanstack/react-query'],
+  },
   serverExternalPackages: [
     'undici',
-    '@privy-io/react-auth',
     '@privy-io/server-auth',
     '@farcaster/miniapp-sdk',
     'ethers',
   ],
+  async rewrites() {
+    return [
+      {
+        source: '/.well-known/farcaster.json',
+        destination: '/api/.well-known/farcaster.json',
+      },
+    ];
+  },
   async headers() {
     return [
       {
@@ -21,7 +32,15 @@ const nextConfig = {
         headers: [
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
-          { key: 'Cache-Control', value: 'public, max-age=300' },
+          { key: 'Cache-Control', value: 'max-age=0, must-revalidate' },
+          { key: 'X-Frame-Options', value: 'ALLOWALL' },
+        ],
+      },
+      {
+        source: '/embed',
+        headers: [
+          { key: 'Cache-Control', value: 'max-age=0, must-revalidate' },
+          { key: 'Content-Type', value: 'text/html' },
         ],
       },
       {
@@ -36,6 +55,7 @@ const nextConfig = {
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=3600' },
           { key: 'Content-Type', value: 'application/json' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
         ],
       },
     ];
@@ -54,6 +74,7 @@ const nextConfig = {
       '@react-native-async-storage/async-storage': false,
       'pino-pretty': false,
     };
+    config.externals.push('pino-pretty', 'lokijs', 'encoding');
     return config;
   },
 };
