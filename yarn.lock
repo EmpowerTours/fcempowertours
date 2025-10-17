@@ -6257,6 +6257,7 @@ __metadata:
     ethers: "npm:^6.15.0"
     lucide-react: "npm:^0.545.0"
     next: "npm:^15.0.0"
+    next-themes: "npm:^0.4.6"
     node-ipinfo: "npm:^4.1.0"
     pinata: "npm:^2.5.0"
     postcss: "npm:^8.5.6"
@@ -8025,6 +8026,16 @@ __metadata:
   version: 6.2.2
   resolution: "neverthrow@npm:6.2.2"
   checksum: 10c0/d6a6b5df0330356a8900d2ec042db5b03c32b0eb8922aaea9b97ea5727a13b685f5e6ca41afe0837b371e3d6ae793d35815e3ed04dd7be75428466979d5dccca
+  languageName: node
+  linkType: hard
+
+"next-themes@npm:^0.4.6":
+  version: 0.4.6
+  resolution: "next-themes@npm:0.4.6"
+  peerDependencies:
+    react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
+  checksum: 10c0/83590c11d359ce7e4ced14f6ea9dd7a691d5ce6843fe2dc520fc27e29ae1c535118478d03e7f172609c41b1ef1b8da6b8dd2d2acd6cd79cac1abbdbd5b99f2c4
   languageName: node
   linkType: hard
 
