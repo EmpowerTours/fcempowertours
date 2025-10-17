@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { JsonRpcProvider, Wallet, Contract, ZeroAddress, parseEther, Log, LogDescription } from "ethers";
+import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/generatePassportSVG";
+import { getCountryByCode } from "@/lib/passport/countries";
 
 const PASSPORT_NFT_ADDRESS = "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4";
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
+
 const PASSPORT_ABI = [
   {
     inputs: [{ internalType: "address", name: "to", type: "address" }],
@@ -48,61 +50,7 @@ const provider = new JsonRpcProvider("https://testnet-rpc.monad.xyz");
 const wallet = new Wallet(process.env.DEPLOYER_PRIVATE_KEY || "", provider);
 const contract = new Contract(PASSPORT_NFT_ADDRESS, PASSPORT_ABI, wallet);
 
-async function generateMetadata(countryCode: string, countryName: string) {
-  try {
-    // Use the correct Gemini API v1beta endpoint
-    const geminiResponse = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            parts: [
-              { 
-                text: `Generate a brief, exciting description (2-3 sentences) for a travel passport NFT representing ${countryName}. Focus on adventure and exploration.` 
-              }
-            ],
-          },
-        ],
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-    
-    const generatedContent = geminiResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || 
-      `A unique digital passport commemorating your adventures in ${countryName}. Collect these NFTs as proof of your global travels!`;
-    
-    const metadata = {
-      name: `EmpowerTours Passport: ${countryName}`,
-      description: generatedContent,
-      image: `https://harlequin-used-hare-224.mypinata.cloud/ipfs/QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W`,
-      attributes: [
-        { trait_type: "Country Code", value: countryCode },
-        { trait_type: "Country Name", value: countryName },
-        { trait_type: "Minted On", value: new Date().toISOString() },
-      ],
-    };
-    return metadata;
-  } catch (error: any) {
-    console.error("Gemini API error:", error.response?.data || error.message);
-    // Fallback to basic metadata if Gemini fails
-    const metadata = {
-      name: `EmpowerTours Passport: ${countryName}`,
-      description: `A unique digital passport NFT commemorating your travels to ${countryName}. Part of the EmpowerTours collection powered by Monad and Farcaster.`,
-      image: `https://harlequin-used-hare-224.mypinata.cloud/ipfs/QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W`,
-      attributes: [
-        { trait_type: "Country Code", value: countryCode },
-        { trait_type: "Country Name", value: countryName },
-        { trait_type: "Minted On", value: new Date().toISOString() },
-      ],
-    };
-    return metadata;
-  }
-}
-
-async function uploadToPinata(metadata: any) {
+async function uploadMetadataToPinata(metadata: any, countryCode: string, tokenId: number) {
   try {
     const response = await axios.post(
       PINATA_API_URL,
@@ -115,10 +63,10 @@ async function uploadToPinata(metadata: any) {
       }
     );
     const cid = response.data.IpfsHash;
-    console.log("Metadata uploaded to IPFS:", `ipfs://${cid}`);
+    console.log(`✅ Metadata uploaded to IPFS: ipfs://${cid}`);
     return `ipfs://${cid}`;
   } catch (error: any) {
-    console.error("Pinata upload error:", error.response?.data || error.message);
+    console.error("❌ Pinata upload error:", error.response?.data || error.message);
     throw new Error(`Pinata upload failed: ${error.message}`);
   }
 }
@@ -126,99 +74,172 @@ async function uploadToPinata(metadata: any) {
 export async function POST(req: NextRequest) {
   try {
     const { fid, countryCode, countryName, userAddress, tokenId } = await req.json();
-    console.log('API received:', { fid, countryCode, countryName, userAddress, tokenId });
-    
-    if (!fid || !countryCode || !countryName) {
-      throw new Error("Missing fid, countryCode, or countryName");
+    console.log('🎫 Passport mint request:', { fid, countryCode, countryName, userAddress, tokenId });
+
+    // Validate required fields
+    if (!countryCode || !countryName) {
+      throw new Error("Missing countryCode or countryName");
     }
 
-    // Resolve FID to wallet address via Neynar
-    const neynarRes = await axios.get(
-      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-      { headers: { api_key: NEYNAR_API_KEY } }
+    // Validate country code against our 195 countries database
+    if (!isValidCountryCode(countryCode)) {
+      throw new Error(`Invalid country code: ${countryCode}. Must be one of 195 recognized countries.`);
+    }
+
+    // Get full country info
+    const countryInfo = getCountryByCode(countryCode);
+    console.log(`🌍 Country validated: ${countryInfo?.flag} ${countryInfo?.name} (${countryInfo?.region}, ${countryInfo?.continent})`);
+
+    let recipientAddress = userAddress;
+    let username = "traveler";
+
+    // If FID provided, resolve to wallet address
+    if (fid) {
+      try {
+        const neynarRes = await axios.get(
+          `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+          { headers: { api_key: NEYNAR_API_KEY } }
+        );
+        const userData = neynarRes.data.users[0];
+        if (userData) {
+          const fetchedAddress = userData.custody_address;
+          username = userData.username || "traveler";
+
+          // Verify addresses match if both provided
+          if (userAddress && userAddress.toLowerCase() !== fetchedAddress.toLowerCase()) {
+            console.warn("⚠️ Provided userAddress doesn't match FID custody address, using FID address");
+          }
+          recipientAddress = userAddress || fetchedAddress;
+        }
+      } catch (neynarError: any) {
+        console.warn("⚠️ Neynar lookup failed, proceeding with userAddress:", neynarError.message);
+      }
+    }
+
+    if (!recipientAddress) {
+      throw new Error("No recipient address available (need userAddress or valid FID)");
+    }
+
+    console.log(`👤 Recipient: ${recipientAddress} (@${username})`);
+
+    // Check if user already has a passport (only if not setting tokenURI for existing mint)
+    if (!tokenId) {
+      const balance = await contract.balanceOf(recipientAddress);
+      if (balance > 0) {
+        return NextResponse.json({
+          error: "Already owns a passport. Each wallet can only mint one passport."
+        }, { status: 400 });
+      }
+    }
+
+    let transaction_hash: string;
+    let newTokenId: number;
+
+    // Generate metadata with SVG image (supports all 195 countries!)
+    console.log(`🎨 Generating passport image for ${countryName}...`);
+    const metadata = generatePassportMetadata(
+      countryCode,
+      countryName,
+      tokenId || 0 // Use provided tokenId or 0 as placeholder
     );
-    const userData = neynarRes.data.users[0];
-    if (!userData || !userData.custody_address) {
-      throw new Error("User not found or no custody address for FID");
-    }
-    const fetchedAddress = userData.custody_address;
-    const username = userData.username || "unknown";
 
-    // Verify userAddress if provided (for client-side mint)
-    if (userAddress && userAddress.toLowerCase() !== fetchedAddress.toLowerCase()) {
-      throw new Error("Provided userAddress does not match FID's custody address");
-    }
-    const recipientAddress = userAddress || fetchedAddress;
+    // Upload metadata to IPFS
+    const tokenURI = await uploadMetadataToPinata(metadata, countryCode, tokenId || 0);
 
-    // Check balance (no multiples)
-    const balance = await contract.balanceOf(recipientAddress);
-    if (balance > 0 && !tokenId) {
-      return NextResponse.json({ error: "Already owns a passport" }, { status: 400 });
-    }
-
-    let transaction_hash, newTokenId;
-    
-    // Generate and upload metadata
-    const metadata = await generateMetadata(countryCode, countryName);
-    const tokenURI = await uploadToPinata(metadata);
-
-    // If tokenId provided, only set tokenURI (client-side mint)
+    // Two paths: 1) Set tokenURI for existing mint, 2) Server-side mint
     if (tokenId) {
-      console.log("Setting tokenURI for existing token:", tokenId);
+      // Path 1: Client already minted, just set tokenURI
+      console.log(`📝 Setting tokenURI for existing token ${tokenId}...`);
+
       const gasEstimateUri = await contract.setTokenURI.estimateGas(tokenId, tokenURI);
       const setUriTx = await contract.setTokenURI(tokenId, tokenURI, {
         gasLimit: gasEstimateUri * 120n / 100n,
       });
       await setUriTx.wait();
-      console.log(`Set tokenURI for token ${tokenId}: ${tokenURI}`);
+
+      console.log(`✅ TokenURI set for token ${tokenId}: ${tokenURI}`);
       transaction_hash = setUriTx.hash;
       newTokenId = tokenId;
+
     } else {
-      // Server-side mint (deployer pays 0.01 MON)
-      console.log("Minting directly to:", recipientAddress);
-      const gasEstimate = await contract.mint.estimateGas(recipientAddress);
-      console.log("Gas estimate:", gasEstimate.toString());
+      // Path 2: Server-side mint (deployer pays 0.01 MON)
+      console.log(`⚡ Minting passport to ${recipientAddress}...`);
+
+      // CRITICAL FIX: Include value in gas estimation
+      const gasEstimate = await contract.mint.estimateGas(recipientAddress, {
+        value: parseEther("0.01")
+      });
+      console.log(`⛽ Gas estimate: ${gasEstimate.toString()}`);
+
       const tx = await contract.mint(recipientAddress, {
         gasLimit: gasEstimate * 120n / 100n,
         value: parseEther("0.01"),
       });
-      console.log("Mint tx sent:", tx.hash);
+
+      console.log(`📤 Mint tx sent: ${tx.hash}`);
       const receipt = await tx.wait();
+
       if (receipt?.status !== 1) {
-        throw new Error(`Mint reverted: Check logs for reason`);
-      }
-      newTokenId = receipt.logs
-        .map((log: Log) => contract.interface.parseLog(log))
-        .find((parsedLog: LogDescription | null) => parsedLog?.name === "Transfer" && parsedLog.args.from === ZeroAddress)?.args.tokenId;
-      if (!newTokenId) {
-        throw new Error("Failed to extract tokenId from receipt");
+        throw new Error("Mint transaction reverted");
       }
 
+      // Extract tokenId from Transfer event
+      const transferLog = receipt.logs
+        .map((log: Log) => {
+          try {
+            return contract.interface.parseLog(log);
+          } catch {
+            return null;
+          }
+        })
+        .find((parsedLog: LogDescription | null) =>
+          parsedLog?.name === "Transfer" &&
+          parsedLog.args.from === ZeroAddress
+        );
+
+      if (!transferLog || !transferLog.args.tokenId) {
+        throw new Error("Failed to extract tokenId from mint receipt");
+      }
+
+      newTokenId = Number(transferLog.args.tokenId);
+      console.log(`🎫 Token ID: ${newTokenId}`);
+
+      // Now generate metadata with correct tokenId
+      const finalMetadata = generatePassportMetadata(countryCode, countryName, newTokenId);
+      const finalTokenURI = await uploadMetadataToPinata(finalMetadata, countryCode, newTokenId);
+
       // Set tokenURI
-      const gasEstimateUri = await contract.setTokenURI.estimateGas(newTokenId, tokenURI);
-      const setUriTx = await contract.setTokenURI(newTokenId, tokenURI, {
+      console.log(`📝 Setting tokenURI for token ${newTokenId}...`);
+      const gasEstimateUri = await contract.setTokenURI.estimateGas(newTokenId, finalTokenURI);
+      const setUriTx = await contract.setTokenURI(newTokenId, finalTokenURI, {
         gasLimit: gasEstimateUri * 120n / 100n,
       });
       await setUriTx.wait();
-      console.log(`Set tokenURI for token ${newTokenId}: ${tokenURI}`);
+
+      console.log(`✅ TokenURI set: ${finalTokenURI}`);
       transaction_hash = tx.hash;
     }
 
     // Post cast via empowertoursbot
-    try {
-      await axios.post(
-        "https://api.neynar.com/v2/farcaster/cast",
-        {
-          text: `🌍 New EmpowerTours Passport minted for ${countryName}! @${username} Token #${newTokenId}\n\nView: https://harlequin-used-hare-224.mypinata.cloud/ipfs/${tokenURI.split("ipfs://")[1]}`,
-          signer_uuid: process.env.BOT_SIGNER_UUID,
-        },
-        {
-          headers: { api_key: NEYNAR_API_KEY },
-        }
-      );
-      console.log("Cast posted via empowertoursbot");
-    } catch (castError: any) {
-      console.warn("Failed to post cast, but mint succeeded:", castError.message);
+    if (fid) {
+      try {
+        const castText = `🎫 New EmpowerTours Passport Minted!\n\n${countryInfo?.flag || ''} ${countryName} ${countryCode}\n\nToken #${newTokenId}\n\n@${username}\n\nView: https://testnet.monadscan.com/tx/${transaction_hash}\n\n@empowertours`;
+
+        await axios.post(
+          "https://api.neynar.com/v2/farcaster/cast",
+          {
+            text: castText,
+            signer_uuid: process.env.BOT_SIGNER_UUID,
+          },
+          {
+            headers: { api_key: NEYNAR_API_KEY },
+          }
+        );
+
+        console.log("📢 Cast posted via empowertoursbot");
+      } catch (castError: any) {
+        console.warn("⚠️ Failed to post cast (mint still succeeded):", castError.message);
+      }
     }
 
     return NextResponse.json({
@@ -226,14 +247,27 @@ export async function POST(req: NextRequest) {
       txHash: transaction_hash,
       tokenId: Number(newTokenId),
       tokenURI,
+      country: {
+        code: countryCode,
+        name: countryName,
+        flag: countryInfo?.flag,
+        region: countryInfo?.region,
+        continent: countryInfo?.continent,
+      },
+      metadata,
     });
+
   } catch (error: any) {
-    console.error("Mint error details:", {
+    console.error("❌ Mint error:", {
       message: error.message,
       reason: error.reason || error.shortMessage,
       data: error.data,
       response: error.response?.data,
     });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({
+      error: error.message || "Mint failed",
+      details: error.reason || error.shortMessage,
+    }, { status: 500 });
   }
 }

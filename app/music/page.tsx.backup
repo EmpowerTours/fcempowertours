@@ -1,32 +1,31 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+
+import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
 const MUSIC_NFT_V3_ADDRESS = '0x821ad43127ED630aAe974BA0Aa063235af8d00Dd';
-const MAX_WALLET_WAIT_RETRIES = 3;
 
 export default function MusicPage() {
   const { ready, authenticated, user, login } = usePrivy();
-  const retryCount = useRef(0);
-  const hasCheckedWallet = useRef(false);
 
-  // ✅ IMPROVED WALLET DETECTION
+  // More robust wallet detection
   const getWalletAddress = () => {
     if (!user) return null;
+    
+    // Try embedded wallet first
     if (user.wallet?.address) {
-      console.log('✅ Found embedded wallet:', user.wallet.address);
       return user.wallet.address;
     }
-    if (user.linkedAccounts && user.linkedAccounts.length > 0) {
-      const walletAccount = user.linkedAccounts.find(
-        (acc: any) => acc.type === 'wallet' || acc.address
-      );
-      if (walletAccount && 'address' in walletAccount) {
-        console.log('✅ Found linked wallet:', (walletAccount as any).address);
-        return (walletAccount as any).address;
-      }
+    
+    // Try linked accounts
+    const walletAccount = user.linkedAccounts?.find(
+      (acc: any) => acc.type === 'wallet' || acc.type === 'ethereum'
+    );
+    
+    if (walletAccount && 'address' in walletAccount) {
+      return (walletAccount as any).address;
     }
-    console.warn('❌ No wallet found for user');
+    
     return null;
   };
 
@@ -41,54 +40,19 @@ export default function MusicPage() {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
-  const [waitingForWallet, setWaitingForWallet] = useState(false);
 
+  // Debug wallet detection with more info
   useEffect(() => {
-    if (user) {
-      console.log('🔍 Wallet Detection:', {
-        authenticated,
-        walletAddress,
-        hasEmbeddedWallet: !!user.wallet?.address,
-        linkedAccountsCount: user.linkedAccounts?.length || 0,
-        linkedAccountTypes: user.linkedAccounts?.map((acc: any) => acc.type) || [],
-      });
-    }
-  }, [authenticated, walletAddress, user]);
-
-  // ✅ FIXED: Auto-reload with retry limit and better logic
-  useEffect(() => {
-    // Only run this once authentication is complete
-    if (!authenticated || !user || hasCheckedWallet.current) return;
-
-    hasCheckedWallet.current = true;
-
-    // If we have a wallet, we're good
-    if (walletAddress) {
-      console.log('✅ Wallet found immediately');
-      setWaitingForWallet(false);
-      return;
-    }
-
-    // If Privy is still creating the wallet
-    if (!user.wallet && retryCount.current < MAX_WALLET_WAIT_RETRIES) {
-      console.log(`🔄 Waiting for Privy to create embedded wallet... (attempt ${retryCount.current + 1}/${MAX_WALLET_WAIT_RETRIES})`);
-      setWaitingForWallet(true);
-      
-      const timer = setTimeout(() => {
-        retryCount.current += 1;
-        console.log(`⚠️ Retry ${retryCount.current}/${MAX_WALLET_WAIT_RETRIES}: Reloading...`);
-        window.location.reload();
-      }, 5000); // Wait 5 seconds between retries
-
-      return () => clearTimeout(timer);
-    }
-
-    // If we've exceeded retries, show error instead of infinite loop
-    if (retryCount.current >= MAX_WALLET_WAIT_RETRIES) {
-      console.error('❌ Max retries exceeded, wallet not created');
-      setWaitingForWallet(false);
-      setError('Wallet creation failed. Please try logging out and back in, or contact support.');
-    }
+    console.log('🔍 Wallet Detection:', {
+      authenticated,
+      walletAddress,
+      hasUser: !!user,
+      hasWallet: !!user?.wallet,
+      walletType: user?.wallet ? 'embedded' : 'none',
+      linkedAccountsCount: user?.linkedAccounts?.length || 0,
+      linkedAccountTypes: user?.linkedAccounts?.map((acc: any) => acc.type) || [],
+      allLinkedAccounts: user?.linkedAccounts || [],
+    });
   }, [authenticated, walletAddress, user]);
 
   const handleFileChange = (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
@@ -101,18 +65,31 @@ export default function MusicPage() {
     };
 
   const uploadAndMint = async () => {
+    console.log('🔍 Starting validation...', {
+      previewFile: !!previewFile,
+      fullFile: !!fullFile,
+      coverFile: !!coverFile,
+      description: !!description,
+      walletAddress: !!walletAddress,
+      authenticated
+    });
+
+    // File size validation with more lenient limits
     if (previewFile && previewFile.size > 600 * 1024) {
       setError(`Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`);
       return;
     }
+
     if (fullFile && fullFile.size > 15 * 1024 * 1024) {
       setError(`Full track too large: ${(fullFile.size / 1024 / 1024).toFixed(1)}MB (max 15MB)`);
       return;
     }
+
     if (coverFile && coverFile.size > 3 * 1024 * 1024) {
       setError(`Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`);
       return;
     }
+
     if (!previewFile || !fullFile || !coverFile || !description || !walletAddress) {
       const missing = [];
       if (!previewFile) missing.push('Preview Audio');
@@ -120,14 +97,23 @@ export default function MusicPage() {
       if (!coverFile) missing.push('Cover Art');
       if (!description) missing.push('Song Title');
       if (!walletAddress) missing.push('Wallet Connection');
-      
-      setError(`Please fill all fields: ${missing.join(', ')}`);
+
+      const errorMsg = `Missing: ${missing.join(', ')}`;
+      console.error('❌ Validation failed:', errorMsg);
+
+      if (!walletAddress) {
+        setError('Wallet not detected. Please wait a few seconds and try again, or refresh the page.');
+      } else {
+        setError(`Please fill all fields (${errorMsg})`);
+      }
       return;
     }
+
     setUploading(true);
     setError(null);
-    
+
     try {
+      // 1. Upload files to IPFS
       const formData = new FormData();
       formData.append('previewAudio', previewFile);
       formData.append('fullAudio', fullFile);
@@ -135,7 +121,8 @@ export default function MusicPage() {
       formData.append('description', description);
       formData.append('address', walletAddress);
       formData.append('fid', farcasterFid?.toString() || '0');
-      
+
+      console.log('📤 Uploading to IPFS...');
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
@@ -146,18 +133,20 @@ export default function MusicPage() {
         throw new Error(errorData.error || 'Upload failed');
       }
 
-      const uploadData = await uploadRes.json();
-      const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCID}`;
-      
+      const { tokenURI, metadataCID } = await uploadRes.json();
+      console.log('✅ Upload successful! TokenURI:', tokenURI);
+
+      // 2. Mint NFT (server-sponsored, FREE for user)
       setUploading(false);
       setMinting(true);
 
+      console.log('⚡ Minting NFT (server-sponsored)...');
       const mintRes = await fetch('/api/mint-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient: walletAddress,
-          tokenURI: tokenURI,
+          tokenURI,
           fid: farcasterFid || 0,
         }),
       });
@@ -168,13 +157,16 @@ export default function MusicPage() {
       }
 
       const { txHash, tokenId } = await mintRes.json();
+      console.log('✅ Mint successful! TX:', txHash, 'TokenID:', tokenId);
+
       setSuccess({ tokenId, txHash });
-      
+
       // Clear form
       setPreviewFile(null);
       setFullFile(null);
       setCoverFile(null);
       setDescription('');
+
     } catch (err: any) {
       console.error('❌ Error:', err);
       setError(err.message || 'Something went wrong');
@@ -184,6 +176,7 @@ export default function MusicPage() {
     }
   };
 
+  // Loading state
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -195,6 +188,7 @@ export default function MusicPage() {
     );
   }
 
+  // Not authenticated - show login prompt
   if (!authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
@@ -204,74 +198,44 @@ export default function MusicPage() {
             Mint Music NFTs
           </h1>
           <p className="text-gray-600 mb-6">
-            Connect with Farcaster, Email, or your wallet to start minting music NFTs on Monad
+            Sign in with Farcaster to start minting your music as NFTs on Monad
           </p>
           <button
             onClick={login}
             className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg"
           >
-            Connect to Mint
+            Sign in with Farcaster
           </button>
-          <p className="text-xs text-gray-500 mt-3">
-            Privy will create a wallet for you automatically
-          </p>
         </div>
       </div>
     );
   }
 
-  if (waitingForWallet || (!walletAddress && retryCount.current < MAX_WALLET_WAIT_RETRIES)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">⏳</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Creating Your Wallet...
-          </h1>
-          <p className="text-gray-600 mb-4">
-            Privy is setting up your wallet. This usually takes 5-10 seconds.
-          </p>
-          <p className="text-sm text-gray-500 mb-6">
-            Attempt {retryCount.current + 1} of {MAX_WALLET_WAIT_RETRIES}
-          </p>
-          <div className="animate-pulse text-4xl mb-4">💫</div>
-          <p className="text-xs text-gray-400">
-            Please wait, page will refresh automatically...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+  // Authenticated but no wallet detected
   if (!walletAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Wallet Setup Failed
+            Creating Your Wallet...
           </h1>
           <p className="text-gray-600 mb-6">
-            {error || 'Unable to create or detect a wallet. Please try again.'}
+            Please wait while we create your embedded wallet. This usually takes 5-10 seconds.
           </p>
           <div className="space-y-3">
+            <div className="animate-pulse text-4xl">⏳</div>
             <button
-              onClick={() => {
-                retryCount.current = 0;
-                hasCheckedWallet.current = false;
-                window.location.reload();
-              }}
+              onClick={() => window.location.reload()}
               className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all"
             >
-              Try Again
+              Refresh if this takes too long
             </button>
             <button
               onClick={() => {
-                console.log('🔍 Debug Info:');
                 console.log('User object:', user);
-                console.log('Embedded wallet:', user?.wallet);
+                console.log('Wallet:', user?.wallet);
                 console.log('Linked accounts:', user?.linkedAccounts);
-                console.log('Retry count:', retryCount.current);
               }}
               className="w-full px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-all"
             >
@@ -283,10 +247,12 @@ export default function MusicPage() {
     );
   }
 
+  // Main upload/mint form
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               🎵 Mint Music NFT
@@ -298,18 +264,25 @@ export default function MusicPage() {
               <p className="text-sm font-bold text-green-900">
                 ✨ FREE Mint! We pay the gas fees for you
               </p>
-              <p className="text-xs text-green-700 mt-1">
-                Server wallet pays → NFT goes to your wallet
-              </p>
             </div>
           </div>
 
+          {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
               <p className="text-red-700 font-medium">❌ {error}</p>
+              {!walletAddress && (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                >
+                  Refresh Page
+                </button>
+              )}
             </div>
           )}
 
+          {/* Success Message */}
           {success && (
             <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
               <p className="text-green-700 font-bold text-lg mb-2">
@@ -322,11 +295,8 @@ export default function MusicPage() {
                 <p className="text-green-700">
                   <strong>Song:</strong> {description || 'Untitled'}
                 </p>
-                <p className="text-green-700 font-mono text-xs">
-                  <strong>Minted to:</strong> {walletAddress.slice(0, 8)}...{walletAddress.slice(-6)}
-                </p>
                 <div className="flex gap-2">
-                  <a
+                  
                     href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -334,7 +304,7 @@ export default function MusicPage() {
                   >
                     View on Explorer →
                   </a>
-                  <a
+                  
                     href="/profile"
                     className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
                   >
@@ -345,11 +315,12 @@ export default function MusicPage() {
             </div>
           )}
 
+          {/* Wallet Info */}
           <div className="mb-6 p-4 bg-purple-50 rounded-lg">
             <p className="text-sm text-purple-900">
               <strong>✅ Wallet Connected:</strong>{' '}
               <span className="font-mono text-xs">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
               </span>
             </p>
             {farcasterFid && (
@@ -359,7 +330,9 @@ export default function MusicPage() {
             )}
           </div>
 
+          {/* Upload Form */}
           <div className="space-y-6">
+            {/* Song Title */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Song Title *
@@ -377,6 +350,7 @@ export default function MusicPage() {
               </p>
             </div>
 
+            {/* Preview Audio */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Preview Audio (30s clip) *
@@ -400,6 +374,7 @@ export default function MusicPage() {
               </p>
             </div>
 
+            {/* Full Audio */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Full Track *
@@ -423,6 +398,7 @@ export default function MusicPage() {
               </p>
             </div>
 
+            {/* Cover Art */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Cover Art *
@@ -453,6 +429,7 @@ export default function MusicPage() {
               </p>
             </div>
 
+            {/* Submit Button */}
             <button
               onClick={uploadAndMint}
               disabled={
@@ -469,20 +446,21 @@ export default function MusicPage() {
               {uploading ? (
                 '⏳ Uploading to IPFS...'
               ) : minting ? (
-                '⚡ Minting NFT (FREE)...'
+                '⚡ Minting NFT...'
               ) : (
                 '🎵 Upload & Mint (FREE!)'
               )}
             </button>
 
+            {/* Info */}
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-sm text-blue-900 font-medium mb-2">
                 ℹ️ How it works:
               </p>
               <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
                 <li>Upload files to IPFS (decentralized storage)</li>
-                <li>Server wallet mints NFT (FREE - we pay gas!)</li>
-                <li>NFT is sent to <strong>your wallet</strong> automatically</li>
+                <li>We mint the NFT for you (FREE - we pay gas!)</li>
+                <li>NFT appears in your wallet automatically</li>
                 <li>Share on Farcaster or list on marketplaces</li>
               </ol>
             </div>

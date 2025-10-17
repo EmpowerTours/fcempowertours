@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useAccount, useConnect, useSwitchChain, useWriteContract } from 'wagmi';
 import { isAddress } from 'viem';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

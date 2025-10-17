@@ -1,318 +1,159 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { JsonRpcProvider, parseEther, ZeroAddress, Contract } from 'ethers';
-import { useAccount } from 'wagmi';
-import { usePrivy, useLogin } from '@privy-io/react-auth';
-import { sdk } from '@farcaster/miniapp-sdk';
-import PassportNFTABI from '../../lib/abis/PassportNFT.json';
+import { useState, useEffect } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
-const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
-const MONAD_RPC = 'https://testnet-rpc.monad.xyz';
+export default function PassportPage() {
+  const { ready, authenticated, user, login } = usePrivy();
+  
+  // Get wallet from Privy
+  const walletAddress = user?.wallet?.address;
+  const farcasterFid = user?.farcaster?.fid;
 
-interface PassportForm {
-  countryCode: string;
-  countryName: string;
-  manualFid?: string;
-}
-
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
-}
-
-function ClientOnlyPassport() {
-  const { address: userAddress } = useAccount();
-  const { authenticated, ready, user, login } = usePrivy();
-  const { sendTransaction } = usePrivy();
-  const [contract, setContract] = useState<Contract | null>(null);
-  const [provider, setProvider] = useState<JsonRpcProvider | null>(null);
-  const [form, setForm] = useState<PassportForm>({ countryCode: '', countryName: '', manualFid: '' });
+  const [form, setForm] = useState({ countryCode: '', countryName: '' });
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingContract, setIsLoadingContract] = useState(true);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [autoDetected, setAutoDetected] = useState(false);
   const [error, setError] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const loginAttempted = useRef(false);
-  const isWarpcast = navigator.userAgent.includes('warpcast');
+  const [success, setSuccess] = useState('');
 
+  // Auto-detect country
   useEffect(() => {
-    if (isWarpcast) {
+    if (!ready) return;
+    
+    async function fetchLocation() {
       try {
-        sdk.actions.ready();
-        console.log('Farcaster SDK ready called');
-      } catch (err: any) {
-        console.error('Farcaster SDK ready error:', String(err.message || err));
+        const res = await fetch('/api/geo');
+        if (res.ok) {
+          const data = await res.json();
+          setForm({ countryCode: data.country || '', countryName: data.country_name || '' });
+        }
+      } catch (err) {
+        console.error('Location detection failed:', err);
       }
     }
-  }, [isWarpcast]);
-
-  useEffect(() => {
-    const init = async () => {
-      setIsLoadingContract(true);
-      try {
-        const provider = new JsonRpcProvider(MONAD_RPC);
-        const passportContract = new Contract(PASSPORT_NFT_ADDRESS, PassportNFTABI, provider);
-        setProvider(provider);
-        setContract(passportContract);
-        console.log('Contract initialized:', PASSPORT_NFT_ADDRESS);
-      } catch (err: any) {
-        console.error('Contract init failed:', String(err.message || err));
-        setError('Failed to initialize contract');
-      } finally {
-        setIsLoadingContract(false);
-      }
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    if (!ready) {
-      console.log('Privy not ready');
-      return;
-    }
-    setIsLoadingAuth(false);
-    console.log('Privy state:', {
-      ready,
-      authenticated,
-      user: user ? { fid: user.farcaster?.fid, wallet: user.wallet?.address } : null,
-      isWarpcast,
-    });
-
-    const countryCookie = getCookie('country');
-    if (countryCookie) {
-      const countryMap: Record<string, string> = {
-        US: 'United States',
-        CA: 'Canada',
-        GB: 'United Kingdom',
-        FR: 'France',
-        DE: 'Germany',
-      };
-      const countryName = countryMap[countryCookie] || countryCookie;
-      setForm((prev) => ({ ...prev, countryCode: countryCookie, countryName }));
-      setAutoDetected(true);
-      console.log('Cookie-detected location:', { countryCode: countryCookie, countryName });
-    } else {
-      setError('No country data available; using default (US).');
-      setForm((prev) => ({ ...prev, countryCode: 'US', countryName: 'United States' }));
-      setAutoDetected(true);
-    }
+    
+    fetchLocation();
   }, [ready]);
 
-  useEffect(() => {
-    if (ready && authenticated && user) {
-      console.log('Privy updated:', { fid: user.farcaster?.fid, wallet: user.wallet?.address });
-      if (!user.farcaster?.fid && !form.manualFid) {
-        setError('Farcaster FID not found, please try logging in again or enter FID manually');
-      }
-    }
-  }, [ready, authenticated, user, form.manualFid]);
-
-  useEffect(() => {
-    if (ready && !authenticated && !loginAttempted.current) {
-      const performLogin = async () => {
-        loginAttempted.current = true;
-        setIsLoadingAuth(true);
-        try {
-          console.log('Initiating Farcaster login...', { isWarpcast });
-          await login();
-          console.log('Farcaster login completed');
-        } catch (err: any) {
-          console.error('Login error:', String(err.message || err));
-          setLoginError(`Farcaster login failed: ${String(err.message || 'Unknown error')}`);
-        } finally {
-          setIsLoadingAuth(false);
-        }
-      };
-      performLogin();
-    }
-  }, [ready, authenticated, login]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleLogin = async () => {
-    console.log('Forcing Farcaster login', { isWarpcast });
-    setIsLoadingAuth(true);
-    try {
-      await login();
-      console.log('Farcaster login completed');
-    } catch (err: any) {
-      console.error('Login error:', String(err.message || err));
-      setLoginError(`Farcaster login failed: ${String(err.message || 'Unknown error')}`);
-    } finally {
-      setIsLoadingAuth(false);
-    }
-  };
-
   const handleMint = async () => {
-    console.log('handleMint called with:', {
-      ready,
-      authenticated,
-      fid: user?.farcaster?.fid || form.manualFid,
-      userAddress,
-      countryCode: form.countryCode,
-      countryName: form.countryName,
-      contract: !!contract,
-      provider: !!provider,
-    });
-
-    if (!ready) {
-      setError('App not ready, please wait');
-      return;
-    }
-    if (!authenticated && !form.manualFid) {
-      setError('Please log in with Farcaster or enter FID manually');
-      handleLogin();
-      return;
-    }
-    if (!user?.farcaster?.fid && !form.manualFid) {
-      setError('Farcaster authentication failed: FID not found');
-      handleLogin();
-      return;
-    }
-    if (!form.countryCode || !form.countryName) {
-      setError('Country details not detected');
+    if (!walletAddress || !form.countryCode || !form.countryName) {
+      setError('Please fill all fields');
       return;
     }
 
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
     try {
-      if (userAddress && contract && provider) {
-        console.log('Attempting client-side mint with Privy...');
-        const tx = await sendTransaction({
-          chainId: 10143,
-          to: PASSPORT_NFT_ADDRESS,
-          data: contract.interface.encodeFunctionData('mint', [userAddress]),
-          value: parseEther("0.01"),
-        });
-        console.log('Tx sent:', tx.hash);
-        const receipt = await provider.waitForTransaction(tx.hash);
-        if (!receipt) {
-          throw new Error('Transaction receipt not found');
-        }
-        if (receipt.status !== 1) {
-          throw new Error('Transaction receipt failed');
-        }
-        const tokenId = receipt.logs
-          .map((log: any) => contract.interface.parseLog(log))
-          .find((log: any) => log?.name === 'Transfer' && log.args.from === ZeroAddress)?.args.tokenId;
-        if (!tokenId) {
-          throw new Error('Failed to extract tokenId');
-        }
+      // Server-side mint (same as your existing API)
+      const response = await fetch('/api/mint-passport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fid: farcasterFid,
+          userAddress: walletAddress,
+          countryCode: form.countryCode,
+          countryName: form.countryName,
+        }),
+      });
 
-        console.log('Calling /api/mint-passport for tokenURI and cast...', { tokenId });
-        const mintResponse = await fetch('/api/mint-passport', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fid: user?.farcaster?.fid || form.manualFid,
-            countryCode: form.countryCode,
-            countryName: form.countryName,
-            userAddress,
-            tokenId: Number(tokenId),
-          }),
-        });
-        if (!mintResponse.ok) {
-          throw new Error(`API error: ${mintResponse.status} ${await mintResponse.text()}`);
-        }
-        const { txHash, tokenURI } = await mintResponse.json();
-        alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
-      } else {
-        console.log('Client-side mint skipped, falling back to server-side mint...');
-        const mintResponse = await fetch('/api/mint-passport', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fid: user?.farcaster?.fid || form.manualFid,
-            countryCode: form.countryCode,
-            countryName: form.countryName,
-          }),
-        });
-        if (!mintResponse.ok) {
-          throw new Error(`Server mint failed: ${mintResponse.status} ${await mintResponse.text()}`);
-        }
-        const { tokenId, txHash, tokenURI } = await mintResponse.json();
-        alert(`Minted Passport #${tokenId}! Tx: ${txHash}, URI: ${tokenURI}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Mint failed');
       }
+
+      const { txHash, tokenId } = await response.json();
+      setSuccess(`🎉 Passport #${tokenId} minted!`);
+      setForm({ countryCode: '', countryName: '' });
     } catch (err: any) {
-      console.error('Mint error:', String(err.message || err));
-      setError(`Mint failed: ${String(err.message || 'Unknown error')}`);
+      setError(err.message || 'Mint failed');
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-        <h1>Mint Your Travel Passport NFT</h1>
-        {isLoadingContract ? (
-          <p className="text-gray-500">Loading contract...</p>
-        ) : isLoadingAuth ? (
-          <p className="text-gray-500">Authenticating with Farcaster...</p>
-        ) : ready && authenticated && userAddress ? (
-          <p>Wallet: {String(userAddress).slice(0, 6)}...{String(userAddress).slice(-4)}</p>
-        ) : (
-          <button onClick={handleLogin} style={{ padding: '10px 20px', margin: '10px' }} disabled={isLoadingAuth}>
-            {isLoadingAuth ? 'Logging in...' : 'Connect with Farcaster'}
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin text-4xl">⏳</div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900 p-4">
+        <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 max-w-md">
+          <div className="text-6xl mb-4">🌍</div>
+          <h1 className="text-3xl font-bold text-white mb-4">Travel Passport NFT</h1>
+          <p className="text-gray-400 mb-6">Connect to mint your passport</p>
+          <button onClick={login} className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-blue-700">
+            Connect with Farcaster
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-blue-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 shadow-2xl p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">🌍 Travel Passport NFT</h1>
+          <p className="text-gray-400">Mint your digital passport on Monad</p>
+        </div>
+
+        <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
+          <p className="text-green-300 text-sm font-mono">
+            ✅ Connected: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-3">
+            <p className="text-red-300 text-sm">❌ {error}</p>
+          </div>
         )}
-        {loginError && <p style={{ color: 'red' }}>{String(loginError)}</p>}
-        {error && <p style={{ color: 'red' }}>{String(error)}</p>}
-        {isLoadingContract || isLoadingAuth ? null : autoDetected ? (
-          <>
-            <h2>Detected Location:</h2>
-            <p style={{ color: 'green' }}>Auto-filled from your IP (via cookie)!</p>
-            <p><strong>Country Code:</strong> {String(form.countryCode)}</p>
-            <p><strong>Country Name:</strong> {String(form.countryName)}</p>
-          </>
-        ) : (
-          <p className="text-gray-500">Detecting location...</p>
+
+        {success && (
+          <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
+            <p className="text-green-300 text-sm">{success}</p>
+          </div>
         )}
-        <form>
+
+        <div className="space-y-4 mb-6">
           <input
             type="text"
-            name="manualFid"
-            placeholder="Enter FID manually (if login fails)"
-            value={String(form.manualFid || '')}
-            onChange={handleInputChange}
-            style={{ margin: '10px', padding: '8px', width: '200px' }}
-            disabled={isLoading}
+            name="countryCode"
+            placeholder="Country Code (e.g., MX)"
+            value={form.countryCode}
+            onChange={(e) => setForm({...form, countryCode: e.target.value.toUpperCase()})}
+            maxLength={2}
+            className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 uppercase"
           />
-        </form>
+
+          <input
+            type="text"
+            name="countryName"
+            placeholder="Country Name (e.g., Mexico)"
+            value={form.countryName}
+            onChange={(e) => setForm({...form, countryName: e.target.value})}
+            className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500"
+          />
+        </div>
+
         <button
           onClick={handleMint}
-          disabled={!ready || isLoading || isLoadingContract || isLoadingAuth || !form.countryCode || !form.countryName || (!user?.farcaster?.fid && !form.manualFid)}
-          style={{ padding: '10px 20px', margin: '10px' }}
+          disabled={isLoading || !form.countryCode || !form.countryName}
+          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Minting...' : 'Mint Passport'}
+          {isLoading ? '⏳ Minting...' : '🎫 Mint Passport (0.01 MON)'}
         </button>
-        <button
-          onClick={() => console.log('Debug Privy:', { ready, authenticated, user: user ? { fid: user.farcaster?.fid } : null, fid: user?.farcaster?.fid })}
-          style={{ padding: '10px 20px', margin: '10px', background: '#ccc' }}
-        >
-          Debug Privy State
-        </button>
-        <p><small>Detected via IP geolocation cookie. Manual FID fallback if login fails.</small></p>
+
+        <p className="text-gray-500 text-xs text-center mt-4">
+          📍 Location auto-detected. Free mint - we pay gas!
+        </p>
       </div>
     </div>
   );
-}
-
-export default function PassportPage() {
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => setIsMounted(true), []);
-
-  if (!isMounted) return <div>Loading...</div>;
-
-  return <ClientOnlyPassport />;
 }

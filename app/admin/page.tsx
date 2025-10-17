@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useReadContract, useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
 import TokenSwapABI from '../../lib/abis/TokenSwap.json';
 import { sdk } from '@farcaster/miniapp-sdk';

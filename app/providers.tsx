@@ -2,14 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider } from 'wagmi';
 import { PrivyProvider } from '@privy-io/react-auth';
+import { WagmiProvider, createConfig, http } from 'wagmi';
 import type { ReactNode } from 'react';
-import type { State } from 'wagmi';
-import { getConfig } from './music/config';
 import { monadTestnet } from './chains';
 
-// Error boundary component (from your ClientProviders)
+// Create wagmi config
+const wagmiConfig = createConfig({
+  chains: [monadTestnet],
+  transports: {
+    [monadTestnet.id]: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
+  },
+});
+
+// Error boundary component
 function ErrorBoundary({ children }: { children: ReactNode }) {
   const [hasError, setHasError] = useState(false);
 
@@ -36,16 +42,15 @@ function ErrorBoundary({ children }: { children: ReactNode }) {
 
 type Props = {
   children: ReactNode;
-  initialState?: State; // From Wagmi SSR
 };
 
-export function Providers({ children, initialState }: Props) {
+export function Providers({ children }: Props) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 1000 * 60 * 5, // 5 minutes
+            staleTime: 1000 * 60 * 5,
             retry: (failureCount, error: any) => {
               if (error?.status === 404) {
                 return false;
@@ -57,19 +62,19 @@ export function Providers({ children, initialState }: Props) {
       })
   );
 
-  const [config] = useState(() => getConfig()); // Client-only creation
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={config} initialState={initialState}>
+        <WagmiProvider config={wagmiConfig}>
           <PrivyProvider
             appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
             config={{
               loginMethods: ['farcaster'],
               embeddedWallets: {
-                ethereum: { createOnLogin: 'users-without-wallets' },
+                createOnLogin: 'users-without-wallets',
+                requireUserPasswordOnCreate: false,
               },
+              supportedChains: [monadTestnet],
               appearance: {
                 theme: 'light',
                 accentColor: '#6763F5',

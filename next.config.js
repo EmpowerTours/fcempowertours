@@ -12,9 +12,6 @@ const nextConfig = {
     '@privy-io/react-auth',
     '@privy-io/server-auth',
     '@farcaster/miniapp-sdk',
-    'wagmi',
-    '@wagmi/core',
-    'viem',
     'ethers',
   ],
   async headers() {

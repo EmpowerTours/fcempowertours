@@ -1,0 +1,67 @@
+type MusicNFT @entity {
+  id: ID!
+  tokenId: String!
+  contract: String!
+  artist: String!
+  owner: String!
+  tokenURI: String!
+  coverArt: String
+  mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type PassportNFT @entity {
+  id: ID!
+  tokenId: String!
+  contract: String!
+  owner: String!
+  countryCode: String
+  tokenURI: String          # ← ADDED THIS LINE
+  mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type Itinerary @entity {
+  id: ID!
+  itineraryId: String!
+  creator: String!
+  description: String
+  price: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  purchases: [ItineraryPurchase!]! @derivedFrom(field: "itinerary")
+}
+
+type ItineraryPurchase @entity {
+  id: ID!
+  itinerary: Itinerary!
+  itineraryId: String!
+  buyer: String!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UserStats @entity {
+  id: ID!
+  address: String!
+  musicNFTCount: Int!
+  passportNFTCount: Int!
+  itinerariesCreated: Int!
+  itinerariesPurchased: Int!
+  totalNFTs: Int!
+  lastActive: Timestamp!
+}
+
+type GlobalStats @entity {
+  id: ID!
+  totalMusicNFTs: Int!
+  totalPassports: Int!
+  totalItineraries: Int!
+  totalItineraryPurchases: Int!
+  totalUsers: Int!
+  lastUpdated: Timestamp!
+}
