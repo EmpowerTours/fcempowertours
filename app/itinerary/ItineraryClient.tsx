@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@radix-ui/react-accordion';
 import { toast } from 'sonner';
+import { useAccount, useConnect, useSwitchChain, useWriteContract } from 'wagmi';
 import Image from 'next/image';
 import { monadTestnet } from '../chains';
 import ItineraryNFTABI from '@/lib/abis/ItineraryNFT.json';
