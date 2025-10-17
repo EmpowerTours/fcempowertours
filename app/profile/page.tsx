@@ -28,7 +28,7 @@ export default function ProfilePage() {
   const walletAddress = getWalletAddress();
   const farcasterUsername = user?.farcaster?.username;
   const farcasterFid = user?.farcaster?.fid;
-  const farcasterPfp = user?.farcaster?.pfpUrl || user?.farcaster?.pfp;
+  const farcasterPfp = (user?.farcaster as any)?.pfpUrl || user?.farcaster?.pfp;
 
   const [passportNFTs, setPassportNFTs] = useState<any[]>([]);
   const [musicNFTs, setMusicNFTs] = useState<any[]>([]);
