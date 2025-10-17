@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PrivyProvider } from '@privy-io/react-auth';
@@ -18,14 +17,9 @@ const wagmiConfig = createConfig({
 // Error boundary component
 function ErrorBoundary({ children }: { children: ReactNode }) {
   const [hasError, setHasError] = useState(false);
-
   useEffect(() => {
-    const errorHandler = (error: Error, errorInfo: any) => {
-      console.error('ErrorBoundary caught:', {
-        errorMessage: String(error.message || error),
-        errorStack: String(error.stack || 'No stack'),
-        errorInfo: JSON.stringify(errorInfo || {}),
-      });
+    const errorHandler = (error: Error) => {
+      console.error('ErrorBoundary caught:', error);
       setHasError(true);
     };
     if (typeof window !== 'undefined') {
@@ -33,7 +27,6 @@ function ErrorBoundary({ children }: { children: ReactNode }) {
       return () => window.removeEventListener('error', errorHandler as any);
     }
   }, []);
-
   if (hasError) {
     return <div>Something went wrong. Please refresh.</div>;
   }
@@ -71,8 +64,9 @@ export function Providers({ children }: Props) {
             config={{
               loginMethods: ['farcaster'],
               embeddedWallets: {
-                createOnLogin: 'users-without-wallets',
-                requireUserPasswordOnCreate: false,
+                ethereum: {
+                  createOnLogin: 'users-without-wallets',
+                },
               },
               supportedChains: [monadTestnet],
               appearance: {
