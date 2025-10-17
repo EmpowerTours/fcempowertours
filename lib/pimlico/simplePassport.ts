@@ -29,7 +29,6 @@ export async function mintPassportWithPimlico(recipientAddress: string, countryC
       deployParams: [owner.address, [], [], []],
       deploySalt: '0x',
       signer: {
-        type: 'local' as const,
         getAddress: async () => owner.address,
         signMessage: async ({ message }: { message: any }) => {
           if (typeof message === 'string') {
