@@ -35,6 +35,7 @@ export async function mintPassportGasless(userAddress: string) {
     implementation: Implementation.Hybrid,
     deployParams: [owner.address, [], [], []],
     deploySalt: '0x',
+    signer: owner,
   });
   console.log('✅ Smart account created at:', smartAccount.address);
 
