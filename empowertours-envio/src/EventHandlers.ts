@@ -1,16 +1,16 @@
 import {
-  MusicNFTv3,
+  MusicLicenseNFT,
   PassportNFT,
   Marketplace,
 } from "generated";
 
 // ============================================
-// MUSIC NFT EVENTS
+// MUSIC LICENSE NFT EVENTS
 // ============================================
 
-// Music NFT Minted Event
-MusicNFTv3.MusicMinted.handler(async ({ event, context }) => {
-  const { tokenId, artist, recipient, tokenURI } = event.params;
+// Music NFT Minted Event (with royalty tracking)
+MusicLicenseNFT.MusicMinted.handler(async ({ event, context }) => {
+  const { tokenId, artist, metadataURI, royaltyPercentage } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
 
@@ -19,18 +19,19 @@ MusicNFTv3.MusicMinted.handler(async ({ event, context }) => {
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
     artist: artist.toLowerCase(),
-    owner: recipient.toLowerCase(),
-    tokenURI,
+    owner: artist.toLowerCase(), // Initially owned by artist
+    tokenURI: metadataURI,
     coverArt: "",
+    royaltyPercentage: Number(royaltyPercentage),
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: "",
+    txHash: event.transaction.hash,
   };
 
   await context.MusicNFT.set(musicNFT);
 
   // Update user stats
-  const userId = recipient.toLowerCase();
+  const userId = artist.toLowerCase();
   let userStats = await context.UserStats.get(userId);
 
   const isNewUser = !userStats;
@@ -45,7 +46,7 @@ MusicNFTv3.MusicMinted.handler(async ({ event, context }) => {
   } else {
     await context.UserStats.set({
       id: userId,
-      address: recipient.toLowerCase(),
+      address: artist.toLowerCase(),
       musicNFTCount: 1,
       passportNFTCount: 0,
       itinerariesCreated: 0,
@@ -77,11 +78,55 @@ MusicNFTv3.MusicMinted.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🎵 Music NFT #${tokenId} minted for ${recipient}`);
+  context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} with ${royaltyPercentage}% royalty`);
+});
+
+// License Purchase Event
+MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
+  const { tokenId, buyer, price } = event.params;
+
+  const purchaseId = `license-${event.transaction.hash}-${event.logIndex}`;
+  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+
+  const licensePurchase = {
+    id: purchaseId,
+    music_id: musicNFTId,
+    tokenId: tokenId.toString(),
+    buyer: buyer.toLowerCase(),
+    price: price,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.LicensePurchase.set(licensePurchase);
+
+  context.log.info(`💳 License purchased for Music NFT #${tokenId} by ${buyer} for ${price}`);
+});
+
+// Royalty Payment Event
+MusicLicenseNFT.RoyaltyPaid.handler(async ({ event, context }) => {
+  const { tokenId, recipient, amount } = event.params;
+
+  const paymentId = `royalty-${event.transaction.hash}-${event.logIndex}`;
+
+  const royaltyPayment = {
+    id: paymentId,
+    tokenId: tokenId.toString(),
+    recipient: recipient.toLowerCase(),
+    amount: amount,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.RoyaltyPayment.set(royaltyPayment);
+
+  context.log.info(`💰 Royalty paid for Music NFT #${tokenId} to ${recipient}: ${amount}`);
 });
 
 // Music NFT Transfer Event
-MusicNFTv3.Transfer.handler(async ({ event, context }) => {
+MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   // Skip mints (already handled by MusicMinted)
@@ -102,7 +147,7 @@ MusicNFTv3.Transfer.handler(async ({ event, context }) => {
 });
 
 // ============================================
-// PASSPORT NFT EVENTS (UPDATED)
+// PASSPORT NFT EVENTS
 // ============================================
 
 // Passport NFT Transfer Event (handles mints and transfers)
@@ -113,17 +158,7 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
   if (from === "0x0000000000000000000000000000000000000000") {
     const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
 
-    // ✅ ADDED: Try to fetch tokenURI from contract
     let tokenURI = "";
-    try {
-      // Note: This requires the contract to have a tokenURI function
-      // If your PassportNFT contract doesn't expose tokenURI via events,
-      // the tokenURI will be set later via the API call in /api/mint-passport
-      context.log.info(`Attempting to fetch tokenURI for Passport #${tokenId}...`);
-      // tokenURI will be updated by the API after mint
-    } catch (error) {
-      context.log.warn(`Could not fetch tokenURI for Passport #${tokenId}`);
-    }
 
     const passportNFT = {
       id: passportNFTId,
@@ -131,10 +166,10 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
       contract: event.srcAddress.toLowerCase(),
       owner: to.toLowerCase(),
       countryCode: "",
-      tokenURI: tokenURI,  // ✅ ADDED: Store tokenURI (will be empty initially, updated by API)
+      tokenURI: tokenURI,
       mintedAt: new Date(event.block.timestamp * 1000),
       blockNumber: BigInt(event.block.number),
-      txHash: "",
+      txHash: event.transaction.hash,
     };
 
     await context.PassportNFT.set(passportNFT);
@@ -282,7 +317,6 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
 Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
   const { itineraryId, buyer } = event.params;
 
-  // Use block number and log index for unique ID
   const purchaseId = `purchase-${event.block.number}-${event.logIndex}`;
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
 
@@ -293,7 +327,7 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
     buyer: buyer.toLowerCase(),
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: "",
+    txHash: event.transaction.hash,
   };
 
   await context.ItineraryPurchase.set(purchase);

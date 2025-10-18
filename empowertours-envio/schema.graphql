@@ -6,7 +6,32 @@ type MusicNFT @entity {
   owner: String!
   tokenURI: String!
   coverArt: String
+  royaltyPercentage: Int       # ← NEW: Track royalty %
   mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  licenses: [LicensePurchase!]! @derivedFrom(field: "music")  # ← NEW: Track licenses sold
+}
+
+# ← NEW: Track license purchases
+type LicensePurchase @entity {
+  id: ID!
+  music: MusicNFT!
+  tokenId: String!
+  buyer: String!
+  price: BigInt!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ← NEW: Track royalty payments
+type RoyaltyPayment @entity {
+  id: ID!
+  tokenId: String!
+  recipient: String!
+  amount: BigInt!
+  timestamp: Timestamp!
   blockNumber: BigInt!
   txHash: String!
 }
@@ -17,7 +42,7 @@ type PassportNFT @entity {
   contract: String!
   owner: String!
   countryCode: String
-  tokenURI: String          # ← ADDED THIS LINE
+  tokenURI: String
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!

@@ -4,23 +4,26 @@ description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries
 
 networks:
   - id: 10143
-    start_block: 43165000  # ✅ CHANGED: Start before the passport mint
+    start_block: 43165000
     contracts:
-      - name: MusicNFTv3
+      # ✅ UPDATED: New MusicLicenseNFT contract with royalty tracking
+      - name: MusicLicenseNFT
         address:
-          - "0x821ad43127ED630aAe974BA0Aa063235af8d00Dd"
+          - "0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2"
         handler: src/EventHandlers.ts
         events:
-          - event: "MusicMinted(uint256 indexed tokenId, address indexed artist, address indexed recipient, string tokenURI)"
+          - event: "MusicMinted(uint256 indexed tokenId, address indexed artist, string metadataURI, uint256 royaltyPercentage)"
+          - event: "LicensePurchased(uint256 indexed tokenId, address indexed buyer, uint256 price)"
+          - event: "RoyaltyPaid(uint256 indexed tokenId, address indexed recipient, uint256 amount)"
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
-      
+
       - name: PassportNFT
         address:
           - "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4"
         handler: src/EventHandlers.ts
         events:
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
-      
+
       - name: Marketplace
         address:
           - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"

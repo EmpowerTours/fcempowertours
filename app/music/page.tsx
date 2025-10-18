@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
-const MUSIC_NFT_V3_ADDRESS = '0x821ad43127ED630aAe974BA0Aa063235af8d00Dd';
+const MUSIC_NFT_V3_ADDRESS = '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
 
 export default function MusicPage() {
   const { ready, authenticated, user, login } = usePrivy();
