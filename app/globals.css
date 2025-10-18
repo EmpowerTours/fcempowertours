@@ -102,3 +102,36 @@ nav button {
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
+
+/* Safe areas for Farcaster Mini App */
+.safe-area-inset-top {
+  height: env(safe-area-inset-top);
+}
+
+.safe-area-inset-bottom {
+  height: env(safe-area-inset-bottom);
+}
+
+/* Farcaster splash screen styles */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1s ease-in-out infinite;
+}
+
+/* Fix for Farcaster frame context */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-area-container {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
