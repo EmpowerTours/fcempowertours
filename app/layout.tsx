@@ -3,6 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 import ClientNav from './components/ClientNav';
 import ClientBotFrame from './components/ClientBotFrame';
+import FarcasterSDK from './components/FarcasterSDK';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
