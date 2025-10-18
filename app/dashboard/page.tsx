@@ -90,10 +90,10 @@ export default function DashboardPage() {
       setRecentMusic(music);
       setRecentPassports(passports);
 
-      console.log('✅ Dashboard data loaded:', { 
-        music: music.length, 
+      console.log('✅ Dashboard data loaded:', {
+        music: music.length,
         passports: passports.length,
-        totalUsers: globalStats?.totalUsers 
+        totalUsers: globalStats?.totalUsers
       });
     } catch (error: any) {
       console.error('❌ Error loading dashboard data:', error);
@@ -106,7 +106,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-7xl mx-auto space-y-6">
-        
+
         {/* Envio Header Banner */}
         <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-6 text-white relative overflow-hidden shadow-xl">
           <div className="absolute inset-0 opacity-20">
@@ -190,7 +190,7 @@ export default function DashboardPage() {
 
           {/* Recent Activity Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
+
             {/* Recent Passports */}
             <div>
               <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         {item.txHash && (
-                          
+                          <a
                             href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -288,7 +288,7 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         {item.txHash && (
-                          
+                          <a
                             href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
