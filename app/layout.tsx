@@ -4,7 +4,7 @@ import { Providers } from './providers';
 import ClientNav from './components/ClientNav';
 import ClientBotFrame from './components/ClientBotFrame';
 
-const APP_URL = 'https://fcempowertours-production-6551.up.railway.app';
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
@@ -49,53 +49,6 @@ export const metadata: Metadata = {
     capable: true,
     title: 'EmpowerTours',
     statusBarStyle: 'black-translucent',
-  },
-  other: {
-    // Farcaster Frame Properties (from manifest.json)
-    'fc:frame': 'vNext',
-    'fc:frame:image': `${APP_URL}/images/feed.png`,
-    'fc:frame:button:1': 'Open EmpowerTours',
-    'fc:frame:button:1:action': 'link',
-    'fc:frame:button:1:target': APP_URL,
-    
-    // Open Graph (extended)
-    'og:url': APP_URL,
-    'og:type': 'website',
-    'og:title': 'EmpowerTours - DigitalPassport',
-    'og:description': 'Mint and share Travel and Music NFTs on EmpowerTours.',
-    'og:image': `${APP_URL}/images/og-image.png`,
-    'og:image:width': '1200',
-    'og:image:height': '630',
-    'og:image:type': 'image/png',
-    'og:image:alt': 'EmpowerTours - Travel and Music NFTs',
-    
-    // Twitter Card (extended)
-    'twitter:card': 'summary_large_image',
-    'twitter:site': '@empowertours',
-    'twitter:creator': '@empowertours',
-    'twitter:title': 'EmpowerTours - DigitalPassport',
-    'twitter:description': 'Mint and share Travel and Music NFTs on EmpowerTours.',
-    'twitter:image': `${APP_URL}/images/og-image.png`,
-    
-    // Additional Manifest Frame Properties
-    'frame:name': 'EmpowerTours',
-    'frame:version': '1',
-    'frame:iconUrl': `${APP_URL}/images/icon.png`,
-    'frame:homeUrl': APP_URL,
-    'frame:imageUrl': `${APP_URL}/images/feed.png`,
-    'frame:buttonTitle': 'EmpowerTours',
-    'frame:splashImageUrl': `${APP_URL}/images/splash.png`,
-    'frame:splashBackgroundColor': '#353B48',
-    'frame:webhookUrl': `${APP_URL}/api/webhook`,
-    'frame:subtitle': 'Travel Stamp Buy Experiences',
-    'frame:description': 'Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.',
-    'frame:primaryCategory': 'social',
-    'frame:heroImageUrl': `${APP_URL}/images/hero.png`,
-    'frame:tagline': 'Unlock travel adventures',
-    'frame:ogTitle': 'EmpowerTours - DigitalPassport',
-    'frame:ogDescription': 'Mint and share Travel and Music NFTs on EmpowerTours.',
-    'frame:ogImageUrl': `${APP_URL}/images/og-image.png`,
-    'frame:castShareUrl': `${APP_URL}/share-cast`,
   },
 };
 
