@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
-const MUSIC_NFT_V3_ADDRESS = '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
 
 export default function MusicPage() {
   const { ready, authenticated, user, login } = usePrivy();
@@ -162,6 +162,20 @@ export default function MusicPage() {
                 Server wallet pays → NFT goes to your wallet
               </p>
             </div>
+            {/* Contract Address Display */}
+            <div className="mt-4 p-2 bg-purple-50 rounded-lg border border-purple-200">
+              <p className="text-xs text-purple-700">
+                <strong>Contract:</strong>{' '}
+                
+                  href={`https://testnet.monadscan.com/address/${MUSIC_NFT_ADDRESS}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono hover:underline"
+                >
+                  {MUSIC_NFT_ADDRESS.slice(0, 6)}...{MUSIC_NFT_ADDRESS.slice(-4)}
+                </a>
+              </p>
+            </div>
           </div>
 
           {error && (
@@ -186,7 +200,7 @@ export default function MusicPage() {
                   <strong>Minted to:</strong> {walletAddress?.slice(0, 8)}...{walletAddress?.slice(-6)}
                 </p>
                 <div className="flex gap-2">
-                  <a
+                  
                     href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -194,7 +208,7 @@ export default function MusicPage() {
                   >
                     View on Explorer →
                   </a>
-                  <a
+                  
                     href="/profile"
                     className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
                   >
