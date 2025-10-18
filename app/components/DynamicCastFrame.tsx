@@ -33,7 +33,7 @@ export default function DynamicCastFrame() {
       rotate: 360,
       transition: {
         repeat: Infinity,
-        ease: ['linear'], // FIXED for Framer Motion v11+
+        ease: 'linear', // FIXED for Framer Motion v11+
         duration: 20,
       },
     },
