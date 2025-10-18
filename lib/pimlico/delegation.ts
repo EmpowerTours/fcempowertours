@@ -21,14 +21,11 @@ export async function setupMusicMintingDelegation(
 ) {
   const { spendingLimit, maxMints, durationHours } = config;
   
-  // Create caveats for the delegation
-  const caveats = [
-    // Spending limit caveat
-    createCaveat(
-      ENFORCERS.nativeTokenTransfer,
-      parseEther(spendingLimit),
-      '0x'
-    ),
+  // createCaveat(
+  ENFORCERS.nativeTokenTransfer,
+  `0x${parseEther(spendingLimit).toString(16)}` as `0x${string}`,
+  '0x'
+),
     // Max number of mints
     createCaveat(
       ENFORCERS.callCount,
