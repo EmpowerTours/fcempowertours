@@ -3,12 +3,13 @@
 import React, { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
+const MUSIC_NFT_ADDRESS =
+  process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS ||
+  '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
 
 export default function MusicPage() {
   const { ready, authenticated, user, login } = usePrivy();
 
-  // FIXED: Simple wallet detection like passport page
   const walletAddress = user?.wallet?.address;
   const farcasterFid = user?.farcaster?.fid;
 
@@ -21,7 +22,8 @@ export default function MusicPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
 
-  const handleFileChange = (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
+  const handleFileChange =
+    (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
         const file = e.target.files[0];
@@ -50,7 +52,6 @@ export default function MusicPage() {
       if (!coverFile) missing.push('Cover Art');
       if (!description) missing.push('Song Title');
       if (!walletAddress) missing.push('Wallet Connection');
-
       setError(`Please fill all fields: ${missing.join(', ')}`);
       return;
     }
@@ -88,7 +89,7 @@ export default function MusicPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient: walletAddress,
-          tokenURI: tokenURI,
+          tokenURI,
           fid: farcasterFid || 0,
         }),
       });
@@ -101,7 +102,6 @@ export default function MusicPage() {
       const { txHash, tokenId } = await mintRes.json();
       setSuccess({ tokenId, txHash });
 
-      // Clear form
       setPreviewFile(null);
       setFullFile(null);
       setCoverFile(null);
@@ -148,25 +148,18 @@ export default function MusicPage() {
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              🎵 Mint Music NFT
-            </h1>
-            <p className="text-gray-600">
-              Upload your music and mint it as an NFT on Monad
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">🎵 Mint Music NFT</h1>
+            <p className="text-gray-600">Upload your music and mint it as an NFT on Monad</p>
             <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-              <p className="text-sm font-bold text-green-900">
-                ✨ FREE Mint! We pay the gas fees for you
-              </p>
-              <p className="text-xs text-green-700 mt-1">
-                Server wallet pays → NFT goes to your wallet
-              </p>
+              <p className="text-sm font-bold text-green-900">✨ FREE Mint! We pay the gas fees for you</p>
+              <p className="text-xs text-green-700 mt-1">Server wallet pays → NFT goes to your wallet</p>
             </div>
-            {/* Contract Address Display */}
+
+            {/* ✅ Fixed Contract Address Display */}
             <div className="mt-4 p-2 bg-purple-50 rounded-lg border border-purple-200">
               <p className="text-xs text-purple-700">
                 <strong>Contract:</strong>{' '}
-                
+                <a
                   href={`https://testnet.monadscan.com/address/${MUSIC_NFT_ADDRESS}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -186,9 +179,7 @@ export default function MusicPage() {
 
           {success && (
             <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
-              <p className="text-green-700 font-bold text-lg mb-2">
-                🎉 Music NFT Minted!
-              </p>
+              <p className="text-green-700 font-bold text-lg mb-2">🎉 Music NFT Minted!</p>
               <div className="space-y-2 text-sm">
                 <p className="text-green-700">
                   <strong>Token ID:</strong> #{success.tokenId}
@@ -199,8 +190,10 @@ export default function MusicPage() {
                 <p className="text-green-700 font-mono text-xs">
                   <strong>Minted to:</strong> {walletAddress?.slice(0, 8)}...{walletAddress?.slice(-6)}
                 </p>
+
+                {/* ✅ Fixed Explorer + Profile links */}
                 <div className="flex gap-2">
-                  
+                  <a
                     href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -208,7 +201,7 @@ export default function MusicPage() {
                   >
                     View on Explorer →
                   </a>
-                  
+                  <a
                     href="/profile"
                     className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
                   >
@@ -239,16 +232,15 @@ export default function MusicPage() {
                 ⚠️ Wallet not detected. Privy is creating your embedded wallet...
               </p>
               <p className="text-yellow-700 text-sm mt-1">
-                This usually takes 5-10 seconds. Please wait or refresh the page.
+                This usually takes 5–10 seconds. Please wait or refresh the page.
               </p>
             </div>
           )}
 
+          {/* Form fields */}
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Song Title *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Song Title *</label>
               <input
                 type="text"
                 value={description}
@@ -257,15 +249,12 @@ export default function MusicPage() {
                 maxLength={200}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                {description.length}/200 characters
-              </p>
+              <p className="text-xs text-gray-500 mt-1">{description.length}/200 characters</p>
             </div>
 
+            {/* Preview Audio */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Preview Audio (30s clip) *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Preview Audio (30s clip) *</label>
               <input
                 type="file"
                 accept="audio/*"
@@ -285,10 +274,9 @@ export default function MusicPage() {
               </p>
             </div>
 
+            {/* Full Track */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Track *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Full Track *</label>
               <input
                 type="file"
                 accept="audio/*"
@@ -303,15 +291,12 @@ export default function MusicPage() {
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                Max 15MB - Only NFT owners can access
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Max 15MB - Only NFT owners can access</p>
             </div>
 
+            {/* Cover Art */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cover Art *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cover Art *</label>
               <input
                 type="file"
                 accept="image/*"
@@ -333,11 +318,10 @@ export default function MusicPage() {
                   />
                 </div>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                JPG, PNG, or WebP - Max 3MB
-              </p>
+              <p className="text-xs text-gray-500 mt-1">JPG, PNG, or WebP - Max 3MB</p>
             </div>
 
+            {/* Mint button */}
             <button
               onClick={uploadAndMint}
               disabled={
@@ -351,19 +335,16 @@ export default function MusicPage() {
               }
               className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
             >
-              {uploading ? (
-                '⏳ Uploading to IPFS...'
-              ) : minting ? (
-                '⚡ Minting NFT (FREE)...'
-              ) : (
-                '🎵 Upload & Mint (FREE!)'
-              )}
+              {uploading
+                ? '⏳ Uploading to IPFS...'
+                : minting
+                ? '⚡ Minting NFT (FREE)...'
+                : '🎵 Upload & Mint (FREE!)'}
             </button>
 
+            {/* Info box */}
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-900 font-medium mb-2">
-                ℹ️ How it works:
-              </p>
+              <p className="text-sm text-blue-900 font-medium mb-2">ℹ️ How it works:</p>
               <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
                 <li>Upload files to IPFS (decentralized storage)</li>
                 <li>Server wallet mints NFT (FREE - we pay gas!)</li>
