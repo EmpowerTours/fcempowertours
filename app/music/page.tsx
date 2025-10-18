@@ -172,7 +172,7 @@ export default function MusicPage() {
                   rel="noopener noreferrer"
                   className="font-mono hover:underline"
                 >
-                  {MUSIC_NFT_ADDRESS.slice(0, 6)}...{MUSIC_NFT_ADDRESS.slice(-4)}
+                  {`${MUSIC_NFT_ADDRESS.slice(0, 6)}...${MUSIC_NFT_ADDRESS.slice(-4)}`}
                 </a>
               </p>
             </div>
