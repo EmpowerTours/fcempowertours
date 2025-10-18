@@ -9,20 +9,20 @@ import MusicNFT from '../abis/MusicNFT.json';
 export async function createUserSmartAccount(userPrivateKey: Hex) {
   const owner = privateKeyToAccount(userPrivateKey);
   const pimlicoClient = createPimlicoClientForMonad();
-
+  
   console.log('Creating MetaMask Smart Account for:', owner.address);
-
+  
   // Create MetaMask Smart Account
   const smartAccount = await toMetaMaskSmartAccount({
     client: publicClient,
     implementation: Implementation.Hybrid,
     deployParams: [owner.address, [], [], []],
     deploySalt: '0x',
-    signatory: { account: owner },
+    signer: { account: owner }, // Changed from signatory to signer
   });
-
+  
   console.log('✅ Smart Account Address:', smartAccount.address);
-
+  
   // Create smart account client with Pimlico paymaster
   const smartAccountClient = createSmartAccountClient({
     account: smartAccount,
@@ -35,22 +35,22 @@ export async function createUserSmartAccount(userPrivateKey: Hex) {
       },
     },
   });
-
+  
   return { smartAccount, smartAccountClient };
 }
 
 // Mint Music NFT via smart account (GASLESS!)
 export async function mintMusicNFTGasless(
   smartAccountClient: any,
-  recipient: string,
+  recipient: `0x${string}`,  // Fixed type
   metadataURI: string
 ) {
   const musicNFTAddress = '0x61A9d192b577EE197Db153753bAD5A93a772eB52' as `0x${string}`;
-
+  
   console.log('Minting Music NFT (gasless)...');
   console.log('Recipient:', recipient);
   console.log('Metadata:', metadataURI);
-
+  
   const txHash = await smartAccountClient.sendTransaction({
     to: musicNFTAddress,
     data: encodeFunctionData({
@@ -60,7 +60,7 @@ export async function mintMusicNFTGasless(
     }),
     value: 0n,
   });
-
+  
   console.log('✅ Music NFT minted! Tx:', txHash);
   return txHash;
 }
@@ -68,12 +68,12 @@ export async function mintMusicNFTGasless(
 // Mint Passport NFT via smart account (GASLESS!)
 export async function mintPassportNFTGasless(
   smartAccountClient: any,
-  recipient: string
+  recipient: `0x${string}`  // Fixed type
 ) {
   const passportNFTAddress = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4' as `0x${string}`;
-
+  
   console.log('Minting Passport NFT (gasless)...');
-
+  
   const txHash = await smartAccountClient.sendTransaction({
     to: passportNFTAddress,
     data: encodeFunctionData({
@@ -91,7 +91,7 @@ export async function mintPassportNFTGasless(
     }),
     value: 0n,
   });
-
+  
   console.log('✅ Passport NFT minted! Tx:', txHash);
   return txHash;
 }

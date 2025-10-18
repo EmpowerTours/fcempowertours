@@ -1,4 +1,5 @@
 import { notificationDetailsSchema } from "@farcaster/miniapp-core";
+import { MiniAppNotificationDetails } from "@farcaster/miniapp-sdk";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { setUserNotificationDetails } from "@/lib/kv";
@@ -15,14 +16,14 @@ export async function POST(request: NextRequest) {
 
   if (requestBody.success === false) {
     return Response.json(
-      { success: false, errors: requestBody.error.errors },
+      { success: false, errors: requestBody.error.issues },
       { status: 400 }
     );
   }
 
   await setUserNotificationDetails(
     requestBody.data.fid,
-    requestBody.data.notificationDetails
+    requestBody.data.notificationDetails as MiniAppNotificationDetails // Type assertion
   );
 
   const sendResult = await sendFrameNotification({
