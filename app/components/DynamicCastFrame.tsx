@@ -75,9 +75,9 @@ export default function DynamicCastFrame() {
           return [...prevCasts, ...newCasts].slice(-50);
         });
 
-        // Set current image from casts with media
-        const castsWithMedia = data.casts.filter((c: Cast) => c.embeds?.length > 0);
-        if (castsWithMedia.length > 0) {
+        // ✅ FIXED: Set current image from casts with media
+        const castsWithMedia = data.casts.filter((c: Cast) => c.embeds && c.embeds.length > 0);
+        if (castsWithMedia.length > 0 && castsWithMedia[0].embeds && castsWithMedia[0].embeds[0]) {
           setCurrentImage(castsWithMedia[0].embeds[0].url);
         }
       } catch (error) {
