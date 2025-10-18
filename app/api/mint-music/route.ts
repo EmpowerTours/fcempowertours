@@ -1,44 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract } from 'ethers';
 
-const MUSIC_NFT_ADDRESS = '0x821ad43127ED630aAe974BA0Aa063235af8d00Dd';
-const MONAD_RPC = 'https://testnet-rpc.monad.xyz';
+// ✅ NEW: Use environment variable with fallback
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
+// ✅ NEW: Updated ABI for MusicLicenseNFT contract
 const MUSIC_NFT_ABI = [
   {
     inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'tokenURI', type: 'string' },
-      { name: 'preview', type: 'bytes' },
-      { name: 'coverArtBase64', type: 'string' },
-      { name: 'artist', type: 'address' }
+      { name: 'artist', type: 'address' },
+      { name: 'metadataURI', type: 'string' },
+      { name: 'royaltyPercentage', type: 'uint256' }
     ],
-    name: 'mintFree',
-    outputs: [],
+    name: 'mintMusic',
+    outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'nonpayable',
     type: 'function',
+  },
+  // Add event for parsing
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'tokenId', type: 'uint256' },
+      { indexed: true, name: 'artist', type: 'address' },
+      { indexed: false, name: 'metadataURI', type: 'string' },
+      { indexed: false, name: 'royaltyPercentage', type: 'uint256' }
+    ],
+    name: 'MusicMinted',
+    type: 'event',
   },
 ];
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { recipient, metadataCid, previewCid, fullSongCid, coverCid, artist, fid } = body;
+    const { recipient, tokenURI, fid } = body;
 
     console.log('🎵 Music NFT mint request (server-paid FREE):', {
       recipient,
-      tokenURI: metadataCid ? `ipfs://${metadataCid}` : 'MISSING',
-      hasPreview: !!previewCid,
-      hasCoverArt: !!coverCid,
-      artist: artist || recipient,
-      fid
+      tokenURI,
+      fid,
+      contract: MUSIC_NFT_ADDRESS,
     });
 
-    const tokenURI = metadataCid ? `ipfs://${metadataCid}` : null;
     if (!recipient || !tokenURI) {
       return NextResponse.json(
-        { error: 'Missing recipient or metadataCid' },
+        { error: 'Missing recipient or tokenURI' },
         { status: 400 }
       );
     }
@@ -53,30 +62,60 @@ export async function POST(req: NextRequest) {
 
     console.log('⚡ Minting music NFT (server pays - FREE for user)...');
 
-    const previewBytes = previewCid ? Buffer.from(`ipfs://${previewCid}`).toString('hex') : '0x';
-    const coverArtBase64 = coverCid ? `ipfs://${coverCid}` : '';
-    const artistAddress = artist || recipient;
+    // ✅ NEW: Call mintMusic with artist, metadataURI, and royalty percentage
+    // Default royalty: 10% (1000 basis points)
+    const royaltyPercentage = 10; // 10%
 
-    const tx = await contract.mintFree(
-      recipient,
-      tokenURI,
-      `0x${Buffer.from(previewBytes).toString('hex')}`,
-      coverArtBase64,
-      artistAddress
+    const tx = await contract.mintMusic(
+      recipient, // artist address
+      tokenURI,  // metadata URI
+      royaltyPercentage // royalty percentage
     );
 
     console.log('📤 Mint tx sent:', tx.hash);
+
     const receipt = await tx.wait();
 
     if (receipt?.status !== 1) {
       throw new Error('Mint transaction failed');
     }
 
-    console.log('✅ Music NFT minted (FREE - server paid gas)!');
+    // ✅ Extract tokenId from event logs
+    let tokenId = 0;
+    if (receipt.logs && receipt.logs.length > 0) {
+      try {
+        const iface = new ethers.Interface(MUSIC_NFT_ABI);
+        for (const log of receipt.logs) {
+          try {
+            const parsed = iface.parseLog({
+              topics: log.topics as string[],
+              data: log.data,
+            });
+            if (parsed?.name === 'MusicMinted') {
+              tokenId = Number(parsed.args[0]);
+              console.log('✅ Extracted tokenId from event:', tokenId);
+              break;
+            }
+          } catch (e) {
+            // Skip unparseable logs
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not parse tokenId from events:', error);
+      }
+    }
 
+    console.log('✅ Music NFT minted (FREE - server paid gas)!', {
+      tokenId,
+      txHash: tx.hash,
+      artist: recipient,
+    });
+
+    // Post to Farcaster if FID provided
     if (fid) {
       try {
-        const castText = `🎵 New Music NFT Minted!\n\n⚡ Free minting powered by EmpowerTours\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
+        const castText = `🎵 New Music NFT Minted! Token #${tokenId}\n\n⚡ Free minting powered by EmpowerTours\n🎶 ${royaltyPercentage}% creator royalties\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
+        
         await fetch('https://api.neynar.com/v2/farcaster/cast', {
           method: 'POST',
           headers: {
@@ -88,7 +127,7 @@ export async function POST(req: NextRequest) {
             text: castText,
           }),
         });
-        console.log('📢 Cast posted');
+        console.log('📢 Cast posted to Farcaster');
       } catch (castError) {
         console.warn('⚠️ Cast failed (mint succeeded):', castError);
       }
@@ -97,10 +136,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       txHash: tx.hash,
+      tokenId,
       recipient,
       tokenURI,
+      royaltyPercentage,
     });
-
   } catch (error: any) {
     console.error('❌ Server-paid mint error:', error);
     return NextResponse.json(
