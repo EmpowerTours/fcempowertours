@@ -1,55 +1,18 @@
-import { Metadata } from 'next';
+'use client';
 
-const APP_URL = 'https://fcempowertours-production-6551.up.railway.app';
+import { useState, useEffect } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
-// Server-side metadata for embeds
-export const metadata: Metadata = {
-  title: 'EmpowerTours - Travel Stamp Buy Experiences',
-  description: 'Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.',
-  openGraph: {
-    title: 'EmpowerTours - DigitalPassport',
-    description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
-    url: APP_URL,
-    siteName: 'EmpowerTours',
-    images: [
-      {
-        url: `${APP_URL}/images/og-image.png`,
-        width: 1200,
-        height: 630,
-        alt: 'EmpowerTours',
-      }
-    ],
-    type: 'website',
-  },
-  other: {
-    'fc:frame': 'vNext',
-    'fc:frame:image': `${APP_URL}/images/feed.png`,
-    'fc:frame:button:1': 'Open App',
-    'fc:frame:button:1:action': 'link',
-    'fc:frame:button:1:target': APP_URL,
-  },
-};
-
-export default function HomePage() {
-  return <HomePageClient />;
+interface Cast {
+  text: string;
+  author: {
+    username: string;
+    pfp_url?: string;
+  };
+  timestamp?: string;
 }
 
-// Client component with all your existing logic
-function HomePageClient() {
-  'use client';
-  
-  const { useState, useEffect } = require('react');
-  const { usePrivy } = require('@privy-io/react-auth');
-
-  interface Cast {
-    text: string;
-    author: {
-      username: string;
-      pfp_url?: string;
-    };
-    timestamp?: string;
-  }
-
+export default function HomePage() {
   const { ready, authenticated, user } = usePrivy();
   const [showSplash, setShowSplash] = useState(true);
   const [casts, setCasts] = useState<Cast[]>([]);
@@ -274,11 +237,11 @@ function HomePageClient() {
 
         {/* CTA */}
         <div className="text-center mb-12">
-          
+          <a
             href="/market"
             className="inline-block px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full text-xl font-bold hover:from-purple-700 hover:to-blue-700 transition-all shadow-2xl transform hover:scale-105"
           >
-            🔥 Explore Marketplace
+            <span>🔥</span> Explore Marketplace
           </a>
         </div>
 
@@ -286,7 +249,7 @@ function HomePageClient() {
         {authenticated && walletAddress && (
           <div className="flex justify-between items-center mt-16 pt-8 border-t border-white/20">
             {/* Left - Music Count */}
-            
+            <a
               href="/profile"
               className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 hover:bg-white/20 transition-all group flex-1 max-w-xs"
             >
@@ -302,7 +265,7 @@ function HomePageClient() {
             </a>
 
             {/* Right - Passport Count */}
-            
+            <a
               href="/profile"
               className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 hover:bg-white/20 transition-all group flex-1 max-w-xs"
             >
