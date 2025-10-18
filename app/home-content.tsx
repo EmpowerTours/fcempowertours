@@ -1,55 +1,18 @@
-import { Metadata } from 'next';
+'use client';
 
-const APP_URL = 'https://fcempowertours-production-6551.up.railway.app';
+import { useState, useEffect } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
-// Server-side metadata for embeds
-export const metadata: Metadata = {
-  title: 'EmpowerTours - Travel Stamp Buy Experiences',
-  description: 'Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.',
-  openGraph: {
-    title: 'EmpowerTours - DigitalPassport',
-    description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
-    url: APP_URL,
-    siteName: 'EmpowerTours',
-    images: [
-      {
-        url: `${APP_URL}/images/og-image.png`,
-        width: 1200,
-        height: 630,
-        alt: 'EmpowerTours',
-      }
-    ],
-    type: 'website',
-  },
-  other: {
-    'fc:frame': 'vNext',
-    'fc:frame:image': `${APP_URL}/images/feed.png`,
-    'fc:frame:button:1': 'Open App',
-    'fc:frame:button:1:action': 'link',
-    'fc:frame:button:1:target': APP_URL,
-  },
-};
-
-export default function HomePage() {
-  return <HomePageClient />;
+interface Cast {
+  text: string;
+  author: {
+    username: string;
+    pfp_url?: string;
+  };
+  timestamp?: string;
 }
 
-// Client component with all your existing logic
-function HomePageClient() {
-  'use client';
-  
-  const { useState, useEffect } = require('react');
-  const { usePrivy } = require('@privy-io/react-auth');
-
-  interface Cast {
-    text: string;
-    author: {
-      username: string;
-      pfp_url?: string;
-    };
-    timestamp?: string;
-  }
-
+export default function HomeContent() {
   const { ready, authenticated, user } = usePrivy();
   const [showSplash, setShowSplash] = useState(true);
   const [casts, setCasts] = useState<Cast[]>([]);
