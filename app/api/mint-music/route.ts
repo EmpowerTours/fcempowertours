@@ -1,32 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { JsonRpcProvider, Wallet, Contract } from 'ethers';
+import { JsonRpcProvider, Wallet, Contract, Interface } from 'ethers';
 
-// ✅ NEW: Use environment variable with fallback
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
+// ✅ Environment setup
+const MUSIC_NFT_ADDRESS =
+  process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS ||
+  '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
-// ✅ NEW: Updated ABI for MusicLicenseNFT contract
+// ✅ MusicLicenseNFT ABI
 const MUSIC_NFT_ABI = [
   {
     inputs: [
       { name: 'artist', type: 'address' },
       { name: 'metadataURI', type: 'string' },
-      { name: 'royaltyPercentage', type: 'uint256' }
+      { name: 'royaltyPercentage', type: 'uint256' },
     ],
     name: 'mintMusic',
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'nonpayable',
     type: 'function',
   },
-  // Add event for parsing
   {
     anonymous: false,
     inputs: [
       { indexed: true, name: 'tokenId', type: 'uint256' },
       { indexed: true, name: 'artist', type: 'address' },
       { indexed: false, name: 'metadataURI', type: 'string' },
-      { indexed: false, name: 'royaltyPercentage', type: 'uint256' }
+      { indexed: false, name: 'royaltyPercentage', type: 'uint256' },
     ],
     name: 'MusicMinted',
     type: 'event',
@@ -53,7 +54,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!DEPLOYER_PRIVATE_KEY) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Server configuration error: missing DEPLOYER_PRIVATE_KEY' },
+        { status: 500 }
+      );
     }
 
     const provider = new JsonRpcProvider(MONAD_RPC);
@@ -62,13 +66,11 @@ export async function POST(req: NextRequest) {
 
     console.log('⚡ Minting music NFT (server pays - FREE for user)...');
 
-    // ✅ NEW: Call mintMusic with artist, metadataURI, and royalty percentage
-    // Default royalty: 10% (1000 basis points)
-    const royaltyPercentage = 10; // 10%
+    const royaltyPercentage = 10; // 10% creator royalty
 
     const tx = await contract.mintMusic(
       recipient, // artist address
-      tokenURI,  // metadata URI
+      tokenURI, // metadata URI
       royaltyPercentage // royalty percentage
     );
 
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
     let tokenId = 0;
     if (receipt.logs && receipt.logs.length > 0) {
       try {
-        const iface = new ethers.Interface(MUSIC_NFT_ABI);
+        const iface = new Interface(MUSIC_NFT_ABI);
         for (const log of receipt.logs) {
           try {
             const parsed = iface.parseLog({
@@ -96,8 +98,8 @@ export async function POST(req: NextRequest) {
               console.log('✅ Extracted tokenId from event:', tokenId);
               break;
             }
-          } catch (e) {
-            // Skip unparseable logs
+          } catch {
+            // skip unparseable logs
           }
         }
       } catch (error) {
@@ -111,11 +113,11 @@ export async function POST(req: NextRequest) {
       artist: recipient,
     });
 
-    // Post to Farcaster if FID provided
+    // ✅ Optional: Post to Farcaster
     if (fid) {
       try {
         const castText = `🎵 New Music NFT Minted! Token #${tokenId}\n\n⚡ Free minting powered by EmpowerTours\n🎶 ${royaltyPercentage}% creator royalties\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
-        
+
         await fetch('https://api.neynar.com/v2/farcaster/cast', {
           method: 'POST',
           headers: {
