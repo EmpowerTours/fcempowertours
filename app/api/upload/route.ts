@@ -23,17 +23,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('📤 Starting upload process...');
+
     // Upload preview clip (for NFT mint)
-    const { cid: previewCid } = await pinata.upload.public.file(previewFile);
-    console.log('Preview uploaded:', previewCid);
+    console.log('📤 Uploading preview audio...');
+    const { cid: previewCid } = await pinata.upload.file(previewFile);
+    console.log('✅ Preview uploaded:', previewCid);
 
     // Upload full song (for streaming)
-    const { cid: fullCid } = await pinata.upload.public.file(fullFile);
-    console.log('Full song uploaded:', fullCid);
+    console.log('📤 Uploading full song...');
+    const { cid: fullCid } = await pinata.upload.file(fullFile);
+    console.log('✅ Full song uploaded:', fullCid);
 
     // Upload cover image
-    const { cid: coverCid } = await pinata.upload.public.file(coverFile);
-    console.log('Cover uploaded:', coverCid);
+    console.log('📤 Uploading cover image...');
+    const { cid: coverCid } = await pinata.upload.file(coverFile);
+    console.log('✅ Cover uploaded:', coverCid);
 
     // Metadata JSON
     const metadata = {
@@ -50,17 +55,21 @@ export async function POST(request: NextRequest) {
       ],
     };
 
-    const { cid: metadataCid } = await pinata.upload.public.json(metadata);
-    console.log('Metadata uploaded:', metadataCid);
+    console.log('📤 Uploading metadata...');
+    const { cid: metadataCid } = await pinata.upload.json(metadata);
+    console.log('✅ Metadata uploaded:', metadataCid);
 
+    // ✅ Return both camelCase variations + tokenURI
     return NextResponse.json({
       previewCid,
       fullCid,
       coverCid,
-      metadataCid,
+      metadataCid,        // lowercase 'id'
+      metadataCID: metadataCid, // uppercase 'ID' for compatibility
+      tokenURI: `ipfs://${metadataCid}`, // Complete tokenURI
     });
   } catch (error) {
-    console.error('Upload failed:', error);
+    console.error('❌ Upload failed:', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }

@@ -8,8 +8,7 @@ interface FarcasterUser {
   username: string;
   displayName: string;
   pfpUrl: string;
-  custody?: string;
-  verifications?: string[];
+  verifications: string[];
 }
 
 interface FarcasterContext {
@@ -35,7 +34,6 @@ export function useFarcasterContext(): FarcasterContext {
             username: context.user.username || 'unknown',
             displayName: context.user.displayName || context.user.username || 'User',
             pfpUrl: context.user.pfpUrl || '',
-            custody: context.user.custody,
             verifications: context.user.verifications || [],
           };
           

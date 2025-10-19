@@ -25,7 +25,7 @@ interface Itinerary {
 
 export default function MarketPage() {
   const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
-  const userAddress = user?.verifications?.[0] || user?.custody;
+  const userAddress = user?.verifications?.[0];
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');

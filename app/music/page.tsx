@@ -18,7 +18,7 @@ export default function MusicPage() {
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
 
   // Get wallet address from user's verifications
-  const walletAddress = user?.verifications?.[0] || user?.custody;
+  const walletAddress = user?.verifications?.[0];
   const farcasterFid = user?.fid;
 
   const handleFileChange =

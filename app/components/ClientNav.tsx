@@ -1,33 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export default function ClientNav() {
   const router = useRouter();
+  const { user, isLoading, error } = useFarcasterContext();
 
-  // Add a try-catch to handle potential initialization issues
-  let privyData;
-  try {
-    privyData = usePrivy();
-  } catch (error) {
-    console.error('Privy initialization error:', error);
-    return (
-      <nav className="w-full bg-black/90 backdrop-blur-sm p-4 border-b border-gray-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🎵</span>
-            <span className="text-white font-bold text-xl">EmpowerTours</span>
-          </div>
-          <div className="text-gray-400 text-sm">Loading...</div>
-        </div>
-      </nav>
-    );
-  }
-
-  const { ready, authenticated, user, login, logout } = privyData;
-  const farcasterUsername = user?.farcaster?.username;
-  const walletAddress = user?.wallet?.address;
+  const walletAddress = user?.verifications?.[0];
+  const farcasterUsername = user?.username;
 
   const navigateTo = (path: string) => {
     router.push(path);
@@ -71,7 +52,7 @@ export default function ClientNav() {
           >
             Market
           </button>
-          {authenticated && (
+          {user && (
             <button
               onClick={() => navigateTo('/profile')}
               className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
@@ -81,17 +62,19 @@ export default function ClientNav() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {!ready ? (
+          {isLoading ? (
             <div className="text-gray-400 text-sm">Loading...</div>
-          ) : !authenticated ? (
-            <button
-              onClick={login}
-              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
-            >
-              Sign in with Farcaster
-            </button>
+          ) : error || !user ? (
+            <div className="text-gray-400 text-sm">Not in Farcaster</div>
           ) : (
-            <>
+            <div className="flex items-center gap-3">
+              {user.pfpUrl && (
+                <img
+                  src={user.pfpUrl}
+                  alt={farcasterUsername || 'User'}
+                  className="w-8 h-8 rounded-full border-2 border-purple-500"
+                />
+              )}
               <div className="flex flex-col items-end">
                 {farcasterUsername && (
                   <span className="text-white text-sm font-medium">{`@${farcasterUsername}`}</span>
@@ -102,13 +85,7 @@ export default function ClientNav() {
                   </span>
                 )}
               </div>
-              <button
-                onClick={logout}
-                className="px-4 py-2 text-gray-300 hover:text-white text-sm transition-colors"
-              >
-                Sign Out
-              </button>
-            </>
+            </div>
           )}
         </div>
       </div>

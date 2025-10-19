@@ -10,7 +10,7 @@ const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 export default function ProfilePage() {
   const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
 
-  const walletAddress = user?.verifications?.[0] || user?.custody;
+  const walletAddress = user?.verifications?.[0];
   const farcasterUsername = user?.username;
   const farcasterFid = user?.fid;
   const farcasterPfp = user?.pfpUrl;

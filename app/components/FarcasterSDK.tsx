@@ -1,51 +1,87 @@
 'use client';
 
 import { useEffect } from 'react';
-import { sdk } from '@farcaster/miniapp-sdk';
 
 export default function FarcasterSDK() {
   useEffect(() => {
+    let sdkReady = false;
+    
     const initializeSDK = async () => {
       try {
-        console.log('🔄 Initializing Farcaster SDK...');
+        console.log('🔄 [FarcasterSDK] Starting initialization...');
         
-        // Wait for SDK context
-        const context = await sdk.context;
-        console.log('✅ Farcaster SDK context loaded:', {
-          user: context.user,
-          client: context.client,
-        });
+        // Dynamically import to avoid SSR issues
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        console.log('✅ [FarcasterSDK] SDK imported successfully');
         
-        // CRITICAL: Signal that the app is ready (dismisses splash screen)
-        await sdk.actions.ready();
-        console.log('✅ Farcaster SDK ready() called - splash screen dismissed');
+        // Check if we're in Farcaster client
+        if (typeof window !== 'undefined') {
+          console.log('✅ [FarcasterSDK] Window available, loading context...');
+          
+          // Try to get context with timeout
+          const contextPromise = sdk.context;
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Context timeout')), 2000)
+          );
+          
+          try {
+            const context = await Promise.race([contextPromise, timeoutPromise]);
+            console.log('✅ [FarcasterSDK] Context loaded:', {
+              hasUser: !!context.user,
+              hasClient: !!context.client,
+            });
+          } catch (contextError) {
+            console.warn('⚠️ [FarcasterSDK] Context load failed/timeout:', contextError);
+            // Continue anyway - we'll still call ready()
+          }
+          
+          // Call ready() - this is the critical part
+          if (!sdkReady) {
+            console.log('🚀 [FarcasterSDK] Calling sdk.actions.ready()...');
+            await sdk.actions.ready();
+            sdkReady = true;
+            console.log('✅ [FarcasterSDK] ready() called successfully - splash dismissed');
+          }
+        }
       } catch (error) {
-        console.error('❌ Farcaster SDK initialization error:', error);
+        console.error('❌ [FarcasterSDK] Initialization error:', error);
         
-        // Still call ready() even if there's an error to dismiss splash
+        // Emergency fallback - still try to call ready()
         try {
-          await sdk.actions.ready();
-          console.log('⚠️ Farcaster SDK ready() called from error handler');
-        } catch (readyError) {
-          console.error('❌ Failed to call ready():', readyError);
+          const { sdk } = await import('@farcaster/miniapp-sdk');
+          if (!sdkReady) {
+            console.log('🔄 [FarcasterSDK] Emergency ready() call from error handler...');
+            await sdk.actions.ready();
+            sdkReady = true;
+            console.log('✅ [FarcasterSDK] Emergency ready() succeeded');
+          }
+        } catch (fallbackError) {
+          console.error('❌ [FarcasterSDK] Emergency ready() failed:', fallbackError);
         }
       }
     };
     
+    // Start initialization immediately
     initializeSDK();
     
-    // Fallback: Force call ready() after 3 seconds if initialization hangs
-    const fallbackTimeout = setTimeout(async () => {
-      console.log('⏰ Fallback timeout reached - calling ready()');
-      try {
-        await sdk.actions.ready();
-        console.log('⏰ Fallback ready() called successfully');
-      } catch (e) {
-        console.error('❌ Fallback ready() failed:', e);
+    // Aggressive fallback: Force ready() after 2 seconds no matter what
+    const emergencyTimeout = setTimeout(async () => {
+      if (!sdkReady) {
+        console.log('⏰ [FarcasterSDK] Emergency timeout - forcing ready()...');
+        try {
+          const { sdk } = await import('@farcaster/miniapp-sdk');
+          await sdk.actions.ready();
+          sdkReady = true;
+          console.log('✅ [FarcasterSDK] Emergency timeout ready() succeeded');
+        } catch (e) {
+          console.error('❌ [FarcasterSDK] Emergency timeout ready() failed:', e);
+        }
       }
-    }, 3000);
+    }, 2000);
     
-    return () => clearTimeout(fallbackTimeout);
+    return () => {
+      clearTimeout(emergencyTimeout);
+    };
   }, []);
 
   return null;

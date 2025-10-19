@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export default function PassportPage() {
-  const { ready, authenticated, user, login } = usePrivy();
+  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
   
-  // Get wallet from Privy
-  const walletAddress = user?.wallet?.address;
-  const farcasterFid = user?.farcaster?.fid;
+  const walletAddress = user?.verifications?.[0];
+  const farcasterFid = user?.fid;
 
   const [form, setForm] = useState({ countryCode: '', countryName: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -17,8 +16,6 @@ export default function PassportPage() {
 
   // Auto-detect country
   useEffect(() => {
-    if (!ready) return;
-    
     async function fetchLocation() {
       try {
         const res = await fetch('/api/geo');
@@ -31,8 +28,10 @@ export default function PassportPage() {
       }
     }
     
-    fetchLocation();
-  }, [ready]);
+    if (user) {
+      fetchLocation();
+    }
+  }, [user]);
 
   const handleMint = async () => {
     if (!walletAddress || !form.countryCode || !form.countryName) {
@@ -45,7 +44,6 @@ export default function PassportPage() {
     setSuccess('');
 
     try {
-      // Server-side mint (same as your existing API)
       const response = await fetch('/api/mint-passport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,24 +70,27 @@ export default function PassportPage() {
     }
   };
 
-  if (!ready) {
+  if (contextLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin text-4xl">⏳</div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <p className="text-white">Loading your profile...</p>
+        </div>
       </div>
     );
   }
 
-  if (!authenticated) {
+  if (contextError || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900 p-4">
         <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 max-w-md">
-          <div className="text-6xl mb-4">🌍</div>
-          <h1 className="text-3xl font-bold text-white mb-4">Travel Passport NFT</h1>
-          <p className="text-gray-400 mb-6">Connect to mint your passport</p>
-          <button onClick={login} className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-blue-700">
-            Connect with Farcaster
-          </button>
+          <div className="text-6xl mb-4">⚠️</div>
+          <h1 className="text-3xl font-bold text-white mb-4">Not in Farcaster</h1>
+          <p className="text-gray-400 mb-6">
+            This Mini App must be opened in Warpcast or another Farcaster client.
+          </p>
+          <p className="text-sm text-gray-500">Error: {contextError}</p>
         </div>
       </div>
     );
@@ -99,13 +100,20 @@ export default function PassportPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-blue-900 flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 shadow-2xl p-8">
         <div className="text-center mb-8">
+          {user.pfpUrl && (
+            <img
+              src={user.pfpUrl}
+              alt={user.username}
+              className="w-16 h-16 rounded-full mx-auto mb-4 border-4 border-purple-500"
+            />
+          )}
           <h1 className="text-4xl font-bold text-white mb-2">🌍 Travel Passport NFT</h1>
-          <p className="text-gray-400">Mint your digital passport on Monad</p>
+          <p className="text-gray-400">@{user.username}</p>
         </div>
 
         <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
           <p className="text-green-300 text-sm font-mono">
-            ✅ Connected: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+            ✅ FID: {user.fid} | Wallet: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
           </p>
         </div>
 
@@ -127,7 +135,7 @@ export default function PassportPage() {
             name="countryCode"
             placeholder="Country Code (e.g., MX)"
             value={form.countryCode}
-            onChange={(e) => setForm({...form, countryCode: e.target.value.toUpperCase()})}
+            onChange={(e) => setForm({ ...form, countryCode: e.target.value.toUpperCase() })}
             maxLength={2}
             className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 uppercase"
           />
@@ -137,7 +145,7 @@ export default function PassportPage() {
             name="countryName"
             placeholder="Country Name (e.g., Mexico)"
             value={form.countryName}
-            onChange={(e) => setForm({...form, countryName: e.target.value})}
+            onChange={(e) => setForm({ ...form, countryName: e.target.value })}
             className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500"
           />
         </div>
@@ -147,7 +155,7 @@ export default function PassportPage() {
           disabled={isLoading || !form.countryCode || !form.countryName}
           className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? '⏳ Minting...' : '🎫 Mint Passport (0.01 MON)'}
+          {isLoading ? '⏳ Minting...' : '🎫 Mint Passport (FREE)'}
         </button>
 
         <p className="text-gray-500 text-xs text-center mt-4">
