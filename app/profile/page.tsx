@@ -8,9 +8,8 @@ const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localho
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 
 export default function ProfilePage() {
-  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
+  const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
 
-  const walletAddress = user?.verifications?.[0];
   const farcasterUsername = user?.username;
   const farcasterFid = user?.fid;
   const farcasterPfp = user?.pfpUrl;
@@ -21,6 +20,13 @@ export default function ProfilePage() {
   const [balances, setBalances] = useState({ mon: '0', tours: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-request wallet when user loads
+  useEffect(() => {
+    if (user && !walletAddress) {
+      requestWallet();
+    }
+  }, [user, walletAddress, requestWallet]);
 
   useEffect(() => {
     if (walletAddress) {

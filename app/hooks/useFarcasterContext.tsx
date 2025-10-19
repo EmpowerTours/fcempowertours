@@ -8,17 +8,19 @@ interface FarcasterUser {
   username: string;
   displayName: string;
   pfpUrl: string;
-  verifications: string[];
 }
 
 interface FarcasterContext {
   user: FarcasterUser | null;
+  walletAddress: string | null;
   isLoading: boolean;
   error: string | null;
+  requestWallet: () => Promise<void>;
 }
 
 export function useFarcasterContext(): FarcasterContext {
   const [user, setUser] = useState<FarcasterUser | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +36,6 @@ export function useFarcasterContext(): FarcasterContext {
             username: context.user.username || 'unknown',
             displayName: context.user.displayName || context.user.username || 'User',
             pfpUrl: context.user.pfpUrl || '',
-            verifications: context.user.verifications || [],
           };
           
           console.log('✅ Farcaster user loaded:', farcasterUser);
@@ -54,5 +55,32 @@ export function useFarcasterContext(): FarcasterContext {
     loadContext();
   }, []);
 
-  return { user, isLoading, error };
+  const requestWallet = async () => {
+    try {
+      console.log('🔑 Requesting wallet address...');
+      
+      // Check if ethereum provider exists (Warpcast browser provides this)
+      if (typeof window !== 'undefined' && window.ethereum) {
+        const accounts = await window.ethereum.request({
+          method: 'eth_requestAccounts'
+        });
+        
+        if (accounts && accounts[0]) {
+          setWalletAddress(accounts[0] as string);
+          console.log('✅ Wallet connected:', accounts[0]);
+        }
+      } else {
+        console.warn('⚠️ No ethereum provider found');
+        setError('Wallet provider not available');
+      }
+    } catch (err) {
+      console.error('❌ Failed to get wallet:', err);
+      // Don't set error for user rejection
+      if ((err as any).code !== 4001) {
+        setError('Failed to connect wallet');
+      }
+    }
+  };
+
+  return { user, walletAddress, isLoading, error, requestWallet };
 }

@@ -1,14 +1,21 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export default function ClientNav() {
   const router = useRouter();
-  const { user, isLoading, error } = useFarcasterContext();
+  const { user, walletAddress, isLoading, error, requestWallet } = useFarcasterContext();
 
-  const walletAddress = user?.verifications?.[0];
   const farcasterUsername = user?.username;
+
+  // Auto-request wallet when user loads
+  useEffect(() => {
+    if (user && !walletAddress) {
+      requestWallet();
+    }
+  }, [user, walletAddress, requestWallet]);
 
   const navigateTo = (path: string) => {
     router.push(path);

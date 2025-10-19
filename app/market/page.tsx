@@ -24,8 +24,7 @@ interface Itinerary {
 }
 
 export default function MarketPage() {
-  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
-  const userAddress = user?.verifications?.[0];
+  const { user, walletAddress: userAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [description, setDescription] = useState('');
@@ -40,6 +39,13 @@ export default function MarketPage() {
   const [minMon, setMinMon] = useState<string>('0');
   const [toursBalance, setToursBalance] = useState<string>('0');
   const [contractToursBalance, setContractToursBalance] = useState<string>('0');
+
+  // Auto-request wallet when user loads
+  useEffect(() => {
+    if (user && !userAddress) {
+      requestWallet();
+    }
+  }, [user, userAddress, requestWallet]);
 
   const fetchAvailableItineraries = useCallback(async () => {
     setIsLoadingItineraries(true);

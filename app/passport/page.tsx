@@ -4,15 +4,21 @@ import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export default function PassportPage() {
-  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
+  const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
   
-  const walletAddress = user?.verifications?.[0];
   const farcasterFid = user?.fid;
 
   const [form, setForm] = useState({ countryCode: '', countryName: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Auto-request wallet when user loads
+  useEffect(() => {
+    if (user && !walletAddress) {
+      requestWallet();
+    }
+  }, [user, walletAddress, requestWallet]);
 
   // Auto-detect country
   useEffect(() => {

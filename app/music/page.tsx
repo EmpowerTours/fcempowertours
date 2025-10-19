@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
 
 export default function MusicPage() {
-  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
+  const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
 
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
@@ -17,9 +17,14 @@ export default function MusicPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
 
-  // Get wallet address from user's verifications
-  const walletAddress = user?.verifications?.[0];
   const farcasterFid = user?.fid;
+
+  // Auto-request wallet when user loads
+  useEffect(() => {
+    if (user && !walletAddress) {
+      requestWallet();
+    }
+  }, [user, walletAddress, requestWallet]);
 
   const handleFileChange =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
