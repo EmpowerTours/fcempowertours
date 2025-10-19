@@ -29,12 +29,10 @@ export function useFarcasterContext(): FarcasterContext {
       try {
         console.log('🔄 Loading Farcaster user...');
         
-        // CRITICAL: Call ready() IMMEDIATELY
-        // Don't wait for context to load
-        sdk.actions.ready();
-        console.log('✅ Called sdk.actions.ready() immediately');
+        // Note: sdk.actions.ready() is called by FarcasterReady component in layout
+        // Don't call it here to avoid duplicate calls
         
-        // Now load context in background
+        // Load context in background
         const context = await sdk.context;
         
         if (context?.user) {
@@ -51,13 +49,11 @@ export function useFarcasterContext(): FarcasterContext {
         } else {
           console.warn('⚠️ No user in context');
           // Don't set error - user might still be there
-          // Just continue without user data
         }
         
       } catch (err) {
         console.error('❌ Failed to load Farcaster user:', err);
         // Don't block the app - just log the error
-        console.log('App will continue without user context');
       } finally {
         setIsLoading(false);
       }
