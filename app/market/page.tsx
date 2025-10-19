@@ -300,12 +300,26 @@ export default function MarketPage() {
         <p className="text-sm text-purple-900">
           <strong>✅ Connected:</strong> @{user.username}
         </p>
-        <p className="text-sm text-purple-900 mt-1 font-mono">
-          {userAddress?.slice(0, 6)}...{userAddress?.slice(-4)}
-        </p>
-        <p className="text-xs text-gray-500 mt-2">
-          💡 All transactions will use this wallet address
-        </p>
+        {userAddress ? (
+          <>
+            <p className="text-sm text-purple-900 mt-1 font-mono">
+              🔑 {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              💡 All transactions will use this wallet address
+            </p>
+          </>
+        ) : (
+          <div className="mt-2">
+            <p className="text-yellow-800 text-sm mb-2">⚠️ Wallet not connected</p>
+            <button
+              onClick={requestWallet}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium active:scale-95 touch-manipulation transition-all"
+            >
+              🔑 Connect Wallet
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Swap Widget */}
@@ -352,32 +366,6 @@ export default function MarketPage() {
         >
           {isProcessing ? '⏳ Creating...' : '✨ Create Itinerary'}
         </button>
-      </div>
-
-      {/* Your Passports */}
-      <div className="my-8 p-6 bg-white rounded-lg border-2 border-gray-200">
-        <h2 className="text-2xl font-semibold mb-4">Your Passports</h2>
-        {isLoadingPassports ? (
-          <p className="text-gray-500">Loading passports...</p>
-        ) : ownedPassports.length > 0 ? (
-          <ul className="space-y-2">
-            {ownedPassports.map((tokenId) => (
-              <li key={String(tokenId)} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                🎫 Passport NFT #{String(tokenId)}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="text-center py-4">
-            <p className="text-gray-500 mb-3">No passports owned by this wallet</p>
-            <a
-              href="/passport"
-              className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            >
-              Mint Your First Passport →
-            </a>
-          </div>
-        )}
       </div>
 
       {/* Available Itineraries */}

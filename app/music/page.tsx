@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
+// New MusicLicenseNFTv2 contract address
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
 
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
@@ -125,10 +126,9 @@ export default function MusicPage() {
   };
 
   if (contextLoading) {
-    return null; // Don't show anything while loading - splash screen handles this
+    return null;
   }
 
-  // Show warning if no user but don't block the app
   if (!user && !contextLoading) {
     console.warn('⚠️ No Farcaster user detected');
   }
@@ -204,13 +204,13 @@ export default function MusicPage() {
                 <p className="text-green-700">
                   <strong>Song:</strong> {description || 'Untitled'}
                 </p>
-                <a
-                  href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
+                
+                  href={`https://testnet.monadscan.com/tx/${success.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  View on Explorer →
+                  View on Monadscan →
                 </a>
               </div>
             </div>
