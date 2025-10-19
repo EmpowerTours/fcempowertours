@@ -40,13 +40,27 @@ export function useFarcasterContext(): FarcasterContext {
           
           console.log('✅ Farcaster user loaded:', farcasterUser);
           setUser(farcasterUser);
+          
+          // Tell Farcaster the app is ready
+          sdk.actions.ready();
+          console.log('✅ Called sdk.actions.ready()');
         } else {
           console.warn('⚠️ No user in context');
           setError('Not running in Farcaster client');
+          
+          // Still call ready even if no user
+          sdk.actions.ready();
         }
       } catch (err) {
         console.error('❌ Failed to load Farcaster context:', err);
         setError('Failed to load user context');
+        
+        // Call ready even on error to dismiss splash
+        try {
+          sdk.actions.ready();
+        } catch (readyErr) {
+          console.error('❌ Failed to call ready():', readyErr);
+        }
       } finally {
         setIsLoading(false);
       }
