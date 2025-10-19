@@ -25,19 +25,25 @@ export async function POST(request: NextRequest) {
 
     console.log('📤 Starting upload process...');
 
+    // Type assertion to handle Pinata SDK type definitions
+    const uploadApi = pinata.upload as any;
+
     // Upload preview clip (for NFT mint)
     console.log('📤 Uploading preview audio...');
-    const { cid: previewCid } = await pinata.upload.file(previewFile);
+    const previewUpload = await uploadApi.file(previewFile);
+    const previewCid = previewUpload.IpfsHash || previewUpload.cid;
     console.log('✅ Preview uploaded:', previewCid);
 
     // Upload full song (for streaming)
     console.log('📤 Uploading full song...');
-    const { cid: fullCid } = await pinata.upload.file(fullFile);
+    const fullUpload = await uploadApi.file(fullFile);
+    const fullCid = fullUpload.IpfsHash || fullUpload.cid;
     console.log('✅ Full song uploaded:', fullCid);
 
     // Upload cover image
     console.log('📤 Uploading cover image...');
-    const { cid: coverCid } = await pinata.upload.file(coverFile);
+    const coverUpload = await uploadApi.file(coverFile);
+    const coverCid = coverUpload.IpfsHash || coverUpload.cid;
     console.log('✅ Cover uploaded:', coverCid);
 
     // Metadata JSON
@@ -56,16 +62,17 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('📤 Uploading metadata...');
-    const { cid: metadataCid } = await pinata.upload.json(metadata);
+    const metadataUpload = await uploadApi.json(metadata);
+    const metadataCid = metadataUpload.IpfsHash || metadataUpload.cid;
     console.log('✅ Metadata uploaded:', metadataCid);
 
-    // ✅ Return both camelCase variations + tokenURI
+    // Return both camelCase variations + tokenURI
     return NextResponse.json({
       previewCid,
       fullCid,
       coverCid,
-      metadataCid,        // lowercase 'id'
-      metadataCID: metadataCid, // uppercase 'ID' for compatibility
+      metadataCid,                    // lowercase 'id'
+      metadataCID: metadataCid,       // uppercase 'ID' for compatibility
       tokenURI: `ipfs://${metadataCid}`, // Complete tokenURI
     });
   } catch (error) {
