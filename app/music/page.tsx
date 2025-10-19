@@ -139,10 +139,10 @@ export default function MusicPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            {user.pfpUrl && (
+            {user?.pfpUrl && (
               <img
                 src={user.pfpUrl}
-                alt={user.username}
+                alt={user.username || 'User'}
                 className="w-16 h-16 rounded-full mx-auto mb-4 border-4 border-purple-200"
               />
             )}
@@ -174,7 +174,7 @@ export default function MusicPage() {
                 <strong>⚠️ User info not loaded</strong>
               </p>
               <p className="text-yellow-700 text-xs mt-1">
-                You can still use the app, but some features may require user info.
+                Loading your Farcaster profile...
               </p>
             </div>
           )}
@@ -296,7 +296,6 @@ export default function MusicPage() {
                 !fullFile ||
                 !coverFile ||
                 !description ||
-                !walletAddress ||
                 uploading ||
                 minting
               }
@@ -308,6 +307,15 @@ export default function MusicPage() {
                 ? '⚡ Minting NFT (FREE)...'
                 : '🎵 Upload & Mint (FREE!)'}
             </button>
+
+            {!walletAddress && (
+              <button
+                onClick={requestWallet}
+                className="w-full mt-3 px-6 py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-all"
+              >
+                🔑 Connect Wallet First
+              </button>
+            )}
           </div>
         </div>
       </div>
