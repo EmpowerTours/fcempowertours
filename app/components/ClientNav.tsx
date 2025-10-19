@@ -5,7 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 
 export default function ClientNav() {
   const router = useRouter();
-  
+
   // Add a try-catch to handle potential initialization issues
   let privyData;
   try {
@@ -72,19 +72,12 @@ export default function ClientNav() {
             Market
           </button>
           {authenticated && (
-            <>
-              <button
-                onClick={() => navigateTo('/profile')}
-                className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Profile
-              </button>
-              <button
-                className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Admin
-              </button>
-            </>
+            <button
+              onClick={() => navigateTo('/profile')}
+              className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Profile
+            </button>
           )}
         </div>
         <div className="flex items-center gap-3">

@@ -1,34 +1,19 @@
 'use client';
 
-import { usePrivy } from '@privy-io/react-auth';
 import { useState, useEffect } from 'react';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { PassportSVG } from '@/components/PassportSVG';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 
 export default function ProfilePage() {
-  const { ready, authenticated, user, login } = usePrivy();
+  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
 
-  // Get wallet address from Privy
-  const getWalletAddress = () => {
-    if (!user) return null;
-    if (user.wallet?.address) return user.wallet.address;
-    if (user.linkedAccounts && user.linkedAccounts.length > 0) {
-      const walletAccount = user.linkedAccounts.find(
-        (acc: any) => acc.type === 'wallet' || acc.address
-      );
-      if (walletAccount && 'address' in walletAccount) {
-        return (walletAccount as any).address;
-      }
-    }
-    return null;
-  };
-
-  const walletAddress = getWalletAddress();
-  const farcasterUsername = user?.farcaster?.username;
-  const farcasterFid = user?.farcaster?.fid;
-  const farcasterPfp = (user?.farcaster as any)?.pfpUrl || user?.farcaster?.pfp;
+  const walletAddress = user?.verifications?.[0] || user?.custody;
+  const farcasterUsername = user?.username;
+  const farcasterFid = user?.fid;
+  const farcasterPfp = user?.pfpUrl;
 
   const [passportNFTs, setPassportNFTs] = useState<any[]>([]);
   const [musicNFTs, setMusicNFTs] = useState<any[]>([]);
@@ -142,30 +127,27 @@ export default function ProfilePage() {
     }
   };
 
-  if (!ready) {
+  if (contextLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Loading your profile...</p>
         </div>
       </div>
     );
   }
 
-  if (!authenticated) {
+  if (contextError || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">👤</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Your Profile</h1>
-          <p className="text-gray-600 mb-6">Sign in with Farcaster to view your NFTs and profile</p>
-          <button
-            onClick={login}
-            className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg"
-          >
-            Sign in with Farcaster
-          </button>
+          <div className="text-6xl mb-4">⚠️</div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
+          <p className="text-gray-600 mb-6">
+            This Mini App must be opened in Warpcast or another Farcaster client.
+          </p>
+          <p className="text-sm text-gray-500">Error: {contextError}</p>
         </div>
       </div>
     );
@@ -327,7 +309,7 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Music NFTs Section with Audio */}
+            {/* Music NFTs Section */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-900">🎵 Music Collection</h2>

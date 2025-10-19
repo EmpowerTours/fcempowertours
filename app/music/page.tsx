@@ -1,17 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useState } from 'react';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
-const MUSIC_NFT_ADDRESS =
-  process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS ||
-  '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283e1372b0F96C9eA0E64Da496cA2c992bC2';
 
 export default function MusicPage() {
-  const { ready, authenticated, user, login } = usePrivy();
-
-  const walletAddress = user?.wallet?.address;
-  const farcasterFid = user?.farcaster?.fid;
+  const { user, isLoading: contextLoading, error: contextError } = useFarcasterContext();
 
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
@@ -21,6 +16,10 @@ export default function MusicPage() {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
+
+  // Get wallet address from user's verifications
+  const walletAddress = user?.verifications?.[0] || user?.custody;
+  const farcasterFid = user?.fid;
 
   const handleFileChange =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
@@ -79,7 +78,7 @@ export default function MusicPage() {
       }
 
       const uploadData = await uploadRes.json();
-      const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCID}`;
+      const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
 
       setUploading(false);
       setMinting(true);
@@ -115,29 +114,27 @@ export default function MusicPage() {
     }
   };
 
-  if (!ready) {
+  if (contextLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin text-4xl">⏳</div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
       </div>
     );
   }
 
-  if (!authenticated) {
+  if (contextError || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">🎵</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Mint Music NFTs</h1>
+          <div className="text-6xl mb-4">⚠️</div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
           <p className="text-gray-600 mb-6">
-            Connect with Farcaster to start minting music NFTs on Monad
+            This Mini App must be opened in Warpcast or another Farcaster client.
           </p>
-          <button
-            onClick={login}
-            className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg"
-          >
-            Connect to Mint
-          </button>
+          <p className="text-sm text-gray-500">Error: {contextError}</p>
         </div>
       </div>
     );
@@ -147,28 +144,35 @@ export default function MusicPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Header */}
           <div className="text-center mb-8">
+            {user.pfpUrl && (
+              <img
+                src={user.pfpUrl}
+                alt={user.username}
+                className="w-16 h-16 rounded-full mx-auto mb-4 border-4 border-purple-200"
+              />
+            )}
             <h1 className="text-3xl font-bold text-gray-900 mb-2">🎵 Mint Music NFT</h1>
             <p className="text-gray-600">Upload your music and mint it as an NFT on Monad</p>
             <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-              <p className="text-sm font-bold text-green-900">✨ FREE Mint! We pay the gas fees for you</p>
-              <p className="text-xs text-green-700 mt-1">Server wallet pays → NFT goes to your wallet</p>
+              <p className="text-sm font-bold text-green-900">✨ FREE Mint! We pay the gas fees</p>
             </div>
+          </div>
 
-            {/* ✅ Fixed Contract Address Display */}
-            <div className="mt-4 p-2 bg-purple-50 rounded-lg border border-purple-200">
-              <p className="text-xs text-purple-700">
-                <strong>Contract:</strong>{' '}
-                <a
-                  href={`https://testnet.monadscan.com/address/${MUSIC_NFT_ADDRESS}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono hover:underline"
-                >
-                  {`${MUSIC_NFT_ADDRESS.slice(0, 6)}...${MUSIC_NFT_ADDRESS.slice(-4)}`}
-                </a>
+          {/* User Info */}
+          <div className="mb-6 p-4 bg-purple-50 rounded-lg">
+            <p className="text-sm text-purple-900">
+              <strong>✅ Farcaster User:</strong> @{user.username}
+            </p>
+            <p className="text-sm text-purple-900 mt-1">
+              <strong>FID:</strong> {user.fid}
+            </p>
+            {walletAddress && (
+              <p className="text-sm text-purple-900 mt-1 font-mono text-xs">
+                <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </p>
-            </div>
+            )}
           </div>
 
           {error && (
@@ -187,53 +191,15 @@ export default function MusicPage() {
                 <p className="text-green-700">
                   <strong>Song:</strong> {description || 'Untitled'}
                 </p>
-                <p className="text-green-700 font-mono text-xs">
-                  <strong>Minted to:</strong> {walletAddress?.slice(0, 8)}...{walletAddress?.slice(-6)}
-                </p>
-
-                {/* ✅ Fixed Explorer + Profile links */}
-                <div className="flex gap-2">
-                  <a
-                    href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                  >
-                    View on Explorer →
-                  </a>
-                  <a
-                    href="/profile"
-                    className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
-                  >
-                    View in Profile →
-                  </a>
-                </div>
+                <a
+                  href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  View on Explorer →
+                </a>
               </div>
-            </div>
-          )}
-
-          {walletAddress ? (
-            <div className="mb-6 p-4 bg-purple-50 rounded-lg">
-              <p className="text-sm text-purple-900">
-                <strong>✅ Wallet Connected:</strong>{' '}
-                <span className="font-mono text-xs">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                </span>
-              </p>
-              {farcasterFid && (
-                <p className="text-sm text-purple-900 mt-1">
-                  <strong>Farcaster FID:</strong> {farcasterFid}
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
-              <p className="text-yellow-800 font-medium">
-                ⚠️ Wallet not detected. Privy is creating your embedded wallet...
-              </p>
-              <p className="text-yellow-700 text-sm mt-1">
-                This usually takes 5–10 seconds. Please wait or refresh the page.
-              </p>
             </div>
           )}
 
@@ -254,7 +220,9 @@ export default function MusicPage() {
 
             {/* Preview Audio */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Preview Audio (30s clip) *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Preview Audio (30s clip) *
+              </label>
               <input
                 type="file"
                 accept="audio/*"
@@ -269,9 +237,7 @@ export default function MusicPage() {
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                Max 600KB (~30 seconds) - Public preview for everyone
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Max 600KB (~30 seconds)</p>
             </div>
 
             {/* Full Track */}
@@ -291,7 +257,7 @@ export default function MusicPage() {
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">Max 15MB - Only NFT owners can access</p>
+              <p className="text-xs text-gray-500 mt-1">Max 15MB</p>
             </div>
 
             {/* Cover Art */}
@@ -307,9 +273,6 @@ export default function MusicPage() {
                 <div className="mt-3">
                   <p className="text-sm text-green-600 font-medium mb-2">
                     ✓ {coverFile.name} ({(coverFile.size / 1024).toFixed(0)}KB)
-                    {coverFile.size > 3 * 1024 * 1024 && (
-                      <span className="text-red-600 ml-2">⚠️ Too large!</span>
-                    )}
                   </p>
                   <img
                     src={URL.createObjectURL(coverFile)}
@@ -341,17 +304,6 @@ export default function MusicPage() {
                 ? '⚡ Minting NFT (FREE)...'
                 : '🎵 Upload & Mint (FREE!)'}
             </button>
-
-            {/* Info box */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-900 font-medium mb-2">ℹ️ How it works:</p>
-              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                <li>Upload files to IPFS (decentralized storage)</li>
-                <li>Server wallet mints NFT (FREE - we pay gas!)</li>
-                <li>NFT is sent to <strong>your wallet</strong> automatically</li>
-                <li>Share on Farcaster or list on marketplaces</li>
-              </ol>
-            </div>
           </div>
         </div>
       </div>
