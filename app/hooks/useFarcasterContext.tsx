@@ -5,9 +5,9 @@ import { sdk } from '@farcaster/miniapp-sdk';
 
 interface FarcasterUser {
   fid: number;
-  username: string;
-  displayName: string;
-  pfpUrl: string;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
 }
 
 interface FarcasterContext {
@@ -25,85 +25,45 @@ export function useFarcasterContext(): FarcasterContext {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    const loadContext = async () => {
+    const loadUser = async () => {
       try {
-        console.log('🔄 Loading Farcaster context... (attempt', retryCount + 1, ')');
+        console.log('🔄 Loading Farcaster user...');
         
-        // Add timeout to context loading
-        const contextPromise = sdk.context;
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Context load timeout')), 5000)
-        );
+        // CRITICAL: Call ready() IMMEDIATELY
+        // Don't wait for context to load
+        sdk.actions.ready();
+        console.log('✅ Called sdk.actions.ready() immediately');
         
-        const context = await Promise.race([contextPromise, timeoutPromise]) as any;
-        
-        console.log('📦 Context received:', {
-          hasContext: !!context,
-          hasUser: !!context?.user,
-          user: context?.user
-        });
+        // Now load context in background
+        const context = await sdk.context;
         
         if (context?.user) {
           const farcasterUser: FarcasterUser = {
             fid: context.user.fid,
-            username: context.user.username || 'unknown',
-            displayName: context.user.displayName || context.user.username || 'User',
-            pfpUrl: context.user.pfpUrl || '',
+            username: context.user.username,
+            displayName: context.user.displayName,
+            pfpUrl: context.user.pfpUrl,
           };
           
           console.log('✅ Farcaster user loaded:', farcasterUser);
           setUser(farcasterUser);
           setError(null);
-          
-          // Tell Farcaster the app is ready
-          sdk.actions.ready();
-          console.log('✅ Called sdk.actions.ready()');
         } else {
-          console.warn('⚠️ No user in context, retrying...');
-          
-          // Retry if no user and haven't exceeded max retries
-          if (retryCount < maxRetries) {
-            retryCount++;
-            setTimeout(loadContext, 1000); // Retry after 1 second
-            return;
-          }
-          
-          setError('Could not load Farcaster user');
-          
-          // Still call ready to dismiss splash
-          sdk.actions.ready();
+          console.warn('⚠️ No user in context');
+          // Don't set error - user might still be there
+          // Just continue without user data
         }
+        
       } catch (err) {
-        console.error('❌ Failed to load Farcaster context:', err);
-        
-        // Retry on error if haven't exceeded max retries
-        if (retryCount < maxRetries) {
-          retryCount++;
-          console.log('🔄 Retrying...', retryCount, '/', maxRetries);
-          setTimeout(loadContext, 1000);
-          return;
-        }
-        
-        setError('Failed to connect to Farcaster');
-        
-        // Call ready even on error to dismiss splash
-        try {
-          sdk.actions.ready();
-        } catch (readyErr) {
-          console.error('❌ Failed to call ready():', readyErr);
-        }
+        console.error('❌ Failed to load Farcaster user:', err);
+        // Don't block the app - just log the error
+        console.log('App will continue without user context');
       } finally {
-        // Only set loading to false after all retries are exhausted
-        if (retryCount >= maxRetries || user) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     };
 
-    loadContext();
+    loadUser();
   }, []);
 
   const requestWallet = async () => {
@@ -122,7 +82,6 @@ export function useFarcasterContext(): FarcasterContext {
         }
       } else {
         console.warn('⚠️ No ethereum provider found');
-        setError('Wallet provider not available');
       }
     } catch (err) {
       console.error('❌ Failed to get wallet:', err);

@@ -17,7 +17,7 @@ export default function MusicPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
 
-  const farcasterFid = user?.fid;
+  const farcasterFid = user?.fid || 0;
 
   // Auto-request wallet when user loads
   useEffect(() => {
@@ -49,14 +49,19 @@ export default function MusicPage() {
       setError(`Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`);
       return;
     }
-    if (!previewFile || !fullFile || !coverFile || !description || !walletAddress) {
+    if (!previewFile || !fullFile || !coverFile || !description) {
       const missing = [];
       if (!previewFile) missing.push('Preview Audio');
       if (!fullFile) missing.push('Full Track');
       if (!coverFile) missing.push('Cover Art');
       if (!description) missing.push('Song Title');
-      if (!walletAddress) missing.push('Wallet Connection');
       setError(`Please fill all fields: ${missing.join(', ')}`);
+      return;
+    }
+
+    if (!walletAddress) {
+      setError('Please connect your wallet first');
+      await requestWallet();
       return;
     }
 
@@ -120,41 +125,12 @@ export default function MusicPage() {
   };
 
   if (contextLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
-        <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-gray-600">Connecting to Farcaster...</p>
-          <p className="text-gray-500 text-sm mt-2">This may take a few seconds</p>
-        </div>
-      </div>
-    );
+    return null; // Don't show anything while loading - splash screen handles this
   }
 
-  if (contextError || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Connection Issue</h1>
-          <p className="text-gray-600 mb-4">
-            Unable to connect to Farcaster.
-          </p>
-          <p className="text-sm text-gray-500 mb-6">
-            Make sure you're opening this in Warpcast or another Farcaster client.
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            Try Again
-          </button>
-          {contextError && (
-            <p className="text-xs text-red-600 mt-4">Error: {contextError}</p>
-          )}
-        </div>
-      </div>
-    );
+  // Show warning if no user but don't block the app
+  if (!user && !contextLoading) {
+    console.warn('⚠️ No Farcaster user detected');
   }
 
   return (
@@ -178,19 +154,30 @@ export default function MusicPage() {
           </div>
 
           {/* User Info */}
-          <div className="mb-6 p-4 bg-purple-50 rounded-lg">
-            <p className="text-sm text-purple-900">
-              <strong>✅ Farcaster User:</strong> @{user.username}
-            </p>
-            <p className="text-sm text-purple-900 mt-1">
-              <strong>FID:</strong> {user.fid}
-            </p>
-            {walletAddress && (
-              <p className="text-sm text-purple-900 mt-1 font-mono text-xs">
-                <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+          {user ? (
+            <div className="mb-6 p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-purple-900">
+                <strong>✅ Farcaster User:</strong> @{user.username || 'Unknown'}
               </p>
-            )}
-          </div>
+              <p className="text-sm text-purple-900 mt-1">
+                <strong>FID:</strong> {user.fid}
+              </p>
+              {walletAddress && (
+                <p className="text-sm text-purple-900 mt-1 font-mono text-xs">
+                  <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
+              <p className="text-yellow-900 text-sm">
+                <strong>⚠️ User info not loaded</strong>
+              </p>
+              <p className="text-yellow-700 text-xs mt-1">
+                You can still use the app, but some features may require user info.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
