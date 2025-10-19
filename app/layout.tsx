@@ -3,7 +3,6 @@ import './globals.css';
 import { Providers } from './providers';
 import ClientNav from './components/ClientNav';
 import ClientBotFrame from './components/ClientBotFrame';
-import FarcasterSDK from './components/FarcasterSDK'; // ✅ ADD THIS LINE
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -69,7 +68,6 @@ export default function RootLayout({
     <html lang="en">
       <body className="flex flex-col min-h-screen">
         <Providers>
-          <FarcasterSDK /> {/* ✅ ADD THIS LINE */}
           <ClientNav />
           <main className="flex-1">{children}</main>
           <ClientBotFrame />
