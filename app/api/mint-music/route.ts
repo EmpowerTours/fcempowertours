@@ -5,28 +5,28 @@ const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xF4aa283
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
-// ✅ UPDATED: Simple ABI for MusicLicenseNFT
+// ✅ CORRECT ABI from the contract
 const MUSIC_NFT_ABI = [
   {
     inputs: [
-      { name: 'artist', type: 'address' },
-      { name: 'metadataURI', type: 'string' },
-      { name: 'royaltyPercentage', type: 'uint256' }
+      { internalType: 'address', name: 'artist', type: 'address' },
+      { internalType: 'string', name: 'tokenURI', type: 'string' },
+      { internalType: 'uint256', name: 'price', type: 'uint256' }
     ],
-    name: 'mintMusic',
-    outputs: [{ name: '', type: 'uint256' }],
+    name: 'mintMaster',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
     anonymous: false,
     inputs: [
-      { indexed: true, name: 'tokenId', type: 'uint256' },
-      { indexed: true, name: 'artist', type: 'address' },
-      { indexed: false, name: 'metadataURI', type: 'string' },
-      { indexed: false, name: 'royaltyPercentage', type: 'uint256' }
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'artist', type: 'address' },
+      { indexed: false, internalType: 'string', name: 'tokenURI', type: 'string' },
+      { indexed: false, internalType: 'uint256', name: 'price', type: 'uint256' }
     ],
-    name: 'MusicMinted',
+    name: 'MasterMinted',
     type: 'event',
   },
 ];
@@ -35,37 +35,46 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     
-    // ✅ FIXED: Accept both tokenURI and metadataCID formats
-    const { recipient, tokenURI, metadataCID, fid } = body;
+    // ✅ Accept multiple field name variations
+    const { recipient, tokenURI, metadataCID, metadataCid, fid } = body;
     
-    // Construct proper tokenURI
+    // Construct proper tokenURI - handle all variations
     let finalTokenURI = tokenURI;
-    if (!finalTokenURI && metadataCID) {
-      finalTokenURI = `ipfs://${metadataCID}`;
+    const cid = metadataCid || metadataCID;
+    
+    if (!finalTokenURI && cid) {
+      finalTokenURI = `ipfs://${cid}`;
     }
     
     console.log('🎵 Music NFT mint request (server-paid FREE):', {
       recipient,
       tokenURI: finalTokenURI,
-      metadataCID,
+      metadataCid: cid,
       fid,
       contract: MUSIC_NFT_ADDRESS,
     });
 
     // ✅ Validate inputs
     if (!recipient) {
+      console.error('❌ Missing recipient address');
       return NextResponse.json({ error: 'Missing recipient address' }, { status: 400 });
     }
     
     if (!finalTokenURI || finalTokenURI === 'ipfs://undefined' || finalTokenURI === 'undefined') {
-      console.error('❌ Invalid tokenURI:', { finalTokenURI, metadataCID, tokenURI });
+      console.error('❌ Invalid tokenURI:', { 
+        finalTokenURI, 
+        metadataCid: cid, 
+        tokenURI,
+        receivedBody: body 
+      });
       return NextResponse.json({ 
         error: 'Missing or invalid metadata CID',
-        debug: { finalTokenURI, metadataCID, tokenURI }
+        debug: { finalTokenURI, metadataCid: cid, tokenURI }
       }, { status: 400 });
     }
 
     if (!DEPLOYER_PRIVATE_KEY) {
+      console.error('❌ Missing DEPLOYER_PRIVATE_KEY');
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
@@ -73,15 +82,16 @@ export async function POST(req: NextRequest) {
     const deployer = new Wallet(DEPLOYER_PRIVATE_KEY, provider);
     const contract = new Contract(MUSIC_NFT_ADDRESS, MUSIC_NFT_ABI, deployer);
 
-    console.log('⚡ Minting music NFT (server pays - FREE for user)...');
+    console.log('⚡ Minting music master NFT (server pays - FREE for user)...');
 
-    // Default royalty: 10%
-    const royaltyPercentage = 10;
+    // Default price: 0 (free to stream for license holders)
+    const price = 0;
 
-    const tx = await contract.mintMusic(
-      recipient, // artist address
+    // ✅ Call mintMaster (not mintMusic)
+    const tx = await contract.mintMaster(
+      recipient,      // artist address
       finalTokenURI, // metadata URI
-      royaltyPercentage // 10% royalty
+      price          // price (0 = free)
     );
 
     console.log('📤 Mint tx sent:', tx.hash);
@@ -103,9 +113,9 @@ export async function POST(req: NextRequest) {
               topics: log.topics as string[],
               data: log.data,
             });
-            if (parsed?.name === 'MusicMinted') {
+            if (parsed?.name === 'MasterMinted') {
               tokenId = Number(parsed.args[0]);
-              console.log('✅ Extracted tokenId from event:', tokenId);
+              console.log('✅ Extracted tokenId from MasterMinted event:', tokenId);
               break;
             }
           } catch (e) {
@@ -117,16 +127,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log('✅ Music NFT minted (FREE - server paid gas)!', {
+    console.log('✅ Music Master NFT minted (FREE - server paid gas)!', {
       tokenId,
       txHash: tx.hash,
       artist: recipient,
+      tokenURI: finalTokenURI,
+      price,
     });
 
     // Post to Farcaster if FID provided
     if (fid) {
       try {
-        const castText = `🎵 New Music NFT Minted! Token #${tokenId}\n\n⚡ Free minting powered by EmpowerTours\n🎶 ${royaltyPercentage}% creator royalties\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
+        const castText = `🎵 New Music Master NFT Minted! Token #${tokenId}\n\n⚡ Free minting powered by EmpowerTours\n🎶 Stream with license\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
         
         await fetch('https://api.neynar.com/v2/farcaster/cast', {
           method: 'POST',
@@ -151,7 +163,7 @@ export async function POST(req: NextRequest) {
       tokenId,
       recipient,
       tokenURI: finalTokenURI,
-      royaltyPercentage,
+      price,
     });
   } catch (error: any) {
     console.error('❌ Server-paid mint error:', error);
