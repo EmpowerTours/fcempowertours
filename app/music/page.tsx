@@ -200,7 +200,7 @@ export default function MusicPage() {
                 <p className="text-green-700">
                   <strong>Song:</strong> {description || 'Untitled'}
                 </p>
-                
+                <a                
                   href={`https://testnet.monadscan.com/tx/${success.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
