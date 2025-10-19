@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
 
 export default function PassportPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
   
   const farcasterFid = user?.fid;
 
-  const [form, setForm] = useState({ countryCode: '', countryName: '' });
+  const [selectedCountryCode, setSelectedCountryCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -24,13 +25,23 @@ export default function PassportPage() {
   useEffect(() => {
     async function fetchLocation() {
       try {
+        console.log('🌍 Fetching location...');
         const res = await fetch('/api/geo');
         if (res.ok) {
           const data = await res.json();
-          setForm({ countryCode: data.country || '', countryName: data.country_name || '' });
+          console.log('📍 Location data:', data);
+          
+          // Set the country code which will auto-select in dropdown
+          setSelectedCountryCode(data.country || 'US');
+          
+          console.log('✅ Auto-detected country:', data.country, data.country_name);
+        } else {
+          console.warn('⚠️ Geo API returned non-OK status');
+          setSelectedCountryCode('US');
         }
       } catch (err) {
-        console.error('Location detection failed:', err);
+        console.error('❌ Location detection failed:', err);
+        setSelectedCountryCode('US');
       }
     }
     
@@ -40,8 +51,15 @@ export default function PassportPage() {
   }, [user]);
 
   const handleMint = async () => {
-    if (!walletAddress || !form.countryCode || !form.countryName) {
-      setError('Please fill all fields');
+    if (!walletAddress || !selectedCountryCode) {
+      setError('Please select a country');
+      return;
+    }
+
+    // Find the selected country details
+    const selectedCountry = getCountryByCode(selectedCountryCode);
+    if (!selectedCountry) {
+      setError('Invalid country selected');
       return;
     }
 
@@ -56,8 +74,8 @@ export default function PassportPage() {
         body: JSON.stringify({
           fid: farcasterFid,
           userAddress: walletAddress,
-          countryCode: form.countryCode,
-          countryName: form.countryName,
+          countryCode: selectedCountry.code,
+          countryName: selectedCountry.name,
         }),
       });
 
@@ -68,7 +86,7 @@ export default function PassportPage() {
 
       const { txHash, tokenId } = await response.json();
       setSuccess(`🎉 Passport #${tokenId} minted!`);
-      setForm({ countryCode: '', countryName: '' });
+      setSelectedCountryCode('');
     } catch (err: any) {
       setError(err.message || 'Mint failed');
     } finally {
@@ -145,29 +163,32 @@ export default function PassportPage() {
         )}
 
         <div className="space-y-4 mb-6">
-          <input
-            type="text"
-            name="countryCode"
-            placeholder="Country Code (e.g., MX)"
-            value={form.countryCode}
-            onChange={(e) => setForm({ ...form, countryCode: e.target.value.toUpperCase() })}
-            maxLength={2}
-            className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 uppercase"
-          />
-
-          <input
-            type="text"
-            name="countryName"
-            placeholder="Country Name (e.g., Mexico)"
-            value={form.countryName}
-            onChange={(e) => setForm({ ...form, countryName: e.target.value })}
-            className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500"
-          />
+          <div>
+            <label className="block text-white text-sm font-medium mb-2">
+              Select Your Country (All 195 Countries Available!)
+            </label>
+            <select
+              value={selectedCountryCode}
+              onChange={(e) => setSelectedCountryCode(e.target.value)}
+              className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 text-base"
+              style={{ minHeight: '48px' }}
+            >
+              <option value="">Choose a country...</option>
+              {ALL_COUNTRIES.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.flag} {country.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-gray-500 text-xs mt-2">
+              📍 Auto-detected from your location
+            </p>
+          </div>
         </div>
 
         <button
           onClick={handleMint}
-          disabled={isLoading || !form.countryCode || !form.countryName}
+          disabled={isLoading || !selectedCountryCode}
           className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
           style={{ minHeight: '56px' }}
         >
@@ -175,7 +196,7 @@ export default function PassportPage() {
         </button>
 
         <p className="text-gray-500 text-xs text-center mt-4">
-          📍 Location auto-detected. Free mint - we pay gas!
+          📍 Free mint - we pay gas! Each wallet can mint one passport.
         </p>
       </div>
     </div>

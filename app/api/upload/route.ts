@@ -30,41 +30,35 @@ export async function POST(request: NextRequest) {
       cover: coverFile instanceof File ? coverFile.name : 'not a file',
     });
 
-    // Convert FormData entries to proper File objects if needed
-    const toFile = async (item: any): Promise<File> => {
-      if (item instanceof File) {
-        return item;
-      }
-      // If it's a Blob or other type, convert to File
-      const blob = item instanceof Blob ? item : await item.arrayBuffer();
-      return new File([blob], 'file', { type: item.type || 'application/octet-stream' });
-    };
-
-    const preview = await toFile(previewFile);
-    const full = await toFile(fullFile);
-    const cover = await toFile(coverFile);
+    // Ensure we have File objects
+    if (!(previewFile instanceof File) || !(fullFile instanceof File) || !(coverFile instanceof File)) {
+      return NextResponse.json(
+        { error: 'Invalid file upload. All files must be valid File objects.' },
+        { status: 400 }
+      );
+    }
 
     // Upload preview clip (for NFT mint)
     console.log('📤 Uploading preview audio...');
-    const previewUpload = await pinata.upload.file(preview);
+    const previewUpload = await pinata.upload.file(previewFile);
     const previewCid = previewUpload.IpfsHash || previewUpload.cid;
     console.log('✅ Preview uploaded:', previewCid);
 
     // Upload full song (for streaming)
     console.log('📤 Uploading full song...');
-    const fullUpload = await pinata.upload.file(full);
+    const fullUpload = await pinata.upload.file(fullFile);
     const fullCid = fullUpload.IpfsHash || fullUpload.cid;
     console.log('✅ Full song uploaded:', fullCid);
 
     // Upload cover image
     console.log('📤 Uploading cover image...');
-    const coverUpload = await pinata.upload.file(cover);
+    const coverUpload = await pinata.upload.file(coverFile);
     const coverCid = coverUpload.IpfsHash || coverUpload.cid;
     console.log('✅ Cover uploaded:', coverCid);
 
     // Metadata JSON
     const metadata = {
-      name: `Music NFT - ${preview.name}`,
+      name: `Music NFT - ${previewFile.name}`,
       description,
       image: `ipfs://${coverCid}`,
       animation_url: `ipfs://${previewCid}`,

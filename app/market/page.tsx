@@ -105,17 +105,17 @@ export default function MarketPage() {
     if (!userAddress) return;
     try {
       const provider = new JsonRpcProvider(RPC_URL);
-      
+
       // Token swap contract
       const swapContract = new Contract(TOKEN_SWAP_ADDRESS, TokenSwapABI, provider);
       const rate = await swapContract.exchangeRate();
       const min = await swapContract.minMon();
-      
+
       // TOURS token contract
       const toursContract = new Contract(TOURS_ADDRESS, ToursABI, provider);
       const userBalance = await toursContract.balanceOf(userAddress);
       const contractBalance = await toursContract.balanceOf(TOKEN_SWAP_ADDRESS);
-      
+
       setExchangeRate(rate.toString());
       setMinMon(min.toString());
       setToursBalance(userBalance.toString());
@@ -138,8 +138,9 @@ export default function MarketPage() {
 
   const getProvider = async () => {
     if (!window.ethereum) {
-      throw new Error('Please install MetaMask or another Web3 wallet');
+      throw new Error('No wallet found. Please open in Warpcast or install MetaMask.');
     }
+    console.log('🔌 Using wallet provider');
     return new BrowserProvider(window.ethereum);
   };
 
@@ -150,13 +151,13 @@ export default function MarketPage() {
       const provider = await getProvider();
       const signer = await provider.getSigner();
       const contract = new Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI, signer);
-      
+
       const tx = await contract.createItinerary(description, parseEther(price));
       console.log('Transaction sent:', tx.hash);
-      
+
       await tx.wait();
       alert('Itinerary created successfully!');
-      
+
       setDescription('');
       setPrice('');
       setTimeout(() => fetchAvailableItineraries(), 2000);
@@ -170,7 +171,8 @@ export default function MarketPage() {
 
   const purchaseItinerary = async (id: number, price: bigint) => {
     if (!userAddress) {
-      alert('Please ensure you are in Warpcast and your wallet is connected');
+      alert('Please connect your wallet first');
+      await requestWallet();
       return;
     }
 
@@ -180,12 +182,12 @@ export default function MarketPage() {
       const signer = await provider.getSigner();
 
       console.log('🛒 Step 1/2: Approving TOURS tokens...');
-      
+
       // Step 1: Approve TOURS tokens
       const toursContract = new Contract(TOURS_ADDRESS, ToursABI, signer);
       const approveTx = await toursContract.approve(ITINERARY_MARKET_ADDRESS, price);
       console.log('✅ Approval transaction submitted:', approveTx.hash);
-      
+
       await approveTx.wait();
       alert(`✅ Step 1/2 Complete!\n\nApproval confirmed: ${approveTx.hash.slice(0, 10)}...\n\nNow confirm the purchase transaction...`);
 
@@ -195,7 +197,7 @@ export default function MarketPage() {
       const marketContract = new Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI, signer);
       const purchaseTx = await marketContract.purchaseItinerary(BigInt(id));
       console.log('✅ Purchase transaction submitted:', purchaseTx.hash);
-      
+
       await purchaseTx.wait();
       alert(`🎉 Purchase Complete!\n\nTransaction: ${purchaseTx.hash.slice(0, 10)}...\n\nRefreshing page...`);
 
@@ -222,24 +224,38 @@ export default function MarketPage() {
 
   const handleSwap = async (amount: number) => {
     if (!userAddress) {
-      alert('Please ensure you are in Warpcast');
+      alert('Please connect your wallet first');
+      await requestWallet();
       return;
     }
-    
+
     setIsProcessing(true);
     try {
+      console.log('💱 Starting swap for', amount, 'MON');
+      console.log('📍 Connected wallet:', userAddress);
+      
       const provider = await getProvider();
       const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
+      
+      console.log('🔑 Signer address:', signerAddress);
+      
+      if (signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
+        throw new Error(`Wallet mismatch! Connected: ${userAddress}, Signing: ${signerAddress}`);
+      }
+      
       const contract = new Contract(TOKEN_SWAP_ADDRESS, TokenSwapABI, signer);
-      
+
       const monValue = parseEther(amount.toString());
-      const tx = await contract.swap({ value: monValue });
+      console.log('💰 Sending', amount, 'MON');
       
+      const tx = await contract.swap({ value: monValue });
+
       console.log('Swap transaction sent:', tx.hash);
       await tx.wait();
-      
+
       alert(`Swap successful! Tx: ${tx.hash}`);
-      
+
       setTimeout(() => fetchSwapData(), 2000);
     } catch (error: any) {
       console.error('Swap error:', error);
@@ -278,7 +294,7 @@ export default function MarketPage() {
   return (
     <div className="p-5 max-w-3xl mx-auto">
       <h1 className="text-3xl font-bold mb-4">EmpowerTours Marketplace</h1>
-      
+
       {/* User Info */}
       <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
         <p className="text-sm text-purple-900">
@@ -287,63 +303,80 @@ export default function MarketPage() {
         <p className="text-sm text-purple-900 mt-1 font-mono">
           {userAddress?.slice(0, 6)}...{userAddress?.slice(-4)}
         </p>
+        <p className="text-xs text-gray-500 mt-2">
+          💡 All transactions will use this wallet address
+        </p>
       </div>
 
       {/* Swap Widget */}
-      <div className="p-5 border border-gray-300 rounded-lg my-5 bg-white">
+      <div className="p-5 border-2 border-purple-200 rounded-lg my-5 bg-gradient-to-br from-purple-50 to-blue-50">
         <h3 className="text-xl font-semibold mb-4">Get $TOURS (Swap MON)</h3>
-        <p className="mb-2">Rate: 1 MON = {((Number(exchangeRate) / 1e18) || 0).toFixed(0)} $TOURS</p>
-        <p className="mb-2">Min: {((Number(minMon) / 1e18) || 0).toFixed(2)} MON</p>
-        <p className="mb-2">Contract Balance: {((Number(contractToursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
-        <p className="mb-4">Your Balance: {((Number(toursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
+        <div className="space-y-2 mb-4">
+          <p className="text-sm">Rate: 1 MON = {((Number(exchangeRate) / 1e18) || 0).toFixed(0)} $TOURS</p>
+          <p className="text-sm">Min: {((Number(minMon) / 1e18) || 0).toFixed(2)} MON</p>
+          <p className="text-sm">Contract Balance: {((Number(contractToursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
+          <p className="text-sm font-bold">Your Balance: {((Number(toursBalance) / 1e18) || 0).toFixed(0)} $TOURS</p>
+        </div>
         <button
           onClick={() => handleSwap(0.1)}
           disabled={!userAddress || isProcessing}
-          className="bg-purple-500 text-white px-4 py-2 rounded disabled:bg-gray-400"
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed active:scale-95 touch-manipulation transition-all w-full"
+          style={{ minHeight: '56px' }}
         >
-          {isProcessing ? 'Swapping...' : 'Swap 0.1 MON'}
+          {isProcessing ? '⏳ Swapping...' : '💱 Swap 0.1 MON → TOURS'}
         </button>
       </div>
 
       {/* Create Itinerary */}
-      <div className="my-8 p-6 bg-white rounded-lg border border-gray-300">
+      <div className="my-8 p-6 bg-white rounded-lg border-2 border-gray-200">
         <h2 className="text-2xl font-semibold mb-4">Create Itinerary</h2>
         <input
           type="text"
           placeholder="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border rounded mb-2"
+          className="w-full p-3 border-2 border-gray-300 rounded-lg mb-3 focus:border-purple-500 focus:outline-none"
         />
         <input
           type="text"
           placeholder="Price (TOURS)"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          className="w-full p-2 border rounded mb-2"
+          className="w-full p-3 border-2 border-gray-300 rounded-lg mb-3 focus:border-purple-500 focus:outline-none"
         />
         <button
           onClick={createItinerary}
-          disabled={isProcessing || !userAddress}
-          className="bg-green-500 text-white px-4 py-2 rounded disabled:bg-gray-400"
+          disabled={isProcessing || !userAddress || !description || !price}
+          className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed active:scale-95 touch-manipulation transition-all w-full"
+          style={{ minHeight: '56px' }}
         >
-          {isProcessing ? 'Creating...' : 'Create Itinerary'}
+          {isProcessing ? '⏳ Creating...' : '✨ Create Itinerary'}
         </button>
       </div>
 
       {/* Your Passports */}
-      <div className="my-8">
+      <div className="my-8 p-6 bg-white rounded-lg border-2 border-gray-200">
         <h2 className="text-2xl font-semibold mb-4">Your Passports</h2>
         {isLoadingPassports ? (
           <p className="text-gray-500">Loading passports...</p>
         ) : ownedPassports.length > 0 ? (
-          <ul className="list-disc pl-5">
+          <ul className="space-y-2">
             {ownedPassports.map((tokenId) => (
-              <li key={String(tokenId)}>{`Passport NFT #${String(tokenId)}`}</li>
+              <li key={String(tokenId)} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                🎫 Passport NFT #{String(tokenId)}
+              </li>
             ))}
           </ul>
         ) : (
-          <p className="text-gray-500">No passports owned</p>
+          <div className="text-center py-4">
+            <p className="text-gray-500 mb-3">No passports owned by this wallet</p>
+            <a
+              href="/passport"
+              className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Mint Your First Passport →
+            </a>
+          </div>
         )}
       </div>
 
@@ -355,19 +388,22 @@ export default function MarketPage() {
         ) : (
           <ul className="space-y-4">
             {itineraries.map((itinerary) => (
-              <li key={String(itinerary.id)} className="border border-gray-300 p-4 rounded bg-white">
-                <p><strong>ID:</strong> {String(itinerary.id)}</p>
-                <p><strong>Creator:</strong> {String(itinerary.creator)}</p>
-                <p><strong>Description:</strong> {String(itinerary.description)}</p>
-                <p><strong>Price:</strong> {String(formatEther(itinerary.price))} TOURS</p>
-                <p><strong>Status:</strong> {itinerary.isActive ? 'Active' : 'Inactive'}</p>
+              <li key={String(itinerary.id)} className="border-2 border-gray-200 p-5 rounded-lg bg-white hover:border-purple-300 transition-all">
+                <div className="space-y-2">
+                  <p className="text-sm"><strong>ID:</strong> {String(itinerary.id)}</p>
+                  <p className="text-sm"><strong>Creator:</strong> {String(itinerary.creator).slice(0, 6)}...{String(itinerary.creator).slice(-4)}</p>
+                  <p><strong>Description:</strong> {String(itinerary.description)}</p>
+                  <p className="text-lg font-bold text-green-600">💰 {String(formatEther(itinerary.price))} TOURS</p>
+                  <p className="text-sm"><strong>Status:</strong> <span className={itinerary.isActive ? 'text-green-600' : 'text-red-600'}>{itinerary.isActive ? '✅ Active' : '❌ Inactive'}</span></p>
+                </div>
                 {itinerary.isActive && (
                   <button
                     onClick={() => purchaseItinerary(Number(itinerary.id), itinerary.price)}
                     disabled={isProcessing || !userAddress}
-                    className="bg-blue-500 text-white px-4 py-2 rounded mt-2 disabled:bg-gray-400"
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg mt-3 font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed active:scale-95 touch-manipulation transition-all w-full"
+                    style={{ minHeight: '56px' }}
                   >
-                    {isProcessing ? 'Processing...' : 'Purchase'}
+                    {isProcessing ? '⏳ Processing...' : '🛒 Purchase Itinerary'}
                   </button>
                 )}
               </li>
