@@ -74,12 +74,12 @@ export default function ClientNav() {
           ) : error || !user ? (
             <div className="text-gray-400 text-sm">Not in Farcaster</div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {user.pfpUrl && (
                 <img
                   src={user.pfpUrl}
                   alt={farcasterUsername || 'User'}
-                  className="w-8 h-8 rounded-full border-2 border-purple-500 object-cover"
+                  className="w-6 h-6 rounded-full border border-purple-500 object-cover"
                 />
               )}
               <div className="flex flex-col items-end">

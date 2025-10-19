@@ -169,10 +169,10 @@ export default function ProfilePage() {
               <img
                 src={farcasterPfp}
                 alt={farcasterUsername || 'Profile'}
-                className="w-16 h-16 rounded-full mx-auto mb-4 border-4 border-purple-200 shadow-lg object-cover"
+                className="w-14 h-14 rounded-full mx-auto mb-4 border-2 border-purple-200 shadow-lg object-cover"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold shadow-lg">
                 {farcasterUsername?.charAt(0).toUpperCase() || '👤'}
               </div>
             )}

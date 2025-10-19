@@ -110,7 +110,7 @@ export default function PassportPage() {
             <img
               src={user.pfpUrl}
               alt={user.username || 'User'}
-              className="w-12 h-12 rounded-full mx-auto mb-4 border-4 border-purple-500 object-cover"
+              className="w-10 h-10 rounded-full mx-auto mb-4 border-2 border-purple-500 object-cover"
             />
           )}
           <h1 className="text-4xl font-bold text-white mb-2">🌍 Travel Passport NFT</h1>
