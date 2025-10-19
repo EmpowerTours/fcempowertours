@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
-// New MusicLicenseNFTv2 contract address
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
 
 export default function MusicPage() {
@@ -20,7 +19,6 @@ export default function MusicPage() {
 
   const farcasterFid = user?.fid || 0;
 
-  // Auto-request wallet when user loads
   useEffect(() => {
     if (user && !walletAddress) {
       requestWallet();
@@ -137,7 +135,6 @@ export default function MusicPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          {/* Header */}
           <div className="text-center mb-8">
             {user?.pfpUrl && (
               <img
@@ -162,7 +159,6 @@ export default function MusicPage() {
             </div>
           </div>
 
-          {/* User Info */}
           {user ? (
             <div className="mb-6 p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-purple-900">
@@ -216,7 +212,6 @@ export default function MusicPage() {
             </div>
           )}
 
-          {/* Form fields */}
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Song Title *</label>
@@ -231,7 +226,6 @@ export default function MusicPage() {
               <p className="text-xs text-gray-500 mt-1">{description.length}/200 characters</p>
             </div>
 
-            {/* Preview Audio */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Preview Audio (30s clip) *
@@ -253,7 +247,6 @@ export default function MusicPage() {
               <p className="text-xs text-gray-500 mt-1">Max 600KB (~30 seconds)</p>
             </div>
 
-            {/* Full Track */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Full Track *</label>
               <input
@@ -273,7 +266,6 @@ export default function MusicPage() {
               <p className="text-xs text-gray-500 mt-1">Max 15MB</p>
             </div>
 
-            {/* Cover Art */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Cover Art *</label>
               <input
@@ -297,7 +289,6 @@ export default function MusicPage() {
               <p className="text-xs text-gray-500 mt-1">JPG, PNG, or WebP - Max 3MB</p>
             </div>
 
-            {/* Mint button */}
             <button
               onClick={uploadAndMint}
               disabled={
