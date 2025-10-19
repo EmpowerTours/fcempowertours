@@ -106,15 +106,15 @@ export default function PassportPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-blue-900 flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 shadow-2xl p-8">
         <div className="text-center mb-8">
-          {user.pfpUrl && (
+          {user?.pfpUrl && (
             <img
               src={user.pfpUrl}
-              alt={user.username}
-              className="w-16 h-16 rounded-full mx-auto mb-4 border-4 border-purple-500"
+              alt={user.username || 'User'}
+              className="w-12 h-12 rounded-full mx-auto mb-4 border-4 border-purple-500 object-cover"
             />
           )}
           <h1 className="text-4xl font-bold text-white mb-2">🌍 Travel Passport NFT</h1>
-          <p className="text-gray-400">@{user.username}</p>
+          <p className="text-gray-400">@{user?.username || 'User'}</p>
         </div>
 
         <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-lg p-3">

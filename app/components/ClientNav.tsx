@@ -79,7 +79,7 @@ export default function ClientNav() {
                 <img
                   src={user.pfpUrl}
                   alt={farcasterUsername || 'User'}
-                  className="w-8 h-8 rounded-full border-2 border-purple-500"
+                  className="w-8 h-8 rounded-full border-2 border-purple-500 object-cover"
                 />
               )}
               <div className="flex flex-col items-end">
