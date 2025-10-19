@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PinataSDK } from 'pinata';
+import axios from 'axios';
 
-const pinata = new PinataSDK({
-  pinataJwt: process.env.PINATA_JWT!,
-  pinataGateway: process.env.PINATA_GATEWAY || undefined,
-});
+const PINATA_API_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
+const PINATA_JSON_URL = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
+const PINATA_JWT = process.env.PINATA_JWT!;
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,22 +37,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Helper function to upload file to Pinata
+    const uploadFileToPinata = async (file: File) => {
+      const data = new FormData();
+      data.append('file', file);
+
+      const response = await axios.post(PINATA_API_URL, data, {
+        headers: {
+          'Authorization': `Bearer ${PINATA_JWT}`,
+        },
+      });
+
+      return response.data.IpfsHash;
+    };
+
     // Upload preview clip (for NFT mint)
     console.log('📤 Uploading preview audio...');
-    const previewUpload = await pinata.upload.file(previewFile);
-    const previewCid = previewUpload.IpfsHash || previewUpload.cid;
+    const previewCid = await uploadFileToPinata(previewFile);
     console.log('✅ Preview uploaded:', previewCid);
 
     // Upload full song (for streaming)
     console.log('📤 Uploading full song...');
-    const fullUpload = await pinata.upload.file(fullFile);
-    const fullCid = fullUpload.IpfsHash || fullUpload.cid;
+    const fullCid = await uploadFileToPinata(fullFile);
     console.log('✅ Full song uploaded:', fullCid);
 
     // Upload cover image
     console.log('📤 Uploading cover image...');
-    const coverUpload = await pinata.upload.file(coverFile);
-    const coverCid = coverUpload.IpfsHash || coverUpload.cid;
+    const coverCid = await uploadFileToPinata(coverFile);
     console.log('✅ Cover uploaded:', coverCid);
 
     // Metadata JSON
@@ -72,8 +82,13 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('📤 Uploading metadata...');
-    const metadataUpload = await pinata.upload.json(metadata);
-    const metadataCid = metadataUpload.IpfsHash || metadataUpload.cid;
+    const metadataResponse = await axios.post(PINATA_JSON_URL, metadata, {
+      headers: {
+        'Authorization': `Bearer ${PINATA_JWT}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const metadataCid = metadataResponse.data.IpfsHash;
     console.log('✅ Metadata uploaded:', metadataCid);
 
     // Return both camelCase variations + tokenURI
