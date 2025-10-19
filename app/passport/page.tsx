@@ -168,7 +168,8 @@ export default function PassportPage() {
         <button
           onClick={handleMint}
           disabled={isLoading || !form.countryCode || !form.countryName}
-          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
+          style={{ minHeight: '56px' }}
         >
           {isLoading ? '⏳ Minting...' : '🎫 Mint Passport (FREE)'}
         </button>

@@ -9,9 +9,9 @@ const pinata = new PinataSDK({
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const previewFile = formData.get('previewAudio') as File;
-    const fullFile = formData.get('fullAudio') as File;
-    const coverFile = formData.get('cover') as File;
+    const previewFile = formData.get('previewAudio');
+    const fullFile = formData.get('fullAudio');
+    const coverFile = formData.get('cover');
     const description = formData.get('description') as string;
     const fid = formData.get('fid') as string;
     const address = formData.get('address') as string;
@@ -24,31 +24,47 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📤 Starting upload process...');
+    console.log('📦 Files received:', {
+      preview: previewFile instanceof File ? previewFile.name : 'not a file',
+      full: fullFile instanceof File ? fullFile.name : 'not a file',
+      cover: coverFile instanceof File ? coverFile.name : 'not a file',
+    });
 
-    // Type assertion to handle Pinata SDK type definitions
-    const uploadApi = pinata.upload as any;
+    // Convert FormData entries to proper File objects if needed
+    const toFile = async (item: any): Promise<File> => {
+      if (item instanceof File) {
+        return item;
+      }
+      // If it's a Blob or other type, convert to File
+      const blob = item instanceof Blob ? item : await item.arrayBuffer();
+      return new File([blob], 'file', { type: item.type || 'application/octet-stream' });
+    };
+
+    const preview = await toFile(previewFile);
+    const full = await toFile(fullFile);
+    const cover = await toFile(coverFile);
 
     // Upload preview clip (for NFT mint)
     console.log('📤 Uploading preview audio...');
-    const previewUpload = await uploadApi.file(previewFile);
+    const previewUpload = await pinata.upload.file(preview);
     const previewCid = previewUpload.IpfsHash || previewUpload.cid;
     console.log('✅ Preview uploaded:', previewCid);
 
     // Upload full song (for streaming)
     console.log('📤 Uploading full song...');
-    const fullUpload = await uploadApi.file(fullFile);
+    const fullUpload = await pinata.upload.file(full);
     const fullCid = fullUpload.IpfsHash || fullUpload.cid;
     console.log('✅ Full song uploaded:', fullCid);
 
     // Upload cover image
     console.log('📤 Uploading cover image...');
-    const coverUpload = await uploadApi.file(coverFile);
+    const coverUpload = await pinata.upload.file(cover);
     const coverCid = coverUpload.IpfsHash || coverUpload.cid;
     console.log('✅ Cover uploaded:', coverCid);
 
     // Metadata JSON
     const metadata = {
-      name: `Music NFT - ${previewFile.name}`,
+      name: `Music NFT - ${preview.name}`,
       description,
       image: `ipfs://${coverCid}`,
       animation_url: `ipfs://${previewCid}`,
@@ -62,7 +78,7 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('📤 Uploading metadata...');
-    const metadataUpload = await uploadApi.json(metadata);
+    const metadataUpload = await pinata.upload.json(metadata);
     const metadataCid = metadataUpload.IpfsHash || metadataUpload.cid;
     console.log('✅ Metadata uploaded:', metadataCid);
 
@@ -71,12 +87,15 @@ export async function POST(request: NextRequest) {
       previewCid,
       fullCid,
       coverCid,
-      metadataCid,                    // lowercase 'id'
-      metadataCID: metadataCid,       // uppercase 'ID' for compatibility
-      tokenURI: `ipfs://${metadataCid}`, // Complete tokenURI
+      metadataCid,
+      metadataCID: metadataCid,
+      tokenURI: `ipfs://${metadataCid}`,
     });
   } catch (error) {
     console.error('❌ Upload failed:', error);
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Upload failed',
+      details: error instanceof Error ? error.stack : undefined
+    }, { status: 500 });
   }
 }

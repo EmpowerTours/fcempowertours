@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     let recipientAddress = userAddress;
     let username = "traveler";
 
-    // If FID provided, resolve to wallet address
+    // If FID provided, resolve to wallet address - but DON'T use custody address
     if (fid) {
       try {
         const neynarRes = await axios.get(
@@ -102,34 +102,25 @@ export async function POST(req: NextRequest) {
         );
         const userData = neynarRes.data.users[0];
         if (userData) {
-          const fetchedAddress = userData.custody_address;
           username = userData.username || "traveler";
-
-          // Verify addresses match if both provided
-          if (userAddress && userAddress.toLowerCase() !== fetchedAddress.toLowerCase()) {
-            console.warn("⚠️ Provided userAddress doesn't match FID custody address, using FID address");
-          }
-          recipientAddress = userAddress || fetchedAddress;
+          console.log(`✅ Farcaster user: @${username} (FID ${fid})`);
         }
       } catch (neynarError: any) {
-        console.warn("⚠️ Neynar lookup failed, proceeding with userAddress:", neynarError.message);
+        console.warn("⚠️ Neynar lookup failed, proceeding anyway:", neynarError.message);
       }
     }
 
     if (!recipientAddress) {
-      throw new Error("No recipient address available (need userAddress or valid FID)");
+      throw new Error("No recipient address provided");
     }
 
     console.log(`👤 Recipient: ${recipientAddress} (@${username})`);
 
-    // Check if user already has a passport (only if not setting tokenURI for existing mint)
+    // REMOVED: Check for existing passport by wallet
+    // Users can mint to different wallets (Privy vs Farcaster)
+    // Only check if setting tokenURI for existing mint
     if (!tokenId) {
-      const balance = await contract.balanceOf(recipientAddress);
-      if (balance > 0) {
-        return NextResponse.json({
-          error: "Already owns a passport. Each wallet can only mint one passport."
-        }, { status: 400 });
-      }
+      console.log('✅ New mint - no duplicate check needed');
     }
 
     let transaction_hash: string;

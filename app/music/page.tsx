@@ -238,7 +238,7 @@ export default function MusicPage() {
               </label>
               <input
                 type="file"
-                accept="audio/*"
+                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/aac,audio/*"
                 onChange={handleFileChange(setPreviewFile)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               />
@@ -258,7 +258,7 @@ export default function MusicPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Full Track *</label>
               <input
                 type="file"
-                accept="audio/*"
+                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/aac,audio/*"
                 onChange={handleFileChange(setFullFile)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               />
@@ -308,7 +308,8 @@ export default function MusicPage() {
                 uploading ||
                 minting
               }
-              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95 touch-manipulation"
+              style={{ minHeight: '56px' }}
             >
               {uploading
                 ? '⏳ Uploading to IPFS...'
@@ -320,7 +321,8 @@ export default function MusicPage() {
             {!walletAddress && (
               <button
                 onClick={requestWallet}
-                className="w-full mt-3 px-6 py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-all"
+                className="w-full mt-3 px-6 py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-all active:scale-95 touch-manipulation"
+                style={{ minHeight: '56px' }}
               >
                 🔑 Connect Wallet First
               </button>
