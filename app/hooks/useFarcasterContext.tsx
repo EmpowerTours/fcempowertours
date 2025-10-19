@@ -25,10 +25,26 @@ export function useFarcasterContext(): FarcasterContext {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    
     const loadContext = async () => {
       try {
-        console.log('🔄 Loading Farcaster context...');
-        const context = await sdk.context;
+        console.log('🔄 Loading Farcaster context... (attempt', retryCount + 1, ')');
+        
+        // Add timeout to context loading
+        const contextPromise = sdk.context;
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Context load timeout')), 5000)
+        );
+        
+        const context = await Promise.race([contextPromise, timeoutPromise]) as any;
+        
+        console.log('📦 Context received:', {
+          hasContext: !!context,
+          hasUser: !!context?.user,
+          user: context?.user
+        });
         
         if (context?.user) {
           const farcasterUser: FarcasterUser = {
@@ -40,20 +56,38 @@ export function useFarcasterContext(): FarcasterContext {
           
           console.log('✅ Farcaster user loaded:', farcasterUser);
           setUser(farcasterUser);
+          setError(null);
           
           // Tell Farcaster the app is ready
           sdk.actions.ready();
           console.log('✅ Called sdk.actions.ready()');
         } else {
-          console.warn('⚠️ No user in context');
-          setError('Not running in Farcaster client');
+          console.warn('⚠️ No user in context, retrying...');
           
-          // Still call ready even if no user
+          // Retry if no user and haven't exceeded max retries
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(loadContext, 1000); // Retry after 1 second
+            return;
+          }
+          
+          setError('Could not load Farcaster user');
+          
+          // Still call ready to dismiss splash
           sdk.actions.ready();
         }
       } catch (err) {
         console.error('❌ Failed to load Farcaster context:', err);
-        setError('Failed to load user context');
+        
+        // Retry on error if haven't exceeded max retries
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log('🔄 Retrying...', retryCount, '/', maxRetries);
+          setTimeout(loadContext, 1000);
+          return;
+        }
+        
+        setError('Failed to connect to Farcaster');
         
         // Call ready even on error to dismiss splash
         try {
@@ -62,7 +96,10 @@ export function useFarcasterContext(): FarcasterContext {
           console.error('❌ Failed to call ready():', readyErr);
         }
       } finally {
-        setIsLoading(false);
+        // Only set loading to false after all retries are exhausted
+        if (retryCount >= maxRetries || user) {
+          setIsLoading(false);
+        }
       }
     };
 

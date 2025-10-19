@@ -124,7 +124,8 @@ export default function MusicPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-gray-600">Loading your profile...</p>
+          <p className="text-gray-600">Connecting to Farcaster...</p>
+          <p className="text-gray-500 text-sm mt-2">This may take a few seconds</p>
         </div>
       </div>
     );
@@ -135,11 +136,22 @@ export default function MusicPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
-          <p className="text-gray-600 mb-6">
-            This Mini App must be opened in Warpcast or another Farcaster client.
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Connection Issue</h1>
+          <p className="text-gray-600 mb-4">
+            Unable to connect to Farcaster.
           </p>
-          <p className="text-sm text-gray-500">Error: {contextError}</p>
+          <p className="text-sm text-gray-500 mb-6">
+            Make sure you're opening this in Warpcast or another Farcaster client.
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            Try Again
+          </button>
+          {contextError && (
+            <p className="text-xs text-red-600 mt-4">Error: {contextError}</p>
+          )}
         </div>
       </div>
     );
