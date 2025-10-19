@@ -169,7 +169,16 @@ export default function ProfilePage() {
               <img
                 src={farcasterPfp}
                 alt={farcasterUsername || 'Profile'}
-                className="w-14 h-14 rounded-full mx-auto mb-4 border-2 border-purple-200 shadow-lg object-cover"
+                className="rounded-full mx-auto mb-4 border-2 border-purple-200 shadow-lg"
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  minWidth: '56px',
+                  minHeight: '56px',
+                  maxWidth: '56px',
+                  maxHeight: '56px',
+                  objectFit: 'cover'
+                }}
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold shadow-lg">

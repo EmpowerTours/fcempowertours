@@ -143,7 +143,16 @@ export default function MusicPage() {
               <img
                 src={user.pfpUrl}
                 alt={user.username || 'User'}
-                className="w-10 h-10 rounded-full mx-auto mb-4 border-2 border-purple-200 object-cover"
+                className="rounded-full mx-auto mb-4 border-2 border-purple-200"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  maxWidth: '40px',
+                  maxHeight: '40px',
+                  objectFit: 'cover'
+                }}
               />
             )}
             <h1 className="text-3xl font-bold text-gray-900 mb-2">🎵 Mint Music NFT</h1>

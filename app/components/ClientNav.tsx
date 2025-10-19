@@ -25,11 +25,6 @@ export default function ClientNav() {
       <div className="container mx-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🎵</span>
-            <span className="text-white text-xl font-bold">EmpowerTours</span>
-          </div>
-
-          <div className="flex items-center gap-2">
             <button
               onClick={() => navigateTo('/')}
               className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
