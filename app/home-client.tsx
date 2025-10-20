@@ -43,21 +43,21 @@ export default function HomeClient() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              
+              <a
                 href="/passport"
                 className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg shadow-purple-500/50"
               >
                 🎫 Get Your Passport
               </a>
 
-              
+              <a
                 href="/music"
                 className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-bold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all transform hover:scale-105 shadow-lg shadow-blue-500/50"
               >
                 🎵 Mint Music
               </a>
 
-              
+              <a
                 href="/dashboard"
                 className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-bold text-lg hover:bg-white/20 transition-all border border-white/30"
               >
@@ -73,7 +73,6 @@ export default function HomeClient() {
         <h2 className="text-4xl font-bold text-center mb-12">
           🔴 Live from Farcaster
         </h2>
-        
         <DynamicCastFrame />
       </div>
 
@@ -115,6 +114,7 @@ export default function HomeClient() {
         </div>
       </footer>
 
+      {/* Animations */}
       <style jsx>{`
         @keyframes blob {
           0%, 100% { transform: translate(0, 0) scale(1); }
