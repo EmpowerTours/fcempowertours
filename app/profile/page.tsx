@@ -1,13 +1,10 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { PassportSVG } from '@/components/PassportSVG';
 import Link from 'next/link';
-
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
-
 // Helper to resolve IPFS URLs
 const resolveIPFS = (url: string) => {
   if (!url) return '';
@@ -16,7 +13,6 @@ const resolveIPFS = (url: string) => {
   }
   return url;
 };
-
 // Interface for NFT metadata
 interface MusicMetadata {
   animation_url?: string;
@@ -25,7 +21,6 @@ interface MusicMetadata {
   name?: string;
   description?: string;
 }
-
 interface MusicNFTWithMetadata {
   id: string;
   tokenId: number;
@@ -37,34 +32,60 @@ interface MusicNFTWithMetadata {
   audioUrl?: string;
   isLoadingMetadata?: boolean;
 }
-
+interface PassportMetadata {
+  name?: string;
+  description?: string;
+  attributes?: Array<{ trait_type: string; value: string }>;
+}
+interface PassportNFT {
+  id: string;
+  tokenId: number;
+  owner: string;
+  countryCode?: string;
+  tokenURI: string;
+  mintedAt: string;
+  txHash: string;
+}
+async function fetchPassportCountryCode(tokenURI: string): Promise<string | null> {
+  try {
+    const metadataUrl = resolveIPFS(tokenURI);
+    const response = await fetch(metadataUrl);
+    if (!response.ok) {
+      console.error('Failed to fetch passport metadata:', response.status);
+      return null;
+    }
+    const metadata: PassportMetadata = await response.json();
+    const countryAttr = metadata.attributes?.find(
+      (attr) => attr.trait_type.toLowerCase() === 'country code'
+    );
+    return countryAttr ? countryAttr.value.toUpperCase() : null;
+  } catch (error) {
+    console.error('Error fetching passport country code:', error);
+    return null;
+  }
+}
 export default function ProfilePage() {
   const { user, walletAddress, isMobile, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
-
-  const [passportNFTs, setPassportNFTs] = useState<any[]>([]);
+  const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [musicNFTs, setMusicNFTs] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [balances, setBalances] = useState({ mon: '0', tours: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [musicPage, setMusicPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
-
   useEffect(() => {
     if (user && !walletAddress) {
       requestWallet();
     }
   }, [user, walletAddress, requestWallet]);
-
   useEffect(() => {
     if (walletAddress) {
       loadAllData();
       loadBalances();
     }
   }, [walletAddress]);
-
   // Fetch metadata for a music NFT
   const fetchMusicMetadata = async (tokenURI: string): Promise<MusicMetadata | null> => {
     try {
@@ -81,7 +102,6 @@ export default function ProfilePage() {
       return null;
     }
   };
-
   const loadBalances = async () => {
     if (!walletAddress) return;
     try {
@@ -98,12 +118,10 @@ export default function ProfilePage() {
       console.error('Error loading balances:', error);
     }
   };
-
   const loadAllData = async () => {
     if (!walletAddress) return;
     setLoading(true);
     setError(null);
-
     try {
       const query = `
         query GetUserData($address: String!) {
@@ -141,7 +159,6 @@ export default function ProfilePage() {
           }
         }
       `;
-
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,44 +167,45 @@ export default function ProfilePage() {
           variables: { address: walletAddress.toLowerCase() }
         }),
       });
-
       if (!response.ok) {
         throw new Error(`Envio API returned ${response.status}`);
       }
-
       const result = await response.json();
-
       if (result.errors) {
         console.error('GraphQL errors:', result.errors);
         throw new Error(result.errors[0]?.message || 'GraphQL query failed');
       }
-
-      const passports = result.data?.PassportNFT || [];
+      let passports: PassportNFT[] = result.data?.PassportNFT || [];
       const music = result.data?.MusicNFT || [];
       const purchases = result.data?.ItineraryPurchase || [];
-
       console.log('✅ Loaded from Envio:', {
         passports: passports.length,
         music: music.length,
         purchases: purchases.length
       });
-
+      // Enhance passports with countryCode from metadata if missing
+      passports = await Promise.all(
+        passports.map(async (passport) => {
+          if (passport.countryCode) {
+            return passport;
+          }
+          const countryCode = await fetchPassportCountryCode(passport.tokenURI);
+          return { ...passport, countryCode: countryCode || 'XX' };  // Use 'XX' if fetch fails
+        })
+      );
       setPassportNFTs(passports);
-
       // Set music NFTs and start loading metadata
       const musicWithMetadata: MusicNFTWithMetadata[] = music.map((nft: any) => ({
         ...nft,
         isLoadingMetadata: true
       }));
       setMusicNFTs(musicWithMetadata);
-
       // Load metadata for each music NFT
       music.forEach(async (nft: any, index: number) => {
         const metadata = await fetchMusicMetadata(nft.tokenURI);
         if (metadata) {
           // Use animation_url (preview clip) for playback in profile
           const audioUrl = metadata.animation_url || metadata.external_url;
-
           setMusicNFTs(prev => {
             const updated = [...prev];
             updated[index] = {
@@ -209,7 +227,6 @@ export default function ProfilePage() {
           });
         }
       });
-
       setPurchasedItineraries(purchases);
     } catch (error: any) {
       console.error('❌ Error loading data from Envio:', error);
@@ -218,7 +235,6 @@ export default function ProfilePage() {
       setLoading(false);
     }
   };
-
   const paginatedMusic = musicNFTs.slice(
     (musicPage - 1) * ITEMS_PER_PAGE,
     musicPage * ITEMS_PER_PAGE
@@ -227,16 +243,13 @@ export default function ProfilePage() {
     (passportPage - 1) * ITEMS_PER_PAGE,
     passportPage * ITEMS_PER_PAGE
   );
-
   const totalMusicPages = Math.ceil(musicNFTs.length / ITEMS_PER_PAGE);
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
-
   const copyArtistLink = () => {
     const link = `${window.location.origin}/artist/${walletAddress}`;
     navigator.clipboard.writeText(link);
     alert('✅ Artist profile link copied!\n\nShare this with fans so they can buy your music directly.');
   };
-
   if (contextLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
@@ -247,7 +260,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
   if (contextError || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
@@ -262,12 +274,10 @@ export default function ProfilePage() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-
           {/* Profile Header */}
           <div className="text-center mb-8">
             {user?.pfpUrl ? (
@@ -292,7 +302,6 @@ export default function ProfilePage() {
               <p className="text-gray-500 text-sm mt-1">Farcaster FID: {user.fid}</p>
             )}
           </div>
-
           {isMobile && (
             <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
               <p className="text-blue-900 text-sm font-medium mb-1">
@@ -306,7 +315,6 @@ export default function ProfilePage() {
               </p>
             </div>
           )}
-
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
               <p className="text-red-700 font-medium">⚠️ {error}</p>
@@ -318,7 +326,6 @@ export default function ProfilePage() {
               </button>
             </div>
           )}
-
           {musicNFTs.length > 0 && walletAddress && (
             <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
@@ -331,7 +338,6 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
-
               <div className="flex gap-3">
                 <Link
                   href={`/artist/${walletAddress}`}
@@ -348,7 +354,6 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
-
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm">
               <div className="flex items-center justify-between">
@@ -371,7 +376,6 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="p-4 bg-purple-50 rounded-lg text-center">
               <p className="text-3xl font-bold text-purple-600">{passportNFTs.length}</p>
@@ -386,7 +390,6 @@ export default function ProfilePage() {
               <p className="text-sm text-gray-600">Itineraries</p>
             </div>
           </div>
-
           <div className="grid grid-cols-3 gap-3 mb-8">
             <Link
               href="/passport"
@@ -407,7 +410,6 @@ export default function ProfilePage() {
               🛒 Browse Market
             </Link>
           </div>
-
           <div className="space-y-8">
             {/* Music NFTs Section */}
             <div>
@@ -417,7 +419,6 @@ export default function ProfilePage() {
                   {musicNFTs.length} total | Page {musicPage} of {totalMusicPages || 1}
                 </span>
               </div>
-
               {loading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
@@ -455,7 +456,6 @@ export default function ProfilePage() {
                             <span className="text-6xl">🎵</span>
                           </div>
                         )}
-
                         <div className="p-4 space-y-3">
                           <div className="text-center">
                             <p className="font-mono text-sm font-bold text-blue-900">
@@ -465,7 +465,6 @@ export default function ProfilePage() {
                               {new Date(nft.mintedAt).toLocaleDateString()}
                             </p>
                           </div>
-
                           {/* Audio Player */}
                           {nft.isLoadingMetadata ? (
                             <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
@@ -498,7 +497,6 @@ export default function ProfilePage() {
                               <p className="text-xs text-gray-500">Audio unavailable</p>
                             </div>
                           )}
-
                           <div className="flex gap-2">
                             {nft.txHash && (
                               <a
@@ -525,7 +523,6 @@ export default function ProfilePage() {
                       </div>
                     ))}
                   </div>
-
                   {totalMusicPages > 1 && (
                     <div className="flex justify-center gap-2 mt-6">
                       <button
@@ -550,7 +547,6 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
-
             {/* Passports Section */}
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -559,7 +555,6 @@ export default function ProfilePage() {
                   {passportNFTs.length} total | Page {passportPage} of {totalPassportPages || 1}
                 </span>
               </div>
-
               {loading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
@@ -583,23 +578,17 @@ export default function ProfilePage() {
                         key={passport.id || idx}
                         className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
                       >
-                        <div 
+                        <div
                           className="w-full bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center p-2"
                           style={{ aspectRatio: '2/3' }}
                         >
-                          {passport.countryCode ? (
-                            <div className="w-full h-full">
-                              <PassportSVG countryCode={passport.countryCode} tokenId={passport.tokenId} />
-                            </div>
-                          ) : (
-                            <div className="text-center">
-                              <span className="text-6xl">🎫</span>
-                              <p className="text-sm text-gray-600 mt-2">Passport #{passport.tokenId}</p>
-                              <p className="text-xs text-yellow-600 mt-2">⚠️ Country code not indexed</p>
-                            </div>
-                          )}
+                          <div className="w-full h-full">
+                            <PassportSVG 
+                              countryCode={passport.countryCode || 'XX'} 
+                              tokenId={passport.tokenId} 
+                            />
+                          </div>
                         </div>
-
                         <div className="p-4 space-y-3">
                           <div className="text-center">
                             <p className="font-mono text-sm font-bold text-purple-900">
@@ -609,7 +598,6 @@ export default function ProfilePage() {
                               Minted: {new Date(passport.mintedAt).toLocaleDateString()}
                             </p>
                           </div>
-
                           <div className="flex gap-2">
                             {passport.txHash && (
                               <a
@@ -636,7 +624,6 @@ export default function ProfilePage() {
                       </div>
                     ))}
                   </div>
-
                   {totalPassportPages > 1 && (
                     <div className="flex justify-center gap-2 mt-6">
                       <button
@@ -661,7 +648,6 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
-
             {/* Itineraries Section */}
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -670,7 +656,6 @@ export default function ProfilePage() {
                   {purchasedItineraries.length} total
                 </span>
               </div>
-
               {purchasedItineraries.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600 mb-3">No itineraries purchased yet</p>
@@ -713,7 +698,6 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-
           <div className="mt-8 text-center">
             <button
               onClick={() => {
