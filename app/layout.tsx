@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import ClientNav from './components/ClientNav';
-import SmartAIAgent from './components/SmartAIAgent';
+import SimpleBotBar from './components/SimpleBotBar';
 import FarcasterReady from './components/FarcasterReady';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
@@ -75,7 +75,7 @@ export default function RootLayout({
           <ClientNav />
           
           {/* AI Agent command bar directly below navigation */}
-          <SmartAIAgent />
+          <SimpleBotBar />
           
           {/* Main content area */}
           <main className="flex-1">{children}</main>
