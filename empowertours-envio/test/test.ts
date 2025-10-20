@@ -1,62 +1,125 @@
 import assert from "assert";
-import { TestHelpers, Account } from "generated";
-const { MockDb, ERC20, Addresses } = TestHelpers;
+import pkg from "generated";
+const { TestHelpers, MusicNFT } = pkg;
+const { MockDb, MusicLicenseNFT, Addresses } = TestHelpers;
 
-describe("Transfers", () => {
-  it("Transfer subtracts the from account balance and adds to the to account balance", async () => {
-    //Instantiate a mock DB
-    const mockDbEmpty = MockDb.createMockDb();
+describe("Music NFT Minting", () => {
+  it("Should mint a Music NFT and create entity", async () => {
+    // Instantiate a mock DB
+    const mockDb = MockDb.createMockDb();
 
-    //Get mock addresses from helpers
-    const userAddress1 = Addresses.mockAddresses[0];
-    const userAddress2 = Addresses.mockAddresses[1];
+    // Get mock addresses from helpers
+    const artistAddress = Addresses.mockAddresses[0];
 
-    //Make a mock entity to set the initial state of the mock db
-    const mockAccountEntity: Account = {
-      id: userAddress1,
-      balance: 5n,
-    };
-
-    //Set an initial state for the user
-    //Note: set and delete functions do not mutate the mockDb, they return a new
-    //mockDb with with modified state
-    const mockDb = mockDbEmpty.entities.Account.set(mockAccountEntity);
-
-    //Create a mock Transfer event from userAddress1 to userAddress2
-    const mockTransfer = ERC20.Transfer.createMockEvent({
-      from: userAddress1,
-      to: userAddress2,
-      value: 3n,
+    // Create a mock MusicMinted event
+    const mockMusicMinted = MusicLicenseNFT.MusicMinted.createMockEvent({
+      tokenId: 1n,
+      artist: artistAddress,
+      metadataURI: "ipfs://QmTest123",
+      royaltyPercentage: 10n,
     });
 
-    //Process the mockEvent
-    //Note: processEvent functions do not mutate the mockDb, they return a new
-    //mockDb with with modified state
-    const mockDbAfterTransfer = await ERC20.Transfer.processEvent({
+    // Process the mockEvent
+    const mockDbAfterMint = await MusicLicenseNFT.MusicMinted.processEvent({
+      event: mockMusicMinted,
+      mockDb,
+    });
+
+    // Get the minted Music NFT
+    const musicNFTId = `music-${mockMusicMinted.chainId}-1`;
+    const mintedNFT = mockDbAfterMint.entities.MusicNFT.get(musicNFTId);
+
+    // Assert the NFT was created
+    assert.notEqual(
+      mintedNFT,
+      undefined,
+      "Music NFT should have been created",
+    );
+
+    // Assert the NFT properties
+    assert.equal(
+      mintedNFT?.tokenId,
+      "1",
+      "Token ID should be 1",
+    );
+
+    assert.equal(
+      mintedNFT?.artist.toLowerCase(),
+      artistAddress.toLowerCase(),
+      "Artist should match",
+    );
+
+    assert.equal(
+      mintedNFT?.royaltyPercentage,
+      10,
+      "Royalty percentage should be 10%",
+    );
+
+    assert.equal(
+      mintedNFT?.tokenURI,
+      "ipfs://QmTest123",
+      "Token URI should match",
+    );
+  });
+});
+
+describe("Music NFT Transfer", () => {
+  it("Should update owner on transfer", async () => {
+    // Instantiate a mock DB
+    const mockDbEmpty = MockDb.createMockDb();
+
+    // Get mock addresses
+    const artistAddress = Addresses.mockAddresses[0];
+    const buyerAddress = Addresses.mockAddresses[1];
+
+    // Create a mock Transfer event first to get the chainId
+    const mockTransfer = MusicLicenseNFT.Transfer.createMockEvent({
+      from: artistAddress,
+      to: buyerAddress,
+      tokenId: 1n,
+    });
+
+    // Use the correct ID format that matches the handler
+    const musicNFTId = `music-${mockTransfer.chainId}-1`;
+    
+    const mockMusicNFT: MusicNFT = {
+      id: musicNFTId,
+      tokenId: "1",
+      contract: "0xaD849874B0111131A30D7D2185Cc1519A83dd3D0",
+      artist: artistAddress.toLowerCase(),
+      owner: artistAddress.toLowerCase(),
+      tokenURI: "ipfs://QmTest123",
+      coverArt: "",
+      royaltyPercentage: 10,
+      mintedAt: new Date(),
+      blockNumber: 442333597192n,
+      txHash: "",
+    };
+
+    // Set initial state
+    const mockDb = mockDbEmpty.entities.MusicNFT.set(mockMusicNFT);
+
+    // Process the transfer
+    const mockDbAfterTransfer = await MusicLicenseNFT.Transfer.processEvent({
       event: mockTransfer,
       mockDb,
     });
 
-    //Get the balance of userAddress1 after the transfer
-    const account1Balance =
-      mockDbAfterTransfer.entities.Account.get(userAddress1)?.balance;
+    // Get the NFT after transfer
+    const transferredNFT = mockDbAfterTransfer.entities.MusicNFT.get(musicNFTId);
 
-    //Assert the expected balance
+    // Assert owner was updated
     assert.equal(
-      2n,
-      account1Balance,
-      "Should have subtracted transfer amount 3 from userAddress1 balance 5",
+      transferredNFT?.owner.toLowerCase(),
+      buyerAddress.toLowerCase(),
+      "Owner should be updated to buyer address",
     );
 
-    //Get the balance of userAddress2 after the transfer
-    const account2Balance =
-      mockDbAfterTransfer.entities.Account.get(userAddress2)?.balance;
-
-    //Assert the expected balance
+    // Assert other properties remain unchanged
     assert.equal(
-      3n,
-      account2Balance,
-      "Should have added transfer amount 3 to userAddress2 balance 0",
+      transferredNFT?.artist.toLowerCase(),
+      artistAddress.toLowerCase(),
+      "Artist should remain unchanged",
     );
   });
 });

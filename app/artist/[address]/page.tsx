@@ -5,6 +5,13 @@ import { useParams } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { BrowserProvider, Contract, parseEther } from 'ethers';
 
+// Type declaration for window.ethereum
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 const MUSIC_NFT_ADDRESS = '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
@@ -41,9 +48,9 @@ interface ArtistMusic {
 export default function ArtistProfilePage() {
   const params = useParams();
   const artistAddress = params.address as string;
-  
+
   const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
-  
+
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -71,7 +78,7 @@ export default function ArtistProfilePage() {
           }
         }
       `;
-      
+
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,22 +92,22 @@ export default function ArtistProfilePage() {
 
       const result = await response.json();
       const music = result.data?.MusicNFT || [];
-      
+
       // Mock price for now (should come from smart contract)
       const musicWithPrices = music.map((m: any) => ({
         ...m,
         price: '0.01' // 0.01 ETH per license
       }));
-      
+
       setArtistMusic(musicWithPrices);
-      
+
       // Get artist info from Farcaster (if available)
       // For now, use address
       setArtistInfo({
         address: artistAddress,
         username: `artist_${artistAddress.slice(2, 8)}`,
       });
-      
+
       console.log('✅ Loaded', music.length, 'tracks from artist');
     } catch (error: any) {
       console.error('❌ Error loading artist profile:', error);
@@ -122,8 +129,14 @@ export default function ArtistProfilePage() {
       return;
     }
 
+    // Check if window.ethereum exists
+    if (!window.ethereum) {
+      alert('❌ No Ethereum wallet detected. Please install MetaMask or use a Web3 browser.');
+      return;
+    }
+
     setBuying(music.tokenId);
-    
+
     try {
       console.log('🎵 Buying music license...', {
         tokenId: music.tokenId,
@@ -142,27 +155,27 @@ export default function ArtistProfilePage() {
       const tx = await contract.purchaseLicense(
         music.tokenId,
         walletAddress,
-        { 
+        {
           value: parseEther(music.price),
           gasLimit: 300000 // Explicit gas limit for mobile
         }
       );
 
       console.log('📤 Purchase transaction sent:', tx.hash);
-      
+
       // Show pending state
       alert(`⏳ Transaction submitted!\n\nTX: ${tx.hash.slice(0, 10)}...\n\nWaiting for confirmation...`);
 
       await tx.wait();
-      
+
       alert(`🎉 Music License Purchased!\n\n✅ You can now listen to this track\n\nTX: ${tx.hash}`);
-      
+
       // Reload to show updated state
       setTimeout(loadArtistProfile, 2000);
 
     } catch (error: any) {
       console.error('❌ Purchase error:', error);
-      
+
       if (error.message?.includes('user rejected') || error.code === 4001) {
         alert('❌ Transaction cancelled by user');
       } else if (error.message?.includes('insufficient')) {
@@ -189,7 +202,7 @@ export default function ArtistProfilePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        
+
         {/* Artist Header */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <div className="flex items-center gap-6 mb-6">
@@ -297,7 +310,7 @@ export default function ArtistProfilePage() {
                           style={{ height: '40px' }}
                         >
                           <source
-                            src={music.tokenURI.startsWith('ipfs://') 
+                            src={music.tokenURI.startsWith('ipfs://')
                               ? music.tokenURI.replace('ipfs://', PINATA_GATEWAY)
                               : music.tokenURI}
                             type="audio/mpeg"
@@ -327,15 +340,15 @@ export default function ArtistProfilePage() {
                       <button
                         onClick={() => handleBuyLicense(music)}
                         disabled={
-                          buying === music.tokenId || 
+                          buying === music.tokenId ||
                           !walletAddress ||
                           walletAddress.toLowerCase() === artistAddress.toLowerCase()
                         }
                         className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 touch-manipulation"
                         style={{ minHeight: '56px' }}
                       >
-                        {buying === music.tokenId 
-                          ? '⏳ Purchasing...' 
+                        {buying === music.tokenId
+                          ? '⏳ Purchasing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '❌ Your Own Track'
                           : `🛒 Buy License (${music.price} ETH)`
