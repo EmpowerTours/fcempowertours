@@ -36,185 +36,145 @@ export function useFarcasterContext(): FarcasterContext {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+  const [isDesktopWithoutFarcaster, setIsDesktopWithoutFarcaster] = useState(false);
 
   const loadUser = useCallback(async () => {
     try {
-      console.log('🔄 Loading Farcaster user (attempt ' + (retryCount + 1) + ')...');
+      console.log('🔄 Loading user context...');
 
-      // Comprehensive mobile detection
+      // Detect platform
       const userAgent = navigator.userAgent.toLowerCase();
       const mobile = /mobile|android|iphone|ipad|ipod|warpcast|farcaster/i.test(userAgent) ||
                      ('ontouchstart' in window) ||
                      (navigator.maxTouchPoints > 0) ||
                      (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
       setIsMobile(mobile);
-      console.log('📱 Is mobile:', mobile, 'UserAgent:', userAgent.substring(0, 50) + '...');
+      console.log('📱 Platform:', mobile ? 'Mobile' : 'Desktop');
 
-      // Wait for SDK to be available (crucial for mobile)
-      let sdkAttempts = 0;
-      const maxSdkAttempts = mobile ? 30 : 20; // More attempts on mobile
+      // Check if we're in a Farcaster frame
+      const inFrame = window.parent !== window;
       
-      while ((!sdk || !sdk.context) && sdkAttempts < maxSdkAttempts) {
-        console.log('⏳ Waiting for SDK context...', sdkAttempts + 1, '/', maxSdkAttempts);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        sdkAttempts++;
-      }
-
-      if (!sdk || !sdk.context) {
-        throw new Error(`SDK not available after ${maxSdkAttempts} attempts`);
-      }
-
-      // Longer timeout for mobile (20 seconds instead of 5)
-      const timeoutDuration = mobile ? 20000 : 10000;
+      // Try to get Farcaster context (will fail on desktop outside of frame)
+      let farcasterUser: FarcasterUser | null = null;
+      let contextAvailable = false;
       
-      console.log('🔍 Getting SDK context with timeout:', timeoutDuration / 1000, 'seconds');
-      
-      const contextPromise = sdk.context;
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`SDK context timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration)
-      );
-
-      const context = await Promise.race([contextPromise, timeoutPromise]);
-
-      if (!context) {
-        // On mobile, retry a few times before giving up
-        if (mobile && retryCount < 5) {
-          console.log('🔄 Retrying context load for mobile (attempt', retryCount + 2, ')...');
-          setRetryCount(prev => prev + 1);
-          setTimeout(() => loadUser(), 3000);
-          return;
+      try {
+        // Wait for SDK with shorter timeout on desktop
+        let sdkAttempts = 0;
+        const maxSdkAttempts = mobile ? 20 : 5;
+        
+        while ((!sdk || !sdk.context) && sdkAttempts < maxSdkAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          sdkAttempts++;
         }
-        throw new Error('SDK returned null context after retries');
-      }
 
-      // Cast to any to avoid TypeScript issues with SDK types
-      const contextAny = context as any;
+        if (sdk && sdk.context) {
+          const context = await sdk.context as any;
+          
+          if (context?.user) {
+            contextAvailable = true;
+            const contextUser = context.user;
+            
+            const custody = contextUser.custody || 
+                         contextUser.custodyAddress || 
+                         contextUser.custody_address ||
+                         contextUser.wallet?.address ||
+                         null;
+                         
+            const verifiedAddresses = contextUser.verifiedAddresses || 
+                                    contextUser.verified_addresses || 
+                                    [];
 
-      console.log('📦 Context received:', {
-        hasContext: !!contextAny,
-        hasUser: !!contextAny?.user,
-        userKeys: contextAny?.user ? Object.keys(contextAny.user) : [],
-      });
+            farcasterUser = {
+              fid: contextUser.fid || contextUser.id,
+              username: contextUser.username || contextUser.name,
+              displayName: contextUser.displayName || contextUser.display_name,
+              pfpUrl: contextUser.pfpUrl || contextUser.pfp_url || contextUser.profileImage,
+              custody: custody,
+              verifiedAddresses: Array.isArray(verifiedAddresses) ? verifiedAddresses : [],
+            };
 
-      if (!contextAny.user) {
-        // Check if we're in a Farcaster frame
-        if (mobile && window.parent !== window) {
-          console.log('📱 Detected iframe context, waiting for frame message...');
-          // Wait for potential frame messages
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          // Retry once more
-          if (retryCount < 3) {
-            setRetryCount(prev => prev + 1);
-            setTimeout(() => loadUser(), 2000);
-            return;
+            setUser(farcasterUser);
+            console.log('✅ Farcaster user loaded:', farcasterUser.username);
+
+            // Set wallet from Farcaster context
+            if (custody) {
+              setWalletAddress(custody);
+              setError(null);
+            } else if (verifiedAddresses.length > 0) {
+              setWalletAddress(verifiedAddresses[0]);
+              setError(null);
+            }
           }
         }
-        throw new Error('No user data in SDK context');
+      } catch (sdkError) {
+        console.log('ℹ️ Farcaster SDK not available (expected on desktop)');
       }
 
-      const contextUser = contextAny.user;
-
-      // Extract all possible wallet addresses (handle various property names)
-      const custody = contextUser.custody || 
-                     contextUser.custodyAddress || 
-                     contextUser.custody_address ||
-                     contextUser.wallet?.address ||
-                     contextUser.wallet_address ||
-                     null;
-                     
-      const verifiedAddresses = contextUser.verifiedAddresses || 
-                              contextUser.verified_addresses || 
-                              contextUser.verifiedWallets ||
-                              [];
-
-      const farcasterUser: FarcasterUser = {
-        fid: contextUser.fid || contextUser.id,
-        username: contextUser.username || contextUser.name,
-        displayName: contextUser.displayName || contextUser.display_name,
-        pfpUrl: contextUser.pfpUrl || contextUser.pfp_url || contextUser.profileImage,
-        custody: custody,
-        verifiedAddresses: Array.isArray(verifiedAddresses) ? verifiedAddresses : [],
-      };
-
-      console.log('✅ Farcaster user loaded:', {
-        username: farcasterUser.username,
-        fid: farcasterUser.fid,
-        hasCustody: !!farcasterUser.custody,
-        custodyAddress: farcasterUser.custody ? farcasterUser.custody.substring(0, 10) + '...' : 'none',
-        hasVerified: (farcasterUser.verifiedAddresses?.length || 0) > 0,
-        mobile
-      });
-
-      setUser(farcasterUser);
-
-      // Auto-set wallet with better mobile handling
-      let foundWallet = false;
-
-      // On mobile, prioritize custody address
-      if (custody) {
-        console.log('✅ Using custody/wallet address:', custody.substring(0, 10) + '...');
-        setWalletAddress(custody);
-        foundWallet = true;
-      } else if (verifiedAddresses.length > 0) {
-        console.log('✅ Using verified address:', verifiedAddresses[0].substring(0, 10) + '...');
-        setWalletAddress(verifiedAddresses[0]);
-        foundWallet = true;
-      } else if (!mobile && typeof window !== 'undefined' && (window as any).ethereum) {
-        try {
-          const accounts = await (window as any).ethereum.request({ method: 'eth_accounts' });
-          if (accounts?.[0]) {
-            console.log('✅ Using MetaMask account:', accounts[0].substring(0, 10) + '...');
-            setWalletAddress(accounts[0]);
-            foundWallet = true;
+      // If no Farcaster context and we're on desktop, try MetaMask
+      if (!contextAvailable && !mobile) {
+        console.log('🖥️ Desktop mode - checking for MetaMask...');
+        setIsDesktopWithoutFarcaster(true);
+        
+        if (typeof window !== 'undefined' && (window as any).ethereum) {
+          try {
+            const accounts = await (window as any).ethereum.request({ 
+              method: 'eth_accounts' 
+            });
+            
+            if (accounts?.[0]) {
+              console.log('✅ Found MetaMask account:', accounts[0].substring(0, 10) + '...');
+              setWalletAddress(accounts[0]);
+              
+              // Create a mock user for desktop
+              setUser({
+                fid: 0,
+                username: 'Desktop User',
+                displayName: 'Desktop User',
+                verifiedAddresses: [accounts[0]],
+              });
+              
+              setError(null);
+            } else {
+              console.log('ℹ️ MetaMask found but not connected');
+              // Don't set error - user can connect manually
+              setError(null);
+            }
+          } catch (ethError) {
+            console.log('ℹ️ MetaMask not available or error:', ethError);
+            setError(null); // Don't show error, just allow manual connection
           }
-        } catch (ethError) {
-          console.warn('⚠️ Could not get window.ethereum accounts:', ethError);
+        } else {
+          console.log('ℹ️ No Web3 wallet detected');
+          setError(null); // Don't error, allow manual wallet connection
         }
       }
-
-      if (!foundWallet) {
-        console.warn('⚠️ No wallet address found - user may need to connect one');
-        setError('Please connect a wallet to use this feature');
-      } else {
-        setError(null);
+      
+      // Only show error if we're on mobile and expected Farcaster but didn't get it
+      if (!contextAvailable && mobile && inFrame) {
+        setError('Please open this app in Warpcast');
       }
       
-      setRetryCount(0);
     } catch (err: any) {
-      console.error('❌ Failed to load Farcaster user:', err);
-
-      let errorMessage = 'Failed to load user';
-      if (err.message?.includes('timeout')) {
-        errorMessage = 'Connection timeout. Please refresh the app.';
-      } else if (err.message?.includes('No user')) {
-        errorMessage = 'Please open this app in Warpcast.';
-      } else if (err.message?.includes('SDK not available')) {
-        errorMessage = 'Farcaster SDK not loaded. Please refresh.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setError(errorMessage);
+      console.error('❌ Failed to load user context:', err);
       
-      // On mobile, show retry option
-      if (isMobile && retryCount < 5) {
-        setError(errorMessage + ' (Retrying automatically...)');
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          loadUser();
-        }, 3000);
+      // Only set error for critical failures
+      if (isMobile) {
+        setError('Failed to load. Please refresh the app.');
+      } else {
+        // On desktop, don't error - allow manual wallet connection
+        setError(null);
+        setIsDesktopWithoutFarcaster(true);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [retryCount, isMobile]);
+  }, [isMobile]);
 
   useEffect(() => {
-    // Delay initial load slightly to ensure SDK is ready
     const timer = setTimeout(() => {
       loadUser();
-    }, 1000);
+    }, 500);
     
     return () => clearTimeout(timer);
   }, []);
@@ -222,52 +182,61 @@ export function useFarcasterContext(): FarcasterContext {
   const requestWallet = async () => {
     try {
       console.log('🔑 Requesting wallet connection...');
-      console.log('📱 Is mobile:', isMobile);
 
-      // Re-check context in case it updated - cast to any
-      const context = await sdk.context as any;
-      const contextUser = context?.user;
+      // If we already have a wallet, return
+      if (walletAddress) {
+        console.log('✅ Wallet already connected:', walletAddress.substring(0, 10) + '...');
+        return;
+      }
 
-      const custody = contextUser?.custody || 
-                     contextUser?.custodyAddress || 
-                     contextUser?.custody_address ||
-                     contextUser?.wallet?.address ||
-                     null;
-
-      if (custody) {
-        console.log('✅ Found custody address:', custody.substring(0, 10) + '...');
-        setWalletAddress(custody);
+      // Try Farcaster context first (if available)
+      if (user?.custody) {
+        setWalletAddress(user.custody);
         setError(null);
         return;
       }
 
-      const verifiedAddresses = contextUser?.verifiedAddresses || 
-                              contextUser?.verified_addresses || 
-                              [];
-
-      if (verifiedAddresses?.[0]) {
-        console.log('✅ Found verified address:', verifiedAddresses[0].substring(0, 10) + '...');
-        setWalletAddress(verifiedAddresses[0]);
+      if (user?.verifiedAddresses?.[0]) {
+        setWalletAddress(user.verifiedAddresses[0]);
         setError(null);
         return;
       }
 
+      // Try MetaMask on desktop
       if (!isMobile && typeof window !== 'undefined' && (window as any).ethereum) {
         const accounts = await (window as any).ethereum.request({
           method: 'eth_requestAccounts',
         });
+        
         if (accounts?.[0]) {
           console.log('✅ Connected MetaMask:', accounts[0].substring(0, 10) + '...');
           setWalletAddress(accounts[0]);
+          
+          // Update or create user if needed
+          if (!user) {
+            setUser({
+              fid: 0,
+              username: 'Desktop User',
+              displayName: 'Desktop User',
+              verifiedAddresses: [accounts[0]],
+            });
+          }
+          
           setError(null);
           return;
         }
       }
 
-      throw new Error('No wallet address available. Please verify an address in Warpcast settings.');
+      // If we get here and still no wallet, show appropriate message
+      if (isMobile) {
+        throw new Error('No wallet found. Please verify an address in Warpcast settings.');
+      } else {
+        throw new Error('Please install MetaMask or another Web3 wallet');
+      }
+      
     } catch (err: any) {
       console.error('❌ Wallet connection error:', err);
-      setError(err.message || 'Unable to connect wallet. Please try again.');
+      setError(err.message || 'Unable to connect wallet');
     }
   };
 
@@ -325,12 +294,10 @@ export function useFarcasterContext(): FarcasterContext {
     try {
       console.log('🔄 Switching chain to:', params.chainId);
 
-      // On mobile, we can't switch chains - just verify we're on the right one
       if (isMobile) {
         if (params.chainId !== monadTestnet.id) {
-          throw new Error(`Mobile wallet is on Monad Testnet (${monadTestnet.id}). Cannot switch to chain ${params.chainId}`);
+          throw new Error(`Mobile wallet is on Monad Testnet. Cannot switch chains.`);
         }
-        console.log('✅ Already on correct chain (mobile)');
         return;
       }
 
@@ -341,7 +308,6 @@ export function useFarcasterContext(): FarcasterContext {
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: `0x${params.chainId.toString(16)}` }],
           });
-          console.log('✅ Switched to chain:', params.chainId);
         } catch (switchError: any) {
           // Chain not added, try adding it
           if (switchError.code === 4902) {
@@ -355,7 +321,6 @@ export function useFarcasterContext(): FarcasterContext {
                 blockExplorerUrls: [monadTestnet.blockExplorers?.default.url],
               }],
             });
-            console.log('✅ Added and switched to chain:', params.chainId);
           } else {
             throw switchError;
           }
@@ -366,6 +331,24 @@ export function useFarcasterContext(): FarcasterContext {
       throw new Error(err.message || 'Failed to switch chain');
     }
   };
+
+  // For desktop without Farcaster, create a minimal working context
+  if (isDesktopWithoutFarcaster && !user && !isLoading) {
+    return {
+      user: {
+        fid: 0,
+        username: 'Desktop User',
+        displayName: 'Desktop User',
+      },
+      walletAddress,
+      isLoading: false,
+      error: null,
+      isMobile: false,
+      requestWallet,
+      sendTransaction,
+      switchChain,
+    };
+  }
 
   return {
     user,

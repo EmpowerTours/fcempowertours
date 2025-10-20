@@ -1,7 +1,5 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-
 interface Cast {
   id: string;
   text: string;
@@ -12,11 +10,9 @@ interface Cast {
   timestamp: number;
   category?: string;
 }
-
 export default function DynamicCastFrame() {
   const [casts, setCasts] = useState<Cast[]>([]);
   const [activeCategories, setActiveCategories] = useState<string[]>([]);
-
   // Fetch casts
   useEffect(() => {
     const fetchCasts = async () => {
@@ -24,7 +20,6 @@ export default function DynamicCastFrame() {
         const params = activeCategories.length > 0 ? `?categories=${activeCategories.join(',')}` : '';
         const res = await fetch(`/api/dynamic-casts${params}`);
         const data = await res.json();
-
         setCasts((prevCasts) => {
           const newCasts = data.casts.filter(
             (cast: Cast) => !prevCasts.some((existing) => existing.id === cast.id)
@@ -35,20 +30,16 @@ export default function DynamicCastFrame() {
         console.error('Failed to fetch casts:', error);
       }
     };
-
     fetchCasts();
     const interval = setInterval(fetchCasts, 5000);
     return () => clearInterval(interval);
   }, [activeCategories]);
-
   const toggleCategory = (cat: string) => {
     setActiveCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     );
   };
-
   const categories = ['#food', '#accommodation', '#travel', '#music', '#art', '#tech'];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white overflow-hidden relative">
       {/* Animated background gradient */}
@@ -57,7 +48,6 @@ export default function DynamicCastFrame() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
       </div>
-
       {/* Header */}
       <div className="relative z-10 p-8">
         <div className="text-center mb-8">
@@ -66,7 +56,6 @@ export default function DynamicCastFrame() {
           </h1>
           <p className="text-xl text-purple-300">Real-time Farcaster vibes</p>
         </div>
-
         {/* Category filters */}
         <div className="flex flex-wrap justify-center gap-3 mb-8">
           {categories.map((cat) => (
@@ -83,7 +72,6 @@ export default function DynamicCastFrame() {
             </button>
           ))}
         </div>
-
         {/* Active filter count */}
         {activeCategories.length > 0 && (
           <div className="text-center mb-4">
@@ -93,7 +81,6 @@ export default function DynamicCastFrame() {
           </div>
         )}
       </div>
-
       {/* Cast feed */}
       <div className="relative z-10 px-8 pb-8">
         <div className="max-w-4xl mx-auto space-y-4">
@@ -110,15 +97,24 @@ export default function DynamicCastFrame() {
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 {/* Author */}
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-2 mb-3">
                   {cast.author.pfp_url ? (
                     <img
                       src={cast.author.pfp_url}
                       alt={cast.author.username}
-                      className="w-10 h-10 rounded-full border-2 border-purple-400"
+                      className="rounded-full"
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        minWidth: '24px',
+                        minHeight: '24px',
+                        maxWidth: '24px',
+                        maxHeight: '24px',
+                        objectFit: 'cover',
+                      }}
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-sm font-bold">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-[10px] font-bold">
                       {cast.author.username.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -134,7 +130,6 @@ export default function DynamicCastFrame() {
                     </span>
                   )}
                 </div>
-
                 {/* Cast text */}
                 <p className="text-white/90 leading-relaxed">{cast.text}</p>
               </div>
@@ -142,13 +137,11 @@ export default function DynamicCastFrame() {
           )}
         </div>
       </div>
-
       {/* Floating text borders */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/50 to-transparent"></div>
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/50 to-transparent"></div>
       </div>
-
       <style jsx>{`
         @keyframes blob {
           0%, 100% { transform: translate(0, 0) scale(1); }

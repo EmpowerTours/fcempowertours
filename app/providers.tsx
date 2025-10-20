@@ -55,25 +55,60 @@ export function Providers({ children }: Props) {
       })
   );
 
+  // Detect if we're in a Farcaster frame or on mobile
+  const [isInFarcasterContext, setIsInFarcasterContext] = useState(false);
+  
+  useEffect(() => {
+    const inFrame = window.parent !== window;
+    const isMobile = /mobile|android|iphone|ipad|warpcast|farcaster/i.test(navigator.userAgent);
+    setIsInFarcasterContext(inFrame || isMobile);
+  }, []);
+
+  // Configure Privy based on context
+  const privyConfig = {
+    loginMethods: isInFarcasterContext 
+      ? ['farcaster' as const] 
+      : ['wallet' as const, 'email' as const], // Allow wallet and email on desktop
+    embeddedWallets: {
+      ethereum: {
+        createOnLogin: 'users-without-wallets' as const,
+      },
+    },
+    supportedChains: [monadTestnet],
+    appearance: {
+      theme: 'light' as const,
+      accentColor: '#6763F5',
+    },
+    // Optional: Add wallet connectors for desktop
+    walletConnectModalOptions: {
+      chains: [monadTestnet],
+    },
+  };
+
+  // Skip Privy if no app ID is configured (for development)
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  
+  if (!privyAppId || privyAppId === '') {
+    console.warn('⚠️ Privy App ID not configured - authentication features disabled');
+    // Return providers without PrivyProvider
+    return (
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <WagmiProvider config={wagmiConfig}>
+            {children}
+          </WagmiProvider>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
           <PrivyProvider
-            appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
-            config={{
-              loginMethods: ['farcaster'],
-              embeddedWallets: {
-                ethereum: {
-                  createOnLogin: 'users-without-wallets',
-                },
-              },
-              supportedChains: [monadTestnet],
-              appearance: {
-                theme: 'light',
-                accentColor: '#6763F5',
-              },
-            }}
+            appId={privyAppId}
+            config={privyConfig}
           >
             {children}
           </PrivyProvider>
