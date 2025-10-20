@@ -1,6 +1,3 @@
-// app/hooks/useFarcasterContext.tsx
-// FIXED: Mobile wallet connection with custody address
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,8 +8,8 @@ interface FarcasterUser {
   username?: string;
   displayName?: string;
   pfpUrl?: string;
-  custody?: string; // Custody address
-  verifiedAddresses?: string[]; // Connected addresses
+  custody?: string; // May not be in SDK types
+  verifiedAddresses?: string[];
 }
 
 interface FarcasterContext {
@@ -36,23 +33,24 @@ export function useFarcasterContext(): FarcasterContext {
       try {
         console.log('🔄 Loading Farcaster user...');
         
-        // Detect mobile
         const userAgent = navigator.userAgent.toLowerCase();
         const mobile = /mobile|android|iphone|ipad|ipod/.test(userAgent);
         setIsMobile(mobile);
         console.log('📱 Is mobile:', mobile);
         
-        // Load context
         const context = await sdk.context;
         
         if (context?.user) {
+          // Type assertion to handle custody address (may not be in SDK types)
+          const contextUser = context.user as any;
+          
           const farcasterUser: FarcasterUser = {
-            fid: context.user.fid,
-            username: context.user.username,
-            displayName: context.user.displayName,
-            pfpUrl: context.user.pfpUrl,
-            custody: context.user.custody, // Custody address
-            verifiedAddresses: context.user.verifiedAddresses || [],
+            fid: contextUser.fid,
+            username: contextUser.username,
+            displayName: contextUser.displayName,
+            pfpUrl: contextUser.pfpUrl,
+            custody: contextUser.custody, // Safe access with type assertion
+            verifiedAddresses: contextUser.verifiedAddresses || [],
           };
           
           console.log('✅ Farcaster user loaded:', {
@@ -64,21 +62,19 @@ export function useFarcasterContext(): FarcasterContext {
           
           setUser(farcasterUser);
           
-          // CRITICAL FIX: Auto-set wallet on mobile
+          // Auto-set wallet on mobile
           if (mobile) {
-            // On mobile: Use custody address immediately
-            if (context.user.custody) {
-              console.log('📱 Mobile: Using custody address:', context.user.custody);
-              setWalletAddress(context.user.custody);
-            } else if (context.user.verifiedAddresses?.[0]) {
-              console.log('📱 Mobile: Using verified address:', context.user.verifiedAddresses[0]);
-              setWalletAddress(context.user.verifiedAddresses[0]);
+            if (contextUser.custody) {
+              console.log('📱 Mobile: Using custody address:', contextUser.custody);
+              setWalletAddress(contextUser.custody);
+            } else if (contextUser.verifiedAddresses?.[0]) {
+              console.log('📱 Mobile: Using verified address:', contextUser.verifiedAddresses[0]);
+              setWalletAddress(contextUser.verifiedAddresses[0]);
             }
           } else {
-            // On desktop: Use verified address if available
-            if (context.user.verifiedAddresses?.[0]) {
-              console.log('💻 Desktop: Using verified address:', context.user.verifiedAddresses[0]);
-              setWalletAddress(context.user.verifiedAddresses[0]);
+            if (contextUser.verifiedAddresses?.[0]) {
+              console.log('💻 Desktop: Using verified address:', contextUser.verifiedAddresses[0]);
+              setWalletAddress(contextUser.verifiedAddresses[0]);
             }
           }
           
@@ -104,27 +100,26 @@ export function useFarcasterContext(): FarcasterContext {
       console.log('📱 Is mobile:', isMobile);
       
       if (isMobile) {
-        // MOBILE: Cannot request external wallet, use custody address
         console.log('📱 Mobile detected: Using Farcaster custody address');
         
         const context = await sdk.context;
+        const contextUser = context.user as any;
         
-        if (context.user.custody) {
-          console.log('✅ Using custody address:', context.user.custody);
-          setWalletAddress(context.user.custody);
+        if (contextUser.custody) {
+          console.log('✅ Using custody address:', contextUser.custody);
+          setWalletAddress(contextUser.custody);
           return;
         }
         
-        if (context.user.verifiedAddresses?.[0]) {
-          console.log('✅ Using verified address:', context.user.verifiedAddresses[0]);
-          setWalletAddress(context.user.verifiedAddresses[0]);
+        if (contextUser.verifiedAddresses?.[0]) {
+          console.log('✅ Using verified address:', contextUser.verifiedAddresses[0]);
+          setWalletAddress(contextUser.verifiedAddresses[0]);
           return;
         }
         
         throw new Error('No wallet address available. Please verify an address in Warpcast settings.');
       }
       
-      // DESKTOP: Try to connect external wallet
       console.log('💻 Desktop: Checking for ethereum provider...');
       
       if (typeof window !== 'undefined' && window.ethereum) {
@@ -140,16 +135,16 @@ export function useFarcasterContext(): FarcasterContext {
         }
       }
       
-      // Fallback: Use Farcaster addresses
       console.log('⚠️ No external wallet, using Farcaster address');
       const context = await sdk.context;
+      const contextUser = context.user as any;
       
-      if (context.user.verifiedAddresses?.[0]) {
-        console.log('✅ Using verified address:', context.user.verifiedAddresses[0]);
-        setWalletAddress(context.user.verifiedAddresses[0]);
-      } else if (context.user.custody) {
-        console.log('✅ Using custody address:', context.user.custody);
-        setWalletAddress(context.user.custody);
+      if (contextUser.verifiedAddresses?.[0]) {
+        console.log('✅ Using verified address:', contextUser.verifiedAddresses[0]);
+        setWalletAddress(contextUser.verifiedAddresses[0]);
+      } else if (contextUser.custody) {
+        console.log('✅ Using custody address:', contextUser.custody);
+        setWalletAddress(contextUser.custody);
       } else {
         throw new Error('No wallet address available');
       }
@@ -157,7 +152,6 @@ export function useFarcasterContext(): FarcasterContext {
     } catch (err: any) {
       console.error('❌ Wallet connection error:', err);
       
-      // Don't set error for user rejection
       if (err.code === 4001 || err.message?.includes('rejected')) {
         console.log('User rejected wallet connection');
         return;
@@ -177,7 +171,6 @@ export function useFarcasterContext(): FarcasterContext {
   };
 }
 
-// Extend window for ethereum
 declare global {
   interface Window {
     ethereum?: any;
