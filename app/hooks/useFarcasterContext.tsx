@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
-import { createWalletClient, custom, http, publicActions } from 'viem';
+import { publicActions } from 'viem';
+import { useWalletClient } from 'wagmi';
 import { monadTestnet } from '@/app/chains';
-import { useAccount } from 'wagmi';
+import { useAccount, useConnect, useConnectors, useSwitchChain } from 'wagmi';
 
 interface FarcasterUser {
   fid: number;
@@ -30,6 +31,10 @@ interface FarcasterContext {
 
 export function useFarcasterContext(): FarcasterContext {
   const { address: wagmiAddress, isConnected } = useAccount();
+  const { connect } = useConnect();
+  const connectors = useConnectors();
+  const { switchChain: wagmiSwitchChain } = useSwitchChain();
+  const { data: walletClient } = useWalletClient();
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +43,12 @@ export function useFarcasterContext(): FarcasterContext {
   const [isInMiniApp, setIsInMiniApp] = useState(false);
 
   const loadUser = useCallback(async () => {
+    let mobile = false;
     try {
       console.log('🔄 Loading user context...');
       // Detect platform
       const userAgent = navigator.userAgent.toLowerCase();
-      const mobile = /mobile|android|iphone|ipad|ipod|warpcast|farcaster/i.test(userAgent) ||
+      mobile = /mobile|android|iphone|ipad|ipod|warpcast|farcaster/i.test(userAgent) ||
                      ('ontouchstart' in window) ||
                      (navigator.maxTouchPoints > 0) ||
                      (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
@@ -58,43 +64,65 @@ export function useFarcasterContext(): FarcasterContext {
         console.warn('⚠️ Failed to check isInMiniApp:', err);
       }
 
-      if (!miniAppStatus) {
+      if (!miniAppStatus && mobile) {
         setError('Please open this app in Warpcast or another Farcaster client.');
         setIsLoading(false);
         return;
       }
 
-      // Wait for SDK readiness
-      let sdkAttempts = 0;
-      const maxSdkAttempts = mobile ? 20 : 5;
-      while ((!sdk || !sdk.context || !sdk.context.user) && sdkAttempts < maxSdkAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        sdkAttempts++;
-      }
-
-      if (sdk && sdk.context && sdk.context.user) {
-        const contextUser = sdk.context.user;
-        const farcasterUser: FarcasterUser = {
-          fid: contextUser.fid,
-          username: contextUser.username,
-          displayName: contextUser.displayName,
-          pfpUrl: contextUser.pfpUrl,
-        };
-        setUser(farcasterUser);
-        console.log('✅ Farcaster user loaded:', farcasterUser.username);
-      } else {
-        console.warn('⚠️ SDK context not available after retries');
-        if (mobile) {
-          setError('Failed to load Farcaster context. Please refresh.');
-        } else {
-          setIsDesktopWithoutFarcaster(true);
+      if (miniAppStatus) {
+        // Wait for SDK readiness
+        let sdkAttempts = 0;
+        const maxSdkAttempts = mobile ? 20 : 5;
+        let contextUser;
+        while (sdkAttempts < maxSdkAttempts) {
+          try {
+            const context = await sdk.context;
+            if (context && context.user) {
+              contextUser = context.user;
+              break;
+            }
+          } catch {}
+          await new Promise(resolve => setTimeout(resolve, 200));
+          sdkAttempts++;
         }
+
+        if (contextUser) {
+          const farcasterUser: FarcasterUser = {
+            fid: contextUser.fid,
+            username: contextUser.username,
+            displayName: contextUser.displayName,
+            pfpUrl: contextUser.pfpUrl,
+          };
+          setUser(farcasterUser);
+          console.log('✅ Farcaster user loaded:', farcasterUser.username);
+        } else {
+          console.warn('⚠️ SDK context not available after retries');
+          if (mobile) {
+            setError('Failed to load Farcaster context. Please refresh.');
+          } else {
+            setIsDesktopWithoutFarcaster(true);
+            setUser({
+              fid: 0,
+              username: 'Desktop User',
+              displayName: 'Desktop User',
+            });
+          }
+        }
+      } else {
+        // Desktop mode
+        setIsDesktopWithoutFarcaster(true);
+        setUser({
+          fid: 0,
+          username: 'Desktop User',
+          displayName: 'Desktop User',
+        });
       }
 
       // Wallet is handled by Wagmi
       if (isConnected && wagmiAddress) {
-        setError(null);
         console.log('✅ Wallet connected via Wagmi:', wagmiAddress.substring(0, 10) + '...');
+        setError(null);
       } else if (mobile) {
         setError('No wallet found. Please verify an address in Warpcast settings.');
       } else {
@@ -121,15 +149,19 @@ export function useFarcasterContext(): FarcasterContext {
   }, [loadUser]);
 
   const requestWallet = async () => {
-    // Since using Wagmi connector, connection is automatic if verified
-    // For manual connect on desktop, use Wagmi's useConnect
-    // But for simplicity, if not connected, show error
-    if (!isConnected) {
-      if (isMobile) {
-        throw new Error('No wallet found. Please verify an address in Warpcast settings.');
-      } else {
-        throw new Error('Please connect your wallet via MetaMask or similar.');
+    try {
+      if (isConnected) {
+        return;
       }
+      const connectorId = isMobile ? 'farcasterMiniApp' : 'injected';
+      const targetConnector = connectors.find(c => c.id === connectorId);
+      if (!targetConnector) {
+        throw new Error(`${connectorId} connector not found`);
+      }
+      connect({ connector: targetConnector });
+    } catch (err: any) {
+      console.error('❌ Wallet connection error:', err);
+      setError(err.message || 'Unable to connect wallet');
     }
   };
 
@@ -139,75 +171,41 @@ export function useFarcasterContext(): FarcasterContext {
     data?: string;
     gasLimit?: number;
   }) => {
-    try {
-      console.log('📤 Sending transaction:', params);
-      if (!wagmiAddress) {
-        throw new Error('No wallet address available');
-      }
-      const transport = isMobile
-        ? http('https://testnet-rpc.monad.xyz')
-        : custom((window as any).ethereum);
-      const client = createWalletClient({
-        chain: monadTestnet,
-        transport,
-      }).extend(publicActions);
-      const txHash = await client.sendTransaction({
-        account: wagmiAddress as `0x${string}`,
-        to: params.to as `0x${string}`,
-        value: params.value,
-        data: params.data as `0x${string}` | undefined,
-        gas: params.gasLimit ? BigInt(params.gasLimit) : undefined,
-      });
-      console.log('✅ Transaction sent:', txHash);
-      return {
-        hash: txHash,
-        wait: async () => {
-          console.log('⏳ Waiting for transaction confirmation...');
-          const receipt = await client.waitForTransactionReceipt({
-            hash: txHash,
-            confirmations: 1,
-          });
-          console.log('✅ Transaction confirmed');
-        },
-      };
-    } catch (err: any) {
-      console.error('❌ Transaction error:', err);
-      throw new Error(err.message || 'Failed to send transaction');
+    if (!walletClient) {
+      throw new Error('No wallet client available');
     }
+    if (!wagmiAddress) {
+      throw new Error('No wallet address available');
+    }
+    const client = walletClient.extend(publicActions);
+    const txHash = await client.sendTransaction({
+      account: wagmiAddress as `0x${string}`,
+      chain: monadTestnet,
+      to: params.to as `0x${string}`,
+      value: params.value,
+      data: params.data as `0x${string}` | undefined,
+      gas: params.gasLimit ? BigInt(params.gasLimit) : undefined,
+    });
+    console.log('✅ Transaction sent:', txHash);
+    return {
+      hash: txHash,
+      wait: async () => {
+        console.log('⏳ Waiting for transaction confirmation...');
+        const receipt = await client.waitForTransactionReceipt({
+          hash: txHash,
+          confirmations: 1,
+        });
+        console.log('✅ Transaction confirmed');
+      },
+    };
   };
 
   const switchChain = async (params: { chainId: number }) => {
     try {
-      console.log('🔄 Switching chain to:', params.chainId);
-      if (isMobile) {
-        if (params.chainId !== monadTestnet.id) {
-          throw new Error(`Mobile wallet is on Monad Testnet. Cannot switch chains.`);
-        }
-        return;
+      if (isMobile && params.chainId !== monadTestnet.id) {
+        throw new Error(`Mobile wallet is on Monad Testnet. Cannot switch chains.`);
       }
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        try {
-          await (window as any).ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: `0x${params.chainId.toString(16)}` }],
-          });
-        } catch (switchError: any) {
-          if (switchError.code === 4902) {
-            await (window as any).ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: `0x${params.chainId.toString(16)}`,
-                chainName: monadTestnet.name,
-                nativeCurrency: monadTestnet.nativeCurrency,
-                rpcUrls: [monadTestnet.rpcUrls.default.http[0]],
-                blockExplorerUrls: [monadTestnet.blockExplorers?.default.url],
-              }],
-            });
-          } else {
-            throw switchError;
-          }
-        }
-      }
+      wagmiSwitchChain({ chainId: params.chainId as any });
     } catch (err: any) {
       console.error('❌ Chain switch error:', err);
       throw new Error(err.message || 'Failed to switch chain');
