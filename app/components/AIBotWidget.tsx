@@ -21,7 +21,7 @@ export default function AIBotWidget() {
   const [messages, setMessages] = useState<BotMessage[]>([
     {
       role: 'bot',
-      content: '👋 Hi! I can help you mint music, buy tracks, or manage your NFTs. What would you like to do?'
+      content: '👋 Hi! I can help you mint music, buy tracks, or manage your NFTs. Try: "mint passport", "enable delegation", or "help"'
     }
   ]);
   const [input, setInput] = useState('');
@@ -40,7 +40,6 @@ export default function AIBotWidget() {
     const userMessage = input.trim();
     setInput('');
     
-    // Add user message
     setMessages(prev => [...prev, {
       role: 'user',
       content: userMessage
@@ -49,7 +48,6 @@ export default function AIBotWidget() {
     setProcessing(true);
 
     try {
-      // Call AI bot API
       const response = await fetch('/api/bot-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -66,7 +64,6 @@ export default function AIBotWidget() {
       const data = await response.json();
 
       if (data.success) {
-        // Add bot response
         setMessages(prev => [...prev, {
           role: 'bot',
           content: data.message,
@@ -77,7 +74,6 @@ export default function AIBotWidget() {
           } : undefined
         }]);
 
-        // If action requires approval, set pending state
         if (data.action && data.params) {
           setPendingApproval({
             type: data.action,
@@ -85,7 +81,6 @@ export default function AIBotWidget() {
           });
         }
 
-        // Auto-execute navigate actions
         if (data.action === 'navigate' && data.path) {
           setTimeout(() => {
             window.location.href = data.path;
@@ -94,7 +89,7 @@ export default function AIBotWidget() {
       } else {
         setMessages(prev => [...prev, {
           role: 'bot',
-          content: data.message || '❌ I didn\'t understand that. Try: "mint music", "buy from artist 0x123...", or "show my profile"'
+          content: data.message || '❌ I didn\'t understand that. Try: "mint music", "enable delegation", or "help"'
         }]);
       }
     } catch (error: any) {
@@ -117,23 +112,25 @@ export default function AIBotWidget() {
       const { type, params } = pendingApproval;
 
       switch (type) {
+        case 'setup_delegation':
+          await setupDelegation(params);
+          break;
+
         case 'mint_music':
-          // Navigate to mint page
           window.location.href = '/music';
           break;
 
         case 'mint_passport':
-          // Navigate to passport page
           window.location.href = '/passport';
           break;
 
         case 'buy_music':
-          // Execute purchase
-          const provider = new BrowserProvider(window.ethereum);
+          if (!window.ethereum) {
+            throw new Error('No Ethereum provider found');
+          }
+          const provider = new BrowserProvider(window.ethereum as any);
           const signer = await provider.getSigner();
           
-          // Call purchase function
-          // (This would call the actual contract)
           setMessages(prev => [...prev, {
             role: 'bot',
             content: `✅ Purchase initiated! Check your wallet to approve the transaction.`
@@ -152,6 +149,37 @@ export default function AIBotWidget() {
       }]);
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const setupDelegation = async (params: any) => {
+    setMessages(prev => [...prev, {
+      role: 'bot',
+      content: `🔐 Setting up delegation with:\n• Spending limit: ${params.spendingLimit} ETH\n• Max mints: ${params.maxMints}\n• Duration: ${params.durationHours} hours\n\nPlease approve in your wallet...`
+    }]);
+
+    try {
+      const response = await fetch('/api/store-delegation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          delegation: params,
+          config: params,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Delegation setup failed');
+
+      setMessages(prev => [...prev, {
+        role: 'bot',
+        content: `✅ Delegation setup complete! I can now mint NFTs on your behalf within your limits.`
+      }]);
+    } catch (error: any) {
+      setMessages(prev => [...prev, {
+        role: 'bot',
+        content: `❌ Delegation failed: ${error.message}`
+      }]);
     }
   };
 
@@ -179,15 +207,14 @@ export default function AIBotWidget() {
     <div className="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border-2 border-purple-200 flex flex-col"
          style={{ height: 'min(600px, calc(100vh - 8rem))' }}>
       
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-pink-600 rounded-t-2xl">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-xl">
             🤖
           </div>
           <div>
-            <h3 className="font-bold text-white">AI Assistant</h3>
-            <p className="text-xs text-purple-100">Smart Wallet Enabled</p>
+            <h3 className="font-bold text-white">AI Agent</h3>
+            <p className="text-xs text-purple-100">Delegation Enabled</p>
           </div>
         </div>
         <button
@@ -198,7 +225,6 @@ export default function AIBotWidget() {
         </button>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, idx) => (
           <div
@@ -214,7 +240,6 @@ export default function AIBotWidget() {
             >
               <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               
-              {/* Action buttons for bot messages */}
               {msg.action && msg.action.requiresApproval && (
                 <div className="mt-3 flex gap-2">
                   <button
@@ -251,7 +276,6 @@ export default function AIBotWidget() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Pending Approval Banner */}
       {pendingApproval && (
         <div className="px-4 py-3 bg-yellow-50 border-t border-yellow-200">
           <p className="text-xs text-yellow-900 font-medium mb-2">
@@ -276,7 +300,6 @@ export default function AIBotWidget() {
         </div>
       )}
 
-      {/* Input */}
       <div className="p-4 border-t border-gray-200">
         {!user && (
           <p className="text-xs text-yellow-700 bg-yellow-50 p-2 rounded-lg mb-2">
@@ -306,7 +329,7 @@ export default function AIBotWidget() {
         </div>
         
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Try: "mint music", "buy from artist 0x...", "show profile"
+          Try: "enable delegation", "mint passport", "help"
         </p>
       </div>
     </div>
