@@ -13,7 +13,7 @@ export function PassportSVG({ countryCode, tokenId, className = '' }: PassportSV
   const region = country?.region || 'Unknown Region';
 
   const svg = `
-    <svg width="400" height="600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600">
+    <svg width="400" height="600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" style="width: 100%; height: 100%;">
       <defs>
         <linearGradient id="bgGradient-${tokenId}" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
@@ -74,7 +74,7 @@ export function PassportSVG({ countryCode, tokenId, className = '' }: PassportSV
 
   return (
     <div 
-      className={className}
+      className={`w-full h-full flex items-center justify-center ${className}`}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
