@@ -170,9 +170,3 @@ export function useFarcasterContext(): FarcasterContext {
     requestWallet 
   };
 }
-
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
