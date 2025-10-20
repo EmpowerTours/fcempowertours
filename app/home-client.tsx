@@ -1,5 +1,7 @@
 'use client';
 
+import DynamicCastFrame from './components/DynamicCastFrame';
+
 export default function HomeClient() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white">
@@ -41,21 +43,21 @@ export default function HomeClient() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <a
+              
                 href="/passport"
                 className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg shadow-purple-500/50"
               >
                 🎫 Get Your Passport
               </a>
 
-              <a
+              
                 href="/music"
                 className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-bold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all transform hover:scale-105 shadow-lg shadow-blue-500/50"
               >
                 🎵 Mint Music
               </a>
 
-              <a
+              
                 href="/dashboard"
                 className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-bold text-lg hover:bg-white/20 transition-all border border-white/30"
               >
@@ -66,35 +68,13 @@ export default function HomeClient() {
         </div>
       </div>
 
-      {/* Features Grid */}
+      {/* 🔴 LIVE CASTS FROM FARCASTER - REPLACES STATIC CONTENT */}
       <div className="max-w-7xl mx-auto px-4 py-20">
-        <h2 className="text-4xl font-bold text-center mb-12">Why EmpowerTours?</h2>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-purple-400/50 transition-all">
-            <div className="text-5xl mb-4">🎫</div>
-            <h3 className="text-2xl font-bold mb-3">Digital Passports</h3>
-            <p className="text-purple-300">
-              Collect unique passport NFTs as you explore. Each stamp is a memory on the blockchain.
-            </p>
-          </div>
-
-          <div className="p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-blue-400/50 transition-all">
-            <div className="text-5xl mb-4">🎵</div>
-            <h3 className="text-2xl font-bold mb-3">Music NFTs</h3>
-            <p className="text-blue-300">
-              Mint and share your music with 10% automatic creator royalties. Free minting for everyone!
-            </p>
-          </div>
-
-          <div className="p-8 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-green-400/50 transition-all">
-            <div className="text-5xl mb-4">⚡</div>
-            <h3 className="text-2xl font-bold mb-3">Powered by Monad</h3>
-            <p className="text-green-300">
-              Lightning-fast transactions, zero gas fees for users, and seamless Farcaster integration.
-            </p>
-          </div>
-        </div>
+        <h2 className="text-4xl font-bold text-center mb-12">
+          🔴 Live from Farcaster
+        </h2>
+        
+        <DynamicCastFrame />
       </div>
 
       {/* Stats Section */}

@@ -1,10 +1,9 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries
-
 networks:
   - id: 10143
-    start_block: 43165000
+    start_block: 41800000  # ✅ CHANGED: Was 43165000, now 41800000 to capture PassportNFT deployment
     contracts:
       - name: MusicLicenseNFT
         address:
@@ -24,7 +23,6 @@ networks:
               transaction_fields:
                 - hash
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
-
       - name: PassportNFT
         address:
           - "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4"
@@ -34,7 +32,6 @@ networks:
             field_selection:
               transaction_fields:
                 - hash
-
       - name: Marketplace
         address:
           - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"
@@ -45,5 +42,4 @@ networks:
             field_selection:
               transaction_fields:
                 - hash
-
 rollback_on_reorg: false

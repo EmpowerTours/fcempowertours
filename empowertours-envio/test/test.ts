@@ -1,6 +1,6 @@
 import assert from "assert";
 import pkg from "generated";
-const { TestHelpers, MusicNFT } = pkg;
+const { TestHelpers } = pkg;
 const { MockDb, MusicLicenseNFT, Addresses } = TestHelpers;
 
 describe("Music NFT Minting", () => {
@@ -11,22 +11,22 @@ describe("Music NFT Minting", () => {
     // Get mock addresses from helpers
     const artistAddress = Addresses.mockAddresses[0];
 
-    // Create a mock MusicMinted event
-    const mockMusicMinted = MusicLicenseNFT.MusicMinted.createMockEvent({
+    // Create a mock MasterMinted event (NOT MusicMinted)
+    const mockMasterMinted = MusicLicenseNFT.MasterMinted.createMockEvent({
       tokenId: 1n,
       artist: artistAddress,
-      metadataURI: "ipfs://QmTest123",
-      royaltyPercentage: 10n,
+      tokenURI: "ipfs://QmTest123",
+      price: 1000000000000000000n,
     });
 
     // Process the mockEvent
-    const mockDbAfterMint = await MusicLicenseNFT.MusicMinted.processEvent({
-      event: mockMusicMinted,
+    const mockDbAfterMint = await MusicLicenseNFT.MasterMinted.processEvent({
+      event: mockMasterMinted,
       mockDb,
     });
 
     // Get the minted Music NFT
-    const musicNFTId = `music-${mockMusicMinted.chainId}-1`;
+    const musicNFTId = `music-${mockMasterMinted.chainId}-1`;
     const mintedNFT = mockDbAfterMint.entities.MusicNFT.get(musicNFTId);
 
     // Assert the NFT was created
@@ -82,7 +82,7 @@ describe("Music NFT Transfer", () => {
     // Use the correct ID format that matches the handler
     const musicNFTId = `music-${mockTransfer.chainId}-1`;
     
-    const mockMusicNFT: MusicNFT = {
+    const mockMusicNFT = {
       id: musicNFTId,
       tokenId: "1",
       contract: "0xaD849874B0111131A30D7D2185Cc1519A83dd3D0",
@@ -93,7 +93,7 @@ describe("Music NFT Transfer", () => {
       royaltyPercentage: 10,
       mintedAt: new Date(),
       blockNumber: 442333597192n,
-      txHash: "",
+      txHash: "0x1234567890abcdef",
     };
 
     // Set initial state

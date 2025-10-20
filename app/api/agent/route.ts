@@ -11,7 +11,9 @@ export async function POST(req: NextRequest) {
       throw new Error("Missing command in request");
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    // ✅ FIX: Use correct model name for Gemini API
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    
     const aiPrompt = `
 Analyze this user command for EmpowerTours app context: "${command}".
 Decide if it should trigger a transaction, mint, cast, or navigation.

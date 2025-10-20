@@ -8,6 +8,7 @@ const PASSPORT_NFT_ADDRESS = "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4";
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 const PASSPORT_ABI = [
   {
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
     let recipientAddress = userAddress;
     let username = "traveler";
 
-    // If FID provided, resolve to wallet address - but DON'T use custody address
+    // If FID provided, resolve to wallet address
     if (fid) {
       try {
         const neynarRes = await axios.get(
@@ -116,11 +117,61 @@ export async function POST(req: NextRequest) {
 
     console.log(`👤 Recipient: ${recipientAddress} (@${username})`);
 
-    // REMOVED: Check for existing passport by wallet
-    // Users can mint to different wallets (Privy vs Farcaster)
-    // Only check if setting tokenURI for existing mint
+    // 🚨 CRITICAL: Check for existing passport for this country + wallet combination
     if (!tokenId) {
-      console.log('✅ New mint - no duplicate check needed');
+      console.log(`🔍 Checking for existing ${countryCode} passport for ${recipientAddress}...`);
+      
+      try {
+        const checkQuery = `
+          query CheckExistingPassport($owner: String!, $countryCode: String!) {
+            PassportNFT(
+              where: {
+                owner: {_eq: $owner}
+                countryCode: {_eq: $countryCode}
+              }
+              limit: 1
+            ) {
+              id
+              tokenId
+              countryCode
+            }
+          }
+        `;
+
+        const checkResponse = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: checkQuery,
+            variables: {
+              owner: recipientAddress.toLowerCase(),
+              countryCode: countryCode
+            }
+          })
+        });
+
+        if (checkResponse.ok) {
+          const checkResult = await checkResponse.json();
+          const existingPassports = checkResult.data?.PassportNFT || [];
+
+          if (existingPassports.length > 0) {
+            console.log(`❌ DUPLICATE DETECTED: User already has ${countryCode} passport #${existingPassports[0].tokenId}`);
+            
+            return NextResponse.json({
+              error: `You already own a ${countryInfo?.flag} ${countryName} passport!`,
+              details: `Each wallet can only mint ONE passport per country. Your existing passport: Token #${existingPassports[0].tokenId}`,
+              existingTokenId: existingPassports[0].tokenId
+            }, { status: 400 });
+          }
+
+          console.log(`✅ No existing ${countryCode} passport found - proceeding with mint`);
+        } else {
+          console.warn('⚠️ Envio check failed, proceeding with caution');
+        }
+      } catch (checkError) {
+        console.warn('⚠️ Could not verify duplicate passport:', checkError);
+        // Continue with mint - better to allow than block legitimate mints
+      }
     }
 
     let transaction_hash: string;
@@ -131,7 +182,7 @@ export async function POST(req: NextRequest) {
     const metadata = generatePassportMetadata(
       countryCode,
       countryName,
-      tokenId || 0 // Use provided tokenId or 0 as placeholder
+      tokenId || 0
     );
 
     // Upload metadata to IPFS
@@ -156,7 +207,6 @@ export async function POST(req: NextRequest) {
       // Path 2: Server-side mint (deployer pays 0.01 MON)
       console.log(`⚡ Minting passport to ${recipientAddress}...`);
 
-      // CRITICAL FIX: Include value in gas estimation
       const gasEstimate = await contract.mint.estimateGas(recipientAddress, {
         value: parseEther("0.01")
       });
