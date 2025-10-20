@@ -8,11 +8,41 @@ import Link from 'next/link';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 
+// Helper to resolve IPFS URLs
+const resolveIPFS = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', PINATA_GATEWAY);
+  }
+  return url;
+};
+
+// Interface for NFT metadata
+interface MusicMetadata {
+  animation_url?: string;
+  external_url?: string;
+  image?: string;
+  name?: string;
+  description?: string;
+}
+
+interface MusicNFTWithMetadata {
+  id: string;
+  tokenId: number;
+  owner: string;
+  tokenURI: string;
+  mintedAt: string;
+  txHash: string;
+  metadata?: MusicMetadata;
+  audioUrl?: string;
+  isLoadingMetadata?: boolean;
+}
+
 export default function ProfilePage() {
   const { user, walletAddress, isMobile, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
 
   const [passportNFTs, setPassportNFTs] = useState<any[]>([]);
-  const [musicNFTs, setMusicNFTs] = useState<any[]>([]);
+  const [musicNFTs, setMusicNFTs] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [balances, setBalances] = useState({ mon: '0', tours: '0' });
   const [loading, setLoading] = useState(false);
@@ -34,6 +64,23 @@ export default function ProfilePage() {
       loadBalances();
     }
   }, [walletAddress]);
+
+  // Fetch metadata for a music NFT
+  const fetchMusicMetadata = async (tokenURI: string): Promise<MusicMetadata | null> => {
+    try {
+      const metadataUrl = resolveIPFS(tokenURI);
+      const response = await fetch(metadataUrl);
+      if (!response.ok) {
+        console.error('Failed to fetch metadata:', response.status);
+        return null;
+      }
+      const metadata: MusicMetadata = await response.json();
+      return metadata;
+    } catch (error) {
+      console.error('Error fetching music metadata:', error);
+      return null;
+    }
+  };
 
   const loadBalances = async () => {
     if (!walletAddress) return;
@@ -126,7 +173,43 @@ export default function ProfilePage() {
       });
 
       setPassportNFTs(passports);
-      setMusicNFTs(music);
+      
+      // Set music NFTs and start loading metadata
+      const musicWithMetadata: MusicNFTWithMetadata[] = music.map((nft: any) => ({
+        ...nft,
+        isLoadingMetadata: true
+      }));
+      setMusicNFTs(musicWithMetadata);
+
+      // Load metadata for each music NFT
+      music.forEach(async (nft: any, index: number) => {
+        const metadata = await fetchMusicMetadata(nft.tokenURI);
+        if (metadata) {
+          // Use animation_url (preview clip) for playback in profile
+          const audioUrl = metadata.animation_url || metadata.external_url;
+          
+          setMusicNFTs(prev => {
+            const updated = [...prev];
+            updated[index] = {
+              ...updated[index],
+              metadata,
+              audioUrl,
+              isLoadingMetadata: false
+            };
+            return updated;
+          });
+        } else {
+          setMusicNFTs(prev => {
+            const updated = [...prev];
+            updated[index] = {
+              ...updated[index],
+              isLoadingMetadata: false
+            };
+            return updated;
+          });
+        }
+      });
+
       setPurchasedItineraries(purchases);
     } catch (error: any) {
       console.error('❌ Error loading data from Envio:', error);
@@ -148,7 +231,6 @@ export default function ProfilePage() {
   const totalMusicPages = Math.ceil(musicNFTs.length / ITEMS_PER_PAGE);
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
 
-  // Copy artist profile link to clipboard
   const copyArtistLink = () => {
     const link = `${window.location.origin}/artist/${walletAddress}`;
     navigator.clipboard.writeText(link);
@@ -211,7 +293,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Mobile Wallet Status */}
           {isMobile && (
             <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
               <p className="text-blue-900 text-sm font-medium mb-1">
@@ -238,7 +319,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Artist Profile Link */}
           {musicNFTs.length > 0 && walletAddress && (
             <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
@@ -269,7 +349,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Token Balances */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm">
               <div className="flex items-center justify-between">
@@ -293,7 +372,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* NFT Stats */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="p-4 bg-purple-50 rounded-lg text-center">
               <p className="text-3xl font-bold text-purple-600">{passportNFTs.length}</p>
@@ -309,7 +387,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Quick Actions */}
           <div className="grid grid-cols-3 gap-3 mb-8">
             <Link
               href="/passport"
@@ -364,53 +441,61 @@ export default function ProfilePage() {
                         key={nft.id || idx}
                         className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
                       >
-                        <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">🎵</span>
-                        </div>
+                        {/* Cover Image */}
+                        {nft.metadata?.image ? (
+                          <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                            <img
+                              src={resolveIPFS(nft.metadata.image)}
+                              alt={nft.metadata.name || `Music NFT #${nft.tokenId}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
+                            <span className="text-6xl">🎵</span>
+                          </div>
+                        )}
 
                         <div className="p-4 space-y-3">
                           <div className="text-center">
                             <p className="font-mono text-sm font-bold text-blue-900">
-                              Music NFT #{nft.tokenId}
+                              {nft.metadata?.name || `Music NFT #${nft.tokenId}`}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
                               {new Date(nft.mintedAt).toLocaleDateString()}
                             </p>
                           </div>
 
-                          {nft.tokenURI && (
+                          {/* Audio Player */}
+                          {nft.isLoadingMetadata ? (
+                            <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
+                              <p className="text-xs text-gray-500">Loading audio...</p>
+                            </div>
+                          ) : nft.audioUrl ? (
                             <div className="bg-white rounded-lg p-2 border border-blue-200">
                               <audio
                                 controls
                                 preload="metadata"
                                 className="w-full"
                                 style={{ height: '40px' }}
-                                onError={(e) => {
-                                  console.error('Audio load error for NFT #' + nft.tokenId);
-                                  const target = e.target as HTMLAudioElement;
-                                  if (target.src.includes('harlequin-used-hare')) {
-                                    console.log('Trying IPFS fallback gateway...');
-                                    target.src = nft.tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/');
-                                  }
-                                }}
                               >
                                 <source
-                                  src={nft.tokenURI.startsWith('ipfs://')
-                                    ? nft.tokenURI.replace('ipfs://', PINATA_GATEWAY)
-                                    : nft.tokenURI}
+                                  src={resolveIPFS(nft.audioUrl)}
                                   type="audio/mpeg"
                                 />
                                 <source
-                                  src={nft.tokenURI.startsWith('ipfs://')
-                                    ? nft.tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/')
-                                    : nft.tokenURI}
-                                  type="audio/mpeg"
+                                  src={resolveIPFS(nft.audioUrl)}
+                                  type="audio/wav"
                                 />
                                 Your browser does not support audio playback.
                               </audio>
                               <p className="text-xs text-gray-500 text-center mt-1">
-                                {nft.tokenURI.startsWith('ipfs://') ? '🔊 IPFS Audio' : '🎵 Preview'}
+                                🔊 Preview Clip
                               </p>
+                            </div>
+                          ) : (
+                            <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
+                              <p className="text-xs text-gray-500">Audio unavailable</p>
                             </div>
                           )}
 
@@ -423,6 +508,16 @@ export default function ProfilePage() {
                                 className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
                               >
                                 View TX
+                              </a>
+                            )}
+                            {nft.tokenURI && (
+                              <a
+                                href={resolveIPFS(nft.tokenURI)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                              >
+                                Metadata
                               </a>
                             )}
                           </div>
@@ -495,6 +590,7 @@ export default function ProfilePage() {
                             <div className="text-center">
                               <span className="text-6xl">🎫</span>
                               <p className="text-sm text-gray-600 mt-2">Passport #{passport.tokenId}</p>
+                              <p className="text-xs text-yellow-600 mt-2">⚠️ Country code not indexed</p>
                             </div>
                           )}
                         </div>
@@ -522,9 +618,7 @@ export default function ProfilePage() {
                             )}
                             {passport.tokenURI && (
                               <a
-                                href={passport.tokenURI.startsWith('ipfs://')
-                                  ? passport.tokenURI.replace('ipfs://', PINATA_GATEWAY)
-                                  : passport.tokenURI}
+                                href={resolveIPFS(passport.tokenURI)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
