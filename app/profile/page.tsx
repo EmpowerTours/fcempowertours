@@ -173,7 +173,7 @@ export default function ProfilePage() {
       });
 
       setPassportNFTs(passports);
-      
+
       // Set music NFTs and start loading metadata
       const musicWithMetadata: MusicNFTWithMetadata[] = music.map((nft: any) => ({
         ...nft,
@@ -187,7 +187,7 @@ export default function ProfilePage() {
         if (metadata) {
           // Use animation_url (preview clip) for playback in profile
           const audioUrl = metadata.animation_url || metadata.external_url;
-          
+
           setMusicNFTs(prev => {
             const updated = [...prev];
             updated[index] = {
@@ -583,9 +583,14 @@ export default function ProfilePage() {
                         key={passport.id || idx}
                         className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
                       >
-                        <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center p-4">
+                        <div 
+                          className="w-full bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center p-2"
+                          style={{ aspectRatio: '2/3' }}
+                        >
                           {passport.countryCode ? (
-                            <PassportSVG countryCode={passport.countryCode} tokenId={passport.tokenId} />
+                            <div className="w-full h-full">
+                              <PassportSVG countryCode={passport.countryCode} tokenId={passport.tokenId} />
+                            </div>
                           ) : (
                             <div className="text-center">
                               <span className="text-6xl">🎫</span>
