@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { PassportSVG } from '@/components/PassportSVG';
+import Link from 'next/link';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
@@ -16,7 +17,7 @@ export default function ProfilePage() {
   const [balances, setBalances] = useState({ mon: '0', tours: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [musicPage, setMusicPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -55,7 +56,7 @@ export default function ProfilePage() {
     if (!walletAddress) return;
     setLoading(true);
     setError(null);
-    
+
     try {
       const query = `
         query GetUserData($address: String!) {
@@ -64,6 +65,7 @@ export default function ProfilePage() {
             tokenId
             owner
             countryCode
+            tokenURI
             mintedAt
             txHash
           }
@@ -92,7 +94,7 @@ export default function ProfilePage() {
           }
         }
       `;
-      
+
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +185,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          
+
           {/* Profile Header */}
           <div className="text-center mb-8">
             {user?.pfpUrl ? (
@@ -216,7 +218,7 @@ export default function ProfilePage() {
                 📱 Mobile Wallet Connected
               </p>
               <p className="text-blue-700 text-xs">
-                {walletAddress 
+                {walletAddress
                   ? `Using Farcaster custody address: ${walletAddress.slice(0, 10)}...`
                   : 'Wallet not connected - some features may be limited'
                 }
@@ -236,7 +238,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Artist Profile Link - NEW */}
+          {/* Artist Profile Link */}
           {musicNFTs.length > 0 && walletAddress && (
             <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
@@ -249,16 +251,14 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex gap-3">
-                <a
+                <Link
                   href={`/artist/${walletAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-pink-700 text-center transition-all active:scale-95 touch-manipulation"
                 >
                   👀 View My Artist Profile
-                </a>
+                </Link>
                 <button
                   onClick={copyArtistLink}
                   className="px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition-all active:scale-95 touch-manipulation"
@@ -311,24 +311,24 @@ export default function ProfilePage() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-3 gap-3 mb-8">
-            <a
+            <Link
               href="/passport"
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-center text-sm font-medium transition-all"
             >
               🎫 Get Passport
-            </a>
-            <a
+            </Link>
+            <Link
               href="/music"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center text-sm font-medium transition-all"
             >
               🎵 Mint Music
-            </a>
-            <a
+            </Link>
+            <Link
               href="/market"
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-center text-sm font-medium transition-all"
             >
               🛒 Browse Market
-            </a>
+            </Link>
           </div>
 
           <div className="space-y-8">
@@ -340,7 +340,7 @@ export default function ProfilePage() {
                   {musicNFTs.length} total | Page {musicPage} of {totalMusicPages || 1}
                 </span>
               </div>
-              
+
               {loading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
@@ -349,12 +349,12 @@ export default function ProfilePage() {
               ) : musicNFTs.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600 mb-3">No music NFTs yet</p>
-                  <a
+                  <Link
                     href="/music"
                     className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
                   >
                     Mint Your First Track →
-                  </a>
+                  </Link>
                 </div>
               ) : (
                 <>
@@ -367,7 +367,7 @@ export default function ProfilePage() {
                         <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
                           <span className="text-6xl">🎵</span>
                         </div>
-                        
+
                         <div className="p-4 space-y-3">
                           <div className="text-center">
                             <p className="font-mono text-sm font-bold text-blue-900">
@@ -385,21 +385,39 @@ export default function ProfilePage() {
                                 preload="metadata"
                                 className="w-full"
                                 style={{ height: '40px' }}
+                                onError={(e) => {
+                                  console.error('Audio load error for NFT #' + nft.tokenId);
+                                  const target = e.target as HTMLAudioElement;
+                                  if (target.src.includes('harlequin-used-hare')) {
+                                    console.log('Trying IPFS fallback gateway...');
+                                    target.src = nft.tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                                  }
+                                }}
                               >
                                 <source
-                                  src={nft.tokenURI.startsWith('ipfs://') 
+                                  src={nft.tokenURI.startsWith('ipfs://')
                                     ? nft.tokenURI.replace('ipfs://', PINATA_GATEWAY)
                                     : nft.tokenURI}
                                   type="audio/mpeg"
                                 />
+                                <source
+                                  src={nft.tokenURI.startsWith('ipfs://')
+                                    ? nft.tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/')
+                                    : nft.tokenURI}
+                                  type="audio/mpeg"
+                                />
+                                Your browser does not support audio playback.
                               </audio>
+                              <p className="text-xs text-gray-500 text-center mt-1">
+                                {nft.tokenURI.startsWith('ipfs://') ? '🔊 IPFS Audio' : '🎵 Preview'}
+                              </p>
                             </div>
                           )}
 
                           <div className="flex gap-2">
                             {nft.txHash && (
                               <a
-                                href={`https://testnet.monadexplorer.com/tx/${nft.txHash}`}
+                                href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
@@ -438,11 +456,163 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Passports Section - Same pagination logic */}
-            {/* ... (keep existing passport code) ... */}
+            {/* Passports Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900">🎫 My Travel Passports</h2>
+                <span className="text-sm text-gray-500">
+                  {passportNFTs.length} total | Page {passportPage} of {totalPassportPages || 1}
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin text-3xl mb-2">⏳</div>
+                  <p className="text-gray-500">Loading passports...</p>
+                </div>
+              ) : passportNFTs.length === 0 ? (
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-600 mb-3">No passports yet</p>
+                  <Link
+                    href="/passport"
+                    className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
+                  >
+                    Get Your First Passport →
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {paginatedPassports.map((passport, idx) => (
+                      <div
+                        key={passport.id || idx}
+                        className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
+                      >
+                        <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center p-4">
+                          {passport.countryCode ? (
+                            <PassportSVG countryCode={passport.countryCode} tokenId={passport.tokenId} />
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-6xl">🎫</span>
+                              <p className="text-sm text-gray-600 mt-2">Passport #{passport.tokenId}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-4 space-y-3">
+                          <div className="text-center">
+                            <p className="font-mono text-sm font-bold text-purple-900">
+                              {passport.countryCode ? `${passport.countryCode} Passport` : `Passport #${passport.tokenId}`}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Minted: {new Date(passport.mintedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {passport.txHash && (
+                              <a
+                                href={`https://testnet.monadscan.com/tx/${passport.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                              >
+                                View TX
+                              </a>
+                            )}
+                            {passport.tokenURI && (
+                              <a
+                                href={passport.tokenURI.startsWith('ipfs://')
+                                  ? passport.tokenURI.replace('ipfs://', PINATA_GATEWAY)
+                                  : passport.tokenURI}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
+                              >
+                                Metadata
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {totalPassportPages > 1 && (
+                    <div className="flex justify-center gap-2 mt-6">
+                      <button
+                        onClick={() => setPassportPage(p => Math.max(1, p - 1))}
+                        disabled={passportPage === 1}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        ← Prev
+                      </button>
+                      <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                        {passportPage} / {totalPassportPages}
+                      </span>
+                      <button
+                        onClick={() => setPassportPage(p => Math.min(totalPassportPages, p + 1))}
+                        disabled={passportPage === totalPassportPages}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
             {/* Itineraries Section */}
-            {/* ... (keep existing itineraries code) ... */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900">🗺️ My Purchased Itineraries</h2>
+                <span className="text-sm text-gray-500">
+                  {purchasedItineraries.length} total
+                </span>
+              </div>
+
+              {purchasedItineraries.length === 0 ? (
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-600 mb-3">No itineraries purchased yet</p>
+                  <Link
+                    href="/market"
+                    className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
+                  >
+                    Browse Marketplace →
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {purchasedItineraries.map((purchase) => (
+                    <div
+                      key={purchase.id}
+                      className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 hover:border-green-400 transition-all"
+                    >
+                      <h3 className="font-bold text-gray-900 mb-2">
+                        Itinerary #{purchase.itineraryId}
+                      </h3>
+                      <p className="text-sm text-gray-700 mb-2">
+                        {purchase.itinerary?.description || 'Adventure itinerary'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Purchased: {new Date(purchase.timestamp).toLocaleDateString()}
+                      </p>
+                      {purchase.txHash && (
+                        <a
+                          href={`https://testnet.monadscan.com/tx/${purchase.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-block px-4 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-all"
+                        >
+                          View Transaction
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="mt-8 text-center">

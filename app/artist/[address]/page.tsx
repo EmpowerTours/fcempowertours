@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { BrowserProvider, Contract, parseEther } from 'ethers';
+import { Interface, parseEther } from 'ethers';
+import Link from 'next/link';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
@@ -42,7 +43,7 @@ export default function ArtistProfilePage() {
   const params = useParams();
   const artistAddress = params.address as string;
 
-  const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
+  const { user, walletAddress, isMobile, requestWallet, sendTransaction, switchChain } = useFarcasterContext();
 
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<any>(null);
@@ -58,12 +59,17 @@ export default function ArtistProfilePage() {
   const loadArtistProfile = async () => {
     setLoading(true);
     try {
-      // Query artist's music from Envio
+      // Query artist's music from Envio - FIXED: Changed from 'owner' to 'artist'
       const query = `
         query GetArtistMusic($address: String!) {
-          MusicNFT(where: {owner: {_eq: $address}}, order_by: {mintedAt: desc}, limit: 50) {
+          MusicNFT(
+            where: {artist: {_eq: $address}}, 
+            order_by: {mintedAt: desc}, 
+            limit: 50
+          ) {
             id
             tokenId
+            artist
             owner
             tokenURI
             mintedAt
@@ -101,7 +107,7 @@ export default function ArtistProfilePage() {
         username: `artist_${artistAddress.slice(2, 8)}`,
       });
 
-      console.log('✅ Loaded', music.length, 'tracks from artist');
+      console.log('✅ Loaded', music.length, 'tracks from artist', artistAddress);
     } catch (error: any) {
       console.error('❌ Error loading artist profile:', error);
     } finally {
@@ -122,12 +128,6 @@ export default function ArtistProfilePage() {
       return;
     }
 
-    // Check if window.ethereum exists
-    if (typeof window.ethereum === 'undefined') {
-      alert('❌ No Ethereum wallet detected. Please install MetaMask or use a Web3 browser.');
-      return;
-    }
-
     setBuying(music.tokenId);
 
     try {
@@ -139,20 +139,20 @@ export default function ArtistProfilePage() {
         isMobile
       });
 
-      // Connect to contract
-      const provider = new BrowserProvider(window.ethereum as any);
-      const signer = await provider.getSigner();
-      const contract = new Contract(MUSIC_NFT_ADDRESS, MUSIC_NFT_ABI, signer);
+      // Switch to Monad Testnet if necessary
+      await switchChain({ chainId: 10143 });
 
-      // Purchase license (not the NFT, just the license to listen)
-      const tx = await contract.purchaseLicense(
-        music.tokenId,
-        walletAddress,
-        {
-          value: parseEther(music.price),
-          gasLimit: 300000 // Explicit gas limit for mobile
-        }
-      );
+      // Encode the contract call data
+      const iface = new Interface(MUSIC_NFT_ABI);
+      const data = iface.encodeFunctionData('purchaseLicense', [music.tokenId, walletAddress]);
+
+      // Send transaction via Mini App context (works on mobile)
+      const tx = await sendTransaction({
+        to: MUSIC_NFT_ADDRESS,
+        value: parseEther(music.price),
+        data,
+        gasLimit: 300000 // Optional: explicit gas limit
+      });
 
       console.log('📤 Purchase transaction sent:', tx.hash);
 
@@ -350,7 +350,7 @@ export default function ArtistProfilePage() {
 
                       {music.txHash && (
                         <a
-                          href={`https://testnet.monadexplorer.com/tx/${music.txHash}`}
+                          href={`https://testnet.monadscan.com/tx/${music.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block text-center text-xs text-gray-500 hover:text-purple-600 mt-2"
@@ -378,6 +378,16 @@ export default function ArtistProfilePage() {
           <p className="text-xs text-gray-600 mt-4">
             💡 <strong>Tip:</strong> Support artists directly! All purchases go straight to the artist's wallet.
           </p>
+        </div>
+
+        {/* Back Button */}
+        <div className="mt-8 text-center">
+          <Link
+            href="/profile"
+            className="inline-block px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-all"
+          >
+            ← Back to My Profile
+          </Link>
         </div>
       </div>
     </div>
