@@ -6,15 +6,23 @@ networks:
   - id: 10143
     start_block: 43165000
     contracts:
-      # ✅ FIXED: Correct event name is MasterMinted, not MusicMinted
       - name: MusicLicenseNFT
         address:
           - "0xaD849874B0111131A30D7D2185Cc1519A83dd3D0"
         handler: src/EventHandlers.ts
         events:
           - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
           - event: "LicensePurchased(uint256 indexed tokenId, address indexed buyer, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
           - event: "RoyaltyPaid(uint256 indexed tokenId, address indexed recipient, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
 
       - name: PassportNFT
@@ -23,6 +31,9 @@ networks:
         handler: src/EventHandlers.ts
         events:
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
 
       - name: Marketplace
         address:
@@ -31,5 +42,8 @@ networks:
         events:
           - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
           - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"
+            field_selection:
+              transaction_fields:
+                - hash
 
 rollback_on_reorg: false
