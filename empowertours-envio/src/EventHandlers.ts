@@ -8,9 +8,9 @@ import {
 // MUSIC LICENSE NFT EVENTS
 // ============================================
 
-// Music NFT Minted Event (with royalty tracking)
-MusicLicenseNFT.MusicMinted.handler(async ({ event, context }) => {
-  const { tokenId, artist, metadataURI, royaltyPercentage } = event.params;
+// ✅ FIXED: Changed from MusicMinted to MasterMinted
+MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
+  const { tokenId, artist, tokenURI, price } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
 
@@ -20,12 +20,12 @@ MusicLicenseNFT.MusicMinted.handler(async ({ event, context }) => {
     contract: event.srcAddress.toLowerCase(),
     artist: artist.toLowerCase(),
     owner: artist.toLowerCase(),
-    tokenURI: metadataURI,
+    tokenURI: tokenURI,  // ✅ Now correctly captures tokenURI
     coverArt: "",
-    royaltyPercentage: Number(royaltyPercentage),
+    royaltyPercentage: 10, // Default 10%
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: "", // ✅ Will be populated if needed
+    txHash: event.transaction.hash,  // ✅ Now populated!
   };
 
   await context.MusicNFT.set(musicNFT);
@@ -78,7 +78,7 @@ MusicLicenseNFT.MusicMinted.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} with ${royaltyPercentage}% royalty`);
+  context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} - URI: ${tokenURI}`);
 });
 
 // License Purchase Event
@@ -96,7 +96,7 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
     price: price,
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: "",
+    txHash: event.transaction.hash,  // ✅ Now populated!
   };
 
   await context.LicensePurchase.set(licensePurchase);
@@ -117,7 +117,7 @@ MusicLicenseNFT.RoyaltyPaid.handler(async ({ event, context }) => {
     amount: amount,
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: "",
+    txHash: event.transaction.hash,  // ✅ Now populated!
   };
 
   await context.RoyaltyPayment.set(royaltyPayment);
@@ -129,7 +129,7 @@ MusicLicenseNFT.RoyaltyPaid.handler(async ({ event, context }) => {
 MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
-  // Skip mints (already handled by MusicMinted)
+  // Skip mints (already handled by MasterMinted)
   if (from === "0x0000000000000000000000000000000000000000") {
     return;
   }
@@ -150,7 +150,6 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // PASSPORT NFT EVENTS
 // ============================================
 
-// Passport NFT Transfer Event (handles mints and transfers)
 PassportNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
@@ -167,7 +166,7 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
       tokenURI: "",
       mintedAt: new Date(event.block.timestamp * 1000),
       blockNumber: BigInt(event.block.number),
-      txHash: "",
+      txHash: event.transaction.hash,  // ✅ Now populated!
     };
 
     await context.PassportNFT.set(passportNFT);
@@ -240,7 +239,6 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
 // MARKETPLACE/ITINERARY EVENTS
 // ============================================
 
-// Itinerary Created Event
 Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
   const { itineraryId, creator, description, price } = event.params;
 
@@ -306,12 +304,9 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator}`);
-  context.log.info(`   Description: ${description}`);
-  context.log.info(`   Price: ${price}`);
+  context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator}: ${description} for ${price}`);
 });
 
-// Itinerary Purchased Event
 Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
   const { itineraryId, buyer } = event.params;
 
@@ -325,7 +320,7 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
     buyer: buyer.toLowerCase(),
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: "",
+    txHash: event.transaction.hash,  // ✅ Now populated!
   };
 
   await context.ItineraryPurchase.set(purchase);

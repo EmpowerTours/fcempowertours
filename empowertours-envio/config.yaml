@@ -4,15 +4,15 @@ description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries
 
 networks:
   - id: 10143
-    start_block: 43165000  # Safe block number within 32-bit integer range
+    start_block: 43165000
     contracts:
-      # ✅ UPDATED: New MusicLicenseNFT contract address
+      # ✅ FIXED: Correct event name is MasterMinted, not MusicMinted
       - name: MusicLicenseNFT
         address:
           - "0xaD849874B0111131A30D7D2185Cc1519A83dd3D0"
         handler: src/EventHandlers.ts
         events:
-          - event: "MusicMinted(uint256 indexed tokenId, address indexed artist, string metadataURI, uint256 royaltyPercentage)"
+          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price)"
           - event: "LicensePurchased(uint256 indexed tokenId, address indexed buyer, uint256 price)"
           - event: "RoyaltyPaid(uint256 indexed tokenId, address indexed recipient, uint256 amount)"
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
