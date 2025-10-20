@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ FIX: Use correct model name for Gemini API
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const aiPrompt = `
 Analyze this user command for EmpowerTours app context: "${command}".
