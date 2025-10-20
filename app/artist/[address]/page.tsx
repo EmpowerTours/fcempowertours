@@ -5,13 +5,6 @@ import { useParams } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { BrowserProvider, Contract, parseEther } from 'ethers';
 
-// Type declaration for window.ethereum
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
-
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 const MUSIC_NFT_ADDRESS = '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
@@ -130,7 +123,7 @@ export default function ArtistProfilePage() {
     }
 
     // Check if window.ethereum exists
-    if (!window.ethereum) {
+    if (typeof window.ethereum === 'undefined') {
       alert('❌ No Ethereum wallet detected. Please install MetaMask or use a Web3 browser.');
       return;
     }
@@ -147,7 +140,7 @@ export default function ArtistProfilePage() {
       });
 
       // Connect to contract
-      const provider = new BrowserProvider(window.ethereum);
+      const provider = new BrowserProvider(window.ethereum as any);
       const signer = await provider.getSigner();
       const contract = new Contract(MUSIC_NFT_ADDRESS, MUSIC_NFT_ABI, signer);
 
