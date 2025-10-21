@@ -15,6 +15,10 @@ export function useFarcasterContext() {
         const ctx = await farcasterSdk.context;
         setContext(ctx);
         setError(null);
+        
+        // Debug: Log what we actually get
+        console.log('🔍 Farcaster Context:', ctx);
+        console.log('🔍 User:', ctx?.user);
       } catch (err) {
         console.error('Failed to load Farcaster context:', err);
         setError(err as Error);
@@ -25,7 +29,6 @@ export function useFarcasterContext() {
     loadContext();
   }, []);
 
-  // Helper functions using SDK
   const requestWallet = async () => {
     if (!sdk) {
       console.error('SDK not loaded');
@@ -50,13 +53,21 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
+  // Try multiple wallet address sources
+  const walletAddress = 
+    context?.user?.wallet?.address ||
+    context?.user?.walletAddress ||
+    context?.wallet?.address ||
+    context?.address ||
+    null;
+
   return {
     context,
     loading,
-    isLoading: loading,  // Alias for loading
+    isLoading: loading,
     error,
     user: context?.user || null,
-    walletAddress: context?.user?.walletAddress || null,
+    walletAddress,
     isMobile: context?.client?.clientFid ? true : false,
     requestWallet,
     sendTransaction,
