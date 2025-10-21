@@ -151,7 +151,7 @@ export default function EnvioDashboard() {
   if (error) {
     return (
       <div className="p-8 text-center">
-        <div className="text-red-600 mb-4">⚠️ Error: {error?.message || error}</div>
+        <div className="text-red-600 mb-4">⚠️ Error: {error}</div>
         <p className="text-sm text-gray-600 mb-4">
           Make sure the Envio indexer is running: <code className="bg-gray-100 px-2 py-1 rounded">pnpm dev</code>
         </p>
