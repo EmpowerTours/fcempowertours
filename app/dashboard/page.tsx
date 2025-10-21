@@ -67,7 +67,6 @@ export default function DashboardPage() {
             price
             active
             createdAt
-            txHash
           }
         }
       `;
