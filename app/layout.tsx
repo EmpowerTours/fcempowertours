@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 import ClientNav from './components/ClientNav';
 import SimpleBotBar from './components/SimpleBotBar';
-import FarcasterReady from './components/FarcasterReady';
+import SDKProvider from './components/SDKProvider'; // ✅ Use this instead
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -69,16 +69,16 @@ export default function RootLayout({
     <html lang="en">
       <body className="flex flex-col min-h-screen">
         <Providers>
-          <FarcasterReady />
-          
-          {/* Navigation at top */}
-          <ClientNav />
-          
-          {/* AI Agent command bar directly below navigation */}
-          <SimpleBotBar />
-          
-          {/* Main content area */}
-          <main className="flex-1">{children}</main>
+          <SDKProvider>
+            {/* Navigation at top */}
+            <ClientNav />
+            
+            {/* AI Agent command bar directly below navigation */}
+            <SimpleBotBar />
+            
+            {/* Main content area */}
+            <main className="flex-1">{children}</main>
+          </SDKProvider>
         </Providers>
       </body>
     </html>
