@@ -54,7 +54,7 @@ export default function MusicPage() {
     // Validate price
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum <= 0 || priceNum > 10) {
-      setError('Price must be between 0.001 and 10 ETH');
+      setError('Price must be between 0.001 and 10 MON');
       return;
     }
     if (!walletAddress) {
@@ -186,7 +186,7 @@ export default function MusicPage() {
                   <strong>Song:</strong> {description || 'Untitled'}
                 </p>
                 <p className="text-green-700">
-                  <strong>Price:</strong> {price} ETH per license
+                  <strong>Price:</strong> {price} MON per license
                 </p>
                 <a
                   href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
@@ -215,7 +215,7 @@ export default function MusicPage() {
             {/* NEW: Price Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                License Price (ETH) *
+                License Price (MON) *
               </label>
               <div className="relative">
                 <input
@@ -228,7 +228,7 @@ export default function MusicPage() {
                   placeholder="0.01"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
-                <div className="absolute right-3 top-3 text-gray-500 text-sm">ETH</div>
+                <div className="absolute right-3 top-3 text-gray-500 text-sm">MON</div>
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 💰 How much fans pay to own this track (min: 0.001, max: 10)
@@ -238,25 +238,25 @@ export default function MusicPage() {
                   onClick={() => setPrice('0.01')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  0.01 ETH
+                  0.01 MON
                 </button>
                 <button
                   onClick={() => setPrice('0.05')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  0.05 ETH
+                  0.05 MON
                 </button>
                 <button
                   onClick={() => setPrice('0.1')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  0.1 ETH
+                  0.1 MON
                 </button>
                 <button
                   onClick={() => setPrice('1')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  1 ETH
+                  1 MON
                 </button>
               </div>
             </div>
@@ -338,7 +338,7 @@ export default function MusicPage() {
                 ? '⏳ Uploading to IPFS...'
                 : minting
                 ? '⚡ Minting NFT (FREE)...'
-                : `🎵 Mint for ${price} ETH (FREE for you!)`}
+                : `🎵 Mint for ${price} MON (FREE for you!)`}
             </button>
             {!walletAddress && (
               <button

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+
 interface Cast {
   id: string;
   text: string;
@@ -10,9 +11,11 @@ interface Cast {
   timestamp: number;
   category?: string;
 }
+
 export default function DynamicCastFrame() {
   const [casts, setCasts] = useState<Cast[]>([]);
   const [activeCategories, setActiveCategories] = useState<string[]>([]);
+
   // Fetch casts
   useEffect(() => {
     const fetchCasts = async () => {
@@ -20,26 +23,38 @@ export default function DynamicCastFrame() {
         const params = activeCategories.length > 0 ? `?categories=${activeCategories.join(',')}` : '';
         const res = await fetch(`/api/dynamic-casts${params}`);
         const data = await res.json();
-        setCasts((prevCasts) => {
-          const newCasts = data.casts.filter(
-            (cast: Cast) => !prevCasts.some((existing) => existing.id === cast.id)
-          );
-          return [...prevCasts, ...newCasts].slice(-50);
-        });
+        
+        // FIXED: When filtering, replace casts. When not filtering, append.
+        if (activeCategories.length > 0) {
+          // User selected filters - show only filtered results
+          setCasts(data.casts);
+        } else {
+          // No filters - append new trending casts
+          setCasts((prevCasts) => {
+            const newCasts = data.casts.filter(
+              (cast: Cast) => !prevCasts.some((existing) => existing.id === cast.id)
+            );
+            return [...prevCasts, ...newCasts].slice(-50);
+          });
+        }
       } catch (error) {
         console.error('Failed to fetch casts:', error);
       }
     };
+
     fetchCasts();
     const interval = setInterval(fetchCasts, 5000);
     return () => clearInterval(interval);
   }, [activeCategories]);
+
   const toggleCategory = (cat: string) => {
     setActiveCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     );
   };
+
   const categories = ['#food', '#accommodation', '#travel', '#music', '#art', '#tech'];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white overflow-hidden relative">
       {/* Animated background gradient */}
@@ -48,6 +63,7 @@ export default function DynamicCastFrame() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
       </div>
+
       {/* Header */}
       <div className="relative z-10 p-8">
         <div className="text-center mb-8">
@@ -56,6 +72,7 @@ export default function DynamicCastFrame() {
           </h1>
           <p className="text-xl text-purple-300">Real-time Farcaster vibes</p>
         </div>
+
         {/* Category filters */}
         <div className="flex flex-wrap justify-center gap-3 mb-8">
           {categories.map((cat) => (
@@ -72,6 +89,7 @@ export default function DynamicCastFrame() {
             </button>
           ))}
         </div>
+
         {/* Active filter count */}
         {activeCategories.length > 0 && (
           <div className="text-center mb-4">
@@ -81,6 +99,7 @@ export default function DynamicCastFrame() {
           </div>
         )}
       </div>
+
       {/* Cast feed */}
       <div className="relative z-10 px-8 pb-8">
         <div className="max-w-4xl mx-auto space-y-4">
@@ -137,11 +156,13 @@ export default function DynamicCastFrame() {
           )}
         </div>
       </div>
+
       {/* Floating text borders */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/50 to-transparent"></div>
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/50 to-transparent"></div>
       </div>
+
       <style jsx>{`
         @keyframes blob {
           0%, 100% { transform: translate(0, 0) scale(1); }
