@@ -1,6 +1,20 @@
 'use client';
 import { useEffect, useState } from 'react';
 
+// Extended type to include all possible wallet properties
+interface ExtendedUser {
+  custody_address?: string;
+  wallet?: { address?: string };
+  walletAddress?: string;
+  verified_addresses?: {
+    eth_addresses?: string[];
+  };
+  fid?: number;
+  username?: string;
+  pfpUrl?: string;
+  [key: string]: any;
+}
+
 export function useFarcasterContext() {
   const [context, setContext] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -21,12 +35,15 @@ export function useFarcasterContext() {
         console.log('🔍 User object:', ctx?.user);
         console.log('🔍 Client object:', ctx?.client);
         
+        // Cast to any to avoid type errors with SDK
+        const user = ctx?.user as any;
+        
         // Log all possible wallet address locations
         console.log('🔍 Wallet address sources:', {
-          'user.custody_address': ctx?.user?.custody_address,
-          'user.wallet.address': ctx?.user?.wallet?.address,
-          'user.walletAddress': ctx?.user?.walletAddress,
-          'user.verified_addresses': ctx?.user?.verified_addresses,
+          'user.custody_address': user?.custody_address,
+          'user.wallet.address': user?.wallet?.address,
+          'user.walletAddress': user?.walletAddress,
+          'user.verified_addresses': user?.verified_addresses,
           'wallet.address': ctx?.wallet?.address,
           'address': ctx?.address,
         });
@@ -67,44 +84,49 @@ export function useFarcasterContext() {
   };
 
   // FIXED: Try all possible wallet address locations in Farcaster context
-  const getWalletAddress = () => {
+  const getWalletAddress = (): string | null => {
     if (!context?.user) return null;
+
+    // Cast to extended type to access all properties
+    const user = context.user as ExtendedUser;
 
     // Priority order for finding wallet address:
     // 1. Custody address (most common for Farcaster)
-    if (context.user.custody_address) {
-      console.log('✅ Found custody address:', context.user.custody_address);
-      return context.user.custody_address;
+    if (user.custody_address) {
+      console.log('✅ Found custody address:', user.custody_address);
+      return user.custody_address;
     }
 
     // 2. Verified addresses (ETH addresses linked to account)
-    if (context.user.verified_addresses?.eth_addresses?.[0]) {
-      console.log('✅ Found verified ETH address:', context.user.verified_addresses.eth_addresses[0]);
-      return context.user.verified_addresses.eth_addresses[0];
+    if (user.verified_addresses?.eth_addresses?.[0]) {
+      console.log('✅ Found verified ETH address:', user.verified_addresses.eth_addresses[0]);
+      return user.verified_addresses.eth_addresses[0];
     }
 
     // 3. Wallet object
-    if (context.user.wallet?.address) {
-      console.log('✅ Found wallet.address:', context.user.wallet.address);
-      return context.user.wallet.address;
+    if (user.wallet?.address) {
+      console.log('✅ Found wallet.address:', user.wallet.address);
+      return user.wallet.address;
     }
 
     // 4. Direct walletAddress property
-    if (context.user.walletAddress) {
-      console.log('✅ Found walletAddress:', context.user.walletAddress);
-      return context.user.walletAddress;
+    if (user.walletAddress) {
+      console.log('✅ Found walletAddress:', user.walletAddress);
+      return user.walletAddress;
     }
 
     // 5. Top-level wallet
-    if (context.wallet?.address) {
-      console.log('✅ Found top-level wallet:', context.wallet.address);
-      return context.wallet.address;
+    const topLevelWallet = (context as any).wallet?.address;
+    if (topLevelWallet) {
+      console.log('✅ Found top-level wallet:', topLevelWallet);
+      return topLevelWallet;
     }
 
     // 6. Direct address property
-    if (context.address) {
-      console.log('✅ Found direct address:', context.address);
-      return context.address;
+    const directAddress = (context as any).address;
+    if (directAddress) {
+      console.log('✅ Found direct address:', directAddress);
+      return directAddress;
     }
 
     console.warn('⚠️ No wallet address found in any known location');
@@ -114,7 +136,7 @@ export function useFarcasterContext() {
   const walletAddress = getWalletAddress();
 
   // Detect if running in mobile Farcaster app
-  const isMobile = context?.client?.clientFid ? true : false;
+  const isMobile = !!(context?.client?.clientFid);
 
   return {
     context,
