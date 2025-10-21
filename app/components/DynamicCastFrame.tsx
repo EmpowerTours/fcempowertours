@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 import { useState, useEffect } from 'react';
 
 interface Cast {
@@ -15,30 +15,49 @@ interface Cast {
 export default function DynamicCastFrame() {
   const [casts, setCasts] = useState<Cast[]>([]);
   const [activeCategories, setActiveCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch casts
   useEffect(() => {
     const fetchCasts = async () => {
       try {
+        setIsLoading(true);
+        setError(null);
+        
         const params = activeCategories.length > 0 ? `?categories=${activeCategories.join(',')}` : '';
         const res = await fetch(`/api/dynamic-casts${params}`);
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch: ${res.status}`);
+        }
+        
         const data = await res.json();
+        
+        console.log('📊 Fetched casts:', {
+          count: data.casts?.length || 0,
+          hasFilters: activeCategories.length > 0,
+          categories: activeCategories
+        });
         
         // FIXED: When filtering, replace casts. When not filtering, append.
         if (activeCategories.length > 0) {
           // User selected filters - show only filtered results
-          setCasts(data.casts);
+          setCasts(data.casts || []);
         } else {
-          // No filters - append new trending casts
+          // No filters - append new trending casts (dedupe + limit to 50)
           setCasts((prevCasts) => {
-            const newCasts = data.casts.filter(
+            const newCasts = (data.casts || []).filter(
               (cast: Cast) => !prevCasts.some((existing) => existing.id === cast.id)
             );
             return [...prevCasts, ...newCasts].slice(-50);
           });
         }
       } catch (error) {
-        console.error('Failed to fetch casts:', error);
+        console.error('❌ Failed to fetch casts:', error);
+        setError('Failed to load casts. Retrying...');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -98,15 +117,42 @@ export default function DynamicCastFrame() {
             </span>
           </div>
         )}
+
+        {/* Error message */}
+        {error && (
+          <div className="text-center mb-4">
+            <span className="px-4 py-2 bg-red-500/20 backdrop-blur-sm rounded-full text-sm text-red-300">
+              ⚠️ {error}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Cast feed */}
       <div className="relative z-10 px-8 pb-8">
         <div className="max-w-4xl mx-auto space-y-4">
-          {casts.length === 0 ? (
+          {isLoading && casts.length === 0 ? (
             <div className="text-center py-20">
-              <div className="text-6xl mb-4 animate-pulse">🔍</div>
-              <p className="text-xl text-purple-300">Loading casts...</p>
+              <div className="text-6xl mb-4 animate-pulse">⏳</div>
+              <p className="text-xl text-purple-300">Loading trending casts...</p>
+            </div>
+          ) : casts.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="text-6xl mb-4">🔍</div>
+              <p className="text-xl text-purple-300 mb-4">
+                {activeCategories.length > 0 
+                  ? 'No casts found for selected categories'
+                  : 'No casts available'
+                }
+              </p>
+              {activeCategories.length > 0 && (
+                <button
+                  onClick={() => setActiveCategories([])}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-all"
+                >
+                  Clear Filters
+                </button>
+              )}
             </div>
           ) : (
             casts.slice(-20).reverse().map((cast, index) => (
