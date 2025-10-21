@@ -1,27 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
 
 type ExtendedUserContext = {
   custody_address?: string;
-  custodyAddress?: string;
-  wallet?: { address?: string };
-  walletAddress?: string;
-  verified_addresses?: {
-    eth_addresses?: string[];
-  };
-  verifiedAddresses?: {
-    ethAddresses?: string[];
-  };
   fid?: number;
+  username?: string;
+  pfp_url?: string;
   [key: string]: any;
 };
 
 type ExtendedFarcasterContext = {
   user?: ExtendedUserContext;
-  wallet?: { address?: string };
-  address?: string;
   client?: {
     clientFid?: string | number;
     platformType?: string;
@@ -30,38 +20,13 @@ type ExtendedFarcasterContext = {
   [key: string]: any;
 };
 
-type WalletLinkedAccount = {
-  type: 'wallet';
-  address: string;
-  chainType?: string;
-  [key: string]: any;
-};
-
-function isWalletAccount(account: any): account is WalletLinkedAccount {
-  return (
-    account &&
-    typeof account === 'object' &&
-    account.type === 'wallet' &&
-    typeof account.address === 'string'
-  );
-}
-
 export function useFarcasterContext() {
   const [context, setContext] = useState<ExtendedFarcasterContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
 
-  // 🔥 Use Privy but DON'T trigger auto-login
-  const {
-    ready: privyReady,
-    authenticated: privyAuthenticated,
-    user: privyUser,
-    login: privyLogin,
-    connectWallet
-  } = usePrivy();
-
-  // Load Farcaster SDK context
+  // Load Farcaster SDK context (no Privy)
   useEffect(() => {
     const loadContext = async () => {
       try {
@@ -72,10 +37,19 @@ export function useFarcasterContext() {
         setContext(ctx);
         setError(null);
 
-        console.log('🔍 Farcaster SDK Context:', ctx);
-        console.log('👤 Farcaster User:', ctx?.user);
+        console.log('✅ Farcaster SDK loaded');
+        console.log('👤 User:', ctx?.user?.username);
+        console.log('📱 Platform:', ctx?.client?.platformType);
+        
+        // Signal to Farcaster that app is ready
+        try {
+          await farcasterSdk.actions.ready();
+          console.log('✅ App ready signal sent');
+        } catch (readyError) {
+          console.warn('⚠️ Ready signal failed (normal if not in frame):', readyError);
+        }
       } catch (err) {
-        console.error('❌ Failed to load Farcaster context:', err);
+        console.error('❌ Failed to load Farcaster SDK:', err);
         setError(err as Error);
       } finally {
         setLoading(false);
@@ -85,24 +59,17 @@ export function useFarcasterContext() {
     loadContext();
   }, []);
 
-  // 🔥 REMOVED: Auto-login logic - user must manually trigger wallet connection
-  
   const requestWallet = async () => {
-    if (!privyReady) {
-      console.warn('Privy not ready');
+    if (!sdk) {
+      console.warn('⚠️ SDK not loaded yet');
       return null;
     }
 
     try {
-      // Only login when user explicitly requests it
-      if (!privyAuthenticated) {
-        console.log('🔑 User requested Privy login...');
-        await privyLogin();
-      } else {
-        console.log('🔑 User requested wallet connection...');
-        await connectWallet();
-      }
-      return privyUser;
+      console.log('🔑 Requesting wallet from Farcaster...');
+      // Farcaster SDK handles wallet requests natively
+      // No additional wallet connection needed
+      return context?.user;
     } catch (error) {
       console.error('❌ Failed to request wallet:', error);
       return null;
@@ -120,28 +87,13 @@ export function useFarcasterContext() {
   };
 
   const getWalletAddress = (): string | null => {
-    // Priority 1: Privy embedded wallet (only if user explicitly connected)
-    if (privyAuthenticated && privyUser?.wallet?.address) {
-      console.log('✅ Found wallet via Privy embedded:', privyUser.wallet.address);
-      return privyUser.wallet.address;
-    }
-
-    // Priority 2: Privy linked wallets (only if user explicitly connected)
-    if (privyAuthenticated && Array.isArray(privyUser?.linkedAccounts)) {
-      const walletAccount = privyUser.linkedAccounts.find(isWalletAccount) as WalletLinkedAccount | undefined;
-      if (walletAccount?.address) {
-        console.log('✅ Found linked wallet via Privy:', walletAccount.address);
-        return walletAccount.address;
-      }
-    }
-
-    // Priority 3: Farcaster SDK custody address (default for read-only)
+    // Use Farcaster custody address directly
     if (context?.user?.custody_address) {
-      console.log('✅ Using Farcaster custody address:', context.user.custody_address);
+      console.log('✅ Using Farcaster custody address');
       return context.user.custody_address;
     }
 
-    console.warn('⚠️ No wallet address found');
+    console.warn('⚠️ No custody address available');
     return null;
   };
 
@@ -150,17 +102,15 @@ export function useFarcasterContext() {
 
   return {
     context,
-    loading: loading || !privyReady,
-    isLoading: loading || !privyReady,
+    loading,
+    isLoading: loading,
     error,
     user: context?.user || null,
     walletAddress,
     isMobile,
-    requestWallet, // 🔥 Only call this when user clicks a button
+    requestWallet,
     sendTransaction,
     switchChain,
     sdk,
-    privyAuthenticated,
-    privyUser,
   };
 }

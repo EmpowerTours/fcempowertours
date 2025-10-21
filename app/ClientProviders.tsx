@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { PrivyProvider } from '@privy-io/react-auth';
 import { monadTestnet } from './chains';
 import { injected } from 'wagmi/connectors';
 
@@ -52,21 +51,8 @@ export default function ClientProviders({ children }: { children: React.ReactNod
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          <PrivyProvider
-            appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmaoduqox005ole0nmj1s4qck'}
-            config={{
-              // 🔥 CRITICAL: FARCASTER ONLY - NO AUTO-LOGIN
-              loginMethods: ['farcaster'],
-              appearance: {
-                theme: 'light',
-                accentColor: '#6763F5',
-                logo: undefined,
-              },
-              supportedChains: [monadTestnet],
-            }}
-          >
-            {children}
-          </PrivyProvider>
+          {/* 🔥 REMOVED: PrivyProvider - use Farcaster SDK only */}
+          {children}
         </WagmiProvider>
       </QueryClientProvider>
     </ErrorBoundary>
