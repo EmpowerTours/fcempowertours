@@ -18,7 +18,7 @@ type ExtendedFarcasterContext = {
   user?: ExtendedUserContext;
   wallet?: { address?: string };
   address?: string;
-  client?: { clientFid?: string };
+  client?: { clientFid?: number | string }; // ✅ FIXED: accept number or string
   [key: string]: any;
 };
 
@@ -137,7 +137,7 @@ export function useFarcasterContext() {
   const walletAddress = getWalletAddress();
 
   // ---- Device Detection ----
-  const isMobile = context?.client?.clientFid ? true : false;
+  const isMobile = !!context?.client?.clientFid;
 
   // ---- Return Values ----
   return {
