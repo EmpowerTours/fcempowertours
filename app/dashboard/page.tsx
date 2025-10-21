@@ -7,6 +7,7 @@ const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localho
 interface Stats {
   totalMusicNFTs: number;
   totalPassports: number;
+  totalItineraries: number;
   totalUsers: number;
   lastUpdated: string;
 }
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentPassports, setRecentPassports] = useState<any[]>([]);
   const [recentMusic, setRecentMusic] = useState<any[]>([]);
+  const [recentItineraries, setRecentItineraries] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pulse, setPulse] = useState(false);
@@ -35,6 +37,7 @@ export default function DashboardPage() {
           GlobalStats(limit: 1) {
             totalMusicNFTs
             totalPassports
+            totalItineraries
             totalUsers
             lastUpdated
           }
@@ -54,6 +57,16 @@ export default function DashboardPage() {
             owner
             countryCode
             mintedAt
+            txHash
+          }
+          Itinerary(limit: 10, order_by: {createdAt: desc}) {
+            id
+            itineraryId
+            creator
+            description
+            price
+            active
+            createdAt
             txHash
           }
         }
@@ -79,6 +92,7 @@ export default function DashboardPage() {
       const globalStats = result.data?.GlobalStats?.[0];
       const music = result.data?.MusicNFT || [];
       const passports = result.data?.PassportNFT || [];
+      const itineraries = result.data?.Itinerary || [];
 
       if (globalStats) {
         setStats(globalStats);
@@ -89,10 +103,12 @@ export default function DashboardPage() {
 
       setRecentMusic(music);
       setRecentPassports(passports);
+      setRecentItineraries(itineraries);
 
       console.log('✅ Dashboard data loaded:', {
         music: music.length,
         passports: passports.length,
+        itineraries: itineraries.length,
         totalUsers: globalStats?.totalUsers
       });
     } catch (error: any) {
@@ -151,7 +167,7 @@ export default function DashboardPage() {
 
         {/* Stats Grid */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <StatCard
               icon="🎵"
               label="Music NFTs"
@@ -167,10 +183,17 @@ export default function DashboardPage() {
               pulse={pulse}
             />
             <StatCard
+              icon="🗺️"
+              label="Itineraries"
+              value={stats.totalItineraries}
+              gradient="from-green-500 to-green-600"
+              pulse={pulse}
+            />
+            <StatCard
               icon="👥"
               label="Active Users"
               value={stats.totalUsers}
-              gradient="from-green-500 to-green-600"
+              gradient="from-pink-500 to-pink-600"
               pulse={pulse}
             />
           </div>
@@ -188,8 +211,8 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          {/* Recent Activity Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Activity Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
             {/* Recent Passports */}
             <div>
@@ -293,6 +316,62 @@ export default function DashboardPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-all"
+                          >
+                            TX →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Itineraries */}
+            <div>
+              <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                🗺️ Recent Itineraries
+                <span className="text-sm font-normal text-gray-500">({recentItineraries.length})</span>
+              </h4>
+              {loading && recentItineraries.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin text-3xl mb-2">⏳</div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              ) : recentItineraries.length === 0 ? (
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-600">No itineraries yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {recentItineraries.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg hover:border-green-400 transition-all animate-slide-in"
+                      style={{ animationDelay: `${idx * 0.05}s` }}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="text-3xl">🗺️</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-green-900">
+                            Itinerary #{item.itineraryId}
+                          </p>
+                          <p className="text-xs text-green-700 mt-1 truncate">
+                            {item.description || 'Adventure'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Creator: {String(item.creator).slice(0, 6)}...{String(item.creator).slice(-4)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(item.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        {item.txHash && (
+                          <a
+                            href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-all"
                           >
                             TX →
                           </a>

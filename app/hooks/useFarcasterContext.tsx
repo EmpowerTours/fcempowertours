@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 type ExtendedUserContext = {
   custody_address?: string;
+  custodyAddress?: string;
   fid?: number;
   username?: string;
   pfp_url?: string;
@@ -25,6 +26,7 @@ export function useFarcasterContext() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
+  const [walletConnected, setWalletConnected] = useState(false);
 
   // Load Farcaster SDK context (no Privy)
   useEffect(() => {
@@ -38,8 +40,15 @@ export function useFarcasterContext() {
         setError(null);
 
         console.log('✅ Farcaster SDK loaded');
-        console.log('👤 User:', ctx?.user?.username);
+        console.log('👤 User:', ctx?.user);
+        console.log('🔑 Custody Address:', ctx?.user?.custody_address);
         console.log('📱 Platform:', ctx?.client?.platformType);
+        
+        // If we have a custody address, wallet is effectively "connected"
+        if (ctx?.user?.custody_address) {
+          console.log('✅ Wallet available via custody address');
+          setWalletConnected(true);
+        }
         
         // Signal to Farcaster that app is ready
         try {
@@ -66,13 +75,31 @@ export function useFarcasterContext() {
     }
 
     try {
-      console.log('🔑 Requesting wallet from Farcaster...');
-      // Farcaster SDK handles wallet requests natively
-      // No additional wallet connection needed
-      return context?.user;
+      console.log('🔑 Requesting wallet action...');
+      
+      // Try to trigger wallet connection UI
+      if (sdk.actions?.openWallet) {
+        await sdk.actions.openWallet();
+        console.log('✅ Opened wallet UI');
+      }
+      
+      // Refresh context to get updated wallet info
+      const updatedContext = await sdk.context;
+      setContext(updatedContext);
+      
+      if (updatedContext?.user?.custody_address) {
+        setWalletConnected(true);
+        console.log('✅ Wallet connected:', updatedContext.user.custody_address);
+      }
+      
+      return updatedContext?.user;
     } catch (error) {
       console.error('❌ Failed to request wallet:', error);
-      return null;
+      // Even if openWallet fails, we should still have custody address
+      if (context?.user?.custody_address) {
+        setWalletConnected(true);
+      }
+      return context?.user;
     }
   };
 
@@ -87,13 +114,25 @@ export function useFarcasterContext() {
   };
 
   const getWalletAddress = (): string | null => {
-    // Use Farcaster custody address directly
+    // Priority 1: custody_address (with underscore)
     if (context?.user?.custody_address) {
-      console.log('✅ Using Farcaster custody address');
+      console.log('✅ Using custody_address:', context.user.custody_address);
       return context.user.custody_address;
     }
 
-    console.warn('⚠️ No custody address available');
+    // Priority 2: custodyAddress (camelCase, some SDKs use this)
+    if (context?.user?.custodyAddress) {
+      console.log('✅ Using custodyAddress:', context.user.custodyAddress);
+      return context.user.custodyAddress;
+    }
+
+    // Priority 3: Check for wallet in user object
+    if ((context?.user as any)?.wallet?.address) {
+      console.log('✅ Using wallet.address');
+      return (context?.user as any).wallet.address;
+    }
+
+    console.warn('⚠️ No wallet address found in context:', context?.user);
     return null;
   };
 
@@ -108,6 +147,7 @@ export function useFarcasterContext() {
     user: context?.user || null,
     walletAddress,
     isMobile,
+    walletConnected,
     requestWallet,
     sendTransaction,
     switchChain,
