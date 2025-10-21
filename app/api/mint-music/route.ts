@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
 
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
+// ✅ UPDATED CONTRACT ADDRESS
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     console.log('🎵 MusicLicenseNFTv2 mint request:', {
       recipient,
       tokenURI: finalTokenURI,
-      price, // Log the artist's chosen price
+      price,
       contract: MUSIC_NFT_ADDRESS,
     });
 
@@ -66,14 +67,13 @@ export async function POST(req: NextRequest) {
     let priceInWei: string;
     if (price) {
       try {
-        // Convert price string (e.g., "0.01") to wei
         priceInWei = parseEther(price.toString()).toString();
       } catch (err) {
         console.error('Invalid price format:', price);
-        priceInWei = parseEther('0.01').toString(); // Default fallback
+        priceInWei = parseEther('0.01').toString();
       }
     } else {
-      priceInWei = parseEther('0.01').toString(); // Default fallback
+      priceInWei = parseEther('0.01').toString();
     }
 
     console.log('💰 Price in wei:', priceInWei, `(${price || '0.01'} ETH)`);

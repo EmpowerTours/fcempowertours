@@ -14,13 +14,7 @@ export default function PassportPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Auto-request wallet when user loads
-  useEffect(() => {
-    if (user && !walletAddress) {
-      console.log('🔑 Auto-requesting wallet...');
-      requestWallet();
-    }
-  }, [user, walletAddress, requestWallet]);
+  // ❌ REMOVED: Auto-request wallet
 
   // Auto-detect country
   useEffect(() => {

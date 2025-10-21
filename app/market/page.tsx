@@ -9,7 +9,8 @@ import ItineraryMarketABI from '../../lib/abis/ItineraryMarket.json';
 import ToursABI from '../../lib/abis/TOURS.json';
 import TokenSwapABI from '../../lib/abis/TokenSwap.json';
 
-const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
+// ✅ UPDATED CONTRACT ADDRESS
+const PASSPORT_NFT_ADDRESS = '0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08';
 const ITINERARY_MARKET_ADDRESS = process.env.NEXT_PUBLIC_MARKET || '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C';
 const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
 const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA';
@@ -40,12 +41,7 @@ export default function MarketPage() {
   const [toursBalance, setToursBalance] = useState<string>('0');
   const [contractToursBalance, setContractToursBalance] = useState<string>('0');
 
-  // Auto-request wallet when user loads
-  useEffect(() => {
-    if (user && !userAddress) {
-      requestWallet();
-    }
-  }, [user, userAddress, requestWallet]);
+  // ❌ REMOVED: Auto-request wallet on user load
 
   const fetchAvailableItineraries = useCallback(async () => {
     setIsLoadingItineraries(true);
@@ -106,12 +102,10 @@ export default function MarketPage() {
     try {
       const provider = new JsonRpcProvider(RPC_URL);
 
-      // Token swap contract
       const swapContract = new Contract(TOKEN_SWAP_ADDRESS, TokenSwapABI, provider);
       const rate = await swapContract.exchangeRate();
       const min = await swapContract.minMon();
 
-      // TOURS token contract
       const toursContract = new Contract(TOURS_ADDRESS, ToursABI, provider);
       const userBalance = await toursContract.balanceOf(userAddress);
       const contractBalance = await toursContract.balanceOf(TOKEN_SWAP_ADDRESS);
@@ -183,7 +177,6 @@ export default function MarketPage() {
 
       console.log('🛒 Step 1/2: Approving TOURS tokens...');
 
-      // Step 1: Approve TOURS tokens
       const toursContract = new Contract(TOURS_ADDRESS, ToursABI, signer);
       const approveTx = await toursContract.approve(ITINERARY_MARKET_ADDRESS, price);
       console.log('✅ Approval transaction submitted:', approveTx.hash);
@@ -193,7 +186,6 @@ export default function MarketPage() {
 
       console.log('🛒 Step 2/2: Purchasing itinerary...');
 
-      // Step 2: Purchase the itinerary
       const marketContract = new Contract(ITINERARY_MARKET_ADDRESS, ItineraryMarketABI, signer);
       const purchaseTx = await marketContract.purchaseItinerary(BigInt(id));
       console.log('✅ Purchase transaction submitted:', purchaseTx.hash);

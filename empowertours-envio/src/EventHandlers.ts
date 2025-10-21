@@ -24,12 +24,11 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     royaltyPercentage: 10,
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,  // ✅ FIXED
+    txHash: event.transaction.hash,
   };
 
   await context.MusicNFT.set(musicNFT);
 
-  // Update user stats
   const userId = artist.toLowerCase();
   let userStats = await context.UserStats.get(userId);
 
@@ -55,7 +54,6 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     });
   }
 
-  // Update global stats
   let globalStats = await context.GlobalStats.get("global");
 
   if (globalStats) {
@@ -94,7 +92,7 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
     price: price,
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,  // ✅ FIXED
+    txHash: event.transaction.hash,
   };
 
   await context.LicensePurchase.set(licensePurchase);
@@ -114,7 +112,7 @@ MusicLicenseNFT.RoyaltyPaid.handler(async ({ event, context }) => {
     amount: amount,
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,  // ✅ FIXED
+    txHash: event.transaction.hash,
   };
 
   await context.RoyaltyPayment.set(royaltyPayment);
@@ -145,84 +143,96 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // PASSPORT NFT EVENTS
 // ============================================
 
+// ✅ NEW: Listen for PassportMinted event with all country data
+PassportNFT.PassportMinted.handler(async ({ event, context }) => {
+  const { tokenId, owner, countryCode, countryName, region, continent } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+
+  const passportNFT = {
+    id: passportNFTId,
+    tokenId: tokenId.toString(),
+    contract: event.srcAddress.toLowerCase(),
+    owner: owner.toLowerCase(),
+    countryCode: countryCode,        // ✅ FROM EVENT
+    countryName: countryName,        // ✅ FROM EVENT
+    region: region,                  // ✅ FROM EVENT
+    continent: continent,            // ✅ FROM EVENT
+    tokenURI: "",                    // Will be set via Transfer event or later
+    mintedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.PassportNFT.set(passportNFT);
+
+  const userId = owner.toLowerCase();
+  let userStats = await context.UserStats.get(userId);
+
+  const isNewUser = !userStats;
+
+  if (userStats) {
+    await context.UserStats.set({
+      ...userStats,
+      passportNFTCount: userStats.passportNFTCount + 1,
+      totalNFTs: userStats.totalNFTs + 1,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.UserStats.set({
+      id: userId,
+      address: owner.toLowerCase(),
+      musicNFTCount: 0,
+      passportNFTCount: 1,
+      itinerariesCreated: 0,
+      itinerariesPurchased: 0,
+      totalNFTs: 1,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  let globalStats = await context.GlobalStats.get("global");
+
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalPassports: globalStats.totalPassports + 1,
+      totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.GlobalStats.set({
+      id: "global",
+      totalMusicNFTs: 0,
+      totalPassports: 1,
+      totalItineraries: 0,
+      totalItineraryPurchases: 0,
+      totalUsers: 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🎫 Passport NFT #${tokenId} minted for ${owner} - ${countryCode} ${countryName} (${region}, ${continent})`);
+});
+
 PassportNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
+  // Skip if it's a mint (handled by PassportMinted event)
   if (from === "0x0000000000000000000000000000000000000000") {
-    const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+    return;
+  }
 
-    const passportNFT = {
-      id: passportNFTId,
-      tokenId: tokenId.toString(),
-      contract: event.srcAddress.toLowerCase(),
+  // Handle transfers (update owner)
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+
+  if (passportNFT) {
+    await context.PassportNFT.set({
+      ...passportNFT,
       owner: to.toLowerCase(),
-      countryCode: "",
-      tokenURI: "",
-      mintedAt: new Date(event.block.timestamp * 1000),
-      blockNumber: BigInt(event.block.number),
-      txHash: event.transaction.hash,  // ✅ FIXED
-    };
-
-    await context.PassportNFT.set(passportNFT);
-
-    const userId = to.toLowerCase();
-    let userStats = await context.UserStats.get(userId);
-
-    const isNewUser = !userStats;
-
-    if (userStats) {
-      await context.UserStats.set({
-        ...userStats,
-        passportNFTCount: userStats.passportNFTCount + 1,
-        totalNFTs: userStats.totalNFTs + 1,
-        lastActive: new Date(event.block.timestamp * 1000),
-      });
-    } else {
-      await context.UserStats.set({
-        id: userId,
-        address: to.toLowerCase(),
-        musicNFTCount: 0,
-        passportNFTCount: 1,
-        itinerariesCreated: 0,
-        itinerariesPurchased: 0,
-        totalNFTs: 1,
-        lastActive: new Date(event.block.timestamp * 1000),
-      });
-    }
-
-    let globalStats = await context.GlobalStats.get("global");
-
-    if (globalStats) {
-      await context.GlobalStats.set({
-        ...globalStats,
-        totalPassports: globalStats.totalPassports + 1,
-        totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
-        lastUpdated: new Date(event.block.timestamp * 1000),
-      });
-    } else {
-      await context.GlobalStats.set({
-        id: "global",
-        totalMusicNFTs: 0,
-        totalPassports: 1,
-        totalItineraries: 0,
-        totalItineraryPurchases: 0,
-        totalUsers: 1,
-        lastUpdated: new Date(event.block.timestamp * 1000),
-      });
-    }
-
-    context.log.info(`🎫 Passport NFT #${tokenId} minted for ${to}`);
-  } else {
-    const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
-    const passportNFT = await context.PassportNFT.get(passportNFTId);
-
-    if (passportNFT) {
-      await context.PassportNFT.set({
-        ...passportNFT,
-        owner: to.toLowerCase(),
-      });
-      context.log.info(`🎫 Passport NFT #${tokenId} transferred from ${from} to ${to}`);
-    }
+    });
+    context.log.info(`🎫 Passport NFT #${tokenId} transferred from ${from} to ${to}`);
   }
 });
 
@@ -309,7 +319,7 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
     buyer: buyer.toLowerCase(),
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,  // ✅ FIXED
+    txHash: event.transaction.hash,
   };
 
   await context.ItineraryPurchase.set(purchase);

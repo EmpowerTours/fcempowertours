@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 import { useState, useEffect } from 'react';
 
 interface Cast {
@@ -25,7 +25,9 @@ export default function DynamicCastFrame() {
         setIsLoading(true);
         setError(null);
         
-        const params = activeCategories.length > 0 ? `?categories=${activeCategories.join(',')}` : '';
+        // ✅ Remove # from categories for search
+        const cleanCategories = activeCategories.map(cat => cat.replace('#', ''));
+        const params = cleanCategories.length > 0 ? `?categories=${cleanCategories.join(',')}` : '';
         const res = await fetch(`/api/dynamic-casts${params}`);
         
         if (!res.ok) {
@@ -40,12 +42,10 @@ export default function DynamicCastFrame() {
           categories: activeCategories
         });
         
-        // FIXED: When filtering, replace casts. When not filtering, append.
+        // When filtering, replace casts. When not filtering, append.
         if (activeCategories.length > 0) {
-          // User selected filters - show only filtered results
           setCasts(data.casts || []);
         } else {
-          // No filters - append new trending casts (dedupe + limit to 50)
           setCasts((prevCasts) => {
             const newCasts = (data.casts || []).filter(
               (cast: Cast) => !prevCasts.some((existing) => existing.id === cast.id)
@@ -72,7 +72,8 @@ export default function DynamicCastFrame() {
     );
   };
 
-  const categories = ['#food', '#accommodation', '#travel', '#music', '#art', '#tech'];
+  // ✅ Categories without # symbol
+  const categories = ['food', 'accommodation', 'travel', 'music', 'art', 'tech'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white overflow-hidden relative">
@@ -92,7 +93,7 @@ export default function DynamicCastFrame() {
           <p className="text-xl text-purple-300">Real-time Farcaster vibes</p>
         </div>
 
-        {/* Category filters */}
+        {/* Category filters - Display with # but search without */}
         <div className="flex flex-wrap justify-center gap-3 mb-8">
           {categories.map((cat) => (
             <button
@@ -104,7 +105,7 @@ export default function DynamicCastFrame() {
                   : 'bg-white/10 backdrop-blur-sm text-purple-300 hover:bg-white/20'
               }`}
             >
-              {cat}
+              #{cat}
             </button>
           ))}
         </div>

@@ -3,11 +3,11 @@ name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries
 networks:
   - id: 10143
-    start_block: 41800000  # ✅ CHANGED: Was 43165000, now 41800000 to capture PassportNFT deployment
+    start_block: 41800000  # Adjust this to the block where your new contracts were deployed
     contracts:
       - name: MusicLicenseNFT
         address:
-          - "0xaD849874B0111131A30D7D2185Cc1519A83dd3D0"
+          - "0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc"  # ✅ UPDATED
         handler: src/EventHandlers.ts
         events:
           - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price)"
@@ -25,9 +25,13 @@ networks:
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
       - name: PassportNFT
         address:
-          - "0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4"
+          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"  # ✅ UPDATED
         handler: src/EventHandlers.ts
         events:
+          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
+            field_selection:
+              transaction_fields:
+                - hash
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
             field_selection:
               transaction_fields:

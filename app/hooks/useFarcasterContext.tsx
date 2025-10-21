@@ -60,6 +60,7 @@ export function useFarcasterContext() {
     connectWallet
   } = usePrivy();
 
+  // Load Farcaster SDK context
   useEffect(() => {
     const loadContext = async () => {
       try {
@@ -83,22 +84,8 @@ export function useFarcasterContext() {
     loadContext();
   }, []);
 
-  // 🔑 Improved auto-login with Privy when Farcaster context detected
-  useEffect(() => {
-    if (privyReady && !privyAuthenticated && context?.user?.fid && !loading) {
-      console.log('🔑 Auto-logging in with Privy for FID:', context.user.fid);
-      
-      // Small delay to ensure Privy is fully ready
-      const timer = setTimeout(() => {
-        if (!privyAuthenticated) {
-          console.log('🔑 Executing Privy login...');
-          privyLogin();
-        }
-      }, 200);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [privyReady, privyAuthenticated, context?.user?.fid, loading, privyLogin]);
+  // ❌ REMOVED: Auto-login logic that was causing unwanted popups
+  // Privy login should only happen when explicitly requested by the user
 
   const requestWallet = async () => {
     if (!privyReady) {
@@ -132,14 +119,14 @@ export function useFarcasterContext() {
   };
 
   const getWalletAddress = (): string | null => {
-    // Priority 1: Privy embedded wallet
-    if (privyUser?.wallet?.address) {
+    // Priority 1: Privy embedded wallet (only if user explicitly connected)
+    if (privyAuthenticated && privyUser?.wallet?.address) {
       console.log('✅ Found wallet via Privy embedded:', privyUser.wallet.address);
       return privyUser.wallet.address;
     }
 
-    // Priority 2: Privy linked wallets
-    if (Array.isArray(privyUser?.linkedAccounts)) {
+    // Priority 2: Privy linked wallets (only if user explicitly connected)
+    if (privyAuthenticated && Array.isArray(privyUser?.linkedAccounts)) {
       const walletAccount = privyUser.linkedAccounts.find(isWalletAccount) as WalletLinkedAccount | undefined;
       if (walletAccount?.address) {
         console.log('✅ Found linked wallet via Privy:', walletAccount.address);
@@ -147,9 +134,9 @@ export function useFarcasterContext() {
       }
     }
 
-    // Priority 3: Farcaster SDK context
+    // Priority 3: Farcaster SDK custody address (default for read-only operations)
     if (context?.user?.custody_address) {
-      console.log('✅ Found custody address:', context.user.custody_address);
+      console.log('✅ Using Farcaster custody address:', context.user.custody_address);
       return context.user.custody_address;
     }
 

@@ -1,12 +1,16 @@
- 'use client';
+'use client';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Interface, parseEther } from 'ethers';
 import Link from 'next/link';
+
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
-const MUSIC_NFT_ADDRESS = '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
+
+// ✅ UPDATED CONTRACT ADDRESS
+const MUSIC_NFT_ADDRESS = '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
+
 // Minimal ABI for buying music
 const MUSIC_NFT_ABI = [
   {
@@ -20,6 +24,7 @@ const MUSIC_NFT_ABI = [
     type: 'function',
   },
 ];
+
 // Helper to resolve IPFS URLs
 const resolveIPFS = (url: string) => {
   if (!url) return '';
@@ -28,6 +33,7 @@ const resolveIPFS = (url: string) => {
   }
   return url;
 };
+
 interface MusicMetadata {
   name?: string;
   description?: string;
@@ -36,6 +42,7 @@ interface MusicMetadata {
   external_url?: string;
   attributes?: Array<{ trait_type: string; value: any }>;
 }
+
 interface ArtistMusic {
   tokenId: number;
   tokenURI: string;
@@ -45,6 +52,7 @@ interface ArtistMusic {
   price?: string;
   isLoadingMetadata?: boolean;
 }
+
 interface ArtistInfo {
   address: string;
   username?: string;
@@ -52,25 +60,28 @@ interface ArtistInfo {
   pfpUrl?: string;
   fid?: number;
 }
+
 export default function ArtistProfilePage() {
   const params = useParams();
   const artistAddress = params.address as string;
   const { user, walletAddress, isMobile, requestWallet, sendTransaction, switchChain } = useFarcasterContext();
+  
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
+
   useEffect(() => {
     if (artistAddress) {
       loadArtistProfile();
       loadArtistInfo();
     }
   }, [artistAddress]);
+
   // Fetch artist info from Neynar
   const loadArtistInfo = async () => {
     try {
       console.log('👤 Fetching artist info for:', artistAddress);
-      // Try to get Farcaster user by verified address
       const response = await fetch(
         `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
         {
@@ -93,7 +104,6 @@ export default function ArtistProfilePage() {
           return;
         }
       }
-      // Fallback if not found on Farcaster
       console.log('⚠️ Artist not found on Farcaster, using address');
       setArtistInfo({
         address: artistAddress,
@@ -109,10 +119,10 @@ export default function ArtistProfilePage() {
       });
     }
   };
+
   const loadArtistProfile = async () => {
     setLoading(true);
     try {
-      // Query artist's music from Envio
       const query = `
         query GetArtistMusic($address: String!) {
           MusicNFT(
@@ -142,13 +152,13 @@ export default function ArtistProfilePage() {
       const result = await response.json();
       const music = result.data?.MusicNFT || [];
       console.log('✅ Loaded', music.length, 'tracks from artist', artistAddress);
-      // Set music with loading state
+      
       const musicWithLoading: ArtistMusic[] = music.map((m: any) => ({
         ...m,
         isLoadingMetadata: true,
       }));
       setArtistMusic(musicWithLoading);
-      // Fetch metadata for each track
+      
       music.forEach(async (nft: any, index: number) => {
         try {
           const metadataUrl = resolveIPFS(nft.tokenURI);
@@ -159,12 +169,12 @@ export default function ArtistProfilePage() {
           }
           const metadata: MusicMetadata = await metadataRes.json();
           console.log(`✅ Metadata loaded for token ${nft.tokenId}:`, metadata.name);
-          // Extract price from attributes if available
+          
           const priceAttr = metadata.attributes?.find(
             (attr) => attr.trait_type === 'License Price' || attr.trait_type === 'Price'
           );
           const price = priceAttr?.value || '0.01';
-          // Update the specific track
+          
           setArtistMusic((prev) => {
             const updated = [...prev];
             updated[index] = {
@@ -177,13 +187,12 @@ export default function ArtistProfilePage() {
           });
         } catch (error) {
           console.error(`❌ Error loading metadata for token ${nft.tokenId}:`, error);
-          // Mark as failed to load
           setArtistMusic((prev) => {
             const updated = [...prev];
             updated[index] = {
               ...updated[index],
               isLoadingMetadata: false,
-              price: '0.01', // Default price
+              price: '0.01',
             };
             return updated;
           });
@@ -195,17 +204,19 @@ export default function ArtistProfilePage() {
       setLoading(false);
     }
   };
+
   const handleBuyLicense = async (music: ArtistMusic) => {
     if (!walletAddress) {
       alert('🔑 Please connect your wallet first');
       await requestWallet();
       return;
     }
-    // Check if user is trying to buy their own music
+
     if (walletAddress.toLowerCase() === artistAddress.toLowerCase()) {
       alert('❌ You cannot buy your own music!');
       return;
     }
+
     setBuying(music.tokenId);
     try {
       console.log('🎵 Buying music license...', {
@@ -215,24 +226,25 @@ export default function ArtistProfilePage() {
         artist: artistAddress,
         isMobile
       });
-      // Switch to Monad Testnet if necessary
+
       await switchChain({ chainId: 10143 });
-      // Encode the contract call data
+
       const iface = new Interface(MUSIC_NFT_ABI);
       const data = iface.encodeFunctionData('purchaseLicense', [music.tokenId, walletAddress]);
-      // Send transaction via Mini App context (works on mobile)
+
       const tx = await sendTransaction({
         to: MUSIC_NFT_ADDRESS,
         value: parseEther(music.price || '0.01'),
         data,
         gasLimit: 300000
       });
+
       console.log('📤 Purchase transaction sent:', tx.hash);
-      // Show pending state
       alert(`⏳ Transaction submitted!\n\nTX: ${tx.hash.slice(0, 10)}...\n\nWaiting for confirmation...`);
+
       await tx.wait();
       alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nTX: ${tx.hash}`);
-      // Reload to show updated state
+      
       setTimeout(loadArtistProfile, 2000);
     } catch (error: any) {
       console.error('❌ Purchase error:', error);
@@ -247,6 +259,7 @@ export default function ArtistProfilePage() {
       setBuying(null);
     }
   };
+
   if (loading && artistMusic.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
@@ -257,10 +270,10 @@ export default function ArtistProfilePage() {
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Artist Header */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <div className="flex items-center gap-6 mb-6">
             {artistInfo?.pfpUrl ? (
@@ -290,13 +303,13 @@ export default function ArtistProfilePage() {
                 <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
                   🎵 {artistMusic.length} Tracks
                 </span>
-                <span className="px-3 py-1 bg-bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
                   ⚡ Live on Monad
                 </span>
               </div>
             </div>
           </div>
-          {/* Mobile Wallet Warning */}
+
           {isMobile && !walletAddress && (
             <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
               <p className="text-yellow-900 text-sm font-medium mb-2">
@@ -315,7 +328,7 @@ export default function ArtistProfilePage() {
               )}
             </div>
           )}
-          {/* Connected Wallet Info */}
+
           {walletAddress && (
             <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
               <p className="text-green-900 text-sm">
@@ -332,7 +345,7 @@ export default function ArtistProfilePage() {
             </div>
           )}
         </div>
-        {/* Music Catalog */}
+
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
             🎵 Music Catalog
@@ -348,9 +361,8 @@ export default function ArtistProfilePage() {
               {artistMusic.map((music) => (
                 <div
                   key={music.tokenId}
-                  className="grid bg-white border-2 border-gray-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-lg"
+                  className="bg-white border-2 border-gray-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-lg"
                 >
-                  {/* Cover Art */}
                   {music.metadata?.image ? (
                     <div className="w-full aspect-square overflow-hidden rounded-t-xl">
                       <img
@@ -375,7 +387,6 @@ export default function ArtistProfilePage() {
                       <span className="text-7xl">🎵</span>
                     </div>
                   )}
-                  {/* Info */}
                   <div className="p-5 space-y-3">
                     <div>
                       <p className="font-bold text-gray-900 text-lg truncate">
@@ -385,7 +396,6 @@ export default function ArtistProfilePage() {
                         Minted {new Date(music.mintedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    {/* Audio Preview */}
                     {music.isLoadingMetadata ? (
                       <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 text-center">
                         <p className="text-xs text-gray-500">Loading audio...</p>
@@ -416,7 +426,6 @@ export default function ArtistProfilePage() {
                         <p className="text-xs text-gray-500">No preview available</p>
                       </div>
                     )}
-                    {/* Price & Buy */}
                     <div className="pt-3 border-t border-gray-200">
                       <div className="flex items-center justify-between mb-3">
                         <div>
@@ -464,7 +473,7 @@ export default function ArtistProfilePage() {
             </div>
           )}
         </div>
-        {/* Info Banner */}
+
         <div className="mt-12 p-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border-2 border-purple-200">
           <h3 className="font-bold text-gray-900 mb-3">💡 How Music Licenses Work:</h3>
           <ul className="space-y-2 text-sm text-gray-700">
@@ -477,7 +486,7 @@ export default function ArtistProfilePage() {
             💡 <strong>Tip:</strong> Support artists directly! All purchases go straight to the artist's wallet.
           </p>
         </div>
-        {/* Back Button */}
+
         <div className="mt-8 text-center">
           <Link
             href="/profile"
