@@ -1,22 +1,29 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 
-// Extended type to include all possible wallet properties
-interface ExtendedUser {
+// Extended type for Farcaster user context
+type ExtendedUserContext = {
   custody_address?: string;
   wallet?: { address?: string };
   walletAddress?: string;
   verified_addresses?: {
     eth_addresses?: string[];
   };
-  fid?: number;
-  username?: string;
-  pfpUrl?: string;
+  [key: string]: any; // Allow additional unknown properties safely
+};
+
+// Full context type (simplified but safe)
+type ExtendedFarcasterContext = {
+  user?: ExtendedUserContext;
+  wallet?: { address?: string };
+  address?: string;
+  client?: { clientFid?: string };
   [key: string]: any;
-}
+};
 
 export function useFarcasterContext() {
-  const [context, setContext] = useState<any>(null);
+  const [context, setContext] = useState<ExtendedFarcasterContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
@@ -26,37 +33,37 @@ export function useFarcasterContext() {
       try {
         const { sdk: farcasterSdk } = await import('@farcaster/miniapp-sdk');
         setSdk(farcasterSdk);
-        const ctx = await farcasterSdk.context;
+
+        const ctx: ExtendedFarcasterContext = await farcasterSdk.context;
         setContext(ctx);
         setError(null);
-        
-        // Debug: Log the full context to understand structure
+
+        // Debug logs
         console.log('🔍 Full Farcaster Context:', ctx);
         console.log('🔍 User object:', ctx?.user);
         console.log('🔍 Client object:', ctx?.client);
-        
-        // Cast to any to avoid type errors with SDK
-        const user = ctx?.user as any;
-        
-        // Log all possible wallet address locations
+
+        // Log all possible wallet address sources
         console.log('🔍 Wallet address sources:', {
-          'user.custody_address': user?.custody_address,
-          'user.wallet.address': user?.wallet?.address,
-          'user.walletAddress': user?.walletAddress,
-          'user.verified_addresses': user?.verified_addresses,
+          'user.custody_address': ctx?.user?.custody_address,
+          'user.wallet.address': ctx?.user?.wallet?.address,
+          'user.walletAddress': ctx?.user?.walletAddress,
+          'user.verified_addresses': ctx?.user?.verified_addresses,
           'wallet.address': ctx?.wallet?.address,
           'address': ctx?.address,
         });
       } catch (err) {
-        console.error('Failed to load Farcaster context:', err);
+        console.error('❌ Failed to load Farcaster context:', err);
         setError(err as Error);
       } finally {
         setLoading(false);
       }
     };
+
     loadContext();
   }, []);
 
+  // ---- SDK Actions ----
   const requestWallet = async () => {
     if (!sdk) {
       console.error('SDK not loaded');
@@ -83,50 +90,44 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
-  // FIXED: Try all possible wallet address locations in Farcaster context
-  const getWalletAddress = (): string | null => {
+  // ---- Wallet Address Resolver ----
+  const getWalletAddress = () => {
     if (!context?.user) return null;
 
-    // Cast to extended type to access all properties
-    const user = context.user as ExtendedUser;
-
-    // Priority order for finding wallet address:
-    // 1. Custody address (most common for Farcaster)
-    if (user.custody_address) {
-      console.log('✅ Found custody address:', user.custody_address);
-      return user.custody_address;
+    // 1. Custody address
+    if (context.user.custody_address) {
+      console.log('✅ Found custody address:', context.user.custody_address);
+      return context.user.custody_address;
     }
 
-    // 2. Verified addresses (ETH addresses linked to account)
-    if (user.verified_addresses?.eth_addresses?.[0]) {
-      console.log('✅ Found verified ETH address:', user.verified_addresses.eth_addresses[0]);
-      return user.verified_addresses.eth_addresses[0];
+    // 2. Verified ETH address
+    if (context.user.verified_addresses?.eth_addresses?.[0]) {
+      console.log('✅ Found verified ETH address:', context.user.verified_addresses.eth_addresses[0]);
+      return context.user.verified_addresses.eth_addresses[0];
     }
 
     // 3. Wallet object
-    if (user.wallet?.address) {
-      console.log('✅ Found wallet.address:', user.wallet.address);
-      return user.wallet.address;
+    if (context.user.wallet?.address) {
+      console.log('✅ Found wallet.address:', context.user.wallet.address);
+      return context.user.wallet.address;
     }
 
-    // 4. Direct walletAddress property
-    if (user.walletAddress) {
-      console.log('✅ Found walletAddress:', user.walletAddress);
-      return user.walletAddress;
+    // 4. Direct walletAddress
+    if (context.user.walletAddress) {
+      console.log('✅ Found walletAddress:', context.user.walletAddress);
+      return context.user.walletAddress;
     }
 
     // 5. Top-level wallet
-    const topLevelWallet = (context as any).wallet?.address;
-    if (topLevelWallet) {
-      console.log('✅ Found top-level wallet:', topLevelWallet);
-      return topLevelWallet;
+    if (context.wallet?.address) {
+      console.log('✅ Found top-level wallet:', context.wallet.address);
+      return context.wallet.address;
     }
 
-    // 6. Direct address property
-    const directAddress = (context as any).address;
-    if (directAddress) {
-      console.log('✅ Found direct address:', directAddress);
-      return directAddress;
+    // 6. Direct address
+    if (context.address) {
+      console.log('✅ Found direct address:', context.address);
+      return context.address;
     }
 
     console.warn('⚠️ No wallet address found in any known location');
@@ -135,9 +136,10 @@ export function useFarcasterContext() {
 
   const walletAddress = getWalletAddress();
 
-  // Detect if running in mobile Farcaster app
-  const isMobile = !!(context?.client?.clientFid);
+  // ---- Device Detection ----
+  const isMobile = context?.client?.clientFid ? true : false;
 
+  // ---- Return Values ----
   return {
     context,
     loading,
