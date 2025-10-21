@@ -25,13 +25,17 @@ type ExtendedFarcasterContext = {
   [key: string]: any;
 };
 
+// ✅ Helper type guard to identify wallet accounts
+function isWalletAccount(account: any): account is { type: string; address: string } {
+  return account && account.type === 'wallet' && typeof account.address === 'string';
+}
+
 export function useFarcasterContext() {
   const [context, setContext] = useState<ExtendedFarcasterContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
 
-  // 🔥 USE PRIVY FOR WALLET
   const { 
     ready: privyReady, 
     authenticated: privyAuthenticated, 
@@ -64,7 +68,7 @@ export function useFarcasterContext() {
     loadContext();
   }, []);
 
-  // Auto-login with Privy when Farcaster user is detected
+  // 🔑 Auto-login with Privy when Farcaster context detected
   useEffect(() => {
     if (privyReady && !privyAuthenticated && context?.user && !loading) {
       console.log('🔑 Auto-logging in with Privy...');
@@ -104,7 +108,7 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
-  // ---- Wallet Address from Privy ----
+  // ---- Wallet Address Extraction ----
   const getWalletAddress = (): string | null => {
     // Priority 1: Privy embedded wallet
     if (privyUser?.wallet?.address) {
@@ -112,18 +116,16 @@ export function useFarcasterContext() {
       return privyUser.wallet.address;
     }
 
-    // Priority 2: Privy linked wallets
-    if (privyUser?.linkedAccounts) {
-      const wallet = privyUser.linkedAccounts.find((account: any) => 
-        account.type === 'wallet' && account.address
-      );
-      if (wallet?.address) {
-        console.log('✅ Found linked wallet via Privy:', wallet.address);
-        return wallet.address;
+    // Priority 2: Privy linked wallets (guarded safely)
+    if (privyUser?.linkedAccounts && Array.isArray(privyUser.linkedAccounts)) {
+      const walletAccount = privyUser.linkedAccounts.find(isWalletAccount);
+      if (walletAccount?.address) {
+        console.log('✅ Found linked wallet via Privy:', walletAccount.address);
+        return walletAccount.address;
       }
     }
 
-    // Priority 3: Farcaster SDK context (rarely works)
+    // Priority 3: Farcaster SDK context
     if (context?.user?.custody_address) {
       console.log('✅ Found custody address:', context.user.custody_address);
       return context.user.custody_address;
@@ -151,7 +153,6 @@ export function useFarcasterContext() {
     sendTransaction,
     switchChain,
     sdk,
-    // Expose Privy state for debugging
     privyAuthenticated,
     privyUser,
   };
