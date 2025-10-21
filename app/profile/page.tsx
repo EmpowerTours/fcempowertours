@@ -269,7 +269,7 @@ export default function ProfilePage() {
           <p className="text-gray-600 mb-6">
             This Mini App must be opened in Warpcast or another Farcaster client.
           </p>
-          <p className="text-sm text-gray-500">Error: {contextError}</p>
+          <p className="text-sm text-gray-500">Error: {contextError?.message || "Unknown error"}</p>
         </div>
       </div>
     );
