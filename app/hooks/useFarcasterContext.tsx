@@ -27,14 +27,15 @@ export function useFarcasterContext() {
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
   const [walletConnected, setWalletConnected] = useState(false);
+  const [custodyAddress, setCustodyAddress] = useState<string | null>(null);
 
-  // Load Farcaster SDK context
+  // Load Farcaster SDK context and fetch real custody address
   useEffect(() => {
     let isMounted = true;
 
     const loadContext = async () => {
       try {
-        console.log('🔄 [1/4] Importing Farcaster SDK...');
+        console.log('🔄 [1/5] Importing Farcaster SDK...');
         const farcasterModule = await import('@farcaster/miniapp-sdk');
         const { sdk: farcasterSdk } = farcasterModule;
         
@@ -42,12 +43,12 @@ export function useFarcasterContext() {
           throw new Error('SDK import returned undefined');
         }
 
-        console.log('✅ [2/4] SDK imported successfully');
+        console.log('✅ [2/5] SDK imported successfully');
         
         if (!isMounted) return;
         setSdk(farcasterSdk);
 
-        console.log('🔄 [3/4] Waiting for SDK to be ready...');
+        console.log('🔄 [3/5] Waiting for SDK to be ready...');
         
         let attempts = 0;
         let sdkReady = false;
@@ -57,17 +58,9 @@ export function useFarcasterContext() {
           try {
             ctx = await farcasterSdk.context;
             
-            if (ctx && ctx.user) {
-              console.log('✅ [4/4] Context loaded!');
-              console.log('👤 Full context:', ctx);
-              console.log('👤 Full user object:', ctx.user);
-              console.log('📋 All user keys:', Object.keys(ctx.user));
-              
-              // Log every property
-              for (const [key, value] of Object.entries(ctx.user)) {
-                console.log(`  ${key}:`, value);
-              }
-              
+            if (ctx && ctx.user && ctx.user.fid) {
+              console.log('✅ [4/5] Context loaded!');
+              console.log('👤 User:', ctx.user);
               sdkReady = true;
             } else {
               console.warn(`⏳ Attempt ${attempts + 1}: Context not ready`);
@@ -89,16 +82,61 @@ export function useFarcasterContext() {
         setContext(ctx);
         setError(null);
 
-        // Check for wallet - try multiple keys
-        if (ctx.user?.custody_address) {
-          console.log('✅ Found custody_address:', ctx.user.custody_address);
+        // 🔥 CRITICAL: Fetch real custody address from Neynar API
+        console.log('🔄 [5/5] Fetching custody address from Neynar for FID:', ctx.user.fid);
+        
+        try {
+          const neynarResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${ctx.user.fid}`,
+            {
+              headers: {
+                'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+              },
+            }
+          );
+
+          if (neynarResponse.ok) {
+            const neynarData = await neynarResponse.json();
+            const userData = neynarData.users?.[0];
+            
+            if (userData) {
+              console.log('📦 Neynar user data:', userData);
+              
+              // Try multiple paths to get custody address
+              let address = 
+                userData.custody_address ||
+                userData.verifiedAddresses?.eth_addresses?.[0] ||
+                userData.verified_addresses?.eth_addresses?.[0] ||
+                userData.wallet?.address;
+
+              if (address) {
+                console.log('✅ Found custody address:', address);
+                setCustodyAddress(address);
+                setWalletConnected(true);
+                
+                // Update context with the real address
+                setContext(prev => 
+                  prev ? {
+                    ...prev,
+                    user: {
+                      ...prev.user,
+                      custody_address: address
+                    }
+                  } : null
+                );
+              } else {
+                console.warn('⚠️ No custody address in Neynar data');
+                console.log('📋 Neynar data keys:', Object.keys(userData));
+                setWalletConnected(true); // Still connected, just no address yet
+              }
+            }
+          } else {
+            console.warn('⚠️ Neynar API returned:', neynarResponse.status);
+          }
+        } catch (neynarErr) {
+          console.warn('⚠️ Neynar fetch failed:', neynarErr);
+          // Continue anyway, user is still logged in
           setWalletConnected(true);
-        } else if (ctx.user?.fid) {
-          console.log('✅ Using FID as identifier (no custody_address in mini app):', ctx.user.fid);
-          // In mini app context, we use FID as the identifier
-          setWalletConnected(true);
-        } else {
-          console.warn('⚠️ No wallet identifier found');
         }
 
         // Signal to Farcaster that app is ready
@@ -137,15 +175,20 @@ export function useFarcasterContext() {
     }
 
     try {
-      // In Farcaster mini apps, we don't have custody_address
-      // Instead, use FID + username as the identifier
-      if (context.user.fid && context.user.username) {
-        console.log('✅ Wallet ready (using FID):', context.user.fid);
+      // Wallet is already connected via Farcaster context
+      if (custodyAddress) {
+        console.log('✅ Wallet already connected:', custodyAddress);
         setWalletConnected(true);
         return context.user;
       }
 
-      throw new Error('No FID available');
+      if (context.user.fid) {
+        console.log('✅ User authenticated via Farcaster FID:', context.user.fid);
+        setWalletConnected(true);
+        return context.user;
+      }
+
+      throw new Error('No FID or custody address available');
 
     } catch (error) {
       console.error('❌ Wallet request failed:', error);
@@ -163,21 +206,20 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
-  // 🔥 FIXED: Use FID as wallet identifier in mini apps
-  // The custody address isn't available in Farcaster mini app context
   const getWalletAddress = (): string | null => {
-    // Try custody_address first (desktop)
+    // Priority 1: Custody address from Neynar
+    if (custodyAddress) {
+      return custodyAddress;
+    }
+
+    // Priority 2: Direct custody_address from SDK context
     if (context?.user?.custody_address) {
       return context.user.custody_address;
     }
 
-    // In Farcaster mini apps, we generate an identifier from FID
-    // This is NOT a real wallet address, but a unique user identifier
-    if (context?.user?.fid) {
-      // Create a deterministic "address-like" string from FID for compatibility
-      const fid = context.user.fid;
-      // Format as: 0x + fid padded with zeros (e.g., 0x0000000000bbf7e)
-      return `0x${fid.toString().padStart(40, '0')}`;
+    // Priority 3: camelCase variant
+    if (context?.user?.custodyAddress) {
+      return context.user.custodyAddress;
     }
 
     return null;
