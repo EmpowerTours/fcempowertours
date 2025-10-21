@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-export default function FarcasterReady({ children }: { children: React.ReactNode }) {
+export default function FarcasterReady({ children }: { children?: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -13,6 +13,8 @@ export default function FarcasterReady({ children }: { children: React.ReactNode
         }
       } catch (error) {
         console.error('Failed to load Farcaster SDK:', error);
+        // Set ready anyway to not block the app
+        setReady(true);
       }
     };
     loadSDK();
@@ -21,6 +23,9 @@ export default function FarcasterReady({ children }: { children: React.ReactNode
   if (!ready) {
     return <div>Loading...</div>;
   }
+
+  // If no children, return null
+  if (!children) return null;
 
   return <>{children}</>;
 }
