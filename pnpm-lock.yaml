@@ -16,6 +16,9 @@ importers:
       '@farcaster/hub-nodejs':
         specifier: ^0.15.9
         version: 0.15.9(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.12)
+      '@farcaster/miniapp-core':
+        specifier: ^0.4.1
+        version: 0.4.1(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@farcaster/miniapp-node':
         specifier: ^0.1.11
         version: 0.1.11(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
