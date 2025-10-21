@@ -55,15 +55,25 @@ export default function ClientProviders({ children }: { children: React.ReactNod
           <PrivyProvider
             appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmaoduqox005ole0nmj1s4qck'}
             config={{
+              // 🔥 KEY FIX: Disable all auto-login behavior
               loginMethods: ['farcaster'],
               embeddedWallets: {
-                ethereum: { createOnLogin: 'users-without-wallets' }
+                createOnLogin: 'off', // ✅ Don't auto-create wallets
+                requireUserPasswordOnCreate: false,
+                noPromptOnSignature: true, // ✅ No signature prompts
               },
               appearance: {
                 theme: 'light',
                 accentColor: '#6763F5',
                 showWalletLoginFirst: false,
+                // 🔥 Hide the Privy modal by default
+                logo: undefined,
+                walletList: [], // Empty wallet list
               },
+              // 🔥 Critical: Don't show modals automatically
+              mfa: { noPromptOnMfaRequired: true },
+              // 🔥 Don't automatically connect
+              supportedChains: [monadTestnet],
             }}
           >
             {children}

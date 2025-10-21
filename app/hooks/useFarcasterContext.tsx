@@ -52,6 +52,7 @@ export function useFarcasterContext() {
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
 
+  // 🔥 Use Privy but DON'T trigger auto-login
   const {
     ready: privyReady,
     authenticated: privyAuthenticated,
@@ -84,9 +85,8 @@ export function useFarcasterContext() {
     loadContext();
   }, []);
 
-  // ❌ REMOVED: Auto-login logic that was causing unwanted popups
-  // Privy login should only happen when explicitly requested by the user
-
+  // 🔥 REMOVED: Auto-login logic - user must manually trigger wallet connection
+  
   const requestWallet = async () => {
     if (!privyReady) {
       console.warn('Privy not ready');
@@ -94,11 +94,12 @@ export function useFarcasterContext() {
     }
 
     try {
+      // Only login when user explicitly requests it
       if (!privyAuthenticated) {
-        console.log('🔑 Logging in with Privy...');
+        console.log('🔑 User requested Privy login...');
         await privyLogin();
       } else {
-        console.log('🔑 Connecting wallet with Privy...');
+        console.log('🔑 User requested wallet connection...');
         await connectWallet();
       }
       return privyUser;
@@ -134,7 +135,7 @@ export function useFarcasterContext() {
       }
     }
 
-    // Priority 3: Farcaster SDK custody address (default for read-only operations)
+    // Priority 3: Farcaster SDK custody address (default for read-only)
     if (context?.user?.custody_address) {
       console.log('✅ Using Farcaster custody address:', context.user.custody_address);
       return context.user.custody_address;
@@ -155,7 +156,7 @@ export function useFarcasterContext() {
     user: context?.user || null,
     walletAddress,
     isMobile,
-    requestWallet,
+    requestWallet, // 🔥 Only call this when user clicks a button
     sendTransaction,
     switchChain,
     sdk,
