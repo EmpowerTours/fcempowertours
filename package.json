@@ -12,7 +12,8 @@
     "check-deployer": "npx tsx scripts/check-deployer.ts",
     "check-safe": "npx tsx scripts/check-safe-balance.ts",
     "fund-safe": "npx tsx scripts/fund-safe.ts",
-    "verify-deployment": "./scripts/verify-railway-deployment.sh"
+    "verify-deployment": "./scripts/verify-railway-deployment.sh",
+    "check-delegation": "npx tsx scripts/check-delegation-status.ts"
   },
   "dependencies": {
     "@farcaster/hub-nodejs": "^0.15.9",
@@ -56,6 +57,7 @@
     "lucide-react": "^0.546.0",
     "next": "^15.0.0",
     "next-themes": "^0.4.6",
+    "node-fetch": "^3.3.2",
     "node-ipinfo": "^4.1.0",
     "permissionless": "^0.2.57",
     "pinata": "^2.5.0",

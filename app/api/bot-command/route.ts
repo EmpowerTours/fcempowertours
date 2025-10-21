@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 - "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
 
-💰 Transactions (Gasless via Pimlico):
+💰 Transactions (Gasless - We Pay!):
 - "swap 0.1 mon" - Swap MON for TOURS tokens
 - "mint passport" - Mint a passport NFT (FREE)
 - "mint music" - Mint a music NFT (requires upload)
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 - "status" - Check wallet connection
 - "about" - Learn about EmpowerTours
 
-🔐 All transactions are gasless via Pimlico + Safe!`
+✨ All transactions are FREE - we pay the gas!`
       });
     }
     
@@ -73,7 +73,7 @@ A Farcaster Mini App for:
 
 Built on Monad Testnet
 Powered by Envio Indexer
-Gasless transactions via Pimlico + Safe
+✨ All minting is FREE - we pay gas!
 
 Try "help" to see all commands!`
       });
@@ -108,15 +108,15 @@ NFTs: ${data.nfts?.totalNFTs || 0} total
 
 Address: ${userAddress.slice(0, 10)}...`
         });
-      } catch (error: any) {
+      } catch (err: any) {
         return NextResponse.json({
           success: false,
-          message: `❌ Failed to check balance: ${error.message}`
+          message: `❌ Failed to check balance: ${err.message}`
         });
       }
     }
     
-    // ==================== SWAP COMMAND (PIMLICO DELEGATION) ====================
+    // ==================== SWAP COMMAND (SERVER-SIDE, NO DELEGATION) ====================
     if (lowerCommand.includes('swap') && lowerCommand.includes('mon')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -136,38 +136,36 @@ Address: ${userAddress.slice(0, 10)}...`
       }
       
       try {
-        console.log(`💱 Executing swap via Pimlico delegation: ${amount} MON`);
+        console.log(`💱 Executing swap via backend (no delegation needed): ${amount} MON`);
         
-        // ✅ Use Pimlico delegation
-        const response = await fetch(`${APP_URL}/api/execute-delegated`, {
+        // 🔥 FIX: Call backend to execute swap directly (we pay gas)
+        const response = await fetch(`${APP_URL}/api/execute-swap`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userAddress,
-            action: 'swap',
-            params: { amount: amount.toString() }
+            amount: amount.toString()
           })
         });
         
         const result = await response.json();
         
         if (!result.success) {
-          throw new Error(result.error || 'Delegation failed');
+          throw new Error(result.error || 'Swap failed');
         }
         
-        console.log('✅ Swap successful via Pimlico:', result.txHash);
+        console.log('✅ Swap successful:', result.txHash);
         
         return NextResponse.json({
           success: true,
           action: 'transaction',
-          message: `✅ Swap Complete (Gasless)!
+          message: `✅ Swap Complete (FREE)!
 
-${amount} MON → TOURS tokens
+${amount} MON → ${result.toursReceived || '?'} TOURS tokens
 
-UserOp: ${result.userOpHash?.slice(0, 10)}...
 TX: ${result.txHash?.slice(0, 10)}...
 
-⚡ Executed via Safe + Pimlico (you paid no gas!)
+⚡ We paid the gas - completely FREE for you!
 
 View: https://testnet.monadscan.com/tx/${result.txHash}`
         });

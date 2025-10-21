@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { 
+  getDelegation,
+  hasPermission,
+  incrementTransactionCount 
+} from '@/lib/delegation-system';
+import { 
   createSafeUserOperation, 
   sendUserOperation, 
   getUserOperationReceipt,
@@ -20,22 +25,27 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Get stored delegation
-    const key = `delegation:${userAddress.toLowerCase()}`;
-    const delegationData = await redis.get(key);
+    console.log('🔐 Checking delegation for:', userAddress);
     
-    if (!delegationData) {
+    // ✅ USE NEW DELEGATION SYSTEM
+    const delegation = await getDelegation(userAddress);
+    
+    if (!delegation) {
       return NextResponse.json(
-        { success: false, error: 'No active delegation found' },
+        { success: false, error: 'No active delegation found. Run /create-delegation first!' },
         { status: 403 }
       );
     }
     
-    const delegation = JSON.parse(delegationData as string);
+    console.log('✅ Delegation found:', {
+      expiresAt: new Date(delegation.expiresAt),
+      permissions: delegation.config.permissions,
+      used: delegation.transactionsExecuted,
+      max: delegation.config.maxTransactions
+    });
     
     // Check if delegation expired
     if (delegation.expiresAt < Date.now()) {
-      await redis.del(key);
       return NextResponse.json(
         { success: false, error: 'Delegation expired' },
         { status: 403 }
@@ -43,12 +53,15 @@ export async function POST(req: NextRequest) {
     }
     
     // Check permissions
-    if (!delegation.config.permissions.includes(action)) {
+    const hasAccess = await hasPermission(userAddress, action);
+    if (!hasAccess) {
       return NextResponse.json(
         { success: false, error: `No permission for action: ${action}` },
         { status: 403 }
       );
     }
+    
+    console.log('✅ User has permission for:', action);
     
     // Check transaction limit
     if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
@@ -58,6 +71,8 @@ export async function POST(req: NextRequest) {
       );
     }
     
+    console.log(`📊 Transaction count: ${delegation.transactionsExecuted}/${delegation.config.maxTransactions}`);
+    
     // Prepare transaction based on action
     let targetContract: Address;
     let callData: Hex;
@@ -66,7 +81,7 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case 'mint_passport':
         targetContract = process.env.NEXT_PUBLIC_PASSPORT as Address;
-        value = parseEther('0.01'); // Passport mint costs 0.01 MON
+        value = parseEther('0.01');
         callData = encodeFunctionData({
           abi: [{
             inputs: [{ name: 'to', type: 'address' }],
@@ -82,7 +97,7 @@ export async function POST(req: NextRequest) {
         
       case 'mint_music':
         targetContract = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS as Address;
-        value = 0n; // Music minting is free
+        value = 0n;
         callData = encodeFunctionData({
           abi: [{
             inputs: [
@@ -106,7 +121,7 @@ export async function POST(req: NextRequest) {
         
       case 'swap':
         targetContract = process.env.TOKEN_SWAP_ADDRESS as Address;
-        value = parseEther(params.amount || '0.1'); // Default 0.1 MON
+        value = parseEther(params.amount || '0.1');
         callData = encodeFunctionData({
           abi: [{
             inputs: [],
@@ -116,6 +131,22 @@ export async function POST(req: NextRequest) {
             type: 'function',
           }],
           functionName: 'swap',
+        }) as Hex;
+        break;
+        
+      case 'buy_itinerary':
+        targetContract = process.env.NEXT_PUBLIC_MARKET as Address;
+        value = 0n;
+        callData = encodeFunctionData({
+          abi: [{
+            inputs: [{ name: 'id', type: 'uint256' }],
+            name: 'purchaseItinerary',
+            outputs: [],
+            stateMutability: 'nonpayable',
+            type: 'function',
+          }],
+          functionName: 'purchaseItinerary',
+          args: [BigInt(params.itineraryId || 0)],
         }) as Hex;
         break;
         
@@ -157,7 +188,6 @@ export async function POST(req: NextRequest) {
       const gasEstimate = await estimateUserOperationGas(userOp);
       console.log('⛽ Gas estimate:', gasEstimate);
       
-      // Update user op with estimates
       if (gasEstimate.callGasLimit) {
         userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
       }
@@ -175,6 +205,8 @@ export async function POST(req: NextRequest) {
     console.log('📤 Sending UserOp via Pimlico...');
     const userOpHash = await sendUserOperation(userOp);
     
+    console.log('✅ UserOp sent:', userOpHash);
+    
     // Wait for receipt (with timeout)
     let receipt = null;
     for (let i = 0; i < 30; i++) {
@@ -191,20 +223,30 @@ export async function POST(req: NextRequest) {
     
     console.log('✅ Transaction confirmed:', txHash);
     
-    // Update delegation usage
-    delegation.transactionsExecuted++;
-    await redis.setex(
-      key,
-      Math.floor((delegation.expiresAt - Date.now()) / 1000),
-      JSON.stringify(delegation)
-    );
+    // ✅ INCREMENT TRANSACTION COUNT
+    try {
+      await incrementTransactionCount(userAddress);
+      console.log('✅ Transaction count updated');
+    } catch (error) {
+      console.warn('⚠️ Failed to update transaction count:', error);
+    }
+    
+    // Calculate gas sponsored
+    const callGas = BigInt(userOp.callGasLimit);
+    const verifyGas = BigInt(userOp.verificationGasLimit);
+    const preVerifyGas = BigInt(userOp.preVerificationGas);
+    const gasPrice = BigInt(userOp.maxFeePerGas);
+    const totalGas = (callGas + verifyGas + preVerifyGas) * gasPrice;
+    const gasSponsored = (Number(totalGas) / 1e18).toFixed(4);
     
     return NextResponse.json({
       success: true,
       userOpHash,
       txHash,
       action,
-      message: 'Transaction executed successfully via Pimlico',
+      amountOut: params.minAmountOut || '0',
+      gasSponsored,
+      message: 'Transaction executed successfully via Pimlico delegation',
     });
     
   } catch (error: any) {
