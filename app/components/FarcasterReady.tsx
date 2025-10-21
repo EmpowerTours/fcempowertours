@@ -1,47 +1,26 @@
 'use client';
-
 import { useEffect, useState } from 'react';
-import { sdk } from '@farcaster/miniapp-sdk';
 
-export default function FarcasterReady() {
-  const [isReady, setIsReady] = useState(false);
+export default function FarcasterReady({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-    
-    const initializeSDK = async () => {
+    const loadSDK = async () => {
       try {
-        // Wait a bit for SDK to fully load on mobile
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Verify SDK is available
-        if (typeof sdk === 'undefined' || !sdk.actions) {
-          console.warn('⚠️ SDK not available yet, retrying...');
-          if (mounted) {
-            setTimeout(initializeSDK, 500);
-          }
-          return;
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        if (sdk && typeof sdk.actions !== 'undefined') {
+          setReady(true);
         }
-        
-        // Call ready() only after SDK is confirmed available
-        sdk.actions.ready();
-        console.log('✅ sdk.actions.ready() called successfully');
-        setIsReady(true);
       } catch (error) {
-        console.error('❌ Failed to call sdk.actions.ready():', error);
-        // Retry on mobile
-        if (mounted) {
-          setTimeout(initializeSDK, 1000);
-        }
+        console.error('Failed to load Farcaster SDK:', error);
       }
     };
-
-    initializeSDK();
-
-    return () => {
-      mounted = false;
-    };
+    loadSDK();
   }, []);
 
-  return null;
+  if (!ready) {
+    return <div>Loading...</div>;
+  }
+
+  return <>{children}</>;
 }
