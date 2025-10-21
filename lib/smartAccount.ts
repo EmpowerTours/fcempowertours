@@ -1,123 +1,80 @@
-import { createPublicClient, createWalletClient, http, parseEther, encodeFunctionData } from 'viem';
+import 'dotenv/config';
+import { createPublicClient, http, parseEther, encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { monadTestnet } from '@/app/chains';
+import { createPimlicoClient } from 'permissionless/clients/pimlico';
+import { entryPoint07Address } from 'viem/account-abstraction';
+import { toSafeSmartAccount } from 'permissionless/accounts';
+import { createSmartAccountClient } from 'permissionless';
+import { defineChain } from 'viem';
 
-// Your deployed contract addresses
-const MUSIC_NFT_ADDRESS = '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
-const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
-const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA';
+const monadTestnet = defineChain({
+  id: Number(process.env.MONAD_CHAIN_ID || '10143'),
+  name: 'Monad Testnet',
+  nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
+  rpcUrls: { default: { http: [process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz'] } },
+  blockExplorers: { default: { name: 'Monad Explorer', url: 'https://testnet.monadexplorer.com' } },
+  testnet: true,
+});
 
-const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY!;
-const PIMLICO_URL = `https://api.pimlico.io/v2/10143/rpc?apikey=${PIMLICO_API_KEY}`;
-
-// Initialize clients
 const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
+  transport: http(process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
 });
 
-const botWalletClient = createWalletClient({
-  account: privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY! as `0x${string}`),
-  chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
+const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
+
+const pimlicoClient = createPimlicoClient({
+  transport: http(pimlicoUrl),
+  entryPoint: { address: entryPoint07Address, version: '0.7' },
 });
 
-// Execute gasless transaction via Pimlico
-export async function executeGaslessTx(params: {
-  to: `0x${string}`;
-  data: `0x${string}`;
-  value?: bigint;
-}) {
-  try {
-    // For now, use regular wallet client (upgrade to Pimlico bundler later)
-    const hash = await botWalletClient.sendTransaction({
-      to: params.to,
-      data: params.data,
-      value: params.value || 0n,
-    });
+// Bot's smart account address (hardcoded from your generation)
+const BOT_SMART_ACCOUNT_ADDRESS = '0x9c751Ba8D48f9Fa49Af0ef0A8227D0189aEd84f5' as `0x${string}`;
 
-    await publicClient.waitForTransactionReceipt({ hash });
-    return { success: true, hash };
-  } catch (error: any) {
-    console.error('Transaction error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Mint Music NFT
-export async function mintMusicNFT(recipient: `0x${string}`, tokenURI: string) {
-  const MusicNFTABI = [
-    {
-      inputs: [
-        { name: 'artist', type: 'address' },
-        { name: 'tokenURI', type: 'string' },
-        { name: 'price', type: 'uint256' }
-      ],
-      name: 'mintMaster',
-      outputs: [{ name: '', type: 'uint256' }],
-      stateMutability: 'nonpayable',
-      type: 'function',
-    },
-  ];
-
-  const data = encodeFunctionData({
-    abi: MusicNFTABI,
-    functionName: 'mintMaster',
-    args: [recipient, tokenURI, parseEther('0.01')], // 0.01 ETH default price
+// Reusable SmartAccountClient (uses session keys for delegation)
+export async function getDelegatedSmartAccountClient(sessionKey: `0x${string}`) {
+  const account = await toSafeSmartAccount({
+    client: publicClient,
+    owners: [privateKeyToAccount(sessionKey)],  // Delegated session key as owner
+    entryPoint: { address: entryPoint07Address, version: '0.7' },
+    address: BOT_SMART_ACCOUNT_ADDRESS,  // Use your generated address
+    version: '1.4.1',
   });
 
-  return executeGaslessTx({
-    to: MUSIC_NFT_ADDRESS,
-    data,
+  return createSmartAccountClient({
+    account,
+    chain: monadTestnet,
+    bundlerTransport: http(pimlicoUrl),
+    paymaster: pimlicoClient,
+    userOperation: {
+      estimateFeesPerGas: async () => (await pimlicoClient.getUserOperationGasPrice()).fast,
+    },
   });
 }
 
-// Mint Passport NFT
-export async function mintPassportNFT(recipient: `0x${string}`) {
-  const PassportNFTABI = [
-    {
-      inputs: [{ name: 'to', type: 'address' }],
-      name: 'mint',
-      outputs: [],
-      stateMutability: 'payable',
-      type: 'function',
-    },
-  ];
+// Example: Buy Music NFT function (adapt to your NFT ABI)
+export async function buyMusicNFT(sessionKey: `0x${string}`, tokenId: bigint, price: string) {
+  const client = await getDelegatedSmartAccountClient(sessionKey);
+  const nftContract = process.env.NFT_CONTRACT_ADDRESS as `0x${string}`;  // Your MusicNFT contract
 
   const data = encodeFunctionData({
-    abi: PassportNFTABI,
-    functionName: 'mint',
-    args: [recipient],
+    abi: [  // Your MusicNFT ABI for 'purchaseLicense' or similar
+      {
+        name: 'purchaseLicense',
+        inputs: [{ type: 'uint256', name: 'tokenId' }],
+        outputs: [],
+        stateMutability: 'payable',
+      },
+    ],
+    functionName: 'purchaseLicense',
+    args: [tokenId],
   });
 
-  return executeGaslessTx({
-    to: PASSPORT_NFT_ADDRESS,
+  const txHash = await client.sendTransaction({
+    to: nftContract,
+    value: parseEther(price),
     data,
-    value: parseEther('0.01'), // 0.01 MON mint cost
-  });
-}
-
-// Swap MON for TOURS
-export async function swapTokens(amount: string) {
-  const TokenSwapABI = [
-    {
-      inputs: [],
-      name: 'swap',
-      outputs: [],
-      stateMutability: 'payable',
-      type: 'function',
-    },
-  ];
-
-  const data = encodeFunctionData({
-    abi: TokenSwapABI,
-    functionName: 'swap',
-    args: [],
   });
 
-  return executeGaslessTx({
-    to: TOKEN_SWAP_ADDRESS,
-    data,
-    value: parseEther(amount),
-  });
+  return txHash;
 }
