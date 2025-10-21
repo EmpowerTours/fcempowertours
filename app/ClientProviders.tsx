@@ -55,23 +55,14 @@ export default function ClientProviders({ children }: { children: React.ReactNod
           <PrivyProvider
             appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmaoduqox005ole0nmj1s4qck'}
             config={{
-              // 🔥 Correct syntax: Don't auto-login
+              // 🔥 CRITICAL: FARCASTER ONLY - NO AUTO-LOGIN
               loginMethods: ['farcaster'],
-              embeddedWallets: {
-                createOnLogin: 'users-without-wallets', // Keep this for when they DO connect
-                requireUserPasswordOnCreate: false,
-                noPromptOnSignature: false,
-              },
               appearance: {
                 theme: 'light',
                 accentColor: '#6763F5',
-                showWalletLoginFirst: false,
+                logo: undefined,
               },
-              // 🔥 The key: Don't show legal terms automatically (reduces popups)
-              legal: {
-                termsAndConditionsUrl: undefined,
-                privacyPolicyUrl: undefined,
-              },
+              supportedChains: [monadTestnet],
             }}
           >
             {children}
