@@ -16,9 +16,20 @@ export function useFarcasterContext() {
         setContext(ctx);
         setError(null);
         
-        // Debug: Log what we actually get
-        console.log('🔍 Farcaster Context:', ctx);
-        console.log('🔍 User:', ctx?.user);
+        // Debug: Log the full context to understand structure
+        console.log('🔍 Full Farcaster Context:', ctx);
+        console.log('🔍 User object:', ctx?.user);
+        console.log('🔍 Client object:', ctx?.client);
+        
+        // Log all possible wallet address locations
+        console.log('🔍 Wallet address sources:', {
+          'user.custody_address': ctx?.user?.custody_address,
+          'user.wallet.address': ctx?.user?.wallet?.address,
+          'user.walletAddress': ctx?.user?.walletAddress,
+          'user.verified_addresses': ctx?.user?.verified_addresses,
+          'wallet.address': ctx?.wallet?.address,
+          'address': ctx?.address,
+        });
       } catch (err) {
         console.error('Failed to load Farcaster context:', err);
         setError(err as Error);
@@ -35,10 +46,12 @@ export function useFarcasterContext() {
       return null;
     }
     try {
+      console.log('🔑 Requesting wallet access...');
       const result = await sdk.actions.addFrame();
+      console.log('✅ Wallet request result:', result);
       return result;
     } catch (error) {
-      console.error('Failed to request wallet:', error);
+      console.error('❌ Failed to request wallet:', error);
       return null;
     }
   };
@@ -53,13 +66,55 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
-  // Try multiple wallet address sources
-  const walletAddress = 
-    context?.user?.wallet?.address ||
-    context?.user?.walletAddress ||
-    context?.wallet?.address ||
-    context?.address ||
-    null;
+  // FIXED: Try all possible wallet address locations in Farcaster context
+  const getWalletAddress = () => {
+    if (!context?.user) return null;
+
+    // Priority order for finding wallet address:
+    // 1. Custody address (most common for Farcaster)
+    if (context.user.custody_address) {
+      console.log('✅ Found custody address:', context.user.custody_address);
+      return context.user.custody_address;
+    }
+
+    // 2. Verified addresses (ETH addresses linked to account)
+    if (context.user.verified_addresses?.eth_addresses?.[0]) {
+      console.log('✅ Found verified ETH address:', context.user.verified_addresses.eth_addresses[0]);
+      return context.user.verified_addresses.eth_addresses[0];
+    }
+
+    // 3. Wallet object
+    if (context.user.wallet?.address) {
+      console.log('✅ Found wallet.address:', context.user.wallet.address);
+      return context.user.wallet.address;
+    }
+
+    // 4. Direct walletAddress property
+    if (context.user.walletAddress) {
+      console.log('✅ Found walletAddress:', context.user.walletAddress);
+      return context.user.walletAddress;
+    }
+
+    // 5. Top-level wallet
+    if (context.wallet?.address) {
+      console.log('✅ Found top-level wallet:', context.wallet.address);
+      return context.wallet.address;
+    }
+
+    // 6. Direct address property
+    if (context.address) {
+      console.log('✅ Found direct address:', context.address);
+      return context.address;
+    }
+
+    console.warn('⚠️ No wallet address found in any known location');
+    return null;
+  };
+
+  const walletAddress = getWalletAddress();
+
+  // Detect if running in mobile Farcaster app
+  const isMobile = context?.client?.clientFid ? true : false;
 
   return {
     context,
@@ -68,9 +123,10 @@ export function useFarcasterContext() {
     error,
     user: context?.user || null,
     walletAddress,
-    isMobile: context?.client?.clientFid ? true : false,
+    isMobile,
     requestWallet,
     sendTransaction,
     switchChain,
+    sdk,
   };
 }
