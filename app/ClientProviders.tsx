@@ -62,6 +62,7 @@ export default function ClientProviders({ children }: { children: React.ReactNod
               appearance: {
                 theme: 'light',
                 accentColor: '#6763F5',
+                showWalletLoginFirst: false,
               },
             }}
           >

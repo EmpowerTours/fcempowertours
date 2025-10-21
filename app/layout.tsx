@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import ClientProviders from './ClientProviders';  // ✅ Changed from './providers'
+import ClientProviders from './ClientProviders';
 import ClientNav from './components/ClientNav';
 import SimpleBotBar from './components/SimpleBotBar';
 import SDKProvider from './components/SDKProvider';
-import Script from 'next/script';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -68,30 +67,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        {/* Mobile debugger - TEMPORARY, remove after debugging */}
-        <Script
-          src="https://cdn.jsdelivr.net/npm/eruda"
-          strategy="beforeInteractive"
-        />
-        <Script id="eruda-init" strategy="beforeInteractive">
-          {`
-            if (typeof eruda !== 'undefined') {
-              eruda.init();
-            }
-          `}
-        </Script>
-      </head>
       <body className="flex flex-col min-h-screen">
-        <ClientProviders>  {/* ✅ Changed from <Providers> */}
+        <ClientProviders>
           <SDKProvider>
-            {/* Navigation at top */}
             <ClientNav />
-            
-            {/* AI Agent command bar directly below navigation */}
             <SimpleBotBar />
-            
-            {/* Main content area */}
             <main className="flex-1">{children}</main>
           </SDKProvider>
         </ClientProviders>

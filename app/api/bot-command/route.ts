@@ -1,54 +1,6 @@
-// app/api/bot-command/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { JsonRpcProvider, Wallet, Contract, parseEther } from 'ethers';
 
-// Contract addresses
-const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA';
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
-const PASSPORT_NFT_ADDRESS = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4';
-const SAFE_ACCOUNT = '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533';
-
-// ABIs (minimal)
-const TOKEN_SWAP_ABI = [
-  {
-    inputs: [],
-    name: 'swap',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'exchangeRate',
-    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  }
-];
-
-const MUSIC_NFT_ABI = [
-  {
-    inputs: [
-      { internalType: 'address', name: 'artist', type: 'address' },
-      { internalType: 'string', name: 'tokenURI', type: 'string' },
-      { internalType: 'uint256', name: 'price', type: 'uint256' }
-    ],
-    name: 'mintMaster',
-    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  }
-];
-
-const PASSPORT_ABI = [
-  {
-    inputs: [{ internalType: 'address', name: 'to', type: 'address' }],
-    name: 'mint',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  }
-];
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
 export async function POST(req: NextRequest) {
   try {
@@ -72,7 +24,7 @@ export async function POST(req: NextRequest) {
 - "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
 
-💰 Transactions (Delegated via Safe Account):
+💰 Transactions (Gasless via Pimlico):
 - "swap 0.1 mon" - Swap MON for TOURS tokens
 - "mint passport" - Mint a passport NFT (FREE)
 - "mint music" - Mint a music NFT (requires upload)
@@ -83,7 +35,7 @@ export async function POST(req: NextRequest) {
 - "status" - Check wallet connection
 - "about" - Learn about EmpowerTours
 
-🔐 All transactions are gasless and executed via our Safe smart account!`
+🔐 All transactions are gasless via Pimlico + Safe!`
       });
     }
     
@@ -96,7 +48,6 @@ export async function POST(req: NextRequest) {
           ? `✅ Wallet Connected
           
 Address: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}
-Safe Account: ${SAFE_ACCOUNT.slice(0, 6)}...${SAFE_ACCOUNT.slice(-4)}
 
 💡 You can execute gasless transactions via our bot!
 Try: "swap 0.1 mon" or "mint passport"`
@@ -138,21 +89,22 @@ Try "help" to see all commands!`
       }
       
       try {
-        const provider = new JsonRpcProvider('https://testnet-rpc.monad.xyz');
+        const response = await fetch(`${APP_URL}/api/get-balances`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: userAddress }),
+        });
         
-        // Get MON balance
-        const monBalance = await provider.getBalance(userAddress);
-        const monFormatted = (Number(monBalance) / 1e18).toFixed(4);
-        
-        // TODO: Get TOURS balance from token contract
+        const data = await response.json();
         
         return NextResponse.json({
           success: true,
           action: 'info',
           message: `💰 Your Balances
 
-MON: ${monFormatted} MON
-TOURS: (coming soon)
+MON: ${data.mon || '0.0000'} MON
+TOURS: ${data.tours || '0'} TOURS
+NFTs: ${data.nfts?.totalNFTs || 0} total
 
 Address: ${userAddress.slice(0, 10)}...`
         });
@@ -164,7 +116,7 @@ Address: ${userAddress.slice(0, 10)}...`
       }
     }
     
-    // ==================== SWAP COMMAND ====================
+    // ==================== SWAP COMMAND (PIMLICO DELEGATION) ====================
     if (lowerCommand.includes('swap') && lowerCommand.includes('mon')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -173,7 +125,6 @@ Address: ${userAddress.slice(0, 10)}...`
         });
       }
       
-      // Extract amount
       const match = lowerCommand.match(/([\d.]+)\s*mon/);
       const amount = match ? parseFloat(match[1]) : 0.1;
       
@@ -185,29 +136,40 @@ Address: ${userAddress.slice(0, 10)}...`
       }
       
       try {
-        // Execute swap via Safe account
-        const provider = new JsonRpcProvider('https://testnet-rpc.monad.xyz');
-        const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY!, provider);
-        const swapContract = new Contract(TOKEN_SWAP_ADDRESS, TOKEN_SWAP_ABI, deployer);
+        console.log(`💱 Executing swap via Pimlico delegation: ${amount} MON`);
         
-        console.log(`💱 Swapping ${amount} MON for TOURS...`);
+        // ✅ Use Pimlico delegation
+        const response = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'swap',
+            params: { amount: amount.toString() }
+          })
+        });
         
-        const tx = await swapContract.swap({ value: parseEther(amount.toString()) });
-        await tx.wait();
+        const result = await response.json();
         
-        console.log('✅ Swap successful:', tx.hash);
+        if (!result.success) {
+          throw new Error(result.error || 'Delegation failed');
+        }
+        
+        console.log('✅ Swap successful via Pimlico:', result.txHash);
         
         return NextResponse.json({
           success: true,
           action: 'transaction',
-          message: `✅ Swap Successful!
+          message: `✅ Swap Complete (Gasless)!
 
 ${amount} MON → TOURS tokens
 
-Transaction: ${tx.hash.slice(0, 10)}...
-View: https://testnet.monadscan.com/tx/${tx.hash}
+UserOp: ${result.userOpHash?.slice(0, 10)}...
+TX: ${result.txHash?.slice(0, 10)}...
 
-Your TOURS balance has been updated!`
+⚡ Executed via Safe + Pimlico (you paid no gas!)
+
+View: https://testnet.monadscan.com/tx/${result.txHash}`
         });
       } catch (error: any) {
         console.error('❌ Swap failed:', error);

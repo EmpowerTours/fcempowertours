@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
-// ✅ Define ExtendedUserContext first
 type ExtendedUserContext = {
   custody_address?: string;
   custodyAddress?: string;
@@ -15,6 +14,7 @@ type ExtendedUserContext = {
   verifiedAddresses?: {
     ethAddresses?: string[];
   };
+  fid?: number;
   [key: string]: any;
 };
 
@@ -30,7 +30,6 @@ type ExtendedFarcasterContext = {
   [key: string]: any;
 };
 
-// ✅ Define a safe wallet type from Privy
 type WalletLinkedAccount = {
   type: 'wallet';
   address: string;
@@ -38,7 +37,6 @@ type WalletLinkedAccount = {
   [key: string]: any;
 };
 
-// ✅ Type guard for wallet accounts
 function isWalletAccount(account: any): account is WalletLinkedAccount {
   return (
     account &&
@@ -54,9 +52,9 @@ export function useFarcasterContext() {
   const [error, setError] = useState<Error | null>(null);
   const [sdk, setSdk] = useState<any>(null);
 
-  const { 
-    ready: privyReady, 
-    authenticated: privyAuthenticated, 
+  const {
+    ready: privyReady,
+    authenticated: privyAuthenticated,
     user: privyUser,
     login: privyLogin,
     connectWallet
@@ -85,15 +83,23 @@ export function useFarcasterContext() {
     loadContext();
   }, []);
 
-  // 🔑 Auto-login with Privy when Farcaster context detected
+  // 🔑 Improved auto-login with Privy when Farcaster context detected
   useEffect(() => {
-    if (privyReady && !privyAuthenticated && context?.user && !loading) {
-      console.log('🔑 Auto-logging in with Privy...');
-      privyLogin();
+    if (privyReady && !privyAuthenticated && context?.user?.fid && !loading) {
+      console.log('🔑 Auto-logging in with Privy for FID:', context.user.fid);
+      
+      // Small delay to ensure Privy is fully ready
+      const timer = setTimeout(() => {
+        if (!privyAuthenticated) {
+          console.log('🔑 Executing Privy login...');
+          privyLogin();
+        }
+      }, 200);
+      
+      return () => clearTimeout(timer);
     }
-  }, [privyReady, privyAuthenticated, context, loading, privyLogin]);
+  }, [privyReady, privyAuthenticated, context?.user?.fid, loading, privyLogin]);
 
-  // ---- SDK Actions ----
   const requestWallet = async () => {
     if (!privyReady) {
       console.warn('Privy not ready');
@@ -125,18 +131,17 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
-  // ---- Wallet Address Extraction ----
   const getWalletAddress = (): string | null => {
     // Priority 1: Privy embedded wallet
     if (privyUser?.wallet?.address) {
-      console.log('✅ Found wallet via Privy:', privyUser.wallet.address);
+      console.log('✅ Found wallet via Privy embedded:', privyUser.wallet.address);
       return privyUser.wallet.address;
     }
 
-    // Priority 2: Privy linked wallets (with type guard)
+    // Priority 2: Privy linked wallets
     if (Array.isArray(privyUser?.linkedAccounts)) {
       const walletAccount = privyUser.linkedAccounts.find(isWalletAccount) as WalletLinkedAccount | undefined;
-      if (walletAccount && walletAccount.address) {
+      if (walletAccount?.address) {
         console.log('✅ Found linked wallet via Privy:', walletAccount.address);
         return walletAccount.address;
       }
@@ -153,11 +158,8 @@ export function useFarcasterContext() {
   };
 
   const walletAddress = getWalletAddress();
-
-  // ---- Device Detection ----
   const isMobile = context?.client?.platformType === 'mobile';
 
-  // ---- Return Values ----
   return {
     context,
     loading: loading || !privyReady,
