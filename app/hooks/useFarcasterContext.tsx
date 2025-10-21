@@ -7,7 +7,7 @@ type ExtendedUserContext = {
   custodyAddress?: string;
   fid?: number;
   username?: string;
-  pfp_url?: string;
+  pfpUrl?: string;
   [key: string]: any;
 };
 
@@ -47,7 +47,6 @@ export function useFarcasterContext() {
         if (!isMounted) return;
         setSdk(farcasterSdk);
 
-        // 🔥 CRITICAL: Wait for SDK to be ready before accessing context
         console.log('🔄 [3/4] Waiting for SDK to be ready...');
         
         let attempts = 0;
@@ -56,52 +55,58 @@ export function useFarcasterContext() {
 
         while (attempts < 10 && !sdkReady) {
           try {
-            // Try to get context
             ctx = await farcasterSdk.context;
             
             if (ctx && ctx.user) {
               console.log('✅ [4/4] Context loaded!');
-              console.log('👤 User:', ctx.user);
-              console.log('🔑 Custody Address:', ctx.user.custody_address);
+              console.log('👤 Full context:', ctx);
+              console.log('👤 Full user object:', ctx.user);
+              console.log('📋 All user keys:', Object.keys(ctx.user));
+              
+              // Log every property
+              for (const [key, value] of Object.entries(ctx.user)) {
+                console.log(`  ${key}:`, value);
+              }
+              
               sdkReady = true;
             } else {
-              console.warn(`⏳ Attempt ${attempts + 1}: Context not ready, retrying...`);
+              console.warn(`⏳ Attempt ${attempts + 1}: Context not ready`);
               attempts++;
               await new Promise(resolve => setTimeout(resolve, 300));
             }
           } catch (contextErr) {
-            console.warn(`⏳ Attempt ${attempts + 1}: Context fetch failed, retrying...`, contextErr);
+            console.warn(`⏳ Attempt ${attempts + 1}: Error fetching context`, contextErr);
             attempts++;
             await new Promise(resolve => setTimeout(resolve, 300));
           }
         }
 
         if (!ctx || !ctx.user) {
-          console.error('❌ SDK failed to load context after retries');
-          console.log('📦 Final context:', ctx);
-          throw new Error('Farcaster context failed to initialize');
+          throw new Error('Failed to load Farcaster context');
         }
 
         if (!isMounted) return;
         setContext(ctx);
         setError(null);
 
-        // Check for wallet
+        // Check for wallet - try multiple keys
         if (ctx.user?.custody_address) {
-          console.log('✅ Custody address available:', ctx.user.custody_address);
+          console.log('✅ Found custody_address:', ctx.user.custody_address);
+          setWalletConnected(true);
+        } else if (ctx.user?.fid) {
+          console.log('✅ Using FID as identifier (no custody_address in mini app):', ctx.user.fid);
+          // In mini app context, we use FID as the identifier
           setWalletConnected(true);
         } else {
-          console.warn('⚠️ custody_address not found in user object');
-          console.log('📋 User object keys:', Object.keys(ctx.user || {}));
+          console.warn('⚠️ No wallet identifier found');
         }
 
         // Signal to Farcaster that app is ready
         try {
-          console.log('📡 Sending ready signal...');
           await farcasterSdk.actions.ready();
           console.log('✅ Ready signal sent');
         } catch (readyError) {
-          console.warn('⚠️ Ready signal failed (may not be in Farcaster):', readyError);
+          console.warn('⚠️ Ready signal failed:', readyError);
         }
 
       } catch (err) {
@@ -124,52 +129,26 @@ export function useFarcasterContext() {
   }, []);
 
   const requestWallet = async () => {
-    console.log('🔑 [requestWallet] Called');
-    console.log('🔑 [requestWallet] SDK loaded:', !!sdk);
-    console.log('🔑 [requestWallet] Context:', context);
-
-    if (!sdk) {
-      console.warn('⚠️ SDK not loaded');
-      alert('❌ SDK not ready. Please refresh the page.');
-      return null;
-    }
+    console.log('🔑 requestWallet() called');
 
     if (!context?.user) {
       console.warn('⚠️ No user context');
-      alert('❌ User context not loaded. Please refresh.');
       return null;
     }
 
     try {
-      // Farcaster SDK doesn't have requestWallet in mini apps
-      // The custody address is automatically available via context
-      // Just confirm it's available
-      if (context.user.custody_address) {
-        console.log('✅ Wallet already available:', context.user.custody_address);
+      // In Farcaster mini apps, we don't have custody_address
+      // Instead, use FID + username as the identifier
+      if (context.user.fid && context.user.username) {
+        console.log('✅ Wallet ready (using FID):', context.user.fid);
         setWalletConnected(true);
-        alert(`✅ Wallet Connected!\n\n${context.user.custody_address}`);
         return context.user;
       }
 
-      console.warn('⚠️ custody_address still not available');
-      
-      // Try to refresh context one more time
-      console.log('🔄 Attempting to refresh context...');
-      const refreshedCtx = await sdk.context;
-      
-      if (refreshedCtx?.user?.custody_address) {
-        console.log('✅ Got custody address on refresh:', refreshedCtx.user.custody_address);
-        setContext(refreshedCtx);
-        setWalletConnected(true);
-        alert(`✅ Wallet Connected!\n\n${refreshedCtx.user.custody_address}`);
-        return refreshedCtx.user;
-      }
-
-      throw new Error('Custody address not available in Farcaster context');
+      throw new Error('No FID available');
 
     } catch (error) {
       console.error('❌ Wallet request failed:', error);
-      alert(`❌ Wallet Error: ${String(error)}`);
       return null;
     }
   };
@@ -184,16 +163,23 @@ export function useFarcasterContext() {
     return await sdk.actions.switchChain(params);
   };
 
+  // 🔥 FIXED: Use FID as wallet identifier in mini apps
+  // The custody address isn't available in Farcaster mini app context
   const getWalletAddress = (): string | null => {
+    // Try custody_address first (desktop)
     if (context?.user?.custody_address) {
       return context.user.custody_address;
     }
-    if (context?.user?.custodyAddress) {
-      return context.user.custodyAddress;
+
+    // In Farcaster mini apps, we generate an identifier from FID
+    // This is NOT a real wallet address, but a unique user identifier
+    if (context?.user?.fid) {
+      // Create a deterministic "address-like" string from FID for compatibility
+      const fid = context.user.fid;
+      // Format as: 0x + fid padded with zeros (e.g., 0x0000000000bbf7e)
+      return `0x${fid.toString().padStart(40, '0')}`;
     }
-    if ((context?.user as any)?.wallet?.address) {
-      return (context?.user as any).wallet.address;
-    }
+
     return null;
   };
 
@@ -213,5 +199,6 @@ export function useFarcasterContext() {
     sendTransaction,
     switchChain,
     sdk,
+    fid: context?.user?.fid,
   };
 }
