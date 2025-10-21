@@ -17,13 +17,17 @@ export default function SDKProvider({ children }: { children: React.ReactNode })
           if (farcasterSdk && typeof farcasterSdk.actions !== 'undefined') {
             setSdkReady(true);
             console.log('✅ Farcaster SDK ready');
+            
+            // CRITICAL: Tell Farcaster the app is ready!
+            await farcasterSdk.actions.ready();
+            console.log('✅ Called sdk.actions.ready()');
             break;
           }
           await new Promise(resolve => setTimeout(resolve, 500));
           attempts++;
         }
         
-        if (!sdkReady) {
+        if (!sdkReady && attempts >= 10) {
           console.error('❌ Farcaster SDK failed to load after 5 seconds');
         }
       } catch (error) {
