@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { Providers } from './providers';
+import ClientProviders from './ClientProviders';  // ✅ Changed from './providers'
 import ClientNav from './components/ClientNav';
 import SimpleBotBar from './components/SimpleBotBar';
 import SDKProvider from './components/SDKProvider';
@@ -70,7 +70,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         {/* Mobile debugger - TEMPORARY, remove after debugging */}
-        <Script 
+        <Script
           src="https://cdn.jsdelivr.net/npm/eruda"
           strategy="beforeInteractive"
         />
@@ -83,7 +83,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body className="flex flex-col min-h-screen">
-        <Providers>
+        <ClientProviders>  {/* ✅ Changed from <Providers> */}
           <SDKProvider>
             {/* Navigation at top */}
             <ClientNav />
@@ -94,7 +94,7 @@ export default function RootLayout({
             {/* Main content area */}
             <main className="flex-1">{children}</main>
           </SDKProvider>
-        </Providers>
+        </ClientProviders>
       </body>
     </html>
   );
