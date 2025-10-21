@@ -45,9 +45,9 @@ export function useFarcasterContext() {
     return await sdk.actions.sendTransaction(params);
   };
 
-  const switchChain = async (chainId: number) => {
+  const switchChain = async (params: { chainId: number }) => {
     if (!sdk) throw new Error('SDK not loaded');
-    return await sdk.actions.switchChain({ chainId });
+    return await sdk.actions.switchChain(params);
   };
 
   return {
