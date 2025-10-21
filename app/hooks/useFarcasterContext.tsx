@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
+// ✅ Define ExtendedUserContext first
 type ExtendedUserContext = {
   custody_address?: string;
   custodyAddress?: string;
@@ -21,13 +22,30 @@ type ExtendedFarcasterContext = {
   user?: ExtendedUserContext;
   wallet?: { address?: string };
   address?: string;
-  client?: { clientFid?: number | string };
+  client?: {
+    clientFid?: string | number;
+    platformType?: string;
+    [key: string]: any;
+  };
   [key: string]: any;
 };
 
-// ✅ Helper type guard to identify wallet accounts
-function isWalletAccount(account: any): account is { type: string; address: string } {
-  return account && account.type === 'wallet' && typeof account.address === 'string';
+// ✅ Define a safe wallet type from Privy
+type WalletLinkedAccount = {
+  type: 'wallet';
+  address: string;
+  chainType?: string;
+  [key: string]: any;
+};
+
+// ✅ Type guard for wallet accounts
+function isWalletAccount(account: any): account is WalletLinkedAccount {
+  return (
+    account &&
+    typeof account === 'object' &&
+    account.type === 'wallet' &&
+    typeof account.address === 'string'
+  );
 }
 
 export function useFarcasterContext() {
@@ -56,7 +74,6 @@ export function useFarcasterContext() {
 
         console.log('🔍 Farcaster SDK Context:', ctx);
         console.log('👤 Farcaster User:', ctx?.user);
-
       } catch (err) {
         console.error('❌ Failed to load Farcaster context:', err);
         setError(err as Error);
@@ -116,10 +133,10 @@ export function useFarcasterContext() {
       return privyUser.wallet.address;
     }
 
-    // Priority 2: Privy linked wallets (guarded safely)
-    if (privyUser?.linkedAccounts && Array.isArray(privyUser.linkedAccounts)) {
-      const walletAccount = privyUser.linkedAccounts.find(isWalletAccount);
-      if (walletAccount?.address) {
+    // Priority 2: Privy linked wallets (with type guard)
+    if (Array.isArray(privyUser?.linkedAccounts)) {
+      const walletAccount = privyUser.linkedAccounts.find(isWalletAccount) as WalletLinkedAccount | undefined;
+      if (walletAccount && walletAccount.address) {
         console.log('✅ Found linked wallet via Privy:', walletAccount.address);
         return walletAccount.address;
       }
