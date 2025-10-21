@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export default function SimpleBotBar() {
   const router = useRouter();
+  const { walletAddress } = useFarcasterContext(); // Get user's wallet
   const [command, setCommand] = useState('');
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState('');
@@ -22,7 +24,10 @@ export default function SimpleBotBar() {
       const res = await fetch('/api/bot-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: userCommand }),
+        body: JSON.stringify({ 
+          command: userCommand,
+          userAddress: walletAddress || null, // Pass wallet address
+        }),
       });
 
       if (!res.ok) {
@@ -44,12 +49,18 @@ export default function SimpleBotBar() {
             setCommand('');
             setResponse('');
           }, 1000);
+        } else if (data.action === 'transaction') {
+          // Keep transaction messages visible longer
+          setTimeout(() => {
+            setCommand('');
+            setResponse('');
+          }, 10000);
         } else if (data.action === 'info') {
           // Keep help message visible longer
           setTimeout(() => {
             setCommand('');
             setResponse('');
-          }, 10000);
+          }, 15000);
         } else {
           // Clear after 3 seconds for other actions
           setTimeout(() => {
@@ -87,11 +98,19 @@ export default function SimpleBotBar() {
     <div className="w-full bg-gradient-to-r from-gray-900 to-gray-800 p-4 border-t border-gray-700 shadow-lg">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col gap-2">
+          {/* Wallet Status */}
+          {walletAddress && (
+            <div className="text-xs text-green-400 flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </div>
+          )}
+          
           {/* Input and Button Row */}
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="🤖 Ask AI: 'passport', 'music', 'market', 'help'..."
+              placeholder="🤖 Try: 'swap 0.5 MON', 'mint music', 'help'..."
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -138,18 +157,6 @@ export default function SimpleBotBar() {
         }
         .animate-fade-in {
           animation: fade-in 0.3s ease-out;
-        }
-        @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-        .animate-spin {
-          display: inline-block;
-          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>

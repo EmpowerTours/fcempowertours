@@ -22,21 +22,42 @@ const MUSIC_NFT_ABI = [
     stateMutability: 'payable',
     type: 'function',
   },
-  {
-    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
-    name: 'tokenURI',
-    outputs: [{ internalType: 'string', name: '', type: 'string' }],
-    stateMutability: 'view',
-    type: 'function',
-  }
 ];
+
+// Helper to resolve IPFS URLs
+const resolveIPFS = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', PINATA_GATEWAY);
+  }
+  return url;
+};
+
+interface MusicMetadata {
+  name?: string;
+  description?: string;
+  image?: string;
+  animation_url?: string;
+  external_url?: string;
+  attributes?: Array<{ trait_type: string; value: any }>;
+}
 
 interface ArtistMusic {
   tokenId: number;
   tokenURI: string;
   mintedAt: string;
-  price: string;
   txHash: string;
+  metadata?: MusicMetadata;
+  price?: string;
+  isLoadingMetadata?: boolean;
+}
+
+interface ArtistInfo {
+  address: string;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  fid?: number;
 }
 
 export default function ArtistProfilePage() {
@@ -46,20 +67,68 @@ export default function ArtistProfilePage() {
   const { user, walletAddress, isMobile, requestWallet, sendTransaction, switchChain } = useFarcasterContext();
 
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
-  const [artistInfo, setArtistInfo] = useState<any>(null);
+  const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
 
   useEffect(() => {
     if (artistAddress) {
       loadArtistProfile();
+      loadArtistInfo();
     }
   }, [artistAddress]);
+
+  // Fetch artist info from Neynar
+  const loadArtistInfo = async () => {
+    try {
+      console.log('👤 Fetching artist info for:', artistAddress);
+
+      // Try to get Farcaster user by verified address
+      const response = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
+        {
+          headers: {
+            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.fid) {
+          console.log('✅ Found Farcaster user:', data.username);
+          setArtistInfo({
+            address: artistAddress,
+            username: data.username,
+            displayName: data.display_name || data.username,
+            pfpUrl: data.pfp_url,
+            fid: data.fid,
+          });
+          return;
+        }
+      }
+
+      // Fallback if not found on Farcaster
+      console.log('⚠️ Artist not found on Farcaster, using address');
+      setArtistInfo({
+        address: artistAddress,
+        username: `artist_${artistAddress.slice(2, 8)}`,
+        displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
+      });
+    } catch (error) {
+      console.error('❌ Error loading artist info:', error);
+      setArtistInfo({
+        address: artistAddress,
+        username: `artist_${artistAddress.slice(2, 8)}`,
+        displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
+      });
+    }
+  };
 
   const loadArtistProfile = async () => {
     setLoading(true);
     try {
-      // Query artist's music from Envio - FIXED: Changed from 'owner' to 'artist'
+      // Query artist's music from Envio
       const query = `
         query GetArtistMusic($address: String!) {
           MusicNFT(
@@ -92,22 +161,60 @@ export default function ArtistProfilePage() {
       const result = await response.json();
       const music = result.data?.MusicNFT || [];
 
-      // Mock price for now (should come from smart contract)
-      const musicWithPrices = music.map((m: any) => ({
-        ...m,
-        price: '0.01' // 0.01 ETH per license
-      }));
-
-      setArtistMusic(musicWithPrices);
-
-      // Get artist info from Farcaster (if available)
-      // For now, use address
-      setArtistInfo({
-        address: artistAddress,
-        username: `artist_${artistAddress.slice(2, 8)}`,
-      });
-
       console.log('✅ Loaded', music.length, 'tracks from artist', artistAddress);
+
+      // Set music with loading state
+      const musicWithLoading: ArtistMusic[] = music.map((m: any) => ({
+        ...m,
+        isLoadingMetadata: true,
+      }));
+      setArtistMusic(musicWithLoading);
+
+      // Fetch metadata for each track
+      music.forEach(async (nft: any, index: number) => {
+        try {
+          const metadataUrl = resolveIPFS(nft.tokenURI);
+          console.log(`📦 Fetching metadata for token ${nft.tokenId}:`, metadataUrl);
+
+          const metadataRes = await fetch(metadataUrl);
+          if (!metadataRes.ok) {
+            throw new Error(`Failed to fetch metadata: ${metadataRes.status}`);
+          }
+
+          const metadata: MusicMetadata = await metadataRes.json();
+          console.log(`✅ Metadata loaded for token ${nft.tokenId}:`, metadata.name);
+
+          // Extract price from attributes if available
+          const priceAttr = metadata.attributes?.find(
+            (attr) => attr.trait_type === 'License Price' || attr.trait_type === 'Price'
+          );
+          const price = priceAttr?.value || '0.01';
+
+          // Update the specific track
+          setArtistMusic((prev) => {
+            const updated = [...prev];
+            updated[index] = {
+              ...updated[index],
+              metadata,
+              price: price.toString(),
+              isLoadingMetadata: false,
+            };
+            return updated;
+          });
+        } catch (error) {
+          console.error(`❌ Error loading metadata for token ${nft.tokenId}:`, error);
+          // Mark as failed to load
+          setArtistMusic((prev) => {
+            const updated = [...prev];
+            updated[index] = {
+              ...updated[index],
+              isLoadingMetadata: false,
+              price: '0.01', // Default price
+            };
+            return updated;
+          });
+        }
+      });
     } catch (error: any) {
       console.error('❌ Error loading artist profile:', error);
     } finally {
@@ -149,9 +256,9 @@ export default function ArtistProfilePage() {
       // Send transaction via Mini App context (works on mobile)
       const tx = await sendTransaction({
         to: MUSIC_NFT_ADDRESS,
-        value: parseEther(music.price),
+        value: parseEther(music.price || '0.01'),
         data,
-        gasLimit: 300000 // Optional: explicit gas limit
+        gasLimit: 300000
       });
 
       console.log('📤 Purchase transaction sent:', tx.hash);
@@ -161,7 +268,7 @@ export default function ArtistProfilePage() {
 
       await tx.wait();
 
-      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to this track\n\nTX: ${tx.hash}`);
+      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nTX: ${tx.hash}`);
 
       // Reload to show updated state
       setTimeout(loadArtistProfile, 2000);
@@ -172,7 +279,7 @@ export default function ArtistProfilePage() {
       if (error.message?.includes('user rejected') || error.code === 4001) {
         alert('❌ Transaction cancelled by user');
       } else if (error.message?.includes('insufficient')) {
-        alert('❌ Insufficient funds. You need ' + music.price + ' ETH + gas fees.');
+        alert('❌ Insufficient funds. You need ' + (music.price || '0.01') + ' ETH + gas fees.');
       } else {
         alert(`❌ Purchase failed: ${error.message || 'Unknown error'}`);
       }
@@ -181,7 +288,7 @@ export default function ArtistProfilePage() {
     }
   };
 
-  if (loading) {
+  if (loading && artistMusic.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
@@ -199,13 +306,26 @@ export default function ArtistProfilePage() {
         {/* Artist Header */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <div className="flex items-center gap-6 mb-6">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold">
-              🎵
-            </div>
+            {artistInfo?.pfpUrl ? (
+              <img
+                src={artistInfo.pfpUrl}
+                alt={artistInfo.username || 'Artist'}
+                className="w-24 h-24 rounded-full border-2 border-purple-300 shadow-lg object-cover"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
+                🎵
+              </div>
+            )}
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {artistInfo?.username || 'Artist'}
+                {artistInfo?.displayName || 'Loading...'}
               </h1>
+              {artistInfo?.username && (
+                <p className="text-gray-600 text-lg mb-2">
+                  @{artistInfo.username}
+                </p>
+              )}
               <p className="text-gray-600 font-mono text-sm">
                 {artistAddress.slice(0, 10)}...{artistAddress.slice(-8)}
               </p>
@@ -278,15 +398,36 @@ export default function ArtistProfilePage() {
                   className="bg-white border-2 border-gray-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-lg"
                 >
                   {/* Cover Art */}
-                  <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">
-                    <span className="text-7xl">🎵</span>
-                  </div>
+                  {music.metadata?.image ? (
+                    <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                      <img
+                        src={resolveIPFS(music.metadata.image)}
+                        alt={music.metadata.name || `Track #${music.tokenId}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          console.error('Failed to load image:', music.metadata?.image);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  ) : music.isLoadingMetadata ? (
+                    <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">
+                      <div className="text-center">
+                        <div className="animate-spin text-4xl mb-2">⏳</div>
+                        <p className="text-sm text-gray-600">Loading...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">
+                      <span className="text-7xl">🎵</span>
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="p-5 space-y-3">
                     <div>
-                      <p className="font-bold text-gray-900 text-lg">
-                        Track #{music.tokenId}
+                      <p className="font-bold text-gray-900 text-lg truncate">
+                        {music.metadata?.name || `Track #${music.tokenId}`}
                       </p>
                       <p className="text-sm text-gray-600">
                         Minted {new Date(music.mintedAt).toLocaleDateString()}
@@ -294,8 +435,12 @@ export default function ArtistProfilePage() {
                     </div>
 
                     {/* Audio Preview */}
-                    {music.tokenURI && (
-                      <div className="bg-gray-50 rounded-lg p-2">
+                    {music.isLoadingMetadata ? (
+                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 text-center">
+                        <p className="text-xs text-gray-500">Loading audio...</p>
+                      </div>
+                    ) : music.metadata?.animation_url ? (
+                      <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
                         <audio
                           controls
                           preload="metadata"
@@ -303,15 +448,21 @@ export default function ArtistProfilePage() {
                           style={{ height: '40px' }}
                         >
                           <source
-                            src={music.tokenURI.startsWith('ipfs://')
-                              ? music.tokenURI.replace('ipfs://', PINATA_GATEWAY)
-                              : music.tokenURI}
+                            src={resolveIPFS(music.metadata.animation_url)}
                             type="audio/mpeg"
+                          />
+                          <source
+                            src={resolveIPFS(music.metadata.animation_url)}
+                            type="audio/wav"
                           />
                         </audio>
                         <p className="text-xs text-gray-500 text-center mt-1">
                           Preview only - Buy to own
                         </p>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 text-center">
+                        <p className="text-xs text-gray-500">No preview available</p>
                       </div>
                     )}
 
@@ -321,7 +472,7 @@ export default function ArtistProfilePage() {
                         <div>
                           <p className="text-xs text-gray-600">License Price</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            {music.price} ETH
+                            {music.price || '0.01'} ETH
                           </p>
                         </div>
                         <div className="text-right">
@@ -344,12 +495,12 @@ export default function ArtistProfilePage() {
                           ? '⏳ Purchasing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '❌ Your Own Track'
-                          : `🛒 Buy License (${music.price} ETH)`
+                          : `🛒 Buy License (${music.price || '0.01'} ETH)`
                         }
                       </button>
 
                       {music.txHash && (
-                        <a
+                        
                           href={`https://testnet.monadscan.com/tx/${music.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"

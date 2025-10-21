@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { JsonRpcProvider, Wallet, Contract, Interface } from 'ethers';
+import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
 
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xaD849874B0111131A30D7D2185Cc1519A83dd3D0';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
@@ -34,7 +34,7 @@ const MUSIC_NFT_ABI = [
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { recipient, tokenURI, metadataCID, metadataCid, fid } = body;
+    const { recipient, tokenURI, metadataCID, metadataCid, price, fid } = body;
 
     let finalTokenURI = tokenURI;
     const cid = metadataCid || metadataCID;
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     console.log('🎵 MusicLicenseNFTv2 mint request:', {
       recipient,
       tokenURI: finalTokenURI,
+      price, // Log the artist's chosen price
       contract: MUSIC_NFT_ADDRESS,
     });
 
@@ -61,15 +62,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
+    // Parse price from string to wei
+    let priceInWei: string;
+    if (price) {
+      try {
+        // Convert price string (e.g., "0.01") to wei
+        priceInWei = parseEther(price.toString()).toString();
+      } catch (err) {
+        console.error('Invalid price format:', price);
+        priceInWei = parseEther('0.01').toString(); // Default fallback
+      }
+    } else {
+      priceInWei = parseEther('0.01').toString(); // Default fallback
+    }
+
+    console.log('💰 Price in wei:', priceInWei, `(${price || '0.01'} ETH)`);
+
     const provider = new JsonRpcProvider(MONAD_RPC);
     const deployer = new Wallet(DEPLOYER_PRIVATE_KEY, provider);
     const contract = new Contract(MUSIC_NFT_ADDRESS, MUSIC_NFT_ABI, deployer);
 
     console.log('⚡ Minting music master NFT...');
 
-    const price = '10000000000000000'; // 0.01 ETH
-
-    const tx = await contract.mintMaster(recipient, finalTokenURI, price);
+    const tx = await contract.mintMaster(recipient, finalTokenURI, priceInWei);
     console.log('📤 Mint tx sent:', tx.hash);
 
     const receipt = await tx.wait();
@@ -95,11 +110,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log('✅ Music Master NFT minted!', { tokenId, txHash: tx.hash });
+    console.log('✅ Music Master NFT minted!', { tokenId, txHash: tx.hash, price: price || '0.01' });
 
     if (fid) {
       try {
-        const castText = `🎵 New Music Master NFT Minted! Token #${tokenId}\n\n⚡ Free minting powered by EmpowerTours\n🎶 Purchase license to stream\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
+        const castText = `🎵 New Music Master NFT Minted! Token #${tokenId}\n\n💰 License Price: ${price || '0.01'} ETH\n⚡ Free minting powered by EmpowerTours\n🎶 Purchase license to stream\n\nView: https://testnet.monadscan.com/tx/${tx.hash}`;
 
         await fetch('https://api.neynar.com/v2/farcaster/cast', {
           method: 'POST',
@@ -123,7 +138,7 @@ export async function POST(req: NextRequest) {
       tokenId,
       recipient,
       tokenURI: finalTokenURI,
-      price,
+      price: price || '0.01',
     });
   } catch (error: any) {
     console.error('❌ Mint error:', error);

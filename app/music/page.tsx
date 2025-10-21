@@ -12,6 +12,7 @@ export default function MusicPage() {
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('0.01'); // NEW: Price field
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function MusicPage() {
     };
 
   const uploadAndMint = async () => {
+    // Validation
     if (previewFile && previewFile.size > 600 * 1024) {
       setError(`Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`);
       return;
@@ -55,6 +57,13 @@ export default function MusicPage() {
       if (!coverFile) missing.push('Cover Art');
       if (!description) missing.push('Song Title');
       setError(`Please fill all fields: ${missing.join(', ')}`);
+      return;
+    }
+
+    // Validate price
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum <= 0 || priceNum > 10) {
+      setError('Price must be between 0.001 and 10 ETH');
       return;
     }
 
@@ -98,6 +107,7 @@ export default function MusicPage() {
         body: JSON.stringify({
           recipient: walletAddress,
           tokenURI,
+          price, // Pass the artist's chosen price
           fid: farcasterFid || 0,
         }),
       });
@@ -114,6 +124,7 @@ export default function MusicPage() {
       setFullFile(null);
       setCoverFile(null);
       setDescription('');
+      setPrice('0.01');
     } catch (err: any) {
       console.error('❌ Error:', err);
       setError(err.message || 'Something went wrong');
@@ -200,7 +211,10 @@ export default function MusicPage() {
                 <p className="text-green-700">
                   <strong>Song:</strong> {description || 'Untitled'}
                 </p>
-                <a                
+                <p className="text-green-700">
+                  <strong>Price:</strong> {price} ETH per license
+                </p>
+                
                   href={`https://testnet.monadscan.com/tx/${success.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -226,6 +240,55 @@ export default function MusicPage() {
               <p className="text-xs text-gray-500 mt-1">{description.length}/200 characters</p>
             </div>
 
+            {/* NEW: Price Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                License Price (ETH) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  max="10"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0.01"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+                <div className="absolute right-3 top-3 text-gray-500 text-sm">ETH</div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                💰 How much fans pay to own this track (min: 0.001, max: 10)
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => setPrice('0.01')}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
+                >
+                  0.01 ETH
+                </button>
+                <button
+                  onClick={() => setPrice('0.05')}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
+                >
+                  0.05 ETH
+                </button>
+                <button
+                  onClick={() => setPrice('0.1')}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
+                >
+                  0.1 ETH
+                </button>
+                <button
+                  onClick={() => setPrice('1')}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
+                >
+                  1 ETH
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Preview Audio (30s clip) *
@@ -244,7 +307,7 @@ export default function MusicPage() {
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">Max 600KB (~30 seconds)</p>
+              <p className="text-xs text-gray-500 mt-1">Max 600KB (~30 seconds) - Public preview</p>
             </div>
 
             <div>
@@ -263,7 +326,7 @@ export default function MusicPage() {
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">Max 15MB</p>
+              <p className="text-xs text-gray-500 mt-1">Max 15MB - Only license owners can access</p>
             </div>
 
             <div>
@@ -296,6 +359,7 @@ export default function MusicPage() {
                 !fullFile ||
                 !coverFile ||
                 !description ||
+                !price ||
                 uploading ||
                 minting
               }
@@ -306,7 +370,7 @@ export default function MusicPage() {
                 ? '⏳ Uploading to IPFS...'
                 : minting
                 ? '⚡ Minting NFT (FREE)...'
-                : '🎵 Upload & Mint (FREE!)'}
+                : `🎵 Mint for ${price} ETH (FREE for you!)`}
             </button>
 
             {!walletAddress && (
@@ -318,6 +382,19 @@ export default function MusicPage() {
                 🔑 Connect Wallet First
               </button>
             )}
+          </div>
+
+          {/* Info Banner */}
+          <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-900 font-medium mb-2">
+              💡 How Music NFT Pricing Works:
+            </p>
+            <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+              <li>Set your price per license (what fans pay to own your track)</li>
+              <li>You receive 90% of sales + 10% royalties on resales</li>
+              <li>Minting is FREE - we cover all gas costs for you</li>
+              <li>Fans can preview 30s for free before buying</li>
+            </ul>
           </div>
         </div>
       </div>
