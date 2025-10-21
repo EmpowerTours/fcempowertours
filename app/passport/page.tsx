@@ -110,7 +110,7 @@ export default function PassportPage() {
         <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
           <h1 className="text-3xl font-bold text-white mb-4">Connection Issue</h1>
-          <p className="text-gray-400 mb-6">{contextError || 'Not connected to Farcaster'}</p>
+          <p className="text-gray-400 mb-6">{contextError?.message || 'Not connected to Farcaster'}</p>
           <button
             onClick={() => window.location.reload()}
             className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-all"
