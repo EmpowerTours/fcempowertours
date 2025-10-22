@@ -82,8 +82,8 @@ export function useFarcasterContext() {
         setContext(ctx);
         setError(null);
 
-        // 🔥 CRITICAL: Fetch real custody address from Neynar API
-        console.log('🔄 [5/5] Fetching custody address from Neynar for FID:', ctx.user.fid);
+        // 🔥 CRITICAL: Fetch VERIFIED custody address from Neynar API
+        console.log('🔄 [5/5] Fetching verified custody address from Neynar for FID:', ctx.user.fid);
         
         try {
           const neynarResponse = await fetch(
@@ -101,16 +101,18 @@ export function useFarcasterContext() {
             
             if (userData) {
               console.log('📦 Neynar user data:', userData);
+              console.log('📋 verifiedAddresses:', userData.verifiedAddresses);
+              console.log('📋 verified_addresses:', userData.verified_addresses);
               
-              // Try multiple paths to get custody address
+              // 🔥 IMPORTANT: Use verified_addresses, not custody_address
+              // verified_addresses are the actual wallet addresses linked to the Farcaster account
               let address = 
-                userData.custody_address ||
-                userData.verifiedAddresses?.eth_addresses?.[0] ||
                 userData.verified_addresses?.eth_addresses?.[0] ||
-                userData.wallet?.address;
+                userData.verifiedAddresses?.eth_addresses?.[0] ||
+                userData.verifiedAddresses?.ethAddresses?.[0];
 
               if (address) {
-                console.log('✅ Found custody address:', address);
+                console.log('✅ Found VERIFIED wallet address:', address);
                 setCustodyAddress(address);
                 setWalletConnected(true);
                 
@@ -125,9 +127,14 @@ export function useFarcasterContext() {
                   } : null
                 );
               } else {
-                console.warn('⚠️ No custody address in Neynar data');
-                console.log('📋 Neynar data keys:', Object.keys(userData));
-                setWalletConnected(true); // Still connected, just no address yet
+                console.warn('⚠️ No verified addresses found in Neynar data');
+                console.log('📋 Available keys:', Object.keys(userData));
+                // Fallback: use custody_address if no verified address
+                if (userData.custody_address) {
+                  console.log('⚠️ Falling back to custody_address:', userData.custody_address);
+                  setCustodyAddress(userData.custody_address);
+                  setWalletConnected(true);
+                }
               }
             }
           } else {
@@ -135,7 +142,6 @@ export function useFarcasterContext() {
           }
         } catch (neynarErr) {
           console.warn('⚠️ Neynar fetch failed:', neynarErr);
-          // Continue anyway, user is still logged in
           setWalletConnected(true);
         }
 
