@@ -104,9 +104,10 @@ export function useFarcasterContext() {
               console.log('📋 verifiedAddresses:', userData.verifiedAddresses);
               console.log('📋 verified_addresses:', userData.verified_addresses);
               
-              // 🔥 IMPORTANT: Use verified_addresses, not custody_address
-              // verified_addresses are the actual wallet addresses linked to the Farcaster account
+              // 🔥 IMPORTANT: Prioritize primary address, then verified addresses
               let address = 
+                userData.verified_addresses?.primary?.eth_address ||
+                userData.verifiedAddresses?.primary?.eth_address ||
                 userData.verified_addresses?.eth_addresses?.[0] ||
                 userData.verifiedAddresses?.eth_addresses?.[0] ||
                 userData.verifiedAddresses?.ethAddresses?.[0];
