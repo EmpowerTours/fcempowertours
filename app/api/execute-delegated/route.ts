@@ -5,7 +5,7 @@ import {
   incrementTransactionCount
 } from '@/lib/delegation-system';
 import {
-  createSafeUserOperationчини,
+  createSafeUserOperation,
   sendUserOperation,
   getUserOperationReceipt,
   estimateUserOperationGas
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       data: callData,
     });
 
-    // Estimate gas — FIX: Serialize BigInts
+    // Estimate gas — FIXED: Serialize BigInts
     try {
       const gasEstimate = await estimateUserOperationGas(userOp);
       console.log('Gas estimate:', {
