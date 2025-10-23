@@ -178,7 +178,7 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
       }
     }
     
-    // ==================== MINT PASSPORT COMMAND ====================
+    // ==================== MINT PASSPORT COMMAND (GASLESS VIA DELEGATION) ====================
     if (lowerCommand.includes('mint passport')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -187,18 +187,95 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
         });
       }
       
-      return NextResponse.json({
-        success: true,
-        action: 'navigate',
-        path: '/passport',
-        message: `🎫 Redirecting to Passport Minting...
+      try {
+        console.log('🎫 [BOT] Minting passport for:', userAddress);
+        
+        // Step 1: Check if user has active delegation
+        console.log('🔐 [BOT] Checking delegation...');
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        
+        if (!delegationData.success || !delegationData.delegation) {
+          console.warn('⚠️ [BOT] No active delegation - creating one...');
+          
+          // Create delegation
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['mint_passport', 'mint_music', 'swap', 'buy_itinerary']
+            })
+          });
+          
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+          
+          console.log('✅ [BOT] Delegation created');
+        } else {
+          console.log('✅ [BOT] Delegation active:', {
+            hoursLeft: delegationData.delegation.hoursLeft,
+            transactionsLeft: delegationData.delegation.transactionsLeft
+          });
+        }
+        
+        // Step 2: Detect country from user's IP
+        console.log('🌍 [BOT] Detecting location...');
+        const geoRes = await fetch(`${APP_URL}/api/geo`);
+        const geoData = await geoRes.json();
+        const countryCode = geoData.country || 'US';
+        const countryName = geoData.country_name || 'United States';
+        
+        console.log('📍 [BOT] Detected location:', countryCode, countryName);
+        
+        // Step 3: Execute mint via delegation
+        console.log('💳 [BOT] Executing mint via delegated transaction...');
+        const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'mint_passport',
+            params: {
+              countryCode,
+              countryName
+            }
+          })
+        });
+        
+        const mintData = await mintRes.json();
+        
+        if (!mintData.success) {
+          throw new Error(mintData.error || 'Mint failed');
+        }
+        
+        console.log('✅ [BOT] Passport minted:', mintData.txHash);
+        
+        return NextResponse.json({
+          success: true,
+          action: 'transaction',
+          message: `🎫 Passport Minted (FREE)!
 
-⚡ FREE minting - we pay gas!
-🌍 Choose from 195 countries
-✨ Each passport is a unique NFT
+${countryCode} ${countryName}
 
-Loading passport page...`
-      });
+TX: ${mintData.txHash?.slice(0, 10)}...
+
+⚡ Gasless transaction - we paid the gas!
+
+View: https://testnet.monadscan.com/tx/${mintData.txHash}`
+        });
+        
+      } catch (error: any) {
+        console.error('❌ [BOT] Passport mint error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `❌ Mint failed: ${error.message}`
+        });
+      }
     }
     
     // ==================== MINT MUSIC COMMAND ====================
