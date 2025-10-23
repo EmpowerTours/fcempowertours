@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
+import {
   getDelegation,
   hasPermission,
-  incrementTransactionCount 
+  incrementTransactionCount
 } from '@/lib/delegation-system';
-import { 
-  createSafeUserOperation, 
-  sendUserOperation, 
+import {
+  createSafeUserOperationчини,
+  sendUserOperation,
   getUserOperationReceipt,
-  estimateUserOperationGas 
+  estimateUserOperationGas
 } from '@/lib/pimlico';
 import { checkSafeBalance } from '@/lib/safe';
 import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
@@ -16,51 +16,51 @@ import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
 export async function POST(req: NextRequest) {
   try {
     const { userAddress, action, params } = await req.json();
-    
+
     if (!userAddress || !action) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields: userAddress, action' },
         { status: 400 }
       );
     }
-    
-    console.log('🔐 Checking delegation for:', userAddress);
-    
-    // ✅ GET DELEGATION SAFELY
+
+    console.log('Checking delegation for:', userAddress);
+
+    // GET DELEGATION SAFELY
     let delegation;
     try {
       delegation = await getDelegation(userAddress);
     } catch (error: any) {
-      console.error('❌ Error retrieving delegation:', error);
+      console.error('Error retrieving delegation:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to check delegation status' },
         { status: 500 }
       );
     }
-    
+
     if (!delegation) {
       return NextResponse.json(
         { success: false, error: 'No active delegation found. Please create one first!' },
         { status: 403 }
       );
     }
-    
-    console.log('✅ Delegation found:', {
+
+    console.log('Delegation found:', {
       expiresAt: new Date(delegation.expiresAt).toISOString(),
       permissions: delegation.config.permissions,
       used: delegation.transactionsExecuted,
       max: delegation.config.maxTransactions
     });
-    
+
     // Check if delegation expired
     if (delegation.expiresAt < Date.now()) {
-      console.log('⏰ Delegation expired');
+      console.log('Delegation expired');
       return NextResponse.json(
         { success: false, error: 'Delegation has expired' },
         { status: 403 }
       );
     }
-    
+
     // Check permissions
     const hasAccess = await hasPermission(userAddress, action);
     if (!hasAccess) {
@@ -69,9 +69,9 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-    
-    console.log('✅ User has permission for:', action);
-    
+
+    console.log('User has permission for:', action);
+
     // Check transaction limit
     if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
       return NextResponse.json(
@@ -79,14 +79,14 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-    
-    console.log(`📊 Transaction count: ${delegation.transactionsExecuted}/${delegation.config.maxTransactions}`);
-    
-    // Prepare transaction based on action
+
+    console.log(`Transaction count: ${delegation.transactionsExecuted}/${delegation.config.maxTransactions}`);
+
+    // Prepare transaction
     let targetContract: Address;
     let callData: Hex;
     let value = 0n;
-    
+
     switch (action) {
       case 'mint_passport':
         targetContract = process.env.NEXT_PUBLIC_PASSPORT as Address;
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
           args: [userAddress as Address],
         }) as Hex;
         break;
-        
+
       case 'mint_music':
         targetContract = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS as Address;
         value = 0n;
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
           ],
         }) as Hex;
         break;
-        
+
       case 'swap':
         targetContract = process.env.TOKEN_SWAP_ADDRESS as Address;
         value = parseEther(params.amount || '0.1');
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
           functionName: 'swap',
         }) as Hex;
         break;
-        
+
       case 'buy_itinerary':
         targetContract = process.env.NEXT_PUBLIC_MARKET as Address;
         value = 0n;
@@ -158,45 +158,51 @@ export async function POST(req: NextRequest) {
           args: [BigInt(params.itineraryId || 0)],
         }) as Hex;
         break;
-        
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
           { status: 400 }
         );
     }
-    
-    // Check if Safe has enough balance for the value transfer
+
+    // Check balance
     if (value > 0n) {
       const hasBalance = await checkSafeBalance(value);
       if (!hasBalance) {
         return NextResponse.json(
-          { 
-            success: false, 
-            error: `Safe account needs ${Number(value) / 1e18} MON. Please fund it first.`,
+          {
+            success: false,
+            error: `Safe account needs ${(Number(value) / 1e18).toFixed(2)} MON. Please fund it first.`,
             needsFunding: true,
           },
           { status: 400 }
         );
       }
     }
-    
-    console.log('🚀 Creating Safe UserOp for', action);
+
+    console.log('Creating Safe UserOp for', action);
     console.log('Target:', targetContract);
     console.log('Value:', value.toString());
-    
+
     // Create user operation
     const userOp = await createSafeUserOperation({
       to: targetContract,
       value,
       data: callData,
     });
-    
-    // Estimate gas
+
+    // Estimate gas — FIX: Serialize BigInts
     try {
       const gasEstimate = await estimateUserOperationGas(userOp);
-      console.log('⛽ Gas estimate:', gasEstimate);
-      
+      console.log('Gas estimate:', {
+        callGasLimit: gasEstimate.callGasLimit?.toString(),
+        verificationGasLimit: gasEstimate.verificationGasLimit?.toString(),
+        preVerificationGas: gasEstimate.preVerificationGas?.toString(),
+        maxFeePerGas: gasEstimate.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasEstimate.maxPriorityFeePerGas?.toString(),
+      });
+
       if (gasEstimate.callGasLimit) {
         userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
       }
@@ -207,47 +213,45 @@ export async function POST(req: NextRequest) {
         userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
       }
     } catch (gasError) {
-      console.warn('⚠️ Gas estimation failed, using defaults:', gasError);
+      console.warn('Gas estimation failed, using defaults:', gasError);
     }
-    
-    // Send user operation
-    console.log('📤 Sending UserOp via Pimlico...');
+
+    // Send
+    console.log('Sending UserOp via Pimlico...');
     const userOpHash = await sendUserOperation(userOp);
-    
-    console.log('✅ UserOp sent:', userOpHash);
-    
-    // Wait for receipt (with timeout)
+    console.log('UserOp sent:', userOpHash);
+
+    // Wait for receipt
     let receipt = null;
     for (let i = 0; i < 30; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       receipt = await getUserOperationReceipt(userOpHash);
       if (receipt) break;
     }
-    
+
     if (!receipt) {
       throw new Error('Transaction timeout - check Pimlico dashboard');
     }
-    
+
     const txHash = receipt.receipt?.transactionHash;
-    
-    console.log('✅ Transaction confirmed:', txHash);
-    
-    // ✅ INCREMENT TRANSACTION COUNT
+    console.log('Transaction confirmed:', txHash);
+
+    // Increment count
     try {
       await incrementTransactionCount(userAddress);
-      console.log('✅ Transaction count updated');
+      console.log('Transaction count updated');
     } catch (error) {
-      console.warn('⚠️ Failed to update transaction count:', error);
+      console.warn('Failed to update transaction count:', error);
     }
-    
+
     // Calculate gas sponsored
-    const callGas = BigInt(userOp.callGasLimit);
-    const verifyGas = BigInt(userOp.verificationGasLimit);
-    const preVerifyGas = BigInt(userOp.preVerificationGas);
-    const gasPrice = BigInt(userOp.maxFeePerGas);
+    const callGas = BigInt(userOp.callGasLimit || 0n);
+    const verifyGas = BigInt(userOp.verificationGasLimit || 0n);
+    const preVerifyGas = BigInt(userOp.preVerificationGas || 0n);
+    const gasPrice = BigInt(userOp.maxFeePerGas || 0n);
     const totalGas = (callGas + verifyGas + preVerifyGas) * gasPrice;
     const gasSponsored = (Number(totalGas) / 1e18).toFixed(4);
-    
+
     return NextResponse.json({
       success: true,
       userOpHash,
@@ -257,14 +261,13 @@ export async function POST(req: NextRequest) {
       gasSponsored,
       message: 'Transaction executed successfully via Pimlico delegation',
     });
-    
+
   } catch (error: any) {
-    console.error('❌ Delegated execution error:', error);
+    console.error('Delegated execution error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: error.message || 'Execution failed',
-        details: error.stack 
       },
       { status: 500 }
     );
