@@ -26,7 +26,6 @@ export async function POST(req: NextRequest) {
 
     console.log('Checking delegation for:', userAddress);
 
-    // GET DELEGATION SAFELY
     let delegation;
     try {
       delegation = await getDelegation(userAddress);
@@ -52,7 +51,6 @@ export async function POST(req: NextRequest) {
       max: delegation.config.maxTransactions
     });
 
-    // Check if delegation expired
     if (delegation.expiresAt < Date.now()) {
       console.log('Delegation expired');
       return NextResponse.json(
@@ -61,7 +59,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check permissions
     const hasAccess = await hasPermission(userAddress, action);
     if (!hasAccess) {
       return NextResponse.json(
@@ -72,7 +69,6 @@ export async function POST(req: NextRequest) {
 
     console.log('User has permission for:', action);
 
-    // Check transaction limit
     if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
       return NextResponse.json(
         { success: false, error: 'Transaction limit reached' },
@@ -82,7 +78,6 @@ export async function POST(req: NextRequest) {
 
     console.log(`Transaction count: ${delegation.transactionsExecuted}/${delegation.config.maxTransactions}`);
 
-    // Prepare transaction
     let targetContract: Address;
     let callData: Hex;
     let value = 0n;
@@ -166,7 +161,6 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // Check balance
     if (value > 0n) {
       const hasBalance = await checkSafeBalance(value);
       if (!hasBalance) {
@@ -185,14 +179,12 @@ export async function POST(req: NextRequest) {
     console.log('Target:', targetContract);
     console.log('Value:', value.toString());
 
-    // Create user operation
     const userOp = await createSafeUserOperation({
       to: targetContract,
       value,
       data: callData,
     });
 
-    // Estimate gas — FIXED: Serialize BigInts
     try {
       const gasEstimate = await estimateUserOperationGas(userOp);
       console.log('Gas estimate:', {
@@ -203,25 +195,17 @@ export async function POST(req: NextRequest) {
         maxPriorityFeePerGas: gasEstimate.maxPriorityFeePerGas?.toString(),
       });
 
-      if (gasEstimate.callGasLimit) {
-        userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
-      }
-      if (gasEstimate.verificationGasLimit) {
-        userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
-      }
-      if (gasEstimate.preVerificationGas) {
-        userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
-      }
+      if (gasEstimate.callGasLimit) userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
+      if (gasEstimate.verificationGasLimit) userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
+      if (gasEstimate.preVerificationGas) userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
     } catch (gasError) {
       console.warn('Gas estimation failed, using defaults:', gasError);
     }
 
-    // Send
     console.log('Sending UserOp via Pimlico...');
     const userOpHash = await sendUserOperation(userOp);
     console.log('UserOp sent:', userOpHash);
 
-    // Wait for receipt
     let receipt = null;
     for (let i = 0; i < 30; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -229,14 +213,11 @@ export async function POST(req: NextRequest) {
       if (receipt) break;
     }
 
-    if (!receipt) {
-      throw new Error('Transaction timeout - check Pimlico dashboard');
-    }
+    if (!receipt) throw new Error('Transaction timeout - check Pimlico dashboard');
 
     const txHash = receipt.receipt?.transactionHash;
     console.log('Transaction confirmed:', txHash);
 
-    // Increment count
     try {
       await incrementTransactionCount(userAddress);
       console.log('Transaction count updated');
@@ -244,7 +225,6 @@ export async function POST(req: NextRequest) {
       console.warn('Failed to update transaction count:', error);
     }
 
-    // Calculate gas sponsored
     const callGas = BigInt(userOp.callGasLimit || 0n);
     const verifyGas = BigInt(userOp.verificationGasLimit || 0n);
     const preVerifyGas = BigInt(userOp.preVerificationGas || 0n);
