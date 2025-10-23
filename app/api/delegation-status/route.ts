@@ -36,11 +36,11 @@ export async function GET(req: NextRequest) {
       delegation: {
         user: delegation.user,
         bot: delegation.bot,
-        hoursLeft,
-        minutesLeft,
-        totalTimeLeft: `${hoursLeft}h ${minutesLeft}m`,
+        hoursLeft: Math.max(0, hoursLeft),
+        minutesLeft: Math.max(0, minutesLeft),
+        totalTimeLeft: `${Math.max(0, hoursLeft)}h ${Math.max(0, minutesLeft)}m`,
         transactionsUsed: delegation.transactionsExecuted,
-        transactionsLeft,
+        transactionsLeft: Math.max(0, transactionsLeft),
         maxTransactions: delegation.config.maxTransactions,
         permissions: delegation.config.permissions,
         createdAt: new Date(delegation.createdAt).toISOString(),
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('❌ Error getting delegation status:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }
@@ -91,11 +91,11 @@ export async function POST(req: NextRequest) {
       delegation: {
         user: delegation.user,
         bot: delegation.bot,
-        hoursLeft,
-        minutesLeft,
-        totalTimeLeft: `${hoursLeft}h ${minutesLeft}m`,
+        hoursLeft: Math.max(0, hoursLeft),
+        minutesLeft: Math.max(0, minutesLeft),
+        totalTimeLeft: `${Math.max(0, hoursLeft)}h ${Math.max(0, minutesLeft)}m`,
         transactionsUsed: delegation.transactionsExecuted,
-        transactionsLeft,
+        transactionsLeft: Math.max(0, transactionsLeft),
         maxTransactions: delegation.config.maxTransactions,
         permissions: delegation.config.permissions,
         createdAt: new Date(delegation.createdAt).toISOString(),
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('❌ Error getting delegation status:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }

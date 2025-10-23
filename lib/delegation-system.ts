@@ -6,7 +6,7 @@ export interface DelegationConfig {
   durationHours: number;
 }
 
-export interface StoredDelegation {
+export interface Delegation {
   user: string;
   bot: string;
   expiresAt: number;
@@ -16,17 +16,43 @@ export interface StoredDelegation {
 }
 
 /**
+ * Safely parse delegation data from Redis
+ * Handles both string and object types
+ */
+function parseDelegationData(data: any): Delegation | null {
+  if (!data) return null;
+
+  try {
+    // If it's a string, parse it
+    if (typeof data === 'string') {
+      return JSON.parse(data) as Delegation;
+    }
+    
+    // If it's already an object and valid, return it
+    if (typeof data === 'object' && data.user && data.bot) {
+      return data as Delegation;
+    }
+
+    console.warn('⚠️ Invalid delegation data format:', typeof data);
+    return null;
+  } catch (error) {
+    console.error('❌ Failed to parse delegation:', error);
+    return null;
+  }
+}
+
+/**
  * Create a delegation for a user
  * Stores in Redis with TTL
  */
 export async function createDelegation(
   userAddress: string,
   config: DelegationConfig
-): Promise<StoredDelegation> {
-  const botAddress = process.env.BOT_SMART_ACCOUNT_ADDRESS || 
+): Promise<Delegation> {
+  const botAddress = process.env.BOT_SMART_ACCOUNT_ADDRESS ||
     '0x9c751Ba8D48f9Fa49Af0ef0A8227D0189aEd84f5';
 
-  const delegation: StoredDelegation = {
+  const delegation: Delegation = {
     user: userAddress.toLowerCase(),
     bot: botAddress.toLowerCase(),
     expiresAt: Date.now() + (config.durationHours * 60 * 60 * 1000),
@@ -51,23 +77,34 @@ export async function createDelegation(
 /**
  * Get active delegation for user
  */
-export async function getDelegation(userAddress: string): Promise<StoredDelegation | null> {
-  const key = `delegation:${userAddress.toLowerCase()}`;
-  const result = await redis.get(key);
+export async function getDelegation(userAddress: string): Promise<Delegation | null> {
+  try {
+    const key = `delegation:${userAddress.toLowerCase()}`;
+    const data = await redis.get(key);
 
-  if (!result) {
+    if (!data) {
+      console.log('⚠️ No delegation found for:', userAddress);
+      return null;
+    }
+
+    const delegation = parseDelegationData(data);
+
+    if (!delegation) {
+      console.warn('⚠️ Failed to parse delegation for:', userAddress);
+      return null;
+    }
+
+    if (delegation.expiresAt < Date.now()) {
+      await redis.del(key);
+      console.log(`⚠️ Delegation expired for ${userAddress}`);
+      return null;
+    }
+
+    return delegation;
+  } catch (error) {
+    console.error('❌ Error getting delegation:', error);
     return null;
   }
-
-  const delegation = JSON.parse(result as string) as StoredDelegation;
-
-  if (delegation.expiresAt < Date.now()) {
-    await redis.del(key);
-    console.log(`⚠️ Delegation expired for ${userAddress}`);
-    return null;
-  }
-
-  return delegation;
 }
 
 /**
@@ -77,31 +114,50 @@ export async function hasPermission(
   userAddress: string,
   action: string
 ): Promise<boolean> {
-  const delegation = await getDelegation(userAddress);
-  
-  if (!delegation) {
+  try {
+    const delegation = await getDelegation(userAddress);
+
+    if (!delegation) {
+      console.log('❌ No delegation found');
+      return false;
+    }
+
+    if (!delegation.config.permissions.includes(action)) {
+      console.log(`❌ No permission for action: ${action}`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error checking permission:', error);
     return false;
   }
-
-  return delegation.config.permissions.includes(action);
 }
 
 /**
  * Increment transaction counter
  */
 export async function incrementTransactionCount(userAddress: string): Promise<void> {
-  const key = `delegation:${userAddress.toLowerCase()}`;
-  const delegation = await getDelegation(userAddress);
+  try {
+    const key = `delegation:${userAddress.toLowerCase()}`;
+    const data = await redis.get(key);
 
-  if (!delegation) {
-    throw new Error('No active delegation found');
-  }
+    const delegation = parseDelegationData(data);
+    if (!delegation) {
+      throw new Error('No active delegation found');
+    }
 
-  delegation.transactionsExecuted++;
+    delegation.transactionsExecuted++;
 
-  const ttl = Math.floor((delegation.expiresAt - Date.now()) / 1000);
-  if (ttl > 0) {
-    await redis.setex(key, ttl, JSON.stringify(delegation));
+    const remainingTime = delegation.expiresAt - Date.now();
+    const ttlSeconds = Math.max(1, Math.floor(remainingTime / 1000));
+
+    await redis.setex(key, ttlSeconds, JSON.stringify(delegation));
+
+    console.log(`✅ Transaction count incremented: ${delegation.transactionsExecuted}/${delegation.config.maxTransactions}`);
+  } catch (error) {
+    console.error('❌ Error incrementing transaction count:', error);
+    throw error;
   }
 }
 
@@ -120,24 +176,39 @@ export async function revokeDelegation(userAddress: string): Promise<void> {
 export async function getDelegationStats(): Promise<{
   activeDelegations: number;
   totalKeys: number;
+  totalTransactionsExecuted: number;
   timestamp: number;
 }> {
-  const keys = await redis.keys('delegation:*');
-  
-  let activeDelegations = 0;
-  for (const key of keys) {
-    const data = await redis.get(key);
-    if (data) {
-      const delegation = JSON.parse(data as string) as StoredDelegation;
-      if (delegation.expiresAt > Date.now()) {
-        activeDelegations++;
+  try {
+    const keys = await redis.keys('delegation:*');
+
+    let activeDelegations = 0;
+    let totalTransactionsExecuted = 0;
+
+    for (const key of keys) {
+      const data = await redis.get(key);
+      if (data) {
+        const delegation = parseDelegationData(data);
+        if (delegation && delegation.expiresAt > Date.now()) {
+          activeDelegations++;
+          totalTransactionsExecuted += delegation.transactionsExecuted;
+        }
       }
     }
-  }
 
-  return {
-    activeDelegations,
-    totalKeys: keys.length,
-    timestamp: Date.now(),
-  };
+    return {
+      activeDelegations,
+      totalKeys: keys.length,
+      totalTransactionsExecuted,
+      timestamp: Date.now(),
+    };
+  } catch (error) {
+    console.error('❌ Error getting delegation stats:', error);
+    return {
+      activeDelegations: 0,
+      totalKeys: 0,
+      totalTransactionsExecuted: 0,
+      timestamp: Date.now(),
+    };
+  }
 }

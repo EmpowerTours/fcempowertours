@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
 import { 
   getDelegation,
   hasPermission,
@@ -20,25 +19,34 @@ export async function POST(req: NextRequest) {
     
     if (!userAddress || !action) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields: userAddress, action' },
         { status: 400 }
       );
     }
     
     console.log('🔐 Checking delegation for:', userAddress);
     
-    // ✅ USE NEW DELEGATION SYSTEM
-    const delegation = await getDelegation(userAddress);
+    // ✅ GET DELEGATION SAFELY
+    let delegation;
+    try {
+      delegation = await getDelegation(userAddress);
+    } catch (error: any) {
+      console.error('❌ Error retrieving delegation:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to check delegation status' },
+        { status: 500 }
+      );
+    }
     
     if (!delegation) {
       return NextResponse.json(
-        { success: false, error: 'No active delegation found. Run /create-delegation first!' },
+        { success: false, error: 'No active delegation found. Please create one first!' },
         { status: 403 }
       );
     }
     
     console.log('✅ Delegation found:', {
-      expiresAt: new Date(delegation.expiresAt),
+      expiresAt: new Date(delegation.expiresAt).toISOString(),
       permissions: delegation.config.permissions,
       used: delegation.transactionsExecuted,
       max: delegation.config.maxTransactions
@@ -46,8 +54,9 @@ export async function POST(req: NextRequest) {
     
     // Check if delegation expired
     if (delegation.expiresAt < Date.now()) {
+      console.log('⏰ Delegation expired');
       return NextResponse.json(
-        { success: false, error: 'Delegation expired' },
+        { success: false, error: 'Delegation has expired' },
         { status: 403 }
       );
     }
