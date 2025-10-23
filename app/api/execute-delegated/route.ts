@@ -185,8 +185,27 @@ export async function POST(req: NextRequest) {
       data: callData,
     });
 
+    // 🔥 FIX: Convert all BigInt values to strings before gas estimation
+    // This prevents "Do not know how to serialize a BigInt" errors from Pimlico
+    const userOpForEstimate = {
+      ...userOp,
+      to: userOp.to,
+      from: userOp.from,
+      nonce: userOp.nonce?.toString() ?? '0',
+      initCode: userOp.initCode ? userOp.initCode.toString() : '0x',
+      callData: userOp.callData ? userOp.callData.toString() : '0x',
+      callGasLimit: userOp.callGasLimit?.toString() ?? '0',
+      verificationGasLimit: userOp.verificationGasLimit?.toString() ?? '0',
+      preVerificationGas: userOp.preVerificationGas?.toString() ?? '0',
+      maxFeePerGas: userOp.maxFeePerGas?.toString() ?? '0',
+      maxPriorityFeePerGas: userOp.maxPriorityFeePerGas?.toString() ?? '0',
+      paymasterAndData: userOp.paymasterAndData ? userOp.paymasterAndData.toString() : '0x',
+      signature: userOp.signature ? userOp.signature.toString() : '0x',
+    };
+
     try {
-      const gasEstimate = await estimateUserOperationGas(userOp);
+      console.log('📊 Estimating gas with converted values...');
+      const gasEstimate = await estimateUserOperationGas(userOpForEstimate as any);
       console.log('Gas estimate:', {
         callGasLimit: gasEstimate.callGasLimit?.toString(),
         verificationGasLimit: gasEstimate.verificationGasLimit?.toString(),
@@ -198,11 +217,17 @@ export async function POST(req: NextRequest) {
       if (gasEstimate.callGasLimit) userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
       if (gasEstimate.verificationGasLimit) userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
       if (gasEstimate.preVerificationGas) userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
+      if (gasEstimate.maxFeePerGas) userOp.maxFeePerGas = BigInt(gasEstimate.maxFeePerGas);
+      if (gasEstimate.maxPriorityFeePerGas) userOp.maxPriorityFeePerGas = BigInt(gasEstimate.maxPriorityFeePerGas);
     } catch (gasError) {
-      console.warn('Gas estimation failed, using defaults:', gasError);
+      console.warn('⚠️ Gas estimation failed, using defaults:', gasError);
+      // Use reasonable defaults
+      userOp.callGasLimit = 150000n;
+      userOp.verificationGasLimit = 150000n;
+      userOp.preVerificationGas = 21000n;
     }
 
-    console.log('Sending UserOp via Pimlico...');
+    console.log('📤 Sending UserOp via Pimlico...');
     const userOpHash = await sendUserOperation(userOp);
     console.log('UserOp sent:', userOpHash);
 
@@ -243,7 +268,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Delegated execution error:', error);
+    console.error('❌ Delegated execution error:', error);
     return NextResponse.json(
       {
         success: false,
