@@ -61,6 +61,29 @@ export default function PassportPage() {
     setSuccess('');
 
     try {
+      console.log('🎫 Step 1: Approving TOURS...');
+      
+      // First, approve the passport contract to spend TOURS
+      const approveRes = await fetch('/api/approve-tours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: '100' }),
+      });
+
+      if (!approveRes.ok) {
+        const approveErr = await approveRes.json();
+        throw new Error(`Approval failed: ${approveErr.error}`);
+      }
+
+      const approveData = await approveRes.json();
+      console.log('✅ TOURS approved:', approveData.txHash);
+      setSuccess('✅ Step 1/2: Approved TOURS\n⏳ Minting passport...');
+      
+      // Wait for blockchain
+      await new Promise(r => setTimeout(r, 2000));
+
+      console.log('🎫 Step 2: Minting passport...');
+
       const response = await fetch('/api/mint-passport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,10 +101,11 @@ export default function PassportPage() {
       }
 
       const { txHash, tokenId } = await response.json();
-      setSuccess(`🎉 Passport #${tokenId} minted!`);
+      setSuccess(`🎉 Passport #${tokenId} minted!\n\n${txHash.slice(0, 10)}...`);
       setSelectedCountryCode('');
     } catch (err: any) {
-      setError(err.message || 'Mint failed');
+      console.error('❌ Error:', err);
+      setError(err.message || 'Failed to mint passport');
     } finally {
       setIsLoading(false);
     }
@@ -203,7 +227,7 @@ export default function PassportPage() {
           className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
           style={{ minHeight: '56px' }}
         >
-          {isLoading ? '⏳ Minting...' : '🎫 Mint Passport (FREE)'}
+          {isLoading ? '⏳ Processing (2 steps)...' : '🎫 Mint Passport (FREE)'}
         </button>
 
         <p className="text-gray-500 text-xs text-center mt-4">
