@@ -44,19 +44,18 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
         address: ENTRYPOINT_ADDRESS,
         version: '0.6',
       },
-      version: '1.4.1', // Safe contract version
-      address: SAFE_ACCOUNT, // Use existing Safe
-      saltNonce: 0n, // Explicit default; change if needed for address match
+      version: '1.4.1',
+      address: SAFE_ACCOUNT,
+      saltNonce: 0n,
     });
 
     const smartAccountClient = createSmartAccountClient({
       account: safeSmartAccount,
       chain: monadTestnet,
-      bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 60000 }), // Increased timeout
-      pollingInterval: 200, // Faster polling for inclusion
+      bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 60000 }),
+      pollingInterval: 200,
     });
 
-    // Debug: Check enabled modules (using correct method)
     const modulesAbi = parseAbi([
       'function getModulesPaginated(address start, uint256 pageSize) external view returns (address[] array, address next)',
     ]);
@@ -68,7 +67,6 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
     });
     console.log('Enabled modules:', modules);
 
-    // Debug: Check fallback handler using storage slot instead of function call
     const FALLBACK_HANDLER_STORAGE_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
     const storageValue = await publicClient.getStorageAt({
       address: SAFE_ACCOUNT,
@@ -87,20 +85,18 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
   }
 }
 
-// Helper: Send transaction through Safe SmartAccount
-export async function sendSafeTransaction(params: {
-  to: Address;
-  value?: bigint;
-  data?: Hex;
-}) {
+export async function sendSafeTransaction(
+  calls: Array<{ to: Address; value: bigint; data: Hex }>
+) {
   try {
-    console.log('📤 Sending transaction through Safe SmartAccount...');
+    console.log('📤 Sending batched transaction through Safe SmartAccount...');
+    console.log('📦 Number of calls:', calls.length);
+    
     const smartAccountClient = await createSafeSmartAccountClient();
 
-    // Get current gas prices from network
     const gasPrice = await publicClient.getGasPrice();
-    const maxFeePerGas = (gasPrice * 120n) / 100n; // 20% buffer
-    const maxPriorityFeePerGas = gasPrice / 10n; // 10% of gas price
+    const maxFeePerGas = (gasPrice * 120n) / 100n;
+    const maxPriorityFeePerGas = gasPrice / 10n;
 
     console.log('⛽ Gas prices:', {
       gasPrice: gasPrice.toString(),
@@ -109,11 +105,7 @@ export async function sendSafeTransaction(params: {
     });
 
     const hash = await smartAccountClient.sendUserOperation({
-      calls: [{
-        to: params.to,
-        value: params.value || 0n,
-        data: params.data || '0x',
-      }],
+      calls,
       maxFeePerGas,
       maxPriorityFeePerGas,
     });
@@ -127,7 +119,6 @@ export async function sendSafeTransaction(params: {
   }
 }
 
-// Helper: Check Safe balance
 export async function getSafeBalance(): Promise<bigint> {
   try {
     const balance = await publicClient.getBalance({

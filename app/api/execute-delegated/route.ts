@@ -4,8 +4,8 @@ import {
   hasPermission,
   incrementTransactionCount
 } from '@/lib/delegation-system';
-import { sendSafeTransaction, checkSafeBalance } from '@/lib/pimlico-safe-aa';
-import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
+import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { encodeFunctionData, parseEther, Address, Hex, parseAbi } from 'viem';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
 
     console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
 
-    // Check delegation
     const delegation = await getDelegation(userAddress);
     if (!delegation || delegation.expiresAt < Date.now()) {
       return NextResponse.json(
@@ -29,7 +28,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check permission
     if (!(await hasPermission(userAddress, action))) {
       return NextResponse.json(
         { success: false, error: `No permission for ${action}` },
@@ -37,7 +35,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check transaction limit
     if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
       return NextResponse.json(
         { success: false, error: 'Transaction limit reached' },
@@ -48,30 +45,57 @@ export async function POST(req: NextRequest) {
     console.log('✅ Delegation valid, transactions left:', 
       delegation.config.maxTransactions - delegation.transactionsExecuted);
 
-    let targetContract: Address;
-    let callData: Hex;
-    let value = 0n;
+    const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+    const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
+    const MINT_PRICE = parseEther('10');
 
-    // Parse action
     switch (action) {
       case 'mint_passport':
-        targetContract = process.env.NEXT_PUBLIC_PASSPORT as Address;
-        value = parseEther('0.01');
-        callData = encodeFunctionData({
-          abi: [{
-            inputs: [{ name: 'to', type: 'address' }],
-            name: 'mint',
-            outputs: [],
-            stateMutability: 'payable',
-            type: 'function',
-          }],
-          functionName: 'mint',
-          args: [userAddress as Address],
-        }) as Hex;
-        console.log('🎫 Action: mint_passport');
-        console.log('  Target:', targetContract);
-        console.log('  Value:', value.toString(), 'wei');
-        break;
+        console.log('🎫 Action: mint_passport (batched approve + mint)');
+
+        const calls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [PASSPORT_NFT, MINT_PRICE],
+            }) as Hex,
+          },
+          {
+            to: PASSPORT_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mint(address to, string countryCode, string countryName, string region, string continent, string uri) external returns (uint256)'
+              ]),
+              functionName: 'mint',
+              args: [
+                userAddress as Address,
+                params?.countryCode || 'US',
+                params?.countryName || 'United States',
+                params?.region || 'Americas',
+                params?.continent || 'North America',
+                params?.uri || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing batched transaction...');
+        const txHash = await sendSafeTransaction(calls);
+
+        console.log('✅ Transaction successful, TX:', txHash);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash,
+          action,
+          userAddress,
+          message: `${action} executed successfully`,
+        });
 
       default:
         return NextResponse.json(
@@ -80,41 +104,8 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // Check Safe has enough balance
-    if (value > 0n && !(await checkSafeBalance(value))) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient Safe balance', needsFunding: true },
-        { status: 400 }
-      );
-    }
-
-    console.log('💳 Executing delegated transaction...');
-
-    // Send through Safe SmartAccount (handles all AA logic internally)
-    const txHash = await sendSafeTransaction({
-      to: targetContract,
-      value,
-      data: callData,
-    });
-
-    console.log('✅ Transaction successful');
-    console.log('   TX Hash:', txHash);
-
-    // Increment transaction count
-    await incrementTransactionCount(userAddress);
-    console.log('📝 Transaction count incremented');
-
-    return NextResponse.json({
-      success: true,
-      txHash,
-      action,
-      userAddress,
-      message: `${action} executed successfully`,
-    });
-
   } catch (error: any) {
     console.error('❌ [DELEGATED] Execution error:', error.message);
-    console.error('   Stack:', error.stack);
     
     return NextResponse.json(
       { 
