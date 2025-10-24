@@ -46,7 +46,6 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
         address: ENTRYPOINT_ADDRESS,
         version: '0.7',
       },
-      safeVersion: '1.4.1',
     });
 
     const smartAccountClient = createSmartAccountClient({
