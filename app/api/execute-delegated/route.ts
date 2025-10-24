@@ -12,29 +12,36 @@ import {
 } from '@/lib/pimlico';
 import { checkSafeBalance } from '@/lib/safe';
 import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
-import { privateKeyToAccount, signMessage } from 'viem/accounts';
-import { toBytes } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
-const DEPLOYER_PRIVATE_KEY = (process.env.DEPLOYER_PRIVATE_KEY || '0x') as `0x${string}`;
+
+// Use the pimlico script private key (Safe owner)
+// This should be: 0xc65948a8029bf615d2ec716435dbedc5187ac2ba91e248e65e0ed33ecd3175e2
+const SAFE_OWNER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
 
 // Sign UserOp hash with Safe owner's private key
 async function signUserOp(userOpHash: Hex): Promise<Hex> {
-  if (!DEPLOYER_PRIVATE_KEY || DEPLOYER_PRIVATE_KEY === '0x') {
-    throw new Error('DEPLOYER_PRIVATE_KEY not configured');
+  if (!SAFE_OWNER_PRIVATE_KEY) {
+    throw new Error('SAFE_OWNER_PRIVATE_KEY not configured in environment');
   }
 
-  const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
-  
-  console.log('🔐 Signing UserOp with account:', account.address);
-  
-  // Sign the UserOp hash
-  const signature = await account.signMessage({
-    message: { raw: userOpHash },
-  });
+  try {
+    const account = privateKeyToAccount(SAFE_OWNER_PRIVATE_KEY);
+    
+    console.log('🔐 Signing UserOp with Safe owner:', account.address);
+    
+    // Sign the UserOp hash
+    const signature = await account.signMessage({
+      message: { raw: userOpHash },
+    });
 
-  console.log('✅ Signature generated:', signature.slice(0, 20) + '...');
-  return signature as Hex;
+    console.log('✅ Signature generated:', signature.slice(0, 20) + '...');
+    return signature as Hex;
+  } catch (err: any) {
+    console.error('❌ Signing error:', err.message);
+    throw err;
+  }
 }
 
 export async function POST(req: NextRequest) {
