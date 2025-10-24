@@ -13,15 +13,19 @@ import {
 import { checkSafeBalance } from '@/lib/safe';
 import { encodeFunctionData, parseEther, Address, Hex, isHex } from 'viem';
 
+// 🔥 CRITICAL: Define entrypoint constant
+const ENTRYPOINT_ADDRESS = '0x5FF137D4b0FDCD49DcA30c7B57b04B0ee495b1C' as Hex;
+
 // Helper to convert BigInt to hex for serialization
 function bigintToHex(value: bigint | undefined): Hex {
   if (value === undefined) return '0x0';
+  if (typeof value === 'string') return value as Hex;
   return `0x${value.toString(16)}` as Hex;
 }
 
 // Helper to ensure address is valid hex
 function ensureValidHexAddress(addr: any): Hex {
-  if (!addr) return '0x0000000000000000000000000000000000000000';
+  if (!addr) return '0x0000000000000000000000000000000000000000' as Hex;
   
   const addrStr = typeof addr === 'string' ? addr : String(addr);
   
@@ -82,7 +86,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('Checking delegation for:', userAddress);
+    console.log('🔐 Checking delegation for:', userAddress);
+    console.log('📍 Using entrypoint:', ENTRYPOINT_ADDRESS);
 
     let delegation;
     try {
@@ -273,15 +278,22 @@ export async function POST(req: NextRequest) {
         preVerificationGas: gasEstimate.preVerificationGas,
       });
 
-      userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
-      userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
-      userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
+      // Parse properly - handle both hex strings and numbers
+      userOp.callGasLimit = typeof gasEstimate.callGasLimit === 'string' 
+        ? BigInt(gasEstimate.callGasLimit)
+        : BigInt(gasEstimate.callGasLimit);
+      userOp.verificationGasLimit = typeof gasEstimate.verificationGasLimit === 'string'
+        ? BigInt(gasEstimate.verificationGasLimit)
+        : BigInt(gasEstimate.verificationGasLimit);
+      userOp.preVerificationGas = typeof gasEstimate.preVerificationGas === 'string'
+        ? BigInt(gasEstimate.preVerificationGas)
+        : BigInt(gasEstimate.preVerificationGas);
     } catch (gasError: any) {
       console.warn('⚠️ Gas estimation failed:', gasError.message);
       console.warn('Using defaults instead');
-      userOp.callGasLimit = 150000n;
-      userOp.verificationGasLimit = 150000n;
-      userOp.preVerificationGas = 21000n;
+      userOp.callGasLimit = 200000n;
+      userOp.verificationGasLimit = 200000n;
+      userOp.preVerificationGas = 35000n;
     }
 
     console.log('Sending UserOp via Pimlico...');
