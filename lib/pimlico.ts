@@ -22,18 +22,18 @@ export const publicClient = createPublicClient({
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
 
-// BigInt → Hex (fixes JSON.stringify crash)
+// BigInt → Hex
 function bigintToHex(value: bigint | undefined): Hex {
   if (value === undefined) return '0x0';
   return `0x${value.toString(16)}` as Hex;
 }
 
-// UserOp to RPC-safe v0.7 format (fixes validation; matches your old successful UserOp)
+// UserOp to RPC-safe v0.7 format
 function userOpToRPC(userOp: any) {
   return {
     sender: userOp.sender,
     nonce: bigintToHex(userOp.nonce),
-    factory: undefined,  // No deployment
+    factory: undefined,
     factoryData: undefined,
     callData: userOp.callData,
     callGasLimit: bigintToHex(userOp.callGasLimit),
@@ -41,7 +41,7 @@ function userOpToRPC(userOp: any) {
     preVerificationGas: bigintToHex(userOp.preVerificationGas),
     maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
     maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
-    paymaster: undefined,  // Will be added by paymaster call
+    paymaster: undefined,
     paymasterVerificationGasLimit: undefined,
     paymasterPostOpGasLimit: undefined,
     paymasterData: undefined,
@@ -49,7 +49,7 @@ function userOpToRPC(userOp: any) {
   };
 }
 
-// Encode Safe execTransaction (unchanged from old)
+// Encode Safe execTransaction
 export function encodeSafeExecTransaction(params: {
   to: Address;
   value: bigint;
@@ -83,27 +83,26 @@ export function encodeSafeExecTransaction(params: {
       value,
       data,
       operation,
-      0n, // safeTxGas
-      0n, // baseGas
-      0n, // gasPrice
-      '0x0000000000000000000000000000000000000000' as Address, // gasToken
-      '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
-      '0x' as Hex // signatures (empty for AA)
+      0n,
+      0n,
+      0n,
+      '0x0000000000000000000000000000000000000000' as Address,
+      '0x0000000000000000000000000000000000000000' as Address,
+      '0x' as Hex
     ],
   });
 }
 
-// Create user operation for Safe (old + fixed nonce ABI for v0.6)
+// Create user operation for Safe
 export async function createSafeUserOperation(params: {
   to: Address;
   value: bigint;
   data: Hex;
 }) {
-  // Get nonce (fixed key to uint256 for v0.6)
   const nonce = await publicClient.readContract({
     address: ENTRYPOINT_ADDRESS,
     abi: [{
-      inputs: [{ name: 'sender', type: 'address' }, { name: 'key', type: 'uint256' }],
+      inputs: [{ name: 'sender', type: 'address' }, { name: 'key', type: 'uint192' }],
       name: 'getNonce',
       outputs: [{ name: '', type: 'uint256' }],
       stateMutability: 'view',
@@ -113,12 +112,7 @@ export async function createSafeUserOperation(params: {
     args: [SAFE_ACCOUNT, 0n],
   });
   
-  // Encode the Safe execTransaction call
-  const callData = encodeSafeExecTransaction({
-    to: params.to,
-    value: params.value,
-    data: params.data,
-  });
+  const callData = encodeSafeExecTransaction(params);
   
   return {
     sender: SAFE_ACCOUNT,
@@ -130,18 +124,42 @@ export async function createSafeUserOperation(params: {
     preVerificationGas: 100000n,
     maxFeePerGas: 1000000000n,
     maxPriorityFeePerGas: 1000000000n,
-    paymasterAndData: '0x' as Hex, // Pimlico paymaster will be added
+    paymasterAndData: '0x' as Hex,
     signature: '0x' as Hex,
   };
 }
 
-// Send user operation via Pimlico (old structure + paymaster for sponsorship like old logs)
+// Estimate user operation gas
+export async function estimateUserOperationGas(userOp: any) {
+  const rpcUserOp = userOpToRPC(userOp);
+
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_estimateUserOperationGas',
+      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+    }),
+  });
+
+  const data = await response.json();
+  
+  if (data.error) {
+    throw new Error(`Gas estimation error: ${data.error.message}`);
+  }
+  
+  return data.result;
+}
+
+// Send user operation via Pimlico
 export async function sendUserOperation(userOp: any) {
   console.log('📤 Sending UserOp via Pimlico...');
   
-  const rpcUserOp = userOpToRPC(userOp);  // Convert BigInt + v0.7
+  const rpcUserOp = userOpToRPC(userOp);
 
-  // Add paymaster sponsorship (matches your old "paymaster": "0x7777..." logs)
+  // Add Pimlico paymaster (v0.7)
   const paymasterUrl = PIMLICO_BUNDLER_URL.replace('/rpc', '/paymaster/rpc');
   try {
     const paymasterResp = await fetch(paymasterUrl, {
@@ -155,9 +173,20 @@ export async function sendUserOperation(userOp: any) {
       }),
     });
     const paymasterData = await paymasterResp.json();
+
     if (paymasterData.result) {
-      rpcUserOp.paymasterAndData = paymasterData.result.paymasterAndData;
-      console.log('✅ Paymaster added:', rpcUserOp.paymasterAndData.slice(0, 42));
+      const { paymasterAndData } = paymasterData.result;
+      const paymaster = `0x${paymasterAndData.slice(2, 42)}` as Address; // First 20 bytes
+      const paymasterVerificationGasLimit = BigInt(`0x${paymasterAndData.slice(42, 74)}`);
+      const paymasterPostOpGasLimit = BigInt(`0x${paymasterAndData.slice(74, 106)}`);
+      const paymasterDataHex = `0x${paymasterAndData.slice(106)}` as Hex;
+
+      rpcUserOp.paymaster = paymaster;
+      rpcUserOp.paymasterVerificationGasLimit = bigintToHex(paymasterVerificationGasLimit);
+      rpcUserOp.paymasterPostOpGasLimit = bigintToHex(paymasterPostOpGasLimit);
+      rpcUserOp.paymasterData = paymasterDataHex;
+
+      console.log('✅ Paymaster added:', paymaster);
     } else {
       console.warn('⚠️ Paymaster failed:', paymasterData.error?.message);
     }
@@ -178,15 +207,13 @@ export async function sendUserOperation(userOp: any) {
   
   const data = await response.json();
   
-  if (data.error) {
-    throw new Error(`Pimlico error: ${data.error.message}`);
-  }
+  if (data.error) throw new Error(`Pimlico error: ${data.error.message}`);
   
   console.log('✅ UserOp hash:', data.result);
   return data.result;
 }
 
-// Get user operation receipt (unchanged from old)
+// Get user operation receipt
 export async function getUserOperationReceipt(userOpHash: string) {
   const response = await fetch(PIMLICO_BUNDLER_URL, {
     method: 'POST',
@@ -200,29 +227,5 @@ export async function getUserOperationReceipt(userOpHash: string) {
   });
   
   const data = await response.json();
-  return data.result;
-}
-
-// Estimate user operation gas (old + BigInt fix)
-export async function estimateUserOperationGas(userOp: any) {
-  const rpcUserOp = userOpToRPC(userOp);  // Convert BigInt + v0.7
-
-  const response = await fetch(PIMLICO_BUNDLER_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'eth_estimateUserOperationGas',
-      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
-    }),
-  });
-  
-  const data = await response.json();
-  
-  if (data.error) {
-    throw new Error(`Gas estimation error: ${data.error.message}`);
-  }
-  
   return data.result;
 }
