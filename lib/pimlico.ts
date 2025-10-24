@@ -1,37 +1,48 @@
 import { createPublicClient, http, Address, encodeFunctionData, Hex, isHex } from 'viem';
-import { createPimlicoBundlerClient, createPimlicoPaymasterClient } from '@pimlico/bundler';
 import { monadTestnet } from '@/app/chains';
 
-// === CONFIG ===
 const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY!;
 const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
 if (!PIMLICO_BUNDLER_URL) throw new Error('Missing PIMLICO_BUNDLER_URL');
-if (!PIMLICO_API_KEY) throw new Error('Missing PIMLICO_API_KEY');
 if (!ENTRYPOINT_ADDRESS || !isHex(ENTRYPOINT_ADDRESS)) throw new Error('Invalid ENTRYPOINT');
 if (!SAFE_ACCOUNT || !isHex(SAFE_ACCOUNT)) throw new Error('Invalid SAFE_ACCOUNT');
 
 console.log('Using ENTRYPOINT:', ENTRYPOINT_ADDRESS);
 
-// === CLIENTS ===
 export const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
 
-export const bundlerClient = createPimlicoBundlerClient({
-  chain: monadTestnet,
-  transport: http(PIMLICO_BUNDLER_URL),
-});
+// === BigInt → Hex ===
+function bigintToHex(value: bigint): Hex {
+  return `0x${value.toString(16)}` as Hex;
+}
 
-export const paymasterClient = createPimlicoPaymasterClient({
-  chain: monadTestnet,
-  apiKey: PIMLICO_API_KEY,
-});
+// === v0.7 UserOp Converter ===
+function userOpToRPC(userOp: any): any {
+  return {
+    sender: userOp.sender,
+    nonce: bigintToHex(userOp.nonce),
+    factory: undefined,
+    factoryData: undefined,
+    callData: userOp.callData,
+    callGasLimit: bigintToHex(userOp.callGasLimit),
+    verificationGasLimit: bigintToHex(userOp.verificationGasLimit),
+    preVerificationGas: bigintToHex(userOp.preVerificationGas),
+    maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
+    maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
+    paymaster: undefined,
+    paymasterVerificationGasLimit: undefined,
+    paymasterPostOpGasLimit: undefined,
+    paymasterData: undefined,
+    signature: userOp.signature || '0x',
+  };
+}
 
-// === ENCODE SAFE CALL ===
+// === Encode Safe execTransaction ===
 export function encodeSafeExecTransaction(params: {
   to: Address;
   value: bigint;
@@ -63,7 +74,7 @@ export function encodeSafeExecTransaction(params: {
       to,
       value,
       data,
-      0, // operation
+      0,
       0n, 0n, 0n,
       '0x0000000000000000000000000000000000000000' as Address,
       '0x0000000000000000000000000000000000000000' as Address,
@@ -72,7 +83,7 @@ export function encodeSafeExecTransaction(params: {
   });
 }
 
-// === CREATE USER OP (v0.7) ===
+// === Create UserOp ===
 export async function createSafeUserOperation(params: {
   to: Address;
   value: bigint;
@@ -96,47 +107,69 @@ export async function createSafeUserOperation(params: {
   return {
     sender: SAFE_ACCOUNT,
     nonce,
-    factory: undefined,
-    factoryData: undefined,
+    initCode: '0x' as Hex,
     callData,
     callGasLimit: 300_000n,
     verificationGasLimit: 150_000n,
     preVerificationGas: 50_000n,
     maxFeePerGas: 1_000_000_000n,
     maxPriorityFeePerGas: 1_000_000_000n,
-    paymaster: undefined,
-    paymasterVerificationGasLimit: undefined,
-    paymasterPostOpGasLimit: undefined,
-    paymasterData: undefined,
-    signature: '0x', // Delegated
+    paymasterAndData: '0x' as Hex,
+    signature: '0x' as Hex,
   };
 }
 
-// === SDK WRAPPERS ===
+// === PIMLICO RPC ===
 export async function estimateUserOperationGas(userOp: any) {
-  return bundlerClient.estimateUserOperationGas({
-    userOperation: userOp,
-    entryPoint: ENTRYPOINT_ADDRESS,
+  const rpcUserOp = userOpToRPC(userOp);
+
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_estimateUserOperationGas',
+      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+    }),
   });
+
+  const data = await response.json();
+  if (data.error) throw new Error(`Pimlico: ${data.error.message}`);
+  return data.result;
 }
 
 export async function sendUserOperation(userOp: any) {
-  const { paymasterAndData } = await paymasterClient.getPaymasterAndData({
-    userOperation: userOp,
-    entryPoint: ENTRYPOINT_ADDRESS,
+  const rpcUserOp = userOpToRPC(userOp);
+
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_sendUserOperation',
+      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+    }),
   });
 
-  const sponsoredUserOp = { ...userOp, paymasterAndData };
-
-  return bundlerClient.sendUserOperation({
-    userOperation: sponsoredUserOp,
-    entryPoint: ENTRYPOINT_ADDRESS,
-  });
+  const data = await response.json();
+  if (data.error) throw new Error(`Pimlico: ${data.error.message}`);
+  return data.result;
 }
 
-export async function getUserOperationReceipt(hash: Hex) {
-  return bundlerClient.getUserOperationReceipt({
-    hash,
-    entryPoint: ENTRYPOINT_ADDRESS,
+export async function getUserOperationReceipt(hash: string) {
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_getUserOperationReceipt',
+      params: [hash],
+    }),
   });
+
+  const data = await response.json();
+  return data.result;
 }
