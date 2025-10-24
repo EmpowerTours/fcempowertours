@@ -12,8 +12,30 @@ import {
 } from '@/lib/pimlico';
 import { checkSafeBalance } from '@/lib/safe';
 import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
+import { privateKeyToAccount, signMessage } from 'viem/accounts';
+import { toBytes } from 'viem';
 
 const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
+const DEPLOYER_PRIVATE_KEY = (process.env.DEPLOYER_PRIVATE_KEY || '0x') as `0x${string}`;
+
+// Sign UserOp hash with Safe owner's private key
+async function signUserOp(userOpHash: Hex): Promise<Hex> {
+  if (!DEPLOYER_PRIVATE_KEY || DEPLOYER_PRIVATE_KEY === '0x') {
+    throw new Error('DEPLOYER_PRIVATE_KEY not configured');
+  }
+
+  const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
+  
+  console.log('🔐 Signing UserOp with account:', account.address);
+  
+  // Sign the UserOp hash
+  const signature = await account.signMessage({
+    message: { raw: userOpHash },
+  });
+
+  console.log('✅ Signature generated:', signature.slice(0, 20) + '...');
+  return signature as Hex;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -117,6 +139,53 @@ export async function POST(req: NextRequest) {
       console.log('  callGasLimit: 3,000,000 (3M)');
       console.log('  verificationGasLimit: 2,000,000 (2M)');
       console.log('  preVerificationGas: 500,000 (500k)');
+    }
+
+    // Sign the UserOp with Safe owner's private key
+    console.log('🔐 Signing UserOp...');
+    try {
+      // Calculate UserOp hash for signing
+      const userOpHash = encodeFunctionData({
+        abi: [{
+          inputs: [
+            { name: 'sender', type: 'address' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'initCode', type: 'bytes' },
+            { name: 'callData', type: 'bytes' },
+            { name: 'callGasLimit', type: 'uint256' },
+            { name: 'verificationGasLimit', type: 'uint256' },
+            { name: 'preVerificationGas', type: 'uint256' },
+            { name: 'maxFeePerGas', type: 'uint256' },
+            { name: 'maxPriorityFeePerGas', type: 'uint256' },
+            { name: 'paymasterAndData', type: 'bytes' },
+          ],
+          name: 'getHash',
+          type: 'function',
+        }],
+        functionName: 'getHash',
+        args: [
+          userOp.sender,
+          userOp.nonce,
+          userOp.initCode,
+          userOp.callData,
+          userOp.callGasLimit,
+          userOp.verificationGasLimit,
+          userOp.preVerificationGas,
+          userOp.maxFeePerGas,
+          userOp.maxPriorityFeePerGas,
+          userOp.paymasterAndData,
+        ],
+      }) as Hex;
+
+      const signature = await signUserOp(userOpHash);
+      userOp.signature = signature;
+      console.log('✅ UserOp signed successfully');
+    } catch (err: any) {
+      console.error('❌ Failed to sign UserOp:', err.message);
+      return NextResponse.json(
+        { success: false, error: 'Failed to sign UserOp: ' + err.message },
+        { status: 500 }
+      );
     }
 
     console.log('📤 Sending UserOp...');
