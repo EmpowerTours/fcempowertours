@@ -41,7 +41,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
   try {
     const safeSmartAccount = await toSafeSmartAccount({
       client: publicClient,
-      owner: safeOwnerAccount,
+      owners: [safeOwnerAccount],
       entryPoint: {
         address: ENTRYPOINT_ADDRESS,
         version: '0.7',
