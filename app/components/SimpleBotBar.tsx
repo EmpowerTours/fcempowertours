@@ -3,10 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useGeolocation } from '@/lib/useGeolocation';
 
 export default function SimpleBotBar() {
   const router = useRouter();
-  const { walletAddress } = useFarcasterContext(); // Get user's wallet
+  const { walletAddress } = useFarcasterContext();
+  const { location } = useGeolocation(); // Get user's geolocation
+  
   const [command, setCommand] = useState('');
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState('');
@@ -19,14 +22,20 @@ export default function SimpleBotBar() {
     setResponse('');
 
     try {
-      console.log('🤖 Sending command:', userCommand);
+      console.log('🤖 Sending command with location:', { userCommand, location });
       
       const res = await fetch('/api/bot-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           command: userCommand,
-          userAddress: walletAddress || null, // Pass wallet address
+          userAddress: walletAddress || null,
+          location: location ? {
+            country: location.country,
+            countryName: location.countryName,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          } : null,
         }),
       });
 
@@ -103,6 +112,11 @@ export default function SimpleBotBar() {
             <div className="text-xs text-green-400 flex items-center gap-2">
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
               Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              {location && (
+                <span className="ml-2 text-blue-400">
+                  📍 {location.countryName}
+                </span>
+              )}
             </div>
           )}
           

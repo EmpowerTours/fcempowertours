@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
 
 export default function PassportPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
+  const { location, loading: geoLoading, error: geoError } = useGeolocation();
   
   const farcasterFid = user?.fid;
 
@@ -14,35 +16,13 @@ export default function PassportPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // ❌ REMOVED: Auto-request wallet
-
-  // Auto-detect country
+  // Auto-select country once geolocation loads
   useEffect(() => {
-    async function fetchLocation() {
-      try {
-        console.log('🌍 Fetching location...');
-        const res = await fetch('/api/geo');
-        if (res.ok) {
-          const data = await res.json();
-          console.log('📍 Location data:', data);
-          
-          setSelectedCountryCode(data.country || 'US');
-          
-          console.log('✅ Auto-detected country:', data.country, data.country_name);
-        } else {
-          console.warn('⚠️ Geo API returned non-OK status');
-          setSelectedCountryCode('US');
-        }
-      } catch (err) {
-        console.error('❌ Location detection failed:', err);
-        setSelectedCountryCode('US');
-      }
+    if (location && location.country && !selectedCountryCode) {
+      console.log('🌍 Auto-selecting country:', location.country, location.countryName);
+      setSelectedCountryCode(location.country);
     }
-    
-    if (user) {
-      fetchLocation();
-    }
-  }, [user]);
+  }, [location, selectedCountryCode]);
 
   const handleMint = async () => {
     if (!walletAddress || !selectedCountryCode) {
@@ -111,12 +91,17 @@ export default function PassportPage() {
     }
   };
 
-  if (contextLoading) {
+  if (contextLoading || geoLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-white">Loading...</p>
+          <p className="text-white">
+            {contextLoading ? 'Loading Farcaster...' : 'Detecting your location...'}
+          </p>
+          <p className="text-gray-400 text-sm mt-2">
+            {geoLoading && 'Please allow location access when prompted'}
+          </p>
         </div>
       </div>
     );
@@ -167,6 +152,37 @@ export default function PassportPage() {
           <p className="text-gray-400">@{user?.username || 'User'}</p>
         </div>
 
+        {/* Location Detection Status */}
+        <div className="mb-6">
+          {geoError ? (
+            <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-3">
+              <p className="text-yellow-300 text-sm">
+                ⚠️ Location detection: {geoError}
+              </p>
+              <p className="text-yellow-200 text-xs mt-1">
+                💡 Manually select your country below
+              </p>
+            </div>
+          ) : location ? (
+            <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-3">
+              <p className="text-blue-300 text-sm font-medium">
+                📍 Location detected: {location.countryName}
+              </p>
+              {location.city && (
+                <p className="text-blue-200 text-xs mt-1">
+                  📌 {location.city}
+                  {location.region ? `, ${location.region}` : ''}
+                </p>
+              )}
+              {location.accuracy && (
+                <p className="text-blue-200 text-xs mt-1">
+                  🎯 Accuracy: ±{Math.round(location.accuracy)}m
+                </p>
+              )}
+            </div>
+          ) : null}
+        </div>
+
         {walletAddress ? (
           <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
             <p className="text-green-300 text-sm font-mono">
@@ -200,7 +216,10 @@ export default function PassportPage() {
         <div className="space-y-4 mb-6">
           <div>
             <label className="block text-white text-sm font-medium mb-2">
-              Select Your Country (All 195 Countries Available!)
+              {location 
+                ? `Country (Auto-detected: ${location.country} 🎯)` 
+                : 'Select Your Country'
+              }
             </label>
             <select
               value={selectedCountryCode}
@@ -215,8 +234,11 @@ export default function PassportPage() {
                 </option>
               ))}
             </select>
-            <p className="text-gray-500 text-xs mt-2">
-              📍 Auto-detected from your location
+            <p className="text-gray-400 text-xs mt-2">
+              📍 {location 
+                ? `Based on your GPS location (${location.countryName})`
+                : 'Select from all 195 countries'
+              }
             </p>
           </div>
         </div>
@@ -231,8 +253,21 @@ export default function PassportPage() {
         </button>
 
         <p className="text-gray-500 text-xs text-center mt-4">
-          📍 Free mint - we pay gas! Each wallet can mint one passport per country.
+          📍 {location 
+            ? `Minting passport for ${location.countryName} • Each wallet can mint one passport per country.`
+            : 'Free mint - we pay gas! Each wallet can mint one passport per country.'
+          }
         </p>
+
+        {location && (
+          <div className="mt-6 p-3 bg-blue-900/30 rounded-lg border border-blue-500/30">
+            <p className="text-blue-200 text-xs font-mono">
+              <strong>📍 Your GPS:</strong><br />
+              Lat: {location.latitude.toFixed(4)}°<br />
+              Lon: {location.longitude.toFixed(4)}°
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

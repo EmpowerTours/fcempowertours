@@ -4,9 +4,9 @@ const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-productio
 
 export async function POST(req: NextRequest) {
   try {
-    const { command, userAddress } = await req.json();
+    const { command, userAddress, location } = await req.json();
     
-    console.log('🤖 Bot command received:', { command, userAddress });
+    console.log('🤖 Bot command received:', { command, userAddress, location });
     
     const lowerCommand = command.toLowerCase().trim();
     
@@ -138,7 +138,7 @@ Address: ${userAddress.slice(0, 10)}...`
       try {
         console.log(`💱 Executing swap via backend (no delegation needed): ${amount} MON`);
         
-        // 🔥 FIX: Call backend to execute swap directly (we pay gas)
+        // Call backend to execute swap directly (we pay gas)
         const response = await fetch(`${APP_URL}/api/execute-swap`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -223,14 +223,26 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
           });
         }
         
-        // Step 2: Detect country from user's IP
-        console.log('🌍 [BOT] Detecting location...');
-        const geoRes = await fetch(`${APP_URL}/api/geo`);
-        const geoData = await geoRes.json();
-        const countryCode = geoData.country || 'US';
-        const countryName = geoData.country_name || 'United States';
+        // Step 2: Get country from location parameter or detect
+        let countryCode = 'US';
+        let countryName = 'United States';
         
-        console.log('📍 [BOT] Detected location:', countryCode, countryName);
+        if (location && location.country) {
+          console.log('📍 [BOT] Using provided location:', location.country, location.countryName);
+          countryCode = location.country;
+          countryName = location.countryName;
+        } else {
+          console.log('🌍 [BOT] Detecting location via IP...');
+          try {
+            const geoRes = await fetch(`${APP_URL}/api/geo`);
+            const geoData = await geoRes.json();
+            countryCode = geoData.country || 'US';
+            countryName = geoData.country_name || 'United States';
+            console.log('📍 [BOT] Detected location:', countryCode, countryName);
+          } catch (geoErr) {
+            console.warn('⚠️ [BOT] Location detection failed, using default:', geoErr);
+          }
+        }
         
         // Step 3: Execute mint via delegation
         console.log('💳 [BOT] Executing mint via delegated transaction...');
