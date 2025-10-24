@@ -1,66 +1,84 @@
 import { config } from 'dotenv';
-import { createPublicClient, createWalletClient, http, parseEther } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { monadTestnet } from '../app/chains';
-
-// Load .env.local
 config({ path: '.env.local' });
 
-const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as `0x${string}`;
-const FUNDER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
+import { createPublicClient, http, parseAbi } from 'viem';
 
-async function fundSafe() {
-  console.log('💰 Funding Safe Account...');
-  console.log('Safe Address:', SAFE_ACCOUNT);
+const monadTestnet = {
+  id: 10143,
+  name: 'Monad Testnet',
+  nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
+  rpcUrls: { default: { http: ['https://testnet-rpc.monad.xyz'] } },
+};
+
+const SAFE_ADDRESS = '0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20' as `0x${string}`;
+
+const publicClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http('https://testnet-rpc.monad.xyz')
+});
+
+async function checkSafe() {
+  console.log('🔍 Checking Safe contract at:', SAFE_ADDRESS);
+  console.log('');
+
+  // Check if contract exists
+  const code = await publicClient.getBytecode({ address: SAFE_ADDRESS });
   
-  const account = privateKeyToAccount(FUNDER_PRIVATE_KEY);
-  
-  const walletClient = createWalletClient({
-    account,
-    chain: monadTestnet,
-    transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
-  });
-  
-  const publicClient = createPublicClient({
-    chain: monadTestnet,
-    transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
-  });
-  
-  // Check current balance
-  const currentBalance = await publicClient.getBalance({
-    address: SAFE_ACCOUNT,
-  });
-  
-  console.log(`Current Safe balance: ${(Number(currentBalance) / 1e18).toFixed(4)} MON`);
-  
-  // Fund with 5 MON (enough for multiple operations)
-  const fundAmount = parseEther('5');
-  
-  console.log(`\nSending ${Number(fundAmount) / 1e18} MON to Safe...`);
-  console.log(`From: ${account.address}`);
-  
-  const hash = await walletClient.sendTransaction({
-    to: SAFE_ACCOUNT,
-    value: fundAmount,
-  });
-  
-  console.log('Transaction sent:', hash);
-  console.log('Explorer:', `https://testnet.monadexplorer.com/tx/${hash}`);
-  console.log('\nWaiting for confirmation...');
-  
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  
-  if (receipt.status === 'success') {
-    const newBalance = await publicClient.getBalance({
-      address: SAFE_ACCOUNT,
-    });
-    
-    console.log('\n✅ Funding successful!');
-    console.log(`New Safe balance: ${(Number(newBalance) / 1e18).toFixed(4)} MON`);
-    console.log(`\n🎉 Safe is ready for ~${Math.floor((Number(newBalance) / 1e18) / 0.01)} passport mints!`);
-  } else {
-    console.error('\n❌ Transaction failed');
+  if (!code || code === '0x') {
+    console.log('❌ No contract code found at this address!');
+    console.log('The Safe might not have been deployed successfully.');
+    return;
   }
+  
+  console.log('✅ Contract exists');
+  console.log('📄 Bytecode length:', code.length, 'characters');
+  console.log('');
+
+  // Check balance
+  const balance = await publicClient.getBalance({ address: SAFE_ADDRESS });
+  console.log('💰 Current balance:', balance.toString(), 'wei');
+  console.log('💰 Current balance:', (Number(balance) / 1e18).toFixed(4), 'MON');
+  console.log('');
+
+  // Try to read owner
+  try {
+    const owner = await publicClient.readContract({
+      address: SAFE_ADDRESS,
+      abi: parseAbi(['function getOwners() view returns (address[])']),
+      functionName: 'getOwners',
+    });
+    console.log('✅ Safe owners:', owner);
+  } catch (error: any) {
+    console.log('⚠️  Could not read owners:', error.message.split('\n')[0]);
+  }
+
+  // Try to read threshold
+  try {
+    const threshold = await publicClient.readContract({
+      address: SAFE_ADDRESS,
+      abi: parseAbi(['function getThreshold() view returns (uint256)']),
+      functionName: 'getThreshold',
+    });
+    console.log('✅ Safe threshold:', threshold.toString());
+  } catch (error: any) {
+    console.log('⚠️  Could not read threshold:', error.message.split('\n')[0]);
+  }
+
+  // Check if it's a Safe by checking for nonce
+  try {
+    const nonce = await publicClient.readContract({
+      address: SAFE_ADDRESS,
+      abi: parseAbi(['function nonce() view returns (uint256)']),
+      functionName: 'nonce',
+    });
+    console.log('✅ Safe nonce:', nonce.toString());
+  } catch (error: any) {
+    console.log('⚠️  Could not read nonce:', error.message.split('\n')[0]);
+  }
+
+  console.log('');
+  console.log('🔗 View on explorer:');
+  console.log(`https://testnet.monadexplorer.com/address/${SAFE_ADDRESS}`);
 }
 
-fundSafe().catch(console.error);
+checkSafe();

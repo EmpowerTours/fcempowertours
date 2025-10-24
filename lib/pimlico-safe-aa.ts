@@ -2,7 +2,7 @@ import {
   createSmartAccountClient,
   SmartAccountClient,
 } from 'permissionless';
-import { createPublicClient, http, Address, Hex, Chain, parseAbi } from 'viem';
+import { createPublicClient, http, Address, Hex, parseAbi } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
@@ -56,7 +56,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       pollingInterval: 200, // Faster polling for inclusion
     });
 
-    // Debug: Check enabled modules
+    // Debug: Check enabled modules (using correct method)
     const modulesAbi = parseAbi([
       'function getModulesPaginated(address start, uint256 pageSize) external view returns (address[] array, address next)',
     ]);
@@ -68,14 +68,16 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
     });
     console.log('Enabled modules:', modules);
 
-    // Debug: Check fallback handler
-    const fallbackAbi = parseAbi(['function fallbackHandler() external view returns (address)']);
-    const fallback = await publicClient.readContract({
+    // Debug: Check fallback handler using storage slot instead of function call
+    const FALLBACK_HANDLER_STORAGE_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
+    const storageValue = await publicClient.getStorageAt({
       address: SAFE_ACCOUNT,
-      abi: fallbackAbi,
-      functionName: 'fallbackHandler',
+      slot: FALLBACK_HANDLER_STORAGE_SLOT as `0x${string}`,
     });
-    console.log('Fallback handler:', fallback);
+    const fallbackHandler = storageValue 
+      ? ('0x' + storageValue.slice(-40)) as `0x${string}`
+      : '0x0000000000000000000000000000000000000000';
+    console.log('Fallback handler:', fallbackHandler);
 
     console.log('✅ Smart Account Client created');
     return smartAccountClient;
