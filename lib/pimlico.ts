@@ -11,6 +11,7 @@ if (!ENTRYPOINT_ADDRESS || !isHex(ENTRYPOINT_ADDRESS)) throw new Error('Invalid 
 if (!SAFE_ACCOUNT || !isHex(SAFE_ACCOUNT)) throw new Error('Invalid NEXT_PUBLIC_SAFE_ACCOUNT');
 
 console.log('Using entrypoint:', ENTRYPOINT_ADDRESS);
+console.log('Using Safe account:', SAFE_ACCOUNT);
 
 export const bundlerClient = createPublicClient({
   chain: monadTestnet,
@@ -33,14 +34,14 @@ function toRpcUserOp(userOp: any): any {
   return {
     sender: userOp.sender,
     nonce: bigintToHex(userOp.nonce),
-    initCode: '0x', // Required for v0.6
+    initCode: '0x',
     callData: userOp.callData,
     callGasLimit: bigintToHex(userOp.callGasLimit),
     verificationGasLimit: bigintToHex(userOp.verificationGasLimit),
     preVerificationGas: bigintToHex(userOp.preVerificationGas),
     maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
     maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
-    paymasterAndData: '0x', // Required for v0.6 — will be replaced by paymaster
+    paymasterAndData: '0x', // No paymaster on Monad testnet
     signature: userOp.signature || '0x',
   };
 }
@@ -89,7 +90,7 @@ export function encodeSafeExecTransaction(params: {
   });
 }
 
-// Create user operation with increased gas limits
+// Create user operation with HIGH gas limits for Safe + NFT minting
 export async function createSafeUserOperation(params: {
   to: Address;
   value: bigint;
@@ -110,16 +111,18 @@ export async function createSafeUserOperation(params: {
 
   const callData = encodeSafeExecTransaction(params);
 
+  console.log('📝 Creating UserOp with high gas limits for Safe NFT minting...');
+
   return {
     sender: SAFE_ACCOUNT,
     nonce,
     initCode: '0x' as Hex,
     callData,
-    callGasLimit: 1_000_000n,
-    verificationGasLimit: 1_000_000n,
-    preVerificationGas: 200_000n,
-    maxFeePerGas: 2_000_000_000n,
-    maxPriorityFeePerGas: 2_000_000_000n,
+    callGasLimit: 3_000_000n,        // 3M for Safe execution + NFT minting
+    verificationGasLimit: 2_000_000n, // 2M for Safe verification
+    preVerificationGas: 500_000n,     // 500k for pre-verification
+    maxFeePerGas: 2_000_000_000n,     // 2 gwei
+    maxPriorityFeePerGas: 2_000_000_000n, // 2 gwei priority
     paymasterAndData: '0x' as Hex,
     signature: '0x' as Hex,
   };
@@ -144,43 +147,17 @@ export async function estimateUserOperationGas(userOp: any) {
   return data.result;
 }
 
-// Send UserOp with enhanced paymaster logging
+// Send UserOp without paymaster (Safe pays for gas)
 export async function sendUserOperation(userOp: any) {
-  console.log('Sending UserOp via Pimlico...');
+  console.log('📤 Sending UserOp via Pimlico (no paymaster)...');
   const rpcUserOp = toRpcUserOp(userOp);
 
-  // === REQUEST PAYMASTER SPONSORSHIP ===
-  const paymasterUrl = PIMLICO_BUNDLER_URL.replace('/rpc', '/paymaster/rpc');
-  try {
-    console.log('🔄 Requesting paymaster sponsorship...');
-    const paymasterResp = await fetch(paymasterUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'pm_sponsorUserOperation',
-        params: [rpcUserOp, ENTRYPOINT_ADDRESS],
-      }),
-    });
-    const paymasterData = await paymasterResp.json();
+  console.log('📋 UserOp hex values:');
+  console.log('  callGasLimit:', rpcUserOp.callGasLimit);
+  console.log('  verificationGasLimit:', rpcUserOp.verificationGasLimit);
+  console.log('  preVerificationGas:', rpcUserOp.preVerificationGas);
+  console.log('  maxFeePerGas:', rpcUserOp.maxFeePerGas);
 
-    console.log('📋 Paymaster response:', JSON.stringify(paymasterData, null, 2));
-
-    if (paymasterData.result?.paymasterAndData) {
-      rpcUserOp.paymasterAndData = paymasterData.result.paymasterAndData;
-      console.log('✅ Paymaster added:', rpcUserOp.paymasterAndData.slice(0, 42));
-    } else if (paymasterData.error) {
-      console.warn('❌ Paymaster rejected:', paymasterData.error);
-      throw new Error(`Paymaster error: ${JSON.stringify(paymasterData.error)}`);
-    }
-  } catch (err) {
-    console.warn('⚠️  Paymaster unavailable, continuing without sponsorship:', err);
-    // Continue without paymaster — will likely fail but provides diagnostics
-  }
-
-  // === SEND USEROP TO BUNDLER ===
-  console.log('📤 Sending UserOp to bundler...');
   const response = await fetch(PIMLICO_BUNDLER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
