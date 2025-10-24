@@ -1,231 +1,196 @@
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  getDelegation,
-  hasPermission,
-  incrementTransactionCount
-} from '@/lib/delegation-system';
-import {
-  createSafeUserOperation,
-  estimateUserOperationGas,
-  sendUserOperation,
-  getUserOperationReceipt
-} from '@/lib/pimlico';
-import { checkSafeBalance } from '@/lib/safe';
-import { encodeFunctionData, parseEther, Address, Hex, toHex, keccak256 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+// lib/pimlico.ts
+import { createPublicClient, http, Address, encodeFunctionData, Hex, isHex } from 'viem';
+import { monadTestnet } from '@/app/chains';
 
+const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
 const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
-const DEPLOYER_PRIVATE_KEY = (process.env.DEPLOYER_PRIVATE_KEY || '0x') as `0x${string}`;
+const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
-// Sign UserOp with Safe owner's private key
-function signUserOp(userOp: any): Hex {
-  if (!DEPLOYER_PRIVATE_KEY || DEPLOYER_PRIVATE_KEY === '0x') {
-    throw new Error('DEPLOYER_PRIVATE_KEY not configured');
-  }
+// Validate
+if (!PIMLICO_BUNDLER_URL) throw new Error('NEXT_PUBLIC_PIMLICO_BUNDLER_URL missing');
+if (!ENTRYPOINT_ADDRESS || !isHex(ENTRYPOINT_ADDRESS)) throw new Error('Invalid NEXT_PUBLIC_ENTRYPOINT_ADDRESS');
+if (!SAFE_ACCOUNT || !isHex(SAFE_ACCOUNT)) throw new Error('Invalid NEXT_PUBLIC_SAFE_ACCOUNT');
 
-  const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
+console.log('Using entrypoint:', ENTRYPOINT_ADDRESS);
+console.log('Using Safe account:', SAFE_ACCOUNT);
 
-  // Build the Safe transaction hash
-  // For Safe v1.4.1, signature format: owner(20) + sigV(1) + sigR(32) + sigS(32)
-  const safeTxHash = keccak256(
-    encodeFunctionData({
-      abi: [{
-        inputs: [
-          { name: 'to', type: 'address' },
-          { name: 'value', type: 'uint256' },
-          { name: 'data', type: 'bytes' },
-          { name: 'operation', type: 'uint8' },
-          { name: 'safeTxGas', type: 'uint256' },
-          { name: 'baseGas', type: 'uint256' },
-          { name: 'gasPrice', type: 'uint256' },
-          { name: 'gasToken', type: 'address' },
-          { name: 'refundReceiver', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
-        ],
-        name: 'encodeTransactionData',
-        type: 'function',
-      }],
-      functionName: 'encodeTransactionData',
-      args: [
-        userOp.sender,
-        userOp.value || 0n,
-        userOp.callData,
-        0, // operation
-        0n, // safeTxGas
-        0n, // baseGas
-        0n, // gasPrice
-        '0x0000000000000000000000000000000000000000' as Address,
-        '0x0000000000000000000000000000000000000000' as Address,
-        userOp.nonce,
-      ],
-    }) as any
-  );
+export const bundlerClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http(PIMLICO_BUNDLER_URL),
+});
 
-  // Create the message to sign
-  const messageHash = keccak256(
-    encodeFunctionData({
-      abi: [{
-        inputs: [
-          { name: 'message', type: 'bytes' },
-        ],
-        name: 'getEthSignedMessageHash',
-        type: 'function',
-      }],
-      functionName: 'getEthSignedMessageHash',
-      args: [safeTxHash],
-    }) as any
-  );
+export const publicClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
+});
 
-  // For now, use a simple signature format that works with Safe
-  // Return owner address + empty signature (Safe will use contract signature)
-  const signature = `${account.address}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001` as Hex;
-  
-  console.log('✅ UserOp signed with owner:', account.address);
-  return signature;
+// BigInt → Hex
+function bigintToHex(value: bigint | undefined): Hex {
+  if (value === undefined) return '0x0';
+  return `0x${value.toString(16)}` as Hex;
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const { userAddress, action, params } = await req.json();
+// Convert to Pimlico v0.6 RPC format (Monad uses v0.6 EntryPoint)
+function toRpcUserOp(userOp: any): any {
+  return {
+    sender: userOp.sender,
+    nonce: bigintToHex(userOp.nonce),
+    initCode: '0x',
+    callData: userOp.callData,
+    callGasLimit: bigintToHex(userOp.callGasLimit),
+    verificationGasLimit: bigintToHex(userOp.verificationGasLimit),
+    preVerificationGas: bigintToHex(userOp.preVerificationGas),
+    maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
+    maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
+    paymasterAndData: '0x', // No paymaster on Monad testnet
+    signature: userOp.signature || '0x',
+  };
+}
 
-    if (!userAddress || !action) {
-      return NextResponse.json(
-        { success: false, error: 'Missing userAddress or action' },
-        { status: 400 }
-      );
-    }
+// Encode Safe execTransaction
+export function encodeSafeExecTransaction(params: {
+  to: Address;
+  value: bigint;
+  data: Hex;
+  operation?: number;
+}) {
+  const { to, value, data, operation = 0 } = params;
 
-    console.log('Checking delegation for:', userAddress);
-    console.log('Using entrypoint:', ENTRYPOINT_ADDRESS);
-
-    const delegation = await getDelegation(userAddress);
-    if (!delegation || delegation.expiresAt < Date.now()) {
-      return NextResponse.json(
-        { success: false, error: 'No active delegation' },
-        { status: 403 }
-      );
-    }
-
-    if (!(await hasPermission(userAddress, action))) {
-      return NextResponse.json(
-        { success: false, error: `No permission for ${action}` },
-        { status: 403 }
-      );
-    }
-
-    if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
-      return NextResponse.json(
-        { success: false, error: 'Transaction limit reached' },
-        { status: 403 }
-      );
-    }
-
-    let targetContract: Address;
-    let callData: Hex;
-    let value = 0n;
-
-    switch (action) {
-      case 'mint_passport':
-        targetContract = process.env.NEXT_PUBLIC_PASSPORT as Address;
-        value = parseEther('0.01');
-        callData = encodeFunctionData({
-          abi: [{
-            inputs: [{ name: 'to', type: 'address' }],
-            name: 'mint',
-            outputs: [],
-            stateMutability: 'payable',
-            type: 'function',
-          }],
-          functionName: 'mint',
-          args: [userAddress as Address],
-        }) as Hex;
-        break;
-
-      default:
-        return NextResponse.json(
-          { success: false, error: `Unknown action: ${action}` },
-          { status: 400 }
-        );
-    }
-
-    if (value > 0n && !(await checkSafeBalance(value))) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient Safe balance', needsFunding: true },
-        { status: 400 }
-      );
-    }
-
-    console.log('📝 Creating Safe UserOp...');
-    const userOp = await createSafeUserOperation({
-      to: targetContract,
+  return encodeFunctionData({
+    abi: [{
+      inputs: [
+        { name: 'to', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'data', type: 'bytes' },
+        { name: 'operation', type: 'uint8' },
+        { name: 'safeTxGas', type: 'uint256' },
+        { name: 'baseGas', type: 'uint256' },
+        { name: 'gasPrice', type: 'uint256' },
+        { name: 'gasToken', type: 'address' },
+        { name: 'refundReceiver', type: 'address' },
+        { name: 'signatures', type: 'bytes' }
+      ],
+      name: 'execTransaction',
+      outputs: [{ name: '', type: 'bool' }],
+      stateMutability: 'payable',
+      type: 'function',
+    }],
+    functionName: 'execTransaction',
+    args: [
+      to,
       value,
-      data: callData,
-    });
+      data,
+      operation,
+      0n, // safeTxGas
+      0n, // baseGas
+      0n, // gasPrice
+      '0x0000000000000000000000000000000000000000' as Address,
+      '0x0000000000000000000000000000000000000000' as Address,
+      '0x' as Hex
+    ],
+  });
+}
 
-    console.log('UserOp created, sender:', userOp.sender);
+// Create user operation with HIGH gas limits
+export async function createSafeUserOperation(params: {
+  to: Address;
+  value: bigint;
+  data: Hex;
+}) {
+  const nonce = await publicClient.readContract({
+    address: ENTRYPOINT_ADDRESS,
+    abi: [{
+      inputs: [{ name: 'sender', type: 'address' }, { name: 'key', type: 'uint192' }],
+      name: 'getNonce',
+      outputs: [{ name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function',
+    }],
+    functionName: 'getNonce',
+    args: [SAFE_ACCOUNT, 0n],
+  });
 
-    // Estimate gas (optional - if it fails, use high defaults)
-    let gasEstimate;
-    try {
-      gasEstimate = await estimateUserOperationGas(userOp);
-      console.log('✅ Gas estimate successful:', gasEstimate);
-      userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
-      userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
-      userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
-    } catch (err: any) {
-      console.warn('⚠️  Gas estimation failed (using high defaults):', err.message);
-      // Use HIGH defaults instead of low values to ensure safe execution
-      userOp.callGasLimit = 3_000_000n;
-      userOp.verificationGasLimit = 2_000_000n;
-      userOp.preVerificationGas = 500_000n;
-      console.log('Using fallback gas limits:', {
-        callGasLimit: '3M',
-        verificationGasLimit: '2M',
-        preVerificationGas: '500k',
-      });
-    }
+  const callData = encodeSafeExecTransaction(params);
 
-    // Sign the UserOp with the Safe owner's private key
-    console.log('🔐 Signing UserOp...');
-    try {
-      userOp.signature = signUserOp(userOp);
-      console.log('✅ UserOp signature added');
-    } catch (err: any) {
-      console.error('❌ Failed to sign UserOp:', err.message);
-      return NextResponse.json(
-        { success: false, error: 'Failed to sign UserOp: ' + err.message },
-        { status: 500 }
-      );
-    }
+  console.log('📝 Creating UserOp with high gas limits for Safe NFT minting...');
 
-    console.log('📤 Sending UserOp...');
-    const userOpHash = await sendUserOperation(userOp);
-    console.log('✅ UserOp sent:', userOpHash);
+  return {
+    sender: SAFE_ACCOUNT,
+    nonce,
+    initCode: '0x' as Hex,
+    callData,
+    callGasLimit: 3_000_000n,
+    verificationGasLimit: 2_000_000n,
+    preVerificationGas: 500_000n,
+    maxFeePerGas: 2_000_000_000n,
+    maxPriorityFeePerGas: 2_000_000_000n,
+    paymasterAndData: '0x' as Hex,
+    signature: '0x' as Hex,
+  };
+}
 
-    let receipt = null;
-    for (let i = 0; i < 30; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      receipt = await getUserOperationReceipt(userOpHash);
-      if (receipt) break;
-    }
+// Estimate gas
+export async function estimateUserOperationGas(userOp: any) {
+  const rpcUserOp = toRpcUserOp(userOp);
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_estimateUserOperationGas',
+      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+    }),
+  });
 
-    if (!receipt) throw new Error('Timeout waiting for UserOp receipt');
+  const data = await response.json();
+  if (data.error) throw new Error(`Gas estimation error: ${data.error.message}`);
+  return data.result;
+}
 
-    await incrementTransactionCount(userAddress);
+// Send UserOp without paymaster (Safe pays for gas)
+export async function sendUserOperation(userOp: any) {
+  console.log('📤 Sending UserOp via Pimlico (no paymaster)...');
+  const rpcUserOp = toRpcUserOp(userOp);
 
-    return NextResponse.json({
-      success: true,
-      userOpHash,
-      txHash: receipt.receipt.transactionHash,
-      action,
-      message: 'Mint successful!',
-    });
+  console.log('📋 UserOp hex values:');
+  console.log('  callGasLimit:', rpcUserOp.callGasLimit);
+  console.log('  verificationGasLimit:', rpcUserOp.verificationGasLimit);
+  console.log('  preVerificationGas:', rpcUserOp.preVerificationGas);
+  console.log('  maxFeePerGas:', rpcUserOp.maxFeePerGas);
 
-  } catch (error: any) {
-    console.error('❌ Execution error:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed' },
-      { status: 500 }
-    );
-  }
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_sendUserOperation',
+      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+    }),
+  });
+
+  const data = await response.json();
+  console.log('📬 Bundler response:', JSON.stringify(data, null, 2));
+
+  if (data.error) throw new Error(`Pimlico error: ${data.error.message}`);
+  console.log('✅ UserOp hash:', data.result);
+  return data.result;
+}
+
+// Get receipt
+export async function getUserOperationReceipt(userOpHash: string) {
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_getUserOperationReceipt',
+      params: [userOpHash],
+    }),
+  });
+
+  const data = await response.json();
+  return data.result;
 }

@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('Creating Safe UserOp...');
+    console.log('📝 Creating Safe UserOp...');
     const userOp = await createSafeUserOperation({
       to: targetContract,
       value,
@@ -95,32 +95,50 @@ export async function POST(req: NextRequest) {
 
     console.log('UserOp created, sender:', userOp.sender);
 
-    // Estimate gas
+    // Estimate gas (optional - if it fails, use HIGH defaults)
     let gasEstimate;
     try {
       gasEstimate = await estimateUserOperationGas(userOp);
+      console.log('✅ Gas estimate successful');
+      console.log('  callGasLimit:', gasEstimate.callGasLimit);
+      console.log('  verificationGasLimit:', gasEstimate.verificationGasLimit);
+      console.log('  preVerificationGas:', gasEstimate.preVerificationGas);
       userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
       userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
       userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
     } catch (err: any) {
-      console.warn('Gas estimation failed:', err.message);
-      userOp.callGasLimit = 400_000n;
-      userOp.verificationGasLimit = 200_000n;
-      userOp.preVerificationGas = 60_000n;
+      console.warn('⚠️  Gas estimation failed, using HIGH fallback defaults');
+      console.warn('  Error:', err.message);
+      // Use HIGH defaults instead of low values to ensure safe execution
+      userOp.callGasLimit = 3_000_000n;
+      userOp.verificationGasLimit = 2_000_000n;
+      userOp.preVerificationGas = 500_000n;
+      console.log('📊 Fallback gas limits applied:');
+      console.log('  callGasLimit: 3,000,000 (3M)');
+      console.log('  verificationGasLimit: 2,000,000 (2M)');
+      console.log('  preVerificationGas: 500,000 (500k)');
     }
 
-    console.log('Sending UserOp...');
+    console.log('📤 Sending UserOp...');
     const userOpHash = await sendUserOperation(userOp);
-    console.log('UserOp sent:', userOpHash);
+    console.log('✅ UserOp sent successfully');
+    console.log('   Hash:', userOpHash);
 
     let receipt = null;
+    console.log('⏳ Waiting for UserOp receipt (max 60 seconds)...');
     for (let i = 0; i < 30; i++) {
       await new Promise(r => setTimeout(r, 2000));
       receipt = await getUserOperationReceipt(userOpHash);
-      if (receipt) break;
+      if (receipt) {
+        console.log('✅ Receipt received');
+        break;
+      }
+      if (i % 5 === 0) console.log(`  Still waiting... (${i * 2}s elapsed)`);
     }
 
-    if (!receipt) throw new Error('Timeout');
+    if (!receipt) {
+      throw new Error('Timeout waiting for UserOp receipt after 60 seconds');
+    }
 
     await incrementTransactionCount(userAddress);
 
@@ -133,9 +151,10 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Execution error:', error);
+    console.error('❌ Execution error:', error.message);
+    console.error('   Stack:', error.stack);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed' },
+      { success: false, error: error.message || 'Failed to execute action' },
       { status: 500 }
     );
   }
