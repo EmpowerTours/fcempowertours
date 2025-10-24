@@ -95,13 +95,15 @@ export async function sendSafeTransaction(params: {
     console.log('📤 Sending transaction through Safe SmartAccount...');
     const smartAccountClient = await createSafeSmartAccountClient();
 
-    // Prepare with increased gas limits to avoid OOG/AA23
+    // Prepare with increased gas limits to avoid OOG/AA23, and enable Pimlico paymaster for gas sponsorship
     const userOp = await smartAccountClient.prepareUserOperation({
+      account: smartAccountClient.account, // Explicitly pass account to satisfy types
       calls: [{
         to: params.to,
         value: params.value || 0n,
         data: params.data || '0x',
       }],
+      paymaster: true, // Enable Pimlico paymaster sponsorship (assumes bundler supports pm_ methods)
       verificationGasLimit: 3000000n,
       callGasLimit: 3000000n,
       preVerificationGas: 600000n,
