@@ -95,13 +95,7 @@ export async function sendSafeTransaction(params: {
     console.log('📤 Sending transaction through Safe SmartAccount...');
     const smartAccountClient = await createSafeSmartAccountClient();
 
-    if (!smartAccountClient.account) {
-      throw new Error('Smart account is undefined');
-    }
-
-    // Prepare with increased gas limits to avoid OOG/AA23, and enable Pimlico paymaster for gas sponsorship
-    const userOp = await smartAccountClient.prepareUserOperation({
-      account: smartAccountClient.account, // Explicitly pass account to satisfy types
+    const hash = await smartAccountClient.sendUserOperation({
       calls: [{
         to: params.to,
         value: params.value || 0n,
@@ -112,9 +106,6 @@ export async function sendSafeTransaction(params: {
       callGasLimit: 3000000n,
       preVerificationGas: 600000n,
     });
-
-    const signedUserOp = await smartAccountClient.signUserOperation(userOp);
-    const hash = await smartAccountClient.sendUserOperation(signedUserOp);
 
     console.log('✅ Transaction sent:', hash);
     return hash;
