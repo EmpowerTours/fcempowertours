@@ -11,7 +11,7 @@ import {
   estimateUserOperationGas
 } from '@/lib/pimlico';
 import { checkSafeBalance } from '@/lib/safe';
-import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
+import { encodeFunctionData, parseEther, Address, Hex, isHex } from 'viem';
 
 // Helper to convert BigInt to hex for serialization
 function bigintToHex(value: bigint | undefined): Hex {
@@ -19,10 +19,36 @@ function bigintToHex(value: bigint | undefined): Hex {
   return `0x${value.toString(16)}` as Hex;
 }
 
+// Helper to ensure address is valid hex
+function ensureValidHexAddress(addr: any): Hex {
+  if (!addr) return '0x0000000000000000000000000000000000000000';
+  
+  const addrStr = typeof addr === 'string' ? addr : String(addr);
+  
+  if (!isHex(addrStr)) {
+    console.error('❌ Invalid hex address:', addrStr, 'Type:', typeof addrStr);
+    throw new Error(`Invalid hex address: ${addrStr}`);
+  }
+  
+  if (addrStr.length !== 42) { // 0x + 40 hex chars
+    console.error('❌ Address wrong length:', addrStr, 'Length:', addrStr.length);
+    throw new Error(`Address wrong length: ${addrStr}`);
+  }
+  
+  return addrStr as Hex;
+}
+
 // Helper to convert UserOp with BigInts to RPC-compatible format
 function userOpToRPC(userOp: any) {
-  return {
-    sender: userOp.sender,
+  console.log('📤 Converting UserOp to RPC format...');
+  console.log('   sender:', userOp.sender, 'Type:', typeof userOp.sender);
+  console.log('   nonce:', userOp.nonce, 'Type:', typeof userOp.nonce);
+  
+  // Validate sender is a proper hex address
+  const validSender = ensureValidHexAddress(userOp.sender);
+  
+  const rpcUserOp = {
+    sender: validSender,
     nonce: bigintToHex(userOp.nonce),
     initCode: userOp.initCode || '0x',
     callData: userOp.callData,
@@ -34,6 +60,15 @@ function userOpToRPC(userOp: any) {
     paymasterAndData: userOp.paymasterAndData || '0x',
     signature: userOp.signature || '0x',
   };
+  
+  console.log('✅ RPC UserOp created:', {
+    sender: rpcUserOp.sender,
+    nonce: rpcUserOp.nonce,
+    callGasLimit: rpcUserOp.callGasLimit,
+    verificationGasLimit: rpcUserOp.verificationGasLimit,
+  });
+  
+  return rpcUserOp;
 }
 
 export async function POST(req: NextRequest) {
@@ -209,11 +244,17 @@ export async function POST(req: NextRequest) {
     });
 
     console.log('✅ UserOp created');
+    console.log('   Sender:', userOp.sender);
 
     // Estimate gas
     let gasEstimate;
     try {
       console.log('Estimating gas...');
+      
+      // 🔥 CRITICAL: Validate sender before RPC call
+      console.log('Validating sender address:', userOp.sender);
+      ensureValidHexAddress(userOp.sender);
+      
       const userOpForEstimate = userOpToRPC(userOp);
       
       console.log('UserOp for gas estimation:', {
@@ -221,6 +262,7 @@ export async function POST(req: NextRequest) {
         nonce: userOpForEstimate.nonce,
         callGasLimit: userOpForEstimate.callGasLimit,
         verificationGasLimit: userOpForEstimate.verificationGasLimit,
+        callDataLength: userOpForEstimate.callData.length,
       });
 
       gasEstimate = await estimateUserOperationGas(userOpForEstimate);
@@ -234,8 +276,9 @@ export async function POST(req: NextRequest) {
       userOp.callGasLimit = BigInt(gasEstimate.callGasLimit);
       userOp.verificationGasLimit = BigInt(gasEstimate.verificationGasLimit);
       userOp.preVerificationGas = BigInt(gasEstimate.preVerificationGas);
-    } catch (gasError) {
-      console.warn('Gas estimation failed, using defaults:', gasError);
+    } catch (gasError: any) {
+      console.warn('⚠️ Gas estimation failed:', gasError.message);
+      console.warn('Using defaults instead');
       userOp.callGasLimit = 150000n;
       userOp.verificationGasLimit = 150000n;
       userOp.preVerificationGas = 21000n;
@@ -282,11 +325,13 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Delegated execution error:', error);
+    console.error('❌ Delegated execution error:', error);
+    console.error('Stack:', error.stack);
     return NextResponse.json(
       {
         success: false,
         error: error.message || 'Execution failed',
+        details: error.response?.data || error.reason || undefined,
       },
       { status: 500 }
     );
