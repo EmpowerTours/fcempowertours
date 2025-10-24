@@ -4,7 +4,7 @@ import { monadTestnet } from '@/app/chains';
 
 const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
 const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
-const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as AddressAddress;
+const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
 // Validate
 if (!PIMLICO_BUNDLER_URL) throw new Error('NEXT_PUBLIC_PIMLICO_BUNDLER_URL missing');
