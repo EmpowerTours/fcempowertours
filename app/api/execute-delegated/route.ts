@@ -13,6 +13,29 @@ import {
 import { checkSafeBalance } from '@/lib/safe';
 import { encodeFunctionData, parseEther, Address, Hex } from 'viem';
 
+// Helper to convert BigInt to hex for serialization
+function bigintToHex(value: bigint | undefined): Hex {
+  if (value === undefined) return '0x0';
+  return `0x${value.toString(16)}` as Hex;
+}
+
+// Helper to convert UserOp with BigInts to RPC-compatible format
+function userOpToRPC(userOp: any) {
+  return {
+    sender: userOp.sender,
+    nonce: bigintToHex(userOp.nonce),
+    initCode: userOp.initCode || '0x',
+    callData: userOp.callData,
+    callGasLimit: bigintToHex(userOp.callGasLimit),
+    verificationGasLimit: bigintToHex(userOp.verificationGasLimit),
+    preVerificationGas: bigintToHex(userOp.preVerificationGas),
+    maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
+    maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
+    paymasterAndData: userOp.paymasterAndData || '0x',
+    signature: userOp.signature || '0x',
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userAddress, action, params } = await req.json();
@@ -185,26 +208,21 @@ export async function POST(req: NextRequest) {
       data: callData,
     });
 
-    // Estimate gas — Convert BigInt → 0x hex strings
+    console.log('✅ UserOp created');
+
+    // Estimate gas
     let gasEstimate;
     try {
-      const toHex = (n: bigint | undefined) => n !== undefined ? `0x${n.toString(16)}` : '0x0';
+      console.log('Estimating gas...');
+      const userOpForEstimate = userOpToRPC(userOp);
+      
+      console.log('UserOp for gas estimation:', {
+        sender: userOpForEstimate.sender,
+        nonce: userOpForEstimate.nonce,
+        callGasLimit: userOpForEstimate.callGasLimit,
+        verificationGasLimit: userOpForEstimate.verificationGasLimit,
+      });
 
-      const userOpForEstimate = {
-        sender: userOp.sender,
-        nonce: toHex(userOp.nonce),
-        initCode: userOp.initCode,
-        callData: userOp.callData,
-        callGasLimit: toHex(userOp.callGasLimit),
-        verificationGasLimit: toHex(userOp.verificationGasLimit),
-        preVerificationGas: toHex(userOp.preVerificationGas),
-        maxFeePerGas: toHex(userOp.maxFeePerGas),
-        maxPriorityFeePerGas: toHex(userOp.maxPriorityFeePerGas),
-        paymasterAndData: userOp.paymasterAndData,
-        signature: userOp.signature,
-      };
-
-      console.log('Estimating gas with hex strings...');
       gasEstimate = await estimateUserOperationGas(userOpForEstimate);
 
       console.log('Gas estimate:', {
@@ -230,7 +248,7 @@ export async function POST(req: NextRequest) {
     let receipt = null;
     for (let i = 0; i < 30; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
-      receipt = await getUserOperationReceipt(userOpHash);
+      receipt = await getUserOperationReceipt(userOpHash as Hex);
       if (receipt) break;
     }
 
