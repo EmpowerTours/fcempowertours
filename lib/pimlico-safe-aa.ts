@@ -42,7 +42,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       owners: [safeOwnerAccount],
       entryPoint: {
         address: ENTRYPOINT_ADDRESS,
-        version: '0.7',
+        version: '0.6',
       },
       version: '1.4.1', // Safe contract version
       address: SAFE_ACCOUNT, // Use existing Safe
