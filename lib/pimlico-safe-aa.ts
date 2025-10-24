@@ -74,7 +74,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       address: SAFE_ACCOUNT,
       slot: FALLBACK_HANDLER_STORAGE_SLOT as `0x${string}`,
     });
-    const fallbackHandler = storageValue 
+    const fallbackHandler = storageValue
       ? ('0x' + storageValue.slice(-40)) as `0x${string}`
       : '0x0000000000000000000000000000000000000000';
     console.log('Fallback handler:', fallbackHandler);
@@ -97,16 +97,25 @@ export async function sendSafeTransaction(params: {
     console.log('📤 Sending transaction through Safe SmartAccount...');
     const smartAccountClient = await createSafeSmartAccountClient();
 
+    // Get current gas prices from network
+    const gasPrice = await publicClient.getGasPrice();
+    const maxFeePerGas = (gasPrice * 120n) / 100n; // 20% buffer
+    const maxPriorityFeePerGas = gasPrice / 10n; // 10% of gas price
+
+    console.log('⛽ Gas prices:', {
+      gasPrice: gasPrice.toString(),
+      maxFeePerGas: maxFeePerGas.toString(),
+      maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
+    });
+
     const hash = await smartAccountClient.sendUserOperation({
       calls: [{
         to: params.to,
         value: params.value || 0n,
         data: params.data || '0x',
       }],
-      paymaster: true, // Enable Pimlico paymaster sponsorship (assumes bundler supports pm_ methods)
-      verificationGasLimit: 3000000n,
-      callGasLimit: 3000000n,
-      preVerificationGas: 600000n,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
     });
 
     console.log('✅ Transaction sent:', hash);
