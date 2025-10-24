@@ -39,11 +39,11 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
   console.log('📝 Creating Smart Account Client for Safe...');
 
   try {
-    const safeSmartAccount = await toSafeSmartAccount(publicClient, {
+    const safeSmartAccount = await toSafeSmartAccount({
+      client: publicClient,
+      owner: safeOwnerAccount,
       entryPoint: ENTRYPOINT_ADDRESS,
-      signer: safeOwnerAccount,
       safeVersion: '1.4.1',
-      saltNonce: 0n,
     });
 
     const smartAccountClient = createSmartAccountClient({
