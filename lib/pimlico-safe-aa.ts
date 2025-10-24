@@ -1,11 +1,11 @@
-import { 
+import {
   createSmartAccountClient,
   SmartAccountClient,
 } from 'permissionless';
 import { createPublicClient, http, Address, Hex, Chain } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-import { signerToSafeSmartAccount } from 'permissionless/accounts';
+import { toSafeSmartAccount } from 'permissionless/accounts';
 
 const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY!;
 const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
@@ -39,7 +39,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
   console.log('📝 Creating Smart Account Client for Safe...');
 
   try {
-    const safeSmartAccount = await signerToSafeSmartAccount(publicClient, {
+    const safeSmartAccount = await toSafeSmartAccount(publicClient, {
       entryPoint: ENTRYPOINT_ADDRESS,
       signer: safeOwnerAccount,
       safeVersion: '1.4.1',
