@@ -5,28 +5,35 @@ const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
 const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
-if (!PIMLICO_BUNDLER_URL) throw new Error('Missing PIMLICO_BUNDLER_URL');
-if (!ENTRYPOINT_ADDRESS || !isHex(ENTRYPOINT_ADDRESS)) throw new Error('Invalid ENTRYPOINT');
-if (!SAFE_ACCOUNT || !isHex(SAFE_ACCOUNT)) throw new Error('Invalid SAFE_ACCOUNT');
+// Validate
+if (!PIMLICO_BUNDLER_URL) throw new Error('NEXT_PUBLIC_PIMLICO_BUNDLER_URL missing');
+if (!ENTRYPOINT_ADDRESS || !isHex(ENTRYPOINT_ADDRESS)) throw new Error('Invalid NEXT_PUBLIC_ENTRYPOINT_ADDRESS');
+if (!SAFE_ACCOUNT || !isHex(SAFE_ACCOUNT)) throw new Error('Invalid NEXT_PUBLIC_SAFE_ACCOUNT');
 
-console.log('Using ENTRYPOINT:', ENTRYPOINT_ADDRESS);
+console.log('Using entrypoint:', ENTRYPOINT_ADDRESS);
+
+export const bundlerClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http(PIMLICO_BUNDLER_URL),
+});
 
 export const publicClient = createPublicClient({
   chain: monadTestnet,
   transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
 });
 
-// === BigInt → Hex ===
-function bigintToHex(value: bigint): Hex {
+// BigInt → Hex (fixes JSON.stringify crash)
+function bigintToHex(value: bigint | undefined): Hex {
+  if (value === undefined) return '0x0';
   return `0x${value.toString(16)}` as Hex;
 }
 
-// === v0.7 UserOp Converter ===
-function userOpToRPC(userOp: any): any {
+// UserOp to RPC-safe v0.7 format (fixes validation; matches your old successful UserOp)
+function userOpToRPC(userOp: any) {
   return {
     sender: userOp.sender,
     nonce: bigintToHex(userOp.nonce),
-    factory: undefined,
+    factory: undefined,  // No deployment
     factoryData: undefined,
     callData: userOp.callData,
     callGasLimit: bigintToHex(userOp.callGasLimit),
@@ -34,7 +41,7 @@ function userOpToRPC(userOp: any): any {
     preVerificationGas: bigintToHex(userOp.preVerificationGas),
     maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
     maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
-    paymaster: undefined,
+    paymaster: undefined,  // Will be added by paymaster call
     paymasterVerificationGasLimit: undefined,
     paymasterPostOpGasLimit: undefined,
     paymasterData: undefined,
@@ -42,14 +49,15 @@ function userOpToRPC(userOp: any): any {
   };
 }
 
-// === Encode Safe execTransaction ===
+// Encode Safe execTransaction (unchanged from old)
 export function encodeSafeExecTransaction(params: {
   to: Address;
   value: bigint;
   data: Hex;
+  operation?: number;
 }) {
-  const { to, value, data } = params;
-
+  const { to, value, data, operation = 0 } = params;
+  
   return encodeFunctionData({
     abi: [{
       inputs: [
@@ -74,25 +82,28 @@ export function encodeSafeExecTransaction(params: {
       to,
       value,
       data,
-      0,
-      0n, 0n, 0n,
-      '0x0000000000000000000000000000000000000000' as Address,
-      '0x0000000000000000000000000000000000000000' as Address,
-      '0x' as Hex
+      operation,
+      0n, // safeTxGas
+      0n, // baseGas
+      0n, // gasPrice
+      '0x0000000000000000000000000000000000000000' as Address, // gasToken
+      '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
+      '0x' as Hex // signatures (empty for AA)
     ],
   });
 }
 
-// === Create UserOp ===
+// Create user operation for Safe (old + fixed nonce ABI for v0.6)
 export async function createSafeUserOperation(params: {
   to: Address;
   value: bigint;
   data: Hex;
 }) {
+  // Get nonce (fixed key to uint256 for v0.6)
   const nonce = await publicClient.readContract({
     address: ENTRYPOINT_ADDRESS,
     abi: [{
-      inputs: [{ name: 'sender', type: 'address' }, { name: 'key', type: 'uint192' }],
+      inputs: [{ name: 'sender', type: 'address' }, { name: 'key', type: 'uint256' }],
       name: 'getNonce',
       outputs: [{ name: '', type: 'uint256' }],
       stateMutability: 'view',
@@ -101,46 +112,58 @@ export async function createSafeUserOperation(params: {
     functionName: 'getNonce',
     args: [SAFE_ACCOUNT, 0n],
   });
-
-  const callData = encodeSafeExecTransaction(params);
-
+  
+  // Encode the Safe execTransaction call
+  const callData = encodeSafeExecTransaction({
+    to: params.to,
+    value: params.value,
+    data: params.data,
+  });
+  
   return {
     sender: SAFE_ACCOUNT,
     nonce,
     initCode: '0x' as Hex,
     callData,
-    callGasLimit: 300_000n,
-    verificationGasLimit: 150_000n,
-    preVerificationGas: 50_000n,
-    maxFeePerGas: 1_000_000_000n,
-    maxPriorityFeePerGas: 1_000_000_000n,
-    paymasterAndData: '0x' as Hex,
+    callGasLimit: 500000n,
+    verificationGasLimit: 500000n,
+    preVerificationGas: 100000n,
+    maxFeePerGas: 1000000000n,
+    maxPriorityFeePerGas: 1000000000n,
+    paymasterAndData: '0x' as Hex, // Pimlico paymaster will be added
     signature: '0x' as Hex,
   };
 }
 
-// === PIMLICO RPC ===
-export async function estimateUserOperationGas(userOp: any) {
-  const rpcUserOp = userOpToRPC(userOp);
-
-  const response = await fetch(PIMLICO_BUNDLER_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'eth_estimateUserOperationGas',
-      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
-    }),
-  });
-
-  const data = await response.json();
-  if (data.error) throw new Error(`Pimlico: ${data.error.message}`);
-  return data.result;
-}
-
+// Send user operation via Pimlico (old structure + paymaster for sponsorship like old logs)
 export async function sendUserOperation(userOp: any) {
-  const rpcUserOp = userOpToRPC(userOp);
+  console.log('📤 Sending UserOp via Pimlico...');
+  
+  const rpcUserOp = userOpToRPC(userOp);  // Convert BigInt + v0.7
+
+  // Add paymaster sponsorship (matches your old "paymaster": "0x7777..." logs)
+  const paymasterUrl = PIMLICO_BUNDLER_URL.replace('/rpc', '/paymaster/rpc');
+  try {
+    const paymasterResp = await fetch(paymasterUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'pm_sponsorUserOperation',
+        params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+      }),
+    });
+    const paymasterData = await paymasterResp.json();
+    if (paymasterData.result) {
+      rpcUserOp.paymasterAndData = paymasterData.result.paymasterAndData;
+      console.log('✅ Paymaster added:', rpcUserOp.paymasterAndData.slice(0, 42));
+    } else {
+      console.warn('⚠️ Paymaster failed:', paymasterData.error?.message);
+    }
+  } catch (err) {
+    console.warn('⚠️ Paymaster unavailable:', err);
+  }
 
   const response = await fetch(PIMLICO_BUNDLER_URL, {
     method: 'POST',
@@ -152,13 +175,19 @@ export async function sendUserOperation(userOp: any) {
       params: [rpcUserOp, ENTRYPOINT_ADDRESS],
     }),
   });
-
+  
   const data = await response.json();
-  if (data.error) throw new Error(`Pimlico: ${data.error.message}`);
+  
+  if (data.error) {
+    throw new Error(`Pimlico error: ${data.error.message}`);
+  }
+  
+  console.log('✅ UserOp hash:', data.result);
   return data.result;
 }
 
-export async function getUserOperationReceipt(hash: string) {
+// Get user operation receipt (unchanged from old)
+export async function getUserOperationReceipt(userOpHash: string) {
   const response = await fetch(PIMLICO_BUNDLER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -166,10 +195,34 @@ export async function getUserOperationReceipt(hash: string) {
       jsonrpc: '2.0',
       id: 1,
       method: 'eth_getUserOperationReceipt',
-      params: [hash],
+      params: [userOpHash],
     }),
   });
-
+  
   const data = await response.json();
+  return data.result;
+}
+
+// Estimate user operation gas (old + BigInt fix)
+export async function estimateUserOperationGas(userOp: any) {
+  const rpcUserOp = userOpToRPC(userOp);  // Convert BigInt + v0.7
+
+  const response = await fetch(PIMLICO_BUNDLER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'eth_estimateUserOperationGas',
+      params: [rpcUserOp, ENTRYPOINT_ADDRESS],
+    }),
+  });
+  
+  const data = await response.json();
+  
+  if (data.error) {
+    throw new Error(`Gas estimation error: ${data.error.message}`);
+  }
+  
   return data.result;
 }
