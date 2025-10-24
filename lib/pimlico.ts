@@ -1,4 +1,3 @@
-// lib/pimlico.ts
 import { createPublicClient, http, Address, encodeFunctionData, Hex, isHex } from 'viem';
 import { monadTestnet } from '@/app/chains';
 
@@ -29,7 +28,7 @@ function bigintToHex(value: bigint | undefined): Hex {
   return `0x${value.toString(16)}` as Hex;
 }
 
-// Convert to Pimlico v0.7 RPC format (v0.6 EntryPoint compatible)
+// Convert to Pimlico v0.6 RPC format (Monad uses v0.6 EntryPoint)
 function toRpcUserOp(userOp: any): any {
   return {
     sender: userOp.sender,
@@ -41,7 +40,7 @@ function toRpcUserOp(userOp: any): any {
     preVerificationGas: bigintToHex(userOp.preVerificationGas),
     maxFeePerGas: bigintToHex(userOp.maxFeePerGas),
     maxPriorityFeePerGas: bigintToHex(userOp.maxPriorityFeePerGas),
-    paymasterAndData: '0x', // Required for v0.6 — will be replaced
+    paymasterAndData: '0x', // Required for v0.6 — will be replaced by paymaster
     signature: userOp.signature || '0x',
   };
 }
@@ -90,7 +89,7 @@ export function encodeSafeExecTransaction(params: {
   });
 }
 
-// Create user operation
+// Create user operation with increased gas limits
 export async function createSafeUserOperation(params: {
   to: Address;
   value: bigint;
@@ -116,11 +115,11 @@ export async function createSafeUserOperation(params: {
     nonce,
     initCode: '0x' as Hex,
     callData,
-    callGasLimit: 500000n,
-    verificationGasLimit: 500000n,
-    preVerificationGas: 100000n,
-    maxFeePerGas: 1000000000n,
-    maxPriorityFeePerGas: 1000000000n,
+    callGasLimit: 1_000_000n,
+    verificationGasLimit: 1_000_000n,
+    preVerificationGas: 200_000n,
+    maxFeePerGas: 2_000_000_000n,
+    maxPriorityFeePerGas: 2_000_000_000n,
     paymasterAndData: '0x' as Hex,
     signature: '0x' as Hex,
   };
@@ -145,14 +144,15 @@ export async function estimateUserOperationGas(userOp: any) {
   return data.result;
 }
 
-// Send UserOp
+// Send UserOp with enhanced paymaster logging
 export async function sendUserOperation(userOp: any) {
   console.log('Sending UserOp via Pimlico...');
   const rpcUserOp = toRpcUserOp(userOp);
 
-  // Add paymaster
+  // === REQUEST PAYMASTER SPONSORSHIP ===
   const paymasterUrl = PIMLICO_BUNDLER_URL.replace('/rpc', '/paymaster/rpc');
   try {
+    console.log('🔄 Requesting paymaster sponsorship...');
     const paymasterResp = await fetch(paymasterUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -165,16 +165,22 @@ export async function sendUserOperation(userOp: any) {
     });
     const paymasterData = await paymasterResp.json();
 
+    console.log('📋 Paymaster response:', JSON.stringify(paymasterData, null, 2));
+
     if (paymasterData.result?.paymasterAndData) {
       rpcUserOp.paymasterAndData = paymasterData.result.paymasterAndData;
-      console.log('Paymaster added:', rpcUserOp.paymasterAndData.slice(0, 42));
-    } else {
-      console.warn('Paymaster failed:', paymasterData.error?.message);
+      console.log('✅ Paymaster added:', rpcUserOp.paymasterAndData.slice(0, 42));
+    } else if (paymasterData.error) {
+      console.warn('❌ Paymaster rejected:', paymasterData.error);
+      throw new Error(`Paymaster error: ${JSON.stringify(paymasterData.error)}`);
     }
   } catch (err) {
-    console.warn('Paymaster unavailable:', err);
+    console.warn('⚠️  Paymaster unavailable, continuing without sponsorship:', err);
+    // Continue without paymaster — will likely fail but provides diagnostics
   }
 
+  // === SEND USEROP TO BUNDLER ===
+  console.log('📤 Sending UserOp to bundler...');
   const response = await fetch(PIMLICO_BUNDLER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -187,8 +193,10 @@ export async function sendUserOperation(userOp: any) {
   });
 
   const data = await response.json();
+  console.log('📬 Bundler response:', JSON.stringify(data, null, 2));
+
   if (data.error) throw new Error(`Pimlico error: ${data.error.message}`);
-  console.log('UserOp hash:', data.result);
+  console.log('✅ UserOp hash:', data.result);
   return data.result;
 }
 
