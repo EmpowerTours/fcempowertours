@@ -47,13 +47,14 @@ export async function POST(req: NextRequest) {
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
+    const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     const MINT_PRICE = parseEther('10');
 
     switch (action) {
       case 'mint_passport':
         console.log('🎫 Action: mint_passport (batched approve + mint)');
 
-        const calls = [
+        const mintCalls = [
           {
             to: TOURS_TOKEN,
             value: 0n,
@@ -83,18 +84,52 @@ export async function POST(req: NextRequest) {
           },
         ];
 
-        console.log('💳 Executing batched transaction...');
-        const txHash = await sendSafeTransaction(calls);
+        console.log('💳 Executing batched mint transaction...');
+        const mintTxHash = await sendSafeTransaction(mintCalls);
 
-        console.log('✅ Transaction successful, TX:', txHash);
+        console.log('✅ Mint successful, TX:', mintTxHash);
         await incrementTransactionCount(userAddress);
 
         return NextResponse.json({
           success: true,
-          txHash,
+          txHash: mintTxHash,
           action,
           userAddress,
           message: `${action} executed successfully`,
+        });
+
+      case 'swap_mon_for_tours':
+        console.log('💱 Action: swap_mon_for_tours');
+        
+        const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1'); // Default 0.1 MON
+        console.log('  Swapping:', monAmount.toString(), 'wei MON');
+
+        // Single call to swap contract with MON value
+        const swapCalls = [
+          {
+            to: TOKEN_SWAP,
+            value: monAmount, // Send MON with the transaction
+            data: encodeFunctionData({
+              abi: parseAbi(['function swapMonForTours() external payable']),
+              functionName: 'swapMonForTours',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing swap transaction...');
+        const swapTxHash = await sendSafeTransaction(swapCalls);
+
+        console.log('✅ Swap successful, TX:', swapTxHash);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: swapTxHash,
+          action,
+          userAddress,
+          monAmount: monAmount.toString(),
+          message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
         });
 
       default:

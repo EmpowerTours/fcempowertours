@@ -18,7 +18,7 @@ if (!ENTRYPOINT_ADDRESS) throw new Error('NEXT_PUBLIC_ENTRYPOINT_ADDRESS missing
 if (!SAFE_ACCOUNT) throw new Error('NEXT_PUBLIC_SAFE_ACCOUNT missing');
 if (!SAFE_OWNER_PRIVATE_KEY) throw new Error('SAFE_OWNER_PRIVATE_KEY missing');
 
-console.log('🔐 Initializing Safe AA Client');
+console.log('🔐 Initializing Safe AA Client (EntryPoint v0.7)');
 console.log(' EntryPoint:', ENTRYPOINT_ADDRESS);
 console.log(' Safe Account:', SAFE_ACCOUNT);
 console.log(' Bundler:', PIMLICO_BUNDLER_URL);
@@ -42,7 +42,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       owners: [safeOwnerAccount],
       entryPoint: {
         address: ENTRYPOINT_ADDRESS,
-        version: '0.6',
+        version: '0.7', // ✅ FIXED: Using v0.7 to match Pimlico bundler
       },
       version: '1.4.1',
       address: SAFE_ACCOUNT,
@@ -77,7 +77,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       : '0x0000000000000000000000000000000000000000';
     console.log('Fallback handler:', fallbackHandler);
 
-    console.log('✅ Smart Account Client created');
+    console.log('✅ Smart Account Client created with EntryPoint v0.7');
     return smartAccountClient;
   } catch (error: any) {
     console.error('❌ Error creating Smart Account Client:', error.message);
@@ -104,6 +104,7 @@ export async function sendSafeTransaction(
       maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
     });
 
+    // ✅ sendUserOperation automatically uses v0.7 format when entryPoint version is 0.7
     const hash = await smartAccountClient.sendUserOperation({
       calls,
       maxFeePerGas,
