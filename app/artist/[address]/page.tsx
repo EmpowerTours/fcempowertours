@@ -3,14 +3,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { parseEther, encodeFunctionData, createPublicClient, http, isAddress } from 'viem';
-import { monadTestnet } from 'viem/chains'; // Assumes viem/chains has Monad testnet config
 import Link from 'next/link';
 
-// Environment variables
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
-const MUSIC_NFT_ADDRESS = '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
-const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+// Environment variables from Railway
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/32e51fc/v1/graphql';
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
+const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const MONAD_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 
 // Viem client for transaction polling
 const client = createPublicClient({
@@ -18,13 +18,252 @@ const client = createPublicClient({
     id: 10143, // Monad testnet
     name: 'Monad Testnet',
     nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-    rpcUrls: { default: { http: ['https://your-monad-testnet-rpc-url'] } }, // Replace with actual RPC URL
+    rpcUrls: { default: { http: [MONAD_RPC_URL] } },
   },
   transport: http(),
 });
 
-// ABIs
+// ABIs from provided contract data
 const MUSIC_NFT_ABI = [
+  {
+    inputs: [{ internalType: 'address', name: '_treasury', type: 'address' }, { internalType: 'address', name: '_toursToken', type: 'address' }],
+    stateMutability: 'nonpayable',
+    type: 'constructor',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'owner', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'approved', type: 'address' },
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+    ],
+    name: 'Approval',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'owner', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'operator', type: 'address' },
+      { indexed: false, internalType: 'bool', name: 'approved', type: 'bool' },
+    ],
+    name: 'ApprovalForAll',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: false, internalType: 'uint256', name: '_fromTokenId', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: '_toTokenId', type: 'uint256' },
+    ],
+    name: 'BatchMetadataUpdate',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [{ indexed: true, internalType: 'uint256', name: 'licenseId', type: 'uint256' }],
+    name: 'LicenseExpired',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'licenseId', type: 'uint256' },
+      { indexed: true, internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'expiry', type: 'uint256' },
+    ],
+    name: 'LicensePurchased',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'artist', type: 'address' },
+      { indexed: false, internalType: 'string', name: 'tokenURI', type: 'string' },
+      { indexed: false, internalType: 'uint256', name: 'price', type: 'uint256' },
+    ],
+    name: 'MasterMinted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [{ indexed: false, internalType: 'uint256', name: '_tokenId', type: 'uint256' }],
+    name: 'MetadataUpdate',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'previousOwner', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'newOwner', type: 'address' },
+    ],
+    name: 'OwnershipTransferred',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'newPrice', type: 'uint256' },
+    ],
+    name: 'PriceUpdated',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'from', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+    ],
+    name: 'Transfer',
+    type: 'event',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: '', type: 'address' },
+      { internalType: 'string', name: '', type: 'string' },
+    ],
+    name: 'artistSongs',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'licenseId', type: 'uint256' }],
+    name: 'burnExpiredLicense',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
+    name: 'getApproved',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getTotalMasters',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'artist', type: 'address' },
+      { internalType: 'string', name: 'songTitle', type: 'string' },
+    ],
+    name: 'hasSong',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'user', type: 'address' },
+      { internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+    ],
+    name: 'hasValidLicense',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'operator', type: 'address' },
+    ],
+    name: 'isApprovedForAll',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'licensePeriod',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'licenses',
+    outputs: [
+      { internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+      { internalType: 'address', name: 'licensee', type: 'address' },
+      { internalType: 'uint256', name: 'expiry', type: 'uint256' },
+      { internalType: 'bool', name: 'active', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'masterTokens',
+    outputs: [
+      { internalType: 'address', name: 'artist', type: 'address' },
+      { internalType: 'string', name: 'tokenURI', type: 'string' },
+      { internalType: 'uint256', name: 'price', type: 'uint256' },
+      { internalType: 'uint256', name: 'totalSold', type: 'uint256' },
+      { internalType: 'bool', name: 'active', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'artist', type: 'address' },
+      { internalType: 'string', name: 'tokenURI', type: 'string' },
+      { internalType: 'string', name: 'songTitle', type: 'string' },
+      { internalType: 'uint256', name: 'price', type: 'uint256' },
+    ],
+    name: 'mintMaster',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'name',
+    outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'owner',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
+    name: 'ownerOf',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
   {
     inputs: [{ internalType: 'uint256', name: 'masterTokenId', type: 'uint256' }],
     name: 'purchaseLicense',
@@ -32,24 +271,305 @@ const MUSIC_NFT_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  {
+    inputs: [{ internalType: 'uint256', name: 'licenseId', type: 'uint256' }],
+    name: 'renewLicense',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'from', type: 'address' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'from', type: 'address' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { internalType: 'bytes', name: 'data', type: 'bytes' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'operator', type: 'address' },
+      { internalType: 'bool', name: 'approved', type: 'bool' },
+    ],
+    name: 'setApprovalForAll',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes4', name: 'interfaceId', type: 'bytes4' }],
+    name: 'supportsInterface',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'masterTokenId', type: 'uint256' }],
+    name: 'toggleSales',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
+    name: 'tokenURI',
+    outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'toursToken',
+    outputs: [{ internalType: 'contract IERC20', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'from', type: 'address' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'newOwner', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'treasury',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'treasuryFee',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+      { internalType: 'uint256', name: 'newPrice', type: 'uint256' },
+    ],
+    name: 'updatePrice',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: '', type: 'address' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+    ],
+    name: 'userLicenses',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 const ERC20_ABI = [
   {
     inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'string', name: 'symbol', type: 'string' },
+    ],
+    stateMutability: 'nonpayable',
+    type: 'constructor',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'owner', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'spender', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' },
+    ],
+    name: 'Approval',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'previousOwner', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'newOwner', type: 'address' },
+    ],
+    name: 'OwnershipTransferred',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'from', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' },
+    ],
+    name: 'Transfer',
+    type: 'event',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
     ],
     name: 'approve',
-    outputs: [{ name: '', type: 'bool' }],
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
-    inputs: [{ name: 'account', type: 'address' }],
+    inputs: [{ internalType: 'address', name: 'account', type: 'address' }],
     name: 'balanceOf',
-    outputs: [{ name: '', type: 'uint256' }],
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'decimals',
+    outputs: [{ internalType: 'uint8', name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'subtractedValue', type: 'uint256' },
+    ],
+    name: 'decreaseAllowance',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'addedValue', type: 'uint256' },
+    ],
+    name: 'increaseAllowance',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'mint',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'name',
+    outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'owner',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalSupply',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'from', type: 'address' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'newOwner', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;
@@ -103,7 +623,7 @@ interface GraphQLResponse {
 const resolveIPFS = (url: string): string => {
   if (!url) return '';
   if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', PINATA_GATEWAY);
+    return url.replace('ipfs://', `https://${PINATA_GATEWAY}/ipfs/`);
   }
   return url;
 };
@@ -249,7 +769,11 @@ export default function ArtistProfilePage() {
         return updated;
       });
     } catch (error: any) {
-      console.error('❌ Error loading artist profile:', error.message, error.stack);
+      console.error('❌ Error loading artist profile:', {
+        message: error.message,
+        stack: error.stack,
+        artistAddress,
+      });
     } finally {
       setLoading(false);
     }
@@ -257,15 +781,25 @@ export default function ArtistProfilePage() {
 
   const handleBuyLicense = async (music: ArtistMusic) => {
     if (!walletAddress) {
-      console.error('🔑 Wallet not connected');
+      console.error('🔑 Wallet not connected', { tokenId: music.tokenId });
       alert('🔑 Please connect your wallet first');
       await requestWallet();
       return;
     }
 
     if (walletAddress.toLowerCase() === artistAddress.toLowerCase()) {
-      console.error('❌ Attempted to buy own music', { tokenId: music.tokenId });
+      console.error('❌ Attempted to buy own music', { tokenId: music.tokenId, artistAddress });
       alert('❌ You cannot buy your own music!');
+      return;
+    }
+
+    if (!sendTransaction || typeof sendTransaction !== 'function') {
+      console.error('❌ sendTransaction is not a function', {
+        tokenId: music.tokenId,
+        walletAddress,
+        farcasterContext: JSON.stringify({ user, walletAddress, isMobile }),
+      });
+      alert('❌ Transaction failed: Farcaster SDK not properly initialized');
       return;
     }
 
@@ -288,17 +822,17 @@ export default function ArtistProfilePage() {
       });
       const approveAmount = parseEther(music.price || '0.01');
       if (toursBalance < approveAmount) {
-        throw new Error(`Insufficient TOURS: Need ${music.price} TOURS, have ${toursBalance.toString()}`);
+        throw new Error(`Insufficient TOURS: Need ${music.price} TOURS, have ${Number(toursBalance) / 1e18} TOURS`);
       }
 
       const monBalance = await client.getBalance({ address: walletAddress as `0x${string}` });
       const minGas = parseEther('0.01'); // Adjust based on actual gas estimates
       if (monBalance < minGas) {
-        throw new Error(`Insufficient MON for gas: Need ~0.01 MON, have ${monBalance.toString()}`);
+        throw new Error(`Insufficient MON for gas: Need ~0.01 MON, have ${Number(monBalance) / 1e18} MON`);
       }
 
       // Step 1: Approve TOURS tokens
-      console.log('✅ Step 1/2: Approving TOURS tokens...');
+      console.log('✅ Step 1/2: Approving TOURS tokens...', { amount: music.price });
       const approveTx = await sendTransaction({
         chainId: `eip155:10143`,
         method: 'eth_sendTransaction',
@@ -314,7 +848,10 @@ export default function ArtistProfilePage() {
         },
       });
 
-      console.log('📤 Approval transaction sent:', approveTx.transactionHash);
+      console.log('📤 Approval transaction sent:', {
+        txHash: approveTx.transactionHash,
+        tokenId: music.tokenId,
+      });
       console.log(`⏳ Step 1/2: Approving TOURS tokens... TX: ${approveTx.transactionHash}`);
 
       // Poll for approval transaction receipt
@@ -325,10 +862,10 @@ export default function ArtistProfilePage() {
       if (approveReceipt.status !== 'success') {
         throw new Error(`Approval transaction failed: ${approveReceipt.transactionHash}`);
       }
-      console.log('✅ TOURS tokens approved!');
+      console.log('✅ TOURS tokens approved!', { txHash: approveReceipt.transactionHash });
 
       // Step 2: Purchase license
-      console.log('✅ Step 2/2: Purchasing license...');
+      console.log('✅ Step 2/2: Purchasing license...', { tokenId: music.tokenId });
       const purchaseTx = await sendTransaction({
         chainId: `eip155:10143`,
         method: 'eth_sendTransaction',
@@ -344,7 +881,10 @@ export default function ArtistProfilePage() {
         },
       });
 
-      console.log('📤 Purchase transaction sent:', purchaseTx.transactionHash);
+      console.log('📤 Purchase transaction sent:', {
+        txHash: purchaseTx.transactionHash,
+        tokenId: music.tokenId,
+      });
       console.log(`⏳ Step 2/2: Purchasing license... TX: ${purchaseTx.transactionHash}`);
 
       // Poll for purchase transaction receipt
@@ -356,7 +896,12 @@ export default function ArtistProfilePage() {
         throw new Error(`Purchase transaction failed: ${purchaseReceipt.transactionHash}`);
       }
 
-      console.log(`🎉 Music License Purchased! Token: ${music.tokenId}, Track: ${music.metadata?.name || 'this track'}, Paid: ${music.price} TOURS, TX: ${purchaseTx.transactionHash}`);
+      console.log('🎉 Music License Purchased!', {
+        tokenId: music.tokenId,
+        trackName: music.metadata?.name || 'this track',
+        price: music.price,
+        txHash: purchaseTx.transactionHash,
+      });
       alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nPaid: ${music.price} TOURS\n\nTX: ${purchaseTx.transactionHash}`);
 
       // Refresh artist profile
@@ -367,6 +912,7 @@ export default function ArtistProfilePage() {
         stack: error.stack,
         tokenId: music.tokenId,
         buyer: walletAddress,
+        artist: artistAddress,
       });
       if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
         alert('❌ Transaction cancelled by user');
@@ -376,6 +922,8 @@ export default function ArtistProfilePage() {
         alert(error.message);
       } else if (error.message?.includes('transaction failed')) {
         alert(`❌ Transaction failed: ${error.message}`);
+      } else if (error.message?.includes('sendTransaction is not a function')) {
+        alert('❌ Farcaster SDK error: sendTransaction not available');
       } else {
         alert(`❌ Purchase failed: ${error.message || 'Unknown error'}`);
       }
