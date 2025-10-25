@@ -19,9 +19,9 @@ if (!SAFE_ACCOUNT) throw new Error('NEXT_PUBLIC_SAFE_ACCOUNT missing');
 if (!SAFE_OWNER_PRIVATE_KEY) throw new Error('SAFE_OWNER_PRIVATE_KEY missing');
 
 console.log('🔐 Initializing Safe AA Client (EntryPoint v0.7)');
-console.log(' EntryPoint:', ENTRYPOINT_ADDRESS);
-console.log(' Safe Account:', SAFE_ACCOUNT);
-console.log(' Bundler:', PIMLICO_BUNDLER_URL);
+console.log('   EntryPoint:', ENTRYPOINT_ADDRESS);
+console.log('   Safe Account:', SAFE_ACCOUNT);
+console.log('   Bundler:', PIMLICO_BUNDLER_URL);
 
 // Public client for Monad
 export const publicClient = createPublicClient({
@@ -42,7 +42,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       owners: [safeOwnerAccount],
       entryPoint: {
         address: ENTRYPOINT_ADDRESS,
-        version: '0.7', // ✅ FIXED: Using v0.7 to match Pimlico bundler
+        version: '0.7', // ✅ Using v0.7 to match Pimlico bundler
       },
       version: '1.4.1',
       address: SAFE_ACCOUNT,
@@ -65,7 +65,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       functionName: 'getModulesPaginated',
       args: ['0x0000000000000000000000000000000000000001' as Address, 10n],
     });
-    console.log('Enabled modules:', modules);
+    console.log('   Enabled modules:', modules);
 
     const FALLBACK_HANDLER_STORAGE_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
     const storageValue = await publicClient.getStorageAt({
@@ -75,7 +75,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
     const fallbackHandler = storageValue
       ? ('0x' + storageValue.slice(-40)) as `0x${string}`
       : '0x0000000000000000000000000000000000000000';
-    console.log('Fallback handler:', fallbackHandler);
+    console.log('   Fallback handler:', fallbackHandler);
 
     console.log('✅ Smart Account Client created with EntryPoint v0.7');
     return smartAccountClient;
@@ -104,18 +104,44 @@ export async function sendSafeTransaction(
       maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
     });
 
-    // ✅ sendUserOperation automatically uses v0.7 format when entryPoint version is 0.7
-    const hash = await smartAccountClient.sendUserOperation({
+    // ✅ CRITICAL FIX: For EntryPoint v0.7, just pass account, calls, and gas prices
+    // The permissionless client will automatically format the UserOperation correctly for v0.7
+    // DO NOT manually specify gas limit fields - they're named differently in v0.7
+    const userOpHash = await smartAccountClient.sendUserOperation({
+      account: smartAccountClient.account,
       calls,
       maxFeePerGas,
       maxPriorityFeePerGas,
     });
 
-    console.log('✅ Transaction sent:', hash);
-    return hash;
+    console.log('✅ UserOperation hash:', userOpHash);
+    
+    // Wait for the UserOperation to be included in a transaction
+    console.log('⏳ Waiting for UserOperation to be mined...');
+    const receipt = await smartAccountClient.waitForUserOperationReceipt({
+      hash: userOpHash,
+    });
+    
+    const txHash = receipt.receipt.transactionHash;
+    console.log('✅ Transaction mined:', txHash);
+    console.log('   Gas used:', receipt.receipt.gasUsed.toString());
+    
+    return txHash;
   } catch (error: any) {
     console.error('❌ Transaction error:', error.message);
-    console.error(' Stack:', error.stack);
+    console.error('   Stack:', error.stack);
+    
+    // Log more details if available
+    if (error.cause) {
+      console.error('   Cause:', error.cause);
+    }
+    if (error.details) {
+      console.error('   Details:', error.details);
+    }
+    if (error.shortMessage) {
+      console.error('   Short message:', error.shortMessage);
+    }
+    
     throw error;
   }
 }
