@@ -5,41 +5,91 @@ import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 
-// ✅ NEW: Function to convert transaction hashes to clickable links
-function formatResponseWithLinks(text: string): string {
-  // Pattern 1: Find "TX: 0x..." or "Tx: 0x..." and make clickable
-  let formatted = text.replace(
-    /TX:\s*(0x[a-fA-F0-9]{10,66})/gi,
-    (match, hash) => `TX: <a href="https://testnet.monadscan.com/tx/${hash}" target="_blank" rel="noopener noreferrer" class="underline hover:text-blue-300 transition-colors">${hash.slice(0, 10)}...</a>`
-  );
+// ✅ IMPROVED: Parse response and render with React components instead of innerHTML
+interface ParsedResponse {
+  parts: Array<{
+    type: 'text' | 'txlink';
+    content: string;
+    url?: string;
+    shortHash?: string;
+  }>;
+}
 
-  // Pattern 2: Find "View: https://testnet.monadscan.com/tx/..." and make clickable
-  formatted = formatted.replace(
-    /View:\s*(https:\/\/testnet\.monadscan\.com\/tx\/0x[a-fA-F0-9]{64})/gi,
-    (match, url) => {
-      const hash = url.split('/tx/')[1];
-      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-medium transition-colors">
-        <span>🔗 View TX</span>
-      </a>`;
+function parseResponse(text: string): ParsedResponse {
+  const parts: ParsedResponse['parts'] = [];
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    // Check if line contains a transaction hash pattern
+    const txMatch = line.match(/TX:\s*(0x[a-fA-F0-9]{64})/i);
+    const viewMatch = line.match(/View:\s*(https:\/\/testnet\.monadscan\.com\/tx\/(0x[a-fA-F0-9]{64}))/i);
+    
+    if (txMatch) {
+      const fullHash = txMatch[1];
+      const beforeTx = line.substring(0, txMatch.index);
+      const afterTx = line.substring(txMatch.index! + txMatch[0].length);
+      
+      // Add text before TX
+      if (beforeTx) {
+        parts.push({ type: 'text', content: beforeTx });
+      }
+      
+      // Add clickable TX link
+      parts.push({
+        type: 'txlink',
+        content: `TX: ${fullHash.slice(0, 10)}...${fullHash.slice(-8)}`,
+        url: `https://testnet.monadscan.com/tx/${fullHash}`,
+        shortHash: `${fullHash.slice(0, 10)}...${fullHash.slice(-8)}`
+      });
+      
+      // Add text after TX
+      if (afterTx) {
+        parts.push({ type: 'text', content: afterTx });
+      }
+      
+      // Add line break
+      parts.push({ type: 'text', content: '\n' });
+      
+    } else if (viewMatch) {
+      const url = viewMatch[1];
+      const fullHash = viewMatch[2];
+      const beforeView = line.substring(0, viewMatch.index);
+      const afterView = line.substring(viewMatch.index! + viewMatch[0].length);
+      
+      // Add text before View
+      if (beforeView) {
+        parts.push({ type: 'text', content: beforeView });
+      }
+      
+      // Add clickable View link
+      parts.push({
+        type: 'txlink',
+        content: '🔗 View on Monadscan',
+        url: url,
+        shortHash: `${fullHash.slice(0, 10)}...${fullHash.slice(-8)}`
+      });
+      
+      // Add text after View
+      if (afterView) {
+        parts.push({ type: 'text', content: afterView });
+      }
+      
+      // Add line break
+      parts.push({ type: 'text', content: '\n' });
+      
+    } else {
+      // Regular text line
+      parts.push({ type: 'text', content: line + '\n' });
     }
-  );
-
-  // Pattern 3: Find standalone transaction hashes (0x + 64 hex chars) and make clickable
-  formatted = formatted.replace(
-    /\b(0x[a-fA-F0-9]{64})\b/g,
-    (hash) => `<a href="https://testnet.monadscan.com/tx/${hash}" target="_blank" rel="noopener noreferrer" class="underline hover:text-blue-300 transition-colors" title="View on Monadscan">${hash.slice(0, 10)}...${hash.slice(-8)}</a>`
-  );
-
-  // Convert newlines to <br> for proper HTML rendering
-  formatted = formatted.replace(/\n/g, '<br>');
-
-  return formatted;
+  }
+  
+  return { parts };
 }
 
 export default function SimpleBotBar() {
   const router = useRouter();
   const { walletAddress } = useFarcasterContext();
-  const { location } = useGeolocation(); // Get user's geolocation
+  const { location } = useGeolocation();
   
   const [command, setCommand] = useState('');
   const [sending, setSending] = useState(false);
@@ -90,26 +140,22 @@ export default function SimpleBotBar() {
             setResponse('');
           }, 1000);
         } else if (data.action === 'transaction') {
-          // Keep transaction messages visible longer
           setTimeout(() => {
             setCommand('');
             setResponse('');
           }, 10000);
         } else if (data.action === 'info') {
-          // Keep help message visible longer
           setTimeout(() => {
             setCommand('');
             setResponse('');
           }, 15000);
         } else {
-          // Clear after 3 seconds for other actions
           setTimeout(() => {
             setCommand('');
             setResponse('');
           }, 3000);
         }
       } else {
-        // Error response from API
         const errorMessage = String(data.message || '❌ Command not recognized. Try "help"');
         setResponse(errorMessage);
         setTimeout(() => {
@@ -132,6 +178,43 @@ export default function SimpleBotBar() {
     if (e.key === 'Enter') {
       handleSend();
     }
+  };
+
+  // ✅ Render parsed response with React components
+  const renderResponse = () => {
+    if (!response) return null;
+    
+    const parsed = parseResponse(response);
+    
+    return (
+      <div className="p-3 bg-blue-900/50 text-blue-100 rounded-lg border border-blue-700 animate-fade-in">
+        <div className="text-xs sm:text-sm font-mono leading-relaxed">
+          {parsed.parts.map((part, index) => {
+            if (part.type === 'txlink') {
+              return (
+                <a
+                  key={index}
+                  href={part.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-medium transition-colors mx-1"
+                  title={part.shortHash}
+                >
+                  {part.content}
+                </a>
+              );
+            } else {
+              // Regular text - preserve newlines
+              return (
+                <span key={index} className="whitespace-pre-wrap">
+                  {part.content}
+                </span>
+              );
+            }
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -179,16 +262,7 @@ export default function SimpleBotBar() {
           </div>
 
           {/* Response Message with Clickable Links */}
-          {response && (
-            <div className="p-3 bg-blue-900/50 text-blue-100 rounded-lg border border-blue-700 animate-fade-in">
-              <div 
-                className="text-xs sm:text-sm font-mono whitespace-pre-wrap leading-relaxed bot-response"
-                dangerouslySetInnerHTML={{ 
-                  __html: formatResponseWithLinks(response) 
-                }}
-              />
-            </div>
-          )}
+          {renderResponse()}
         </div>
       </div>
 
@@ -205,19 +279,6 @@ export default function SimpleBotBar() {
         }
         .animate-fade-in {
           animation: fade-in 0.3s ease-out;
-        }
-        
-        /* ✅ NEW: Styles for clickable links in bot responses */
-        :global(.bot-response a) {
-          color: #60a5fa;
-          text-decoration: underline;
-          cursor: pointer;
-        }
-        :global(.bot-response a:hover) {
-          color: #93c5fd;
-        }
-        :global(.bot-response a:active) {
-          transform: scale(0.98);
         }
       `}</style>
     </div>

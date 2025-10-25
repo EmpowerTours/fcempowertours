@@ -291,12 +291,18 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
         
         console.log(`💸 Sending ${amount} TOURS to ${recipient}`);
         
-        // Check/create delegation
+        // ✅ CRITICAL FIX: Check/create delegation WITH send_tours permission
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
         
-        if (!delegationData.success || !delegationData.delegation) {
-          console.warn('⚠️ [BOT] No active delegation - creating one...');
+        // ✅ Check if delegation exists AND has send_tours permission
+        const hasValidDelegation = delegationData.success && 
+                                   delegationData.delegation &&
+                                   Array.isArray(delegationData.delegation.permissions) &&
+                                   delegationData.delegation.permissions.includes('send_tours');
+        
+        if (!hasValidDelegation) {
+          console.warn('⚠️ [BOT] No delegation with send_tours permission - creating one...');
           
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
@@ -305,6 +311,7 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
+              // ✅ EXPLICITLY include send_tours permission
               permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap']
             })
           });
@@ -314,7 +321,13 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
             throw new Error('Failed to create delegation: ' + createData.error);
           }
           
-          console.log('✅ [BOT] Delegation created');
+          console.log('✅ [BOT] Delegation created with send_tours permission');
+        } else {
+          console.log('✅ [BOT] Delegation has send_tours permission:', {
+            hoursLeft: delegationData.delegation.hoursLeft,
+            transactionsLeft: delegationData.delegation.transactionsLeft,
+            permissions: delegationData.delegation.permissions
+          });
         }
         
         // Execute send via delegation
