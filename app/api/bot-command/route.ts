@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
 💰 Transactions (Gasless - We Pay!):
 - "swap 0.1 mon" - Swap MON for TOURS tokens
 - "mint passport" - Mint a passport NFT (FREE)
-- "mint music" - Mint a music NFT (requires upload)
+- "mint music <price>" - Mint a music NFT (requires upload first)
+- "send <amount> tours to @username" - Send TOURS to another user
 - "check balance" - Check your MON/TOURS balance
 
 💬 Info:
@@ -178,6 +179,154 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
       }
     }
     
+    // ==================== SEND TOURS COMMAND (GASLESS VIA DELEGATION) ====================
+    if (lowerCommand.includes('send') && lowerCommand.includes('tours')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: '❌ Wallet not connected. Try: "go to profile"'
+        });
+      }
+      
+      try {
+        // Parse: "send 10 tours to @username" or "send 10 tours to 0x..."
+        const amountMatch = lowerCommand.match(/send\s+([\d.]+)\s+tours/);
+        const recipientMatch = lowerCommand.match(/to\s+(@[\w]+|0x[a-fA-F0-9]{40})/);
+        
+        if (!amountMatch || !recipientMatch) {
+          return NextResponse.json({
+            success: false,
+            message: '❌ Invalid format. Use: "send 10 tours to @username" or "send 10 tours to 0x..."'
+          });
+        }
+        
+        const amount = parseFloat(amountMatch[1]);
+        let recipient = recipientMatch[1];
+        
+        if (amount <= 0 || amount > 10000) {
+          return NextResponse.json({
+            success: false,
+            message: '❌ Invalid amount. Please use 0.01 - 10000 TOURS'
+          });
+        }
+        
+        // If recipient is a Farcaster username, resolve it to address
+        if (recipient.startsWith('@')) {
+          console.log('🔍 Resolving Farcaster username:', recipient);
+          try {
+            const neynarRes = await fetch(
+              `https://api.neynar.com/v2/farcaster/user/by_username?username=${recipient.slice(1)}`,
+              {
+                headers: {
+                  'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+                },
+              }
+            );
+            
+            if (neynarRes.ok) {
+              const neynarData = await neynarRes.json();
+              const userVerifiedAddresses = 
+                neynarData.result?.user?.verified_addresses?.eth_addresses ||
+                neynarData.result?.user?.verifiedAddresses?.ethAddresses;
+              
+              if (userVerifiedAddresses && userVerifiedAddresses.length > 0) {
+                recipient = userVerifiedAddresses[0];
+                console.log('✅ Resolved to:', recipient);
+              } else {
+                throw new Error(`No verified address for ${recipient}`);
+              }
+            } else {
+              throw new Error(`User ${recipient} not found`);
+            }
+          } catch (resolveErr: any) {
+            return NextResponse.json({
+              success: false,
+              message: `❌ Failed to find user ${recipient}: ${resolveErr.message}`
+            });
+          }
+        }
+        
+        // Validate recipient address
+        if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+          return NextResponse.json({
+            success: false,
+            message: '❌ Invalid recipient address'
+          });
+        }
+        
+        console.log(`💸 Sending ${amount} TOURS to ${recipient}`);
+        
+        // Check/create delegation
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        
+        if (!delegationData.success || !delegationData.delegation) {
+          console.warn('⚠️ [BOT] No active delegation - creating one...');
+          
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap']
+            })
+          });
+          
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+          
+          console.log('✅ [BOT] Delegation created');
+        }
+        
+        // Execute send via delegation
+        const sendRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'send_tours',
+            params: {
+              recipient,
+              amount: amount.toString()
+            }
+          })
+        });
+        
+        const sendData = await sendRes.json();
+        
+        if (!sendData.success) {
+          throw new Error(sendData.error || 'Send failed');
+        }
+        
+        console.log('✅ TOURS sent:', sendData.txHash);
+        
+        return NextResponse.json({
+          success: true,
+          action: 'transaction',
+          message: `💸 Sent ${amount} TOURS! (FREE)
+
+To: ${recipient.slice(0, 6)}...${recipient.slice(-4)}
+
+TX: ${sendData.txHash?.slice(0, 10)}...
+
+⚡ Gasless - we paid the fees!
+
+View: https://testnet.monadscan.com/tx/${sendData.txHash}`
+        });
+        
+      } catch (error: any) {
+        console.error('❌ Send TOURS failed:', error);
+        return NextResponse.json({
+          success: false,
+          message: `❌ Send failed: ${error.message}`
+        });
+      }
+    }
+    
     // ==================== MINT PASSPORT COMMAND (GASLESS VIA DELEGATION) ====================
     if (lowerCommand.includes('mint passport')) {
       if (!userAddress) {
@@ -206,7 +355,7 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_passport', 'mint_music', 'swap', 'buy_itinerary']
+              permissions: ['mint_passport', 'mint_music', 'swap', 'send_tours']
             })
           });
           
@@ -223,25 +372,20 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
           });
         }
         
-        // Step 2: Get country from location parameter or detect
+        // Step 2: ALWAYS use server-side geolocation detection (IP-based)
+        // This ensures consistent behavior regardless of client location data
         let countryCode = 'US';
         let countryName = 'United States';
         
-        if (location && location.country) {
-          console.log('📍 [BOT] Using provided location:', location.country, location.countryName);
-          countryCode = location.country;
-          countryName = location.countryName;
-        } else {
-          console.log('🌍 [BOT] Detecting location via IP...');
-          try {
-            const geoRes = await fetch(`${APP_URL}/api/geo`);
-            const geoData = await geoRes.json();
-            countryCode = geoData.country || 'US';
-            countryName = geoData.country_name || 'United States';
-            console.log('📍 [BOT] Detected location:', countryCode, countryName);
-          } catch (geoErr) {
-            console.warn('⚠️ [BOT] Location detection failed, using default:', geoErr);
-          }
+        console.log('🌍 [BOT] Detecting location via server-side IP lookup...');
+        try {
+          const geoRes = await fetch(`${APP_URL}/api/geo`);
+          const geoData = await geoRes.json();
+          countryCode = geoData.country || 'US';
+          countryName = geoData.country_name || 'United States';
+          console.log('📍 [BOT] Detected location:', countryCode, countryName);
+        } catch (geoErr) {
+          console.warn('⚠️ [BOT] Location detection failed, using default:', geoErr);
         }
         
         // Step 3: Execute mint via delegation
@@ -292,22 +436,52 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
     
     // ==================== MINT MUSIC COMMAND ====================
     if (lowerCommand.includes('mint music')) {
-      return NextResponse.json({
-        success: true,
-        action: 'navigate',
-        path: '/music',
-        message: `🎵 Redirecting to Music Minting...
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: '❌ Wallet not connected. Try: "go to profile"'
+        });
+      }
+      
+      try {
+        // Parse price from command: "mint music 0.05" or "mint music for 0.05 tours"
+        const priceMatch = lowerCommand.match(/(\d+\.?\d*)\s*(tours|mon)?/);
+        const price = priceMatch ? parseFloat(priceMatch[1]) : 0.01;
+        
+        if (price <= 0 || price > 10) {
+          return NextResponse.json({
+            success: false,
+            message: '❌ Invalid price. Use: 0.001 - 10 TOURS'
+          });
+        }
+        
+        console.log(`🎵 [BOT] Preparing to mint music NFT with price: ${price} TOURS`);
+        
+        return NextResponse.json({
+          success: true,
+          action: 'info',
+          message: `🎵 Music NFT Minting
 
-Upload your track to mint as an NFT:
-- Preview clip (30s)
-- Full track (for buyers)
-- Cover art
+To mint music, you need to:
+1. Go to the Music page
+2. Upload your audio files (preview + full track)
+3. Upload cover art
+4. Set title and price
 
-⚡ FREE minting - we pay gas!
-💰 Set your own price!
+We'll handle the minting for FREE!
 
-Loading music page...`
-      });
+Price you specified: ${price} TOURS
+
+Ready? Try: "go to music"`
+        });
+        
+      } catch (error: any) {
+        console.error('❌ [BOT] Music mint info error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `❌ Error: ${error.message}`
+        });
+      }
     }
     
     // ==================== NAVIGATION COMMANDS ====================

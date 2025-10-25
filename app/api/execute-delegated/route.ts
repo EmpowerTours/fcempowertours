@@ -5,7 +5,7 @@ import {
   incrementTransactionCount
 } from '@/lib/delegation-system';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
-import { encodeFunctionData, parseEther, Address, Hex, parseAbi } from 'viem';
+import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } from 'viem';
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,8 +47,9 @@ export async function POST(req: NextRequest) {
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
+    const MUSIC_NFT = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS as Address;
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
-    const MINT_PRICE = parseEther('10');
+    const MINT_PRICE = parseEther('10'); // 10 TOURS for passport mint
 
     switch (action) {
       case 'mint_passport':
@@ -95,20 +96,120 @@ export async function POST(req: NextRequest) {
           txHash: mintTxHash,
           action,
           userAddress,
-          message: `${action} executed successfully`,
+          message: `Passport minted successfully`,
+        });
+
+      case 'mint_music':
+        console.log('🎵 Action: mint_music');
+        
+        if (!params?.tokenURI || !params?.price) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenURI or price for music mint' },
+            { status: 400 }
+          );
+        }
+        
+        const musicPrice = parseEther(params.price.toString());
+        
+        console.log('  Minting music NFT:', {
+          artist: userAddress,
+          price: params.price,
+          tokenURI: params.tokenURI
+        });
+
+        const musicCalls = [
+          {
+            to: MUSIC_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mintMaster(address artist, string tokenURI, string songTitle, uint256 price) external returns (uint256)'
+              ]),
+              functionName: 'mintMaster',
+              args: [
+                userAddress as Address,
+                params.tokenURI,
+                params.songTitle || 'Untitled',
+                musicPrice,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing music mint transaction...');
+        const musicTxHash = await sendSafeTransaction(musicCalls);
+
+        console.log('✅ Music mint successful, TX:', musicTxHash);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: musicTxHash,
+          action,
+          userAddress,
+          price: params.price,
+          message: `Music NFT minted successfully`,
+        });
+
+      case 'send_tours':
+        console.log('💸 Action: send_tours');
+        
+        if (!params?.recipient || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing recipient or amount for send_tours' },
+            { status: 400 }
+          );
+        }
+        
+        // Validate recipient address
+        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid recipient address' },
+            { status: 400 }
+          );
+        }
+        
+        const sendAmount = parseEther(params.amount.toString());
+        console.log('  Sending:', sendAmount.toString(), 'TOURS to', params.recipient);
+
+        const sendCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [params.recipient as Address, sendAmount],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing TOURS transfer transaction...');
+        const sendTxHash = await sendSafeTransaction(sendCalls);
+
+        console.log('✅ TOURS sent successfully, TX:', sendTxHash);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: sendTxHash,
+          action,
+          userAddress,
+          recipient: params.recipient,
+          amount: params.amount,
+          message: `Sent ${params.amount} TOURS successfully`,
         });
 
       case 'swap_mon_for_tours':
         console.log('💱 Action: swap_mon_for_tours');
         
-        const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1'); // Default 0.1 MON
+        const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1');
         console.log('  Swapping:', monAmount.toString(), 'wei MON');
 
-        // Single call to swap contract with MON value
         const swapCalls = [
           {
             to: TOKEN_SWAP,
-            value: monAmount, // Send MON with the transaction
+            value: monAmount,
             data: encodeFunctionData({
               abi: parseAbi(['function swapMonForTours() external payable']),
               functionName: 'swapMonForTours',
