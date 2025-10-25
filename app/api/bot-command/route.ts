@@ -214,8 +214,9 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
         if (recipient.startsWith('@')) {
           console.log('🔍 Resolving Farcaster username:', recipient);
           try {
+            const username = recipient.slice(1); // Remove @
             const neynarRes = await fetch(
-              `https://api.neynar.com/v2/farcaster/user/by_username?username=${recipient.slice(1)}`,
+              `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`,
               {
                 headers: {
                   'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
@@ -223,20 +224,54 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
               }
             );
             
-            if (neynarRes.ok) {
-              const neynarData = await neynarRes.json();
-              const userVerifiedAddresses = 
-                neynarData.result?.user?.verified_addresses?.eth_addresses ||
-                neynarData.result?.user?.verifiedAddresses?.ethAddresses;
-              
-              if (userVerifiedAddresses && userVerifiedAddresses.length > 0) {
-                recipient = userVerifiedAddresses[0];
-                console.log('✅ Resolved to:', recipient);
-              } else {
-                throw new Error(`No verified address for ${recipient}`);
-              }
+            if (!neynarRes.ok) {
+              throw new Error(`User @${username} not found on Farcaster (HTTP ${neynarRes.status})`);
+            }
+            
+            const neynarData = await neynarRes.json();
+            console.log('📦 Neynar API response structure:', Object.keys(neynarData));
+            
+            // Handle different Neynar API response formats
+            const userData = neynarData.result?.user || neynarData.user || neynarData;
+            
+            console.log('👤 User data keys:', Object.keys(userData));
+            console.log('🔐 Checking for addresses...');
+            
+            // Try ALL possible field locations (Neynar API is inconsistent!)
+            let ethAddresses = null;
+            
+            // Try verified_addresses (snake_case)
+            if (userData.verified_addresses?.eth_addresses) {
+              ethAddresses = userData.verified_addresses.eth_addresses;
+              console.log('✅ Found in verified_addresses.eth_addresses');
+            }
+            // Try verifiedAddresses (camelCase)
+            else if (userData.verifiedAddresses?.eth_addresses) {
+              ethAddresses = userData.verifiedAddresses.eth_addresses;
+              console.log('✅ Found in verifiedAddresses.eth_addresses');
+            }
+            // Try verifiedAddresses.ethAddresses (mixed case)
+            else if (userData.verifiedAddresses?.ethAddresses) {
+              ethAddresses = userData.verifiedAddresses.ethAddresses;
+              console.log('✅ Found in verifiedAddresses.ethAddresses');
+            }
+            // Fallback to custody_address
+            else if (userData.custody_address) {
+              ethAddresses = [userData.custody_address];
+              console.log('✅ Using custody_address as fallback');
+            }
+            // Last resort: custodyAddress (camelCase)
+            else if (userData.custodyAddress) {
+              ethAddresses = [userData.custodyAddress];
+              console.log('✅ Using custodyAddress as fallback');
+            }
+            
+            if (ethAddresses && ethAddresses.length > 0) {
+              recipient = ethAddresses[0];
+              console.log('✅ Resolved @' + username + ' to:', recipient);
             } else {
-              throw new Error(`User ${recipient} not found`);
+              console.error('❌ No addresses found. Full userData:', JSON.stringify(userData, null, 2));
+              throw new Error(`No verified address for @${username}. User data available but no ETH address found.`);
             }
           } catch (resolveErr: any) {
             return NextResponse.json({
@@ -250,7 +285,7 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
         if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
           return NextResponse.json({
             success: false,
-            message: '❌ Invalid recipient address'
+            message: '❌ Invalid recipient address format'
           });
         }
         
@@ -373,7 +408,6 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         }
         
         // Step 2: ALWAYS use server-side geolocation detection (IP-based)
-        // This ensures consistent behavior regardless of client location data
         let countryCode = 'US';
         let countryName = 'United States';
         

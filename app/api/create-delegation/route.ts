@@ -13,7 +13,7 @@ import { redis } from '@/lib/redis';
  *   userAddress: "0x...",
  *   durationHours: 24,
  *   maxTransactions: 100,
- *   permissions: ["mint_passport", "mint_music", "swap", "buy_itinerary"]
+ *   permissions: ["mint_passport", "mint_music", "swap", "buy_itinerary", "send_tours"]
  * }
  */
 
@@ -43,7 +43,14 @@ export async function POST(req: NextRequest) {
       config: {
         durationHours,
         maxTransactions,
-        permissions: permissions.length > 0 ? permissions : ['mint_passport', 'mint_music', 'swap', 'buy_itinerary'],
+        // ✅ FIXED: Added 'send_tours' to default permissions
+        permissions: permissions.length > 0 ? permissions : [
+          'mint_passport', 
+          'mint_music', 
+          'swap', 
+          'buy_itinerary',
+          'send_tours'  // ← CRITICAL FIX
+        ],
       }
     };
 
@@ -60,6 +67,7 @@ export async function POST(req: NextRequest) {
     console.log('✅ Delegation created and stored in Redis');
     console.log('   Key:', key);
     console.log('   TTL:', ttl, 'seconds');
+    console.log('   Permissions:', delegation.config.permissions);
 
     return NextResponse.json({
       success: true,
