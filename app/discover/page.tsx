@@ -2,16 +2,26 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+// Constants
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 
-const resolveIPFS = (url: string) => {
+// Utility function to resolve IPFS URLs
+const resolveIPFS = (url: string): string => {
   if (!url) return '';
   if (url.startsWith('ipfs://')) {
     return url.replace('ipfs://', PINATA_GATEWAY);
   }
   return url;
 };
+
+// Interfaces
+interface ArtistInfo {
+  username: string;
+  displayName: string;
+  pfpUrl: string;
+  fid: number;
+}
 
 interface MusicNFT {
   id: string;
@@ -21,7 +31,11 @@ interface MusicNFT {
   tokenURI: string;
   mintedAt: string;
   txHash: string;
-  metadata?: any;
+  metadata?: {
+    name?: string;
+    image?: string;
+    animation_url?: string;
+  };
   isLoadingMetadata?: boolean;
 }
 
@@ -30,7 +44,7 @@ export default function MusicDiscoveryPage() {
   const [filteredMusic, setFilteredMusic] = useState<MusicNFT[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [artistInfoCache, setArtistInfoCache] = useState<Record<string, any>>({});
+  const [artistInfoCache, setArtistInfoCache] = useState<Record<string, ArtistInfo>>({});
 
   useEffect(() => {
     loadAllMusic();
@@ -43,13 +57,11 @@ export default function MusicDiscoveryPage() {
       const query = searchQuery.toLowerCase();
       const filtered = allMusic.filter((music) => {
         const artistInfo = artistInfoCache[music.artist.toLowerCase()];
-        const artistMatch = 
+        const artistMatch =
           music.artist.toLowerCase().includes(query) ||
           artistInfo?.username?.toLowerCase().includes(query) ||
           artistInfo?.displayName?.toLowerCase().includes(query);
-        
         const titleMatch = music.metadata?.name?.toLowerCase().includes(query);
-        
         return artistMatch || titleMatch;
       });
       setFilteredMusic(filtered);
@@ -75,36 +87,35 @@ export default function MusicDiscoveryPage() {
           }
         }
       `;
-      
+
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
       });
-      
+
       if (!response.ok) throw new Error('Failed to load music');
-      
+
       const result = await response.json();
-      const music = result.data?.MusicNFT || [];
-      
+      const music: MusicNFT[] = result.data?.MusicNFT || [];
+
       console.log('✅ Loaded', music.length, 'music NFTs');
-      
-      const musicWithLoading: MusicNFT[] = music.map((m: any) => ({
+
+      const musicWithLoading: MusicNFT[] = music.map((m) => ({
         ...m,
         isLoadingMetadata: true,
       }));
-      
+
       setAllMusic(musicWithLoading);
       setFilteredMusic(musicWithLoading);
-      
+
       // Load metadata for each track
-      music.forEach(async (nft: any, index: number) => {
+      music.forEach(async (nft: MusicNFT, index: number) => {
         try {
           const metadataUrl = resolveIPFS(nft.tokenURI);
           const metadataRes = await fetch(metadataUrl);
           if (metadataRes.ok) {
             const metadata = await metadataRes.json();
-            
             setAllMusic((prev) => {
               const updated = [...prev];
               updated[index] = {
@@ -136,10 +147,10 @@ export default function MusicDiscoveryPage() {
           });
         }
       });
-      
+
       // Load artist info for each unique artist
-      const uniqueArtists = [...new Set(music.map((m: any) => m.artist.toLowerCase()))];
-      uniqueArtists.forEach(async (artistAddress) => {
+      const uniqueArtists = [...new Set(music.map((m) => m.artist.toLowerCase()))];
+      uniqueArtists.forEach(async (artistAddress: string) => {
         try {
           const response = await fetch(
             `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
@@ -167,7 +178,7 @@ export default function MusicDiscoveryPage() {
           console.error('Error loading artist info:', error);
         }
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Error loading music:', error);
     } finally {
       setLoading(false);
@@ -184,7 +195,7 @@ export default function MusicDiscoveryPage() {
           <p className="text-gray-600 text-center mb-6">
             Browse all music NFTs minted on EmpowerTours
           </p>
-          
+
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto mb-8">
             <div className="relative">
@@ -217,7 +228,7 @@ export default function MusicDiscoveryPage() {
             </div>
             <div className="bg-blue-50 rounded-lg p-4 text-center">
               <p className="text-3xl font-bold text-blue-600">
-                {[...new Set(allMusic.map(m => m.artist.toLowerCase()))].length}
+                {[...new Set(allMusic.map((m) => m.artist.toLowerCase()))].length}
               </p>
               <p className="text-sm text-gray-600">Artists</p>
             </div>
@@ -248,7 +259,7 @@ export default function MusicDiscoveryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredMusic.map((music) => {
               const artistInfo = artistInfoCache[music.artist.toLowerCase()];
-              
+
               return (
                 <div
                   key={music.id}
@@ -272,7 +283,7 @@ export default function MusicDiscoveryPage() {
                       )}
                     </div>
                   )}
-                  
+
                   <div className="p-4 space-y-3">
                     {/* Song Title */}
                     <div>
@@ -283,7 +294,7 @@ export default function MusicDiscoveryPage() {
                         {new Date(music.mintedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    
+
                     {/* Artist Info */}
                     <Link
                       href={`/artist/${music.artist}`}
@@ -311,7 +322,7 @@ export default function MusicDiscoveryPage() {
                         </div>
                       </div>
                     </Link>
-                    
+
                     {/* Audio Preview */}
                     {music.metadata?.animation_url && !music.isLoadingMetadata ? (
                       <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
@@ -333,7 +344,7 @@ export default function MusicDiscoveryPage() {
                         <p className="text-xs text-gray-500">Loading...</p>
                       </div>
                     ) : null}
-                    
+
                     {/* View Artist Profile Button */}
                     <Link
                       href={`/artist/${music.artist}`}
