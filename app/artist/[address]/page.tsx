@@ -2,48 +2,59 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { Interface, parseEther } from 'ethers';
+import { parseEther, encodeFunctionData, createPublicClient, http, isAddress } from 'viem';
+import { monadTestnet } from 'viem/chains'; // Assumes viem/chains has Monad testnet config
 import Link from 'next/link';
 
+// Environment variables
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 const MUSIC_NFT_ADDRESS = '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
 const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
 
-// ABI for purchasing licenses (uses TOURS tokens, not ETH)
+// Viem client for transaction polling
+const client = createPublicClient({
+  chain: {
+    id: 10143, // Monad testnet
+    name: 'Monad Testnet',
+    nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+    rpcUrls: { default: { http: ['https://your-monad-testnet-rpc-url'] } }, // Replace with actual RPC URL
+  },
+  transport: http(),
+});
+
+// ABIs
 const MUSIC_NFT_ABI = [
   {
     inputs: [{ internalType: 'uint256', name: 'masterTokenId', type: 'uint256' }],
     name: 'purchaseLicense',
     outputs: [],
-    stateMutability: 'nonpayable', // ✅ NOT payable - uses TOURS tokens!
+    stateMutability: 'nonpayable',
     type: 'function',
   },
-];
+] as const;
 
-// ERC20 approve ABI
 const ERC20_ABI = [
   {
     inputs: [
       { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' }
+      { name: 'amount', type: 'uint256' },
     ],
     name: 'approve',
     outputs: [{ name: '', type: 'bool' }],
     stateMutability: 'nonpayable',
     type: 'function',
   },
-];
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
-// Helper to resolve IPFS URLs
-const resolveIPFS = (url: string) => {
-  if (!url) return '';
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', PINATA_GATEWAY);
-  }
-  return url;
-};
-
+// Interfaces for type safety
 interface MusicMetadata {
   name?: string;
   description?: string;
@@ -51,6 +62,16 @@ interface MusicMetadata {
   animation_url?: string;
   external_url?: string;
   attributes?: Array<{ trait_type: string; value: any }>;
+}
+
+interface MusicNFT {
+  id: string;
+  tokenId: number;
+  artist: string;
+  owner: string;
+  tokenURI: string;
+  mintedAt: string;
+  txHash: string;
 }
 
 interface ArtistMusic {
@@ -71,25 +92,44 @@ interface ArtistInfo {
   fid?: number;
 }
 
+interface GraphQLResponse {
+  data?: {
+    MusicNFT: MusicNFT[];
+  };
+  errors?: Array<{ message: string }>;
+}
+
+// Helper to resolve IPFS URLs
+const resolveIPFS = (url: string): string => {
+  if (!url) return '';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', PINATA_GATEWAY);
+  }
+  return url;
+};
+
 export default function ArtistProfilePage() {
   const params = useParams();
   const router = useRouter();
   const artistAddress = params.address as string;
   const { user, walletAddress, isMobile, requestWallet, sendTransaction } = useFarcasterContext();
-  
+
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
 
   useEffect(() => {
-    if (artistAddress) {
+    if (artistAddress && isAddress(artistAddress)) {
       loadArtistProfile();
       loadArtistInfo();
+    } else {
+      console.error('Invalid artist address:', artistAddress);
+      setArtistInfo(null);
+      setArtistMusic([]);
     }
   }, [artistAddress]);
 
-  // ✅ FIX #4: Fetch artist info from Neynar to get proper username
   const loadArtistInfo = async () => {
     try {
       console.log('👤 Fetching artist info for:', artistAddress);
@@ -101,24 +141,25 @@ export default function ArtistProfilePage() {
           },
         }
       );
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.fid) {
-          console.log('✅ Found Farcaster user:', data.username);
-          setArtistInfo({
-            address: artistAddress,
-            username: data.username, // ✅ FIX: Use actual username
-            displayName: data.display_name || data.username,
-            pfpUrl: data.pfp_url,
-            fid: data.fid,
-          });
-          return;
-        }
+      if (!response.ok) {
+        throw new Error(`Neynar API error: ${response.status}`);
       }
-      console.log('⚠️ Artist not found on Farcaster, using address');
+      const data = await response.json();
+      if (data && data.fid) {
+        console.log('✅ Found Farcaster user:', data.username);
+        setArtistInfo({
+          address: artistAddress,
+          username: data.username,
+          displayName: data.display_name || data.username,
+          pfpUrl: data.pfp_url,
+          fid: data.fid,
+        });
+        return;
+      }
+      console.warn('⚠️ Artist not found on Farcaster, using address');
       setArtistInfo({
         address: artistAddress,
-        username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`, // ✅ FIX: Better fallback
+        username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
         displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
       });
     } catch (error) {
@@ -156,136 +197,185 @@ export default function ArtistProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          variables: { address: artistAddress.toLowerCase() }
+          variables: { address: artistAddress.toLowerCase() },
         }),
       });
-      if (!response.ok) throw new Error('Failed to load artist music');
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(`Envio API error: ${response.status}`);
+      }
+      const result: GraphQLResponse = await response.json();
+      if (result.errors) {
+        throw new Error(`GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}`);
+      }
       const music = result.data?.MusicNFT || [];
       console.log('✅ Loaded', music.length, 'tracks from artist', artistAddress);
-      
-      const musicWithLoading: ArtistMusic[] = music.map((m: any) => ({
+
+      const musicWithLoading: ArtistMusic[] = music.map((m) => ({
         ...m,
         isLoadingMetadata: true,
       }));
       setArtistMusic(musicWithLoading);
-      
-      music.forEach(async (nft: any, index: number) => {
+
+      // Batch fetch metadata
+      const metadataPromises = music.map(async (nft: MusicNFT, index: number) => {
         try {
           const metadataUrl = resolveIPFS(nft.tokenURI);
           console.log(`📦 Fetching metadata for token ${nft.tokenId}:`, metadataUrl);
-          const metadataRes = await fetch(metadataUrl);
+          const metadataRes = await fetch(metadataUrl, { signal: AbortSignal.timeout(5000) });
           if (!metadataRes.ok) {
             throw new Error(`Failed to fetch metadata: ${metadataRes.status}`);
           }
           const metadata: MusicMetadata = await metadataRes.json();
           console.log(`✅ Metadata loaded for token ${nft.tokenId}:`, metadata.name);
-          
+
           const priceAttr = metadata.attributes?.find(
             (attr) => attr.trait_type === 'License Price' || attr.trait_type === 'Price'
           );
           const price = priceAttr?.value || '0.01';
-          
-          setArtistMusic((prev) => {
-            const updated = [...prev];
-            updated[index] = {
-              ...updated[index],
-              metadata,
-              price: price.toString(),
-              isLoadingMetadata: false,
-            };
-            return updated;
-          });
+
+          return { index, metadata, price: price.toString(), isLoadingMetadata: false };
         } catch (error) {
           console.error(`❌ Error loading metadata for token ${nft.tokenId}:`, error);
-          setArtistMusic((prev) => {
-            const updated = [...prev];
-            updated[index] = {
-              ...updated[index],
-              isLoadingMetadata: false,
-              price: '0.01',
-            };
-            return updated;
-          });
+          return { index, metadata: undefined, price: '0.01', isLoadingMetadata: false };
         }
       });
+
+      const metadataResults = await Promise.all(metadataPromises);
+      setArtistMusic((prev) => {
+        const updated = [...prev];
+        metadataResults.forEach(({ index, metadata, price, isLoadingMetadata }) => {
+          updated[index] = { ...updated[index], metadata, price, isLoadingMetadata };
+        });
+        return updated;
+      });
     } catch (error: any) {
-      console.error('❌ Error loading artist profile:', error);
+      console.error('❌ Error loading artist profile:', error.message, error.stack);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ FIX #2 & #3: Buy license using TOURS tokens (not ETH) - FIXED: Removed switchChain
   const handleBuyLicense = async (music: ArtistMusic) => {
     if (!walletAddress) {
+      console.error('🔑 Wallet not connected');
       alert('🔑 Please connect your wallet first');
       await requestWallet();
       return;
     }
 
     if (walletAddress.toLowerCase() === artistAddress.toLowerCase()) {
+      console.error('❌ Attempted to buy own music', { tokenId: music.tokenId });
       alert('❌ You cannot buy your own music!');
       return;
     }
 
     setBuying(music.tokenId);
     try {
-      console.log('🎵 Buying music license...', {
+      console.log('🎵 Initiating music license purchase', {
         tokenId: music.tokenId,
-        priceInTOURS: music.price, // ✅ FIX: Price is in TOURS
+        priceInTOURS: music.price,
         buyer: walletAddress,
         artist: artistAddress,
-        isMobile
+        isMobile,
       });
 
-      // ✅ FIXED: Removed switchChain call - we're already on Monad testnet in the Farcaster frame
-
-      // ✅ STEP 1: Approve TOURS tokens
-      console.log('✅ Step 1/2: Approving TOURS tokens...');
+      // Check balances
+      const toursBalance = await client.readContract({
+        address: TOURS_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [walletAddress as `0x${string}`],
+      });
       const approveAmount = parseEther(music.price || '0.01');
-      
-      const approveIface = new Interface(ERC20_ABI);
-      const approveData = approveIface.encodeFunctionData('approve', [MUSIC_NFT_ADDRESS, approveAmount]);
+      if (toursBalance < approveAmount) {
+        throw new Error(`Insufficient TOURS: Need ${music.price} TOURS, have ${toursBalance.toString()}`);
+      }
 
+      const monBalance = await client.getBalance({ address: walletAddress as `0x${string}` });
+      const minGas = parseEther('0.01'); // Adjust based on actual gas estimates
+      if (monBalance < minGas) {
+        throw new Error(`Insufficient MON for gas: Need ~0.01 MON, have ${monBalance.toString()}`);
+      }
+
+      // Step 1: Approve TOURS tokens
+      console.log('✅ Step 1/2: Approving TOURS tokens...');
       const approveTx = await sendTransaction({
-        to: TOURS_ADDRESS,
-        value: '0', // ✅ No ETH needed for approval!
-        data: approveData,
-        gasLimit: 100000
+        chainId: `eip155:10143`,
+        method: 'eth_sendTransaction',
+        params: {
+          abi: ERC20_ABI,
+          to: TOURS_ADDRESS as `0x${string}`,
+          data: encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [MUSIC_NFT_ADDRESS as `0x${string}`, approveAmount],
+          }),
+          value: '0',
+        },
       });
 
-      console.log('📤 Approval transaction sent:', approveTx.hash);
-      alert(`⏳ Step 1/2: Approving TOURS tokens...\n\nTX: ${approveTx.hash.slice(0, 10)}...\n\nPlease wait for confirmation...`);
+      console.log('📤 Approval transaction sent:', approveTx.transactionHash);
+      console.log(`⏳ Step 1/2: Approving TOURS tokens... TX: ${approveTx.transactionHash}`);
 
-      await approveTx.wait();
+      // Poll for approval transaction receipt
+      const approveReceipt = await client.waitForTransactionReceipt({
+        hash: approveTx.transactionHash as `0x${string}`,
+        timeout: 60000, // 60 seconds
+      });
+      if (approveReceipt.status !== 'success') {
+        throw new Error(`Approval transaction failed: ${approveReceipt.transactionHash}`);
+      }
       console.log('✅ TOURS tokens approved!');
 
-      // ✅ STEP 2: Purchase license
+      // Step 2: Purchase license
       console.log('✅ Step 2/2: Purchasing license...');
-      const purchaseIface = new Interface(MUSIC_NFT_ABI);
-      const purchaseData = purchaseIface.encodeFunctionData('purchaseLicense', [music.tokenId]);
-
       const purchaseTx = await sendTransaction({
-        to: MUSIC_NFT_ADDRESS,
-        value: '0', // ✅ FIX: NO ETH - uses TOURS tokens!
-        data: purchaseData,
-        gasLimit: 300000
+        chainId: `eip155:10143`,
+        method: 'eth_sendTransaction',
+        params: {
+          abi: MUSIC_NFT_ABI,
+          to: MUSIC_NFT_ADDRESS as `0x${string}`,
+          data: encodeFunctionData({
+            abi: MUSIC_NFT_ABI,
+            functionName: 'purchaseLicense',
+            args: [BigInt(music.tokenId)],
+          }),
+          value: '0',
+        },
       });
 
-      console.log('📤 Purchase transaction sent:', purchaseTx.hash);
-      alert(`⏳ Step 2/2: Purchasing license...\n\nTX: ${purchaseTx.hash.slice(0, 10)}...\n\nWaiting for confirmation...`);
+      console.log('📤 Purchase transaction sent:', purchaseTx.transactionHash);
+      console.log(`⏳ Step 2/2: Purchasing license... TX: ${purchaseTx.transactionHash}`);
 
-      await purchaseTx.wait();
-      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nPaid: ${music.price} TOURS\n\nTX: ${purchaseTx.hash}`);
-      
-      setTimeout(loadArtistProfile, 2000);
+      // Poll for purchase transaction receipt
+      const purchaseReceipt = await client.waitForTransactionReceipt({
+        hash: purchaseTx.transactionHash as `0x${string}`,
+        timeout: 60000,
+      });
+      if (purchaseReceipt.status !== 'success') {
+        throw new Error(`Purchase transaction failed: ${purchaseReceipt.transactionHash}`);
+      }
+
+      console.log(`🎉 Music License Purchased! Token: ${music.tokenId}, Track: ${music.metadata?.name || 'this track'}, Paid: ${music.price} TOURS, TX: ${purchaseTx.transactionHash}`);
+      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nPaid: ${music.price} TOURS\n\nTX: ${purchaseTx.transactionHash}`);
+
+      // Refresh artist profile
+      await loadArtistProfile();
     } catch (error: any) {
-      console.error('❌ Purchase error:', error);
-      if (error.message?.includes('user rejected') || error.code === 4001) {
+      console.error('❌ Purchase error:', {
+        message: error.message,
+        stack: error.stack,
+        tokenId: music.tokenId,
+        buyer: walletAddress,
+      });
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
         alert('❌ Transaction cancelled by user');
-      } else if (error.message?.includes('insufficient')) {
-        alert(`❌ Insufficient TOURS tokens. You need ${music.price || '0.01'} TOURS + gas fees in MON.`);
+      } else if (error.message?.includes('Insufficient TOURS')) {
+        alert(error.message);
+      } else if (error.message?.includes('Insufficient MON')) {
+        alert(error.message);
+      } else if (error.message?.includes('transaction failed')) {
+        alert(`❌ Transaction failed: ${error.message}`);
       } else {
         alert(`❌ Purchase failed: ${error.message || 'Unknown error'}`);
       }
@@ -324,11 +414,11 @@ export default function ArtistProfilePage() {
             )}
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {artistInfo?.displayName || 'Loading...'} {/* ✅ FIX: Show actual name */}
+                {artistInfo?.displayName || 'Loading...'}
               </h1>
               {artistInfo?.username && (
                 <p className="text-gray-600 text-lg mb-2">
-                  @{artistInfo.username} {/* ✅ FIX: Show actual username */}
+                  @{artistInfo.username}
                 </p>
               )}
               <p className="text-gray-600 font-mono text-sm">
@@ -467,7 +557,7 @@ export default function ArtistProfilePage() {
                         <div>
                           <p className="text-xs text-gray-600">License Price</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            {music.price || '0.01'} TOURS {/* ✅ FIX #1 & #2: Show TOURS */}
+                            {music.price || '0.01'} TOURS
                           </p>
                         </div>
                         <div className="text-right">
@@ -476,7 +566,7 @@ export default function ArtistProfilePage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => handleBuyLicense(music)} // ✅ FIX #3: Clickable!
+                        onClick={() => handleBuyLicense(music)}
                         disabled={
                           buying === music.tokenId ||
                           !walletAddress ||
