@@ -85,6 +85,66 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
   }
 }
 
+// ✅ NEW: Helper function to fetch gas prices from Pimlico
+async function getPimlicoGasPrices(): Promise<{
+  maxFeePerGas: bigint;
+  maxPriorityFeePerGas: bigint;
+}> {
+  try {
+    console.log('⛽ Fetching gas prices from Pimlico...');
+    
+    const response = await fetch(PIMLICO_BUNDLER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'pimlico_getUserOperationGasPrice',
+        params: [],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Pimlico API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(`Pimlico error: ${data.error.message}`);
+    }
+
+    // Pimlico returns gas prices in "fast", "standard", and "slow" tiers
+    // Use "fast" for better chances of inclusion
+    const { fast } = data.result;
+    const maxFeePerGas = BigInt(fast.maxFeePerGas);
+    const maxPriorityFeePerGas = BigInt(fast.maxPriorityFeePerGas);
+
+    console.log('✅ Pimlico gas prices (fast tier):', {
+      maxFeePerGas: maxFeePerGas.toString() + ' wei',
+      maxPriorityFeePerGas: maxPriorityFeePerGas.toString() + ' wei',
+    });
+
+    return { maxFeePerGas, maxPriorityFeePerGas };
+  } catch (error: any) {
+    console.error('❌ Failed to fetch Pimlico gas prices:', error.message);
+    
+    // Fallback: use chain's gas price with 50% buffer (minimum Pimlico requirement)
+    console.warn('⚠️ Falling back to chain gas price with 50% buffer...');
+    const gasPrice = await publicClient.getGasPrice();
+    const maxFeePerGas = (gasPrice * 150n) / 100n; // 50% buffer
+    const maxPriorityFeePerGas = gasPrice / 10n;
+    
+    console.log('⚠️ Fallback gas prices:', {
+      chainGasPrice: gasPrice.toString(),
+      maxFeePerGas: maxFeePerGas.toString(),
+      maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
+    });
+    
+    return { maxFeePerGas, maxPriorityFeePerGas };
+  }
+}
+
 export async function sendSafeTransaction(
   calls: Array<{ to: Address; value: bigint; data: Hex }>
 ) {
@@ -94,19 +154,14 @@ export async function sendSafeTransaction(
     
     const smartAccountClient = await createSafeSmartAccountClient();
 
-    const gasPrice = await publicClient.getGasPrice();
-    const maxFeePerGas = (gasPrice * 120n) / 100n;
-    const maxPriorityFeePerGas = gasPrice / 10n;
+    // ✅ CRITICAL FIX: Fetch gas prices from Pimlico's API
+    // Pimlico enforces minimum gas prices that may be higher than the chain's current price
+    const { maxFeePerGas, maxPriorityFeePerGas } = await getPimlicoGasPrices();
 
-    console.log('⛽ Gas prices:', {
-      gasPrice: gasPrice.toString(),
-      maxFeePerGas: maxFeePerGas.toString(),
-      maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
-    });
+    console.log('🚀 Submitting UserOperation with Pimlico-recommended gas prices...');
 
-    // ✅ CRITICAL FIX: For EntryPoint v0.7, just pass account, calls, and gas prices
-    // The permissionless client will automatically format the UserOperation correctly for v0.7
-    // DO NOT manually specify gas limit fields - they're named differently in v0.7
+    // ✅ For EntryPoint v0.7, just pass account, calls, and gas prices
+    // The permissionless client will automatically format the UserOperation correctly
     const userOpHash = await smartAccountClient.sendUserOperation({
       account: smartAccountClient.account,
       calls,
@@ -125,6 +180,7 @@ export async function sendSafeTransaction(
     const txHash = receipt.receipt.transactionHash;
     console.log('✅ Transaction mined:', txHash);
     console.log('   Gas used:', receipt.receipt.gasUsed.toString());
+    console.log('   Block:', receipt.receipt.blockNumber.toString());
     
     return txHash;
   } catch (error: any) {
