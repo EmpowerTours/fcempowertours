@@ -11,7 +11,7 @@ export default function MusicPage() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [description, setDescription] = useState('');
+  const [songTitle, setSongTitle] = useState(''); // ✅ FIXED: Use songTitle instead of description
   const [price, setPrice] = useState('0.01');
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
@@ -19,8 +19,6 @@ export default function MusicPage() {
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
   
   const farcasterFid = user?.fid || 0;
-
-  // ❌ REMOVED: Auto-request wallet
 
   const handleFileChange =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
@@ -45,19 +43,19 @@ export default function MusicPage() {
       setError(`Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`);
       return;
     }
-    if (!previewFile || !fullFile || !coverFile || !description) {
+    if (!previewFile || !fullFile || !coverFile || !songTitle) {
       const missing = [];
       if (!previewFile) missing.push('Preview Audio');
       if (!fullFile) missing.push('Full Track');
       if (!coverFile) missing.push('Cover Art');
-      if (!description) missing.push('Song Title');
+      if (!songTitle) missing.push('Song Title');
       setError(`Please fill all fields: ${missing.join(', ')}`);
       return;
     }
 
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum <= 0 || priceNum > 10) {
-      setError('Price must be between 0.001 and 10 MON');
+      setError('Price must be between 0.001 and 10 TOURS'); // ✅ FIXED: Say TOURS
       return;
     }
 
@@ -74,7 +72,7 @@ export default function MusicPage() {
       formData.append('previewAudio', previewFile);
       formData.append('fullAudio', fullFile);
       formData.append('cover', coverFile);
-      formData.append('description', description);
+      formData.append('description', songTitle); // ✅ FIXED: Use songTitle for description
       formData.append('address', walletAddress);
       formData.append('fid', farcasterFid?.toString() || '0');
 
@@ -102,6 +100,7 @@ export default function MusicPage() {
           tokenURI,
           price,
           fid: farcasterFid || 0,
+          songTitle, // ✅ FIXED: Pass songTitle explicitly
         }),
       });
 
@@ -116,7 +115,7 @@ export default function MusicPage() {
       setPreviewFile(null);
       setFullFile(null);
       setCoverFile(null);
-      setDescription('');
+      setSongTitle(''); // ✅ FIXED: Reset songTitle
       setPrice('0.01');
     } catch (err: any) {
       console.error('❌ Error:', err);
@@ -202,10 +201,10 @@ export default function MusicPage() {
                   <strong>Token ID:</strong> #{success.tokenId}
                 </p>
                 <p className="text-green-700">
-                  <strong>Song:</strong> {description || 'Untitled'}
+                  <strong>Song:</strong> {songTitle || 'Untitled'}
                 </p>
                 <p className="text-green-700">
-                  <strong>Price:</strong> {price} MON per license
+                  <strong>Price:</strong> {price} TOURS per license {/* ✅ FIXED: Say TOURS */}
                 </p>
                 <a
                   href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
@@ -224,18 +223,18 @@ export default function MusicPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Song Title *</label>
               <input
                 type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g., Summer Vibes - Electronic Mix"
+                value={songTitle}
+                onChange={(e) => setSongTitle(e.target.value)}
+                placeholder="e.g., Money Making Machine - Electronic Mix"
                 maxLength={200}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
-              <p className="text-xs text-gray-500 mt-1">{description.length}/200 characters</p>
+              <p className="text-xs text-gray-500 mt-1">{songTitle.length}/200 characters</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                License Price (MON) *
+                License Price (TOURS) * {/* ✅ FIXED: Say TOURS */}
               </label>
               <div className="relative">
                 <input
@@ -248,35 +247,35 @@ export default function MusicPage() {
                   placeholder="0.01"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
-                <div className="absolute right-3 top-3 text-gray-500 text-sm">MON</div>
+                <div className="absolute right-3 top-3 text-gray-500 text-sm">TOURS</div> {/* ✅ FIXED: Say TOURS */}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                💰 How much fans pay to own this track (min: 0.001, max: 10)
+                💰 How much fans pay to own this track (min: 0.001, max: 10 TOURS) {/* ✅ FIXED: Say TOURS */}
               </p>
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={() => setPrice('0.01')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  0.01 MON
+                  0.01 TOURS
                 </button>
                 <button
                   onClick={() => setPrice('0.05')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  0.05 MON
+                  0.05 TOURS
                 </button>
                 <button
                   onClick={() => setPrice('0.1')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  0.1 MON
+                  0.1 TOURS
                 </button>
                 <button
                   onClick={() => setPrice('1')}
                   className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
                 >
-                  1 MON
+                  1 TOURS
                 </button>
               </div>
             </div>
@@ -350,7 +349,7 @@ export default function MusicPage() {
                 !previewFile ||
                 !fullFile ||
                 !coverFile ||
-                !description ||
+                !songTitle ||
                 !price ||
                 uploading ||
                 minting
@@ -362,7 +361,7 @@ export default function MusicPage() {
                 ? '⏳ Uploading to IPFS...'
                 : minting
                 ? '⚡ Minting NFT (FREE)...'
-                : `🎵 Mint for ${price} MON (FREE for you!)`}
+                : `🎵 Mint for ${price} TOURS (FREE for you!)`} {/* ✅ FIXED: Say TOURS */}
             </button>
 
             {!walletAddress && (
@@ -381,7 +380,7 @@ export default function MusicPage() {
               💡 How Music NFT Pricing Works:
             </p>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-              <li>Set your price per license (what fans pay to own your track)</li>
+              <li>Set your price per license in TOURS tokens (what fans pay to own your track)</li> {/* ✅ FIXED: Say TOURS */}
               <li>You receive 90% of sales + 10% royalties on resales</li>
               <li>Minting is FREE - we cover all gas costs for you</li>
               <li>Fans can preview 30s for free before buying</li>

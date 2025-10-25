@@ -32,6 +32,14 @@ export default function ClientNav() {
               Home
             </button>
             
+            {/* ✅ NEW: Music Discovery Link */}
+            <button
+              onClick={() => navigateTo('/discover')}
+              className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              🔍 Discover
+            </button>
+            
             <button
               onClick={() => navigateTo('/music')}
               className="text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"

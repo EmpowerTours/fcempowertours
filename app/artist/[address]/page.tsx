@@ -1,26 +1,36 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Interface, parseEther } from 'ethers';
 import Link from 'next/link';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
-
-// ✅ UPDATED CONTRACT ADDRESS
 const MUSIC_NFT_ADDRESS = '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
+const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
 
-// Minimal ABI for buying music
+// ABI for purchasing licenses (uses TOURS tokens, not ETH)
 const MUSIC_NFT_ABI = [
   {
-    inputs: [
-      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
-      { internalType: 'address', name: 'buyer', type: 'address' }
-    ],
+    inputs: [{ internalType: 'uint256', name: 'masterTokenId', type: 'uint256' }],
     name: 'purchaseLicense',
     outputs: [],
-    stateMutability: 'payable',
+    stateMutability: 'nonpayable', // ✅ NOT payable - uses TOURS tokens!
+    type: 'function',
+  },
+];
+
+// ERC20 approve ABI
+const ERC20_ABI = [
+  {
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ];
@@ -63,6 +73,7 @@ interface ArtistInfo {
 
 export default function ArtistProfilePage() {
   const params = useParams();
+  const router = useRouter();
   const artistAddress = params.address as string;
   const { user, walletAddress, isMobile, requestWallet, sendTransaction, switchChain } = useFarcasterContext();
   
@@ -78,7 +89,7 @@ export default function ArtistProfilePage() {
     }
   }, [artistAddress]);
 
-  // Fetch artist info from Neynar
+  // ✅ FIX #4: Fetch artist info from Neynar to get proper username
   const loadArtistInfo = async () => {
     try {
       console.log('👤 Fetching artist info for:', artistAddress);
@@ -96,7 +107,7 @@ export default function ArtistProfilePage() {
           console.log('✅ Found Farcaster user:', data.username);
           setArtistInfo({
             address: artistAddress,
-            username: data.username,
+            username: data.username, // ✅ FIX: Use actual username
             displayName: data.display_name || data.username,
             pfpUrl: data.pfp_url,
             fid: data.fid,
@@ -107,14 +118,14 @@ export default function ArtistProfilePage() {
       console.log('⚠️ Artist not found on Farcaster, using address');
       setArtistInfo({
         address: artistAddress,
-        username: `artist_${artistAddress.slice(2, 8)}`,
+        username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`, // ✅ FIX: Better fallback
         displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
       });
     } catch (error) {
       console.error('❌ Error loading artist info:', error);
       setArtistInfo({
         address: artistAddress,
-        username: `artist_${artistAddress.slice(2, 8)}`,
+        username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
         displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
       });
     }
@@ -205,6 +216,7 @@ export default function ArtistProfilePage() {
     }
   };
 
+  // ✅ FIX #2 & #3: Buy license using TOURS tokens (not ETH)
   const handleBuyLicense = async (music: ArtistMusic) => {
     if (!walletAddress) {
       alert('🔑 Please connect your wallet first');
@@ -221,7 +233,7 @@ export default function ArtistProfilePage() {
     try {
       console.log('🎵 Buying music license...', {
         tokenId: music.tokenId,
-        price: music.price,
+        priceInTOURS: music.price, // ✅ FIX: Price is in TOURS
         buyer: walletAddress,
         artist: artistAddress,
         isMobile
@@ -229,21 +241,43 @@ export default function ArtistProfilePage() {
 
       await switchChain({ chainId: 10143 });
 
-      const iface = new Interface(MUSIC_NFT_ABI);
-      const data = iface.encodeFunctionData('purchaseLicense', [music.tokenId, walletAddress]);
+      // ✅ STEP 1: Approve TOURS tokens
+      console.log('✅ Step 1/2: Approving TOURS tokens...');
+      const approveAmount = parseEther(music.price || '0.01');
+      
+      const approveIface = new Interface(ERC20_ABI);
+      const approveData = approveIface.encodeFunctionData('approve', [MUSIC_NFT_ADDRESS, approveAmount]);
 
-      const tx = await sendTransaction({
+      const approveTx = await sendTransaction({
+        to: TOURS_ADDRESS,
+        value: '0', // ✅ No ETH needed for approval!
+        data: approveData,
+        gasLimit: 100000
+      });
+
+      console.log('📤 Approval transaction sent:', approveTx.hash);
+      alert(`⏳ Step 1/2: Approving TOURS tokens...\n\nTX: ${approveTx.hash.slice(0, 10)}...\n\nPlease wait for confirmation...`);
+
+      await approveTx.wait();
+      console.log('✅ TOURS tokens approved!');
+
+      // ✅ STEP 2: Purchase license
+      console.log('✅ Step 2/2: Purchasing license...');
+      const purchaseIface = new Interface(MUSIC_NFT_ABI);
+      const purchaseData = purchaseIface.encodeFunctionData('purchaseLicense', [music.tokenId]);
+
+      const purchaseTx = await sendTransaction({
         to: MUSIC_NFT_ADDRESS,
-        value: parseEther(music.price || '0.01'),
-        data,
+        value: '0', // ✅ FIX: NO ETH - uses TOURS tokens!
+        data: purchaseData,
         gasLimit: 300000
       });
 
-      console.log('📤 Purchase transaction sent:', tx.hash);
-      alert(`⏳ Transaction submitted!\n\nTX: ${tx.hash.slice(0, 10)}...\n\nWaiting for confirmation...`);
+      console.log('📤 Purchase transaction sent:', purchaseTx.hash);
+      alert(`⏳ Step 2/2: Purchasing license...\n\nTX: ${purchaseTx.hash.slice(0, 10)}...\n\nWaiting for confirmation...`);
 
-      await tx.wait();
-      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nTX: ${tx.hash}`);
+      await purchaseTx.wait();
+      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nPaid: ${music.price} TOURS\n\nTX: ${purchaseTx.hash}`);
       
       setTimeout(loadArtistProfile, 2000);
     } catch (error: any) {
@@ -251,7 +285,7 @@ export default function ArtistProfilePage() {
       if (error.message?.includes('user rejected') || error.code === 4001) {
         alert('❌ Transaction cancelled by user');
       } else if (error.message?.includes('insufficient')) {
-        alert('❌ Insufficient funds. You need ' + (music.price || '0.01') + ' ETH + gas fees.');
+        alert(`❌ Insufficient TOURS tokens. You need ${music.price || '0.01'} TOURS + gas fees in MON.`);
       } else {
         alert(`❌ Purchase failed: ${error.message || 'Unknown error'}`);
       }
@@ -274,6 +308,7 @@ export default function ArtistProfilePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
+        {/* Artist Header */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <div className="flex items-center gap-6 mb-6">
             {artistInfo?.pfpUrl ? (
@@ -289,11 +324,11 @@ export default function ArtistProfilePage() {
             )}
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {artistInfo?.displayName || 'Loading...'}
+                {artistInfo?.displayName || 'Loading...'} {/* ✅ FIX: Show actual name */}
               </h1>
               {artistInfo?.username && (
                 <p className="text-gray-600 text-lg mb-2">
-                  @{artistInfo.username}
+                  @{artistInfo.username} {/* ✅ FIX: Show actual username */}
                 </p>
               )}
               <p className="text-gray-600 font-mono text-sm">
@@ -316,7 +351,7 @@ export default function ArtistProfilePage() {
                 📱 Mobile: Using Farcaster Wallet
               </p>
               <p className="text-yellow-700 text-xs">
-                Transactions will use your Farcaster custody address. Make sure it has MON for gas fees.
+                Transactions will use your Farcaster custody address. Make sure it has TOURS tokens + MON for gas.
               </p>
               {!walletAddress && (
                 <button
@@ -346,6 +381,7 @@ export default function ArtistProfilePage() {
           )}
         </div>
 
+        {/* Music Catalog */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
             🎵 Music Catalog
@@ -431,7 +467,7 @@ export default function ArtistProfilePage() {
                         <div>
                           <p className="text-xs text-gray-600">License Price</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            {music.price || '0.01'} ETH
+                            {music.price || '0.01'} TOURS {/* ✅ FIX #1 & #2: Show TOURS */}
                           </p>
                         </div>
                         <div className="text-right">
@@ -440,7 +476,7 @@ export default function ArtistProfilePage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => handleBuyLicense(music)}
+                        onClick={() => handleBuyLicense(music)} // ✅ FIX #3: Clickable!
                         disabled={
                           buying === music.tokenId ||
                           !walletAddress ||
@@ -450,10 +486,10 @@ export default function ArtistProfilePage() {
                         style={{ minHeight: '56px' }}
                       >
                         {buying === music.tokenId
-                          ? '⏳ Purchasing...'
+                          ? '⏳ Processing (2 steps)...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '❌ Your Own Track'
-                          : `🛒 Buy License (${music.price || '0.01'} ETH)`
+                          : `🛒 Buy License (${music.price || '0.01'} TOURS)`
                         }
                       </button>
                       {music.txHash && (
@@ -474,13 +510,15 @@ export default function ArtistProfilePage() {
           )}
         </div>
 
+        {/* How It Works */}
         <div className="mt-12 p-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border-2 border-purple-200">
           <h3 className="font-bold text-gray-900 mb-3">💡 How Music Licenses Work:</h3>
           <ul className="space-y-2 text-sm text-gray-700">
             <li>✅ <strong>Preview:</strong> Listen to 30s preview for free</li>
-            <li>💰 <strong>Buy License:</strong> Pay once to access full track forever</li>
+            <li>💰 <strong>Buy License:</strong> Pay in TOURS tokens to access full track forever</li>
             <li>🎵 <strong>Artist Royalties:</strong> 10% royalties on all sales go to the artist</li>
             <li>⚡ <strong>Instant Access:</strong> Full track unlocked immediately after purchase</li>
+            <li>🪙 <strong>Payment:</strong> Uses TOURS tokens (not ETH) - swap MON for TOURS in Market</li>
           </ul>
           <p className="text-xs text-gray-600 mt-4">
             💡 <strong>Tip:</strong> Support artists directly! All purchases go straight to the artist's wallet.
