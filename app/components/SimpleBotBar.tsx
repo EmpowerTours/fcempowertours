@@ -5,6 +5,37 @@ import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 
+// ✅ NEW: Function to convert transaction hashes to clickable links
+function formatResponseWithLinks(text: string): string {
+  // Pattern 1: Find "TX: 0x..." or "Tx: 0x..." and make clickable
+  let formatted = text.replace(
+    /TX:\s*(0x[a-fA-F0-9]{10,66})/gi,
+    (match, hash) => `TX: <a href="https://testnet.monadscan.com/tx/${hash}" target="_blank" rel="noopener noreferrer" class="underline hover:text-blue-300 transition-colors">${hash.slice(0, 10)}...</a>`
+  );
+
+  // Pattern 2: Find "View: https://testnet.monadscan.com/tx/..." and make clickable
+  formatted = formatted.replace(
+    /View:\s*(https:\/\/testnet\.monadscan\.com\/tx\/0x[a-fA-F0-9]{64})/gi,
+    (match, url) => {
+      const hash = url.split('/tx/')[1];
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-medium transition-colors">
+        <span>🔗 View TX</span>
+      </a>`;
+    }
+  );
+
+  // Pattern 3: Find standalone transaction hashes (0x + 64 hex chars) and make clickable
+  formatted = formatted.replace(
+    /\b(0x[a-fA-F0-9]{64})\b/g,
+    (hash) => `<a href="https://testnet.monadscan.com/tx/${hash}" target="_blank" rel="noopener noreferrer" class="underline hover:text-blue-300 transition-colors" title="View on Monadscan">${hash.slice(0, 10)}...${hash.slice(-8)}</a>`
+  );
+
+  // Convert newlines to <br> for proper HTML rendering
+  formatted = formatted.replace(/\n/g, '<br>');
+
+  return formatted;
+}
+
 export default function SimpleBotBar() {
   const router = useRouter();
   const { walletAddress } = useFarcasterContext();
@@ -147,12 +178,15 @@ export default function SimpleBotBar() {
             </button>
           </div>
 
-          {/* Response Message */}
+          {/* Response Message with Clickable Links */}
           {response && (
             <div className="p-3 bg-blue-900/50 text-blue-100 rounded-lg border border-blue-700 animate-fade-in">
-              <p className="text-xs sm:text-sm font-mono whitespace-pre-wrap leading-relaxed">
-                {response}
-              </p>
+              <div 
+                className="text-xs sm:text-sm font-mono whitespace-pre-wrap leading-relaxed bot-response"
+                dangerouslySetInnerHTML={{ 
+                  __html: formatResponseWithLinks(response) 
+                }}
+              />
             </div>
           )}
         </div>
@@ -171,6 +205,19 @@ export default function SimpleBotBar() {
         }
         .animate-fade-in {
           animation: fade-in 0.3s ease-out;
+        }
+        
+        /* ✅ NEW: Styles for clickable links in bot responses */
+        :global(.bot-response a) {
+          color: #60a5fa;
+          text-decoration: underline;
+          cursor: pointer;
+        }
+        :global(.bot-response a:hover) {
+          color: #93c5fd;
+        }
+        :global(.bot-response a:active) {
+          transform: scale(0.98);
         }
       `}</style>
     </div>
