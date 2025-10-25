@@ -75,7 +75,7 @@ export default function ArtistProfilePage() {
   const params = useParams();
   const router = useRouter();
   const artistAddress = params.address as string;
-  const { user, walletAddress, isMobile, requestWallet, sendTransaction, switchChain } = useFarcasterContext();
+  const { user, walletAddress, isMobile, requestWallet, sendTransaction } = useFarcasterContext();
   
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
@@ -216,7 +216,7 @@ export default function ArtistProfilePage() {
     }
   };
 
-  // ✅ FIX #2 & #3: Buy license using TOURS tokens (not ETH)
+  // ✅ FIX #2 & #3: Buy license using TOURS tokens (not ETH) - FIXED: Removed switchChain
   const handleBuyLicense = async (music: ArtistMusic) => {
     if (!walletAddress) {
       alert('🔑 Please connect your wallet first');
@@ -239,7 +239,7 @@ export default function ArtistProfilePage() {
         isMobile
       });
 
-      await switchChain({ chainId: 10143 });
+      // ✅ FIXED: Removed switchChain call - we're already on Monad testnet in the Farcaster frame
 
       // ✅ STEP 1: Approve TOURS tokens
       console.log('✅ Step 1/2: Approving TOURS tokens...');
