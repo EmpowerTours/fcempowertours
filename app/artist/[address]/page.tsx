@@ -12,7 +12,7 @@ const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x33c3Cae
 const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
 const MONAD_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 
-// Viem client for transaction polling
+// Viem client for transaction polling and contract reads
 const client = createPublicClient({
   chain: {
     id: 10143, // Monad testnet
@@ -736,9 +736,19 @@ export default function ArtistProfilePage() {
       }));
       setArtistMusic(musicWithLoading);
 
-      // Batch fetch metadata
-      const metadataPromises = music.map(async (nft: MusicNFT, index: number) => {
+      // Batch fetch metadata and on-chain prices
+      const metadataAndPricePromises = music.map(async (nft: MusicNFT, index: number) => {
         try {
+          // Fetch on-chain price
+          const tokenData = await client.readContract({
+            address: MUSIC_NFT_ADDRESS as `0x${string}`,
+            abi: MUSIC_NFT_ABI,
+            functionName: 'masterTokens',
+            args: [BigInt(nft.tokenId)],
+          });
+          const onChainPrice = Number(tokenData[2]) / 1e18; // price field (index 2)
+
+          // Fetch metadata
           const metadataUrl = resolveIPFS(nft.tokenURI);
           console.log(`📦 Fetching metadata for token ${nft.tokenId}:`, metadataUrl);
           const metadataRes = await fetch(metadataUrl, { signal: AbortSignal.timeout(5000) });
@@ -748,22 +758,17 @@ export default function ArtistProfilePage() {
           const metadata: MusicMetadata = await metadataRes.json();
           console.log(`✅ Metadata loaded for token ${nft.tokenId}:`, metadata.name);
 
-          const priceAttr = metadata.attributes?.find(
-            (attr) => attr.trait_type === 'License Price' || attr.trait_type === 'Price'
-          );
-          const price = priceAttr?.value || '0.01';
-
-          return { index, metadata, price: price.toString(), isLoadingMetadata: false };
+          return { index, metadata, price: onChainPrice.toString(), isLoadingMetadata: false };
         } catch (error) {
-          console.error(`❌ Error loading metadata for token ${nft.tokenId}:`, error);
+          console.error(`❌ Error loading metadata or price for token ${nft.tokenId}:`, error);
           return { index, metadata: undefined, price: '0.01', isLoadingMetadata: false };
         }
       });
 
-      const metadataResults = await Promise.all(metadataPromises);
+      const metadataAndPriceResults = await Promise.all(metadataAndPricePromises);
       setArtistMusic((prev) => {
         const updated = [...prev];
-        metadataResults.forEach(({ index, metadata, price, isLoadingMetadata }) => {
+        metadataAndPriceResults.forEach(({ index, metadata, price, isLoadingMetadata }) => {
           updated[index] = { ...updated[index], metadata, price, isLoadingMetadata };
         });
         return updated;
@@ -797,7 +802,7 @@ export default function ArtistProfilePage() {
       console.error('❌ sendTransaction is not a function', {
         tokenId: music.tokenId,
         walletAddress,
-        farcasterContext: JSON.stringify({ user, walletAddress, isMobile }),
+        farcasterContext: JSON.stringify({ user, walletAddress, isMobile, sendTransaction: typeof sendTransaction }),
       });
       alert('❌ Transaction failed: Farcaster SDK not properly initialized');
       return;
