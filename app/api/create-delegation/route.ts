@@ -13,7 +13,7 @@ import { redis } from '@/lib/redis';
  *   userAddress: "0x...",
  *   durationHours: 24,
  *   maxTransactions: 100,
- *   permissions: ["mint_passport", "mint_music", "swap", "buy_itinerary", "send_tours"]
+ *   permissions: ["mint_passport", "mint_music", "swap_mon_for_tours", "buy_itinerary", "send_tours"]
  * }
  */
 
@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
       config: {
         durationHours,
         maxTransactions,
-        // ✅ FIXED: Added 'send_tours' to default permissions
+        // ✅ FIXED: Use correct permission names that match execute-delegated action names
         permissions: permissions.length > 0 ? permissions : [
           'mint_passport', 
           'mint_music', 
-          'swap', 
+          'swap_mon_for_tours',  // ← MUST match execute-delegated case statement
           'buy_itinerary',
-          'send_tours'  // ← CRITICAL FIX
+          'send_tours'
         ],
       }
     };

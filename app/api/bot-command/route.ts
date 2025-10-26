@@ -117,7 +117,7 @@ Address: ${userAddress.slice(0, 10)}...`
       }
     }
     
-    // ==================== SWAP COMMAND (SERVER-SIDE, NO DELEGATION) ====================
+    // ==================== SWAP COMMAND (GASLESS VIA DELEGATION) ====================
     if (lowerCommand.includes('swap') && lowerCommand.includes('mon')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -137,38 +137,80 @@ Address: ${userAddress.slice(0, 10)}...`
       }
       
       try {
-        console.log(`💱 Executing swap via backend (no delegation needed): ${amount} MON`);
+        console.log(`💱 Executing swap via delegation: ${amount} MON for user ${userAddress}`);
         
-        // Call backend to execute swap directly (we pay gas)
-        const response = await fetch(`${APP_URL}/api/execute-swap`, {
+        // Step 1: Check/create delegation with swap permission
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        
+        // ✅ Check if delegation exists AND has swap_mon_for_tours permission
+        const hasValidDelegation = delegationData.success && 
+                                   delegationData.delegation &&
+                                   Array.isArray(delegationData.delegation.permissions) &&
+                                   delegationData.delegation.permissions.includes('swap_mon_for_tours');
+        
+        if (!hasValidDelegation) {
+          console.warn('⚠️ [BOT] No delegation with swap_mon_for_tours permission - creating one...');
+          
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              // ✅ Use correct permission name
+              permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music']
+            })
+          });
+          
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+          
+          console.log('✅ [BOT] Delegation created with swap_mon_for_tours permission');
+        } else {
+          console.log('✅ [BOT] Delegation has swap_mon_for_tours permission:', {
+            hoursLeft: delegationData.delegation.hoursLeft,
+            transactionsLeft: delegationData.delegation.transactionsLeft,
+            permissions: delegationData.delegation.permissions
+          });
+        }
+        
+        // Step 2: Execute swap via delegation
+        const swapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userAddress,
-            amount: amount.toString()
+            action: 'swap_mon_for_tours',  // ✅ MUST match the case in execute-delegated
+            params: {
+              amount: amount.toString()
+            }
           })
         });
         
-        const result = await response.json();
+        const swapData = await swapRes.json();
         
-        if (!result.success) {
-          throw new Error(result.error || 'Swap failed');
+        if (!swapData.success) {
+          throw new Error(swapData.error || 'Swap failed');
         }
         
-        console.log('✅ Swap successful:', result.txHash);
+        console.log('✅ Swap successful:', swapData.txHash);
         
         return NextResponse.json({
           success: true,
           action: 'transaction',
           message: `✅ Swap Complete (FREE)!
 
-${amount} MON → ${result.toursReceived || '?'} TOURS tokens
+${amount} MON → ? TOURS tokens
 
-TX: ${result.txHash?.slice(0, 10)}...
+TX: ${swapData.txHash?.slice(0, 10)}...
 
-⚡ We paid the gas - completely FREE for you!
+⚡ Gasless - we paid the gas!
 
-View: https://testnet.monadscan.com/tx/${result.txHash}`
+View: https://testnet.monadscan.com/tx/${swapData.txHash}`
         });
       } catch (error: any) {
         console.error('❌ Swap failed:', error);
@@ -312,7 +354,7 @@ View: https://testnet.monadscan.com/tx/${result.txHash}`
               durationHours: 24,
               maxTransactions: 100,
               // ✅ EXPLICITLY include send_tours permission
-              permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap']
+              permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours']
             })
           });
           
@@ -403,7 +445,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_passport', 'mint_music', 'swap', 'send_tours']
+              permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours']
             })
           });
           
