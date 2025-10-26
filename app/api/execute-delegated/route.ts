@@ -209,10 +209,10 @@ export async function POST(req: NextRequest) {
         const swapCalls = [
           {
             to: TOKEN_SWAP,
-            value: monAmount,
+            value: monAmount,  // ← MON being sent to swap contract
             data: encodeFunctionData({
-              abi: parseAbi(['function swapMonForTours() external payable']),
-              functionName: 'swapMonForTours',
+              abi: parseAbi(['function swap() external payable']),  // ← FIXED: Correct function name
+              functionName: 'swap',
               args: [],
             }) as Hex,
           },
