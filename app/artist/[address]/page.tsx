@@ -23,7 +23,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-// ABIs from provided contract data
+// [MUSIC_NFT_ABI and ERC20_ABI remain the same - omitted for brevity]
 const MUSIC_NFT_ABI = [
   {
     inputs: [{ internalType: 'address', name: '_treasury', type: 'address' }, { internalType: 'address', name: '_toursToken', type: 'address' }],
@@ -650,32 +650,73 @@ export default function ArtistProfilePage() {
     }
   }, [artistAddress]);
 
+  // ✅ IMPROVED: Better Farcaster user lookup with multiple strategies
   const loadArtistInfo = async () => {
     try {
       console.log('👤 Fetching artist info for:', artistAddress);
-      const response = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
-        {
-          headers: {
-            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
-          },
+      const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+
+      // Strategy 1: Try by_verification endpoint
+      try {
+        const response1 = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
+          {
+            headers: { 'api_key': neynarApiKey },
+          }
+        );
+        if (response1.ok) {
+          const data = await response1.json();
+          if (data && data.user) {
+            console.log('✅ Found Farcaster user via verification:', data.user.username);
+            setArtistInfo({
+              address: artistAddress,
+              username: data.user.username,
+              displayName: data.user.display_name || data.user.username,
+              pfpUrl: data.user.pfp_url,
+              fid: data.user.fid,
+            });
+            return;
+          }
         }
-      );
-      if (!response.ok) {
-        throw new Error(`Neynar API error: ${response.status}`);
+      } catch (err) {
+        console.warn('⚠️ Strategy 1 (by_verification) failed:', err);
       }
-      const data = await response.json();
-      if (data && data.fid) {
-        console.log('✅ Found Farcaster user:', data.username);
-        setArtistInfo({
-          address: artistAddress,
-          username: data.username,
-          displayName: data.display_name || data.username,
-          pfpUrl: data.pfp_url,
-          fid: data.fid,
-        });
-        return;
+
+      // Strategy 2: Search by connected address in user data
+      try {
+        const response2 = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/search?q=${artistAddress}&limit=1`,
+          {
+            headers: { 'api_key': neynarApiKey },
+          }
+        );
+        if (response2.ok) {
+          const data = await response2.json();
+          if (data?.result?.users && data.result.users.length > 0) {
+            const user = data.result.users[0];
+            // Check if this user has the address verified
+            const hasAddress = user.verified_addresses?.eth_addresses?.some(
+              (addr: string) => addr.toLowerCase() === artistAddress.toLowerCase()
+            ) || user.custody_address?.toLowerCase() === artistAddress.toLowerCase();
+
+            if (hasAddress) {
+              console.log('✅ Found Farcaster user via search:', user.username);
+              setArtistInfo({
+                address: artistAddress,
+                username: user.username,
+                displayName: user.display_name || user.username,
+                pfpUrl: user.pfp_url,
+                fid: user.fid,
+              });
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Strategy 2 (search) failed:', err);
       }
+
+      // Fallback: No Farcaster user found, use address
       console.warn('⚠️ Artist not found on Farcaster, using address');
       setArtistInfo({
         address: artistAddress,
