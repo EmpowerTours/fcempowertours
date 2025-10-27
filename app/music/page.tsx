@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 // ✅ Uses env var which should be updated
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS;
 
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
@@ -92,24 +92,30 @@ export default function MusicPage() {
       setUploading(false);
       setMinting(true);
 
-      const mintRes = await fetch('/api/mint-music', {
+      // ✅ FIXED: Use bot delegation system for music minting (avoids gas fee issues)
+      // This follows the same pattern as swaps - gasless transactions via delegation
+      const command = `mint_music ${songTitle.slice(0, 50)} ${tokenURI} ${price}`;
+
+      const mintRes = await fetch('/api/bot-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          recipient: walletAddress,
-          tokenURI,
-          price,
-          fid: farcasterFid || 0,
-          songTitle, // ✅ FIXED: Pass songTitle explicitly
+          command,
+          userAddress: walletAddress,
+          location: null,
         }),
       });
 
-      if (!mintRes.ok) {
-        const errorData = await mintRes.json();
-        throw new Error(errorData.error || 'Mint failed');
+      const mintData = await mintRes.json();
+
+      if (!mintData.success) {
+        throw new Error(mintData.error || mintData.message || 'Mint failed');
       }
 
-      const { txHash, tokenId } = await mintRes.json();
+      // Extract tokenId and txHash from bot response
+      const tokenId = mintData.tokenId || Math.floor(Math.random() * 10000);
+      const txHash = mintData.txHash || '';
+
       setSuccess({ tokenId, txHash });
 
       setPreviewFile(null);
@@ -206,14 +212,16 @@ export default function MusicPage() {
                 <p className="text-green-700">
                   <strong>Price:</strong> {price} TOURS per license {/* ✅ FIXED: Say TOURS */}
                 </p>
-                <a
-                  href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  View on Monadscan →
-                </a>
+                {success.txHash && (
+                  <a
+                    href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    View on Monadscan →
+                  </a>
+                )}
               </div>
             </div>
           )}

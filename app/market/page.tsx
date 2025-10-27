@@ -177,11 +177,11 @@ export default function MarketPage() {
         {/* Current Balances */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200">
-            <p className="text-xs text-gray-600 mb-1 font-medium">MON Balance</p>
+            <p className="text-xs text-gray-600 mb-2 font-medium">MON Balance</p>
             <p className="text-2xl font-bold text-yellow-700">{balances.mon}</p>
           </div>
           <div className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200">
-            <p className="text-xs text-gray-600 mb-1 font-medium">TOURS Balance</p>
+            <p className="text-xs text-gray-600 mb-2 font-medium">TOURS Balance</p>
             <p className="text-2xl font-bold text-green-700">{balances.tours}</p>
           </div>
         </div>
@@ -304,20 +304,6 @@ export default function MarketPage() {
               <li>💰 <strong>Rate:</strong> 1 MON = 1 TOURS (fair exchange)</li>
             </ul>
           </div>
-        </div>
-
-        {/* Music Marketplace Preview */}
-        <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl p-8">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">🎵 Music Marketplace</h3>
-          <p className="text-gray-700 mb-4">
-            Browse and buy music NFTs created by artists on EmpowerTours. Each purchase supports the artist directly with 10% royalties!
-          </p>
-          <Link
-            href="/profile"
-            className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold transition-all"
-          >
-            👀 Browse Music Profiles →
-          </Link>
         </div>
 
         {/* Footer Info */}
