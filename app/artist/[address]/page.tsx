@@ -23,7 +23,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-// [MUSIC_NFT_ABI and ERC20_ABI remain the same - omitted for brevity]
+// [MUSIC_NFT_ABI and ERC20_ABI remain the same - included for completeness]
 const MUSIC_NFT_ABI = [
   {
     inputs: [{ internalType: 'address', name: '_treasury', type: 'address' }, { internalType: 'address', name: '_toursToken', type: 'address' }],
@@ -632,7 +632,7 @@ export default function ArtistProfilePage() {
   const params = useParams();
   const router = useRouter();
   const artistAddress = params.address as string;
-  const { user, walletAddress, isMobile, requestWallet, sendTransaction } = useFarcasterContext();
+  const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
 
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
@@ -827,152 +827,40 @@ export default function ArtistProfilePage() {
 
   const handleBuyLicense = async (music: ArtistMusic) => {
     if (!walletAddress) {
-      console.error('🔑 Wallet not connected', { tokenId: music.tokenId });
       alert('🔑 Please connect your wallet first');
       await requestWallet();
       return;
     }
-
     if (walletAddress.toLowerCase() === artistAddress.toLowerCase()) {
-      console.error('❌ Attempted to buy own music', { tokenId: music.tokenId, artistAddress });
       alert('❌ You cannot buy your own music!');
       return;
     }
-
-    if (!sendTransaction || typeof sendTransaction !== 'function') {
-      console.error('❌ sendTransaction is not a function', {
-        tokenId: music.tokenId,
-        walletAddress,
-        farcasterContext: JSON.stringify({ user, walletAddress, isMobile, sendTransaction: typeof sendTransaction }),
-      });
-      alert('❌ Transaction failed: Farcaster SDK not properly initialized');
-      return;
-    }
-
     setBuying(music.tokenId);
     try {
-      console.log('🎵 Initiating music license purchase', {
-        tokenId: music.tokenId,
-        priceInTOURS: music.price,
-        buyer: walletAddress,
-        artist: artistAddress,
-        isMobile,
+      console.log('🎵 Buying music license via bot command');
+      // Use delegation system via bot command
+      const command = `buy music ${music.tokenId} from @${artistInfo?.username || artistAddress}`;
+      
+      const response = await fetch('/api/bot-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command,
+          userAddress: walletAddress,
+          location: null,
+        }),
       });
-
-      // Check balances
-      const toursBalance = await client.readContract({
-        address: TOURS_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'balanceOf',
-        args: [walletAddress as `0x${string}`],
-      });
-      const approveAmount = parseEther(music.price || '0.01');
-      if (toursBalance < approveAmount) {
-        throw new Error(`Insufficient TOURS: Need ${music.price} TOURS, have ${Number(toursBalance) / 1e18} TOURS`);
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Purchase failed');
       }
-
-      const monBalance = await client.getBalance({ address: walletAddress as `0x${string}` });
-      const minGas = parseEther('0.01'); // Adjust based on actual gas estimates
-      if (monBalance < minGas) {
-        throw new Error(`Insufficient MON for gas: Need ~0.01 MON, have ${Number(monBalance) / 1e18} MON`);
-      }
-
-      // Step 1: Approve TOURS tokens
-      console.log('✅ Step 1/2: Approving TOURS tokens...', { amount: music.price });
-      const approveTx = await sendTransaction({
-        chainId: `eip155:10143`,
-        method: 'eth_sendTransaction',
-        params: {
-          abi: ERC20_ABI,
-          to: TOURS_ADDRESS as `0x${string}`,
-          data: encodeFunctionData({
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            args: [MUSIC_NFT_ADDRESS as `0x${string}`, approveAmount],
-          }),
-          value: '0',
-        },
-      });
-
-      console.log('📤 Approval transaction sent:', {
-        txHash: approveTx.transactionHash,
-        tokenId: music.tokenId,
-      });
-      console.log(`⏳ Step 1/2: Approving TOURS tokens... TX: ${approveTx.transactionHash}`);
-
-      // Poll for approval transaction receipt
-      const approveReceipt = await client.waitForTransactionReceipt({
-        hash: approveTx.transactionHash as `0x${string}`,
-        timeout: 60000, // 60 seconds
-      });
-      if (approveReceipt.status !== 'success') {
-        throw new Error(`Approval transaction failed: ${approveReceipt.transactionHash}`);
-      }
-      console.log('✅ TOURS tokens approved!', { txHash: approveReceipt.transactionHash });
-
-      // Step 2: Purchase license
-      console.log('✅ Step 2/2: Purchasing license...', { tokenId: music.tokenId });
-      const purchaseTx = await sendTransaction({
-        chainId: `eip155:10143`,
-        method: 'eth_sendTransaction',
-        params: {
-          abi: MUSIC_NFT_ABI,
-          to: MUSIC_NFT_ADDRESS as `0x${string}`,
-          data: encodeFunctionData({
-            abi: MUSIC_NFT_ABI,
-            functionName: 'purchaseLicense',
-            args: [BigInt(music.tokenId)],
-          }),
-          value: '0',
-        },
-      });
-
-      console.log('📤 Purchase transaction sent:', {
-        txHash: purchaseTx.transactionHash,
-        tokenId: music.tokenId,
-      });
-      console.log(`⏳ Step 2/2: Purchasing license... TX: ${purchaseTx.transactionHash}`);
-
-      // Poll for purchase transaction receipt
-      const purchaseReceipt = await client.waitForTransactionReceipt({
-        hash: purchaseTx.transactionHash as `0x${string}`,
-        timeout: 60000,
-      });
-      if (purchaseReceipt.status !== 'success') {
-        throw new Error(`Purchase transaction failed: ${purchaseReceipt.transactionHash}`);
-      }
-
-      console.log('🎉 Music License Purchased!', {
-        tokenId: music.tokenId,
-        trackName: music.metadata?.name || 'this track',
-        price: music.price,
-        txHash: purchaseTx.transactionHash,
-      });
-      alert(`🎉 Music License Purchased!\n\n✅ You can now listen to "${music.metadata?.name || 'this track'}"\n\nPaid: ${music.price} TOURS\n\nTX: ${purchaseTx.transactionHash}`);
-
-      // Refresh artist profile
-      await loadArtistProfile();
+      alert(`🎉 Buying "${music.metadata?.name || 'track'}"!\n\nPrice: ${music.price} TOURS\n\nTX: ${result.txHash}`);
+      
+      setTimeout(() => loadArtistProfile(), 2000);
+      
     } catch (error: any) {
-      console.error('❌ Purchase error:', {
-        message: error.message,
-        stack: error.stack,
-        tokenId: music.tokenId,
-        buyer: walletAddress,
-        artist: artistAddress,
-      });
-      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
-        alert('❌ Transaction cancelled by user');
-      } else if (error.message?.includes('Insufficient TOURS')) {
-        alert(error.message);
-      } else if (error.message?.includes('Insufficient MON')) {
-        alert(error.message);
-      } else if (error.message?.includes('transaction failed')) {
-        alert(`❌ Transaction failed: ${error.message}`);
-      } else if (error.message?.includes('sendTransaction is not a function')) {
-        alert('❌ Farcaster SDK error: sendTransaction not available');
-      } else {
-        alert(`❌ Purchase failed: ${error.message || 'Unknown error'}`);
-      }
+      alert(`❌ Purchase failed: ${error.message}`);
     } finally {
       setBuying(null);
     }
@@ -1170,7 +1058,7 @@ export default function ArtistProfilePage() {
                         style={{ minHeight: '56px' }}
                       >
                         {buying === music.tokenId
-                          ? '⏳ Processing (2 steps)...'
+                          ? '⏳ Processing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '❌ Your Own Track'
                           : `🛒 Buy License (${music.price || '0.01'} TOURS)`
