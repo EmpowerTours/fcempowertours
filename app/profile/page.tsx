@@ -25,14 +25,23 @@ interface MusicMetadata {
 
 interface MusicNFTWithMetadata {
   id: string;
-  tokenId: number;
-  owner: string;
-  tokenURI: string;
-  mintedAt: string;
+  tokenId?: number;
+  licenseId?: number;
+  owner?: string;
+  licensee?: string;
+  artist?: string;
+  tokenURI?: string;
+  price?: string;
+  totalSold?: number;
+  active?: boolean;
+  mintedAt?: string;
+  purchasedAt?: string;
+  expiry?: number;
   txHash: string;
   metadata?: MusicMetadata;
   audioUrl?: string;
   isLoadingMetadata?: boolean;
+  type: 'master' | 'license'; // Distinguish between created and purchased
 }
 
 interface PassportMetadata {
@@ -75,15 +84,17 @@ export default function ProfilePage() {
   
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [musicNFTs, setMusicNFTs] = useState<MusicNFTWithMetadata[]>([]);
+  const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
+  const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [balances, setBalances] = useState({ mon: '0', tours: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [musicPage, setMusicPage] = useState(1);
+  const [createdMusicPage, setCreatedMusicPage] = useState(1);
+  const [purchasedMusicPage, setPurchasedMusicPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
-
-  // ❌ REMOVED: Auto-request wallet
 
   useEffect(() => {
     if (walletAddress) {
@@ -144,9 +155,23 @@ export default function ProfilePage() {
           MusicNFT(where: {owner: {_eq: $address}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
+            artist
             owner
             tokenURI
+            price
+            totalSold
+            active
             mintedAt
+            txHash
+          }
+          MusicLicense(where: {licensee: {_eq: $address}}, order_by: {purchasedAt: desc}, limit: 100) {
+            id
+            licenseId
+            masterTokenId
+            licensee
+            expiry
+            active
+            purchasedAt
             txHash
           }
           ItineraryPurchase(where: {buyer: {_eq: $address}}, order_by: {timestamp: desc}, limit: 50) {
@@ -184,15 +209,18 @@ export default function ProfilePage() {
       }
 
       let passports: PassportNFT[] = result.data?.PassportNFT || [];
-      const music = result.data?.MusicNFT || [];
+      const createdMusicNFTs = result.data?.MusicNFT || [];
+      const purchasedLicenses = result.data?.MusicLicense || [];
       const purchases = result.data?.ItineraryPurchase || [];
 
       console.log('✅ Loaded from Envio:', {
         passports: passports.length,
-        music: music.length,
+        createdMusic: createdMusicNFTs.length,
+        purchasedLicenses: purchasedLicenses.length,
         purchases: purchases.length
       });
 
+      // Process passports
       passports = await Promise.all(
         passports.map(async (passport) => {
           if (passport.countryCode) {
@@ -205,17 +233,32 @@ export default function ProfilePage() {
 
       setPassportNFTs(passports);
 
-      const musicWithMetadata: MusicNFTWithMetadata[] = music.map((nft: any) => ({
+      // Process created music
+      const createdMusicWithType: MusicNFTWithMetadata[] = createdMusicNFTs.map((nft: any) => ({
         ...nft,
+        type: 'master' as const,
         isLoadingMetadata: true
       }));
-      setMusicNFTs(musicWithMetadata);
+      setCreatedMusic(createdMusicWithType);
 
-      music.forEach(async (nft: any, index: number) => {
+      // Process purchased licenses - need to fetch master NFT details
+      const purchasedMusicWithType: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => ({
+        ...license,
+        type: 'license' as const,
+        isLoadingMetadata: true
+      }));
+      setPurchasedMusic(purchasedMusicWithType);
+
+      // Combine for unified handling
+      const allMusic = [...createdMusicWithType, ...purchasedMusicWithType];
+      setMusicNFTs(allMusic);
+
+      // Fetch metadata for all music (both created and purchased)
+      createdMusicNFTs.forEach(async (nft: any, index: number) => {
         const metadata = await fetchMusicMetadata(nft.tokenURI);
         if (metadata) {
           const audioUrl = metadata.animation_url || metadata.external_url;
-          setMusicNFTs(prev => {
+          setCreatedMusic(prev => {
             const updated = [...prev];
             updated[index] = {
               ...updated[index],
@@ -226,7 +269,7 @@ export default function ProfilePage() {
             return updated;
           });
         } else {
-          setMusicNFTs(prev => {
+          setCreatedMusic(prev => {
             const updated = [...prev];
             updated[index] = {
               ...updated[index],
@@ -235,6 +278,20 @@ export default function ProfilePage() {
             return updated;
           });
         }
+      });
+
+      // For purchased licenses, we need to fetch from the master tokenURI
+      // This requires additional query or storing master metadata in the contract
+      purchasedLicenses.forEach(async (license: any, index: number) => {
+        // Placeholder: you may need to query MusicNFT to get the master's tokenURI
+        setPurchasedMusic(prev => {
+          const updated = [...prev];
+          updated[index] = {
+            ...updated[index],
+            isLoadingMetadata: false
+          };
+          return updated;
+        });
       });
 
       setPurchasedItineraries(purchases);
@@ -246,15 +303,20 @@ export default function ProfilePage() {
     }
   };
 
-  const paginatedMusic = musicNFTs.slice(
-    (musicPage - 1) * ITEMS_PER_PAGE,
-    musicPage * ITEMS_PER_PAGE
+  const paginatedCreatedMusic = createdMusic.slice(
+    (createdMusicPage - 1) * ITEMS_PER_PAGE,
+    createdMusicPage * ITEMS_PER_PAGE
+  );
+  const paginatedPurchasedMusic = purchasedMusic.slice(
+    (purchasedMusicPage - 1) * ITEMS_PER_PAGE,
+    purchasedMusicPage * ITEMS_PER_PAGE
   );
   const paginatedPassports = passportNFTs.slice(
     (passportPage - 1) * ITEMS_PER_PAGE,
     passportPage * ITEMS_PER_PAGE
   );
-  const totalMusicPages = Math.ceil(musicNFTs.length / ITEMS_PER_PAGE);
+  const totalCreatedMusicPages = Math.ceil(createdMusic.length / ITEMS_PER_PAGE);
+  const totalPurchasedMusicPages = Math.ceil(purchasedMusic.length / ITEMS_PER_PAGE);
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
 
   const copyArtistLink = () => {
@@ -343,7 +405,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {musicNFTs.length > 0 && walletAddress && (
+          {(createdMusic.length > 0 || purchasedMusic.length > 0) && walletAddress && (
             <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -395,14 +457,18 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-4 gap-4 mb-8">
             <div className="p-4 bg-purple-50 rounded-lg text-center">
               <p className="text-3xl font-bold text-purple-600">{passportNFTs.length}</p>
               <p className="text-sm text-gray-600">Passports</p>
             </div>
             <div className="p-4 bg-blue-50 rounded-lg text-center">
-              <p className="text-3xl font-bold text-blue-600">{musicNFTs.length}</p>
-              <p className="text-sm text-gray-600">Music NFTs</p>
+              <p className="text-3xl font-bold text-blue-600">{createdMusic.length}</p>
+              <p className="text-sm text-gray-600">Created</p>
+            </div>
+            <div className="p-4 bg-pink-50 rounded-lg text-center">
+              <p className="text-3xl font-bold text-pink-600">{purchasedMusic.length}</p>
+              <p className="text-sm text-gray-600">Purchased</p>
             </div>
             <div className="p-4 bg-green-50 rounded-lg text-center">
               <p className="text-3xl font-bold text-green-600">{purchasedItineraries.length}</p>
@@ -432,140 +498,258 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-8">
-            {/* Music NFTs Section */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">🎵 My Music Collection</h2>
-                <span className="text-sm text-gray-500">
-                  {musicNFTs.length} total | Page {musicPage} of {totalMusicPages || 1}
-                </span>
-              </div>
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin text-3xl mb-2">⏳</div>
-                  <p className="text-gray-500">Loading...</p>
+            {/* Created Music Section */}
+            {createdMusic.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">🎵 Music I Created</h2>
+                  <span className="text-sm text-gray-500">
+                    {createdMusic.length} total | Page {createdMusicPage} of {totalCreatedMusicPages || 1}
+                  </span>
                 </div>
-              ) : musicNFTs.length === 0 ? (
-                <div className="p-6 bg-gray-50 rounded-lg text-center">
-                  <p className="text-gray-600 mb-3">No music NFTs yet</p>
-                  <Link
-                    href="/music"
-                    className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
-                  >
-                    Mint Your First Track →
-                  </Link>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {paginatedMusic.map((nft, idx) => (
-                      <div
-                        key={nft.id || idx}
-                        className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
-                      >
-                        {nft.metadata?.image ? (
-                          <div className="w-full aspect-square overflow-hidden rounded-t-xl">
-                            <img
-                              src={resolveIPFS(nft.metadata.image)}
-                              alt={nft.metadata.name || `Music NFT #${nft.tokenId}`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
-                            <span className="text-6xl">🎵</span>
-                          </div>
-                        )}
-                        <div className="p-4 space-y-3">
-                          <div className="text-center">
-                            <p className="font-mono text-sm font-bold text-blue-900">
-                              {nft.metadata?.name || `Music NFT #${nft.tokenId}`}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(nft.mintedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          {nft.isLoadingMetadata ? (
-                            <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
-                              <p className="text-xs text-gray-500">Loading audio...</p>
-                            </div>
-                          ) : nft.audioUrl ? (
-                            <div className="bg-white rounded-lg p-2 border border-blue-200">
-                              <audio
-                                controls
-                                preload="metadata"
-                                className="w-full"
-                                style={{ height: '40px' }}
-                              >
-                                <source
-                                  src={resolveIPFS(nft.audioUrl)}
-                                  type="audio/mpeg"
-                                />
-                                <source
-                                  src={resolveIPFS(nft.audioUrl)}
-                                  type="audio/wav"
-                                />
-                                Your browser does not support audio playback.
-                              </audio>
-                              <p className="text-xs text-gray-500 text-center mt-1">
-                                🔊 Preview Clip
-                              </p>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin text-3xl mb-2">⏳</div>
+                    <p className="text-gray-500">Loading...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {paginatedCreatedMusic.map((nft, idx) => (
+                        <div
+                          key={nft.id || idx}
+                          className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
+                        >
+                          {nft.metadata?.image ? (
+                            <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                              <img
+                                src={resolveIPFS(nft.metadata.image)}
+                                alt={nft.metadata.name || `Music NFT #${nft.tokenId}`}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
                           ) : (
-                            <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
-                              <p className="text-xs text-gray-500">Audio unavailable</p>
+                            <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
+                              <span className="text-6xl">🎵</span>
                             </div>
                           )}
-                          <div className="flex gap-2">
-                            {nft.txHash && (
-                              <a
-                                href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
-                              >
-                                View TX
-                              </a>
+                          <div className="p-4 space-y-3">
+                            <div className="text-center">
+                              <p className="font-mono text-sm font-bold text-blue-900">
+                                {nft.metadata?.name || `Music NFT #${nft.tokenId}`}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {nft.mintedAt ? new Date(nft.mintedAt).toLocaleDateString() : 'Recently minted'}
+                              </p>
+                              {nft.price && (
+                                <p className="text-xs text-green-600 font-bold mt-1">
+                                  💰 {nft.price} TOURS
+                                </p>
+                              )}
+                            </div>
+                            {nft.isLoadingMetadata ? (
+                              <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
+                                <p className="text-xs text-gray-500">Loading audio...</p>
+                              </div>
+                            ) : nft.audioUrl ? (
+                              <div className="bg-white rounded-lg p-2 border border-blue-200">
+                                <audio
+                                  controls
+                                  preload="metadata"
+                                  className="w-full"
+                                  style={{ height: '40px' }}
+                                >
+                                  <source
+                                    src={resolveIPFS(nft.audioUrl)}
+                                    type="audio/mpeg"
+                                  />
+                                  <source
+                                    src={resolveIPFS(nft.audioUrl)}
+                                    type="audio/wav"
+                                  />
+                                  Your browser does not support audio playback.
+                                </audio>
+                                <p className="text-xs text-gray-500 text-center mt-1">
+                                  🔊 Preview
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
+                                <p className="text-xs text-gray-500">Audio unavailable</p>
+                              </div>
                             )}
-                            {nft.tokenURI && (
-                              <a
-                                href={resolveIPFS(nft.tokenURI)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
-                              >
-                                Metadata
-                              </a>
-                            )}
+                            <div className="flex gap-2">
+                              {nft.txHash && (
+                                <a
+                                  href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
+                                >
+                                  View TX
+                                </a>
+                              )}
+                              {nft.tokenURI && (
+                                <a
+                                  href={resolveIPFS(nft.tokenURI)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                                >
+                                  Metadata
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  {totalMusicPages > 1 && (
-                    <div className="flex justify-center gap-2 mt-6">
-                      <button
-                        onClick={() => setMusicPage(p => Math.max(1, p - 1))}
-                        disabled={musicPage === 1}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        ← Prev
-                      </button>
-                      <span className="px-4 py-2 bg-gray-100 rounded-lg">
-                        {musicPage} / {totalMusicPages}
-                      </span>
-                      <button
-                        onClick={() => setMusicPage(p => Math.min(totalMusicPages, p + 1))}
-                        disabled={musicPage === totalMusicPages}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        Next →
-                      </button>
+                      ))}
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                    {totalCreatedMusicPages > 1 && (
+                      <div className="flex justify-center gap-2 mt-6">
+                        <button
+                          onClick={() => setCreatedMusicPage(p => Math.max(1, p - 1))}
+                          disabled={createdMusicPage === 1}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          ← Prev
+                        </button>
+                        <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                          {createdMusicPage} / {totalCreatedMusicPages}
+                        </span>
+                        <button
+                          onClick={() => setCreatedMusicPage(p => Math.min(totalCreatedMusicPages, p + 1))}
+                          disabled={createdMusicPage === totalCreatedMusicPages}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Purchased Music Section */}
+            {purchasedMusic.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">🎧 Music I Purchased</h2>
+                  <span className="text-sm text-gray-500">
+                    {purchasedMusic.length} total | Page {purchasedMusicPage} of {totalPurchasedMusicPages || 1}
+                  </span>
+                </div>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin text-3xl mb-2">⏳</div>
+                    <p className="text-gray-500">Loading...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {paginatedPurchasedMusic.map((license, idx) => (
+                        <div
+                          key={license.id || idx}
+                          className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200 rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md"
+                        >
+                          <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
+                            <span className="text-6xl">🎧</span>
+                          </div>
+                          <div className="p-4 space-y-3">
+                            <div className="text-center">
+                              <p className="font-mono text-sm font-bold text-pink-900">
+                                License #{license.licenseId}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Master #{license.masterTokenId}
+                              </p>
+                              {license.purchasedAt && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Purchased: {new Date(license.purchasedAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
+                              {license.active ? (
+                                <>
+                                  <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
+                                  {license.expiry && (
+                                    <p className="text-xs text-gray-600">
+                                      Expires: {new Date(license.expiry * 1000).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-xs text-red-600 font-bold">❌ License Expired</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              {license.txHash && (
+                                <a
+                                  href={`https://testnet.monadscan.com/tx/${license.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
+                                >
+                                  View TX
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {totalPurchasedMusicPages > 1 && (
+                      <div className="flex justify-center gap-2 mt-6">
+                        <button
+                          onClick={() => setPurchasedMusicPage(p => Math.max(1, p - 1))}
+                          disabled={purchasedMusicPage === 1}
+                          className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+                        >
+                          ← Prev
+                        </button>
+                        <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                          {purchasedMusicPage} / {totalPurchasedMusicPages}
+                        </span>
+                        <button
+                          onClick={() => setPurchasedMusicPage(p => Math.min(totalPurchasedMusicPages, p + 1))}
+                          disabled={purchasedMusicPage === totalPurchasedMusicPages}
+                          className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Combined Music Section (if neither) */}
+            {createdMusic.length === 0 && purchasedMusic.length === 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">🎵 My Music Collection</h2>
+                </div>
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-600 mb-3">No music yet</p>
+                  <div className="flex gap-3 justify-center">
+                    <Link
+                      href="/music"
+                      className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
+                    >
+                      Mint Your First Track →
+                    </Link>
+                    <Link
+                      href="/artist"
+                      className="inline-block px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-all"
+                    >
+                      Browse Artists →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Passports Section */}
             <div>
