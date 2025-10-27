@@ -3,11 +3,11 @@ name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries
 networks:
   - id: 10143
-    start_block: 41800000  # Adjust this to the block where your new contracts were deployed
+    start_block: 41800000  # ✅ UPDATED: Block where MusicLicenseNFTv4 was deployed
     contracts:
       - name: MusicLicenseNFT
         address:
-          - "0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc"  # ✅ UPDATED
+          - "0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6"  # ✅ UPDATED: v4 address
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting
@@ -16,13 +16,13 @@ networks:
               transaction_fields:
                 - hash
           
-          # ✅ UPDATED: License purchase with expiry tracking
+          # ✅ License purchase with expiry tracking
           - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed buyer, uint256 expiry)"
             field_selection:
               transaction_fields:
                 - hash
           
-          # ✅ NEW: License expiration tracking
+          # ✅ License expiration tracking
           - event: "LicenseExpired(uint256 indexed licenseId)"
             field_selection:
               transaction_fields:
@@ -34,12 +34,18 @@ networks:
               transaction_fields:
                 - hash
           
+          # Price updates
+          - event: "PriceUpdated(uint256 indexed masterTokenId, uint256 newPrice)"
+            field_selection:
+              transaction_fields:
+                - hash
+          
           # NFT transfer tracking
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
       
       - name: PassportNFT
         address:
-          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"  # ✅ UPDATED
+          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data

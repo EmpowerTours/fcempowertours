@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
-    const MUSIC_NFT = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS as Address;
+    const MUSIC_NFT_V4 = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address; // ✅ NEW v4 address
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     const MINT_PRICE = parseEther('10'); // 10 TOURS for passport mint
 
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
 
         const musicCalls = [
           {
-            to: MUSIC_NFT,
+            to: MUSIC_NFT_V4,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
         });
 
       case 'buy_music':
-        console.log('🎵 Action: buy_music (batched approve + purchaseLicense)');
+        console.log('🎵 Action: buy_music (batched approve + purchaseLicenseFor)');
         
         if (!params?.tokenId) {
           return NextResponse.json(
@@ -162,7 +162,8 @@ export async function POST(req: NextRequest) {
         }
         
         const tokenId = BigInt(params.tokenId);
-        console.log('  Buying music license for token:', tokenId.toString());
+        console.log('  Token:', tokenId.toString());
+        console.log('  Licensee:', userAddress);
 
         const buyCalls = [
           {
@@ -171,16 +172,18 @@ export async function POST(req: NextRequest) {
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [MUSIC_NFT, parseEther('1000')],
+              args: [MUSIC_NFT_V4, parseEther('1000')],
             }) as Hex,
           },
           {
-            to: MUSIC_NFT,
+            to: MUSIC_NFT_V4,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function purchaseLicense(uint256 masterTokenId) external']),
-              functionName: 'purchaseLicense',
-              args: [tokenId],
+              abi: parseAbi([
+                'function purchaseLicenseFor(uint256 masterTokenId, address licensee) external'
+              ]),
+              functionName: 'purchaseLicenseFor', // ✅ NEW function
+              args: [tokenId, userAddress as Address], // ✅ Includes user address
             }) as Hex,
           },
         ];
@@ -197,7 +200,7 @@ export async function POST(req: NextRequest) {
           action,
           userAddress,
           tokenId: tokenId.toString(),
-          message: `Music license purchased successfully`,
+          message: `Music license purchased for ${userAddress}`,
         });
 
       case 'send_tours':
@@ -258,9 +261,9 @@ export async function POST(req: NextRequest) {
         const swapCalls = [
           {
             to: TOKEN_SWAP,
-            value: monAmount,  // ← MON being sent to swap contract
+            value: monAmount,
             data: encodeFunctionData({
-              abi: parseAbi(['function swap() external payable']),  // ← FIXED: Correct function name
+              abi: parseAbi(['function swap() external payable']),
               functionName: 'swap',
               args: [],
             }) as Hex,
