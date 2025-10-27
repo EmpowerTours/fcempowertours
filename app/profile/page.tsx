@@ -125,13 +125,38 @@ export default function ProfilePage() {
   const loadBalances = async () => {
     if (!walletAddress) return;
     try {
+      // ✅ FIX: Check balance for user wallet
       const response = await fetch('/api/get-balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: walletAddress }),
       });
       if (response.ok) {
-        const data = await response.json();
+        let data = await response.json();
+        
+        // ✅ FIX: Also check Safe address if available
+        const safeAddr = (user as any)?.safeAddress;
+        if (safeAddr && safeAddr.toLowerCase() !== walletAddress.toLowerCase()) {
+          try {
+            const safeResponse = await fetch('/api/get-balances', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ address: safeAddr }),
+            });
+            if (safeResponse.ok) {
+              const safeData = await safeResponse.json();
+              console.log('💼 Safe address balance:', safeData);
+              
+              // Use Safe balance if it has more TOURS (indicating spends came from Safe)
+              if (parseFloat(safeData.tours || '0') > parseFloat(data.tours || '0')) {
+                data = safeData;
+              }
+            }
+          } catch (err) {
+            console.error('Error checking Safe balance:', err);
+          }
+        }
+        
         setBalances(data);
       }
     } catch (error) {
@@ -139,7 +164,6 @@ export default function ProfilePage() {
     }
   };
 
-  // ✅ NEW: Polling function to retry loading data (for indexer sync)
   const loadAllDataWithRetry = async (maxRetries = 5, initialDelay = 2000) => {
     let lastError: any = null;
     
@@ -148,7 +172,6 @@ export default function ProfilePage() {
         setRefreshMessage(`Loading data... (attempt ${attempt}/${maxRetries})`);
         await loadAllData();
         
-        // ✅ Check if we got new data
         if (purchasedMusic.length > 0 || createdMusic.length > 0) {
           setRefreshMessage('✅ Data synced!');
           setTimeout(() => setRefreshMessage(''), 2000);
@@ -156,7 +179,7 @@ export default function ProfilePage() {
         }
         
         if (attempt < maxRetries) {
-          const delay = initialDelay * attempt; // Exponential backoff
+          const delay = initialDelay * attempt;
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (err) {
@@ -178,20 +201,25 @@ export default function ProfilePage() {
     setLoading(true);
     setError(null);
     try {
-      // ✅ FIXED: Collect ALL wallet addresses to query
+      // ✅ FIX: Collect ALL wallet addresses including Safe SmartAccount
+      // This is critical - purchased music may be under Safe address!
       const addressesToQuery = [
         walletAddress.toLowerCase(),
         (user as any)?.safeAddress?.toLowerCase?.(),
         (user as any)?.smartAccountAddress?.toLowerCase?.(),
         (user as any)?.verifiedAddresses?.eth_addresses?.[0]?.toLowerCase(),
         (user as any)?.custodyAddress?.toLowerCase(),
-      ].filter(addr => addr && addr !== '0x0000000000000000000000000000000000000000')
+      ]
+        .filter(addr => addr && addr !== '0x0000000000000000000000000000000000000000')
         .map(addr => addr!.toLowerCase());
 
-      // Remove duplicates
-      const uniqueAddresses = [...new Set(addressesToQuery)];
+      const uniqueAddresses = [...new Set(addressesToQuery)].filter(a => a);
       
       console.log('🔍 Querying addresses:', uniqueAddresses);
+      console.log('   User wallet:', walletAddress);
+      console.log('   Safe account:', (user as any)?.safeAddress);
+      console.log('   Smart account:', (user as any)?.smartAccountAddress);
+      
       setQueriedAddresses(uniqueAddresses);
 
       const query = `
@@ -696,7 +724,7 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Purchased Music Section */}
+            {/* Purchased Music Section - THIS NOW SHOWS MUSIC BOUGHT WITH SAFE! */}
             {purchasedMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
