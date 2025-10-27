@@ -53,7 +53,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
       totalNFTs: 1,
-      licensesOwned: 0,  // ✅ ADDED: Required field
+      licensesOwned: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -74,7 +74,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
       totalPassports: 0,
       totalItineraries: 0,
       totalItineraryPurchases: 0,
-      totalMusicLicensesPurchased: 0,  // ✅ ADDED: Required field
+      totalMusicLicensesPurchased: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -83,7 +83,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
   context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} - URI: ${tokenURI}`);
 });
 
-// ✅ UPDATED: Handle LicensePurchased event - create MusicLicense entity
+// ✅ UPDATED: Handle LicensePurchased event with createdAt field
 MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
   const { licenseId, masterTokenId, buyer, expiry } = event.params;
 
@@ -98,32 +98,31 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
     return;
   }
 
-  // Create MusicLicense entity (for purchases tracking)
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create MusicLicense entity
   const musicLicense = {
     id: musicLicenseId,
     licenseId: licenseId.toString(),
     masterTokenId: masterTokenId.toString(),
-    masterToken_id: musicNFTId,  // ✅ FIXED: Changed from master_id to masterToken_id (schema requirement)
+    masterToken_id: musicNFTId,
     licensee: buyer.toLowerCase(),
-    expiry: BigInt(expiry),  // ✅ FIXED: Changed from Number to BigInt (schema requirement)
+    expiry: BigInt(expiry),
     active: true,
-    purchasedAt: new Date(event.block.timestamp * 1000),
-    renewalCount: 0,
+    purchasedAt: timestamp,
+    createdAt: timestamp,  // ✅ ADDED: Set createdAt to same as purchasedAt
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   };
 
   await context.MusicLicense.set(musicLicense);
 
-  // ✅ NOTE: LicensePurchase entity doesn't exist in schema - removed
-  // The MusicLicense entity already tracks purchases, so this is redundant
-
   // Update MusicNFT totalSold count
   const musicNFT = await context.MusicNFT.get(musicNFTId);
   if (musicNFT) {
     await context.MusicNFT.set({
       ...musicNFT,
-      totalSold: (musicNFT.totalSold || 0) + 1,  // ✅ FIXED: Added fallback for undefined
+      totalSold: (musicNFT.totalSold || 0) + 1,
     });
   }
 
@@ -136,8 +135,8 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
   if (buyerStats) {
     await context.UserStats.set({
       ...buyerStats,
-      licensesOwned: (buyerStats.licensesOwned || 0) + 1,  // ✅ FIXED: Increment licensesOwned
-      lastActive: new Date(event.block.timestamp * 1000),
+      licensesOwned: (buyerStats.licensesOwned || 0) + 1,
+      lastActive: timestamp,
     });
   } else {
     await context.UserStats.set({
@@ -148,8 +147,8 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
       totalNFTs: 0,
-      licensesOwned: 1,  // ✅ ADDED: New user has 1 license
-      lastActive: new Date(event.block.timestamp * 1000),
+      licensesOwned: 1,
+      lastActive: timestamp,
     });
   }
 
@@ -159,9 +158,9 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
   if (globalStats) {
     await context.GlobalStats.set({
       ...globalStats,
-      totalMusicLicensesPurchased: globalStats.totalMusicLicensesPurchased + 1,  // ✅ FIXED: Increment license counter
+      totalMusicLicensesPurchased: globalStats.totalMusicLicensesPurchased + 1,
       totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
-      lastUpdated: new Date(event.block.timestamp * 1000),
+      lastUpdated: timestamp,
     });
   } else {
     await context.GlobalStats.set({
@@ -170,9 +169,9 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
       totalPassports: 0,
       totalItineraries: 0,
       totalItineraryPurchases: 0,
-      totalMusicLicensesPurchased: 1,  // ✅ FIXED: Initialize with 1 license
+      totalMusicLicensesPurchased: 1,
       totalUsers: 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
+      lastUpdated: timestamp,
     });
   }
 
@@ -197,31 +196,6 @@ MusicLicenseNFT.LicenseExpired.handler(async ({ event, context }) => {
   }
 });
 
-// ✅ NOTE: RoyaltyPaid event handled but RoyaltyPayment entity doesn't exist in schema
-// This handler is commented out as the entity is not defined
-// Uncomment if you add RoyaltyPayment to schema.graphql
-/*
-MusicLicenseNFT.RoyaltyPaid.handler(async ({ event, context }) => {
-  const { tokenId, recipient, amount } = event.params;
-
-  const paymentId = `royalty-${event.block.number}-${event.logIndex}`;
-
-  const royaltyPayment = {
-    id: paymentId,
-    tokenId: tokenId.toString(),
-    recipient: recipient.toLowerCase(),
-    amount: amount,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.RoyaltyPayment.set(royaltyPayment);
-
-  context.log.info(`💰 Royalty paid for Music NFT #${tokenId} to ${recipient}: ${amount}`);
-});
-*/
-
 MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
@@ -245,7 +219,6 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // PASSPORT NFT EVENTS
 // ============================================
 
-// ✅ NEW: Listen for PassportMinted event with all country data
 PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   const { tokenId, owner, countryCode, countryName, region, continent } = event.params;
 
@@ -256,11 +229,11 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
     owner: owner.toLowerCase(),
-    countryCode: countryCode,        // ✅ FROM EVENT
-    countryName: countryName,        // ✅ FROM EVENT
-    region: region,                  // ✅ FROM EVENT
-    continent: continent,            // ✅ FROM EVENT
-    tokenURI: "",                    // Will be set via Transfer event or later
+    countryCode: countryCode,
+    countryName: countryName,
+    region: region,
+    continent: continent,
+    tokenURI: "",
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -289,7 +262,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
       totalNFTs: 1,
-      licensesOwned: 0,  // ✅ ADDED: Required field
+      licensesOwned: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -310,7 +283,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       totalPassports: 1,
       totalItineraries: 0,
       totalItineraryPurchases: 0,
-      totalMusicLicensesPurchased: 0,  // ✅ ADDED: Required field
+      totalMusicLicensesPurchased: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -324,12 +297,10 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
 PassportNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
-  // Skip if it's a mint (handled by PassportMinted event)
   if (from === "0x0000000000000000000000000000000000000000") {
     return;
   }
 
-  // Handle transfers (update owner)
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
   const passportNFT = await context.PassportNFT.get(passportNFTId);
 
@@ -360,7 +331,7 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
     active: true,
     createdAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,  // ✅ FIXED: Was missing
+    txHash: event.transaction.hash,
   };
 
   await context.Itinerary.set(itinerary);
@@ -385,7 +356,7 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
       itinerariesCreated: 1,
       itinerariesPurchased: 0,
       totalNFTs: 0,
-      licensesOwned: 0,  // ✅ ADDED: Required field
+      licensesOwned: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -406,7 +377,7 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
       totalPassports: 0,
       totalItineraries: 1,
       totalItineraryPurchases: 0,
-      totalMusicLicensesPurchased: 0,  // ✅ ADDED: Required field
+      totalMusicLicensesPurchased: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -453,7 +424,7 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
       itinerariesCreated: 0,
       itinerariesPurchased: 1,
       totalNFTs: 0,
-      licensesOwned: 0,  // ✅ ADDED: Required field
+      licensesOwned: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -474,7 +445,7 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
       totalPassports: 0,
       totalItineraries: 0,
       totalItineraryPurchases: 1,
-      totalMusicLicensesPurchased: 0,  // ✅ ADDED: Required field
+      totalMusicLicensesPurchased: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });

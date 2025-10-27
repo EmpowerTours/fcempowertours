@@ -3,8 +3,6 @@ import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import Link from 'next/link';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-
 interface SwapQuote {
   monAmount: string;
   toursAmount: string;
@@ -28,22 +26,37 @@ export default function MarketPage() {
     }
   }, [walletAddress]);
 
-  const loadBalances = async () => {
+  // ✅ FIXED: Improved balance loading with retry mechanism
+  const loadBalancesWithRetry = async (retries = 3) => {
     if (!walletAddress) return;
-    try {
-      const response = await fetch('/api/get-balances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: walletAddress }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setBalances(data);
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`💰 Loading balances (attempt ${attempt}/${retries})...`);
+        
+        const response = await fetch('/api/get-balances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: walletAddress }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setBalances(data);
+          console.log('✅ Balances loaded:', data);
+          return; // Success, exit retry loop
+        }
+      } catch (error) {
+        console.error(`❌ Balance load attempt ${attempt} failed:`, error);
+        if (attempt < retries) {
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
       }
-    } catch (error) {
-      console.error('Error loading balances:', error);
     }
   };
+
+  const loadBalances = () => loadBalancesWithRetry(1); // Single attempt for initial load
 
   const generateSwapQuote = async () => {
     try {
@@ -86,7 +99,6 @@ export default function MarketPage() {
     try {
       console.log(`💱 Executing swap via bot command: ${amount} MON for user ${walletAddress}`);
 
-      // ✅ FIXED: Use bot delegation system instead of direct contract call
       const command = `swap ${amount} mon`;
 
       const response = await fetch('/api/bot-command', {
@@ -106,14 +118,22 @@ export default function MarketPage() {
       }
 
       console.log('✅ Swap successful:', result.txHash);
-      setSwapSuccess(`🎉 Swapped ${amount} MON for TOURS!\n\nTX: ${result.txHash}`);
+      
+      // ✅ FIXED: Show txHash properly in success message
+      const txHash = result.txHash || 'unknown';
+      setSwapSuccess(`🎉 Swapped ${amount} MON for TOURS!
+
+TX: ${txHash}
+
+View: https://testnet.monadscan.com/tx/${txHash}`);
+      
       setSwapAmount('0.1');
       setQuote(null);
 
-      // Refresh balances after 2 seconds
+      // ✅ FIXED: Wait longer and retry multiple times to ensure balance updates
       setTimeout(() => {
-        loadBalances();
-      }, 2000);
+        loadBalancesWithRetry(5); // Try 5 times with exponential backoff
+      }, 5000); // Wait 5 seconds before first attempt
     } catch (error: any) {
       console.error('❌ Swap failed:', error);
       setSwapError(`❌ Swap failed: ${error.message}`);
@@ -302,7 +322,18 @@ export default function MarketPage() {
               <li>✅ <strong>Instant:</strong> Swap completes in seconds</li>
               <li>✅ <strong>Safe:</strong> Uses delegation via our bot</li>
               <li>💰 <strong>Rate:</strong> 1 MON = 1 TOURS (fair exchange)</li>
+              <li>⏱️ <strong>Balance Update:</strong> May take 5-10 seconds</li>
             </ul>
+          </div>
+
+          {/* Manual Refresh Button */}
+          <div className="mt-4">
+            <button
+              onClick={() => loadBalancesWithRetry(5)}
+              className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-all"
+            >
+              🔄 Refresh Balances
+            </button>
           </div>
         </div>
 

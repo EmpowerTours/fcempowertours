@@ -225,6 +225,7 @@ export default function ProfilePage() {
       
       setQueriedAddresses(uniqueAddresses);
 
+      // ✅ FIXED: Query MusicNFT by artist field, not owner field
       const query = `
         query GetUserData($addresses: [String!]!) {
           PassportNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
@@ -239,7 +240,7 @@ export default function ProfilePage() {
             mintedAt
             txHash
           }
-          MusicNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
+          MusicNFT(where: {artist: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             artist

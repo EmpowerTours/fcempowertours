@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, formatEther } from 'viem';
+import { createPublicClient, http, formatEther, Address } from 'viem';
 import { monadTestnet } from '@/app/chains';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7' as Address;
+const BOT_SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address; // ✅ Bot's Safe account
 
 const ERC20_ABI = [
   {
@@ -23,43 +24,88 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Address required' }, { status: 400 });
     }
 
-    console.log(`📊 [GET-BALANCES] Fetching balances for address: ${address}`);
+    const userAddress = address.toLowerCase() as Address;
+    console.log(`📊 [GET-BALANCES] Fetching balances for user address: ${userAddress}`);
 
     const publicClient = createPublicClient({
       chain: monadTestnet,
       transport: http('https://testnet-rpc.monad.xyz'),
     });
 
-    // Get MON balance (native currency)
-    console.log('⏳ Fetching MON balance...');
-    const monBalance = await publicClient.getBalance({ 
-      address: address as `0x${string}` 
-    });
-    const monFormatted = parseFloat(formatEther(monBalance)).toFixed(4);
-    console.log(`✅ MON balance: ${monFormatted}`);
-
-    // Get TOURS balance (ERC-20)
-    let toursFormatted = '0.00';
+    // =============================================
+    // STEP 1: Get MON balance (native currency)
+    // ✅ CRITICAL FIX: Check BOTH user wallet AND bot Safe
+    // =============================================
+    console.log('⏳ Fetching MON balance from user wallet...');
+    let monBalanceUser = 0n;
     try {
-      console.log('⏳ Fetching TOURS balance from:', TOURS_TOKEN_ADDRESS);
-      const toursBalance = await publicClient.readContract({
-        address: TOURS_TOKEN_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'balanceOf',
-        args: [address as `0x${string}`],
+      monBalanceUser = await publicClient.getBalance({ 
+        address: userAddress 
       });
-      
-      // ✅ FIXED: Ensure toursBalance is treated as BigInt
-      const toursFormatted_temp = formatEther(toursBalance);
-      toursFormatted = parseFloat(toursFormatted_temp).toFixed(2);
-      console.log(`✅ TOURS balance (raw): ${toursBalance}, formatted: ${toursFormatted}`);
+      console.log(`✅ User MON balance: ${monBalanceUser.toString()} wei`);
     } catch (error) {
-      console.error('❌ Error fetching TOURS balance:', error);
-      // Return 0 on error rather than failing
-      toursFormatted = '0.00';
+      console.error('❌ Error fetching user MON balance:', error);
     }
 
-    // Get NFT balances from indexer
+    // Check bot Safe account MON balance too
+    let monBalanceSafe = 0n;
+    if (BOT_SAFE_ACCOUNT) {
+      try {
+        monBalanceSafe = await publicClient.getBalance({ 
+          address: BOT_SAFE_ACCOUNT 
+        });
+        console.log(`✅ Safe MON balance: ${monBalanceSafe.toString()} wei`);
+      } catch (error) {
+        console.error('❌ Error fetching Safe MON balance:', error);
+      }
+    }
+
+    // Total MON = user wallet + safe
+    const totalMonBalance = monBalanceUser + monBalanceSafe;
+    const monFormatted = parseFloat(formatEther(totalMonBalance)).toFixed(4);
+    console.log(`✅ TOTAL MON balance (user + safe): ${totalMonBalance.toString()} wei = ${monFormatted} MON`);
+
+    // =============================================
+    // STEP 2: Get TOURS balance (ERC-20 token)
+    // ✅ CRITICAL FIX: Check BOTH user wallet AND bot Safe
+    // =============================================
+    console.log(`⏳ Fetching TOURS balance from token: ${TOURS_TOKEN_ADDRESS}`);
+    let toursBalanceUser = 0n;
+    let toursBalanceSafe = 0n;
+
+    try {
+      // User's TOURS balance
+      toursBalanceUser = await publicClient.readContract({
+        address: TOURS_TOKEN_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [userAddress],
+      }) as bigint;
+      console.log(`✅ User TOURS balance (raw): ${toursBalanceUser.toString()}`);
+
+      // Bot Safe's TOURS balance (where delegated transactions send tokens)
+      if (BOT_SAFE_ACCOUNT) {
+        toursBalanceSafe = await publicClient.readContract({
+          address: TOURS_TOKEN_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args: [BOT_SAFE_ACCOUNT],
+        }) as bigint;
+        console.log(`✅ Safe TOURS balance (raw): ${toursBalanceSafe.toString()}`);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching TOURS balance:', error);
+    }
+
+    // ✅ CRITICAL: Total TOURS = user wallet + safe
+    // This reflects BOTH direct holdings AND delegated holdings
+    const totalToursBalance = toursBalanceUser + toursBalanceSafe;
+    const toursFormatted = parseFloat(formatEther(totalToursBalance)).toFixed(2);
+    console.log(`✅ TOTAL TOURS balance (user + safe): ${totalToursBalance.toString()} wei = ${toursFormatted} TOURS`);
+
+    // =============================================
+    // STEP 3: Get NFT balances from Envio indexer
+    // =============================================
     const query = `
       query GetUserBalances($address: String!) {
         UserStats(where: {address: {_eq: $address}}) {
@@ -73,29 +119,60 @@ export async function POST(req: NextRequest) {
     `;
 
     console.log('⏳ Fetching NFT balances from indexer...');
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query,
-        variables: { address: address.toLowerCase() }
-      }),
-    });
-
-    let nftData = { musicNFTCount: 0, passportNFTCount: 0, totalNFTs: 0 };
+    let nftData = { 
+      id: userAddress,
+      address: userAddress,
+      musicNFTCount: 0, 
+      passportNFTCount: 0, 
+      totalNFTs: 0 
+    };
     
-    if (response.ok) {
-      const result = await response.json();
-      nftData = result.data?.UserStats?.[0] || nftData;
-      console.log(`✅ NFT data retrieved:`, nftData);
-    } else {
-      console.warn('⚠️ Failed to fetch NFT balances from indexer');
+    try {
+      const response = await fetch(ENVIO_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          variables: { address: userAddress }
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const stats = result.data?.UserStats?.[0];
+        if (stats) {
+          nftData = stats;
+          console.log(`✅ NFT data retrieved:`, nftData);
+        } else {
+          console.warn('⚠️ No NFT stats found for user');
+        }
+      } else {
+        console.warn('⚠️ Failed to fetch NFT balances from indexer');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching NFT data:', error);
     }
 
+    // =============================================
+    // STEP 4: Return aggregated balances
+    // =============================================
     const finalResponse = {
       mon: monFormatted,
       tours: toursFormatted,
-      nfts: nftData
+      nfts: nftData,
+      // ✅ ADDED: Breakdown for debugging
+      breakdown: {
+        mon: {
+          user: parseFloat(formatEther(monBalanceUser)).toFixed(4),
+          safe: parseFloat(formatEther(monBalanceSafe)).toFixed(4),
+          total: monFormatted,
+        },
+        tours: {
+          user: parseFloat(formatEther(toursBalanceUser)).toFixed(2),
+          safe: parseFloat(formatEther(toursBalanceSafe)).toFixed(2),
+          total: toursFormatted,
+        },
+      },
     };
 
     console.log(`✅ [GET-BALANCES] Final response:`, finalResponse);
