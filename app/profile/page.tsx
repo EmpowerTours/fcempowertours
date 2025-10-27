@@ -23,7 +23,6 @@ interface MusicMetadata {
   description?: string;
 }
 
-// ✅ FIXED: Added masterTokenId and other license fields
 interface MusicNFTWithMetadata {
   id: string;
   tokenId?: string | number;
@@ -97,6 +96,7 @@ export default function ProfilePage() {
   const [purchasedMusicPage, setPurchasedMusicPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
+  const [refreshMessage, setRefreshMessage] = useState<string>('');
   const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
@@ -125,7 +125,6 @@ export default function ProfilePage() {
   const loadBalances = async () => {
     if (!walletAddress) return;
     try {
-      // ✅ Query balance for main wallet address
       const response = await fetch('/api/get-balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -137,6 +136,40 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error('Error loading balances:', error);
+    }
+  };
+
+  // ✅ NEW: Polling function to retry loading data (for indexer sync)
+  const loadAllDataWithRetry = async (maxRetries = 5, initialDelay = 2000) => {
+    let lastError: any = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        setRefreshMessage(`Loading data... (attempt ${attempt}/${maxRetries})`);
+        await loadAllData();
+        
+        // ✅ Check if we got new data
+        if (purchasedMusic.length > 0 || createdMusic.length > 0) {
+          setRefreshMessage('✅ Data synced!');
+          setTimeout(() => setRefreshMessage(''), 2000);
+          return;
+        }
+        
+        if (attempt < maxRetries) {
+          const delay = initialDelay * attempt; // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxRetries) {
+          const delay = initialDelay * attempt;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    if (lastError) {
+      setRefreshMessage('⚠️ Could not sync all data. Try refreshing again.');
     }
   };
 
@@ -159,14 +192,6 @@ export default function ProfilePage() {
       const uniqueAddresses = [...new Set(addressesToQuery)];
       
       console.log('🔍 Querying addresses:', uniqueAddresses);
-      console.log('📊 Address breakdown:', {
-        walletAddress: walletAddress.toLowerCase(),
-        safeAddress: (user as any)?.safeAddress,
-        smartAccountAddress: (user as any)?.smartAccountAddress,
-        verifiedAddresses: (user as any)?.verifiedAddresses?.eth_addresses,
-        custodyAddress: (user as any)?.custodyAddress,
-      });
-
       setQueriedAddresses(uniqueAddresses);
 
       const query = `
@@ -219,6 +244,7 @@ export default function ProfilePage() {
           }
         }
       `;
+      
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -227,9 +253,11 @@ export default function ProfilePage() {
           variables: { addresses: uniqueAddresses }
         }),
       });
+      
       if (!response.ok) {
         throw new Error(`Envio API returned ${response.status}`);
       }
+      
       const result = await response.json();
       if (result.errors) {
         console.error('GraphQL errors:', result.errors);
@@ -434,6 +462,12 @@ export default function ProfilePage() {
               >
                 Try Again
               </button>
+            </div>
+          )}
+
+          {refreshMessage && (
+            <div className="mb-6 p-4 bg-blue-100 border-2 border-blue-400 rounded-lg">
+              <p className="text-blue-700 font-medium">{refreshMessage}</p>
             </div>
           )}
 
@@ -757,7 +791,7 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Combined Music Section (if neither) - REMOVED Browse Artists link */}
+            {/* Combined Music Section (if neither) */}
             {createdMusic.length === 0 && purchasedMusic.length === 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -931,7 +965,7 @@ export default function ProfilePage() {
           <div className="mt-8 text-center">
             <button
               onClick={() => {
-                loadAllData();
+                loadAllDataWithRetry();
                 loadBalances();
               }}
               disabled={loading}
