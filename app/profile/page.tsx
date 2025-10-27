@@ -96,6 +96,7 @@ export default function ProfilePage() {
   const [createdMusicPage, setCreatedMusicPage] = useState(1);
   const [purchasedMusicPage, setPurchasedMusicPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
+  const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
   const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export default function ProfilePage() {
   const loadBalances = async () => {
     if (!walletAddress) return;
     try {
+      // ✅ Query balance for main wallet address
       const response = await fetch('/api/get-balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,9 +145,33 @@ export default function ProfilePage() {
     setLoading(true);
     setError(null);
     try {
+      // ✅ FIXED: Collect ALL wallet addresses to query
+      const addressesToQuery = [
+        walletAddress.toLowerCase(),
+        (user as any)?.safeAddress?.toLowerCase?.(),
+        (user as any)?.smartAccountAddress?.toLowerCase?.(),
+        (user as any)?.verifiedAddresses?.eth_addresses?.[0]?.toLowerCase(),
+        (user as any)?.custodyAddress?.toLowerCase(),
+      ].filter(addr => addr && addr !== '0x0000000000000000000000000000000000000000')
+        .map(addr => addr!.toLowerCase());
+
+      // Remove duplicates
+      const uniqueAddresses = [...new Set(addressesToQuery)];
+      
+      console.log('🔍 Querying addresses:', uniqueAddresses);
+      console.log('📊 Address breakdown:', {
+        walletAddress: walletAddress.toLowerCase(),
+        safeAddress: (user as any)?.safeAddress,
+        smartAccountAddress: (user as any)?.smartAccountAddress,
+        verifiedAddresses: (user as any)?.verifiedAddresses?.eth_addresses,
+        custodyAddress: (user as any)?.custodyAddress,
+      });
+
+      setQueriedAddresses(uniqueAddresses);
+
       const query = `
-        query GetUserData($address: String!) {
-          PassportNFT(where: {owner: {_eq: $address}}, order_by: {mintedAt: desc}, limit: 100) {
+        query GetUserData($addresses: [String!]!) {
+          PassportNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             owner
@@ -154,7 +180,7 @@ export default function ProfilePage() {
             mintedAt
             txHash
           }
-          MusicNFT(where: {owner: {_eq: $address}}, order_by: {mintedAt: desc}, limit: 100) {
+          MusicNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             artist
@@ -166,7 +192,7 @@ export default function ProfilePage() {
             mintedAt
             txHash
           }
-          MusicLicense(where: {licensee: {_eq: $address}}, order_by: {purchasedAt: desc}, limit: 100) {
+          MusicLicense(where: {licensee: {_in: $addresses}}, order_by: {purchasedAt: desc}, limit: 100) {
             id
             licenseId
             masterTokenId
@@ -176,7 +202,7 @@ export default function ProfilePage() {
             purchasedAt
             txHash
           }
-          ItineraryPurchase(where: {buyer: {_eq: $address}}, order_by: {timestamp: desc}, limit: 50) {
+          ItineraryPurchase(where: {buyer: {_in: $addresses}}, order_by: {timestamp: desc}, limit: 50) {
             id
             itineraryId
             buyer
@@ -198,7 +224,7 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          variables: { address: walletAddress.toLowerCase() }
+          variables: { addresses: uniqueAddresses }
         }),
       });
       if (!response.ok) {
@@ -219,7 +245,8 @@ export default function ProfilePage() {
         passports: passports.length,
         createdMusic: createdMusicNFTs.length,
         purchasedLicenses: purchasedLicenses.length,
-        purchases: purchases.length
+        purchases: purchases.length,
+        queriedAddresses: uniqueAddresses
       });
 
       // Process passports
@@ -386,10 +413,15 @@ export default function ProfilePage() {
               </p>
               <p className="text-blue-700 text-xs">
                 {walletAddress
-                  ? `Using Farcaster custody address: ${walletAddress.slice(0, 10)}...`
+                  ? `Using Account Abstraction (Safe Smart Account): ${walletAddress.slice(0, 10)}...`
                   : 'Wallet not connected - some features may be limited'
                 }
               </p>
+              {queriedAddresses.length > 1 && (
+                <p className="text-blue-600 text-xs mt-2">
+                  ✅ Searching {queriedAddresses.length} addresses
+                </p>
+              )}
             </div>
           )}
 
@@ -725,7 +757,7 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Combined Music Section (if neither) */}
+            {/* Combined Music Section (if neither) - REMOVED Browse Artists link */}
             {createdMusic.length === 0 && purchasedMusic.length === 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -733,20 +765,12 @@ export default function ProfilePage() {
                 </div>
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600 mb-3">No music yet</p>
-                  <div className="flex gap-3 justify-center">
-                    <Link
-                      href="/music"
-                      className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
-                    >
-                      Mint Your First Track →
-                    </Link>
-                    <Link
-                      href="/artist"
-                      className="inline-block px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-all"
-                    >
-                      Browse Artists →
-                    </Link>
-                  </div>
+                  <Link
+                    href="/music"
+                    className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
+                  >
+                    Mint Your First Track →
+                  </Link>
                 </div>
               </div>
             )}
@@ -916,6 +940,11 @@ export default function ProfilePage() {
               {loading ? '⏳ Refreshing...' : '🔄 Refresh All Data'}
             </button>
             <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
+            {queriedAddresses.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                Querying {queriedAddresses.length} address{queriedAddresses.length === 1 ? '' : 'es'}
+              </p>
+            )}
           </div>
         </div>
       </div>
