@@ -5,12 +5,30 @@ type MusicNFT @entity {
   artist: String!
   owner: String!
   tokenURI: String!
+  price: BigInt!
+  totalSold: Int!
+  active: Boolean!
   coverArt: String
   royaltyPercentage: Int
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!
-  licenses: [LicensePurchase!]! @derivedFrom(field: "music")
+  licenses: [MusicLicense!]! @derivedFrom(field: "master")
+}
+
+# ✅ NEW: Track purchased music licenses separately
+type MusicLicense @entity {
+  id: ID!
+  licenseId: String!
+  masterTokenId: String!
+  master: MusicNFT!
+  licensee: String!
+  expiry: Int!
+  active: Boolean!
+  purchasedAt: Timestamp!
+  renewalCount: Int!
+  blockNumber: BigInt!
+  txHash: String!
 }
 
 type LicensePurchase @entity {

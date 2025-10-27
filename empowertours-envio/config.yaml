@@ -10,40 +10,62 @@ networks:
           - "0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc"  # ✅ UPDATED
         handler: src/EventHandlers.ts
         events:
+          # Master NFT minting
           - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price)"
             field_selection:
               transaction_fields:
                 - hash
-          - event: "LicensePurchased(uint256 indexed tokenId, address indexed buyer, uint256 price)"
+          
+          # ✅ UPDATED: License purchase with expiry tracking
+          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed buyer, uint256 expiry)"
             field_selection:
               transaction_fields:
                 - hash
+          
+          # ✅ NEW: License expiration tracking
+          - event: "LicenseExpired(uint256 indexed licenseId)"
+            field_selection:
+              transaction_fields:
+                - hash
+          
+          # Royalty tracking
           - event: "RoyaltyPaid(uint256 indexed tokenId, address indexed recipient, uint256 amount)"
             field_selection:
               transaction_fields:
                 - hash
+          
+          # NFT transfer tracking
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+      
       - name: PassportNFT
         address:
           - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"  # ✅ UPDATED
         handler: src/EventHandlers.ts
         events:
+          # Passport minting with country data
           - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
             field_selection:
               transaction_fields:
                 - hash
+          
+          # NFT transfer tracking
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
             field_selection:
               transaction_fields:
                 - hash
+      
       - name: Marketplace
         address:
           - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"
         handler: src/EventHandlers.ts
         events:
+          # Itinerary creation
           - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
+          
+          # Itinerary purchase
           - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"
             field_selection:
               transaction_fields:
                 - hash
+
 rollback_on_reorg: false

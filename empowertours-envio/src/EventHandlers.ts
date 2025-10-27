@@ -20,6 +20,9 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     artist: artist.toLowerCase(),
     owner: artist.toLowerCase(),
     tokenURI: tokenURI,
+    price: price,
+    totalSold: 0,
+    active: true,
     coverArt: "",
     royaltyPercentage: 10,
     mintedAt: new Date(event.block.timestamp * 1000),
@@ -78,18 +81,38 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
   context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} - URI: ${tokenURI}`);
 });
 
+// ✅ UPDATED: Handle LicensePurchased event - create MusicLicense entity
 MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
-  const { tokenId, buyer, price } = event.params;
+  const { licenseId, masterTokenId, buyer, expiry } = event.params;
 
-  const purchaseId = `license-${event.block.number}-${event.logIndex}`;
-  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+  const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
+  const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
 
+  // Create MusicLicense entity (for purchases tracking)
+  const musicLicense = {
+    id: musicLicenseId,
+    licenseId: licenseId.toString(),
+    masterTokenId: masterTokenId.toString(),
+    master_id: musicNFTId,
+    licensee: buyer.toLowerCase(),
+    expiry: Number(expiry),
+    active: true,
+    purchasedAt: new Date(event.block.timestamp * 1000),
+    renewalCount: 0,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.MusicLicense.set(musicLicense);
+
+  // Also create LicensePurchase for historical tracking
+  const purchaseId = `license-purchase-${event.block.number}-${event.logIndex}`;
   const licensePurchase = {
     id: purchaseId,
     music_id: musicNFTId,
-    tokenId: tokenId.toString(),
+    tokenId: masterTokenId.toString(),
     buyer: buyer.toLowerCase(),
-    price: price,
+    price: BigInt(0), // Price is handled by the music NFT
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -97,7 +120,77 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
 
   await context.LicensePurchase.set(licensePurchase);
 
-  context.log.info(`💳 License purchased for Music NFT #${tokenId} by ${buyer} for ${price}`);
+  // Update MusicNFT totalSold count
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      totalSold: musicNFT.totalSold + 1,
+    });
+  }
+
+  // Update buyer stats
+  const buyerId = buyer.toLowerCase();
+  let buyerStats = await context.UserStats.get(buyerId);
+
+  const isNewUser = !buyerStats;
+
+  if (buyerStats) {
+    await context.UserStats.set({
+      ...buyerStats,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.UserStats.set({
+      id: buyerId,
+      address: buyer.toLowerCase(),
+      musicNFTCount: 0,
+      passportNFTCount: 0,
+      itinerariesCreated: 0,
+      itinerariesPurchased: 0,
+      totalNFTs: 0,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.GlobalStats.set({
+      id: "global",
+      totalMusicNFTs: 0,
+      totalPassports: 0,
+      totalItineraries: 0,
+      totalItineraryPurchases: 0,
+      totalUsers: 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`💳 License #${licenseId} purchased for Music NFT #${masterTokenId} by ${buyer} - Expires: ${new Date(Number(expiry) * 1000).toISOString()}`);
+});
+
+// ✅ UPDATED: Handle LicenseExpired event
+MusicLicenseNFT.LicenseExpired.handler(async ({ event, context }) => {
+  const { licenseId } = event.params;
+
+  const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
+  const musicLicense = await context.MusicLicense.get(musicLicenseId);
+
+  if (musicLicense) {
+    await context.MusicLicense.set({
+      ...musicLicense,
+      active: false,
+    });
+    context.log.info(`⏰ License #${licenseId} expired`);
+  }
 });
 
 MusicLicenseNFT.RoyaltyPaid.handler(async ({ event, context }) => {
