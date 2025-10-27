@@ -74,7 +74,7 @@ export default function DashboardPage() {
             active
             createdAt
             txHash
-            musicNFT {
+            masterToken {
               tokenId
               artist
               price
@@ -399,14 +399,14 @@ export default function DashboardPage() {
                             <p className="font-bold text-orange-900">
                               License #{item.licenseId}
                             </p>
-                            {item.musicNFT?.artist && (
+                            {item.masterToken?.artist && (
                               <p className="text-xs text-orange-700 mt-1">
-                                🎤 {item.musicNFT.artist.slice(0, 20)}...
+                                🎤 {item.masterToken.artist.slice(0, 20)}...
                               </p>
                             )}
-                            {item.musicNFT?.price && (
+                            {item.masterToken?.price && (
                               <p className="text-xs text-orange-600 font-semibold">
-                                💰 {item.musicNFT.price} TOURS
+                                💰 {item.masterToken.price} TOURS
                               </p>
                             )}
                             <p className="text-xs text-gray-500 mt-1">
