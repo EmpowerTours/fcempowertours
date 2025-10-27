@@ -42,6 +42,9 @@ networks:
           
           # NFT transfer tracking
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
       
       - name: PassportNFT
         address:
@@ -67,6 +70,9 @@ networks:
         events:
           # Itinerary creation
           - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
           
           # Itinerary purchase
           - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"

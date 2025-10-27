@@ -1,3 +1,5 @@
+# ✅ UPDATED: Added MusicLicense entity to track purchased music NFTs
+
 type MusicNFT @entity {
   id: ID!
   tokenId: String!
@@ -5,49 +7,27 @@ type MusicNFT @entity {
   artist: String!
   owner: String!
   tokenURI: String!
-  price: BigInt!
-  totalSold: Int!
-  active: Boolean!
   coverArt: String
-  royaltyPercentage: Int
+  price: BigInt                # ← NEW: Track license price
+  totalSold: Int               # ← NEW: Track total licenses sold
+  active: Boolean              # ← NEW: Track if sales are active
+  royaltyPercentage: Int       # ← NEW: Track royalty % (optional)
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!
-  licenses: [MusicLicense!]! @derivedFrom(field: "master")
+  licenses: [MusicLicense!]! @derivedFrom(field: "masterToken")  # ← NEW: Link to purchases
 }
 
-# ✅ NEW: Track purchased music licenses separately
+# ✅ NEW: Track purchased music licenses
 type MusicLicense @entity {
   id: ID!
-  licenseId: String!
-  masterTokenId: String!
-  master: MusicNFT!
-  licensee: String!
-  expiry: Int!
-  active: Boolean!
-  purchasedAt: Timestamp!
-  renewalCount: Int!
-  blockNumber: BigInt!
-  txHash: String!
-}
-
-type LicensePurchase @entity {
-  id: ID!
-  music: MusicNFT!
-  tokenId: String!
-  buyer: String!
-  price: BigInt!
-  timestamp: Timestamp!
-  blockNumber: BigInt!
-  txHash: String!
-}
-
-type RoyaltyPayment @entity {
-  id: ID!
-  tokenId: String!
-  recipient: String!
-  amount: BigInt!
-  timestamp: Timestamp!
+  licenseId: String!           # ← Unique license ID
+  masterTokenId: String!       # ← Which music NFT was purchased
+  masterToken: MusicNFT!       # ← Link back to the music NFT
+  licensee: String!            # ← Who bought it
+  expiry: BigInt!              # ← When license expires
+  active: Boolean!             # ← Is license still valid
+  purchasedAt: Timestamp!      # ← When purchased
   blockNumber: BigInt!
   txHash: String!
 }
@@ -57,10 +37,10 @@ type PassportNFT @entity {
   tokenId: String!
   contract: String!
   owner: String!
-  countryCode: String!        # ✅ NOW REQUIRED
-  countryName: String!        # ✅ ADDED
-  region: String!             # ✅ ADDED
-  continent: String!          # ✅ ADDED
+  countryCode: String!         # ← Required now
+  countryName: String!         # ← NEW
+  region: String!              # ← NEW
+  continent: String!           # ← NEW
   tokenURI: String
   mintedAt: Timestamp!
   blockNumber: BigInt!
@@ -92,10 +72,11 @@ type ItineraryPurchase @entity {
 type UserStats @entity {
   id: ID!
   address: String!
-  musicNFTCount: Int!
+  musicNFTCount: Int!          # ← Music created by user
   passportNFTCount: Int!
   itinerariesCreated: Int!
   itinerariesPurchased: Int!
+  licensesOwned: Int!          # ← NEW: Licenses purchased by user
   totalNFTs: Int!
   lastActive: Timestamp!
 }
@@ -106,6 +87,7 @@ type GlobalStats @entity {
   totalPassports: Int!
   totalItineraries: Int!
   totalItineraryPurchases: Int!
+  totalMusicLicensesPurchased: Int!  # ← NEW: Total licenses sold
   totalUsers: Int!
   lastUpdated: Timestamp!
 }

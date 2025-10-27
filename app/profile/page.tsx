@@ -56,6 +56,9 @@ interface PassportNFT {
   tokenId: number;
   owner: string;
   countryCode?: string;
+  countryName?: string;
+  region?: string;
+  continent?: string;
   tokenURI: string;
   mintedAt: string;
   txHash: string;
@@ -172,7 +175,7 @@ export default function ProfilePage() {
         setRefreshMessage(`Loading data... (attempt ${attempt}/${maxRetries})`);
         await loadAllData();
         
-        if (purchasedMusic.length > 0 || createdMusic.length > 0) {
+        if (passportNFTs.length > 0 || purchasedMusic.length > 0 || createdMusic.length > 0) {
           setRefreshMessage('✅ Data synced!');
           setTimeout(() => setRefreshMessage(''), 2000);
           return;
@@ -229,6 +232,9 @@ export default function ProfilePage() {
             tokenId
             owner
             countryCode
+            countryName
+            region
+            continent
             tokenURI
             mintedAt
             txHash
@@ -305,7 +311,7 @@ export default function ProfilePage() {
         queriedAddresses: uniqueAddresses
       });
 
-      // Process passports
+      // ✅ FIXED: Use countryCode from event if available, otherwise fetch from metadata
       passports = await Promise.all(
         passports.map(async (passport) => {
           if (passport.countryCode) {
@@ -528,7 +534,8 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* ✅ FIXED: Removed duplicate balance display - kept only one balance section */}
+          <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex-1">

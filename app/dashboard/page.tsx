@@ -9,6 +9,7 @@ interface Stats {
   totalPassports: number;
   totalItineraries: number;
   totalUsers: number;
+  totalMusicLicensesPurchased: number;
   lastUpdated: string;
 }
 
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentPassports, setRecentPassports] = useState<any[]>([]);
   const [recentMusic, setRecentMusic] = useState<any[]>([]);
+  const [recentMusicPurchases, setRecentMusicPurchases] = useState<any[]>([]);
   const [recentItineraries, setRecentItineraries] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +41,7 @@ export default function DashboardPage() {
             totalPassports
             totalItineraries
             totalUsers
+            totalMusicLicensesPurchased
             lastUpdated
           }
           MusicNFT(limit: 10, order_by: {mintedAt: desc}) {
@@ -48,6 +51,9 @@ export default function DashboardPage() {
             artist
             tokenURI
             royaltyPercentage
+            price
+            totalSold
+            active
             mintedAt
             txHash
           }
@@ -58,6 +64,21 @@ export default function DashboardPage() {
             countryCode
             mintedAt
             txHash
+          }
+          MusicLicense(limit: 10, order_by: {createdAt: desc}) {
+            id
+            licenseId
+            masterTokenId
+            licensee
+            expiry
+            active
+            createdAt
+            txHash
+            musicNFT {
+              tokenId
+              artist
+              price
+            }
           }
           Itinerary(limit: 10, order_by: {createdAt: desc}) {
             id
@@ -91,6 +112,7 @@ export default function DashboardPage() {
       const globalStats = result.data?.GlobalStats?.[0];
       const music = result.data?.MusicNFT || [];
       const passports = result.data?.PassportNFT || [];
+      const purchases = result.data?.MusicLicense || [];
       const itineraries = result.data?.Itinerary || [];
 
       if (globalStats) {
@@ -102,13 +124,16 @@ export default function DashboardPage() {
 
       setRecentMusic(music);
       setRecentPassports(passports);
+      setRecentMusicPurchases(purchases);
       setRecentItineraries(itineraries);
 
       console.log('✅ Dashboard data loaded:', {
         music: music.length,
         passports: passports.length,
+        purchases: purchases.length,
         itineraries: itineraries.length,
-        totalUsers: globalStats?.totalUsers
+        totalUsers: globalStats?.totalUsers,
+        totalPurchased: globalStats?.totalMusicLicensesPurchased
       });
     } catch (error: any) {
       console.error('❌ Error loading dashboard data:', error);
@@ -166,7 +191,7 @@ export default function DashboardPage() {
 
         {/* Stats Grid */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <StatCard
               icon="🎵"
               label="Music NFTs"
@@ -179,6 +204,13 @@ export default function DashboardPage() {
               label="Passports"
               value={stats.totalPassports}
               gradient="from-purple-500 to-purple-600"
+              pulse={pulse}
+            />
+            <StatCard
+              icon="🎧"
+              label="Purchases"
+              value={stats.totalMusicLicensesPurchased}
+              gradient="from-orange-500 to-orange-600"
               pulse={pulse}
             />
             <StatCard
@@ -211,7 +243,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Activity Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
             {/* Recent Passports */}
             <div>
@@ -268,7 +300,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Recent Music */}
+            {/* Recent Music NFTs */}
             <div>
               <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 🎵 Recent Music NFTs
@@ -297,15 +329,22 @@ export default function DashboardPage() {
                           <p className="font-bold text-blue-900">
                             Music NFT #{item.tokenId}
                           </p>
-                          {item.royaltyPercentage && (
+                          {item.artist && (
                             <p className="text-xs text-blue-700 mt-1">
-                              💰 {item.royaltyPercentage}% royalties
+                              🎤 {item.artist.slice(0, 20)}...
+                            </p>
+                          )}
+                          {item.totalSold !== undefined && (
+                            <p className="text-xs text-blue-700">
+                              📊 {item.totalSold} sold
+                            </p>
+                          )}
+                          {item.price && (
+                            <p className="text-xs text-orange-600 font-semibold">
+                              💰 {item.price} TOURS
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">
-                            Owner: {String(item.owner).slice(0, 6)}...{String(item.owner).slice(-4)}
-                          </p>
-                          <p className="text-xs text-gray-500">
                             {new Date(item.mintedAt).toLocaleString()}
                           </p>
                         </div>
@@ -322,6 +361,75 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Music Purchases */}
+            <div>
+              <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                🎧 Recent Purchases
+                <span className="text-sm font-normal text-gray-500">({recentMusicPurchases.length})</span>
+              </h4>
+              {loading && recentMusicPurchases.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin text-3xl mb-2">⏳</div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              ) : recentMusicPurchases.length === 0 ? (
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-600">No purchases yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {recentMusicPurchases.map((item, idx) => {
+                    const expiryDate = new Date(item.expiry);
+                    const isExpired = expiryDate < new Date();
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className={`p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 rounded-lg hover:border-orange-400 transition-all animate-slide-in ${
+                          isExpired ? 'border-gray-300 opacity-60' : 'border-orange-200'
+                        }`}
+                        style={{ animationDelay: `${idx * 0.05}s` }}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="text-3xl">{isExpired ? '⏱️' : '🎧'}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-orange-900">
+                              License #{item.licenseId}
+                            </p>
+                            {item.musicNFT?.artist && (
+                              <p className="text-xs text-orange-700 mt-1">
+                                🎤 {item.musicNFT.artist.slice(0, 20)}...
+                              </p>
+                            )}
+                            {item.musicNFT?.price && (
+                              <p className="text-xs text-orange-600 font-semibold">
+                                💰 {item.musicNFT.price} TOURS
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
+                              Licensee: {String(item.licensee).slice(0, 6)}...{String(item.licensee).slice(-4)}
+                            </p>
+                            <p className={`text-xs mt-1 ${isExpired ? 'text-red-600' : 'text-green-600'}`}>
+                              {isExpired ? '❌ Expired' : '✅ Active'} • Expires: {expiryDate.toLocaleDateString()}
+                            </p>
+                          </div>
+                          {item.txHash && (
+                            <a
+                              href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition-all"
+                            >
+                              TX →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
