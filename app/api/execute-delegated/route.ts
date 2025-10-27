@@ -151,6 +151,55 @@ export async function POST(req: NextRequest) {
           message: `Music NFT minted successfully`,
         });
 
+      case 'buy_music':
+        console.log('🎵 Action: buy_music (batched approve + purchaseLicense)');
+        
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for buy_music' },
+            { status: 400 }
+          );
+        }
+        
+        const tokenId = BigInt(params.tokenId);
+        console.log('  Buying music license for token:', tokenId.toString());
+
+        const buyCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [MUSIC_NFT, parseEther('1000')],
+            }) as Hex,
+          },
+          {
+            to: MUSIC_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function purchaseLicense(uint256 masterTokenId) external']),
+              functionName: 'purchaseLicense',
+              args: [tokenId],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing batched music purchase transaction...');
+        const buyTxHash = await sendSafeTransaction(buyCalls);
+
+        console.log('✅ Music purchase successful, TX:', buyTxHash);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: buyTxHash,
+          action,
+          userAddress,
+          tokenId: tokenId.toString(),
+          message: `Music license purchased successfully`,
+        });
+
       case 'send_tours':
         console.log('💸 Action: send_tours');
         

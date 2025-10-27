@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseAbi, encodeFunctionData } from 'viem';
-import { Address, Hex } from 'viem/types';
-import { parseEther } from 'viem/utils';
-import { sendSafeTransaction, incrementTransactionCount } from '@/app/utils/safe'; // Adjust path as needed
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
@@ -124,7 +120,7 @@ Address: ${userAddress.slice(0, 10)}...`
       }
     }
 
-    // ==================== BUY MUSIC COMMAND ====================
+    // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION) ====================
     if (lowerCommand.includes('buy music')) {
       console.log('🎵 Action: buy_music');
 
@@ -144,35 +140,79 @@ Address: ${userAddress.slice(0, 10)}...`
       }
 
       try {
-        const musicCalls = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [MUSIC_NFT_ADDRESS as Address, parseEther('1000')],
-            }) as Hex,
-          },
-          {
-            to: MUSIC_NFT_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function purchaseLicense(uint256 masterTokenId) external']),
-              functionName: 'purchaseLicense',
-              args: [BigInt(tokenId)],
-            }) as Hex,
-          },
-        ];
+        console.log(`🎵 [BOT] Buying music license for token ${tokenId}`);
 
-        const musicTxHash = await sendSafeTransaction(musicCalls);
-        await incrementTransactionCount(userAddress);
+        // Check/create delegation with buy_music permission
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+
+        const hasValidDelegation = delegationData.success &&
+                                  delegationData.delegation &&
+                                  Array.isArray(delegationData.delegation.permissions) &&
+                                  delegationData.delegation.permissions.includes('buy_music');
+
+        if (!hasValidDelegation) {
+          console.warn('⚠️ [BOT] No delegation with buy_music permission - creating one...');
+
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music']
+            })
+          });
+
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+
+          console.log('✅ [BOT] Delegation created with buy_music permission');
+        } else {
+          console.log('✅ [BOT] Delegation has buy_music permission:', {
+            hoursLeft: delegationData.delegation.hoursLeft,
+            transactionsLeft: delegationData.delegation.transactionsLeft,
+            permissions: delegationData.delegation.permissions
+          });
+        }
+
+        // Execute music purchase via delegation
+        const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'buy_music',
+            params: {
+              tokenId: tokenId.toString()
+            }
+          })
+        });
+
+        const buyData = await buyRes.json();
+
+        if (!buyData.success) {
+          throw new Error(buyData.error || 'Purchase failed');
+        }
+
+        console.log('✅ Music purchased:', buyData.txHash);
 
         return NextResponse.json({
           success: true,
-          txHash: musicTxHash,
+          txHash: buyData.txHash,
           action: 'buy_music',
-          message: `Music purchased!`,
+          message: `🎵 Music License Purchased (FREE)!
+
+Track #${tokenId} is now yours!
+
+TX: ${buyData.txHash?.slice(0, 10)}...
+
+⚡ Gasless - we paid the gas!
+
+View: https://testnet.monadscan.com/tx/${buyData.txHash}`
         });
       } catch (error: any) {
         console.error('❌ Buy music failed:', error);
@@ -224,7 +264,7 @@ Address: ${userAddress.slice(0, 10)}...`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music']
+              permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
             })
           });
 
@@ -401,7 +441,7 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours']
+              permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'buy_music']
             })
           });
 
@@ -488,7 +528,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours']
+              permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
 
