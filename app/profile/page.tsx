@@ -23,15 +23,17 @@ interface MusicMetadata {
   description?: string;
 }
 
+// ✅ FIXED: Added masterTokenId and other license fields
 interface MusicNFTWithMetadata {
   id: string;
-  tokenId?: number;
-  licenseId?: number;
+  tokenId?: string | number;
+  licenseId?: string | number;
+  masterTokenId?: string | number;
   owner?: string;
   licensee?: string;
   artist?: string;
   tokenURI?: string;
-  price?: string;
+  price?: string | number;
   totalSold?: number;
   active?: boolean;
   mintedAt?: string;
@@ -41,7 +43,7 @@ interface MusicNFTWithMetadata {
   metadata?: MusicMetadata;
   audioUrl?: string;
   isLoadingMetadata?: boolean;
-  type: 'master' | 'license'; // Distinguish between created and purchased
+  type: 'master' | 'license';
 }
 
 interface PassportMetadata {
@@ -241,7 +243,7 @@ export default function ProfilePage() {
       }));
       setCreatedMusic(createdMusicWithType);
 
-      // Process purchased licenses - need to fetch master NFT details
+      // Process purchased licenses
       const purchasedMusicWithType: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => ({
         ...license,
         type: 'license' as const,
@@ -253,7 +255,7 @@ export default function ProfilePage() {
       const allMusic = [...createdMusicWithType, ...purchasedMusicWithType];
       setMusicNFTs(allMusic);
 
-      // Fetch metadata for all music (both created and purchased)
+      // Fetch metadata for all created music
       createdMusicNFTs.forEach(async (nft: any, index: number) => {
         const metadata = await fetchMusicMetadata(nft.tokenURI);
         if (metadata) {
@@ -280,10 +282,8 @@ export default function ProfilePage() {
         }
       });
 
-      // For purchased licenses, we need to fetch from the master tokenURI
-      // This requires additional query or storing master metadata in the contract
+      // For purchased licenses, metadata would come from master NFT (future optimization)
       purchasedLicenses.forEach(async (license: any, index: number) => {
-        // Placeholder: you may need to query MusicNFT to get the master's tokenURI
         setPurchasedMusic(prev => {
           const updated = [...prev];
           updated[index] = {
@@ -560,11 +560,11 @@ export default function ProfilePage() {
                                   style={{ height: '40px' }}
                                 >
                                   <source
-                                    src={resolveIPFS(nft.audioUrl)}
+                                    src={resolveIPFS(String(nft.audioUrl))}
                                     type="audio/mpeg"
                                   />
                                   <source
-                                    src={resolveIPFS(nft.audioUrl)}
+                                    src={resolveIPFS(String(nft.audioUrl))}
                                     type="audio/wav"
                                   />
                                   Your browser does not support audio playback.
@@ -591,7 +591,7 @@ export default function ProfilePage() {
                               )}
                               {nft.tokenURI && (
                                 <a
-                                  href={resolveIPFS(nft.tokenURI)}
+                                  href={resolveIPFS(String(nft.tokenURI))}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
@@ -665,7 +665,7 @@ export default function ProfilePage() {
                               </p>
                               {license.purchasedAt && (
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Purchased: {new Date(license.purchasedAt).toLocaleDateString()}
+                                  Purchased: {new Date(String(license.purchasedAt)).toLocaleDateString()}
                                 </p>
                               )}
                             </div>
@@ -675,7 +675,7 @@ export default function ProfilePage() {
                                   <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
                                   {license.expiry && (
                                     <p className="text-xs text-gray-600">
-                                      Expires: {new Date(license.expiry * 1000).toLocaleDateString()}
+                                      Expires: {new Date(Number(license.expiry) * 1000).toLocaleDateString()}
                                     </p>
                                   )}
                                 </>
