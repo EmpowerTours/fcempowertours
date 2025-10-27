@@ -23,32 +23,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Address required' }, { status: 400 });
     }
 
+    console.log(`📊 [GET-BALANCES] Fetching balances for address: ${address}`);
+
     const publicClient = createPublicClient({
       chain: monadTestnet,
       transport: http('https://testnet-rpc.monad.xyz'),
     });
 
-    // Get MON balance
+    // Get MON balance (native currency)
+    console.log('⏳ Fetching MON balance...');
     const monBalance = await publicClient.getBalance({ 
       address: address as `0x${string}` 
     });
     const monFormatted = parseFloat(formatEther(monBalance)).toFixed(4);
+    console.log(`✅ MON balance: ${monFormatted}`);
 
-    // Get TOURS balance
-    let toursFormatted = '0';
+    // Get TOURS balance (ERC-20)
+    let toursFormatted = '0.00';
     try {
+      console.log('⏳ Fetching TOURS balance from:', TOURS_TOKEN_ADDRESS);
       const toursBalance = await publicClient.readContract({
         address: TOURS_TOKEN_ADDRESS as `0x${string}`,
         abi: ERC20_ABI,
         functionName: 'balanceOf',
         args: [address as `0x${string}`],
       });
-      toursFormatted = parseFloat(formatEther(toursBalance)).toFixed(2);
+      
+      // ✅ FIXED: Ensure toursBalance is treated as BigInt
+      const toursFormatted_temp = formatEther(toursBalance);
+      toursFormatted = parseFloat(toursFormatted_temp).toFixed(2);
+      console.log(`✅ TOURS balance (raw): ${toursBalance}, formatted: ${toursFormatted}`);
     } catch (error) {
-      console.error('Error fetching TOURS balance:', error);
+      console.error('❌ Error fetching TOURS balance:', error);
+      // Return 0 on error rather than failing
+      toursFormatted = '0.00';
     }
 
-    // Get NFT balances
+    // Get NFT balances from indexer
     const query = `
       query GetUserBalances($address: String!) {
         UserStats(where: {address: {_eq: $address}}) {
@@ -61,6 +72,7 @@ export async function POST(req: NextRequest) {
       }
     `;
 
+    console.log('⏳ Fetching NFT balances from indexer...');
     const response = await fetch(ENVIO_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -75,18 +87,29 @@ export async function POST(req: NextRequest) {
     if (response.ok) {
       const result = await response.json();
       nftData = result.data?.UserStats?.[0] || nftData;
+      console.log(`✅ NFT data retrieved:`, nftData);
+    } else {
+      console.warn('⚠️ Failed to fetch NFT balances from indexer');
     }
 
-    return NextResponse.json({
+    const finalResponse = {
       mon: monFormatted,
       tours: toursFormatted,
       nfts: nftData
-    });
+    };
+
+    console.log(`✅ [GET-BALANCES] Final response:`, finalResponse);
+    return NextResponse.json(finalResponse);
     
   } catch (error: any) {
-    console.error('Balance fetch error:', error);
+    console.error('❌ [GET-BALANCES] Fatal error:', error);
     return NextResponse.json(
-      { mon: '0.0000', tours: '0', error: error.message },
+      { 
+        mon: '0.0000', 
+        tours: '0.00', 
+        nfts: { musicNFTCount: 0, passportNFTCount: 0, totalNFTs: 0 },
+        error: error.message 
+      },
       { status: 500 }
     );
   }

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 // ✅ Uses env var which should be updated
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS;
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
 
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
@@ -255,9 +255,9 @@ export default function MusicPage() {
                   placeholder="0.01"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
-                <div className="absolute right-3 top-3 text-gray-500 text-sm">TOURS</div> {/* ✅ FIXED: Say TOURS */}
+                <span className="absolute right-4 top-3.5 text-gray-600 text-sm font-medium pointer-events-none">TOURS</span> {/* ✅ FIXED: Say TOURS */}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-3">
                 💰 How much fans pay to own this track (min: 0.001, max: 10 TOURS) {/* ✅ FIXED: Say TOURS */}
               </p>
               <div className="flex gap-2 mt-2">
