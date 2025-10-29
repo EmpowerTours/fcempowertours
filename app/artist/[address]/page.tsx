@@ -14,6 +14,7 @@ interface MusicMetadata {
   image?: string;
   animation_url?: string;
 }
+
 interface MusicNFT {
   id: string;
   tokenId: string;
@@ -28,6 +29,7 @@ interface MusicNFT {
   fullAudioUrl: string;
   metadataFetched: boolean;
 }
+
 interface ArtistMusic {
   tokenId: number;
   tokenURI: string;
@@ -36,6 +38,7 @@ interface ArtistMusic {
   metadata?: MusicMetadata;
   price?: string;
 }
+
 interface ArtistInfo {
   address: string;
   username?: string;
@@ -43,6 +46,7 @@ interface ArtistInfo {
   pfpUrl?: string;
   fid?: number;
 }
+
 interface GraphQLResponse {
   data?: { MusicNFT: MusicNFT[] };
   errors?: Array<{ message: string }>;
@@ -52,24 +56,21 @@ export default function ArtistProfilePage() {
   const params = useParams();
   const router = useRouter();
   const artistAddress = params.address as string;
-
   const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
-
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
   const [audioErrors, setAudioErrors] = useState<Record<number, string>>({});
 
-  // ✅ FIX: Add IPFS URL resolver
+  // IPFS URL Resolver Function
   const resolveIPFS = (url: string): string => {
     if (!url) return '';
     if (url.startsWith('ipfs://')) {
       return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
     }
-    // If it's already an IPFS gateway URL but using a different gateway, normalize it
     if (url.includes('/ipfs/')) {
-      const cid = url.split('/ipfs/')[1]?.split('?')[0]; // Remove query params
+      const cid = url.split('/ipfs/')[1]?.split('?')[0];
       return `https://harlequin-used-hare-224.mypinata.cloud/ipfs/${cid}`;
     }
     return url;
@@ -89,7 +90,6 @@ export default function ArtistProfilePage() {
   const loadArtistInfo = async () => {
     try {
       const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
-
       // Strategy 1: by_verification
       try {
         const response1 = await fetch(
@@ -191,10 +191,8 @@ export default function ArtistProfilePage() {
       if (!response.ok) throw new Error(`Envio API error: ${response.status}`);
       const result: GraphQLResponse = await response.json();
       if (result.errors) throw new Error(result.errors.map(e => e.message).join(', '));
-
       const music = result.data?.MusicNFT || [];
 
-      // ✅ FIX: Resolve all IPFS URLs when mapping
       const artistMusicMapped = music.map((nft: MusicNFT) => ({
         tokenId: Number(nft.tokenId),
         tokenURI: nft.tokenURI,
@@ -202,13 +200,13 @@ export default function ArtistProfilePage() {
         txHash: nft.txHash,
         metadata: {
           name: nft.name,
-          image: resolveIPFS(nft.imageUrl), // ✅ Resolve IPFS URL
-          animation_url: resolveIPFS(nft.previewAudioUrl), // ✅ Resolve IPFS URL
+          image: resolveIPFS(nft.imageUrl),
+          animation_url: resolveIPFS(nft.previewAudioUrl),
         },
         price: (Number(nft.price) / 1e18).toFixed(6),
       }));
-      
-      console.log('✅ Loaded music with resolved URLs:', artistMusicMapped);
+
+      console.log('Loaded music with resolved URLs', artistMusicMapped);
       setArtistMusic(artistMusicMapped);
     } catch (error: any) {
       console.error('Error loading artist profile:', error);
@@ -247,7 +245,7 @@ export default function ArtistProfilePage() {
   };
 
   const handleAudioError = (tokenId: number, audioUrl: string, error: any) => {
-    console.error(`❌ Audio failed to load for track #${tokenId}:`, audioUrl);
+    console.error(`Audio failed to load for track #${tokenId}:`, audioUrl);
     console.error('Error details:', error);
     setAudioErrors(prev => ({
       ...prev,
@@ -256,7 +254,7 @@ export default function ArtistProfilePage() {
   };
 
   const handleAudioLoaded = (tokenId: number, audioUrl: string) => {
-    console.log(`✅ Audio loaded successfully for track #${tokenId}:`, audioUrl);
+    console.log(`Audio loaded successfully for track #${tokenId}:`, audioUrl);
     setAudioErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[tokenId];
@@ -268,7 +266,7 @@ export default function ArtistProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">🎵</div>
+          <div className="animate-spin text-4xl mb-4">Music Note</div>
           <p className="text-gray-600">Loading artist profile...</p>
         </div>
       </div>
@@ -289,7 +287,7 @@ export default function ArtistProfilePage() {
               />
             ) : (
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
-                🎵
+                Music Note
               </div>
             )}
             <div className="flex-1">
@@ -307,7 +305,7 @@ export default function ArtistProfilePage() {
                   {artistMusic.length} Tracks
                 </span>
                 <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                  🎵 Live on Monad
+                  Live on Monad
                 </span>
               </div>
             </div>
@@ -315,7 +313,7 @@ export default function ArtistProfilePage() {
           {isMobile && !walletAddress && (
             <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
               <p className="text-yellow-900 text-sm font-medium mb-2">
-                📱 Mobile: Using Farcaster Wallet
+                Mobile: Using Farcaster Wallet
               </p>
               <p className="text-yellow-700 text-xs">
                 Transactions will use your Farcaster custody address. Make sure it has TOURS tokens + MON for gas.
@@ -333,7 +331,7 @@ export default function ArtistProfilePage() {
           {walletAddress && (
             <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
               <p className="text-green-900 text-sm">
-                ✅ Connected:{' '}
+                Connected:{' '}
                 <span className="font-mono text-xs">
                   {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                 </span>
@@ -350,11 +348,11 @@ export default function ArtistProfilePage() {
         {/* Music Catalog */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            🎵 Music Catalog
+            Music Catalog
           </h2>
           {artistMusic.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl">
-              <div className="text-6xl mb-4">🎵</div>
+              <div className="text-6xl mb-4">Music Note</div>
               <p className="text-gray-600 text-lg">No music available yet</p>
               <p className="text-gray-500 text-sm mt-2">This artist hasn't minted any music NFTs</p>
             </div>
@@ -375,7 +373,7 @@ export default function ArtistProfilePage() {
                     </div>
                   ) : (
                     <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">
-                      <span className="text-7xl">🎵</span>
+                      <span className="text-7xl">Music Note</span>
                     </div>
                   )}
                   <div className="p-5 space-y-3">
@@ -406,7 +404,7 @@ export default function ArtistProfilePage() {
                         {audioErrors[music.tokenId] ? (
                           <>
                             <p className="text-xs text-red-500 text-center mt-1">
-                              ⚠️ {audioErrors[music.tokenId]}
+                              Warning {audioErrors[music.tokenId]}
                             </p>
                             <p className="text-xs text-gray-400 text-center mt-1 break-all">
                               URL: {music.metadata.animation_url}
@@ -414,7 +412,7 @@ export default function ArtistProfilePage() {
                           </>
                         ) : (
                           <p className="text-xs text-gray-500 text-center mt-1">
-                            🎧 Preview only - Buy to own full track
+                            Preview only - Buy to own full track
                           </p>
                         )}
                       </div>
@@ -447,10 +445,10 @@ export default function ArtistProfilePage() {
                         style={{ minHeight: '56px' }}
                       >
                         {buying === music.tokenId
-                          ? '⏳ Processing...'
+                          ? 'Processing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
-                          ? '🎵 Your Own Track'
-                          : `💰 Buy License (${music.price || '0.01'} TOURS)`}
+                          ? 'Your Own Track'
+                          : `Buy License (${music.price || '0.01'} TOURS)`}
                       </button>
                       {music.txHash && (
                         <a
@@ -459,7 +457,7 @@ export default function ArtistProfilePage() {
                           rel="noopener noreferrer"
                           className="block text-center text-xs text-gray-500 hover:text-purple-600 mt-2"
                         >
-                          View TX →
+                          View TX
                         </a>
                       )}
                     </div>
@@ -472,16 +470,16 @@ export default function ArtistProfilePage() {
 
         {/* How It Works */}
         <div className="mt-12 p-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border-2 border-purple-200">
-          <h3 className="font-bold text-gray-900 mb-3">🎵 How Music Licenses Work:</h3>
+          <h3 className="font-bold text-gray-900 mb-3">How Music Licenses Work:</h3>
           <ul className="space-y-2 text-sm text-gray-700">
-            <li>🎧 <strong>Preview:</strong> Listen to 30s preview for free</li>
-            <li>💰 <strong>Buy License:</strong> Pay in TOURS tokens to access full track forever</li>
-            <li>💸 <strong>Artist Royalties:</strong> 10% royalties on all sales go to the artist</li>
-            <li>⚡ <strong>Instant Access:</strong> Full track unlocked immediately after purchase</li>
-            <li>🎫 <strong>Payment:</strong> Uses TOURS tokens (not ETH) - swap MON for TOURS in Market</li>
+            <li>Preview: Listen to 30s preview for free</li>
+            <li>Buy License: Pay in TOURS tokens to access full track forever</li>
+            <li>Artist Royalties: 10% royalties on all sales go to the artist</li>
+            <li>Instant Access: Full track unlocked immediately after purchase</li>
+            <li>Payment: Uses TOURS tokens (not ETH) - swap MON for TOURS in Market</li>
           </ul>
           <p className="text-xs text-gray-600 mt-4">
-            💡 <strong>Tip:</strong> Support artists directly! All purchases go straight to the artist's wallet.
+            Tip: Support artists directly! All purchases go straight to the artist's wallet.
           </p>
         </div>
 
@@ -490,7 +488,7 @@ export default function ArtistProfilePage() {
             href="/profile"
             className="inline-block px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-all"
           >
-            ← Back to My Profile
+            Back to My Profile
           </Link>
         </div>
       </div>

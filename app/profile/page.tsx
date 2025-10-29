@@ -88,7 +88,6 @@ export default function ProfilePage() {
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
   const [refreshMessage, setRefreshMessage] = useState<string>('');
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
-
   const ITEMS_PER_PAGE = 12;
 
   // IPFS URL Resolver Function
@@ -97,9 +96,8 @@ export default function ProfilePage() {
     if (url.startsWith('ipfs://')) {
       return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
     }
-    // If it's already an IPFS gateway URL but using a different gateway, normalize it
     if (url.includes('/ipfs/')) {
-      const cid = url.split('/ipfs/')[1]?.split('?')[0]; // Remove query params
+      const cid = url.split('/ipfs/')[1]?.split('?')[0];
       return `https://harlequin-used-hare-224.mypinata.cloud/ipfs/${cid}`;
     }
     return url;
@@ -121,7 +119,6 @@ export default function ProfilePage() {
     }));
   };
 
-  // Updated with logging and URL
   const handleAudioLoaded = (id: string, audioUrl?: string) => {
     console.log(`Audio loaded successfully for ${id}:`, audioUrl);
     setAudioErrors(prev => {
@@ -205,7 +202,7 @@ export default function ProfilePage() {
             imageUrl
             previewAudioUrl
             fullAudioUrl
-            metadataFetched
+           /metadataFetched
             totalSold
             active
           }
@@ -236,13 +233,11 @@ export default function ProfilePage() {
           }
         }
       `;
-
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables: { addresses: uniqueAddresses } }),
       });
-
       if (!response.ok) throw new Error(`Envio API returned ${response.status}`);
       const result = await response.json();
       if (result.errors) throw new Error(result.errors[0]?.message || 'GraphQL query failed');
@@ -352,7 +347,6 @@ export default function ProfilePage() {
     (passportPage - 1) * ITEMS_PER_PAGE,
     passportPage * ITEMS_PER_PAGE
   );
-
   const totalCreatedMusicPages = Math.ceil(createdMusic.length / ITEMS_PER_PAGE);
   const totalPurchasedMusicPages = Math.ceil(purchasedMusic.length / ITEMS_PER_PAGE);
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
@@ -596,8 +590,8 @@ export default function ProfilePage() {
                               preload="metadata"
                               className="w-full"
                               style={{ height: '40px' }}
-                              onError={(e) => handleAudioError(`created-${nft.id}`, nft.audioUrl || '', e)}
-                              onLoadedMetadata={() => handleAudioLoaded(`created-${nft.id}`, nft.audioUrl)}
+                              onError={(e) => handleAudioError(`created_feed-${nft.id}`, nft.audioUrl || '', e)}
+                              onLoadedMetadata={() => handleAudioLoaded(`created_feed-${nft.id}`, nft.audioUrl)}
                             >
                               <source src={nft.audioUrl} type="audio/mpeg" />
                               <source src={nft.audioUrl} type="audio/mp3" />
@@ -605,10 +599,10 @@ export default function ProfilePage() {
                               <source src={nft.audioUrl} type="audio/ogg" />
                               Your browser does not support audio playback.
                             </audio>
-                            {audioErrors[`created-${nft.id}`] ? (
+                            {audioErrors[`created_feed-${nft.id}`] ? (
                               <>
                                 <p className="text-xs text-red-500 text-center mt-1">
-                                  Warning {audioErrors[`created-${nft.id}`]}
+                                  Warning {audioErrors[`created_feed-${nft.id}`]}
                                 </p>
                                 <p className="text-xs text-gray-400 text-center mt-1 break-all">
                                   {nft.audioUrl}
@@ -724,8 +718,8 @@ export default function ProfilePage() {
                               preload="metadata"
                               className="w-full"
                               style={{ height: '40px' }}
-                              onError={(e) => handleAudioError(`purchased-${license.id}`, license.audioUrl || '', e)}
-                              onLoadedMetadata={() => handleAudioLoaded(`purchased-${license.id}`, license.audioUrl)}
+                              onError={(e) => handleAudioError(`purchased_feed-${license.id}`, license.audioUrl || '', e)}
+                              onLoadedMetadata={() => handleAudioLoaded(`purchased_feed-${license.id}`, license.audioUrl)}
                             >
                               <source src={license.audioUrl} type="audio/mpeg" />
                               <source src={license.audioUrl} type="audio/mp3" />
@@ -733,10 +727,10 @@ export default function ProfilePage() {
                               <source src={license.audioUrl} type="audio/ogg" />
                               Your browser does not support audio playback.
                             </audio>
-                            {audioErrors[`purchased-${license.id}`] ? (
+                            {audioErrors[`purchased_feed-${license.id}`] ? (
                               <>
                                 <p className="text-xs text-red-500 text-center mt-1">
-                                  Warning {audioErrors[`purchased-${license.id}`]}
+                                  Warning {audioErrors[`purchased_feed-${license.id}`]}
                                 </p>
                                 <p className="text-xs text-gray-400 text-center mt-1 break-all">
                                   {license.audioUrl}
