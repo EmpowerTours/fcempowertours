@@ -138,7 +138,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     contract: event.srcAddress.toLowerCase(),
     artist: artist.toLowerCase(),
     owner: artist.toLowerCase(),
-    tokenURI: tokenURI,
+    tokenURI: tokenURI, // ✅ CORRECT: Preserves original case
     price: price,
     totalSold: 0,
     active: true,
@@ -360,12 +360,22 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
 
+  // ✅ CRITICAL FIX: Normalize countryCode to uppercase for consistency
+  const normalizedCountryCode = countryCode.toUpperCase();
+
+  // ✅ VALIDATION: Ensure countryCode is valid
+  if (!normalizedCountryCode || normalizedCountryCode.length !== 2) {
+    context.log.error(
+      `❌ Invalid countryCode for passport #${tokenId}: "${countryCode}" (normalized: "${normalizedCountryCode}")`
+    );
+  }
+
   const passportNFT = {
     id: passportNFTId,
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
     owner: owner.toLowerCase(),
-    countryCode: countryCode,
+    countryCode: normalizedCountryCode, // ✅ FIX: Store as uppercase
     countryName: countryName,
     region: region,
     continent: continent,
@@ -426,7 +436,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   }
 
   context.log.info(
-    `🎫 Passport NFT #${tokenId} minted for ${owner} - ${countryCode} ${countryName} (${region}, ${continent})`
+    `🎫 Passport NFT #${tokenId} minted for ${owner} - ${normalizedCountryCode} ${countryName} (${region}, ${continent})`
   );
 });
 
