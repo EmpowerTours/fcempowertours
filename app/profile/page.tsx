@@ -345,26 +345,52 @@ export default function ProfilePage() {
       const allMusic = [...createdMusicWithType, ...purchasedMusicWithType];
       setMusicNFTs(allMusic);
 
-      // Fetch metadata for all created music
+      // ✅ FIX: Fetch metadata for all created music with proper price conversion
       createdMusicNFTs.forEach(async (nft: any, index: number) => {
-        const metadata = await fetchMusicMetadata(nft.tokenURI);
-        if (metadata) {
-          const audioUrl = metadata.animation_url || metadata.external_url;
-          setCreatedMusic(prev => {
-            const updated = [...prev];
-            updated[index] = {
-              ...updated[index],
-              metadata,
-              audioUrl,
-              isLoadingMetadata: false
-            };
-            return updated;
+        try {
+          const metadata = await fetchMusicMetadata(nft.tokenURI);
+          // ✅ CRITICAL FIX: Convert price from wei to human-readable TOURS format
+          const priceInTours = nft.price ? (Number(nft.price) / 1e18).toFixed(6) : '0.01';
+          
+          console.log(`📦 Loaded music ${nft.tokenId}:`, {
+            name: metadata?.name,
+            price: nft.price,
+            priceInTours: priceInTours,
+            hasAudio: !!metadata?.animation_url,
           });
-        } else {
+          
+          if (metadata) {
+            const audioUrl = metadata.animation_url || metadata.external_url;
+            setCreatedMusic(prev => {
+              const updated = [...prev];
+              updated[index] = {
+                ...updated[index],
+                metadata,
+                audioUrl,
+                price: priceInTours,
+                isLoadingMetadata: false
+              };
+              return updated;
+            });
+          } else {
+            setCreatedMusic(prev => {
+              const updated = [...prev];
+              updated[index] = {
+                ...updated[index],
+                price: priceInTours,
+                isLoadingMetadata: false
+              };
+              return updated;
+            });
+          }
+        } catch (err) {
+          console.error(`❌ Error loading metadata for music ${index}:`, err);
+          const priceInTours = nft.price ? (Number(nft.price) / 1e18).toFixed(6) : '0.01';
           setCreatedMusic(prev => {
             const updated = [...prev];
             updated[index] = {
               ...updated[index],
+              price: priceInTours,
               isLoadingMetadata: false
             };
             return updated;

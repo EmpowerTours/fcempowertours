@@ -777,7 +777,7 @@ export default function ArtistProfilePage() {
       }));
       setArtistMusic(musicWithLoading);
 
-      // Batch fetch metadata and on-chain prices
+      // ✅ FIX: Batch fetch metadata and on-chain prices with proper conversion
       const metadataAndPricePromises = music.map(async (nft: MusicNFT, index: number) => {
         try {
           // Fetch on-chain price
@@ -787,7 +787,8 @@ export default function ArtistProfilePage() {
             functionName: 'masterTokens',
             args: [BigInt(nft.tokenId)],
           });
-          const onChainPrice = Number(tokenData[2]) / 1e18; // price field (index 2)
+          // ✅ CRITICAL FIX: Convert price from wei (index 2) to human-readable TOURS
+          const onChainPrice = Number(tokenData[2]) / 1e18;
 
           // Fetch metadata
           const metadataUrl = resolveIPFS(nft.tokenURI);
@@ -797,12 +798,27 @@ export default function ArtistProfilePage() {
             throw new Error(`Failed to fetch metadata: ${metadataRes.status}`);
           }
           const metadata: MusicMetadata = await metadataRes.json();
-          console.log(`✅ Metadata loaded for token ${nft.tokenId}:`, metadata.name);
+          console.log(`✅ Metadata loaded for token ${nft.tokenId}:`, {
+            name: metadata.name,
+            hasAudio: !!metadata.animation_url,
+            priceWei: tokenData[2],
+            priceTours: onChainPrice.toFixed(6),
+          });
 
-          return { index, metadata, price: onChainPrice.toString(), isLoadingMetadata: false };
+          return { 
+            index, 
+            metadata, 
+            price: onChainPrice.toFixed(6), 
+            isLoadingMetadata: false 
+          };
         } catch (error) {
           console.error(`❌ Error loading metadata or price for token ${nft.tokenId}:`, error);
-          return { index, metadata: undefined, price: '0.01', isLoadingMetadata: false };
+          return { 
+            index, 
+            metadata: undefined, 
+            price: '0.01', 
+            isLoadingMetadata: false 
+          };
         }
       });
 
