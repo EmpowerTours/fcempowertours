@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
 
-// ✅ UPDATED CONTRACT ADDRESS
+// ✅ MusicLicenseNFTv4 with delegation support
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
 const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
-// MusicLicenseNFTv3 ABI (updated to match your contract)
+// MusicLicenseNFTv4 ABI
 const MUSIC_NFT_ABI = [
   {
     inputs: [
@@ -22,6 +22,44 @@ const MUSIC_NFT_ABI = [
     type: 'function',
   },
   {
+    inputs: [
+      { internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+      { internalType: 'address', name: 'licensee', type: 'address' }
+    ],
+    name: 'purchaseLicenseFor',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'masterTokenId', type: 'uint256' }
+    ],
+    name: 'purchaseLicense',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'licenseId', type: 'uint256' }
+    ],
+    name: 'renewLicense',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'user', type: 'address' },
+      { internalType: 'uint256', name: 'masterTokenId', type: 'uint256' }
+    ],
+    name: 'hasValidLicense',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
@@ -30,6 +68,17 @@ const MUSIC_NFT_ABI = [
       { indexed: false, internalType: 'uint256', name: 'price', type: 'uint256' }
     ],
     name: 'MasterMinted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'licenseId', type: 'uint256' },
+      { indexed: true, internalType: 'uint256', name: 'masterTokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'expiry', type: 'uint256' }
+    ],
+    name: 'LicensePurchased',
     type: 'event',
   },
 ];
@@ -69,7 +118,7 @@ export async function POST(req: NextRequest) {
       finalTokenURI = `ipfs://${cid}`;
     }
 
-    console.log('🎵 MusicLicenseNFTv3 mint request:', {
+    console.log('🎵 MusicLicenseNFTv4 mint request:', {
       recipient,
       tokenURI: finalTokenURI,
       songTitle: songTitle || 'Untitled',
@@ -98,17 +147,15 @@ export async function POST(req: NextRequest) {
       priceInWei = parseEther('0.01');
     }
 
-    console.log('💰 Price in wei:', priceInWei.toString(), `(${price || '0.01'} ETH)`);
+    console.log('💰 Price in wei:', priceInWei.toString(), `(${price || '0.01'} MON)`);
 
     const provider = new JsonRpcProvider(MONAD_RPC);
     const deployer = new Wallet(DEPLOYER_PRIVATE_KEY, provider);
 
-    // ✅ CRITICAL FIX: Check if MusicLicenseNFTv3 requires TOURS payment during mint
-    // Based on the contract code, it does NOT require payment during mintMaster()
-    // Payment is only required during purchaseLicense()
-    // So we DON'T need to approve TOURS for the mint transaction!
-    
-    console.log('ℹ️ MusicLicenseNFTv3 does not require TOURS payment during mint');
+    // ✅ CRITICAL: MusicLicenseNFTv4 does NOT require TOURS payment during mintMaster()
+    // Payment is only required during purchaseLicense() or purchaseLicenseFor()
+    // The mintMaster function is free for artists to create their master NFTs
+    console.log('ℹ️ MusicLicenseNFTv4 does not require TOURS payment during mint');
     console.log('   Payment is collected when users purchase licenses');
 
     // Create contract instance
@@ -154,9 +201,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log('✅ Music Master NFT minted!', { 
-      tokenId, 
-      txHash: tx.hash, 
+    console.log('✅ Music Master NFT minted!', {
+      tokenId,
+      txHash: tx.hash,
       price: price || '0.01',
       songTitle: songTitle || 'Untitled'
     });
@@ -204,19 +251,19 @@ View: https://testnet.monadscan.com/tx/${tx.hash}
     });
   } catch (error: any) {
     console.error('❌ Mint error:', error);
-    
+
     // Provide more detailed error information
     let errorMessage = error.message || 'Mint failed';
-    
+
     if (error.code === 'CALL_EXCEPTION') {
       errorMessage = 'Contract call failed. Possible reasons:\n';
       errorMessage += '1. Artist already minted a song with this title\n';
       errorMessage += '2. Invalid parameters\n';
       errorMessage += '3. Contract is paused or has restrictions';
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: errorMessage,
         details: error.reason || error.shortMessage,
         code: error.code
