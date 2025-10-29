@@ -1,4 +1,4 @@
-# ✅ UPDATED: Added createdAt field to MusicLicense for proper querying
+# ✅ UPDATED: Added metadata fields for instant music playback
 
 type MusicNFT @entity {
   id: ID!
@@ -12,6 +12,15 @@ type MusicNFT @entity {
   totalSold: Int               # Track total licenses sold
   active: Boolean              # Track if sales are active
   royaltyPercentage: Int       # Track royalty % (optional)
+  
+  # ✅ NEW: Metadata fields fetched from IPFS during indexing
+  name: String                 # Song title from metadata.name
+  description: String          # Description from metadata.description
+  imageUrl: String             # Cover art URL (metadata.image resolved)
+  previewAudioUrl: String      # Preview audio (metadata.animation_url resolved)
+  fullAudioUrl: String         # Full track (metadata.external_url resolved)
+  metadataFetched: Boolean!    # Track if metadata was successfully fetched
+  
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!
@@ -57,7 +66,7 @@ type Itinerary @entity {
   active: Boolean!
   createdAt: Timestamp!
   blockNumber: BigInt!
-  txHash: String!              # ✅ ADDED: Transaction hash
+  txHash: String!
   purchases: [ItineraryPurchase!]! @derivedFrom(field: "itinerary")
 }
 

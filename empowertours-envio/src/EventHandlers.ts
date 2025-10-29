@@ -4,6 +4,70 @@ import {
   Marketplace,
 } from "generated";
 
+// ✅ NEW: Type definition for metadata
+interface MusicMetadata {
+  name?: string;
+  description?: string;
+  image?: string;
+  animation_url?: string;
+  external_url?: string;
+  attributes?: Array<{ trait_type: string; value: any }>;
+}
+
+// ✅ NEW: Helper function to resolve IPFS URLs
+const PINATA_GATEWAY = "harlequin-used-hare-224.mypinata.cloud";
+
+function resolveIPFS(url: string): string {
+  if (!url) return "";
+  if (url.startsWith("ipfs://")) {
+    return url.replace("ipfs://", `https://${PINATA_GATEWAY}/ipfs/`);
+  }
+  return url;
+}
+
+// ✅ NEW: Fetch metadata from IPFS with proper return type
+async function fetchMetadata(tokenURI: string, context: any): Promise<{
+  name: string;
+  description: string;
+  imageUrl: string;
+  previewAudioUrl: string;
+  fullAudioUrl: string;
+} | null> {
+  try {
+    const metadataUrl = resolveIPFS(tokenURI);
+    context.log.info(`📦 Fetching metadata from: ${metadataUrl}`);
+    
+    const response = await fetch(metadataUrl, {
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+    
+    if (!response.ok) {
+      context.log.warn(`⚠️ Metadata fetch failed: HTTP ${response.status}`);
+      return null;
+    }
+    
+    const metadata = await response.json() as MusicMetadata;
+    
+    context.log.info(`✅ Metadata fetched successfully:`, {
+      name: metadata.name,
+      hasImage: !!metadata.image,
+      hasAnimationUrl: !!metadata.animation_url,
+      hasExternalUrl: !!metadata.external_url,
+    });
+    
+    return {
+      name: metadata.name || "",
+      description: metadata.description || "",
+      imageUrl: resolveIPFS(metadata.image || ""),
+      previewAudioUrl: resolveIPFS(metadata.animation_url || ""),
+      fullAudioUrl: resolveIPFS(metadata.external_url || ""),
+    };
+  } catch (error) {
+    context.log.error(`❌ Failed to fetch metadata: ${error}`);
+    return null;
+  }
+}
+
 // ============================================
 // MUSIC LICENSE NFT EVENTS
 // ============================================
@@ -12,6 +76,9 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
   const { tokenId, artist, tokenURI, price } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+
+  // ✅ NEW: Fetch metadata during indexing
+  const metadata = await fetchMetadata(tokenURI, context);
 
   const musicNFT = {
     id: musicNFTId,
@@ -25,6 +92,15 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     active: true,
     coverArt: "",
     royaltyPercentage: 10,
+    
+    // ✅ NEW: Store metadata fields
+    name: metadata?.name || `Music NFT #${tokenId}`,
+    description: metadata?.description || "",
+    imageUrl: metadata?.imageUrl || "",
+    previewAudioUrl: metadata?.previewAudioUrl || "",
+    fullAudioUrl: metadata?.fullAudioUrl || "",
+    metadataFetched: !!metadata,
+    
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -80,10 +156,10 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} - URI: ${tokenURI}`);
+  context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} - "${metadata?.name || 'Untitled'}" - URI: ${tokenURI}`);
 });
 
-// ✅ UPDATED: Handle LicensePurchased event with createdAt field
+// ✅ Handle LicensePurchased event with createdAt field
 MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
   const { licenseId, masterTokenId, buyer, expiry } = event.params;
 
@@ -110,7 +186,7 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
     expiry: BigInt(expiry),
     active: true,
     purchasedAt: timestamp,
-    createdAt: timestamp,  // ✅ ADDED: Set createdAt to same as purchasedAt
+    createdAt: timestamp,
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   };
@@ -180,7 +256,7 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
   );
 });
 
-// ✅ UPDATED: Handle LicenseExpired event
+// ✅ Handle LicenseExpired event
 MusicLicenseNFT.LicenseExpired.handler(async ({ event, context }) => {
   const { licenseId } = event.params;
 

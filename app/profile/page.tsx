@@ -5,15 +5,6 @@ import { PassportSVG } from '@/components/PassportSVG';
 import Link from 'next/link';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
-
-const resolveIPFS = (url: string) => {
-  if (!url) return '';
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', PINATA_GATEWAY);
-  }
-  return url;
-};
 
 interface MusicMetadata {
   animation_url?: string;
@@ -22,7 +13,6 @@ interface MusicMetadata {
   name?: string;
   description?: string;
 }
-
 interface MusicNFTWithMetadata {
   id: string;
   tokenId?: string | number;
@@ -41,16 +31,13 @@ interface MusicNFTWithMetadata {
   txHash: string;
   metadata?: MusicMetadata;
   audioUrl?: string;
-  isLoadingMetadata?: boolean;
   type: 'master' | 'license';
 }
-
 interface PassportMetadata {
   name?: string;
   description?: string;
   attributes?: Array<{ trait_type: string; value: string }>;
 }
-
 interface PassportNFT {
   id: string;
   tokenId: number;
@@ -66,26 +53,23 @@ interface PassportNFT {
 
 async function fetchPassportCountryCode(tokenURI: string): Promise<string | null> {
   try {
-    const metadataUrl = resolveIPFS(tokenURI);
+    const metadataUrl = tokenURI.startsWith('ipfs://')
+      ? tokenURI.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/')
+      : tokenURI;
     const response = await fetch(metadataUrl);
-    if (!response.ok) {
-      console.error('Failed to fetch passport metadata:', response.status);
-      return null;
-    }
+    if (!response.ok) return null;
     const metadata: PassportMetadata = await response.json();
     const countryAttr = metadata.attributes?.find(
       (attr) => attr.trait_type.toLowerCase() === 'country code'
     );
     return countryAttr ? countryAttr.value.toUpperCase() : null;
   } catch (error) {
-    console.error('Error fetching passport country code:', error);
     return null;
   }
 }
 
 export default function ProfilePage() {
   const { user, walletAddress, isMobile, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
-  
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [musicNFTs, setMusicNFTs] = useState<MusicNFTWithMetadata[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
@@ -109,26 +93,9 @@ export default function ProfilePage() {
     }
   }, [walletAddress]);
 
-  const fetchMusicMetadata = async (tokenURI: string): Promise<MusicMetadata | null> => {
-    try {
-      const metadataUrl = resolveIPFS(tokenURI);
-      const response = await fetch(metadataUrl);
-      if (!response.ok) {
-        console.error('Failed to fetch metadata:', response.status);
-        return null;
-      }
-      const metadata: MusicMetadata = await response.json();
-      return metadata;
-    } catch (error) {
-      console.error('Error fetching music metadata:', error);
-      return null;
-    }
-  };
-
   const loadBalances = async () => {
     if (!walletAddress) return;
     try {
-      // ✅ FIX: Check balance for user wallet
       const response = await fetch('/api/get-balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -136,8 +103,6 @@ export default function ProfilePage() {
       });
       if (response.ok) {
         let data = await response.json();
-        
-        // ✅ FIX: Also check Safe address if available
         const safeAddr = (user as any)?.safeAddress;
         if (safeAddr && safeAddr.toLowerCase() !== walletAddress.toLowerCase()) {
           try {
@@ -148,55 +113,15 @@ export default function ProfilePage() {
             });
             if (safeResponse.ok) {
               const safeData = await safeResponse.json();
-              console.log('💼 Safe address balance:', safeData);
-              
-              // Use Safe balance if it has more TOURS (indicating spends came from Safe)
               if (parseFloat(safeData.tours || '0') > parseFloat(data.tours || '0')) {
                 data = safeData;
               }
             }
-          } catch (err) {
-            console.error('Error checking Safe balance:', err);
-          }
+          } catch (err) {}
         }
-        
         setBalances(data);
       }
-    } catch (error) {
-      console.error('Error loading balances:', error);
-    }
-  };
-
-  const loadAllDataWithRetry = async (maxRetries = 5, initialDelay = 2000) => {
-    let lastError: any = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        setRefreshMessage(`Loading data... (attempt ${attempt}/${maxRetries})`);
-        await loadAllData();
-        
-        if (passportNFTs.length > 0 || purchasedMusic.length > 0 || createdMusic.length > 0) {
-          setRefreshMessage('✅ Data synced!');
-          setTimeout(() => setRefreshMessage(''), 2000);
-          return;
-        }
-        
-        if (attempt < maxRetries) {
-          const delay = initialDelay * attempt;
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      } catch (err) {
-        lastError = err;
-        if (attempt < maxRetries) {
-          const delay = initialDelay * attempt;
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-    
-    if (lastError) {
-      setRefreshMessage('⚠️ Could not sync all data. Try refreshing again.');
-    }
+    } catch (error) {}
   };
 
   const loadAllData = async () => {
@@ -204,8 +129,6 @@ export default function ProfilePage() {
     setLoading(true);
     setError(null);
     try {
-      // ✅ FIX: Collect ALL wallet addresses including Safe SmartAccount
-      // This is critical - purchased music may be under Safe address!
       const addressesToQuery = [
         walletAddress.toLowerCase(),
         (user as any)?.safeAddress?.toLowerCase?.(),
@@ -215,17 +138,9 @@ export default function ProfilePage() {
       ]
         .filter(addr => addr && addr !== '0x0000000000000000000000000000000000000000')
         .map(addr => addr!.toLowerCase());
-
       const uniqueAddresses = [...new Set(addressesToQuery)].filter(a => a);
-      
-      console.log('🔍 Querying addresses:', uniqueAddresses);
-      console.log('   User wallet:', walletAddress);
-      console.log('   Safe account:', (user as any)?.safeAddress);
-      console.log('   Smart account:', (user as any)?.smartAccountAddress);
-      
       setQueriedAddresses(uniqueAddresses);
 
-      // ✅ FIXED: Query MusicNFT by artist field, not owner field
       const query = `
         query GetUserData($addresses: [String!]!) {
           PassportNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
@@ -244,13 +159,17 @@ export default function ProfilePage() {
             id
             tokenId
             artist
-            owner
             tokenURI
-            price
-            totalSold
-            active
             mintedAt
             txHash
+            price
+            name
+            imageUrl
+            previewAudioUrl
+            fullAudioUrl
+            metadataFetched
+            totalSold
+            active
           }
           MusicLicense(where: {licensee: {_in: $addresses}}, order_by: {purchasedAt: desc}, limit: 100) {
             id
@@ -279,140 +198,51 @@ export default function ProfilePage() {
           }
         }
       `;
-      
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          variables: { addresses: uniqueAddresses }
-        }),
+        body: JSON.stringify({ query, variables: { addresses: uniqueAddresses } }),
       });
-      
-      if (!response.ok) {
-        throw new Error(`Envio API returned ${response.status}`);
-      }
-      
+      if (!response.ok) throw new Error(`Envio API returned ${response.status}`);
       const result = await response.json();
-      if (result.errors) {
-        console.error('GraphQL errors:', result.errors);
-        throw new Error(result.errors[0]?.message || 'GraphQL query failed');
-      }
+      if (result.errors) throw new Error(result.errors[0]?.message || 'GraphQL query failed');
 
       let passports: PassportNFT[] = result.data?.PassportNFT || [];
       const createdMusicNFTs = result.data?.MusicNFT || [];
       const purchasedLicenses = result.data?.MusicLicense || [];
       const purchases = result.data?.ItineraryPurchase || [];
 
-      console.log('✅ Loaded from Envio:', {
-        passports: passports.length,
-        createdMusic: createdMusicNFTs.length,
-        purchasedLicenses: purchasedLicenses.length,
-        purchases: purchases.length,
-        queriedAddresses: uniqueAddresses
-      });
-
-      // ✅ FIXED: Use countryCode from event if available, otherwise fetch from metadata
       passports = await Promise.all(
         passports.map(async (passport) => {
-          if (passport.countryCode) {
-            return passport;
-          }
+          if (passport.countryCode) return passport;
           const countryCode = await fetchPassportCountryCode(passport.tokenURI);
           return { ...passport, countryCode: countryCode || 'XX' };
         })
       );
-
       setPassportNFTs(passports);
 
-      // Process created music
       const createdMusicWithType: MusicNFTWithMetadata[] = createdMusicNFTs.map((nft: any) => ({
         ...nft,
         type: 'master' as const,
-        isLoadingMetadata: true
+        metadata: {
+          name: nft.name,
+          image: nft.imageUrl,
+          animation_url: nft.previewAudioUrl,
+        },
+        audioUrl: nft.previewAudioUrl,
+        price: (Number(nft.price) / 1e18).toFixed(6),
       }));
       setCreatedMusic(createdMusicWithType);
 
-      // Process purchased licenses
       const purchasedMusicWithType: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => ({
         ...license,
         type: 'license' as const,
-        isLoadingMetadata: true
       }));
       setPurchasedMusic(purchasedMusicWithType);
 
-      // Combine for unified handling
-      const allMusic = [...createdMusicWithType, ...purchasedMusicWithType];
-      setMusicNFTs(allMusic);
-
-      // ✅ FIX: Fetch metadata for all created music with proper price conversion
-      createdMusicNFTs.forEach(async (nft: any, index: number) => {
-        try {
-          const metadata = await fetchMusicMetadata(nft.tokenURI);
-          // ✅ CRITICAL FIX: Convert price from wei to human-readable TOURS format
-          const priceInTours = nft.price ? (Number(nft.price) / 1e18).toFixed(6) : '0.01';
-          
-          console.log(`📦 Loaded music ${nft.tokenId}:`, {
-            name: metadata?.name,
-            price: nft.price,
-            priceInTours: priceInTours,
-            hasAudio: !!metadata?.animation_url,
-          });
-          
-          if (metadata) {
-            const audioUrl = metadata.animation_url || metadata.external_url;
-            setCreatedMusic(prev => {
-              const updated = [...prev];
-              updated[index] = {
-                ...updated[index],
-                metadata,
-                audioUrl,
-                price: priceInTours,
-                isLoadingMetadata: false
-              };
-              return updated;
-            });
-          } else {
-            setCreatedMusic(prev => {
-              const updated = [...prev];
-              updated[index] = {
-                ...updated[index],
-                price: priceInTours,
-                isLoadingMetadata: false
-              };
-              return updated;
-            });
-          }
-        } catch (err) {
-          console.error(`❌ Error loading metadata for music ${index}:`, err);
-          const priceInTours = nft.price ? (Number(nft.price) / 1e18).toFixed(6) : '0.01';
-          setCreatedMusic(prev => {
-            const updated = [...prev];
-            updated[index] = {
-              ...updated[index],
-              price: priceInTours,
-              isLoadingMetadata: false
-            };
-            return updated;
-          });
-        }
-      });
-
-      // For purchased licenses, metadata would come from master NFT (future optimization)
-      purchasedLicenses.forEach(async (license: any, index: number) => {
-        setPurchasedMusic(prev => {
-          const updated = [...prev];
-          updated[index] = {
-            ...updated[index],
-            isLoadingMetadata: false
-          };
-          return updated;
-        });
-      });
-
+      setMusicNFTs([...createdMusicWithType, ...purchasedMusicWithType]);
       setPurchasedItineraries(purchases);
     } catch (error: any) {
-      console.error('❌ Error loading data from Envio:', error);
       setError(error.message || 'Failed to load data');
     } finally {
       setLoading(false);
@@ -438,14 +268,14 @@ export default function ProfilePage() {
   const copyArtistLink = () => {
     const link = `${window.location.origin}/artist/${walletAddress}`;
     navigator.clipboard.writeText(link);
-    alert('✅ Artist profile link copied!\n\nShare this with fans so they can buy your music directly.');
+    alert('Artist profile link copied!\n\nShare this with fans so they can buy your music directly.');
   };
 
   if (contextLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <div className="animate-spin text-4xl mb-4">Loading...</div>
           <p className="text-gray-600">Loading your profile...</p>
         </div>
       </div>
@@ -456,7 +286,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
+          <div className="text-6xl mb-4">Warning</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
           <p className="text-gray-600 mb-6">
             This Mini App must be opened in Warpcast or another Farcaster client.
@@ -481,7 +311,7 @@ export default function ProfilePage() {
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                {user.username?.charAt(0).toUpperCase() || '👤'}
+                {user.username?.charAt(0).toUpperCase() || 'User'}
               </div>
             )}
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -498,7 +328,7 @@ export default function ProfilePage() {
           {isMobile && (
             <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
               <p className="text-blue-900 text-sm font-medium mb-1">
-                📱 Mobile Wallet Connected
+                Mobile Wallet Connected
               </p>
               <p className="text-blue-700 text-xs">
                 {walletAddress
@@ -508,7 +338,7 @@ export default function ProfilePage() {
               </p>
               {queriedAddresses.length > 1 && (
                 <p className="text-blue-600 text-xs mt-2">
-                  ✅ Searching {queriedAddresses.length} addresses
+                  Searching {queriedAddresses.length} addresses
                 </p>
               )}
             </div>
@@ -516,7 +346,7 @@ export default function ProfilePage() {
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium">⚠️ {error}</p>
+              <p className="text-red-700 font-medium">Warning {error}</p>
               <button
                 onClick={loadAllData}
                 className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
@@ -537,7 +367,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    🎵 Your Artist Profile
+                    Your Artist Profile
                   </h3>
                   <p className="text-sm text-gray-700">
                     Share this link with fans so they can buy your music directly!
@@ -549,19 +379,18 @@ export default function ProfilePage() {
                   href={`/artist/${walletAddress}`}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-pink-700 text-center transition-all active:scale-95 touch-manipulation"
                 >
-                  👀 View My Artist Profile
+                  View My Artist Profile
                 </Link>
                 <button
                   onClick={copyArtistLink}
                   className="px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition-all active:scale-95 touch-manipulation"
                 >
-                  📋 Copy Link
+                  Copy Link
                 </button>
               </div>
             </div>
           )}
 
-          {/* ✅ FIXED: Removed duplicate balance display - kept only one balance section */}
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm">
               <div className="flex items-center justify-between">
@@ -570,7 +399,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-yellow-700">{balances.mon}</p>
                   <p className="text-xs text-gray-500 mt-1">Native Token</p>
                 </div>
-                <div className="text-3xl">💰</div>
+                <div className="text-3xl">Money</div>
               </div>
             </div>
             <div className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm">
@@ -580,7 +409,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-green-700">{balances.tours}</p>
                   <p className="text-xs text-gray-500 mt-1">EmpowerTours Token</p>
                 </div>
-                <div className="text-3xl">🎫</div>
+                <div className="text-3xl">Ticket</div>
               </div>
             </div>
           </div>
@@ -609,282 +438,232 @@ export default function ProfilePage() {
               href="/passport"
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-center text-sm font-medium transition-all"
             >
-              🎫 Get Passport
+              Get Passport
             </Link>
             <Link
               href="/music"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center text-sm font-medium transition-all"
             >
-              🎵 Mint Music
+              Mint Music
             </Link>
             <Link
               href="/market"
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-center text-sm font-medium transition-all"
             >
-              🛒 Browse Market
+              Browse Market
             </Link>
           </div>
 
           <div className="space-y-8">
-            {/* Created Music Section */}
+            {/* Created Music */}
             {createdMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🎵 Music I Created</h2>
+                  <h2 className="text-xl font-bold text-gray-900">Music I Created</h2>
                   <span className="text-sm text-gray-500">
                     {createdMusic.length} total | Page {createdMusicPage} of {totalCreatedMusicPages || 1}
                   </span>
                 </div>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin text-3xl mb-2">⏳</div>
-                    <p className="text-gray-500">Loading...</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {paginatedCreatedMusic.map((nft, idx) => (
-                        <div
-                          key={nft.id || idx}
-                          className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
-                        >
-                          {nft.metadata?.image ? (
-                            <div className="w-full aspect-square overflow-hidden rounded-t-xl">
-                              <img
-                                src={resolveIPFS(nft.metadata.image)}
-                                alt={nft.metadata.name || `Music NFT #${nft.tokenId}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
-                              <span className="text-6xl">🎵</span>
-                            </div>
-                          )}
-                          <div className="p-4 space-y-3">
-                            <div className="text-center">
-                              <p className="font-mono text-sm font-bold text-blue-900">
-                                {nft.metadata?.name || `Music NFT #${nft.tokenId}`}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {nft.mintedAt ? new Date(nft.mintedAt).toLocaleDateString() : 'Recently minted'}
-                              </p>
-                              {nft.price && (
-                                <p className="text-xs text-green-600 font-bold mt-1">
-                                  💰 {nft.price} TOURS
-                                </p>
-                              )}
-                            </div>
-                            {nft.isLoadingMetadata ? (
-                              <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
-                                <p className="text-xs text-gray-500">Loading audio...</p>
-                              </div>
-                            ) : nft.audioUrl ? (
-                              <div className="bg-white rounded-lg p-2 border border-blue-200">
-                                <audio
-                                  controls
-                                  preload="metadata"
-                                  className="w-full"
-                                  style={{ height: '40px' }}
-                                >
-                                  <source
-                                    src={resolveIPFS(String(nft.audioUrl))}
-                                    type="audio/mpeg"
-                                  />
-                                  <source
-                                    src={resolveIPFS(String(nft.audioUrl))}
-                                    type="audio/wav"
-                                  />
-                                  Your browser does not support audio playback.
-                                </audio>
-                                <p className="text-xs text-gray-500 text-center mt-1">
-                                  🔊 Preview
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
-                                <p className="text-xs text-gray-500">Audio unavailable</p>
-                              </div>
-                            )}
-                            <div className="flex gap-2">
-                              {nft.txHash && (
-                                <a
-                                  href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
-                                >
-                                  View TX
-                                </a>
-                              )}
-                              {nft.tokenURI && (
-                                <a
-                                  href={resolveIPFS(String(nft.tokenURI))}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
-                                >
-                                  Metadata
-                                </a>
-                              )}
-                            </div>
-                          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {paginatedCreatedMusic.map((nft) => (
+                    <div
+                      key={nft.id}
+                      className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
+                    >
+                      {nft.metadata?.image ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                          <img
+                            src={nft.metadata.image}
+                            alt={nft.metadata.name || `Music NFT #${nft.tokenId}`}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                      ))}
-                    </div>
-                    {totalCreatedMusicPages > 1 && (
-                      <div className="flex justify-center gap-2 mt-6">
-                        <button
-                          onClick={() => setCreatedMusicPage(p => Math.max(1, p - 1))}
-                          disabled={createdMusicPage === 1}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          ← Prev
-                        </button>
-                        <span className="px-4 py-2 bg-gray-100 rounded-lg">
-                          {createdMusicPage} / {totalCreatedMusicPages}
-                        </span>
-                        <button
-                          onClick={() => setCreatedMusicPage(p => Math.min(totalCreatedMusicPages, p + 1))}
-                          disabled={createdMusicPage === totalCreatedMusicPages}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          Next →
-                        </button>
+                      ) : (
+                        <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
+                          <span className="text-6xl">Music</span>
+                        </div>
+                      )}
+                      <div className="p-4 space-y-3">
+                        <div className="text-center">
+                          <p className="font-mono text-sm font-bold text-blue-900">
+                            {nft.metadata?.name || `Music NFT #${nft.tokenId}`}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {nft.mintedAt ? new Date(nft.mintedAt).toLocaleDateString() : 'Recently minted'}
+                          </p>
+                          {nft.price && (
+                            <p className="text-xs text-green-600 font-bold mt-1">
+                              {nft.price} TOURS
+                            </p>
+                          )}
+                        </div>
+                        {nft.audioUrl ? (
+                          <div className="bg-white rounded-lg p-2 border border-blue-200">
+                            <audio
+                              controls
+                              preload="metadata"
+                              className="w-full"
+                              style={{ height: '40px' }}
+                            >
+                              <source src={nft.audioUrl} type="audio/mpeg" />
+                              <source src={nft.audioUrl} type="audio/wav" />
+                            </audio>
+                            <p className="text-xs text-gray-500 text-center mt-1">
+                              Preview
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
+                            <p className="text-xs text-gray-500">Audio unavailable</p>
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          {nft.txHash && (
+                            <a
+                              href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
+                            >
+                              View TX
+                            </a>
+                          )}
+                          {nft.tokenURI && (
+                            <a
+                              href={nft.tokenURI.startsWith('ipfs://')
+                                ? nft.tokenURI.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/')
+                                : nft.tokenURI}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                            >
+                              Metadata
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </>
+                    </div>
+                  ))}
+                </div>
+                {totalCreatedMusicPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-6">
+                    <button
+                      onClick={() => setCreatedMusicPage(p => Math.max(1, p - 1))}
+                      disabled={createdMusicPage === 1}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                      {createdMusicPage} / {totalCreatedMusicPages}
+                    </span>
+                    <button
+                      onClick={() => setCreatedMusicPage(p => Math.min(totalCreatedMusicPages, p + 1))}
+                      disabled={createdMusicPage === totalCreatedMusicPages}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Next →
+                    </button>
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Purchased Music Section - THIS NOW SHOWS MUSIC BOUGHT WITH SAFE! */}
+            {/* Purchased Music */}
             {purchasedMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🎧 Music I Purchased</h2>
+                  <h2 className="text-xl font-bold text-gray-900">Music I Purchased</h2>
                   <span className="text-sm text-gray-500">
                     {purchasedMusic.length} total | Page {purchasedMusicPage} of {totalPurchasedMusicPages || 1}
                   </span>
                 </div>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin text-3xl mb-2">⏳</div>
-                    <p className="text-gray-500">Loading...</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {paginatedPurchasedMusic.map((license, idx) => (
-                        <div
-                          key={license.id || idx}
-                          className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200 rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md"
-                        >
-                          <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
-                            <span className="text-6xl">🎧</span>
-                          </div>
-                          <div className="p-4 space-y-3">
-                            <div className="text-center">
-                              <p className="font-mono text-sm font-bold text-pink-900">
-                                License #{license.licenseId}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Master #{license.masterTokenId}
-                              </p>
-                              {license.purchasedAt && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Purchased: {new Date(String(license.purchasedAt)).toLocaleDateString()}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {paginatedPurchasedMusic.map((license) => (
+                    <div
+                      key={license.id}
+                      className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200 rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md"
+                    >
+                      <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
+                        <span className="text-6xl">Headphones</span>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div className="text-center">
+                          <p className="font-mono text-sm font-bold text-pink-900">
+                            License #{license.licenseId}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Master #{license.masterTokenId}
+                          </p>
+                          {license.purchasedAt && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Purchased: {new Date(String(license.purchasedAt)).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
+                          {license.active ? (
+                            <>
+                              <p className="text-xs text-green-600 font-bold mb-1">License Active</p>
+                              {license.expiry && (
+                                <p className="text-xs text-gray-600">
+                                  Expires: {new Date(Number(license.expiry) * 1000).toLocaleDateString()}
                                 </p>
                               )}
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
-                              {license.active ? (
-                                <>
-                                  <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
-                                  {license.expiry && (
-                                    <p className="text-xs text-gray-600">
-                                      Expires: {new Date(Number(license.expiry) * 1000).toLocaleDateString()}
-                                    </p>
-                                  )}
-                                </>
-                              ) : (
-                                <p className="text-xs text-red-600 font-bold">❌ License Expired</p>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              {license.txHash && (
-                                <a
-                                  href={`https://testnet.monadscan.com/tx/${license.txHash}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
-                                >
-                                  View TX
-                                </a>
-                              )}
-                            </div>
-                          </div>
+                            </>
+                          ) : (
+                            <p className="text-xs text-red-600 font-bold">License Expired</p>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                    {totalPurchasedMusicPages > 1 && (
-                      <div className="flex justify-center gap-2 mt-6">
-                        <button
-                          onClick={() => setPurchasedMusicPage(p => Math.max(1, p - 1))}
-                          disabled={purchasedMusicPage === 1}
-                          className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
-                        >
-                          ← Prev
-                        </button>
-                        <span className="px-4 py-2 bg-gray-100 rounded-lg">
-                          {purchasedMusicPage} / {totalPurchasedMusicPages}
-                        </span>
-                        <button
-                          onClick={() => setPurchasedMusicPage(p => Math.min(totalPurchasedMusicPages, p + 1))}
-                          disabled={purchasedMusicPage === totalPurchasedMusicPages}
-                          className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
-                        >
-                          Next →
-                        </button>
+                        <div className="flex gap-2">
+                          {license.txHash && (
+                            <a
+                              href={`https://testnet.monadscan.com/tx/${license.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
+                            >
+                              View TX
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </>
+                    </div>
+                  ))}
+                </div>
+                {totalPurchasedMusicPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-6">
+                    <button
+                      onClick={() => setPurchasedMusicPage(p => Math.max(1, p - 1))}
+                      disabled={purchasedMusicPage === 1}
+                      className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                      {purchasedMusicPage} / {totalPurchasedMusicPages}
+                    </span>
+                    <button
+                      onClick={() => setPurchasedMusicPage(p => Math.min(totalPurchasedMusicPages, p + 1))}
+                      disabled={purchasedMusicPage === totalPurchasedMusicPages}
+                      className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+                    >
+                      Next →
+                    </button>
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Combined Music Section (if neither) */}
-            {createdMusic.length === 0 && purchasedMusic.length === 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🎵 My Music Collection</h2>
-                </div>
-                <div className="p-6 bg-gray-50 rounded-lg text-center">
-                  <p className="text-gray-600 mb-3">No music yet</p>
-                  <Link
-                    href="/music"
-                    className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
-                  >
-                    Mint Your First Track →
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {/* Passports Section */}
+            {/* Passports */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">🎫 My Travel Passports</h2>
+                <h2 className="text-xl font-bold text-gray-900">My Travel Passports</h2>
                 <span className="text-sm text-gray-500">
                   {passportNFTs.length} total | Page {passportPage} of {totalPassportPages || 1}
                 </span>
               </div>
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin text-3xl mb-2">⏳</div>
-                  <p className="text-gray-500">Loading passports...</p>
-                </div>
-              ) : passportNFTs.length === 0 ? (
+              {passportNFTs.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600 mb-3">No passports yet</p>
                   <Link
@@ -897,21 +676,19 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {paginatedPassports.map((passport, idx) => (
+                    {paginatedPassports.map((passport) => (
                       <div
-                        key={passport.id || idx}
+                        key={passport.id}
                         className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
                       >
                         <div
                           className="w-full bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center p-2"
                           style={{ aspectRatio: '2/3' }}
                         >
-                          <div className="w-full h-full">
-                            <PassportSVG 
-                              countryCode={passport.countryCode || 'XX'} 
-                              tokenId={passport.tokenId} 
-                            />
-                          </div>
+                          <PassportSVG
+                            countryCode={passport.countryCode || 'XX'}
+                            tokenId={passport.tokenId}
+                          />
                         </div>
                         <div className="p-4 space-y-3">
                           <div className="text-center">
@@ -935,7 +712,9 @@ export default function ProfilePage() {
                             )}
                             {passport.tokenURI && (
                               <a
-                                href={resolveIPFS(passport.tokenURI)}
+                                href={passport.tokenURI.startsWith('ipfs://')
+                                  ? passport.tokenURI.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/')
+                                  : passport.tokenURI}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
@@ -973,10 +752,10 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Itineraries Section */}
+            {/* Itineraries */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">🗺️ My Purchased Itineraries</h2>
+                <h2 className="text-xl font-bold text-gray-900">My Purchased Itineraries</h2>
                 <span className="text-sm text-gray-500">
                   {purchasedItineraries.length} total
                 </span>
@@ -1027,13 +806,13 @@ export default function ProfilePage() {
           <div className="mt-8 text-center">
             <button
               onClick={() => {
-                loadAllDataWithRetry();
+                loadAllData();
                 loadBalances();
               }}
               disabled={loading}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
             >
-              {loading ? '⏳ Refreshing...' : '🔄 Refresh All Data'}
+              {loading ? 'Refreshing...' : 'Refresh All Data'}
             </button>
             <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
             {queriedAddresses.length > 0 && (
