@@ -88,6 +88,7 @@ export default function ProfilePage() {
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
   const [refreshMessage, setRefreshMessage] = useState<string>('');
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
+  const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
   const ITEMS_PER_PAGE = 12;
 
   // IPFS URL Resolver Function
@@ -111,21 +112,51 @@ export default function ProfilePage() {
   }, [walletAddress]);
 
   const handleAudioError = (id: string, audioUrl: string, error: any) => {
-    console.error(`Audio failed to load for ${id}:`, audioUrl);
-    console.error('Error details:', error);
+    console.error(`Audio failed to load for ${id}:`, {
+      url: audioUrl,
+      error: error.currentTarget?.error,
+      networkState: error.currentTarget?.networkState,
+      readyState: error.currentTarget?.readyState
+    });
     setAudioErrors(prev => ({
       ...prev,
       [id]: 'Failed to load audio'
     }));
+    setAudioLoading(prev => ({
+      ...prev,
+      [id]: false
+    }));
   };
 
   const handleAudioLoaded = (id: string, audioUrl?: string) => {
-    console.log(`Audio loaded successfully for ${id}:`, audioUrl);
+    console.log(`Audio loaded successfully for ${id}:`, {
+      url: audioUrl,
+      duration: 'loaded'
+    });
     setAudioErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[id];
       return newErrors;
     });
+    setAudioLoading(prev => ({
+      ...prev,
+      [id]: false
+    }));
+  };
+
+  const handleAudioCanPlay = (id: string) => {
+    console.log(`Audio can play for ${id}`);
+    setAudioLoading(prev => ({
+      ...prev,
+      [id]: false
+    }));
+  };
+
+  const handleAudioLoadStart = (id: string) => {
+    setAudioLoading(prev => ({
+      ...prev,
+      [id]: true
+    }));
   };
 
   const loadBalances = async () => {
@@ -361,7 +392,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">Music Note</div>
+          <div className="animate-spin text-4xl mb-4">🎵</div>
           <p className="text-gray-600">Loading your profile...</p>
         </div>
       </div>
@@ -372,7 +403,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">Warning</div>
+          <div className="text-6xl mb-4">⚠️</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
           <p className="text-gray-600 mb-6">
             This Mini App must be opened in Warpcast or another Farcaster client.
@@ -397,7 +428,7 @@ export default function ProfilePage() {
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                {user.username?.charAt(0).toUpperCase() || 'User'}
+                {user.username?.charAt(0).toUpperCase() || 'U'}
               </div>
             )}
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -414,7 +445,7 @@ export default function ProfilePage() {
           {isMobile && (
             <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
               <p className="text-blue-900 text-sm font-medium mb-1">
-                Mobile Wallet Connected
+                📱 Mobile Wallet Connected
               </p>
               <p className="text-blue-700 text-xs">
                 {walletAddress
@@ -432,7 +463,7 @@ export default function ProfilePage() {
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium">Warning {error}</p>
+              <p className="text-red-700 font-medium">⚠️ {error}</p>
               <button
                 onClick={loadAllData}
                 className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
@@ -453,7 +484,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    Your Artist Profile
+                    🎵 Your Artist Profile
                   </h3>
                   <p className="text-sm text-gray-700">
                     Share this link with fans so they can buy your music directly!
@@ -471,7 +502,7 @@ export default function ProfilePage() {
                   onClick={copyArtistLink}
                   className="px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition-all active:scale-95 touch-manipulation"
                 >
-                  Copy Link
+                  📋 Copy Link
                 </button>
               </div>
             </div>
@@ -485,7 +516,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-yellow-700">{balances.mon}</p>
                   <p className="text-xs text-gray-500 mt-1">Native Token</p>
                 </div>
-                <div className="text-3xl">Money</div>
+                <div className="text-3xl">💰</div>
               </div>
             </div>
             <div className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm">
@@ -495,7 +526,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-green-700">{balances.tours}</p>
                   <p className="text-xs text-gray-500 mt-1">EmpowerTours Token</p>
                 </div>
-                <div className="text-3xl">Ticket</div>
+                <div className="text-3xl">🎫</div>
               </div>
             </div>
           </div>
@@ -545,7 +576,7 @@ export default function ProfilePage() {
             {createdMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Music I Created</h2>
+                  <h2 className="text-xl font-bold text-gray-900">🎵 Music I Created</h2>
                   <span className="text-sm text-gray-500">
                     {createdMusic.length} total | Page {createdMusicPage} of {totalCreatedMusicPages || 1}
                   </span>
@@ -566,7 +597,7 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">Music Note</span>
+                          <span className="text-6xl">🎵</span>
                         </div>
                       )}
                       <div className="p-4 space-y-3">
@@ -585,13 +616,22 @@ export default function ProfilePage() {
                         </div>
                         {nft.audioUrl ? (
                           <div className="bg-white rounded-lg p-2 border border-blue-200">
+                            {audioLoading[`created_feed-${nft.id}`] && (
+                              <div className="text-center py-2">
+                                <div className="animate-spin inline-block text-xl">⏳</div>
+                                <p className="text-xs text-gray-500 mt-1">Loading audio...</p>
+                              </div>
+                            )}
                             <audio
                               controls
                               preload="metadata"
+                              crossOrigin="anonymous"
                               className="w-full"
                               style={{ height: '40px' }}
+                              onLoadStart={() => handleAudioLoadStart(`created_feed-${nft.id}`)}
                               onError={(e) => handleAudioError(`created_feed-${nft.id}`, nft.audioUrl || '', e)}
                               onLoadedMetadata={() => handleAudioLoaded(`created_feed-${nft.id}`, nft.audioUrl)}
+                              onCanPlay={() => handleAudioCanPlay(`created_feed-${nft.id}`)}
                             >
                               <source src={nft.audioUrl} type="audio/mpeg" />
                               <source src={nft.audioUrl} type="audio/mp3" />
@@ -600,17 +640,23 @@ export default function ProfilePage() {
                               Your browser does not support audio playback.
                             </audio>
                             {audioErrors[`created_feed-${nft.id}`] ? (
-                              <>
-                                <p className="text-xs text-red-500 text-center mt-1">
-                                  Warning {audioErrors[`created_feed-${nft.id}`]}
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs text-red-500 text-center">
+                                  ⚠️ {audioErrors[`created_feed-${nft.id}`]}
                                 </p>
-                                <p className="text-xs text-gray-400 text-center mt-1 break-all">
+                                <button
+                                  onClick={() => window.open(nft.audioUrl, '_blank')}
+                                  className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  Open Audio in New Tab
+                                </button>
+                                <p className="text-xs text-gray-400 text-center break-all">
                                   {nft.audioUrl}
                                 </p>
-                              </>
+                              </div>
                             ) : (
                               <p className="text-xs text-gray-500 text-center mt-1">
-                                Preview
+                                🎧 Preview
                               </p>
                             )}
                           </div>
@@ -673,7 +719,7 @@ export default function ProfilePage() {
             {purchasedMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Music I Purchased</h2>
+                  <h2 className="text-xl font-bold text-gray-900">🎧 Music I Purchased</h2>
                   <span className="text-sm text-gray-500">
                     {purchasedMusic.length} total | Page {purchasedMusicPage} of {totalPurchasedMusicPages || 1}
                   </span>
@@ -694,7 +740,7 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">Headphones</span>
+                          <span className="text-6xl">🎧</span>
                         </div>
                       )}
                       <div className="p-4 space-y-3">
@@ -713,13 +759,22 @@ export default function ProfilePage() {
                         </div>
                         {license.audioUrl ? (
                           <div className="bg-white rounded-lg p-2 border border-pink-200">
+                            {audioLoading[`purchased_feed-${license.id}`] && (
+                              <div className="text-center py-2">
+                                <div className="animate-spin inline-block text-xl">⏳</div>
+                                <p className="text-xs text-gray-500 mt-1">Loading audio...</p>
+                              </div>
+                            )}
                             <audio
                               controls
                               preload="metadata"
+                              crossOrigin="anonymous"
                               className="w-full"
                               style={{ height: '40px' }}
+                              onLoadStart={() => handleAudioLoadStart(`purchased_feed-${license.id}`)}
                               onError={(e) => handleAudioError(`purchased_feed-${license.id}`, license.audioUrl || '', e)}
                               onLoadedMetadata={() => handleAudioLoaded(`purchased_feed-${license.id}`, license.audioUrl)}
+                              onCanPlay={() => handleAudioCanPlay(`purchased_feed-${license.id}`)}
                             >
                               <source src={license.audioUrl} type="audio/mpeg" />
                               <source src={license.audioUrl} type="audio/mp3" />
@@ -728,17 +783,23 @@ export default function ProfilePage() {
                               Your browser does not support audio playback.
                             </audio>
                             {audioErrors[`purchased_feed-${license.id}`] ? (
-                              <>
-                                <p className="text-xs text-red-500 text-center mt-1">
-                                  Warning {audioErrors[`purchased_feed-${license.id}`]}
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs text-red-500 text-center">
+                                  ⚠️ {audioErrors[`purchased_feed-${license.id}`]}
                                 </p>
-                                <p className="text-xs text-gray-400 text-center mt-1 break-all">
+                                <button
+                                  onClick={() => window.open(license.audioUrl, '_blank')}
+                                  className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  Open Audio in New Tab
+                                </button>
+                                <p className="text-xs text-gray-400 text-center break-all">
                                   {license.audioUrl}
                                 </p>
-                              </>
+                              </div>
                             ) : (
                               <p className="text-xs text-gray-500 text-center mt-1">
-                                Full Track
+                                🎵 Full Track
                               </p>
                             )}
                           </div>
@@ -751,7 +812,7 @@ export default function ProfilePage() {
                         <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
                           {license.active ? (
                             <>
-                              <p className="text-xs text-green-600 font-bold mb-1">License Active</p>
+                              <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
                               {license.expiry && (
                                 <p className="text-xs text-gray-600">
                                   Expires: {new Date(Number(license.expiry) * 1000).toLocaleDateString()}
@@ -759,7 +820,7 @@ export default function ProfilePage() {
                               )}
                             </>
                           ) : (
-                            <p className="text-xs text-red-600 font-bold">License Expired</p>
+                            <p className="text-xs text-red-600 font-bold">❌ License Expired</p>
                           )}
                         </div>
                         <div className="flex gap-2">
@@ -805,7 +866,7 @@ export default function ProfilePage() {
             {/* Passports */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">My Travel Passports</h2>
+                <h2 className="text-xl font-bold text-gray-900">🛂 My Travel Passports</h2>
                 <span className="text-sm text-gray-500">
                   {passportNFTs.length} total | Page {passportPage} of {totalPassportPages || 1}
                 </span>
@@ -900,7 +961,7 @@ export default function ProfilePage() {
             {/* Itineraries */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">My Purchased Itineraries</h2>
+                <h2 className="text-xl font-bold text-gray-900">🗺️ My Purchased Itineraries</h2>
                 <span className="text-sm text-gray-500">
                   {purchasedItineraries.length} total
                 </span>
@@ -957,7 +1018,7 @@ export default function ProfilePage() {
               disabled={loading}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
             >
-              {loading ? 'Refreshing...' : 'Refresh All Data'}
+              {loading ? '⏳ Refreshing...' : '🔄 Refresh All Data'}
             </button>
             <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
             {queriedAddresses.length > 0 && (

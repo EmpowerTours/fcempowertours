@@ -40,36 +40,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Helper function to upload file to Pinata
-    const uploadFileToPinata = async (file: File, fileType: string) => {
-      const data = new FormData();
-      data.append('file', file);
+    // ✅ CRITICAL: Validate file sizes BEFORE upload
+    if (previewFile.size > 600 * 1024) {
+      return NextResponse.json({
+        success: false,
+        error: `Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB. Max 600KB. Please compress to MP3 format.`,
+      }, { status: 400 });
+    }
 
-      try {
-        const response = await axios.post(PINATA_API_URL, data, {
-          headers: {
-            'Authorization': `Bearer ${PINATA_JWT}`,
-          },
-        });
+    if (fullFile.size > 15 * 1024 * 1024) {
+      return NextResponse.json({
+        success: false,
+        error: `Full track too large: ${(fullFile.size / 1024 / 1024).toFixed(1)}MB. Max 15MB.`,
+      }, { status: 400 });
+    }
 
-        if (!response.data.IpfsHash) {
-          throw new Error(`No IPFS hash returned for ${fileType}`);
+    if (coverFile.size > 3 * 1024 * 1024) {
+      return NextResponse.json({
+        success: false,
+        error: `Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB. Max 3MB.`,
+      }, { status: 400 });
+    }
+
+    // ✅ IMPROVED: Helper function with retry logic and exponential backoff
+    const uploadFileToPinata = async (file: File, fileType: string, maxRetries = 3) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const data = new FormData();
+          data.append('file', file);
+
+          console.log(`📤 [Attempt ${attempt}/${maxRetries}] Uploading ${fileType} (${(file.size / 1024).toFixed(0)}KB)...`);
+
+          const response = await axios.post(PINATA_API_URL, data, {
+            headers: {
+              'Authorization': `Bearer ${PINATA_JWT}`,
+            },
+            timeout: 60000, // 60 second timeout
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
+
+          if (!response.data.IpfsHash) {
+            throw new Error(`No IPFS hash returned for ${fileType}`);
+          }
+
+          const hash = response.data.IpfsHash;
+          console.log(`✅ ${fileType} uploaded successfully: ${hash}`);
+          
+          // ✅ Validate hash format
+          if (!hash.startsWith('Qm') && !hash.startsWith('bafy')) {
+            console.warn(`⚠️ Unusual hash format for ${fileType}: ${hash}`);
+          }
+
+          return hash;
+        } catch (error: any) {
+          console.error(`❌ Attempt ${attempt} failed for ${fileType}:`, error.message);
+          
+          if (attempt === maxRetries) {
+            throw new Error(`Failed to upload ${fileType} after ${maxRetries} attempts: ${error.message}`);
+          }
+          
+          // Exponential backoff: 2s, 4s, 8s
+          const delay = Math.pow(2, attempt) * 1000;
+          console.log(`⏳ Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
-
-        // ✅ FIX: Ensure hash is uppercase (CIDv0 format)
-        const hash = response.data.IpfsHash;
-        console.log(`✅ ${fileType} uploaded: ${hash}`);
-        
-        // Validate hash format
-        if (!hash.startsWith('Qm') && !hash.startsWith('bafy')) {
-          console.warn(`⚠️ Unusual hash format for ${fileType}: ${hash}`);
-        }
-
-        return hash;
-      } catch (error) {
-        console.error(`❌ Failed to upload ${fileType}:`, error);
-        throw new Error(`Failed to upload ${fileType}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
+      
+      throw new Error(`Upload failed for ${fileType}`);
     };
 
     // Upload preview clip (for NFT animation_url)
@@ -115,10 +153,11 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${PINATA_JWT}`,
           'Content-Type': 'application/json',
         },
+        timeout: 30000, // 30 second timeout
       });
-    } catch (error) {
-      console.error('❌ Metadata upload failed:', error);
-      throw new Error(`Metadata upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (error: any) {
+      console.error('❌ Metadata upload failed:', error.message);
+      throw new Error(`Metadata upload failed: ${error.message}`);
     }
 
     if (!metadataResponse.data.IpfsHash) {
@@ -127,7 +166,7 @@ export async function POST(request: NextRequest) {
 
     const metadataCid = metadataResponse.data.IpfsHash;
     
-    // ✅ FIX: Validate hash format
+    // ✅ Validate hash format
     if (!metadataCid.startsWith('Qm') && !metadataCid.startsWith('bafy')) {
       console.warn(`⚠️ Unusual metadata hash format: ${metadataCid}`);
     }

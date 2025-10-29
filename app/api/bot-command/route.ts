@@ -7,6 +7,8 @@ export async function POST(req: NextRequest) {
     const { command, userAddress, location } = await req.json();
     console.log('Bot command received:', { command, userAddress, location });
 
+    // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
+    const originalCommand = command.trim();
     let lowerCommand = command.toLowerCase().trim().replace(/_/g, ' ');
 
     // ==================== HELP COMMAND ====================
@@ -463,7 +465,7 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       }
     }
 
-    // ==================== MINT MUSIC COMMAND (FIXED: multi-word + case-preserving IPFS) ====================
+    // ==================== MINT MUSIC COMMAND (FIXED: CID case preservation) ====================
     if (lowerCommand.includes('mint music')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -472,10 +474,10 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       }
       try {
-        // Extract original command to preserve case in tokenURI
-        const originalCommand = command.trim();
-        const regex = /mint music\s+(.+?)\s+(ipfs:\/\/[a-zA-Z0-9]{46})\s+([\d.]+)/i;
-        const match = originalCommand.match(regex); // Use original case
+        // ✅ CRITICAL: Use originalCommand to preserve CID case
+        const regex = /mint[_ ]music\s+(.+?)\s+(ipfs:\/\/[a-zA-Z0-9]{46,})\s+([\d.]+)/i;
+        const match = originalCommand.match(regex); // Use originalCommand, not lowerCommand!
+        
         if (!match) {
           return NextResponse.json({
             success: true,
@@ -488,14 +490,25 @@ Example:
 Or go to the Music page to upload files.`
           });
         }
+        
         const songTitle = match[1].trim();
-        const tokenURI = match[2]; // Preserves original case (e.g. QmABC...)
+        const tokenURI = match[2]; // ✅ Preserves case (QmABC... not qmabc...)
         const price = parseFloat(match[3]);
 
-        // DEBUG: Log CID case
-        console.log('TokenURI case:', {
-          original: tokenURI,
-          hasUppercase: tokenURI !== tokenURI.toLowerCase() ? 'HAS UPPERCASE (CORRECT)' : 'ALL LOWERCASE'
+        // ✅ Validate CID format
+        const cid = tokenURI.replace('ipfs://', '');
+        if (!cid.startsWith('Qm') && !cid.startsWith('bafy')) {
+          return NextResponse.json({
+            success: false,
+            message: `Invalid IPFS CID format: ${cid}. Must start with Qm or bafy`
+          });
+        }
+
+        console.log(`[BOT] Minting music with CASE-PRESERVED CID:`, {
+          songTitle,
+          tokenURI,
+          price,
+          cidCase: cid === cid.toLowerCase() ? 'LOWERCASE (BAD)' : 'MIXED CASE (GOOD)'
         });
 
         if (price <= 0 || price > 10) {
@@ -505,7 +518,6 @@ Or go to the Music page to upload files.`
           });
         }
 
-        console.log(`[BOT] Minting music NFT:`, { songTitle, tokenURI, price });
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
         if (!delegationData.success || !delegationData.delegation) {
@@ -532,7 +544,7 @@ Or go to the Music page to upload files.`
             action: 'mint_music',
             params: {
               songTitle,
-              tokenURI, // Case preserved!
+              tokenURI, // ✅ Case preserved!
               price: price.toString()
             }
           })

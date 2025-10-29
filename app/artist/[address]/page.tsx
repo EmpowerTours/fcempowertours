@@ -62,6 +62,7 @@ export default function ArtistProfilePage() {
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
   const [audioErrors, setAudioErrors] = useState<Record<number, string>>({});
+  const [audioLoading, setAudioLoading] = useState<Record<number, boolean>>({});
 
   // IPFS URL Resolver Function
   const resolveIPFS = (url: string): string => {
@@ -245,28 +246,58 @@ export default function ArtistProfilePage() {
   };
 
   const handleAudioError = (tokenId: number, audioUrl: string, error: any) => {
-    console.error(`Audio failed to load for track #${tokenId}:`, audioUrl);
-    console.error('Error details:', error);
+    console.error(`Audio failed to load for track #${tokenId}:`, {
+      url: audioUrl,
+      error: error.currentTarget?.error,
+      networkState: error.currentTarget?.networkState,
+      readyState: error.currentTarget?.readyState
+    });
     setAudioErrors(prev => ({
       ...prev,
-      [tokenId]: 'Failed to load audio preview'
+      [tokenId]: 'Failed to load audio'
+    }));
+    setAudioLoading(prev => ({
+      ...prev,
+      [tokenId]: false
     }));
   };
 
   const handleAudioLoaded = (tokenId: number, audioUrl: string) => {
-    console.log(`Audio loaded successfully for track #${tokenId}:`, audioUrl);
+    console.log(`Audio loaded successfully for track #${tokenId}:`, {
+      url: audioUrl,
+      duration: 'loaded'
+    });
     setAudioErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[tokenId];
       return newErrors;
     });
+    setAudioLoading(prev => ({
+      ...prev,
+      [tokenId]: false
+    }));
+  };
+
+  const handleAudioCanPlay = (tokenId: number) => {
+    console.log(`Audio can play for track #${tokenId}`);
+    setAudioLoading(prev => ({
+      ...prev,
+      [tokenId]: false
+    }));
+  };
+
+  const handleAudioLoadStart = (tokenId: number) => {
+    setAudioLoading(prev => ({
+      ...prev,
+      [tokenId]: true
+    }));
   };
 
   if (loading && artistMusic.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">Music Note</div>
+          <div className="animate-spin text-4xl mb-4">🎵</div>
           <p className="text-gray-600">Loading artist profile...</p>
         </div>
       </div>
@@ -287,7 +318,7 @@ export default function ArtistProfilePage() {
               />
             ) : (
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
-                Music Note
+                🎵
               </div>
             )}
             <div className="flex-1">
@@ -313,7 +344,7 @@ export default function ArtistProfilePage() {
           {isMobile && !walletAddress && (
             <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
               <p className="text-yellow-900 text-sm font-medium mb-2">
-                Mobile: Using Farcaster Wallet
+                📱 Mobile: Using Farcaster Wallet
               </p>
               <p className="text-yellow-700 text-xs">
                 Transactions will use your Farcaster custody address. Make sure it has TOURS tokens + MON for gas.
@@ -331,7 +362,7 @@ export default function ArtistProfilePage() {
           {walletAddress && (
             <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
               <p className="text-green-900 text-sm">
-                Connected:{' '}
+                ✅ Connected:{' '}
                 <span className="font-mono text-xs">
                   {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                 </span>
@@ -348,11 +379,11 @@ export default function ArtistProfilePage() {
         {/* Music Catalog */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            Music Catalog
+            🎵 Music Catalog
           </h2>
           {artistMusic.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl">
-              <div className="text-6xl mb-4">Music Note</div>
+              <div className="text-6xl mb-4">🎵</div>
               <p className="text-gray-600 text-lg">No music available yet</p>
               <p className="text-gray-500 text-sm mt-2">This artist hasn't minted any music NFTs</p>
             </div>
@@ -373,7 +404,7 @@ export default function ArtistProfilePage() {
                     </div>
                   ) : (
                     <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">
-                      <span className="text-7xl">Music Note</span>
+                      <span className="text-7xl">🎵</span>
                     </div>
                   )}
                   <div className="p-5 space-y-3">
@@ -387,13 +418,22 @@ export default function ArtistProfilePage() {
                     </div>
                     {music.metadata?.animation_url ? (
                       <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
+                        {audioLoading[music.tokenId] && (
+                          <div className="text-center py-2">
+                            <div className="animate-spin inline-block text-xl">⏳</div>
+                            <p className="text-xs text-gray-500 mt-1">Loading audio...</p>
+                          </div>
+                        )}
                         <audio
                           controls
                           preload="metadata"
+                          crossOrigin="anonymous"
                           className="w-full"
                           style={{ height: '40px' }}
+                          onLoadStart={() => handleAudioLoadStart(music.tokenId)}
                           onError={(e) => handleAudioError(music.tokenId, music.metadata?.animation_url || '', e)}
                           onLoadedMetadata={() => handleAudioLoaded(music.tokenId, music.metadata?.animation_url || '')}
+                          onCanPlay={() => handleAudioCanPlay(music.tokenId)}
                         >
                           <source src={music.metadata.animation_url} type="audio/mpeg" />
                           <source src={music.metadata.animation_url} type="audio/mp3" />
@@ -402,17 +442,26 @@ export default function ArtistProfilePage() {
                           Your browser does not support audio playback.
                         </audio>
                         {audioErrors[music.tokenId] ? (
-                          <>
-                            <p className="text-xs text-red-500 text-center mt-1">
-                              Warning {audioErrors[music.tokenId]}
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs text-red-500 text-center">
+                              ⚠️ {audioErrors[music.tokenId]}
                             </p>
-                            <p className="text-xs text-gray-400 text-center mt-1 break-all">
-                              URL: {music.metadata.animation_url}
+                            <button
+                              onClick={() => {
+                                // Try opening in new tab as fallback
+                                window.open(music.metadata?.animation_url, '_blank');
+                              }}
+                              className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
+                            >
+                              Open Audio in New Tab
+                            </button>
+                            <p className="text-xs text-gray-400 text-center break-all">
+                              {music.metadata.animation_url}
                             </p>
-                          </>
+                          </div>
                         ) : (
                           <p className="text-xs text-gray-500 text-center mt-1">
-                            Preview only - Buy to own full track
+                            🎧 Preview only - Buy to own full track
                           </p>
                         )}
                       </div>
@@ -445,10 +494,10 @@ export default function ArtistProfilePage() {
                         style={{ minHeight: '56px' }}
                       >
                         {buying === music.tokenId
-                          ? 'Processing...'
+                          ? '⏳ Processing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
-                          ? 'Your Own Track'
-                          : `Buy License (${music.price || '0.01'} TOURS)`}
+                          ? '✓ Your Own Track'
+                          : `💳 Buy License (${music.price || '0.01'} TOURS)`}
                       </button>
                       {music.txHash && (
                         <a
@@ -457,7 +506,7 @@ export default function ArtistProfilePage() {
                           rel="noopener noreferrer"
                           className="block text-center text-xs text-gray-500 hover:text-purple-600 mt-2"
                         >
-                          View TX
+                          View TX →
                         </a>
                       )}
                     </div>
@@ -470,16 +519,16 @@ export default function ArtistProfilePage() {
 
         {/* How It Works */}
         <div className="mt-12 p-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border-2 border-purple-200">
-          <h3 className="font-bold text-gray-900 mb-3">How Music Licenses Work:</h3>
+          <h3 className="font-bold text-gray-900 mb-3">💡 How Music Licenses Work:</h3>
           <ul className="space-y-2 text-sm text-gray-700">
-            <li>Preview: Listen to 30s preview for free</li>
-            <li>Buy License: Pay in TOURS tokens to access full track forever</li>
-            <li>Artist Royalties: 10% royalties on all sales go to the artist</li>
-            <li>Instant Access: Full track unlocked immediately after purchase</li>
-            <li>Payment: Uses TOURS tokens (not ETH) - swap MON for TOURS in Market</li>
+            <li>🎧 <strong>Preview:</strong> Listen to 30s preview for free</li>
+            <li>💳 <strong>Buy License:</strong> Pay in TOURS tokens to access full track forever</li>
+            <li>💰 <strong>Artist Royalties:</strong> 10% royalties on all sales go to the artist</li>
+            <li>⚡ <strong>Instant Access:</strong> Full track unlocked immediately after purchase</li>
+            <li>🪙 <strong>Payment:</strong> Uses TOURS tokens (not ETH) - swap MON for TOURS in Market</li>
           </ul>
           <p className="text-xs text-gray-600 mt-4">
-            Tip: Support artists directly! All purchases go straight to the artist's wallet.
+            💎 Tip: Support artists directly! All purchases go straight to the artist's wallet.
           </p>
         </div>
 
@@ -488,7 +537,7 @@ export default function ArtistProfilePage() {
             href="/profile"
             className="inline-block px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-all"
           >
-            Back to My Profile
+            ← Back to My Profile
           </Link>
         </div>
       </div>
