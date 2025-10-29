@@ -61,6 +61,20 @@ export default function ArtistProfilePage() {
   const [buying, setBuying] = useState<number | null>(null);
   const [audioErrors, setAudioErrors] = useState<Record<number, string>>({});
 
+  // ✅ FIX: Add IPFS URL resolver
+  const resolveIPFS = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('ipfs://')) {
+      return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
+    }
+    // If it's already an IPFS gateway URL but using a different gateway, normalize it
+    if (url.includes('/ipfs/')) {
+      const cid = url.split('/ipfs/')[1]?.split('?')[0]; // Remove query params
+      return `https://harlequin-used-hare-224.mypinata.cloud/ipfs/${cid}`;
+    }
+    return url;
+  };
+
   useEffect(() => {
     if (artistAddress && isAddress(artistAddress)) {
       loadArtistProfile();
@@ -180,6 +194,7 @@ export default function ArtistProfilePage() {
 
       const music = result.data?.MusicNFT || [];
 
+      // ✅ FIX: Resolve all IPFS URLs when mapping
       const artistMusicMapped = music.map((nft: MusicNFT) => ({
         tokenId: Number(nft.tokenId),
         tokenURI: nft.tokenURI,
@@ -187,11 +202,13 @@ export default function ArtistProfilePage() {
         txHash: nft.txHash,
         metadata: {
           name: nft.name,
-          image: nft.imageUrl,
-          animation_url: nft.previewAudioUrl,
+          image: resolveIPFS(nft.imageUrl), // ✅ Resolve IPFS URL
+          animation_url: resolveIPFS(nft.previewAudioUrl), // ✅ Resolve IPFS URL
         },
         price: (Number(nft.price) / 1e18).toFixed(6),
       }));
+      
+      console.log('✅ Loaded music with resolved URLs:', artistMusicMapped);
       setArtistMusic(artistMusicMapped);
     } catch (error: any) {
       console.error('Error loading artist profile:', error);
@@ -230,7 +247,7 @@ export default function ArtistProfilePage() {
   };
 
   const handleAudioError = (tokenId: number, audioUrl: string, error: any) => {
-    console.error(`Audio failed to load for track #${tokenId}:`, audioUrl);
+    console.error(`❌ Audio failed to load for track #${tokenId}:`, audioUrl);
     console.error('Error details:', error);
     setAudioErrors(prev => ({
       ...prev,
@@ -238,8 +255,8 @@ export default function ArtistProfilePage() {
     }));
   };
 
-  const handleAudioLoaded = (tokenId: number) => {
-    console.log(`Audio loaded successfully for track #${tokenId}`);
+  const handleAudioLoaded = (tokenId: number, audioUrl: string) => {
+    console.log(`✅ Audio loaded successfully for track #${tokenId}:`, audioUrl);
     setAudioErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[tokenId];
@@ -374,11 +391,11 @@ export default function ArtistProfilePage() {
                       <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
                         <audio
                           controls
-                          preload="none"
+                          preload="metadata"
                           className="w-full"
                           style={{ height: '40px' }}
                           onError={(e) => handleAudioError(music.tokenId, music.metadata?.animation_url || '', e)}
-                          onLoadedMetadata={() => handleAudioLoaded(music.tokenId)}
+                          onLoadedMetadata={() => handleAudioLoaded(music.tokenId, music.metadata?.animation_url || '')}
                         >
                           <source src={music.metadata.animation_url} type="audio/mpeg" />
                           <source src={music.metadata.animation_url} type="audio/mp3" />
@@ -387,17 +404,17 @@ export default function ArtistProfilePage() {
                           Your browser does not support audio playback.
                         </audio>
                         {audioErrors[music.tokenId] ? (
-                          <p className="text-xs text-red-500 text-center mt-1">
-                            ⚠️ {audioErrors[music.tokenId]}
-                          </p>
+                          <>
+                            <p className="text-xs text-red-500 text-center mt-1">
+                              ⚠️ {audioErrors[music.tokenId]}
+                            </p>
+                            <p className="text-xs text-gray-400 text-center mt-1 break-all">
+                              URL: {music.metadata.animation_url}
+                            </p>
+                          </>
                         ) : (
                           <p className="text-xs text-gray-500 text-center mt-1">
                             🎧 Preview only - Buy to own full track
-                          </p>
-                        )}
-                        {audioErrors[music.tokenId] && (
-                          <p className="text-xs text-gray-400 text-center mt-1 break-all">
-                            URL: {music.metadata.animation_url}
                           </p>
                         )}
                       </div>
