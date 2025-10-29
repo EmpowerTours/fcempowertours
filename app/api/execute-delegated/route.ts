@@ -6,20 +6,16 @@ import {
 } from '@/lib/delegation-system';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } from 'viem';
-
 export async function POST(req: NextRequest) {
   try {
     const { userAddress, action, params } = await req.json();
-
     if (!userAddress || !action) {
       return NextResponse.json(
         { success: false, error: 'Missing userAddress or action' },
         { status: 400 }
       );
     }
-
     console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
-
     const delegation = await getDelegation(userAddress);
     if (!delegation || delegation.expiresAt < Date.now()) {
       return NextResponse.json(
@@ -27,34 +23,28 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-
     if (!(await hasPermission(userAddress, action))) {
       return NextResponse.json(
         { success: false, error: `No permission for ${action}` },
         { status: 403 }
       );
     }
-
     if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
       return NextResponse.json(
         { success: false, error: 'Transaction limit reached' },
         { status: 403 }
       );
     }
-
-    console.log('✅ Delegation valid, transactions left:', 
+    console.log('✅ Delegation valid, transactions left:',
       delegation.config.maxTransactions - delegation.transactionsExecuted);
-
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
     const MUSIC_NFT_V4 = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address; // ✅ NEW v4 address
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     const MINT_PRICE = parseEther('10'); // 10 TOURS for passport mint
-
     switch (action) {
       case 'mint_passport':
         console.log('🎫 Action: mint_passport (batched approve + mint)');
-
         const mintCalls = [
           {
             to: TOURS_TOKEN,
@@ -84,13 +74,10 @@ export async function POST(req: NextRequest) {
             }) as Hex,
           },
         ];
-
         console.log('💳 Executing batched mint transaction...');
         const mintTxHash = await sendSafeTransaction(mintCalls);
-
         console.log('✅ Mint successful, TX:', mintTxHash);
         await incrementTransactionCount(userAddress);
-
         return NextResponse.json({
           success: true,
           txHash: mintTxHash,
@@ -98,25 +85,20 @@ export async function POST(req: NextRequest) {
           userAddress,
           message: `Passport minted successfully`,
         });
-
       case 'mint_music':
         console.log('🎵 Action: mint_music');
-        
         if (!params?.tokenURI || !params?.price) {
           return NextResponse.json(
             { success: false, error: 'Missing tokenURI or price for music mint' },
             { status: 400 }
           );
         }
-        
         const musicPrice = parseEther(params.price.toString());
-        
-        console.log('  Minting music NFT:', {
+        console.log(' Minting music NFT:', {
           artist: userAddress,
           price: params.price,
           tokenURI: params.tokenURI
         });
-
         const musicCalls = [
           {
             to: MUSIC_NFT_V4,
@@ -135,36 +117,30 @@ export async function POST(req: NextRequest) {
             }) as Hex,
           },
         ];
-
         console.log('💳 Executing music mint transaction...');
         const musicTxHash = await sendSafeTransaction(musicCalls);
-
         console.log('✅ Music mint successful, TX:', musicTxHash);
         await incrementTransactionCount(userAddress);
-
         return NextResponse.json({
           success: true,
           txHash: musicTxHash,
           action,
           userAddress,
+          songTitle: params.songTitle || 'Untitled',
           price: params.price,
-          message: `Music NFT minted successfully`,
+          message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS`,
         });
-
       case 'buy_music':
         console.log('🎵 Action: buy_music (batched approve + purchaseLicenseFor)');
-        
         if (!params?.tokenId) {
           return NextResponse.json(
             { success: false, error: 'Missing tokenId for buy_music' },
             { status: 400 }
           );
         }
-        
         const tokenId = BigInt(params.tokenId);
-        console.log('  Token:', tokenId.toString());
-        console.log('  Licensee:', userAddress);
-
+        console.log(' Token:', tokenId.toString());
+        console.log(' Licensee:', userAddress);
         const buyCalls = [
           {
             to: TOURS_TOKEN,
@@ -187,13 +163,10 @@ export async function POST(req: NextRequest) {
             }) as Hex,
           },
         ];
-
         console.log('💳 Executing batched music purchase transaction...');
         const buyTxHash = await sendSafeTransaction(buyCalls);
-
         console.log('✅ Music purchase successful, TX:', buyTxHash);
         await incrementTransactionCount(userAddress);
-
         return NextResponse.json({
           success: true,
           txHash: buyTxHash,
@@ -202,17 +175,14 @@ export async function POST(req: NextRequest) {
           tokenId: tokenId.toString(),
           message: `Music license purchased for ${userAddress}`,
         });
-
       case 'send_tours':
         console.log('💸 Action: send_tours');
-        
         if (!params?.recipient || !params?.amount) {
           return NextResponse.json(
             { success: false, error: 'Missing recipient or amount for send_tours' },
             { status: 400 }
           );
         }
-        
         // Validate recipient address
         if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
           return NextResponse.json(
@@ -220,10 +190,8 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        
         const sendAmount = parseEther(params.amount.toString());
-        console.log('  Sending:', sendAmount.toString(), 'TOURS to', params.recipient);
-
+        console.log(' Sending:', sendAmount.toString(), 'TOURS to', params.recipient);
         const sendCalls = [
           {
             to: TOURS_TOKEN,
@@ -235,13 +203,10 @@ export async function POST(req: NextRequest) {
             }) as Hex,
           },
         ];
-
         console.log('💳 Executing TOURS transfer transaction...');
         const sendTxHash = await sendSafeTransaction(sendCalls);
-
         console.log('✅ TOURS sent successfully, TX:', sendTxHash);
         await incrementTransactionCount(userAddress);
-
         return NextResponse.json({
           success: true,
           txHash: sendTxHash,
@@ -251,13 +216,10 @@ export async function POST(req: NextRequest) {
           amount: params.amount,
           message: `Sent ${params.amount} TOURS successfully`,
         });
-
       case 'swap_mon_for_tours':
         console.log('💱 Action: swap_mon_for_tours');
-        
         const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1');
-        console.log('  Swapping:', monAmount.toString(), 'wei MON');
-
+        console.log(' Swapping:', monAmount.toString(), 'wei MON');
         const swapCalls = [
           {
             to: TOKEN_SWAP,
@@ -269,13 +231,10 @@ export async function POST(req: NextRequest) {
             }) as Hex,
           },
         ];
-
         console.log('💳 Executing swap transaction...');
         const swapTxHash = await sendSafeTransaction(swapCalls);
-
         console.log('✅ Swap successful, TX:', swapTxHash);
         await incrementTransactionCount(userAddress);
-
         return NextResponse.json({
           success: true,
           txHash: swapTxHash,
@@ -284,20 +243,17 @@ export async function POST(req: NextRequest) {
           monAmount: monAmount.toString(),
           message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
         });
-
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
           { status: 400 }
         );
     }
-
   } catch (error: any) {
     console.error('❌ [DELEGATED] Execution error:', error.message);
-    
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: error.message || 'Failed to execute action',
         action: 'execute_delegated',
       },

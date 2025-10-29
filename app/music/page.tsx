@@ -1,13 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-
 // ✅ Uses env var which should be updated
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
-
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
-  
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -16,10 +13,8 @@ export default function MusicPage() {
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ tokenId: number; txHash: string } | null>(null);
-  
+  const [success, setSuccess] = useState<{ tokenId: number; txHash: string; songTitle: string; price: string } | null>(null);
   const farcasterFid = user?.fid || 0;
-
   const handleFileChange =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,7 +24,6 @@ export default function MusicPage() {
         setter(file);
       }
     };
-
   const uploadAndMint = async () => {
     if (previewFile && previewFile.size > 600 * 1024) {
       setError(`Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`);
@@ -52,19 +46,16 @@ export default function MusicPage() {
       setError(`Please fill all fields: ${missing.join(', ')}`);
       return;
     }
-
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum <= 0 || priceNum > 10) {
       setError('Price must be between 0.001 and 10 TOURS'); // ✅ FIXED: Say TOURS
       return;
     }
-
     if (!walletAddress) {
       setError('Please connect your wallet first');
       await requestWallet();
       return;
     }
-
     setUploading(true);
     setError(null);
     try {
@@ -75,27 +66,21 @@ export default function MusicPage() {
       formData.append('description', songTitle); // ✅ FIXED: Use songTitle for description
       formData.append('address', walletAddress);
       formData.append('fid', farcasterFid?.toString() || '0');
-
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
-
       if (!uploadRes.ok) {
         const errorData = await uploadRes.json();
         throw new Error(errorData.error || 'Upload failed');
       }
-
       const uploadData = await uploadRes.json();
       const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
-
       setUploading(false);
       setMinting(true);
-
       // ✅ FIXED: Use bot delegation system for music minting (avoids gas fee issues)
       // This follows the same pattern as swaps - gasless transactions via delegation
       const command = `mint_music ${songTitle.slice(0, 50)} ${tokenURI} ${price}`;
-
       const mintRes = await fetch('/api/bot-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,23 +90,18 @@ export default function MusicPage() {
           location: null,
         }),
       });
-
       const mintData = await mintRes.json();
-
       if (!mintData.success) {
         throw new Error(mintData.error || mintData.message || 'Mint failed');
       }
-
       // Extract tokenId and txHash from bot response
-      const tokenId = mintData.tokenId || Math.floor(Math.random() * 10000);
+      const tokenId = mintData.tokenId ? parseInt(mintData.tokenId) : Math.floor(Math.random() * 10000);
       const txHash = mintData.txHash || '';
-
-      setSuccess({ tokenId, txHash });
-
+      setSuccess({ tokenId, txHash, songTitle, price });
       setPreviewFile(null);
       setFullFile(null);
       setCoverFile(null);
-      setSongTitle(''); // ✅ FIXED: Reset songTitle
+      setSongTitle('');
       setPrice('0.01');
     } catch (err: any) {
       console.error('❌ Error:', err);
@@ -131,15 +111,12 @@ export default function MusicPage() {
       setMinting(false);
     }
   };
-
   if (contextLoading) {
     return null;
   }
-
   if (!user && !contextLoading) {
     console.warn('⚠️ No Farcaster user detected');
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
@@ -167,7 +144,6 @@ export default function MusicPage() {
               <p className="text-sm font-bold text-green-900">✨ FREE Mint! We pay the gas fees</p>
             </div>
           </div>
-
           {user ? (
             <div className="mb-6 p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-purple-900">
@@ -192,13 +168,11 @@ export default function MusicPage() {
               </p>
             </div>
           )}
-
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
               <p className="text-red-700 font-medium">❌ {error}</p>
             </div>
           )}
-
           {success && (
             <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
               <p className="text-green-700 font-bold text-lg mb-2">🎉 Music NFT Minted!</p>
@@ -207,10 +181,10 @@ export default function MusicPage() {
                   <strong>Token ID:</strong> #{success.tokenId}
                 </p>
                 <p className="text-green-700">
-                  <strong>Song:</strong> {songTitle || 'Untitled'}
+                  <strong>Song:</strong> {success.songTitle || 'Untitled'}
                 </p>
                 <p className="text-green-700">
-                  <strong>Price:</strong> {price} TOURS per license {/* ✅ FIXED: Say TOURS */}
+                  <strong>Price:</strong> {success.price} TOURS per license {/* ✅ FIXED: Say TOURS */}
                 </p>
                 {success.txHash && (
                   <a
@@ -225,7 +199,6 @@ export default function MusicPage() {
               </div>
             </div>
           )}
-
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Song Title *</label>
@@ -239,7 +212,6 @@ export default function MusicPage() {
               />
               <p className="text-xs text-gray-500 mt-1">{songTitle.length}/200 characters</p>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 License Price (TOURS) * {/* ✅ FIXED: Say TOURS */}
@@ -287,7 +259,6 @@ export default function MusicPage() {
                 </button>
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Preview Audio (30s clip) *
@@ -308,7 +279,6 @@ export default function MusicPage() {
               )}
               <p className="text-xs text-gray-500 mt-1">Max 600KB (~30 seconds) - Public preview</p>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Full Track *</label>
               <input
@@ -327,7 +297,6 @@ export default function MusicPage() {
               )}
               <p className="text-xs text-gray-500 mt-1">Max 15MB - Only license owners can access</p>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Cover Art *</label>
               <input
@@ -350,7 +319,6 @@ export default function MusicPage() {
               )}
               <p className="text-xs text-gray-500 mt-1">JPG, PNG, or WebP - Max 3MB</p>
             </div>
-
             <button
               onClick={uploadAndMint}
               disabled={
@@ -371,7 +339,6 @@ export default function MusicPage() {
                 ? '⚡ Minting NFT (FREE)...'
                 : `🎵 Mint for ${price} TOURS (FREE for you!)`} {/* ✅ FIXED: Say TOURS */}
             </button>
-
             {!walletAddress && (
               <button
                 onClick={requestWallet}
@@ -382,7 +349,6 @@ export default function MusicPage() {
               </button>
             )}
           </div>
-
           <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900 font-medium mb-2">
               💡 How Music NFT Pricing Works:

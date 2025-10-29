@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-
 export async function POST(req: NextRequest) {
   try {
     const { command, userAddress, location } = await req.json();
-
     console.log('🤖 Bot command received:', { command, userAddress, location });
-
-    const lowerCommand = command.toLowerCase().trim();
-
+    let lowerCommand = command.toLowerCase().trim().replace(/_/g, ' ');
     // ==================== HELP COMMAND ====================
     if (lowerCommand === 'help') {
       return NextResponse.json({
         success: true,
         action: 'info',
         message: `🤖 EmpowerTours AI Agent
-
 📍 Navigation:
 - "go to passport" - Mint travel passport
 - "go to music" - Mint music NFT
 - "go to profile" - View your NFTs
 - "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
-
 💰 Transactions (Gasless - We Pay!):
 - "swap 0.1 mon" - Swap MON for TOURS tokens
 - "mint passport" - Mint a passport NFT (FREE)
@@ -31,16 +24,13 @@ export async function POST(req: NextRequest) {
 - "send <amount> tours to @username" - Send TOURS to another user
 - "buy music <tokenId>" - Buy a music license
 - "check balance" - Check your MON/TOURS balance
-
 💬 Info:
 - "help" - Show this message
 - "status" - Check wallet connection
 - "about" - Learn about EmpowerTours
-
 ✨ All transactions are FREE - we pay the gas!`
       });
     }
-
     // ==================== STATUS COMMAND ====================
     if (lowerCommand === 'status' || lowerCommand === 'check status') {
       return NextResponse.json({
@@ -48,39 +38,31 @@ export async function POST(req: NextRequest) {
         action: 'info',
         message: userAddress
           ? `✅ Wallet Connected
-
 Address: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}
-
 💡 You can execute gasless transactions via our bot!
 Try: "swap 0.1 mon" or "mint passport"`
           : `❌ Wallet Not Connected
-
 Please connect your wallet first by visiting your profile.
 Try: "go to profile"`
       });
     }
-
     // ==================== ABOUT COMMAND ====================
     if (lowerCommand === 'about' || lowerCommand === 'info') {
       return NextResponse.json({
         success: true,
         action: 'info',
         message: `🌍 EmpowerTours
-
 A Farcaster Mini App for:
 - 🎫 Minting travel passport NFTs (195 countries!)
 - 🎵 Minting music NFTs (with royalties)
 - 🛒 Trading itineraries on marketplace
 - 💱 Swapping MON ↔ TOURS tokens
-
 Built on Monad Testnet
 Powered by Envio Indexer
 ✨ All minting is FREE - we pay gas!
-
 Try "help" to see all commands!`
       });
     }
-
     // ==================== BALANCE CHECK ====================
     if (lowerCommand.includes('balance') || lowerCommand === 'check balance') {
       if (!userAddress) {
@@ -89,25 +71,20 @@ Try "help" to see all commands!`
           message: '❌ Please connect your wallet first. Try: "go to profile"'
         });
       }
-
       try {
         const response = await fetch(`${APP_URL}/api/get-balances`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ address: userAddress }),
         });
-
         const data = await response.json();
-
         return NextResponse.json({
           success: true,
           action: 'info',
           message: `💰 Your Balances
-
 MON: ${data.mon || '0.0000'} MON
 TOURS: ${data.tours || '0'} TOURS
 NFTs: ${data.nfts?.totalNFTs || 0} total
-
 Address: ${userAddress.slice(0, 10)}...`
         });
       } catch (err: any) {
@@ -117,42 +94,33 @@ Address: ${userAddress.slice(0, 10)}...`
         });
       }
     }
-
     // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION) ====================
     if (lowerCommand.includes('buy music')) {
       console.log('🎵 Action: buy_music');
-
       if (!userAddress) {
         return NextResponse.json({
           success: false,
           message: '❌ Wallet not connected. Try: "go to profile"'
         });
       }
-
       const tokenIdMatch = lowerCommand.match(/buy music (\d+)/);
       const tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
-
       if (!tokenId) {
-        return NextResponse.json({ 
-          success: false, 
-          message: '❌ Invalid format. Use: "buy music <tokenId>"' 
+        return NextResponse.json({
+          success: false,
+          message: '❌ Invalid format. Use: "buy music <tokenId>"'
         });
       }
-
       try {
         console.log(`🎵 [BOT] Buying music license for token ${tokenId}`);
-
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
-
         const hasValidDelegation = delegationData.success &&
                                   delegationData.delegation &&
                                   Array.isArray(delegationData.delegation.permissions) &&
                                   delegationData.delegation.permissions.includes('buy_music');
-
         if (!hasValidDelegation) {
           console.warn('⚠️ [BOT] No delegation with buy_music permission - creating one...');
-
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -163,15 +131,12 @@ Address: ${userAddress.slice(0, 10)}...`
               permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music']
             })
           });
-
           const createData = await createRes.json();
           if (!createData.success) {
             throw new Error('Failed to create delegation: ' + createData.error);
           }
-
           console.log('✅ [BOT] Delegation created with buy_music permission');
         }
-
         const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -183,27 +148,19 @@ Address: ${userAddress.slice(0, 10)}...`
             }
           })
         });
-
         const buyData = await buyRes.json();
-
         if (!buyData.success) {
           throw new Error(buyData.error || 'Purchase failed');
         }
-
         console.log('✅ Music purchased:', buyData.txHash);
-
         return NextResponse.json({
           success: true,
           txHash: buyData.txHash, // ✅ ADDED
           action: 'buy_music',
           message: `🎵 Music License Purchased (FREE)!
-
 Track #${tokenId} is now yours!
-
 TX: ${buyData.txHash?.slice(0, 10)}...
-
 ⚡ Gasless - we paid the gas!
-
 View: https://testnet.monadscan.com/tx/${buyData.txHash}`
         });
       } catch (error: any) {
@@ -214,7 +171,6 @@ View: https://testnet.monadscan.com/tx/${buyData.txHash}`
         });
       }
     }
-
     // ==================== SWAP COMMAND (GASLESS VIA DELEGATION) ====================
     if (lowerCommand.includes('swap') && lowerCommand.includes('mon')) {
       if (!userAddress) {
@@ -223,31 +179,24 @@ View: https://testnet.monadscan.com/tx/${buyData.txHash}`
           message: '❌ Wallet not connected. Try: "go to profile"'
         });
       }
-
       const match = lowerCommand.match(/([\d.]+)\s*mon/);
       const amount = match ? parseFloat(match[1]) : 0.1;
-
       if (amount <= 0 || amount > 10) {
         return NextResponse.json({
           success: false,
           message: '❌ Invalid amount. Please use 0.01 - 10 MON'
         });
       }
-
       try {
         console.log(`💱 Executing swap via delegation: ${amount} MON for user ${userAddress}`);
-
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
-
         const hasValidDelegation = delegationData.success &&
                                   delegationData.delegation &&
                                   Array.isArray(delegationData.delegation.permissions) &&
                                   delegationData.delegation.permissions.includes('swap_mon_for_tours');
-
         if (!hasValidDelegation) {
           console.warn('⚠️ [BOT] No delegation with swap_mon_for_tours permission - creating one...');
-
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -258,15 +207,12 @@ View: https://testnet.monadscan.com/tx/${buyData.txHash}`
               permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
             })
           });
-
           const createData = await createRes.json();
           if (!createData.success) {
             throw new Error('Failed to create delegation: ' + createData.error);
           }
-
           console.log('✅ [BOT] Delegation created with swap_mon_for_tours permission');
         }
-
         const swapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -278,28 +224,20 @@ View: https://testnet.monadscan.com/tx/${buyData.txHash}`
             }
           })
         });
-
         const swapData = await swapRes.json();
-
         if (!swapData.success) {
           throw new Error(swapData.error || 'Swap failed');
         }
-
         console.log('✅ Swap successful:', swapData.txHash);
-
         // ✅ FIXED: Return txHash in response
         return NextResponse.json({
           success: true,
           txHash: swapData.txHash, // ✅ ADDED
           action: 'transaction',
           message: `✅ Swap Complete (FREE)!
-
 ${amount} MON → ${amount} TOURS tokens
-
 TX: ${swapData.txHash?.slice(0, 10)}...
-
 ⚡ Gasless - we paid the gas!
-
 View: https://testnet.monadscan.com/tx/${swapData.txHash}`
         });
       } catch (error: any) {
@@ -310,7 +248,6 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
         });
       }
     }
-
     // ==================== SEND TOURS COMMAND ====================
     if (lowerCommand.includes('send') && lowerCommand.includes('tours')) {
       if (!userAddress) {
@@ -319,28 +256,23 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
           message: '❌ Wallet not connected. Try: "go to profile"'
         });
       }
-
       try {
         const amountMatch = lowerCommand.match(/send\s+([\d.]+)\s+tours/);
         const recipientMatch = lowerCommand.match(/to\s+(@[\w]+|0x[a-fA-F0-9]{40})/);
-
         if (!amountMatch || !recipientMatch) {
           return NextResponse.json({
             success: false,
             message: '❌ Invalid format. Use: "send 10 tours to @username" or "send 10 tours to 0x..."'
           });
         }
-
         const amount = parseFloat(amountMatch[1]);
         let recipient = recipientMatch[1];
-
         if (amount <= 0 || amount > 10000) {
           return NextResponse.json({
             success: false,
             message: '❌ Invalid amount. Please use 0.01 - 10000 TOURS'
           });
         }
-
         if (recipient.startsWith('@')) {
           console.log('🔍 Resolving Farcaster username:', recipient);
           try {
@@ -353,16 +285,12 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
                 },
               }
             );
-
             if (!neynarRes.ok) {
               throw new Error(`User @${username} not found on Farcaster (HTTP ${neynarRes.status})`);
             }
-
             const neynarData = await neynarRes.json();
             const userData = neynarData.result?.user || neynarData.user || neynarData;
-
             let ethAddresses = null;
-
             if (userData.verified_addresses?.eth_addresses) {
               ethAddresses = userData.verified_addresses.eth_addresses;
             } else if (userData.verifiedAddresses?.eth_addresses) {
@@ -374,7 +302,6 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
             } else if (userData.custodyAddress) {
               ethAddresses = [userData.custodyAddress];
             }
-
             if (ethAddresses && ethAddresses.length > 0) {
               recipient = ethAddresses[0];
               console.log('✅ Resolved @' + username + ' to:', recipient);
@@ -388,24 +315,19 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
             });
           }
         }
-
         if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
           return NextResponse.json({
             success: false,
             message: '❌ Invalid recipient address format'
           });
         }
-
         console.log(`💸 Sending ${amount} TOURS to ${recipient}`);
-
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
-
         const hasValidDelegation = delegationData.success &&
                                   delegationData.delegation &&
                                   Array.isArray(delegationData.delegation.permissions) &&
                                   delegationData.delegation.permissions.includes('send_tours');
-
         if (!hasValidDelegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
@@ -417,13 +339,11 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
               permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'buy_music']
             })
           });
-
           const createData = await createRes.json();
           if (!createData.success) {
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
-
         const sendRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -436,27 +356,19 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
             }
           })
         });
-
         const sendData = await sendRes.json();
-
         if (!sendData.success) {
           throw new Error(sendData.error || 'Send failed');
         }
-
         console.log('✅ TOURS sent:', sendData.txHash);
-
         return NextResponse.json({
           success: true,
           txHash: sendData.txHash, // ✅ ADDED
           action: 'transaction',
           message: `💸 Sent ${amount} TOURS! (FREE)
-
 To: ${recipient.slice(0, 6)}...${recipient.slice(-4)}
-
 TX: ${sendData.txHash?.slice(0, 10)}...
-
 ⚡ Gasless - we paid the fees!
-
 View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         });
       } catch (error: any) {
@@ -467,7 +379,6 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         });
       }
     }
-
     // ==================== MINT PASSPORT COMMAND ====================
     if (lowerCommand.includes('mint passport')) {
       if (!userAddress) {
@@ -476,13 +387,10 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
           message: '❌ Wallet not connected. Try: "go to profile"'
         });
       }
-
       try {
         console.log('🎫 [BOT] Minting passport for:', userAddress);
-
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
-
         if (!delegationData.success || !delegationData.delegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
@@ -494,16 +402,13 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
               permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
-
           const createData = await createRes.json();
           if (!createData.success) {
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
-
         let countryCode = 'US';
         let countryName = 'United States';
-
         try {
           const geoRes = await fetch(`${APP_URL}/api/geo`);
           const geoData = await geoRes.json();
@@ -512,7 +417,6 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         } catch (geoErr) {
           console.warn('⚠️ Location detection failed, using default');
         }
-
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -525,27 +429,19 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
             }
           })
         });
-
         const mintData = await mintRes.json();
-
         if (!mintData.success) {
           throw new Error(mintData.error || 'Mint failed');
         }
-
         console.log('✅ [BOT] Passport minted:', mintData.txHash);
-
         return NextResponse.json({
           success: true,
           txHash: mintData.txHash, // ✅ ADDED
           action: 'transaction',
           message: `🎫 Passport Minted (FREE)!
-
 ${countryCode} ${countryName}
-
 TX: ${mintData.txHash?.slice(0, 10)}...
-
 ⚡ Gasless transaction - we paid the gas!
-
 View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       } catch (error: any) {
@@ -556,7 +452,6 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       }
     }
-
     // ==================== MINT MUSIC COMMAND (with parsing fix) ====================
     if (lowerCommand.includes('mint music')) {
       if (!userAddress) {
@@ -565,45 +460,35 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
           message: '❌ Wallet not connected. Try: "go to profile"'
         });
       }
-
       try {
         // ✅ FIXED: Parse multi-word song names properly
         // Format: mint music <Song Name> <ipfs://...> <price>
         const regex = /mint music\s+(.+?)\s+(ipfs:\/\/\S+)\s+([\d.]+)/i;
         const match = lowerCommand.match(regex);
-
         if (!match) {
           return NextResponse.json({
             success: true,
             action: 'info',
             message: `🎵 Music NFT Minting
-
 To mint music, use:
 "mint music <Song Name> <ipfs://metadata> <price>"
-
 Example:
 "mint music My First Song ipfs://QmXXX... 1"
-
 Or go to the Music page to upload files.`
           });
         }
-
-        const songName = match[1].trim();
+        const songTitle = match[1].trim();
         const tokenURI = match[2];
         const price = parseFloat(match[3]);
-
         if (price <= 0 || price > 10) {
           return NextResponse.json({
             success: false,
             message: '❌ Invalid price. Use: 0.001 - 10 TOURS'
           });
         }
-
-        console.log(`🎵 [BOT] Minting music NFT:`, { songName, tokenURI, price });
-
+        console.log(`🎵 [BOT] Minting music NFT:`, { songTitle, tokenURI, price });
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
-
         if (!delegationData.success || !delegationData.delegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
@@ -615,13 +500,11 @@ Or go to the Music page to upload files.`
               permissions: ['mint_music', 'mint_passport', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
-
           const createData = await createRes.json();
           if (!createData.success) {
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
-
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -629,34 +512,26 @@ Or go to the Music page to upload files.`
             userAddress,
             action: 'mint_music',
             params: {
-              songName,
+              songTitle,
               tokenURI,
               price: price.toString()
             }
           })
         });
-
         const mintData = await mintRes.json();
-
         if (!mintData.success) {
           throw new Error(mintData.error || 'Mint failed');
         }
-
         console.log('✅ [BOT] Music NFT minted:', mintData.txHash);
-
         return NextResponse.json({
           success: true,
           txHash: mintData.txHash, // ✅ ADDED
           action: 'transaction',
           message: `🎵 Music NFT Minted (FREE)!
-
-Song: ${songName}
+Song: ${songTitle}
 Price: ${price} TOURS per license
-
 TX: ${mintData.txHash?.slice(0, 10)}...
-
 ⚡ Gasless - we paid the gas!
-
 View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       } catch (error: any) {
@@ -667,7 +542,6 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       }
     }
-
     // ==================== NAVIGATION COMMANDS ====================
     const navCommands: Record<string, string> = {
       'go to passport': '/passport',
@@ -686,7 +560,6 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       'go home': '/',
       'home': '/',
     };
-
     for (const [cmd, path] of Object.entries(navCommands)) {
       if (lowerCommand.includes(cmd)) {
         return NextResponse.json({
@@ -697,15 +570,12 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       }
     }
-
     // ==================== UNKNOWN COMMAND ====================
     return NextResponse.json({
       success: false,
       message: `❌ Command not recognized: "${command}"
-
 Try "help" to see all available commands!`
     });
-
   } catch (error: any) {
     console.error('❌ Bot command error:', error);
     return NextResponse.json({
