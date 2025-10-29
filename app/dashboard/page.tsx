@@ -341,7 +341,7 @@ export default function DashboardPage() {
                           )}
                           {item.price && (
                             <p className="text-xs text-orange-600 font-semibold">
-                              💰 {item.price} TOURS
+                              💰 {(Number(item.price) / 1e18).toFixed(2)} TOURS
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">
@@ -383,7 +383,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {recentMusicPurchases.map((item, idx) => {
-                    const expiryDate = new Date(item.expiry);
+                    const expiryDate = new Date(Number(item.expiry) * 1000);
                     const isExpired = expiryDate < new Date();
                     return (
                       <div
@@ -406,7 +406,7 @@ export default function DashboardPage() {
                             )}
                             {item.masterToken?.price && (
                               <p className="text-xs text-orange-600 font-semibold">
-                                💰 {item.masterToken.price} TOURS
+                                💰 {(Number(item.masterToken.price) / 1e18).toFixed(2)} TOURS
                               </p>
                             )}
                             <p className="text-xs text-gray-500 mt-1">
