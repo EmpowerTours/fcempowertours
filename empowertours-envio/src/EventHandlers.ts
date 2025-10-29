@@ -4,7 +4,7 @@ import {
   Marketplace,
 } from "generated";
 
-// ✅ NEW: Type definition for metadata
+// ✅ Type definition for metadata
 interface MusicMetadata {
   name?: string;
   description?: string;
@@ -14,18 +14,24 @@ interface MusicMetadata {
   attributes?: Array<{ trait_type: string; value: any }>;
 }
 
-// ✅ NEW: Helper function to resolve IPFS URLs
-const PINATA_GATEWAY = "harlequin-used-hare-224.mypinata.cloud";
+// ✅ IMPROVED: Multiple gateway fallbacks
+const GATEWAYS = [
+  "harlequin-used-hare-224.mypinata.cloud",
+  "gateway.pinata.cloud",
+  "ipfs.io",
+  "dweb.link",
+];
 
-function resolveIPFS(url: string): string {
+function resolveIPFS(url: string, gatewayIndex: number = 0): string {
   if (!url) return "";
   if (url.startsWith("ipfs://")) {
-    return url.replace("ipfs://", `https://${PINATA_GATEWAY}/ipfs/`);
+    const gateway = GATEWAYS[gatewayIndex] || GATEWAYS[0];
+    return url.replace("ipfs://", `https://${gateway}/ipfs/`);
   }
   return url;
 }
 
-// ✅ NEW: Fetch metadata from IPFS with proper return type
+// ✅ IMPROVED: Fetch metadata with retry and multiple gateways
 async function fetchMetadata(tokenURI: string, context: any): Promise<{
   name: string;
   description: string;
@@ -33,39 +39,74 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
   previewAudioUrl: string;
   fullAudioUrl: string;
 } | null> {
-  try {
-    const metadataUrl = resolveIPFS(tokenURI);
-    context.log.info(`📦 Fetching metadata from: ${metadataUrl}`);
-    
-    const response = await fetch(metadataUrl, {
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-    
-    if (!response.ok) {
-      context.log.warn(`⚠️ Metadata fetch failed: HTTP ${response.status}`);
-      return null;
+  
+  // Try each gateway in sequence
+  for (let gatewayIndex = 0; gatewayIndex < GATEWAYS.length; gatewayIndex++) {
+    try {
+      const metadataUrl = resolveIPFS(tokenURI, gatewayIndex);
+      const gateway = GATEWAYS[gatewayIndex];
+      
+      context.log.info(`📦 [Gateway ${gatewayIndex + 1}/${GATEWAYS.length}] Fetching from ${gateway}...`);
+      context.log.info(`   URL: ${metadataUrl}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const response = await fetch(metadataUrl, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        context.log.warn(`⚠️ Gateway ${gateway} returned HTTP ${response.status}`);
+        continue; // Try next gateway
+      }
+      
+      const metadata = await response.json() as MusicMetadata;
+      
+      context.log.info(`✅ Metadata fetched from ${gateway}:`, {
+        name: metadata.name,
+        hasImage: !!metadata.image,
+        hasAnimationUrl: !!metadata.animation_url,
+        hasExternalUrl: !!metadata.external_url,
+      });
+      
+      // ✅ CRITICAL: Log the raw URLs before resolving
+      context.log.info(`📝 Raw metadata URLs:`, {
+        image: metadata.image,
+        animation_url: metadata.animation_url,
+        external_url: metadata.external_url,
+      });
+      
+      const result = {
+        name: metadata.name || "",
+        description: metadata.description || "",
+        imageUrl: resolveIPFS(metadata.image || "", gatewayIndex),
+        previewAudioUrl: resolveIPFS(metadata.animation_url || "", gatewayIndex),
+        fullAudioUrl: resolveIPFS(metadata.external_url || metadata.animation_url || "", gatewayIndex),
+      };
+      
+      // ✅ CRITICAL: Log the resolved URLs
+      context.log.info(`🔗 Resolved URLs:`, result);
+      
+      return result;
+      
+    } catch (error: any) {
+      context.log.warn(`❌ Gateway ${GATEWAYS[gatewayIndex]} failed: ${error.message}`);
+      if (error.name === 'AbortError') {
+        context.log.warn(`   Timeout after 15 seconds`);
+      }
+      // Continue to next gateway
     }
-    
-    const metadata = await response.json() as MusicMetadata;
-    
-    context.log.info(`✅ Metadata fetched successfully:`, {
-      name: metadata.name,
-      hasImage: !!metadata.image,
-      hasAnimationUrl: !!metadata.animation_url,
-      hasExternalUrl: !!metadata.external_url,
-    });
-    
-    return {
-      name: metadata.name || "",
-      description: metadata.description || "",
-      imageUrl: resolveIPFS(metadata.image || ""),
-      previewAudioUrl: resolveIPFS(metadata.animation_url || ""),
-      fullAudioUrl: resolveIPFS(metadata.external_url || ""),
-    };
-  } catch (error) {
-    context.log.error(`❌ Failed to fetch metadata: ${error}`);
-    return null;
   }
+  
+  // All gateways failed
+  context.log.error(`❌ All gateways failed to fetch metadata for: ${tokenURI}`);
+  return null;
 }
 
 // ============================================
@@ -77,8 +118,19 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
 
-  // ✅ NEW: Fetch metadata during indexing
+  context.log.info(`🎵 Processing MasterMinted event for tokenId ${tokenId}`);
+  context.log.info(`   Artist: ${artist}`);
+  context.log.info(`   TokenURI: ${tokenURI}`);
+  context.log.info(`   Price: ${price.toString()}`);
+
+  // ✅ Fetch metadata during indexing
   const metadata = await fetchMetadata(tokenURI, context);
+
+  if (!metadata) {
+    context.log.error(`❌ Failed to fetch metadata for Music NFT #${tokenId}`);
+    context.log.error(`   TokenURI: ${tokenURI}`);
+    context.log.error(`   This NFT will have empty audio URLs!`);
+  }
 
   const musicNFT = {
     id: musicNFTId,
@@ -93,7 +145,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     coverArt: "",
     royaltyPercentage: 10,
     
-    // ✅ NEW: Store metadata fields
+    // ✅ Store metadata fields (with fallbacks)
     name: metadata?.name || `Music NFT #${tokenId}`,
     description: metadata?.description || "",
     imageUrl: metadata?.imageUrl || "",
@@ -105,6 +157,14 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   };
+
+  context.log.info(`💾 Storing Music NFT with data:`, {
+    id: musicNFT.id,
+    name: musicNFT.name,
+    previewAudioUrl: musicNFT.previewAudioUrl,
+    fullAudioUrl: musicNFT.fullAudioUrl,
+    metadataFetched: musicNFT.metadataFetched,
+  });
 
   await context.MusicNFT.set(musicNFT);
 
@@ -156,7 +216,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🎵 Music NFT #${tokenId} minted by ${artist} - "${metadata?.name || 'Untitled'}" - URI: ${tokenURI}`);
+  context.log.info(`✅ Music NFT #${tokenId} minted by ${artist} - "${metadata?.name || 'Untitled'}"`);
 });
 
 // ✅ Handle LicensePurchased event with createdAt field
