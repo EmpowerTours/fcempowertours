@@ -84,6 +84,7 @@ export default function ProfilePage() {
   const [passportPage, setPassportPage] = useState(1);
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
   const [refreshMessage, setRefreshMessage] = useState<string>('');
+  const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
@@ -92,6 +93,24 @@ export default function ProfilePage() {
       loadBalances();
     }
   }, [walletAddress]);
+
+  const handleAudioError = (id: string, audioUrl: string, error: any) => {
+    console.error(`Audio failed to load for ${id}:`, audioUrl);
+    console.error('Error details:', error);
+    setAudioErrors(prev => ({
+      ...prev,
+      [id]: 'Failed to load audio'
+    }));
+  };
+
+  const handleAudioLoaded = (id: string) => {
+    console.log(`Audio loaded successfully for ${id}`);
+    setAudioErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[id];
+      return newErrors;
+    });
+  };
 
   const loadBalances = async () => {
     if (!walletAddress) return;
@@ -234,10 +253,61 @@ export default function ProfilePage() {
       }));
       setCreatedMusic(createdMusicWithType);
 
-      const purchasedMusicWithType: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => ({
-        ...license,
-        type: 'license' as const,
-      }));
+      // Fetch master token details for purchased licenses
+      const masterTokenIds = purchasedLicenses.map((l: any) => l.masterTokenId).filter((id: any) => id);
+      
+      let masterTokensMap = new Map<string, any>();
+      if (masterTokenIds.length > 0) {
+        const masterQuery = `
+          query GetMasterTokens($tokenIds: [String!]!) {
+            MusicNFT(where: {tokenId: {_in: $tokenIds}}) {
+              id
+              tokenId
+              artist
+              name
+              imageUrl
+              previewAudioUrl
+              fullAudioUrl
+              price
+            }
+          }
+        `;
+        try {
+          const masterResponse = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              query: masterQuery, 
+              variables: { tokenIds: masterTokenIds.map(String) } 
+            }),
+          });
+          if (masterResponse.ok) {
+            const masterResult = await masterResponse.json();
+            const masterTokens = masterResult.data?.MusicNFT || [];
+            masterTokens.forEach((token: any) => {
+              masterTokensMap.set(String(token.tokenId), token);
+            });
+          }
+        } catch (err) {
+          console.error('Failed to fetch master tokens:', err);
+        }
+      }
+
+      const purchasedMusicWithType: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => {
+        const masterToken = masterTokensMap.get(String(license.masterTokenId));
+        return {
+          ...license,
+          type: 'license' as const,
+          metadata: masterToken ? {
+            name: masterToken.name,
+            image: masterToken.imageUrl,
+            animation_url: masterToken.fullAudioUrl, // Use FULL audio for purchased licenses
+          } : undefined,
+          audioUrl: masterToken?.fullAudioUrl,
+          artist: masterToken?.artist,
+          price: masterToken ? (Number(masterToken.price) / 1e18).toFixed(6) : undefined,
+        };
+      });
       setPurchasedMusic(purchasedMusicWithType);
 
       setMusicNFTs([...createdMusicWithType, ...purchasedMusicWithType]);
@@ -275,7 +345,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">Loading...</div>
+          <div className="animate-spin text-4xl mb-4">🎵</div>
           <p className="text-gray-600">Loading your profile...</p>
         </div>
       </div>
@@ -286,7 +356,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">Warning</div>
+          <div className="text-6xl mb-4">⚠️</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
           <p className="text-gray-600 mb-6">
             This Mini App must be opened in Warpcast or another Farcaster client.
@@ -311,7 +381,7 @@ export default function ProfilePage() {
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                {user.username?.charAt(0).toUpperCase() || 'User'}
+                {user.username?.charAt(0).toUpperCase() || '👤'}
               </div>
             )}
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -328,7 +398,7 @@ export default function ProfilePage() {
           {isMobile && (
             <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
               <p className="text-blue-900 text-sm font-medium mb-1">
-                Mobile Wallet Connected
+                📱 Mobile Wallet Connected
               </p>
               <p className="text-blue-700 text-xs">
                 {walletAddress
@@ -346,7 +416,7 @@ export default function ProfilePage() {
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium">Warning {error}</p>
+              <p className="text-red-700 font-medium">⚠️ {error}</p>
               <button
                 onClick={loadAllData}
                 className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
@@ -367,7 +437,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    Your Artist Profile
+                    🎤 Your Artist Profile
                   </h3>
                   <p className="text-sm text-gray-700">
                     Share this link with fans so they can buy your music directly!
@@ -385,7 +455,7 @@ export default function ProfilePage() {
                   onClick={copyArtistLink}
                   className="px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition-all active:scale-95 touch-manipulation"
                 >
-                  Copy Link
+                  📋 Copy Link
                 </button>
               </div>
             </div>
@@ -399,7 +469,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-yellow-700">{balances.mon}</p>
                   <p className="text-xs text-gray-500 mt-1">Native Token</p>
                 </div>
-                <div className="text-3xl">Money</div>
+                <div className="text-3xl">💰</div>
               </div>
             </div>
             <div className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm">
@@ -409,7 +479,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-green-700">{balances.tours}</p>
                   <p className="text-xs text-gray-500 mt-1">EmpowerTours Token</p>
                 </div>
-                <div className="text-3xl">Ticket</div>
+                <div className="text-3xl">🎫</div>
               </div>
             </div>
           </div>
@@ -438,19 +508,19 @@ export default function ProfilePage() {
               href="/passport"
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-center text-sm font-medium transition-all"
             >
-              Get Passport
+              🛂 Get Passport
             </Link>
             <Link
               href="/music"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center text-sm font-medium transition-all"
             >
-              Mint Music
+              🎵 Mint Music
             </Link>
             <Link
               href="/market"
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-center text-sm font-medium transition-all"
             >
-              Browse Market
+              🛒 Browse Market
             </Link>
           </div>
 
@@ -459,7 +529,7 @@ export default function ProfilePage() {
             {createdMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Music I Created</h2>
+                  <h2 className="text-xl font-bold text-gray-900">🎵 Music I Created</h2>
                   <span className="text-sm text-gray-500">
                     {createdMusic.length} total | Page {createdMusicPage} of {totalCreatedMusicPages || 1}
                   </span>
@@ -480,7 +550,7 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">Music</span>
+                          <span className="text-6xl">🎵</span>
                         </div>
                       )}
                       <div className="p-4 space-y-3">
@@ -501,16 +571,32 @@ export default function ProfilePage() {
                           <div className="bg-white rounded-lg p-2 border border-blue-200">
                             <audio
                               controls
-                              preload="metadata"
+                              preload="none"
                               className="w-full"
                               style={{ height: '40px' }}
+                              onError={(e) => handleAudioError(`created-${nft.id}`, nft.audioUrl || '', e)}
+                              onLoadedMetadata={() => handleAudioLoaded(`created-${nft.id}`)}
                             >
                               <source src={nft.audioUrl} type="audio/mpeg" />
+                              <source src={nft.audioUrl} type="audio/mp3" />
                               <source src={nft.audioUrl} type="audio/wav" />
+                              <source src={nft.audioUrl} type="audio/ogg" />
+                              Your browser does not support audio playback.
                             </audio>
-                            <p className="text-xs text-gray-500 text-center mt-1">
-                              Preview
-                            </p>
+                            {audioErrors[`created-${nft.id}`] ? (
+                              <>
+                                <p className="text-xs text-red-500 text-center mt-1">
+                                  ⚠️ {audioErrors[`created-${nft.id}`]}
+                                </p>
+                                <p className="text-xs text-gray-400 text-center mt-1 break-all">
+                                  {nft.audioUrl}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-gray-500 text-center mt-1">
+                                🎧 Preview
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
@@ -573,7 +659,7 @@ export default function ProfilePage() {
             {purchasedMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Music I Purchased</h2>
+                  <h2 className="text-xl font-bold text-gray-900">🎧 Music I Purchased</h2>
                   <span className="text-sm text-gray-500">
                     {purchasedMusic.length} total | Page {purchasedMusicPage} of {totalPurchasedMusicPages || 1}
                   </span>
@@ -584,13 +670,23 @@ export default function ProfilePage() {
                       key={license.id}
                       className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200 rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md"
                     >
-                      <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
-                        <span className="text-6xl">Headphones</span>
-                      </div>
+                      {license.metadata?.image ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                          <img
+                            src={license.metadata.image}
+                            alt={license.metadata.name || `License #${license.licenseId}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
+                          <span className="text-6xl">🎧</span>
+                        </div>
+                      )}
                       <div className="p-4 space-y-3">
                         <div className="text-center">
                           <p className="font-mono text-sm font-bold text-pink-900">
-                            License #{license.licenseId}
+                            {license.metadata?.name || `License #${license.licenseId}`}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             Master #{license.masterTokenId}
@@ -601,10 +697,47 @@ export default function ProfilePage() {
                             </p>
                           )}
                         </div>
+                        {license.audioUrl ? (
+                          <div className="bg-white rounded-lg p-2 border border-pink-200">
+                            <audio
+                              controls
+                              preload="none"
+                              className="w-full"
+                              style={{ height: '40px' }}
+                              onError={(e) => handleAudioError(`purchased-${license.id}`, license.audioUrl || '', e)}
+                              onLoadedMetadata={() => handleAudioLoaded(`purchased-${license.id}`)}
+                            >
+                              <source src={license.audioUrl} type="audio/mpeg" />
+                              <source src={license.audioUrl} type="audio/mp3" />
+                              <source src={license.audioUrl} type="audio/wav" />
+                              <source src={license.audioUrl} type="audio/ogg" />
+                              Your browser does not support audio playback.
+                            </audio>
+                            {audioErrors[`purchased-${license.id}`] ? (
+                              <>
+                                <p className="text-xs text-red-500 text-center mt-1">
+                                  ⚠️ {audioErrors[`purchased-${license.id}`]}
+                                </p>
+                                <p className="text-xs text-gray-400 text-center mt-1 break-all">
+                                  {license.audioUrl}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-gray-500 text-center mt-1">
+                                🎵 Full Track
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
+                            <p className="text-xs text-gray-500">Audio unavailable</p>
+                            <p className="text-xs text-gray-400 mt-1">Master token not found</p>
+                          </div>
+                        )}
                         <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
                           {license.active ? (
                             <>
-                              <p className="text-xs text-green-600 font-bold mb-1">License Active</p>
+                              <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
                               {license.expiry && (
                                 <p className="text-xs text-gray-600">
                                   Expires: {new Date(Number(license.expiry) * 1000).toLocaleDateString()}
@@ -612,7 +745,7 @@ export default function ProfilePage() {
                               )}
                             </>
                           ) : (
-                            <p className="text-xs text-red-600 font-bold">License Expired</p>
+                            <p className="text-xs text-red-600 font-bold">❌ License Expired</p>
                           )}
                         </div>
                         <div className="flex gap-2">
@@ -658,7 +791,7 @@ export default function ProfilePage() {
             {/* Passports */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">My Travel Passports</h2>
+                <h2 className="text-xl font-bold text-gray-900">🛂 My Travel Passports</h2>
                 <span className="text-sm text-gray-500">
                   {passportNFTs.length} total | Page {passportPage} of {totalPassportPages || 1}
                 </span>
@@ -755,7 +888,7 @@ export default function ProfilePage() {
             {/* Itineraries */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">My Purchased Itineraries</h2>
+                <h2 className="text-xl font-bold text-gray-900">🗺️ My Purchased Itineraries</h2>
                 <span className="text-sm text-gray-500">
                   {purchasedItineraries.length} total
                 </span>
@@ -812,7 +945,7 @@ export default function ProfilePage() {
               disabled={loading}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
             >
-              {loading ? 'Refreshing...' : 'Refresh All Data'}
+              {loading ? '⏳ Refreshing...' : '🔄 Refresh All Data'}
             </button>
             <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
             {queriedAddresses.length > 0 && (
