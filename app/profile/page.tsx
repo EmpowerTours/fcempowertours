@@ -202,7 +202,7 @@ export default function ProfilePage() {
             imageUrl
             previewAudioUrl
             fullAudioUrl
-           /metadataFetched
+            metadataFetched
             totalSold
             active
           }
