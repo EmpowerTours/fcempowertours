@@ -21,10 +21,10 @@ function extractFidFromRequest(req: NextRequest): string | null {
 export async function POST(req: NextRequest) {
   try {
     const { command, userAddress, location, fid: bodyFid } = await req.json();
-    
+
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
-    
+
     console.log('Bot command received:', { command, userAddress, fid });
 
     // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
@@ -135,19 +135,19 @@ Address: ${userAddress.slice(0, 10)}...`
           message: 'Wallet not connected. Try: "go to profile"'
         });
       }
-      
+
       // Try to match tokenId first (e.g., "buy music 1")
       const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
       let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
       let songTitle = null;
-      
+
       // ✅ If no tokenId, try to match song name
       if (!tokenId) {
         const songNameMatch = originalCommand.match(/buy song (.+)/i);
         if (songNameMatch) {
           const searchSongName = songNameMatch[1].trim();
           console.log(`[BOT] Searching for song: "${searchSongName}"`);
-          
+
           try {
             const searchQuery = `
               query SearchMusicByName($name: String!) {
@@ -164,7 +164,7 @@ Address: ${userAddress.slice(0, 10)}...`
                 }
               }
             `;
-            
+
             const searchRes = await fetch(ENVIO_ENDPOINT, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -173,21 +173,21 @@ Address: ${userAddress.slice(0, 10)}...`
                 variables: { name: `%${searchSongName}%` }
               })
             });
-            
+
             if (!searchRes.ok) {
               throw new Error(`GraphQL query failed with status ${searchRes.status}`);
             }
-            
+
             const searchData = await searchRes.json();
             const musicNFT = searchData.data?.MusicNFT?.[0];
-            
+
             if (!musicNFT) {
               return NextResponse.json({
                 success: false,
                 message: `Song "${searchSongName}" not found. Try: "buy music <tokenId>" or browse on /discover`
               });
             }
-            
+
             tokenId = parseInt(musicNFT.tokenId);
             songTitle = musicNFT.name;
             console.log(`[BOT] Found song "${songTitle}" with tokenId: ${tokenId}`);
@@ -200,14 +200,14 @@ Address: ${userAddress.slice(0, 10)}...`
           }
         }
       }
-      
+
       if (!tokenId) {
         return NextResponse.json({
           success: false,
           message: 'Invalid format. Use: "buy music <tokenId>" or "buy song <Song Name>"'
         });
       }
-      
+
       try {
         console.log(`[BOT] Buying music license for token ${tokenId}`);
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
@@ -234,7 +234,7 @@ Address: ${userAddress.slice(0, 10)}...`
           }
           console.log('[BOT] Delegation created with buy_music permission');
         }
-        
+
         const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -248,12 +248,12 @@ Address: ${userAddress.slice(0, 10)}...`
             }
           })
         });
-        
+
         const buyData = await buyRes.json();
         if (!buyData.success) {
           throw new Error(buyData.error || 'Purchase failed');
         }
-        
+
         console.log('Music purchased:', buyData.txHash);
         return NextResponse.json({
           success: true,
@@ -483,7 +483,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
       }
     }
 
-    // ==================== MINT PASSPORT COMMAND (WITH CAST) ====================
+    // ==================== MINT PASSPORT COMMAND (WITH DUPLICATE CHECK + CAST) ====================
     if (lowerCommand.includes('mint passport')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -493,6 +493,81 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
       }
       try {
         console.log('[BOT] Minting passport for:', userAddress);
+        
+        // 🔥 CRITICAL: Detect country FIRST
+        let countryCode = 'US';
+        let countryName = 'United States';
+        try {
+          const geoRes = await fetch(`${APP_URL}/api/geo`, {
+            headers: {
+              'x-forwarded-for': req.headers.get('x-forwarded-for') || '',
+              'x-real-ip': req.headers.get('x-real-ip') || '',
+              'cf-connecting-ip': req.headers.get('cf-connecting-ip') || '',
+            }
+          });
+          const geoData = await geoRes.json();
+          countryCode = geoData.country || 'US';
+          countryName = geoData.country_name || 'United States';
+          console.log(`📍 Detected country: ${countryCode} ${countryName}`);
+        } catch (geoErr) {
+          console.warn('Location detection failed, using default');
+        }
+
+        // ✅ QUERY INDEXER: Check if user already owns a passport for this country
+        console.log(`🔍 Checking if user has existing passport for ${countryCode}...`);
+        try {
+          const checkQuery = `
+            query CheckPassport($owner: String!, $countryCode: String!) {
+              PassportNFT(
+                where: {
+                  owner: { _eq: $owner }
+                  countryCode: { _eq: $countryCode }
+                }
+                limit: 1
+              ) {
+                id
+                tokenId
+                countryCode
+                countryName
+              }
+            }
+          `;
+
+          const checkRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: checkQuery,
+              variables: {
+                owner: userAddress.toLowerCase(),
+                countryCode: countryCode.toUpperCase()
+              }
+            })
+          });
+
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            const existingPassport = checkData.data?.PassportNFT?.[0];
+
+            if (existingPassport) {
+              console.warn(`⚠️ User already owns passport for ${countryCode}:`, existingPassport);
+              return NextResponse.json({
+                success: false,
+                message: `You already own a passport for ${countryCode} ${countryName}!
+Token #${existingPassport.tokenId}
+You can only mint one passport per country.
+Try "mint passport" from a different location or "help" for other commands.`
+              });
+            }
+
+            console.log(`✅ No existing passport found for ${countryCode} - proceeding with mint`);
+          }
+        } catch (checkErr: any) {
+          console.warn('⚠️ Passport duplicate check failed:', checkErr.message);
+          // Don't block on check failure - continue with mint
+        }
+
+        // ✅ PROCEED: User doesn't have passport for this country
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
         if (!delegationData.success || !delegationData.delegation) {
@@ -511,22 +586,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
-        let countryCode = 'US';
-        let countryName = 'United States';
-        try {
-          const geoRes = await fetch(`${APP_URL}/api/geo`, {
-            headers: {
-              'x-forwarded-for': req.headers.get('x-forwarded-for') || '',
-              'x-real-ip': req.headers.get('x-real-ip') || '',
-              'cf-connecting-ip': req.headers.get('cf-connecting-ip') || '',
-            }
-          });
-          const geoData = await geoRes.json();
-          countryCode = geoData.country || 'US';            
-          countryName = geoData.country_name || 'United States';
-        } catch (geoErr) {
-          console.warn('Location detection failed, using default');
-        }
+        
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -575,7 +635,7 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       try {
         const regex = /mint[_ ]music\s+(.+?)\s+(ipfs:\/\/[a-zA-Z0-9]{46,})\s+([\d.]+)/i;
         const match = originalCommand.match(regex);
-        
+
         if (!match) {
           return NextResponse.json({
             success: true,
@@ -588,7 +648,7 @@ Example:
 Or go to the Music page to upload files.`
           });
         }
-        
+
         const songTitle = match[1].trim();
         const tokenURI = match[2];
         const price = parseFloat(match[3]);
@@ -632,7 +692,7 @@ Or go to the Music page to upload files.`
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
-        
+
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
