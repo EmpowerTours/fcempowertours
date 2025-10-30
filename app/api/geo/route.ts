@@ -5,11 +5,32 @@ const IPINFO_TOKEN = process.env.IPINFO_TOKEN;
 
 export async function GET(request: NextRequest) {
   try {
-    // Get the user's IP from the request
-    const forwarded = request.headers.get('x-forwarded-for');
-    const ip = forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'me';
+    // Get the user's IP from the request - check multiple header sources
+    let ip = '';
+    
+    // Priority order for IP detection
+    const xForwardedFor = request.headers.get('x-forwarded-for');
+    const xRealIp = request.headers.get('x-real-ip');
+    const cfConnectingIp = request.headers.get('cf-connecting-ip');
+    
+    if (xForwardedFor) {
+      // x-forwarded-for can have multiple IPs, get the first (client IP)
+      ip = xForwardedFor.split(',')[0].trim();
+    } else if (xRealIp) {
+      ip = xRealIp.trim();
+    } else if (cfConnectingIp) {
+      ip = cfConnectingIp.trim();
+    } else {
+      // Last resort: let IPInfo auto-detect from request source
+      ip = 'auto';
+    }
 
     console.log('🌍 Detecting location for IP:', ip);
+    console.log('📋 Request headers:', {
+      'x-forwarded-for': xForwardedFor,
+      'x-real-ip': xRealIp,
+      'cf-connecting-ip': cfConnectingIp,
+    });
 
     if (!IPINFO_TOKEN) {
       console.error('❌ IPINFO_TOKEN not configured');
@@ -20,13 +41,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Call IPInfo API
-    const response = await fetch(
-      `https://ipinfo.io/${ip === 'me' ? '' : ip}?token=${IPINFO_TOKEN}`,
-      {
-        headers: { 'Accept': 'application/json' },
-        cache: 'no-store'
-      }
-    );
+    const ipinfoUrl = ip === 'auto' 
+      ? `https://ipinfo.io/?token=${IPINFO_TOKEN}`
+      : `https://ipinfo.io/${ip}?token=${IPINFO_TOKEN}`;
+    
+    console.log('📡 IPInfo URL:', ipinfoUrl);
+
+    const response = await fetch(ipinfoUrl, {
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store'
+    });
 
     if (!response.ok) {
       throw new Error(`IPInfo API returned ${response.status}`);
