@@ -34,6 +34,7 @@ const nextConfig = {
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cache-Control', value: 'max-age=0, must-revalidate' },
           { key: 'X-Frame-Options', value: 'ALLOWALL' },
+          { key: 'Permissions-Policy', value: 'geolocation=(self)' },
         ],
       },
       {
@@ -78,5 +79,4 @@ const nextConfig = {
     return config;
   },
 };
-
 export default nextConfig;

@@ -18,9 +18,9 @@ export function useBotCommand() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = usePrivy();
-  
+
   // ✅ USE EXISTING useFarcasterContext HOOK
-  const { fid, walletAddress, isLoading: contextLoading } = useFarcasterContext();
+  const { fid, walletAddress, isLoading: contextLoading, custodyAddress } = useFarcasterContext();
 
   const executeCommand = useCallback(
     async (
@@ -35,54 +35,50 @@ export function useBotCommand() {
 
       try {
         // ✅ FIXED: Get wallet address from multiple sources
-        // Priority: Privy linkedAccounts → Farcaster context → Display message
-        
+        // Priority: Farcaster context (custodyAddress) → Privy linkedAccounts → Display message
+
         let userAddress: string | undefined;
-        
-        // Step 1: Try Privy linkedAccounts
-        const walletAcc = user?.linkedAccounts?.find((acc: any) => acc.type === 'wallet') as any;
-        
-        if (walletAcc) {
-          // Try direct address property first
-          if (walletAcc.address) {
-            userAddress = walletAcc.address;
-          }
-          // Try CAIP10 format (eip155:chainId:address)
-          else if (walletAcc.caip10Address) {
-            const parts = walletAcc.caip10Address.split(':');
-            userAddress = parts[2];
-          }
-          // Try chainId:address format (alternative)
-          else if (walletAcc.caip10Address && typeof walletAcc.caip10Address === 'string') {
-            userAddress = walletAcc.caip10Address;
-          }
-        }
-        
-        // Step 2: Fallback to Farcaster context wallet (from SimpleBotBar)
-        if (!userAddress && walletAddress) {
+
+        // Step 1: Try Farcaster context first (this is the most reliable via Neynar)
+        if (walletAddress) {
           userAddress = walletAddress;
+          console.log('✅ [BOT-HOOK] Using wallet from Farcaster context:', userAddress);
         }
-        
+        // Step 2: Fallback to Privy linkedAccounts
+        else if (user?.linkedAccounts) {
+          const walletAcc = user.linkedAccounts.find((acc: any) => acc.type === 'wallet') as any;
+          
+          if (walletAcc) {
+            // Try direct address property first
+            if (walletAcc.address) {
+              userAddress = walletAcc.address;
+            }
+            // Try CAIP10 format (eip155:chainId:address)
+            else if (walletAcc.caip10Address) {
+              const parts = walletAcc.caip10Address.split(':');
+              userAddress = parts[2];
+            }
+          }
+          
+          if (userAddress) {
+            console.log('✅ [BOT-HOOK] Using wallet from Privy:', userAddress);
+          }
+        }
+
         // Step 3: If still no address, error
         if (!userAddress) {
           const err = 'Wallet not connected. Please connect your wallet first.';
-          console.warn('❌ [BOT-HOOK] No wallet address found. Privy:', { walletAcc, user }, 'Farcaster:', { walletAddress });
+          console.warn('❌ [BOT-HOOK] No wallet address found.', {
+            farcasterWallet: walletAddress,
+            custodyAddress: custodyAddress,
+            privyUser: user ? 'exists' : 'null',
+            privyLinkedAccounts: user?.linkedAccounts?.length || 0
+          });
           setError(err);
           return { success: false, error: err };
         }
 
-        console.log('✅ [BOT-HOOK] Wallet address found:', { userAddress, source: walletAcc ? 'Privy' : 'Farcaster' });
-
-        // ✅ USE FID FROM useFarcasterContext
-        const commandFid = options?.fid || fid;
-
-        console.log('📤 [BOT-HOOK] Executing command:', {
-          command,
-          userAddress,
-          fid: commandFid,
-          location: options?.location,
-          source: walletAcc ? 'Privy wallet' : 'Farcaster context'
-        });
+        console.log('✅ [BOT-HOOK] Wallet address found:', { userAddress, fid });
 
         const response = await fetch('/api/bot-command', {
           method: 'POST',
@@ -93,7 +89,7 @@ export function useBotCommand() {
             command,
             userAddress,
             location: options?.location,
-            fid: commandFid, // ✅ FID IS NOW SENT!
+            fid: options?.fid || fid,
           }),
         });
 
@@ -120,7 +116,7 @@ export function useBotCommand() {
         setLoading(false);
       }
     },
-    [user, fid]
+    [user, fid, walletAddress, custodyAddress]
   );
 
   return {
