@@ -20,6 +20,7 @@ EmpowerTours is a comprehensive Web3 platform built as a **Farcaster Mini App** 
 - 🛒 **Marketplace** - Trade itineraries and buy music licenses with TOURS tokens
 - 🤖 **AI Bot** - Execute gasless transactions via natural language commands
 - 📊 **Live Indexing** - Real-time blockchain data powered by Envio HyperIndex
+- 📢 **Farcaster Casting** - Automatic cast posting for all NFT operations
 
 All powered by **Monad Testnet** with **gasless transactions** through Account Abstraction!
 
@@ -33,12 +34,14 @@ All powered by **Monad Testnet** with **gasless transactions** through Account A
 - **One Per Country** - Each wallet can mint one passport per country
 - **Free Minting** - We pay the gas fees!
 - **Duplicate Prevention** - Envio indexer prevents double-minting
+- **📢 Cast Posting** - Automatic cast to Farcaster with country flag emoji
 
 **Technical Details:**
 - Contract: `PassportNFTv2` (0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08)
 - Metadata: Stored on IPFS via Pinata
 - Cost: 10 TOURS tokens (but minting is gasless)
 - Indexing: Real-time via Envio GraphQL
+- Casting: Posts to Farcaster immediately after successful mint
 
 ### 🎵 Music NFT Licensing System
 - **Master NFT Ownership** - Artists retain master NFT with full rights
@@ -48,19 +51,77 @@ All powered by **Monad Testnet** with **gasless transactions** through Account A
 - **Artist Profiles** - Dedicated pages for each artist with all their music
 - **Music Discovery** - Browse and search all music by artist or title
 - **Easy Bot Purchasing** - Buy licenses via natural language bot commands
+- **📢 Cast Posting** - Automatic casts for both minting and purchasing
 
 **How It Works:**
 1. Artist uploads preview (30s, max 600KB) + full track (max 15MB) + cover art
 2. Sets license price in TOURS tokens (e.g., 0.01 TOURS)
 3. Mints Master NFT (gasless) - artist keeps ownership forever
-4. Fans buy licenses to access full track
-5. Artist receives 90% of sale + 10% royalties on resales
+4. Cast automatically posts to Farcaster with song details
+5. Fans buy licenses to access full track
+6. Purchase casts automatically post to buyer's profile
+7. Artist receives 90% of sale + 10% royalties on resales
 
 **Technical Details:**
 - Contract: `MusicLicenseNFTv3` (0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc)
 - Payment: TOURS tokens (NOT ETH/MON)
 - Storage: IPFS via Pinata
 - Purchase Flow: 2-step (Approve TOURS → Buy License) or 1-step via bot
+- Casting: Posts music mint and purchase casts automatically
+
+### 📢 Farcaster Casting Integration (NEW!)
+
+All NFT operations automatically post casts to Farcaster:
+
+#### Passport Mint Cast
+```
+🎫 New EmpowerTours Passport Minted!
+
+🇺🇸 United States
+
+Token #42
+
+View: https://testnet.monadscan.com/tx/0xabc...
+
+@empowertours
+```
+**Embed:** Interactive link to `/passport?tokenId=42`
+
+#### Music Mint Cast
+```
+🎵 New Music Master NFT Minted!
+
+"My First Song" - Token #123
+💰 License Price: 1 TOURS
+
+⚡ Gasless minting powered by @empowertours
+🎶 Purchase license to stream full track
+
+View: https://testnet.monadscan.com/tx/0xdef...
+
+@empowertours
+```
+**Embed:** Interactive link to `/music?tokenId=123`
+
+#### Music Purchase Cast
+```
+🎶 Just Purchased a Music License on @empowertours!
+
+Now I can stream "My First Song" 🎵
+
+TX: https://testnet.monadscan.com/tx/0xghi...
+
+Gasless - they paid the gas! 🚀
+
+@empowertours
+```
+
+**How Casting Works:**
+- ✅ **Non-blocking** - Cast failures don't affect mints
+- ✅ **Automatic** - Posts immediately after successful transaction
+- ✅ **Farcaster-native** - Uses Neynar SDK for reliable posting
+- ✅ **User-visible** - Casts appear on user's Farcaster profile
+- ✅ **Works everywhere** - Passport mints, music mints, music purchases all have casts
 
 ### 💰 Token Economy (TOURS Token)
 - **Native Token:** MON (Monad's native gas token)
@@ -210,6 +271,11 @@ Real-time blockchain analytics:
 - PostgreSQL backend
 - Song name lookups via GraphQL
 
+**Casting:**
+- Neynar SDK (Farcaster API)
+- Non-blocking async posting
+- Unified casting endpoint
+
 **Storage:**
 - IPFS (Pinata) - Metadata & media
 - Upstash Redis - Delegation state
@@ -237,8 +303,9 @@ Real-time blockchain analytics:
 fcempowertours/
 ├── app/
 │   ├── api/                          # API Routes
-│   │   ├── bot-command/              # Bot command processor (UPDATED)
-│   │   ├── execute-delegated/        # Delegation-based transactions
+│   │   ├── bot-command/              # Bot command processor (UPDATED - with FID extraction)
+│   │   ├── cast-nft/                 # NEW: Unified casting endpoint
+│   │   ├── execute-delegated/        # Delegation transactions (UPDATED - with casting)
 │   │   ├── execute-swap/             # Direct MON→TOURS swap
 │   │   ├── mint-passport/            # Passport minting
 │   │   ├── mint-music/               # Music NFT minting
@@ -298,6 +365,9 @@ cd fcempowertours
 
 # Install dependencies
 pnpm install
+
+# Install Neynar SDK for casting
+pnpm add @neynar/nodejs-sdk
 
 # Set up environment variables
 cp .env.example .env.local
@@ -383,6 +453,924 @@ forge script script/Deploy.s.sol --rpc-url $MONAD_RPC --broadcast
 
 ---
 
+## 📢 Casting Implementation (NEW!)
+
+### What's New in This Update
+
+We've added **automatic Farcaster casting** for all NFT operations:
+
+1. **`app/api/cast-nft/route.ts`** (NEW)
+   - Unified casting endpoint
+   - Handles passport, music mint, and music purchase casts
+   - Uses Neynar SDK for reliable posting
+
+2. **`app/api/execute-delegated/route.ts`** (UPDATED)
+   - Now posts casts after successful operations
+   - Non-blocking casting (failures don't affect transactions)
+   - Calls `/api/cast-nft` for each operation
+
+3. **`app/api/bot-command/route.ts`** (UPDATED)
+   - Extracts FID from Farcaster context
+   - Passes FID to delegated operations
+   - All commands now support casting
+
+### Implementation Steps
+
+#### Quick Start (5 minutes)
+
+```bash
+# 1. Install Neynar SDK (if not already done)
+pnpm add @neynar/nodejs-sdk
+
+# 2. Copy the new casting endpoint
+# File: app/api/cast-nft/route.ts
+# (See code section below)
+
+# 3. Update bot-command to extract FID
+# File: app/api/bot-command/route.ts
+# (See code section below)
+
+# 4. Update execute-delegated to call cast endpoint
+# File: app/api/execute-delegated/route.ts
+# (See code section below)
+
+# 5. Build and test
+pnpm build
+pnpm dev
+
+# 6. Deploy
+git add .
+git commit -m "feat: add farcaster casting for NFT operations"
+git push origin main
+```
+
+### Code Implementation
+
+#### 1. New Casting Endpoint: `app/api/cast-nft/route.ts`
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { NeynarAPIClient } from "@neynar/nodejs-sdk";
+
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
+
+export async function POST(req: NextRequest) {
+  try {
+    const {
+      type,           // 'passport' | 'music_mint' | 'music_purchase'
+      fid,            // Farcaster ID
+      tokenId,        // NFT token ID
+      txHash,         // Transaction hash
+      countryCode,    // For passport
+      countryName,    // For passport
+      songTitle,      // For music
+      price,          // For music
+      artist,         // For music purchase
+    } = await req.json();
+
+    console.log('🎵 [CAST] Posting cast:', { type, fid, tokenId, countryCode, songTitle });
+
+    if (!fid) {
+      console.log('ℹ️ No FID provided, skipping cast');
+      return NextResponse.json({ success: true, message: 'No FID provided' });
+    }
+
+    if (!BOT_SIGNER_UUID || !NEYNAR_API_KEY) {
+      console.error('❌ Missing BOT_SIGNER_UUID or NEYNAR_API_KEY');
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const client = new NeynarAPIClient({
+      apiKey: NEYNAR_API_KEY,
+    });
+
+    let castText = '';
+    let embeds: Array<{ url: string }> = [];
+
+    // ==================== PASSPORT CAST ====================
+    if (type === 'passport') {
+      const castUrl = `${APP_URL}/passport?tokenId=${tokenId}`;
+      castText = `🎫 New EmpowerTours Passport Minted!
+
+${countryCode} ${countryName}
+
+Token #${tokenId}
+
+View: https://testnet.monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: castUrl }];
+      console.log('📢 Passport cast text:', castText);
+    }
+
+    // ==================== MUSIC MINT CAST ====================
+    else if (type === 'music_mint') {
+      const musicUrl = `${APP_URL}/music?tokenId=${tokenId}`;
+      castText = `🎵 New Music Master NFT Minted!
+
+"${songTitle || 'Untitled'}" - Token #${tokenId}
+💰 License Price: ${price || '1'} TOURS
+
+⚡ Gasless minting powered by @empowertours
+🎶 Purchase license to stream full track
+
+View: https://testnet.monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: musicUrl }];
+      console.log('📢 Music mint cast text:', castText);
+    }
+
+    // ==================== MUSIC PURCHASE CAST ====================
+    else if (type === 'music_purchase') {
+      castText = `🎶 Just Purchased a Music License on @empowertours!
+
+Now I can stream "${songTitle || 'Untitled'}" 🎵
+
+TX: https://testnet.monadscan.com/tx/${txHash}
+
+Gasless - they paid the gas! 🚀
+
+@empowertours`;
+
+      console.log('📢 Music purchase cast text:', castText);
+    }
+
+    if (!castText) {
+      return NextResponse.json(
+        { success: false, error: `Unknown cast type: ${type}` },
+        { status: 400 }
+      );
+    }
+
+    // ==================== POST TO FARCASTER ====================
+    console.log('📤 Publishing cast with Neynar SDK...');
+    const result = await client.publishCast({
+      signerUuid: BOT_SIGNER_UUID,
+      text: castText,
+      embeds: embeds.length > 0 ? embeds : undefined,
+    });
+
+    console.log('✅ Cast posted successfully:', {
+      hash: result.cast?.hash,
+      type,
+      tokenId,
+    });
+
+    return NextResponse.json({
+      success: true,
+      castHash: result.cast?.hash,
+      type,
+      tokenId,
+    });
+
+  } catch (error: any) {
+    console.error('❌ [CAST] Error:', error.message);
+    // Don't return error status - casting failures shouldn't block mints
+    return NextResponse.json({
+      success: false,
+      error: error.message,
+      message: 'Cast posting failed but mint succeeded'
+    }, { status: 200 }); // Return 200 so client doesn't treat it as a failure
+  }
+}
+```
+
+#### 2. Updated Bot Command: `app/api/bot-command/route.ts`
+
+Key changes to add FID extraction and passing:
+
+```typescript
+// ✅ NEW: Helper to extract FID from Farcaster context
+function extractFidFromRequest(req: NextRequest): string | null {
+  const farcasterContext = req.headers.get('x-farcaster-context');
+  if (farcasterContext) {
+    try {
+      const context = JSON.parse(farcasterContext);
+      return context.user?.fid?.toString() || null;
+    } catch (e) {
+      // Ignore parsing errors
+    }
+  }
+  return null;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { command, userAddress, location } = await req.json();
+    
+    // ✅ NEW: Extract FID from context
+    const fid = extractFidFromRequest(req);
+    
+    console.log('Bot command received:', { command, userAddress, fid });
+
+    // ... rest of bot command handler ...
+
+    // ==================== MINT PASSPORT COMMAND (WITH CAST) ====================
+    if (lowerCommand.includes('mint passport')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      try {
+        console.log('[BOT] Minting passport for:', userAddress);
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        if (!delegationData.success || !delegationData.delegation) {
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+
+        let countryCode = 'US';
+        let countryName = 'United States';
+        try {
+          const geoRes = await fetch(`${APP_URL}/api/geo`, {
+            headers: {
+              'x-forwarded-for': req.headers.get('x-forwarded-for') || '',
+              'x-real-ip': req.headers.get('x-real-ip') || '',
+              'cf-connecting-ip': req.headers.get('cf-connecting-ip') || '',
+            }
+          });
+          const geoData = await geoRes.json();
+          countryCode = geoData.country || 'US';            
+          countryName = geoData.country_name || 'United States';
+        } catch (geoErr) {
+          console.warn('Location detection failed, using default');
+        }
+
+        const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'mint_passport',
+            params: {
+              countryCode,
+              countryName,
+              fid // ✅ PASS FID FOR CASTING
+            }
+          })
+        });
+
+        const mintData = await mintRes.json();
+        if (!mintData.success) {
+          throw new Error(mintData.error || 'Mint failed');
+        }
+        
+        console.log('[BOT] Passport minted:', mintData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: mintData.txHash,
+          action: 'transaction',
+          message: `Passport Minted (FREE)!
+${countryCode} ${countryName}
+TX: ${mintData.txHash?.slice(0, 10)}...
+Gasless transaction - we paid the gas!
+View: https://testnet.monadscan.com/tx/${mintData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('[BOT] Passport mint error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Mint failed: ${error.message}`
+        });
+      }
+    }
+
+    // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION + CAST) ====================
+    if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song')) {
+      console.log('Action: buy_music');
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      
+      const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
+      let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
+      let songTitle = null;
+      
+      if (!tokenId) {
+        const songNameMatch = originalCommand.match(/buy song (.+)/i);
+        if (songNameMatch) {
+          const searchSongName = songNameMatch[1].trim();
+          console.log(`[BOT] Searching for song: "${searchSongName}"`);
+          
+          try {
+            const searchQuery = `
+              query SearchMusicByName($name: String!) {
+                MusicNFT(
+                  where: {name: {_ilike: $name}}
+                  limit: 1
+                  order_by: {mintedAt: desc}
+                ) {
+                  id
+                  tokenId
+                  name
+                  price
+                  artist
+                }
+              }
+            `;
+            
+            const searchRes = await fetch(ENVIO_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: searchQuery,
+                variables: { name: `%${searchSongName}%` }
+              })
+            });
+            
+            if (!searchRes.ok) {
+              throw new Error(`GraphQL query failed with status ${searchRes.status}`);
+            }
+            
+            const searchData = await searchRes.json();
+            const musicNFT = searchData.data?.MusicNFT?.[0];
+            
+            if (!musicNFT) {
+              return NextResponse.json({
+                success: false,
+                message: `Song "${searchSongName}" not found. Try: "buy music <tokenId>" or browse on /discover`
+              });
+            }
+            
+            tokenId = parseInt(musicNFT.tokenId);
+            songTitle = musicNFT.name;
+            console.log(`[BOT] Found song "${songTitle}" with tokenId: ${tokenId}`);
+          } catch (searchErr: any) {
+            console.error('[BOT] Song search error:', searchErr);
+            return NextResponse.json({
+              success: false,
+              message: `Failed to search for song: ${searchErr.message}`
+            });
+          }
+        }
+      }
+      
+      if (!tokenId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "buy music <tokenId>" or "buy song <Song Name>"'
+        });
+      }
+      
+      try {
+        console.log(`[BOT] Buying music license for token ${tokenId}`);
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        const hasValidDelegation = delegationData.success &&
+                                  delegationData.delegation &&
+                                  Array.isArray(delegationData.delegation.permissions) &&
+                                  delegationData.delegation.permissions.includes('buy_music');
+        if (!hasValidDelegation) {
+          console.warn('[BOT] No delegation with buy_music permission - creating one...');
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+        
+        const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'buy_music',
+            params: {
+              tokenId: tokenId.toString(),
+              songTitle: songTitle,
+              fid // ✅ PASS FID FOR CASTING
+            }
+          })
+        });
+        
+        const buyData = await buyRes.json();
+        if (!buyData.success) {
+          throw new Error(buyData.error || 'Purchase failed');
+        }
+        
+        console.log('Music purchased:', buyData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: buyData.txHash,
+          action: 'buy_music',
+          message: `Music License Purchased (FREE)!
+Track #${tokenId} is now yours!
+TX: ${buyData.txHash?.slice(0, 10)}...
+Gasless - we paid the gas!
+View: https://testnet.monadscan.com/tx/${buyData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('Buy music failed:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Purchase failed: ${error.message}`
+        });
+      }
+    }
+
+    // ==================== MINT MUSIC COMMAND (WITH CAST) ====================
+    if (lowerCommand.includes('mint music')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      try {
+        const regex = /mint[_ ]music\s+(.+?)\s+(ipfs:\/\/[a-zA-Z0-9]{46,})\s+([\d.]+)/i;
+        const match = originalCommand.match(regex);
+        
+        if (!match) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `Music NFT Minting
+To mint music, use:
+"mint music <Song Name> <ipfs://metadata> <price>"
+Example:
+"mint music My First Song ipfs://QmXXX... 1"
+Or go to the Music page to upload files.`
+          });
+        }
+        
+        const songTitle = match[1].trim();
+        const tokenURI = match[2];
+        const price = parseFloat(match[3]);
+
+        const cid = tokenURI.replace('ipfs://', '');
+        if (!cid.startsWith('Qm') && !cid.startsWith('bafy')) {
+          return NextResponse.json({
+            success: false,
+            message: `Invalid IPFS CID format: ${cid}. Must start with Qm or bafy`
+          });
+        }
+
+        if (price <= 0 || price > 10) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid price. Use: 0.001 - 10 TOURS'
+          });
+        }
+
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        if (!delegationData.success || !delegationData.delegation) {
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['mint_music', 'mint_passport', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+        
+        const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'mint_music',
+            params: {
+              songTitle,
+              tokenURI,
+              price: price.toString(),
+              fid // ✅ PASS FID FOR CASTING
+            }
+          })
+        });
+
+        const mintData = await mintRes.json();
+        if (!mintData.success) {
+          throw new Error(mintData.error || 'Mint failed');
+        }
+
+        console.log('[BOT] Music NFT minted:', mintData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: mintData.txHash,
+          action: 'transaction',
+          message: `Music NFT Minted (FREE)!
+Song: ${songTitle}
+Price: ${price} TOURS per license
+TX: ${mintData.txHash?.slice(0, 10)}...
+Gasless - we paid the gas!
+View: https://testnet.monadscan.com/tx/${mintData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('[BOT] Music mint error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Mint failed: ${error.message}`
+        });
+      }
+    }
+
+    // ... rest of bot command handler ...
+  } catch (error: any) {
+    console.error('Bot command error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error processing command. Please try again.'
+    }, { status: 500 });
+  }
+}
+```
+
+#### 3. Updated Execute-Delegated: `app/api/execute-delegated/route.ts`
+
+Key changes to post casts after operations:
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getDelegation,
+  hasPermission,
+  incrementTransactionCount
+} from '@/lib/delegation-system';
+import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } from 'viem';
+
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+
+// ✅ NEW: Helper function to post casts
+async function postCast(castData: any) {
+  try {
+    console.log('📢 Posting cast:', castData.type);
+    const castRes = await fetch(`${APP_URL}/api/cast-nft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(castData)
+    });
+
+    if (!castRes.ok) {
+      const error = await castRes.text();
+      console.warn('⚠️ Cast posting failed:', error);
+      return;
+    }
+
+    const castData_ = await castRes.json();
+    console.log('✅ Cast posted:', castData_.castHash);
+  } catch (err: any) {
+    console.warn('⚠️ Cast error (non-blocking):', err.message);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { userAddress, action, params } = await req.json();
+    if (!userAddress || !action) {
+      return NextResponse.json(
+        { success: false, error: 'Missing userAddress or action' },
+        { status: 400 }
+      );
+    }
+
+    console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
+    const delegation = await getDelegation(userAddress);
+    if (!delegation || delegation.expiresAt < Date.now()) {
+      return NextResponse.json(
+        { success: false, error: 'No active delegation' },
+        { status: 403 }
+      );
+    }
+
+    if (!(await hasPermission(userAddress, action))) {
+      return NextResponse.json(
+        { success: false, error: `No permission for ${action}` },
+        { status: 403 }
+      );
+    }
+
+    if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
+      return NextResponse.json(
+        { success: false, error: 'Transaction limit reached' },
+        { status: 403 }
+      );
+    }
+
+    console.log('✅ Delegation valid, transactions left:',
+      delegation.config.maxTransactions - delegation.transactionsExecuted);
+
+    const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+    const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
+    const MUSIC_NFT_V4 = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address;
+    const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
+    const MINT_PRICE = parseEther('10');
+
+    switch (action) {
+      // ==================== MINT PASSPORT (WITH CAST) ====================
+      case 'mint_passport':
+        console.log('🎫 Action: mint_passport (batched approve + mint)');
+        const mintCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [PASSPORT_NFT, MINT_PRICE],
+            }) as Hex,
+          },
+          {
+            to: PASSPORT_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mint(address to, string countryCode, string countryName, string region, string continent, string uri) external returns (uint256)'
+              ]),
+              functionName: 'mint',
+              args: [
+                userAddress as Address,
+                params?.countryCode || 'US',
+                params?.countryName || 'United States',
+                params?.region || 'Americas',
+                params?.continent || 'North America',
+                params?.uri || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing batched mint transaction...');
+        const mintTxHash = await sendSafeTransaction(mintCalls);
+        console.log('✅ Mint successful, TX:', mintTxHash);
+
+        // ✅ NEW: Post cast after successful mint
+        if (params?.fid) {
+          await postCast({
+            type: 'passport',
+            fid: params.fid,
+            tokenId: params.tokenId || 0,
+            txHash: mintTxHash,
+            countryCode: params.countryCode || 'US',
+            countryName: params.countryName || 'United States',
+          });
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: mintTxHash,
+          action,
+          userAddress,
+          message: `Passport minted successfully`,
+        });
+
+      // ==================== MINT MUSIC (WITH CAST) ====================
+      case 'mint_music':
+        console.log('🎵 Action: mint_music');
+        if (!params?.tokenURI || !params?.price) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenURI or price for music mint' },
+            { status: 400 }
+          );
+        }
+
+        const musicPrice = parseEther(params.price.toString());
+        const musicCalls = [
+          {
+            to: MUSIC_NFT_V4,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mintMaster(address artist, string tokenURI, string songTitle, uint256 price) external returns (uint256)'
+              ]),
+              functionName: 'mintMaster',
+              args: [
+                userAddress as Address,
+                params.tokenURI,
+                params.songTitle || 'Untitled',
+                musicPrice,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing music mint transaction...');
+        const musicTxHash = await sendSafeTransaction(musicCalls);
+        console.log('✅ Music mint successful, TX:', musicTxHash);
+
+        // ✅ NEW: Post cast after successful mint
+        if (params?.fid) {
+          await postCast({
+            type: 'music_mint',
+            fid: params.fid,
+            tokenId: params.tokenId || 0,
+            txHash: musicTxHash,
+            songTitle: params.songTitle || 'Untitled',
+            price: params.price,
+          });
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: musicTxHash,
+          action,
+          userAddress,
+          songTitle: params.songTitle || 'Untitled',
+          price: params.price,
+          message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS`,
+        });
+
+      // ==================== BUY MUSIC (WITH CAST) ====================
+      case 'buy_music':
+        console.log('🎵 Action: buy_music (batched approve + purchaseLicenseFor)');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for buy_music' },
+            { status: 400 }
+          );
+        }
+
+        const tokenId = BigInt(params.tokenId);
+        const buyCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [MUSIC_NFT_V4, parseEther('1000')],
+            }) as Hex,
+          },
+          {
+            to: MUSIC_NFT_V4,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function purchaseLicenseFor(uint256 masterTokenId, address licensee) external'
+              ]),
+              functionName: 'purchaseLicenseFor',
+              args: [tokenId, userAddress as Address],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing batched music purchase transaction...');
+        const buyTxHash = await sendSafeTransaction(buyCalls);
+        console.log('✅ Music purchase successful, TX:', buyTxHash);
+
+        // ✅ NEW: Post cast after successful purchase
+        if (params?.fid) {
+          await postCast({
+            type: 'music_purchase',
+            fid: params.fid,
+            tokenId: tokenId.toString(),
+            txHash: buyTxHash,
+            songTitle: params.songTitle || 'Track',
+          });
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: buyTxHash,
+          action,
+          userAddress,
+          tokenId: tokenId.toString(),
+          message: `Music license purchased for ${userAddress}`,
+        });
+
+      // ==================== SEND TOURS ====================
+      case 'send_tours':
+        console.log('💸 Action: send_tours');
+        if (!params?.recipient || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing recipient or amount for send_tours' },
+            { status: 400 }
+          );
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid recipient address' },
+            { status: 400 }
+          );
+        }
+
+        const sendAmount = parseEther(params.amount.toString());
+        const sendCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [params.recipient as Address, sendAmount],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing TOURS transfer transaction...');
+        const sendTxHash = await sendSafeTransaction(sendCalls);
+        console.log('✅ TOURS sent successfully, TX:', sendTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: sendTxHash,
+          action,
+          userAddress,
+          recipient: params.recipient,
+          amount: params.amount,
+          message: `Sent ${params.amount} TOURS successfully`,
+        });
+
+      // ==================== SWAP MON FOR TOURS ====================
+      case 'swap_mon_for_tours':
+        console.log('💱 Action: swap_mon_for_tours');
+        const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1');
+        const swapCalls = [
+          {
+            to: TOKEN_SWAP,
+            value: monAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function swap() external payable']),
+              functionName: 'swap',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing swap transaction...');
+        const swapTxHash = await sendSafeTransaction(swapCalls);
+        console.log('✅ Swap successful, TX:', swapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: swapTxHash,
+          action,
+          userAddress,
+          monAmount: monAmount.toString(),
+          message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
+        });
+
+      default:
+        return NextResponse.json(
+          { success: false, error: `Unknown action: ${action}` },
+          { status: 400 }
+        );
+    }
+  } catch (error: any) {
+    console.error('❌ [DELEGATED] Execution error:', error.message);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Failed to execute action',
+        action: 'execute_delegated',
+      },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
 ## 🎮 Usage Guide
 
 ### For Users
@@ -418,10 +1406,11 @@ Navigate to Passport → Select Country → Mint (FREE)
    - Cover art (max 3MB)
 3. Set song title and license price
 4. Mint (FREE - we pay gas!)
+5. **Cast automatically posts to your profile!** 📢
 
 #### 5. Buy Music License (Multiple Methods)
 
-**Method 1: Via Bot Command (Easiest - Gasless)**
+**Method 1: Via Bot Command (Easiest - Gasless + Cast)**
 ```bash
 # By song name (natural language)
 buy song Money making machine
@@ -429,6 +1418,7 @@ buy song Money making machine
 # By token ID
 buy music 1
 ```
+✅ **Casts automatically post!**
 
 **Method 2: Via UI**
 1. Go to Discover or Artist Profile
@@ -460,6 +1450,7 @@ Navigate to Discover → Search by title
 - Set competitive license prices (0.01-10 TOURS)
 - Earn 90% of sales + 10% royalties
 - Track plays and sales in profile
+- **Casts automatically notify your achievements!** 📢
 
 #### Best Practices
 - Use high-quality cover art (1:1 aspect ratio)
@@ -503,8 +1494,8 @@ Navigate to Discover → Search by title
 #### Supported Commands (Updated)
 
 **Music Purchase Commands:**
-- `buy song [song name]` - Finds song by name, initiates purchase
-- `buy music [token ID]` - Purchases music license by token ID
+- `buy song [song name]` - Finds song by name, initiates purchase (with cast!)
+- `buy music [token ID]` - Purchases music license by token ID (with cast!)
 - `list songs` - Returns all available songs with artist info
 - `list songs by [artist]` - Returns songs by specific artist
 
@@ -602,9 +1593,9 @@ Located in `app/.well-known/farcaster.json/route.ts`:
 ```typescript
 {
   frame: {
-    version: "1",                    // Must be "1"
+    version: "1",
     name: "EmpowerTours",
-    iconUrl: "/images/icon.png",    // 200x200px
+    iconUrl: "/images/icon.png",
     homeUrl: "https://your-domain.com",
     splashImageUrl: "/images/splash.png",
     splashBackgroundColor: "#353B48",
@@ -652,7 +1643,7 @@ Located in `app/.well-known/farcaster.json/route.ts`:
   1. Approve TOURS tokens
   2. Execute purchase
 - **Note:** Each step requires wallet confirmation
-- **Alternative:** Use bot command `buy song [name]` for single-step purchase
+- **Alternative:** Use bot command `buy song [name]` for single-step purchase + automatic cast!
 
 #### 6. Artist name shows as "0x..." instead of username
 - **Reason:** Neynar API lookup failed
@@ -671,6 +1662,12 @@ Located in `app/.well-known/farcaster.json/route.ts`:
 - **Solution:** Run `list songs` to test indexer connectivity
 - **Debug:** Check browser console for GraphQL errors
 
+#### 9. Casts aren't posting
+- **Check:** `BOT_SIGNER_UUID` is set in Railway
+- **Check:** `NEXT_PUBLIC_NEYNAR_API_KEY` is valid
+- **Solution:** Casting is non-blocking - mint still succeeds even if cast fails
+- **Debug:** Check logs for "✅ Cast posted successfully"
+
 ### Debug Mode
 
 Enable detailed logging:
@@ -682,6 +1679,10 @@ console.log('💰 Wallet Address:', walletAddress);
 // In bot command handler
 console.log('🎵 Song search results:', searchResults);
 console.log('📦 GraphQL Query:', query);
+
+// Check casting in logs
+console.log('📢 Posting cast:', castData);
+console.log('✅ Cast posted:', castData_.castHash);
 ```
 
 ---
@@ -817,7 +1818,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ Farcaster Mini App integration
 - ✅ Music NFT licensing system
 - ✅ Gasless transactions via delegation
-- ✅ Bot song name purchasing (NEW!)
+- ✅ Bot song name purchasing
+- ✅ **Farcaster casting for all NFT operations** (NEW!)
 - ⏳ Mobile optimization
 
 ### Q2 2025
@@ -849,7 +1851,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Indexer:** Envio HyperIndex
 - **Storage:** IPFS (Pinata)
 - **Gasless Transactions:** ✅ Via Pimlico + Safe
-- **Bot Commands:** 15+ (including song name purchases)
+- **Farcaster Casting:** ✅ Via Neynar SDK
+- **Bot Commands:** 15+ (including song name purchases + automatic casts)
 
 ---
 
