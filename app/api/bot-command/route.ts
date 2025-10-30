@@ -3,10 +3,29 @@ import { NextRequest, NextResponse } from 'next/server';
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
+// ✅ Helper to extract FID from Farcaster context
+function extractFidFromRequest(req: NextRequest): string | null {
+  // Try to get FID from request headers or body context
+  const farcasterContext = req.headers.get('x-farcaster-context');
+  if (farcasterContext) {
+    try {
+      const context = JSON.parse(farcasterContext);
+      return context.user?.fid?.toString() || null;
+    } catch (e) {
+      // Ignore parsing errors
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { command, userAddress, location } = await req.json();
-    console.log('Bot command received:', { command, userAddress, location });
+    const { command, userAddress, location, fid: bodyFid } = await req.json();
+    
+    // ✅ Get FID from body or request context
+    const fid = bodyFid || extractFidFromRequest(req);
+    
+    console.log('Bot command received:', { command, userAddress, fid });
 
     // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
     const originalCommand = command.trim();
@@ -107,8 +126,7 @@ Address: ${userAddress.slice(0, 10)}...`
       }
     }
 
-    // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION) ====================
-    // ✅ FIXED: Uses correct 'name' field instead of 'songTitle'
+    // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION + CAST) ====================
     if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song')) {
       console.log('Action: buy_music');
       if (!userAddress) {
@@ -121,15 +139,15 @@ Address: ${userAddress.slice(0, 10)}...`
       // Try to match tokenId first (e.g., "buy music 1")
       const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
       let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
+      let songTitle = null;
       
-      // ✅ FIXED: If no tokenId, try to match song name (e.g., "buy song Money making machine")
+      // ✅ If no tokenId, try to match song name
       if (!tokenId) {
         const songNameMatch = originalCommand.match(/buy song (.+)/i);
         if (songNameMatch) {
-          const songName = songNameMatch[1].trim();
-          console.log(`[BOT] Searching for song: "${songName}"`);
+          const searchSongName = songNameMatch[1].trim();
+          console.log(`[BOT] Searching for song: "${searchSongName}"`);
           
-          // ✅ FIXED: Query Envio indexer using 'name' field (not 'songTitle')
           try {
             const searchQuery = `
               query SearchMusicByName($name: String!) {
@@ -147,15 +165,12 @@ Address: ${userAddress.slice(0, 10)}...`
               }
             `;
             
-            console.log('[BOT] GraphQL query:', searchQuery);
-            console.log('[BOT] Query variables:', { name: `%${songName}%` });
-            
             const searchRes = await fetch(ENVIO_ENDPOINT, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 query: searchQuery,
-                variables: { name: `%${songName}%` }
+                variables: { name: `%${searchSongName}%` }
               })
             });
             
@@ -164,25 +179,23 @@ Address: ${userAddress.slice(0, 10)}...`
             }
             
             const searchData = await searchRes.json();
-            console.log('[BOT] Search response:', JSON.stringify(searchData, null, 2));
-            
             const musicNFT = searchData.data?.MusicNFT?.[0];
             
             if (!musicNFT) {
-              console.error('[BOT] No songs found for:', songName);
               return NextResponse.json({
                 success: false,
-                message: `Song "${songName}" not found. Try: "buy music <tokenId>" or browse available songs on /discover page.`
+                message: `Song "${searchSongName}" not found. Try: "buy music <tokenId>" or browse on /discover`
               });
             }
             
             tokenId = parseInt(musicNFT.tokenId);
-            console.log(`[BOT] Found song "${musicNFT.name}" with tokenId: ${tokenId}`);
+            songTitle = musicNFT.name;
+            console.log(`[BOT] Found song "${songTitle}" with tokenId: ${tokenId}`);
           } catch (searchErr: any) {
             console.error('[BOT] Song search error:', searchErr);
             return NextResponse.json({
               success: false,
-              message: `Failed to search for song "${songName}": ${searchErr.message}. Try browsing on /discover page.`
+              message: `Failed to search for song: ${searchErr.message}`
             });
           }
         }
@@ -221,6 +234,7 @@ Address: ${userAddress.slice(0, 10)}...`
           }
           console.log('[BOT] Delegation created with buy_music permission');
         }
+        
         const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -228,14 +242,18 @@ Address: ${userAddress.slice(0, 10)}...`
             userAddress,
             action: 'buy_music',
             params: {
-              tokenId: tokenId.toString()
+              tokenId: tokenId.toString(),
+              songTitle: songTitle,
+              fid // ✅ PASS FID FOR CASTING
             }
           })
         });
+        
         const buyData = await buyRes.json();
         if (!buyData.success) {
           throw new Error(buyData.error || 'Purchase failed');
         }
+        
         console.log('Music purchased:', buyData.txHash);
         return NextResponse.json({
           success: true,
@@ -465,7 +483,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
       }
     }
 
-    // ==================== MINT PASSPORT COMMAND ====================
+    // ==================== MINT PASSPORT COMMAND (WITH CAST) ====================
     if (lowerCommand.includes('mint passport')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -517,7 +535,8 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
             action: 'mint_passport',
             params: {
               countryCode,
-              countryName
+              countryName,
+              fid // ✅ PASS FID FOR CASTING
             }
           })
         });
@@ -545,7 +564,7 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       }
     }
 
-    // ==================== MINT MUSIC COMMAND (FIXED: CID case preservation) ====================
+    // ==================== MINT MUSIC COMMAND (WITH CAST) ====================
     if (lowerCommand.includes('mint music')) {
       if (!userAddress) {
         return NextResponse.json({
@@ -554,9 +573,8 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       }
       try {
-        // ✅ CRITICAL: Use originalCommand to preserve CID case
         const regex = /mint[_ ]music\s+(.+?)\s+(ipfs:\/\/[a-zA-Z0-9]{46,})\s+([\d.]+)/i;
-        const match = originalCommand.match(regex); // Use originalCommand, not lowerCommand!
+        const match = originalCommand.match(regex);
         
         if (!match) {
           return NextResponse.json({
@@ -572,10 +590,9 @@ Or go to the Music page to upload files.`
         }
         
         const songTitle = match[1].trim();
-        const tokenURI = match[2]; // ✅ Preserves case (QmABC... not qmabc...)
+        const tokenURI = match[2];
         const price = parseFloat(match[3]);
 
-        // ✅ Validate CID format
         const cid = tokenURI.replace('ipfs://', '');
         if (!cid.startsWith('Qm') && !cid.startsWith('bafy')) {
           return NextResponse.json({
@@ -588,7 +605,6 @@ Or go to the Music page to upload files.`
           songTitle,
           tokenURI,
           price,
-          cidCase: cid === cid.toLowerCase() ? 'LOWERCASE (BAD)' : 'MIXED CASE (GOOD)'
         });
 
         if (price <= 0 || price > 10) {
@@ -616,6 +632,7 @@ Or go to the Music page to upload files.`
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
+        
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -624,8 +641,9 @@ Or go to the Music page to upload files.`
             action: 'mint_music',
             params: {
               songTitle,
-              tokenURI, // ✅ Case preserved!
-              price: price.toString()
+              tokenURI,
+              price: price.toString(),
+              fid // ✅ PASS FID FOR CASTING
             }
           })
         });
@@ -655,15 +673,14 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
     }
 
     // ==================== NAVIGATION COMMANDS ====================
-    // ✅ FIXED: Added "go to discover" navigation
     const navCommands: Record<string, string> = {
       'go to passport': '/passport',
       'passport': '/passport',
       'go to music': '/music',
       'music': '/music',
-      'go to discover': '/discover',  // ✅ NEW
-      'discover': '/discover',        // ✅ NEW
-      'browse music': '/discover',    // ✅ NEW
+      'go to discover': '/discover',
+      'discover': '/discover',
+      'browse music': '/discover',
       'go to profile': '/profile',
       'profile': '/profile',
       'my profile': '/profile',
