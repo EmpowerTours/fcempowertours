@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
-import { NeynarAPIClient } from "@neynar/sdk/build/neynar-api-client";
+import { Neynar } from "@neynar/nodejs-sdk";
 
 // ✅ MusicLicenseNFTv4 with delegation support
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
@@ -8,6 +8,7 @@ const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0E068B06Bfa9F787699B7';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 
 // MusicLicenseNFTv4 ABI
 const MUSIC_NFT_ABI = [
@@ -121,11 +122,9 @@ export async function POST(req: NextRequest) {
       songTitle: songTitle || 'Untitled'
     });
     
-    // ✅ FIXED: Use Neynar SDK to publish cast properly
+    // ✅ IMPROVED: Post cast using Neynar SDK with OG image embed
     if (fid) {
       try {
-        const songPageUrl = `${APP_URL}/music?tokenId=${tokenId}`;
-        
         const castText = `🎵 New Music Master NFT Minted!
 
 "${songTitle || 'Untitled'}" - Token #${tokenId}
@@ -134,31 +133,37 @@ export async function POST(req: NextRequest) {
 ⚡ Gasless minting powered by @empowertours
 🎶 Purchase license to stream full track
 
-👉 Buy now: ${songPageUrl}
+View: https://testnet.monadscan.com/tx/${tx.hash}
 
-TX: https://testnet.monadscan.com/tx/${tx.hash}`;
+@empowertours`;
 
-        console.log('📢 Posting cast to Farcaster using Neynar SDK...');
+        console.log('📢 Posting cast to Farcaster with OG image...');
+        
+        // ✅ Generate OG image URL
+        const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
+        console.log('🎨 OG Image URL:', ogImageUrl);
         
         // Initialize Neynar client
-        const neynarClient = new NeynarAPIClient({
-          apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+        const client = new Neynar({
+          apiKey: NEYNAR_API_KEY,
         });
 
-        // ✅ CORRECT: Use SDK method instead of raw API
-        const cast = await neynarClient.publishCast({
+        // ✅ IMPROVED: Include OG image in embeds
+        const result = await client.publishCast({
           signerUuid: process.env.BOT_SIGNER_UUID || '',
           text: castText,
           embeds: [
             {
-              url: songPageUrl
+              url: ogImageUrl  // 🎨 This triggers OG image generation!
             }
           ]
         });
 
-        console.log('✅ Cast posted successfully:', {
-          castHash: cast.cast?.hash,
-          url: songPageUrl
+        console.log('✅ Cast with OG image posted successfully:', {
+          hash: result.cast?.hash,
+          songTitle: songTitle || 'Untitled',
+          tokenId,
+          ogImageUrl,
         });
       } catch (castError: any) {
         console.warn('⚠️ Cast failed (mint still succeeded):', castError.message);
@@ -176,6 +181,8 @@ TX: https://testnet.monadscan.com/tx/${tx.hash}`;
       tokenURI: finalTokenURI,
       songTitle: songTitle || 'Untitled',
       price: price || '1',
+      // ✅ Also return OG image URL for client-side reference
+      ogImageUrl: `${APP_URL}/api/og/music?tokenId=${tokenId}`,
     });
   } catch (error: any) {
     console.error('❌ Mint error:', error);

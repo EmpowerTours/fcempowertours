@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { JsonRpcProvider, Wallet, Contract, parseEther, Interface } from "ethers";
+import { Neynar } from "@neynar/nodejs-sdk";
 import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/generatePassportSVG";
 import { getCountryByCode } from "@/lib/passport/countries";
 
@@ -240,25 +241,42 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ Final metadata uploaded: ${finalTokenURI}`);
 
-    // Post cast via empowertoursbot
+    // ✅ FIXED: Post cast using Neynar SDK (reliable, same as music)
     if (fid) {
       try {
-        const castText = `🎫 New EmpowerTours Passport Minted!\n\n${countryInfo.flag} ${countryName} ${countryCode}\n\nToken #${tokenId}\n\n@${username}\n\nView: https://testnet.monadscan.com/tx/${tx.hash}\n\n@empowertours`;
+        const castText = `🎫 New EmpowerTours Passport Minted!
 
-        await axios.post(
-          "https://api.neynar.com/v2/farcaster/cast",
-          {
-            text: castText,
-            signer_uuid: process.env.BOT_SIGNER_UUID,
-          },
-          {
-            headers: { api_key: NEYNAR_API_KEY },
-          }
-        );
+${countryInfo.flag} ${countryName} ${countryCode}
 
-        console.log("📢 Cast posted via empowertoursbot");
+Token #${tokenId}
+
+@${username}
+
+View: https://testnet.monadscan.com/tx/${tx.hash}
+
+@empowertours`;
+
+        console.log('📢 Posting cast to Farcaster using Neynar SDK...');
+        
+        // Initialize Neynar client (same as music)
+        const client = new Neynar({
+          apiKey: NEYNAR_API_KEY,
+        });
+
+        // ✅ Use SDK publishCast method (reliable)
+        const result = await client.publishCast({
+          signerUuid: process.env.BOT_SIGNER_UUID || '',
+          text: castText,
+        });
+
+        console.log('✅ Cast posted successfully:', {
+          hash: result.cast?.hash,
+          country: countryName,
+          tokenId,
+        });
       } catch (castError: any) {
-        console.warn("⚠️ Failed to post cast (mint still succeeded):", castError.message);
+        console.warn('⚠️ Cast failed (mint still succeeded):', castError.message);
+        // Don't fail the entire mint if cast fails
       }
     }
 
