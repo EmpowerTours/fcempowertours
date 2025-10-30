@@ -496,9 +496,15 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         let countryCode = 'US';
         let countryName = 'United States';
         try {
-          const geoRes = await fetch(`${APP_URL}/api/geo`);
+          const geoRes = await fetch(`${APP_URL}/api/geo`, {
+            headers: {
+              'x-forwarded-for': req.headers.get('x-forwarded-for') || '',
+              'x-real-ip': req.headers.get('x-real-ip') || '',
+              'cf-connecting-ip': req.headers.get('cf-connecting-ip') || '',
+            }
+          });
           const geoData = await geoRes.json();
-          countryCode = geoData.country || 'US';
+          countryCode = geoData.country || 'US';            
           countryName = geoData.country_name || 'United States';
         } catch (geoErr) {
           console.warn('Location detection failed, using default');
