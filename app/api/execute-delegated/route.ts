@@ -110,7 +110,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
             });
 
             const castResult = await client.publishCast({
@@ -201,7 +201,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
             });
 
             const castResult = await client.publishCast({
@@ -291,7 +291,7 @@ ${params.songTitle || 'Track'} #${tokenId}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
             });
 
             const castResult = await client.publishCast({
