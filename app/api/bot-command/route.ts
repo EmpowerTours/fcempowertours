@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +29,8 @@ Transactions (Gasless - We Pay!):
 - "mint passport" - Mint a passport NFT (FREE)
 - "mint music <Song Name> <ipfs://...> <price>" - Mint a music NFT
 - "send <amount> tours to @username" - Send TOURS to another user
-- "buy music <tokenId>" - Buy a music license
+- "buy music <tokenId>" - Buy a music license by ID
+- "buy song <Song Name>" - Buy a music license by name
 - "check balance" - Check your MON/TOURS balance
 Info:
 - "help" - Show this message
@@ -105,7 +107,8 @@ Address: ${userAddress.slice(0, 10)}...`
     }
 
     // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION) ====================
-    if (lowerCommand.includes('buy music')) {
+    // ✅ NEW: Supports both "buy music 1" and "buy song Money making machine"
+    if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song')) {
       console.log('Action: buy_music');
       if (!userAddress) {
         return NextResponse.json({
@@ -113,14 +116,77 @@ Address: ${userAddress.slice(0, 10)}...`
           message: 'Wallet not connected. Try: "go to profile"'
         });
       }
-      const tokenIdMatch = lowerCommand.match(/buy music (\d+)/);
-      const tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
+      
+      // Try to match tokenId first (e.g., "buy music 1")
+      const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
+      let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
+      
+      // ✅ NEW: If no tokenId, try to match song name (e.g., "buy song Money making machine")
+      if (!tokenId) {
+        const songNameMatch = originalCommand.match(/buy song (.+)/i);
+        if (songNameMatch) {
+          const songName = songNameMatch[1].trim();
+          console.log(`[BOT] Searching for song: "${songName}"`);
+          
+          // Query Envio indexer to find tokenId by song title
+          try {
+            const searchQuery = `
+              query SearchMusicBySongTitle($songTitle: String!) {
+                MusicNFT(
+                  where: {songTitle: {_ilike: $songTitle}}
+                  limit: 1
+                ) {
+                  id
+                  tokenId
+                  songTitle
+                  price
+                  artist
+                }
+              }
+            `;
+            
+            const searchRes = await fetch(ENVIO_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: searchQuery,
+                variables: { songTitle: `%${songName}%` }
+              })
+            });
+            
+            if (!searchRes.ok) {
+              throw new Error('Failed to search for song');
+            }
+            
+            const searchData = await searchRes.json();
+            const musicNFT = searchData.data?.MusicNFT?.[0];
+            
+            if (!musicNFT) {
+              return NextResponse.json({
+                success: false,
+                message: `Song "${songName}" not found. Try: "buy music <tokenId>" or check exact song title on /music page.`
+              });
+            }
+            
+            tokenId = parseInt(musicNFT.tokenId);
+            console.log(`[BOT] Found song "${musicNFT.songTitle}" with tokenId: ${tokenId}`);
+          } catch (searchErr: any) {
+            console.error('[BOT] Song search error:', searchErr);
+            return NextResponse.json({
+              success: false,
+              message: `Failed to search for song "${songName}": ${searchErr.message}`
+            });
+          }
+        }
+      }
+      
       if (!tokenId) {
         return NextResponse.json({
           success: false,
-          message: 'Invalid format. Use: "buy music <tokenId>"'
+          message: 'Invalid format. Use: "buy music <tokenId>" or "buy song <Song Name>"'
         });
       }
+      
       try {
         console.log(`[BOT] Buying music license for token ${tokenId}`);
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
