@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
 Navigation:
 - "go to passport" - Mint travel passport
 - "go to music" - Mint music NFT
+- "go to discover" - Browse all music
 - "go to profile" - View your NFTs
 - "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
@@ -107,7 +108,7 @@ Address: ${userAddress.slice(0, 10)}...`
     }
 
     // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION) ====================
-    // ✅ NEW: Supports both "buy music 1" and "buy song Money making machine"
+    // ✅ FIXED: Uses correct 'name' field instead of 'songTitle'
     if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song')) {
       console.log('Action: buy_music');
       if (!userAddress) {
@@ -121,60 +122,67 @@ Address: ${userAddress.slice(0, 10)}...`
       const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
       let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
       
-      // ✅ NEW: If no tokenId, try to match song name (e.g., "buy song Money making machine")
+      // ✅ FIXED: If no tokenId, try to match song name (e.g., "buy song Money making machine")
       if (!tokenId) {
         const songNameMatch = originalCommand.match(/buy song (.+)/i);
         if (songNameMatch) {
           const songName = songNameMatch[1].trim();
           console.log(`[BOT] Searching for song: "${songName}"`);
           
-          // Query Envio indexer to find tokenId by song title
+          // ✅ FIXED: Query Envio indexer using 'name' field (not 'songTitle')
           try {
             const searchQuery = `
-              query SearchMusicBySongTitle($songTitle: String!) {
+              query SearchMusicByName($name: String!) {
                 MusicNFT(
-                  where: {songTitle: {_ilike: $songTitle}}
+                  where: {name: {_ilike: $name}}
                   limit: 1
+                  order_by: {mintedAt: desc}
                 ) {
                   id
                   tokenId
-                  songTitle
+                  name
                   price
                   artist
                 }
               }
             `;
             
+            console.log('[BOT] GraphQL query:', searchQuery);
+            console.log('[BOT] Query variables:', { name: `%${songName}%` });
+            
             const searchRes = await fetch(ENVIO_ENDPOINT, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 query: searchQuery,
-                variables: { songTitle: `%${songName}%` }
+                variables: { name: `%${songName}%` }
               })
             });
             
             if (!searchRes.ok) {
-              throw new Error('Failed to search for song');
+              throw new Error(`GraphQL query failed with status ${searchRes.status}`);
             }
             
             const searchData = await searchRes.json();
+            console.log('[BOT] Search response:', JSON.stringify(searchData, null, 2));
+            
             const musicNFT = searchData.data?.MusicNFT?.[0];
             
             if (!musicNFT) {
+              console.error('[BOT] No songs found for:', songName);
               return NextResponse.json({
                 success: false,
-                message: `Song "${songName}" not found. Try: "buy music <tokenId>" or check exact song title on /music page.`
+                message: `Song "${songName}" not found. Try: "buy music <tokenId>" or browse available songs on /discover page.`
               });
             }
             
             tokenId = parseInt(musicNFT.tokenId);
-            console.log(`[BOT] Found song "${musicNFT.songTitle}" with tokenId: ${tokenId}`);
+            console.log(`[BOT] Found song "${musicNFT.name}" with tokenId: ${tokenId}`);
           } catch (searchErr: any) {
             console.error('[BOT] Song search error:', searchErr);
             return NextResponse.json({
               success: false,
-              message: `Failed to search for song "${songName}": ${searchErr.message}`
+              message: `Failed to search for song "${songName}": ${searchErr.message}. Try browsing on /discover page.`
             });
           }
         }
@@ -641,11 +649,15 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
     }
 
     // ==================== NAVIGATION COMMANDS ====================
+    // ✅ FIXED: Added "go to discover" navigation
     const navCommands: Record<string, string> = {
       'go to passport': '/passport',
       'passport': '/passport',
       'go to music': '/music',
       'music': '/music',
+      'go to discover': '/discover',  // ✅ NEW
+      'discover': '/discover',        // ✅ NEW
+      'browse music': '/discover',    // ✅ NEW
       'go to profile': '/profile',
       'profile': '/profile',
       'my profile': '/profile',
