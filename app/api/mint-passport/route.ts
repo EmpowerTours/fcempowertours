@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { JsonRpcProvider, Wallet, Contract, parseEther, Interface } from "ethers";
-import { Neynar } from "@neynar/nodejs-sdk";
+import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/generatePassportSVG";
 import { getCountryByCode } from "@/lib/passport/countries";
 
@@ -10,6 +10,7 @@ const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
 // ✅ UPDATED ABI FOR PassportNFTv2
 const PASSPORT_ABI = [
@@ -241,7 +242,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ Final metadata uploaded: ${finalTokenURI}`);
 
-    // ✅ FIXED: Post cast using Neynar SDK (reliable, same as music)
+    // ✅ Post cast using Neynar SDK with OG image
     if (fid) {
       try {
         const castText = `🎫 New EmpowerTours Passport Minted!
@@ -258,12 +259,12 @@ View: https://testnet.monadscan.com/tx/${tx.hash}
 
         console.log('📢 Posting cast to Farcaster using Neynar SDK...');
         
-        // Initialize Neynar client (same as music)
-        const client = new Neynar({
+        // Initialize Neynar client with correct SDK
+        const client = new NeynarAPIClient({
           apiKey: NEYNAR_API_KEY,
         });
 
-        // ✅ Use SDK publishCast method (reliable)
+        // ✅ Use SDK publishCast method
         const result = await client.publishCast({
           signerUuid: process.env.BOT_SIGNER_UUID || '',
           text: castText,

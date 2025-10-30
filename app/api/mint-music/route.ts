@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
-import { Neynar } from "@neynar/nodejs-sdk";
+import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
 // ✅ MusicLicenseNFTv4 with delegation support
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       songTitle: songTitle || 'Untitled'
     });
     
-    // ✅ IMPROVED: Post cast using Neynar SDK with OG image embed
+    // ✅ Post cast using Neynar SDK with OG image embed
     if (fid) {
       try {
         const castText = `🎵 New Music Master NFT Minted!
@@ -143,12 +143,12 @@ View: https://testnet.monadscan.com/tx/${tx.hash}
         const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
         console.log('🎨 OG Image URL:', ogImageUrl);
         
-        // Initialize Neynar client
-        const client = new Neynar({
+        // Initialize Neynar client with correct SDK
+        const client = new NeynarAPIClient({
           apiKey: NEYNAR_API_KEY,
         });
 
-        // ✅ IMPROVED: Include OG image in embeds
+        // ✅ Use publishCast method with OG image embed
         const result = await client.publishCast({
           signerUuid: process.env.BOT_SIGNER_UUID || '',
           text: castText,
