@@ -71,10 +71,10 @@ export async function GET(request: NextRequest) {
     // ✅ PRIORITY 1: Direct params from bot (fresh mint)
     if (directImageUrl && directSongTitle) {
       console.log('✅ Using direct params - image URL provided by bot');
-      
+
       // ✅ FIXED: directImageUrl IS the image URL, not metadata!
       const imageUrl = getImageUrl(directImageUrl);
-      
+
       musicData = {
         tokenId: tokenId || '0',
         songTitle: directSongTitle,
@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
                 width: '50%',
                 height: '100%',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '60px',
@@ -293,13 +294,15 @@ export async function GET(request: NextRequest) {
               padding: '60px',
             }}
           >
-            <div style={{ display: 'flex', fontSize: 100, marginBottom: 30 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 100, marginBottom: 30 }}>
               🎵
             </div>
 
             <div
               style={{
                 display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
                 fontSize: 64,
                 fontWeight: 'bold',
                 marginBottom: 20,
@@ -338,6 +341,8 @@ export async function GET(request: NextRequest) {
             <div
               style={{
                 display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
                 fontSize: 32,
                 opacity: 0.9,
                 marginTop: 50,
@@ -371,13 +376,15 @@ export async function GET(request: NextRequest) {
             fontFamily: 'system-ui',
           }}
         >
-          <div style={{ display: 'flex', fontSize: 120, marginBottom: 30 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 120, marginBottom: 30 }}>
             🎵
           </div>
 
           <div
             style={{
               display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               fontSize: 70,
               fontWeight: 'bold',
               marginBottom: 20,
@@ -400,6 +407,9 @@ export async function GET(request: NextRequest) {
           <div
             style={{
               display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
               fontSize: 28,
               opacity: 0.7,
               marginTop: 40,
