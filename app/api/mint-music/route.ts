@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
+import { NeynarAPIClient } from "@neynar/sdk/build/neynar-api-client";
 
 // ✅ MusicLicenseNFTv4 with delegation support
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
-const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0E068B06Bfa9F787699B7';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
@@ -120,10 +121,9 @@ export async function POST(req: NextRequest) {
       songTitle: songTitle || 'Untitled'
     });
     
-    // ✅ FIXED: Post cast via empowertoursbot with PROPER FRAME LINK
+    // ✅ FIXED: Use Neynar SDK to publish cast properly
     if (fid) {
       try {
-        // Create direct link to this specific song in EmpowerTours Mini App
         const songPageUrl = `${APP_URL}/music?tokenId=${tokenId}`;
         
         const castText = `🎵 New Music Master NFT Minted!
@@ -138,35 +138,28 @@ export async function POST(req: NextRequest) {
 
 TX: https://testnet.monadscan.com/tx/${tx.hash}`;
 
-        console.log('📢 Posting cast to Farcaster...');
-        const castResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
-          method: 'POST',
-          headers: {
-            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            signer_uuid: process.env.BOT_SIGNER_UUID,
-            text: castText,
-            // ✅ CRITICAL: Add embeds with proper frame metadata for preview
-            embeds: [
-              {
-                url: songPageUrl
-              }
-            ]
-          }),
+        console.log('📢 Posting cast to Farcaster using Neynar SDK...');
+        
+        // Initialize Neynar client
+        const neynarClient = new NeynarAPIClient({
+          apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
         });
 
-        if (!castResponse.ok) {
-          const errorData = await castResponse.json();
-          console.error('❌ Cast API error:', errorData);
-        } else {
-          const castData = await castResponse.json();
-          console.log('✅ Cast posted successfully:', {
-            hash: castData.cast?.hash,
-            url: songPageUrl
-          });
-        }
+        // ✅ CORRECT: Use SDK method instead of raw API
+        const cast = await neynarClient.publishCast({
+          signerUuid: process.env.BOT_SIGNER_UUID || '',
+          text: castText,
+          embeds: [
+            {
+              url: songPageUrl
+            }
+          ]
+        });
+
+        console.log('✅ Cast posted successfully:', {
+          castHash: cast.cast?.hash,
+          url: songPageUrl
+        });
       } catch (castError: any) {
         console.warn('⚠️ Cast failed (mint still succeeded):', castError.message);
         // Don't fail the entire mint if cast fails
