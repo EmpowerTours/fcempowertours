@@ -34,31 +34,44 @@ export function useBotCommand() {
       setError(null);
 
       try {
-        // ✅ FIXED: Get wallet address from Privy or Farcaster context
-        const walletAcc = user?.linkedAccounts?.find((acc: any) => acc.type === 'wallet') as any;
+        // ✅ FIXED: Get wallet address from multiple sources
+        // Priority: Privy linkedAccounts → Farcaster context → Display message
         
-        // Extract address from various formats
-        let extractedAddress: string | undefined;
+        let userAddress: string | undefined;
+        
+        // Step 1: Try Privy linkedAccounts
+        const walletAcc = user?.linkedAccounts?.find((acc: any) => acc.type === 'wallet') as any;
         
         if (walletAcc) {
           // Try direct address property first
-          extractedAddress = walletAcc.address;
-          
+          if (walletAcc.address) {
+            userAddress = walletAcc.address;
+          }
           // Try CAIP10 format (eip155:chainId:address)
-          if (!extractedAddress && walletAcc.caip10Address) {
+          else if (walletAcc.caip10Address) {
             const parts = walletAcc.caip10Address.split(':');
-            extractedAddress = parts[2];
+            userAddress = parts[2];
+          }
+          // Try chainId:address format (alternative)
+          else if (walletAcc.caip10Address && typeof walletAcc.caip10Address === 'string') {
+            userAddress = walletAcc.caip10Address;
           }
         }
         
-        // Use extracted address or fallback to Farcaster context
-        const userAddress = extractedAddress || walletAddress;
+        // Step 2: Fallback to Farcaster context wallet (from SimpleBotBar)
+        if (!userAddress && walletAddress) {
+          userAddress = walletAddress;
+        }
         
+        // Step 3: If still no address, error
         if (!userAddress) {
           const err = 'Wallet not connected. Please connect your wallet first.';
+          console.warn('❌ [BOT-HOOK] No wallet address found. Privy:', { walletAcc, user }, 'Farcaster:', { walletAddress });
           setError(err);
           return { success: false, error: err };
         }
+
+        console.log('✅ [BOT-HOOK] Wallet address found:', { userAddress, source: walletAcc ? 'Privy' : 'Farcaster' });
 
         // ✅ USE FID FROM useFarcasterContext
         const commandFid = options?.fid || fid;
@@ -67,7 +80,8 @@ export function useBotCommand() {
           command,
           userAddress,
           fid: commandFid,
-          source: options?.fid ? 'override' : 'useFarcasterContext'
+          location: options?.location,
+          source: walletAcc ? 'Privy wallet' : 'Farcaster context'
         });
 
         const response = await fetch('/api/bot-command', {
