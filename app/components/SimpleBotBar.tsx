@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useBotCommand } from '@/app/hooks/useBotCommand';
 import { useGeolocation } from '@/lib/useGeolocation';
 
 // ✅ IMPROVED: Parse response and render with React components instead of innerHTML
@@ -91,40 +92,31 @@ export default function SimpleBotBar() {
   const { walletAddress } = useFarcasterContext();
   const { location } = useGeolocation();
   
+  // ✅ USE THE HOOK
+  const { executeCommand, loading: sending, error: hookError } = useBotCommand();
+  
   const [command, setCommand] = useState('');
-  const [sending, setSending] = useState(false);
   const [response, setResponse] = useState('');
+  const [error, setError] = useState('');
 
   const handleSend = async () => {
     if (!command.trim() || sending) return;
 
     const userCommand = command.trim();
-    setSending(true);
+    setError('');
     setResponse('');
 
     try {
       console.log('🤖 Sending command with location:', { userCommand, location });
       
-      const res = await fetch('/api/bot-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          command: userCommand,
-          userAddress: walletAddress || null,
-          location: location ? {
-            country: location.country,
-            countryName: location.countryName,
-            latitude: location.latitude,
-            longitude: location.longitude,
-          } : null,
-        }),
+      // ✅ USE THE HOOK INSTEAD OF FETCH
+      const data = await executeCommand(userCommand, {
+        location: location ? {
+          latitude: location.latitude,
+          longitude: location.longitude,
+        } : undefined
       });
 
-      if (!res.ok) {
-        throw new Error(`API returned ${res.status}`);
-      }
-
-      const data = await res.json();
       console.log('🤖 Bot response:', data);
 
       if (data.success) {
@@ -156,21 +148,19 @@ export default function SimpleBotBar() {
           }, 3000);
         }
       } else {
-        const errorMessage = String(data.message || '❌ Command not recognized. Try "help"');
-        setResponse(errorMessage);
+        const errorMessage = String(data.error || data.message || '❌ Command not recognized. Try "help"');
+        setError(errorMessage);
         setTimeout(() => {
-          setResponse('');
+          setError('');
         }, 5000);
       }
     } catch (err: any) {
       console.error('❌ Bot error:', err);
       const errorMessage = String(err.message || '❌ Failed to process command. Try again.');
-      setResponse(errorMessage);
+      setError(errorMessage);
       setTimeout(() => {
-        setResponse('');
+        setError('');
       }, 3000);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -212,6 +202,19 @@ export default function SimpleBotBar() {
               );
             }
           })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderError = () => {
+    const errorMsg = error || hookError;
+    if (!errorMsg) return null;
+    
+    return (
+      <div className="p-3 bg-red-900/50 text-red-100 rounded-lg border border-red-700 animate-fade-in">
+        <div className="text-xs sm:text-sm font-mono">
+          {errorMsg}
         </div>
       </div>
     );
@@ -260,6 +263,9 @@ export default function SimpleBotBar() {
               )}
             </button>
           </div>
+
+          {/* Error Message */}
+          {renderError()}
 
           {/* Response Message with Clickable Links */}
           {renderResponse()}

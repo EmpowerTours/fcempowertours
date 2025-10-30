@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useBotCommand } from '@/app/hooks/useBotCommand';
 import { isAddress } from 'viem';
 import Link from 'next/link';
 
@@ -57,6 +58,8 @@ export default function ArtistProfilePage() {
   const router = useRouter();
   const artistAddress = params.address as string;
   const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
+  const { executeCommand, loading: commandLoading, error: commandError } = useBotCommand();
+  
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,14 +231,15 @@ export default function ArtistProfilePage() {
     }
     setBuying(music.tokenId);
     try {
-      const command = `buy music ${music.tokenId} from @${artistInfo?.username || artistAddress}`;
-      const response = await fetch('/api/bot-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, userAddress: walletAddress, location: null }),
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Purchase failed');
+      const command = `buy music ${music.tokenId}`;
+      
+      // ✅ USE THE HOOK INSTEAD OF FETCH
+      const result = await executeCommand(command);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Purchase failed');
+      }
+      
       alert(`Buying "${music.metadata?.name || 'track'}"!\n\nPrice: ${music.price} TOURS\n\nTX: ${result.txHash}`);
       setTimeout(() => loadArtistProfile(), 2000);
     } catch (error: any) {
@@ -488,12 +492,13 @@ export default function ArtistProfilePage() {
                         disabled={
                           buying === music.tokenId ||
                           !walletAddress ||
-                          walletAddress.toLowerCase() === artistAddress.toLowerCase()
+                          walletAddress.toLowerCase() === artistAddress.toLowerCase() ||
+                          commandLoading
                         }
                         className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 touch-manipulation"
                         style={{ minHeight: '56px' }}
                       >
-                        {buying === music.tokenId
+                        {buying === music.tokenId || commandLoading
                           ? '⏳ Processing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '✓ Your Own Track'

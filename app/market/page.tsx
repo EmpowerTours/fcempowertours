@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useBotCommand } from '@/app/hooks/useBotCommand';
 import Link from 'next/link';
 
 interface SwapQuote {
@@ -11,9 +12,9 @@ interface SwapQuote {
 
 export default function MarketPage() {
   const { user, walletAddress, isMobile, isLoading: contextLoading, requestWallet } = useFarcasterContext();
+  const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
 
   const [swapAmount, setSwapAmount] = useState('0.1');
-  const [swapLoading, setSwapLoading] = useState(false);
   const [swapError, setSwapError] = useState<string | null>(null);
   const [swapSuccess, setSwapSuccess] = useState<string | null>(null);
   const [quote, setQuote] = useState<SwapQuote | null>(null);
@@ -92,7 +93,6 @@ export default function MarketPage() {
       return;
     }
 
-    setSwapLoading(true);
     setSwapError(null);
     setSwapSuccess(null);
 
@@ -101,17 +101,8 @@ export default function MarketPage() {
 
       const command = `swap ${amount} mon`;
 
-      const response = await fetch('/api/bot-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          command,
-          userAddress: walletAddress,
-          location: null,
-        }),
-      });
-
-      const result = await response.json();
+      // ✅ USE useBotCommand HOOK INSTEAD OF MANUAL FETCH
+      const result = await executeCommand(command);
 
       if (!result.success) {
         throw new Error(result.error || result.message || 'Swap failed');
@@ -137,8 +128,6 @@ View: https://testnet.monadscan.com/tx/${txHash}`);
     } catch (error: any) {
       console.error('❌ Swap failed:', error);
       setSwapError(`❌ Swap failed: ${error.message}`);
-    } finally {
-      setSwapLoading(false);
     }
   };
 
@@ -210,9 +199,9 @@ View: https://testnet.monadscan.com/tx/${txHash}`);
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">💱 Swap MON → TOURS</h2>
 
-          {swapError && (
+          {(swapError || botError) && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium text-sm">{swapError}</p>
+              <p className="text-red-700 font-medium text-sm">{swapError || botError}</p>
             </div>
           )}
 
@@ -241,7 +230,7 @@ View: https://testnet.monadscan.com/tx/${txHash}`);
                   max="10"
                   step="0.01"
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-600 focus:outline-none text-lg font-semibold"
-                  disabled={swapLoading}
+                  disabled={botLoading}
                 />
                 <span className="absolute right-4 top-3 text-lg font-bold text-gray-600">
                   MON
@@ -281,7 +270,7 @@ View: https://testnet.monadscan.com/tx/${txHash}`);
                     setSwapAmount(amt);
                     setTimeout(generateSwapQuote, 0);
                   }}
-                  disabled={swapLoading}
+                  disabled={botLoading}
                   className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-all disabled:opacity-50"
                 >
                   {amt}
@@ -292,13 +281,13 @@ View: https://testnet.monadscan.com/tx/${txHash}`);
             {/* Swap Button */}
             <button
               onClick={handleSwapClick}
-              disabled={swapLoading || !walletAddress || parseFloat(swapAmount) <= 0}
+              disabled={botLoading || !walletAddress || parseFloat(swapAmount) <= 0}
               className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 touch-manipulation"
               style={{ minHeight: '56px' }}
             >
               {!walletAddress
                 ? '🔑 Connect Wallet'
-                : swapLoading
+                : botLoading
                 ? '⏳ Processing Swap...'
                 : `💱 Swap ${swapAmount} MON for TOURS`
               }

@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useBotCommand } from '@/app/hooks/useBotCommand';
 
 // ✅ Uses env var which should be updated
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
 
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
+  const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
   
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
@@ -95,17 +97,10 @@ export default function MusicPage() {
       // ✅ FIXED: Use bot delegation system for music minting (avoids gas fee issues)
       // This follows the same pattern as swaps - gasless transactions via delegation
       const command = `mint_music ${songTitle.slice(0, 50)} ${tokenURI} ${price}`;
-      const mintRes = await fetch('/api/bot-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          command,
-          userAddress: walletAddress,
-          location: null,
-        }),
-      });
+      
+      // ✅ USE useBotCommand HOOK INSTEAD OF MANUAL FETCH
+      const mintData = await executeCommand(command);
 
-      const mintData = await mintRes.json();
       if (!mintData.success) {
         throw new Error(mintData.error || mintData.message || 'Mint failed');
       }
@@ -190,9 +185,9 @@ export default function MusicPage() {
             </div>
           )}
 
-          {error && (
+          {(error || botError) && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium">❌ {error}</p>
+              <p className="text-red-700 font-medium">❌ {error || botError}</p>
             </div>
           )}
 
@@ -357,14 +352,15 @@ export default function MusicPage() {
                 !songTitle ||
                 !price ||
                 uploading ||
-                minting
+                minting ||
+                botLoading
               }
               className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95 touch-manipulation"
               style={{ minHeight: '56px' }}
             >
               {uploading
                 ? '⏳ Uploading to IPFS...'
-                : minting
+                : minting || botLoading
                 ? '⚡ Minting NFT (FREE)...'
                 : `🎵 Mint for ${price} TOURS (FREE for you!)`} {/* ✅ FIXED: Say TOURS */}
             </button>
