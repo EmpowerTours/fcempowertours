@@ -38,18 +38,18 @@ export function useFarcasterContext() {
         console.log('🔄 [1/5] Importing Farcaster SDK...');
         const farcasterModule = await import('@farcaster/miniapp-sdk');
         const { sdk: farcasterSdk } = farcasterModule;
-        
+
         if (!farcasterSdk) {
           throw new Error('SDK import returned undefined');
         }
 
         console.log('✅ [2/5] SDK imported successfully');
-        
+
         if (!isMounted) return;
         setSdk(farcasterSdk);
 
         console.log('🔄 [3/5] Waiting for SDK to be ready...');
-        
+
         let attempts = 0;
         let sdkReady = false;
         let ctx: ExtendedFarcasterContext | null = null;
@@ -57,7 +57,7 @@ export function useFarcasterContext() {
         while (attempts < 10 && !sdkReady) {
           try {
             ctx = await farcasterSdk.context;
-            
+
             if (ctx && ctx.user && ctx.user.fid) {
               console.log('✅ [4/5] Context loaded!');
               console.log('👤 User:', ctx.user);
@@ -84,7 +84,7 @@ export function useFarcasterContext() {
 
         // 🔥 CRITICAL: Fetch VERIFIED custody address from Neynar API
         console.log('🔄 [5/5] Fetching verified custody address from Neynar for FID:', ctx.user.fid);
-        
+
         try {
           const neynarResponse = await fetch(
             `https://api.neynar.com/v2/farcaster/user/bulk?fids=${ctx.user.fid}`,
@@ -98,14 +98,14 @@ export function useFarcasterContext() {
           if (neynarResponse.ok) {
             const neynarData = await neynarResponse.json();
             const userData = neynarData.users?.[0];
-            
+
             if (userData) {
               console.log('📦 Neynar user data:', userData);
               console.log('📋 verifiedAddresses:', userData.verifiedAddresses);
               console.log('📋 verified_addresses:', userData.verified_addresses);
-              
+
               // 🔥 IMPORTANT: Prioritize primary address, then verified addresses
-              let address = 
+              let address =
                 userData.verified_addresses?.primary?.eth_address ||
                 userData.verifiedAddresses?.primary?.eth_address ||
                 userData.verified_addresses?.eth_addresses?.[0] ||
@@ -116,9 +116,9 @@ export function useFarcasterContext() {
                 console.log('✅ Found VERIFIED wallet address:', address);
                 setCustodyAddress(address);
                 setWalletConnected(true);
-                
+
                 // Update context with the real address
-                setContext(prev => 
+                setContext(prev =>
                   prev ? {
                     ...prev,
                     user: {
@@ -242,6 +242,7 @@ export function useFarcasterContext() {
     error,
     user: context?.user || null,
     walletAddress,
+    custodyAddress,
     isMobile,
     walletConnected,
     requestWallet,
