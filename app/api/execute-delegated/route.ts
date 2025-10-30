@@ -9,27 +9,7 @@ import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } fr
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-async function postCast(castData: any) {
-  try {
-    console.log('📢 Posting cast:', castData.type);
-    const castRes = await fetch(`${APP_URL}/api/cast-nft`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(castData)
-    });
-
-    if (!castRes.ok) {
-      const error = await castRes.text();
-      console.warn('⚠️ Cast posting failed:', error);
-      return;
-    }
-
-    const castData_ = await castRes.json();
-    console.log('✅ Cast posted:', castData_.castHash);
-  } catch (err: any) {
-    console.warn('⚠️ Cast error (non-blocking):', err.message);
-  }
-}
+// ✅ REMOVED: Old postCast function - no longer needed
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,7 +54,7 @@ export async function POST(req: NextRequest) {
     const MINT_PRICE = parseEther('10'); // 10 TOURS for passport mint
 
     switch (action) {
-      // ==================== MINT PASSPORT (WITH CAST) ====================
+      // ==================== MINT PASSPORT (WITH CAST + FRAME) ====================
       case 'mint_passport':
         console.log('🎫 Action: mint_passport (batched approve + mint)');
         const mintCalls = [
@@ -111,16 +91,43 @@ export async function POST(req: NextRequest) {
         const mintTxHash = await sendSafeTransaction(mintCalls);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
-        // ✅ POST CAST AFTER SUCCESSFUL MINT
+        // ✅ POST CAST WITH FRAME (NEW CODE)
         if (params?.fid) {
-          await postCast({
-            type: 'passport',
-            fid: params.fid,
-            tokenId: params.tokenId || 0, // We don't know the exact tokenId yet
-            txHash: mintTxHash,
-            countryCode: params.countryCode || 'US',
-            countryName: params.countryName || 'United States',
-          });
+          try {
+            const tokenId = params.tokenId || 0;
+            const frameUrl = `${APP_URL}/api/frames/passport/${tokenId}`;
+            const castText = `🎫 New Travel Passport NFT Minted!
+
+${params.countryCode || 'US'} ${params.countryName || 'United States'}
+
+⚡ Gasless minting powered by @empowertours
+🌍 Collect all 195 countries
+
+@empowertours`;
+
+            console.log('📢 Posting passport cast with frame...');
+            console.log('🎬 Frame URL:', frameUrl);
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const client = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+            });
+
+            const castResult = await client.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: castText,
+              embeds: [{ url: frameUrl }]
+            });
+
+            console.log('✅ Passport cast posted with frame:', {
+              hash: castResult.cast?.hash,
+              countryCode: params.countryCode,
+              frameUrl
+            });
+          } catch (castError: any) {
+            console.warn('⚠️ Passport cast posting failed (non-blocking):', castError.message);
+            // Don't fail the transaction if cast fails
+          }
         }
 
         await incrementTransactionCount(userAddress);
@@ -132,7 +139,7 @@ export async function POST(req: NextRequest) {
           message: `Passport minted successfully`,
         });
 
-      // ==================== MINT MUSIC (WITH CAST) ====================
+      // ==================== MINT MUSIC (WITH CAST + FRAME) ====================
       case 'mint_music':
         console.log('🎵 Action: mint_music');
         if (!params?.tokenURI || !params?.price) {
@@ -172,16 +179,46 @@ export async function POST(req: NextRequest) {
         const musicTxHash = await sendSafeTransaction(musicCalls);
         console.log('✅ Music mint successful, TX:', musicTxHash);
 
-        // ✅ POST CAST AFTER SUCCESSFUL MINT
+        // ✅ POST CAST WITH FRAME (NEW CODE)
         if (params?.fid) {
-          await postCast({
-            type: 'music_mint',
-            fid: params.fid,
-            tokenId: params.tokenId || 0,
-            txHash: musicTxHash,
-            songTitle: params.songTitle || 'Untitled',
-            price: params.price,
-          });
+          try {
+            // Note: We use tokenId 0 as placeholder since we don't have the exact tokenId yet
+            // It will be indexed by Envio after block confirmation
+            const tokenId = 0;
+            const frameUrl = `${APP_URL}/api/frames/music/${tokenId}`;
+            const castText = `🎵 New Music Master NFT Minted!
+
+"${params.songTitle || 'Untitled'}"
+💰 License Price: ${params.price} TOURS
+
+⚡ Gasless minting powered by @empowertours
+🎶 Purchase license to stream full track
+
+@empowertours`;
+
+            console.log('📢 Posting music cast with frame...');
+            console.log('🎬 Frame URL:', frameUrl);
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const client = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+            });
+
+            const castResult = await client.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: castText,
+              embeds: [{ url: frameUrl }]
+            });
+
+            console.log('✅ Music cast posted with frame:', {
+              hash: castResult.cast?.hash,
+              songTitle: params.songTitle,
+              frameUrl
+            });
+          } catch (castError: any) {
+            console.warn('⚠️ Music cast posting failed (non-blocking):', castError.message);
+            // Don't fail the transaction if cast fails
+          }
         }
 
         await incrementTransactionCount(userAddress);
@@ -195,7 +232,7 @@ export async function POST(req: NextRequest) {
           message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS`,
         });
 
-      // ==================== BUY MUSIC (WITH CAST) ====================
+      // ==================== BUY MUSIC (WITH CAST + FRAME) ====================
       case 'buy_music':
         console.log('🎵 Action: buy_music (batched approve + purchaseLicenseFor)');
         if (!params?.tokenId) {
@@ -236,15 +273,42 @@ export async function POST(req: NextRequest) {
         const buyTxHash = await sendSafeTransaction(buyCalls);
         console.log('✅ Music purchase successful, TX:', buyTxHash);
 
-        // ✅ POST CAST AFTER SUCCESSFUL PURCHASE
+        // ✅ POST CAST WITH FRAME (NEW CODE)
         if (params?.fid) {
-          await postCast({
-            type: 'music_purchase',
-            fid: params.fid,
-            tokenId: tokenId.toString(),
-            txHash: buyTxHash,
-            songTitle: params.songTitle || 'Track',
-          });
+          try {
+            const frameUrl = `${APP_URL}/api/frames/music/${tokenId.toString()}`;
+            const castText = `💎 Music License Purchased!
+
+${params.songTitle || 'Track'} #${tokenId}
+
+⚡ Gasless transaction powered by @empowertours
+🎧 Enjoy streaming!
+
+@empowertours`;
+
+            console.log('📢 Posting purchase cast with frame...');
+            console.log('🎬 Frame URL:', frameUrl);
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const client = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY,
+            });
+
+            const castResult = await client.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: castText,
+              embeds: [{ url: frameUrl }]
+            });
+
+            console.log('✅ Purchase cast posted with frame:', {
+              hash: castResult.cast?.hash,
+              tokenId: tokenId.toString(),
+              frameUrl
+            });
+          } catch (castError: any) {
+            console.warn('⚠️ Purchase cast posting failed (non-blocking):', castError.message);
+            // Don't fail the transaction if cast fails
+          }
         }
 
         await incrementTransactionCount(userAddress);

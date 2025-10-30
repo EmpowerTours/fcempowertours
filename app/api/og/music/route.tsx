@@ -6,42 +6,9 @@ export const runtime = 'edge';
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
-// Helper function to fetch metadata from IPFS
-async function fetchMetadata(tokenURI: string) {
-  try {
-    // Convert ipfs:// to https://
-    let metadataUrl = tokenURI;
-    if (tokenURI.startsWith('ipfs://')) {
-      const cid = tokenURI.replace('ipfs://', '');
-      metadataUrl = `https://${PINATA_GATEWAY}/ipfs/${cid}`;
-    }
-    
-    console.log('📥 Fetching metadata from:', metadataUrl);
-    
-    const response = await fetch(metadataUrl, { 
-      cache: 'no-store',
-      signal: AbortSignal.timeout(5000) // 5 second timeout
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch metadata: ${response.status}`);
-    }
-    
-    const metadata = await response.json();
-    console.log('✅ Metadata fetched:', {
-      name: metadata.name,
-      hasImage: !!metadata.image,
-      imageUrl: metadata.image
-    });
-    
-    return metadata;
-  } catch (error) {
-    console.error('❌ Error fetching metadata:', error);
-    return null;
-  }
-}
+// Cache for OG data
+const ogCache = new Map<string, { data: any; expiry: number }>();
 
-// Helper function to convert IPFS image URL to HTTP
 function getImageUrl(ipfsUrl: string): string {
   if (!ipfsUrl) return '';
   if (ipfsUrl.startsWith('http')) return ipfsUrl;
@@ -52,194 +19,266 @@ function getImageUrl(ipfsUrl: string): string {
   return ipfsUrl;
 }
 
+async function fetchMetadataFromIPFS(metadataUrl: string) {
+  try {
+    const httpUrl = getImageUrl(metadataUrl);
+    console.log('📥 Fetching metadata from:', httpUrl);
+
+    const response = await fetch(httpUrl, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ Metadata fetch returned ${response.status}`);
+      return null;
+    }
+
+    const metadata = await response.json();
+    console.log('✅ Metadata fetched:', {
+      name: metadata.name,
+      hasImage: !!metadata.image
+    });
+
+    return metadata;
+  } catch (error: any) {
+    console.error('❌ Error fetching metadata:', error.message);
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
+    
+    // ✅ Direct params from bot
+    const directMetadataUrl = searchParams.get('imageUrl');  // This is metadata IPFS URL!
+    const directSongTitle = searchParams.get('songTitle');
+    const directPrice = searchParams.get('price');
     const artist = searchParams.get('artist');
-    const songTitle = searchParams.get('song');
+    const song = searchParams.get('song');
 
-    console.log('🎨 Generating OG image with params:', { tokenId, artist, songTitle });
+    console.log('🎨 OG Request:', {
+      tokenId,
+      hasDirect: !!directMetadataUrl,
+      songTitle: directSongTitle
+    });
 
-    // ✅ NEW: If tokenId provided, fetch full metadata including cover art
-    if (tokenId) {
-      try {
-        console.log('🔍 Querying Envio for token metadata...');
-        
-        // Query Envio indexer for full NFT metadata
-        const query = `
-          query GetMusicNFT($tokenId: String!) {
-            MusicNFT(where: {tokenId: {_eq: $tokenId}}, limit: 1) {
-              id
-              tokenId
-              songTitle
-              artist
-              price
-              tokenURI
+    let musicData: any = null;
+
+    // ✅ PRIORITY 1: Direct params from bot (fresh mint)
+    if (directMetadataUrl && directSongTitle) {
+      console.log('✅ Using direct params - fetching metadata from IPFS...');
+      
+      // Fetch the metadata to get cover image
+      const metadata = await fetchMetadataFromIPFS(directMetadataUrl);
+      
+      if (metadata) {
+        musicData = {
+          tokenId: tokenId || '0',
+          songTitle: directSongTitle,
+          coverImageUrl: metadata.image,  // ← The actual cover art image!
+          price: directPrice || '0',
+          artist: artist || 'Artist'
+        };
+        console.log('✅ Got metadata with cover image');
+      } else {
+        console.warn('⚠️ Could not fetch metadata');
+        // Fall through to fallback rendering
+      }
+    }
+    // ✅ PRIORITY 2: Check cache
+    else if (tokenId) {
+      const cached = ogCache.get(`music:${tokenId}`);
+      if (cached && cached.expiry > Date.now()) {
+        console.log('✅ Using cached OG data');
+        musicData = cached.data;
+      }
+      // ✅ PRIORITY 3: Query Envio
+      else {
+        console.log('🔍 Querying Envio for token:', tokenId);
+        try {
+          const query = `
+            query GetMusicNFT($tokenId: String!) {
+              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                tokenId
+                name
+                imageUrl
+                price
+                artist
+              }
+            }
+          `;
+
+          const response = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, variables: { tokenId } }),
+            cache: 'no-store'
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const nft = data.data?.MusicNFT?.[0];
+            if (nft) {
+              musicData = {
+                tokenId: nft.tokenId,
+                songTitle: nft.name,
+                coverImageUrl: nft.imageUrl,
+                price: nft.price,
+                artist: nft.artist
+              };
+              // Cache for 5 minutes
+              ogCache.set(`music:${tokenId}`, {
+                data: musicData,
+                expiry: Date.now() + 5 * 60 * 1000
+              });
+              console.log('✅ Got from Envio and cached');
             }
           }
-        `;
-        
-        const envioResponse = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            variables: { tokenId }
-          }),
-          cache: 'no-store'
-        });
-
-        if (envioResponse.ok) {
-          const envioData = await envioResponse.json();
-          const musicNFT = envioData.data?.MusicNFT?.[0];
-          
-          if (musicNFT) {
-            console.log('✅ Found music NFT:', musicNFT);
-            
-            // Fetch metadata from IPFS to get cover art
-            const metadata = await fetchMetadata(musicNFT.tokenURI);
-            
-            if (metadata && metadata.image) {
-              const coverArtUrl = getImageUrl(metadata.image);
-              console.log('🎨 Using cover art:', coverArtUrl);
-              
-              // ✅ NEW: Generate OG image WITH cover art
-              return new ImageResponse(
-                (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-                      fontFamily: 'system-ui',
-                    }}
-                  >
-                    {/* Cover Art on Left */}
-                    <div
-                      style={{
-                        width: '50%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '60px',
-                      }}
-                    >
-                      <img
-                        src={coverArtUrl}
-                        alt="Cover Art"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          borderRadius: '20px',
-                          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-                        }}
-                      />
-                    </div>
-
-                    {/* Song Details on Right */}
-                    <div
-                      style={{
-                        width: '50%',
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        padding: '80px 60px',
-                        color: 'white',
-                      }}
-                    >
-                      {/* Music Icon */}
-                      <div style={{ fontSize: 80, marginBottom: 20 }}>
-                        🎵
-                      </div>
-                      
-                      {/* Song Title */}
-                      <div
-                        style={{
-                          fontSize: 52,
-                          fontWeight: 'bold',
-                          marginBottom: 20,
-                          lineHeight: 1.2,
-                          maxWidth: '90%',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                        }}
-                      >
-                        {musicNFT.songTitle || 'Untitled'}
-                      </div>
-                      
-                      {/* Artist */}
-                      <div
-                        style={{
-                          fontSize: 32,
-                          opacity: 0.8,
-                          marginBottom: 30,
-                        }}
-                      >
-                        {musicNFT.artist.slice(0, 6)}...{musicNFT.artist.slice(-4)}
-                      </div>
-
-                      {/* Token Badge */}
-                      <div
-                        style={{
-                          fontSize: 28,
-                          background: 'rgba(124, 58, 237, 0.3)',
-                          padding: '12px 30px',
-                          borderRadius: '20px',
-                          border: '2px solid rgba(124, 58, 237, 0.5)',
-                          marginBottom: 30,
-                        }}
-                      >
-                        Token #{tokenId}
-                      </div>
-                      
-                      {/* Price */}
-                      <div
-                        style={{
-                          fontSize: 36,
-                          fontWeight: 'bold',
-                          color: '#00d4ff',
-                          marginBottom: 20,
-                        }}
-                      >
-                        {musicNFT.price} TOURS
-                      </div>
-
-                      {/* CTA */}
-                      <div
-                        style={{
-                          fontSize: 24,
-                          opacity: 0.7,
-                        }}
-                      >
-                        🎧 License on EmpowerTours
-                      </div>
-                    </div>
-                  </div>
-                ),
-                {
-                  width: 1200,
-                  height: 630,
-                }
-              );
-            }
-          }
+        } catch (err: any) {
+          console.error('❌ Envio query failed:', err.message);
         }
-      } catch (error) {
-        console.error('❌ Error generating OG image with cover art:', error);
-        // Fall through to default image
       }
     }
 
-    // If specific song/artist provided (but no cover art available)
+    // ✅ RENDER WITH COVER ART
+    if (musicData) {
+      const imageUrl = getImageUrl(musicData.coverImageUrl);
+      console.log('🎨 Rendering with cover art:', imageUrl.substring(0, 80) + '...');
+      
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+              fontFamily: 'system-ui',
+            }}
+          >
+            {/* Cover Art on Left */}
+            <div
+              style={{
+                width: '50%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '60px',
+              }}
+            >
+              <img
+                src={imageUrl}
+                alt="Cover Art"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: '20px',
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                }}
+              />
+            </div>
+
+            {/* Song Details on Right */}
+            <div
+              style={{
+                width: '50%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                padding: '80px 60px',
+                color: 'white',
+              }}
+            >
+              {/* Music Icon */}
+              <div style={{ fontSize: 80, marginBottom: 20 }}>
+                🎵
+              </div>
+
+              {/* Song Title */}
+              <div
+                style={{
+                  fontSize: 52,
+                  fontWeight: 'bold',
+                  marginBottom: 20,
+                  lineHeight: 1.2,
+                  maxWidth: '90%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {musicData.songTitle}
+              </div>
+
+              {/* Artist */}
+              <div
+                style={{
+                  fontSize: 32,
+                  opacity: 0.8,
+                  marginBottom: 30,
+                }}
+              >
+                {musicData.artist && musicData.artist.length > 10
+                  ? `${musicData.artist.slice(0, 6)}...${musicData.artist.slice(-4)}`
+                  : musicData.artist || 'Artist'}
+              </div>
+
+              {/* Token Badge */}
+              <div
+                style={{
+                  fontSize: 28,
+                  background: 'rgba(124, 58, 237, 0.3)',
+                  padding: '12px 30px',
+                  borderRadius: '20px',
+                  border: '2px solid rgba(124, 58, 237, 0.5)',
+                  marginBottom: 30,
+                }}
+              >
+                Token #{musicData.tokenId}
+              </div>
+
+              {/* Price */}
+              <div
+                style={{
+                  fontSize: 36,
+                  fontWeight: 'bold',
+                  color: '#00d4ff',
+                  marginBottom: 20,
+                }}
+              >
+                {musicData.price} TOURS
+              </div>
+
+              {/* CTA */}
+              <div
+                style={{
+                  fontSize: 24,
+                  opacity: 0.7,
+                }}
+              >
+                🎧 License on EmpowerTours
+              </div>
+            </div>
+          </div>
+        ),
+        {
+          width: 1200,
+          height: 630,
+        }
+      );
+    }
+
+    // Fallback: Generic song preview (old format)
+    const songTitle = song || directSongTitle;
     if (songTitle && artist) {
       return new ImageResponse(
         (
@@ -258,12 +297,10 @@ export async function GET(request: NextRequest) {
               padding: '60px',
             }}
           >
-            {/* Music Icon */}
             <div style={{ display: 'flex', fontSize: 100, marginBottom: 30 }}>
               🎵
             </div>
-            
-            {/* Song Title */}
+
             <div
               style={{
                 display: 'flex',
@@ -276,8 +313,7 @@ export async function GET(request: NextRequest) {
             >
               {songTitle}
             </div>
-            
-            {/* Artist */}
+
             <div
               style={{
                 fontSize: 40,
@@ -285,10 +321,9 @@ export async function GET(request: NextRequest) {
                 marginBottom: 30,
               }}
             >
-              By {artist.slice(0, 6)}...{artist.slice(-4)}
+              By {artist.length > 10 ? `${artist.slice(0, 6)}...${artist.slice(-4)}` : artist}
             </div>
 
-            {/* Token Badge */}
             {tokenId && (
               <div
                 style={{
@@ -303,8 +338,7 @@ export async function GET(request: NextRequest) {
                 Token #{tokenId}
               </div>
             )}
-            
-            {/* CTA */}
+
             <div
               style={{
                 display: 'flex',
@@ -344,7 +378,7 @@ export async function GET(request: NextRequest) {
           <div style={{ display: 'flex', fontSize: 120, marginBottom: 30 }}>
             🎵
           </div>
-          
+
           <div
             style={{
               display: 'flex',
@@ -355,7 +389,7 @@ export async function GET(request: NextRequest) {
           >
             EmpowerTours Music
           </div>
-          
+
           <div
             style={{
               fontSize: 36,
@@ -366,7 +400,7 @@ export async function GET(request: NextRequest) {
           >
             Mint & License Music NFTs on Monad
           </div>
-          
+
           <div
             style={{
               display: 'flex',
