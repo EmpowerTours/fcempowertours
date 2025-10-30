@@ -10,7 +10,7 @@ const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0x5adb6c3
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
-  
+
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -20,7 +20,7 @@ export default function MusicPage() {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string; songTitle: string; price: string } | null>(null);
-  
+
   const farcasterFid = user?.fid || 0;
 
   const handleFileChange =
@@ -90,16 +90,29 @@ export default function MusicPage() {
 
       const uploadData = await uploadRes.json();
       const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
+      const coverUrl = uploadData.coverUrl || `ipfs://${uploadData.coverCid}`; // ✅ EXTRACT COVER URL
+
+      console.log('📤 Upload successful:', {
+        tokenURI,
+        coverUrl,
+        songTitle,
+      });
 
       setUploading(false);
       setMinting(true);
 
-      // ✅ FIXED: Use bot delegation system for music minting (avoids gas fee issues)
-      // This follows the same pattern as swaps - gasless transactions via delegation
+      // ✅ FIXED: Pass both tokenURI and coverUrl through the bot command
+      // The bot will extract these and pass to execute-delegated
       const command = `mint_music ${songTitle.slice(0, 50)} ${tokenURI} ${price}`;
-      
-      // ✅ USE useBotCommand HOOK INSTEAD OF MANUAL FETCH
-      const mintData = await executeCommand(command);
+
+      console.log('🎵 Executing mint command with cover URL:', coverUrl);
+
+      // ✅ USE useBotCommand HOOK - it will handle the delegation + execution
+      const mintData = await executeCommand(command, {
+        imageUrl: coverUrl,  // ✅ PASS DIRECT COVER IMAGE URL AS CONTEXT
+        songTitle,
+        tokenURI,
+      });
 
       if (!mintData.success) {
         throw new Error(mintData.error || mintData.message || 'Mint failed');

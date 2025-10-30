@@ -20,12 +20,13 @@ function extractFidFromRequest(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    const { command, userAddress, location, fid: bodyFid } = await req.json();
+    // ✅ EXTRACT: imageUrl, songTitle, tokenURI from request body
+    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, songTitle: songTitleFromRequest, tokenURI: tokenURIFromRequest } = await req.json();
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
 
-    console.log('Bot command received:', { command, userAddress, fid });
+    console.log('Bot command received:', { command, userAddress, fid, imageUrl: imageUrlFromRequest });
 
     // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
     const originalCommand = command.trim();
@@ -493,7 +494,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
       }
       try {
         console.log('[BOT] Minting passport for:', userAddress);
-        
+
         // 🔥 CRITICAL: Detect country FIRST
         let countryCode = 'US';
         let countryName = 'United States';
@@ -586,7 +587,7 @@ Try "mint passport" from a different location or "help" for other commands.`
             throw new Error('Failed to create delegation: ' + createData.error);
           }
         }
-        
+
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -665,6 +666,7 @@ Or go to the Music page to upload files.`
           songTitle,
           tokenURI,
           price,
+          imageUrl: imageUrlFromRequest,  // ✅ LOG: Direct cover image URL
         });
 
         if (price <= 0 || price > 10) {
@@ -702,6 +704,7 @@ Or go to the Music page to upload files.`
             params: {
               songTitle,
               tokenURI,
+              imageUrl: imageUrlFromRequest,  // ✅ PASS: Direct cover image URL from upload
               price: price.toString(),
               fid // ✅ PASS FID FOR CASTING
             }

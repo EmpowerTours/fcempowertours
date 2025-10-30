@@ -28,6 +28,9 @@ export function useBotCommand() {
       options?: {
         location?: { latitude: number; longitude: number };
         fid?: number | string;
+        imageUrl?: string;  // ✅ ADD: For music minting - direct cover image URL
+        songTitle?: string; // ✅ ADD: For music minting - song title
+        tokenURI?: string;  // ✅ ADD: For music minting - token metadata URI
       }
     ): Promise<BotCommandResponse> => {
       setLoading(true);
@@ -47,7 +50,7 @@ export function useBotCommand() {
         // Step 2: Fallback to Privy linkedAccounts
         else if (user?.linkedAccounts) {
           const walletAcc = user.linkedAccounts.find((acc: any) => acc.type === 'wallet') as any;
-          
+
           if (walletAcc) {
             // Try direct address property first
             if (walletAcc.address) {
@@ -59,7 +62,7 @@ export function useBotCommand() {
               userAddress = parts[2];
             }
           }
-          
+
           if (userAddress) {
             console.log('✅ [BOT-HOOK] Using wallet from Privy:', userAddress);
           }
@@ -90,6 +93,9 @@ export function useBotCommand() {
             userAddress,
             location: options?.location,
             fid: options?.fid || fid,
+            imageUrl: options?.imageUrl,  // ✅ PASS: Direct cover image URL from upload
+            songTitle: options?.songTitle, // ✅ PASS: Song title
+            tokenURI: options?.tokenURI,   // ✅ PASS: Token metadata URI
           }),
         });
 

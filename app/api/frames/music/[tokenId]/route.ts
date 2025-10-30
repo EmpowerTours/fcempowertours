@@ -13,8 +13,8 @@ export async function GET(
   try {
     const { tokenId } = await params;
     const miniAppUrl = `${APP_URL}/music/${tokenId}`;
+    const buyMiniAppUrl = `${APP_URL}/music/${tokenId}?action=buy`;
     const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
-    const frameUrl = `${APP_URL}/api/frames/music/${tokenId}`;
     
     console.log('🎬 Frame request for music token:', tokenId);
     console.log('   Mini App URL:', miniAppUrl);
@@ -30,15 +30,10 @@ export async function GET(
           <meta property="og:image" content="${ogImageUrl}">
           <meta property="og:url" content="${miniAppUrl}">
           <meta property="og:type" content="website">
-          <meta property="fc:frame" content="vNext">
-          <meta property="fc:frame:image" content="${ogImageUrl}">
-          <meta property="fc:frame:image:aspect_ratio" content="1.91:1">
-          <meta property="fc:frame:button:1" content="🎵 Listen Now">
-          <meta property="fc:frame:button:1:action" content="link">
-          <meta property="fc:frame:button:1:target" content="${miniAppUrl}">
-          <meta property="fc:frame:button:2" content="💎 Buy License">
-          <meta property="fc:frame:button:2:action" content="link">
-          <meta property="fc:frame:button:2:target" content="${miniAppUrl}?action=buy">
+          
+          <!-- Farcaster Frame with launch_miniapp buttons -->
+          <meta name="fc:frame" content='{"version":"next","imageUrl":"${ogImageUrl}","buttons":[{"title":"🎵 Listen Now","action":{"type":"launch_miniapp","name":"EmpowerTours Music","url":"${miniAppUrl}","splashImageUrl":"${ogImageUrl}","splashBackgroundColor":"#0f172a"}},{"title":"💎 Buy License","action":{"type":"launch_miniapp","name":"EmpowerTours Music","url":"${buyMiniAppUrl}","splashImageUrl":"${ogImageUrl}","splashBackgroundColor":"#0f172a"}}]}' />
+          
           <title>Music NFT #${tokenId} - EmpowerTours</title>
         </head>
         <body style="background: #0f172a; margin: 0; padding: 0;"></body>
