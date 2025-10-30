@@ -10,6 +10,7 @@ export type BotCommandResponse = {
   path?: string;
   message?: string;
   txHash?: string;
+  tokenId?: string | number;
   error?: string;
 };
 
@@ -33,7 +34,26 @@ export function useBotCommand() {
       setError(null);
 
       try {
-        const userAddress = user?.linkedAccounts?.find((acc: any) => acc.type === 'wallet')?.address;
+        // ✅ FIXED: Get wallet address from Privy or Farcaster context
+        const walletAcc = user?.linkedAccounts?.find((acc: any) => acc.type === 'wallet') as any;
+        
+        // Extract address from various formats
+        let extractedAddress: string | undefined;
+        
+        if (walletAcc) {
+          // Try direct address property first
+          extractedAddress = walletAcc.address;
+          
+          // Try CAIP10 format (eip155:chainId:address)
+          if (!extractedAddress && walletAcc.caip10Address) {
+            const parts = walletAcc.caip10Address.split(':');
+            extractedAddress = parts[2];
+          }
+        }
+        
+        // Use extracted address or fallback to Farcaster context
+        const userAddress = extractedAddress || walletAddress;
+        
         if (!userAddress) {
           const err = 'Wallet not connected. Please connect your wallet first.';
           setError(err);

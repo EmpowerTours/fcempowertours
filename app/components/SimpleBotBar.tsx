@@ -19,22 +19,22 @@ interface ParsedResponse {
 function parseResponse(text: string): ParsedResponse {
   const parts: ParsedResponse['parts'] = [];
   const lines = text.split('\n');
-  
+
   for (const line of lines) {
     // Check if line contains a transaction hash pattern
     const txMatch = line.match(/TX:\s*(0x[a-fA-F0-9]{64})/i);
     const viewMatch = line.match(/View:\s*(https:\/\/testnet\.monadscan\.com\/tx\/(0x[a-fA-F0-9]{64}))/i);
-    
+
     if (txMatch) {
       const fullHash = txMatch[1];
       const beforeTx = line.substring(0, txMatch.index);
       const afterTx = line.substring(txMatch.index! + txMatch[0].length);
-      
+
       // Add text before TX
       if (beforeTx) {
         parts.push({ type: 'text', content: beforeTx });
       }
-      
+
       // Add clickable TX link
       parts.push({
         type: 'txlink',
@@ -42,26 +42,26 @@ function parseResponse(text: string): ParsedResponse {
         url: `https://testnet.monadscan.com/tx/${fullHash}`,
         shortHash: `${fullHash.slice(0, 10)}...${fullHash.slice(-8)}`
       });
-      
+
       // Add text after TX
       if (afterTx) {
         parts.push({ type: 'text', content: afterTx });
       }
-      
+
       // Add line break
       parts.push({ type: 'text', content: '\n' });
-      
+
     } else if (viewMatch) {
       const url = viewMatch[1];
       const fullHash = viewMatch[2];
       const beforeView = line.substring(0, viewMatch.index);
       const afterView = line.substring(viewMatch.index! + viewMatch[0].length);
-      
+
       // Add text before View
       if (beforeView) {
         parts.push({ type: 'text', content: beforeView });
       }
-      
+
       // Add clickable View link
       parts.push({
         type: 'txlink',
@@ -69,21 +69,21 @@ function parseResponse(text: string): ParsedResponse {
         url: url,
         shortHash: `${fullHash.slice(0, 10)}...${fullHash.slice(-8)}`
       });
-      
+
       // Add text after View
       if (afterView) {
         parts.push({ type: 'text', content: afterView });
       }
-      
+
       // Add line break
       parts.push({ type: 'text', content: '\n' });
-      
+
     } else {
       // Regular text line
       parts.push({ type: 'text', content: line + '\n' });
     }
   }
-  
+
   return { parts };
 }
 
@@ -91,10 +91,10 @@ export default function SimpleBotBar() {
   const router = useRouter();
   const { walletAddress } = useFarcasterContext();
   const { location } = useGeolocation();
-  
+
   // ✅ USE THE HOOK
   const { executeCommand, loading: sending, error: hookError } = useBotCommand();
-  
+
   const [command, setCommand] = useState('');
   const [response, setResponse] = useState('');
   const [error, setError] = useState('');
@@ -108,7 +108,7 @@ export default function SimpleBotBar() {
 
     try {
       console.log('🤖 Sending command with location:', { userCommand, location });
-      
+
       // ✅ USE THE HOOK INSTEAD OF FETCH
       const data = await executeCommand(userCommand, {
         location: location ? {
@@ -124,10 +124,12 @@ export default function SimpleBotBar() {
         setResponse(message);
 
         // Handle navigation
+        // ✅ FIXED: Capture path in variable to maintain type safety
         if (data.action === 'navigate' && data.path) {
-          console.log('🧭 Navigating to:', data.path);
+          const navigationPath = data.path;  // ✅ Capture path here
+          console.log('🧭 Navigating to:', navigationPath);
           setTimeout(() => {
-            router.push(data.path);
+            router.push(navigationPath);  // ✅ Use captured variable - always defined
             setCommand('');
             setResponse('');
           }, 1000);
@@ -173,9 +175,9 @@ export default function SimpleBotBar() {
   // ✅ Render parsed response with React components
   const renderResponse = () => {
     if (!response) return null;
-    
+
     const parsed = parseResponse(response);
-    
+
     return (
       <div className="p-3 bg-blue-900/50 text-blue-100 rounded-lg border border-blue-700 animate-fade-in">
         <div className="text-xs sm:text-sm font-mono leading-relaxed">
@@ -210,7 +212,7 @@ export default function SimpleBotBar() {
   const renderError = () => {
     const errorMsg = error || hookError;
     if (!errorMsg) return null;
-    
+
     return (
       <div className="p-3 bg-red-900/50 text-red-100 rounded-lg border border-red-700 animate-fade-in">
         <div className="text-xs sm:text-sm font-mono">
@@ -236,7 +238,7 @@ export default function SimpleBotBar() {
               )}
             </div>
           )}
-          
+
           {/* Input and Button Row */}
           <div className="flex gap-2">
             <input

@@ -106,7 +106,7 @@ export default function MusicPage() {
       }
 
       // Extract tokenId and txHash from bot response
-      const tokenId = mintData.tokenId ? parseInt(mintData.tokenId) : Math.floor(Math.random() * 10000);
+      const tokenId = mintData.tokenId ? parseInt(String(mintData.tokenId)) : Math.floor(Math.random() * 10000);
       const txHash = mintData.txHash || '';
 
       setSuccess({ tokenId, txHash, songTitle, price });
