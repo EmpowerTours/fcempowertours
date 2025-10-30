@@ -15,7 +15,10 @@ export async function GET(
     const miniAppUrl = `${APP_URL}/music/${tokenId}`;
     const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
     const frameUrl = `${APP_URL}/api/frames/music/${tokenId}`;
+    
     console.log('🎬 Frame request for music token:', tokenId);
+    console.log('   Mini App URL:', miniAppUrl);
+    
     const html = `
       <!DOCTYPE html>
       <html>
@@ -25,7 +28,7 @@ export async function GET(
           <meta property="og:title" content="Music NFT #${tokenId}">
           <meta property="og:description" content="Check out this exclusive music NFT on EmpowerTours">
           <meta property="og:image" content="${ogImageUrl}">
-          <meta property="og:url" content="${frameUrl}">
+          <meta property="og:url" content="${miniAppUrl}">
           <meta property="og:type" content="website">
           <meta property="fc:frame" content="vNext">
           <meta property="fc:frame:image" content="${ogImageUrl}">

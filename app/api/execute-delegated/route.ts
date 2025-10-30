@@ -9,8 +9,6 @@ import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } fr
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-// ✅ REMOVED: Old postCast function - no longer needed
-
 export async function POST(req: NextRequest) {
   try {
     const { userAddress, action, params } = await req.json();
@@ -91,7 +89,7 @@ export async function POST(req: NextRequest) {
         const mintTxHash = await sendSafeTransaction(mintCalls);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
-        // ✅ POST CAST WITH FRAME (NEW CODE)
+        // ✅ POST CAST WITH FRAME
         if (params?.fid) {
           try {
             const tokenId = params.tokenId || 0;
@@ -179,13 +177,52 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const musicTxHash = await sendSafeTransaction(musicCalls);
         console.log('✅ Music mint successful, TX:', musicTxHash);
 
-        // ✅ POST CAST WITH FRAME (NEW CODE)
+        // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
+        let extractedTokenId = '0';
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const client = createPublicClient({
+            chain: {
+              id: 20143,
+              name: 'Monad Testnet',
+              network: 'monad-testnet',
+              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+              rpcUrls: {
+                default: {
+                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
+                },
+                public: {
+                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
+                },
+              },
+            },
+            transport: http(),
+          });
+
+          const receipt = await client.getTransactionReceipt({
+            hash: musicTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for Transfer event (ERC721 mint)
+            const transferLog = receipt.logs.find(
+              log => log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+            );
+            if (transferLog && transferLog.topics[3]) {
+              extractedTokenId = BigInt(transferLog.topics[3]).toString();
+              console.log('🎫 Extracted token ID from receipt:', extractedTokenId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
+        }
+
+        // ✅ POST CAST WITH FRAME
         if (params?.fid) {
           try {
-            // Note: We use tokenId 0 as placeholder since we don't have the exact tokenId yet
-            // It will be indexed by Envio after block confirmation
-            const tokenId = 0;
-            const frameUrl = `${APP_URL}/api/frames/music/${tokenId}`;
+            const frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}`;
+            const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
+            
             const castText = `🎵 New Music Master NFT Minted!
 
 "${params.songTitle || 'Untitled'}"
@@ -198,6 +235,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 
             console.log('📢 Posting music cast with frame...');
             console.log('🎬 Frame URL:', frameUrl);
+            console.log('🎬 Mini App URL:', miniAppUrl);
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
@@ -213,6 +251,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             console.log('✅ Music cast posted with frame:', {
               hash: castResult.cast?.hash,
               songTitle: params.songTitle,
+              tokenId: extractedTokenId,
               frameUrl
             });
           } catch (castError: any) {
@@ -225,11 +264,12 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         return NextResponse.json({
           success: true,
           txHash: musicTxHash,
+          tokenId: extractedTokenId,
           action,
           userAddress,
           songTitle: params.songTitle || 'Untitled',
           price: params.price,
-          message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS`,
+          message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS (Token #${extractedTokenId})`,
         });
 
       // ==================== BUY MUSIC (WITH CAST + FRAME) ====================
@@ -273,7 +313,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const buyTxHash = await sendSafeTransaction(buyCalls);
         console.log('✅ Music purchase successful, TX:', buyTxHash);
 
-        // ✅ POST CAST WITH FRAME (NEW CODE)
+        // ✅ POST CAST WITH FRAME
         if (params?.fid) {
           try {
             const frameUrl = `${APP_URL}/api/frames/music/${tokenId.toString()}`;

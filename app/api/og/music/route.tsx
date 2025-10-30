@@ -11,7 +11,7 @@ const ogCache = new Map<string, { data: any; expiry: number }>();
 
 function getImageUrl(ipfsUrl: string): string {
   if (!ipfsUrl) return '';
-  if (ipfsUrl.startsWith('http')) return ipfsUrl;
+  if (ipfsUrl.startsWith('http')) return ipfsUrl; // ✅ Already a full URL
   if (ipfsUrl.startsWith('ipfs://')) {
     const cid = ipfsUrl.replace('ipfs://', '');
     return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
@@ -51,9 +51,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
-    
+
     // ✅ Direct params from bot
-    const directMetadataUrl = searchParams.get('imageUrl');  // This is metadata IPFS URL!
+    const directImageUrl = searchParams.get('imageUrl');  // ✅ NOW: This is the DIRECT image URL, not metadata!
     const directSongTitle = searchParams.get('songTitle');
     const directPrice = searchParams.get('price');
     const artist = searchParams.get('artist');
@@ -61,32 +61,28 @@ export async function GET(request: NextRequest) {
 
     console.log('🎨 OG Request:', {
       tokenId,
-      hasDirect: !!directMetadataUrl,
-      songTitle: directSongTitle
+      hasDirect: !!directImageUrl,
+      songTitle: directSongTitle,
+      isDirectImage: directImageUrl?.startsWith('http') || directImageUrl?.startsWith('ipfs://')
     });
 
     let musicData: any = null;
 
     // ✅ PRIORITY 1: Direct params from bot (fresh mint)
-    if (directMetadataUrl && directSongTitle) {
-      console.log('✅ Using direct params - fetching metadata from IPFS...');
+    if (directImageUrl && directSongTitle) {
+      console.log('✅ Using direct params - image URL provided by bot');
       
-      // Fetch the metadata to get cover image
-      const metadata = await fetchMetadataFromIPFS(directMetadataUrl);
+      // ✅ FIXED: directImageUrl IS the image URL, not metadata!
+      const imageUrl = getImageUrl(directImageUrl);
       
-      if (metadata) {
-        musicData = {
-          tokenId: tokenId || '0',
-          songTitle: directSongTitle,
-          coverImageUrl: metadata.image,  // ← The actual cover art image!
-          price: directPrice || '0',
-          artist: artist || 'Artist'
-        };
-        console.log('✅ Got metadata with cover image');
-      } else {
-        console.warn('⚠️ Could not fetch metadata');
-        // Fall through to fallback rendering
-      }
+      musicData = {
+        tokenId: tokenId || '0',
+        songTitle: directSongTitle,
+        coverImageUrl: imageUrl,  // ✅ Direct image, not fetched metadata
+        price: directPrice || '0',
+        artist: artist || 'Artist'
+      };
+      console.log('✅ Using direct image URL:', imageUrl.substring(0, 80) + '...');
     }
     // ✅ PRIORITY 2: Check cache
     else if (tokenId) {
@@ -147,7 +143,7 @@ export async function GET(request: NextRequest) {
     if (musicData) {
       const imageUrl = getImageUrl(musicData.coverImageUrl);
       console.log('🎨 Rendering with cover art:', imageUrl.substring(0, 80) + '...');
-      
+
       return new ImageResponse(
         (
           <div
