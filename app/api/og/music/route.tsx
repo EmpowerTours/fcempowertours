@@ -5,7 +5,7 @@ export const runtime = 'edge';
 
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;  // ✅ FIXED: Try NEYNAR_API_KEY first (server-side), fallback to NEXT_PUBLIC_
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 const MONAD_RPC = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
 
 const ogCache = new Map<string, { data: any; expiry: number }>();
@@ -267,10 +267,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ RENDER: Full layout with cover art if available
+    // ✅ RENDER: IMPROVED - Large cover art on top (60%), info on bottom (40%)
     if (musicData?.imageUrl) {
       const imageUrl = getImageUrl(musicData.imageUrl);
-      console.log('🎨 Rendering with cover art');
+      console.log('🎨 Rendering with large cover art');
 
       const priceDisplay = musicData.price || '0';
 
@@ -281,107 +281,145 @@ export async function GET(request: NextRequest) {
               width: '100%',
               height: '100%',
               display: 'flex',
-              flexDirection: 'row',
-              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+              flexDirection: 'column',
+              background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #0f3460 100%)',
               fontFamily: 'system-ui, -apple-system, sans-serif',
+              position: 'relative',
             }}
           >
-            {/* Cover Art - Left Side (50%) - FIXED: Proper backgroundImage sizing */}
+            {/* Cover Art - Top (60%) - MUCH LARGER! */}
             <div
               style={{
-                width: '50%',
-                height: '100%',
+                width: '100%',
+                height: '60%',
                 backgroundImage: `url('${imageUrl}')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                backgroundAttachment: 'scroll',
-              }}
-            />
-
-            {/* Song Info - Right Side (50%) */}
-            <div
-              style={{
-                width: '50%',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                justifyContent: 'center',
-                padding: '60px 60px',
-                color: 'white',
+                position: 'relative',
               }}
             >
-              {/* Music Icon */}
-              <div style={{ fontSize: 60, marginBottom: 20, display: 'flex' }}>
-                🎵
-              </div>
+              {/* Gradient overlay at bottom to fade into info */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: '120px',
+                  background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(15,15,30,0.98))',
+                }}
+              />
+            </div>
 
+            {/* Song Info - Bottom (40%) */}
+            <div
+              style={{
+                width: '100%',
+                height: '40%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-start',
+                alignItems: 'flex-start',
+                padding: '28px 50px 35px 50px',
+                color: 'white',
+                background: 'linear-gradient(135deg, rgba(15,15,30,0.98) 0%, rgba(22,33,62,0.98) 100%)',
+                position: 'relative',
+                boxSizing: 'border-box',
+              }}
+            >
               {/* Song Title */}
               <div
                 style={{
-                  fontSize: 48,
+                  fontSize: 44,
                   fontWeight: 'bold',
-                  marginBottom: 20,
-                  lineHeight: 1.2,
-                  maxWidth: '90%',
+                  marginBottom: 6,
+                  lineHeight: 1.15,
+                  maxWidth: '100%',
                   display: 'flex',
                   flexWrap: 'wrap',
+                  color: '#ffffff',
+                  letterSpacing: '-0.5px',
                 }}
               >
                 {musicData.name}
               </div>
 
-              {/* Artist (NOW SHOWS FID OR WALLET) */}
+              {/* Artist + Price Row */}
               <div
                 style={{
-                  fontSize: 28,
-                  opacity: 0.8,
-                  marginBottom: 30,
                   display: 'flex',
-                  color: '#a0aec0',
+                  alignItems: 'center',
+                  gap: '18px',
+                  marginBottom: 10,
+                  fontSize: 19,
+                  width: '100%',
+                  justifyContent: 'space-between',
                 }}
               >
-                {musicData.artist}
+                {/* Artist (NOW SHOWS FID OR WALLET) */}
+                <div
+                  style={{
+                    opacity: 0.85,
+                    display: 'flex',
+                    color: '#a0aec0',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  {musicData.artist}
+                </div>
+
+                {/* Price */}
+                <div
+                  style={{
+                    color: '#00d4ff',
+                    fontWeight: 'bold',
+                    fontSize: 24,
+                    display: 'flex',
+                  }}
+                >
+                  💰 {priceDisplay} TOURS
+                </div>
               </div>
 
-              {/* Token Badge */}
+              {/* Bottom Row - Token Badge + CTA */}
               <div
                 style={{
-                  fontSize: 24,
-                  background: 'rgba(124, 58, 237, 0.3)',
-                  padding: '10px 24px',
-                  borderRadius: '20px',
-                  border: '2px solid rgba(124, 58, 237, 0.5)',
-                  marginBottom: 30,
                   display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  width: '100%',
+                  marginTop: 'auto',
+                  justifyContent: 'space-between',
                 }}
               >
-                Token #{musicData.tokenId}
-              </div>
+                {/* Token Badge */}
+                <div
+                  style={{
+                    fontSize: 15,
+                    background: 'rgba(124, 58, 237, 0.4)',
+                    padding: '5px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(124, 58, 237, 0.6)',
+                    display: 'flex',
+                    color: '#c4b5fd',
+                  }}
+                >
+                  🎵 Track #{musicData.tokenId}
+                </div>
 
-              {/* Price */}
-              <div
-                style={{
-                  fontSize: 32,
-                  fontWeight: 'bold',
-                  color: '#00d4ff',
-                  marginBottom: 20,
-                  display: 'flex',
-                }}
-              >
-                {priceDisplay} TOURS
-              </div>
-
-              {/* CTA */}
-              <div
-                style={{
-                  fontSize: 20,
-                  opacity: 0.7,
-                  display: 'flex',
-                }}
-              >
-                🎧 License on EmpowerTours
+                {/* CTA */}
+                <div
+                  style={{
+                    fontSize: 17,
+                    opacity: 0.8,
+                    display: 'flex',
+                    color: '#a0aec0',
+                    fontWeight: '500',
+                  }}
+                >
+                  🎧 License on EmpowerTours
+                </div>
               </div>
             </div>
           </div>

@@ -348,16 +348,15 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const buyTxHash = await sendSafeTransaction(buyCalls);
         console.log('✅ Music purchase successful, TX:', buyTxHash);
 
-        // ✅ POST CAST WITH FRAME - FETCH MUSIC DATA FROM ENVIO
+        // ✅ POST CAST WITH FRAME - FETCH MUSIC DATA FROM ENVIO (IMPROVED)
         if (params?.fid) {
           try {
             let songTitle = params.songTitle || 'Track';
-            let songPrice = '?';
-            let songArtist = 'Artist';
+            let songPrice = '0';  // ✅ Default to 0 not ?
+            let songArtist = 'Unknown Artist';  // ✅ Better default
 
-            // 🔍 Fetch music metadata from Envio
             console.log('🔍 Fetching music metadata from Envio for token:', tokenId.toString());
-            
+
             try {
               const query = `
                 query GetMusicNFT($tokenId: String!) {
@@ -370,6 +369,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
                 }
               `;
 
+              console.log('📤 Envio query variables:', { tokenId: tokenId.toString() });
+
               const envioRes = await fetch(ENVIO_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -379,22 +380,75 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
                 })
               });
 
+              console.log('📥 Envio response status:', envioRes.status);
+
               if (envioRes.ok) {
                 const envioData = await envioRes.json();
+                console.log('📥 Envio data:', JSON.stringify(envioData).substring(0, 200));
+
                 const musicNFT = envioData.data?.MusicNFT?.[0];
-                
+                console.log('🎵 Found MusicNFT:', musicNFT);
+
                 if (musicNFT) {
                   songTitle = musicNFT.name || 'Track';
-                  // ✅ Convert price from wei to readable TOURS
-                  songPrice = convertPriceFromWei(musicNFT.price || '0');
-                  songArtist = musicNFT.artist || 'Artist';
-                  console.log('✅ Got music metadata from Envio:', { songTitle, songPrice, songArtist });
+
+                  // ✅ Convert price from wei (inline to ensure it works)
+                  if (musicNFT.price) {
+                    try {
+                      const priceBI = BigInt(musicNFT.price);
+                      const priceNum = Number(priceBI) / 1e18;
+                      songPrice = priceNum.toString();
+                      console.log('💰 Converted price:', { raw: musicNFT.price, converted: songPrice });
+                    } catch (priceErr) {
+                      console.warn('⚠️ Price conversion failed:', priceErr);
+                      songPrice = String(musicNFT.price);
+                    }
+                  }
+
+                  // ✅ Get artist and try FID lookup
+                  if (musicNFT.artist) {
+                    songArtist = musicNFT.artist;
+
+                    // Try to resolve to FID if it's a wallet
+                    if (musicNFT.artist.startsWith('0x')) {
+                      try {
+                        const neynarRes = await fetch(
+                          `https://api.neynar.com/v2/farcaster/user/by_verification?address=${musicNFT.artist}`,
+                          {
+                            headers: {
+                              'api_key': process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+                            }
+                          }
+                        );
+
+                        if (neynarRes.ok) {
+                          const neynarData: any = await neynarRes.json();
+                          if (neynarData.users && neynarData.users.length > 0) {
+                            const username = neynarData.users[0].username;
+                            if (username) {
+                              songArtist = `@${username}`;
+                              console.log('✅ Resolved FID:', username);
+                            }
+                          }
+                        }
+                      } catch (fidErr) {
+                        console.warn('⚠️ FID lookup failed:', fidErr);
+                      }
+                    }
+                  }
+
+                  console.log('✅ Music data resolved:', { songTitle, songPrice, songArtist });
                 } else {
-                  console.warn('⚠️ Music NFT not found in Envio');
+                  console.warn('⚠️ MusicNFT array empty or not found');
                 }
+              } else {
+                console.warn('⚠️ Envio not ok:', envioRes.status);
+                const text = await envioRes.text();
+                console.warn('⚠️ Response:', text.substring(0, 200));
               }
             } catch (envioErr: any) {
-              console.warn('⚠️ Failed to fetch from Envio:', envioErr.message);
+              console.error('❌ Envio fetch failed:', envioErr.message);
+              console.error('❌ Stack:', envioErr.stack);
             }
 
             const frameUrl = `${APP_URL}/api/frames/music/${tokenId.toString()}`;
