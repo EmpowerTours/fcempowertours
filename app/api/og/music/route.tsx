@@ -20,7 +20,6 @@ function getImageUrl(ipfsUrl: string): string {
   return ipfsUrl;
 }
 
-// ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
 function convertPriceFromWei(price: string | number | bigint): string {
   try {
     const priceBI = BigInt(price);
@@ -32,7 +31,6 @@ function convertPriceFromWei(price: string | number | bigint): string {
   }
 }
 
-// ✅ NEW: Look up FID from wallet address using Neynar
 async function getFidFromWallet(walletAddress: string): Promise<string | null> {
   if (!NEYNAR_API_KEY) return null;
   
@@ -58,14 +56,12 @@ async function getFidFromWallet(walletAddress: string): Promise<string | null> {
   return null;
 }
 
-// ✅ NEW: Query blockchain directly when Envio hasn't indexed yet
 async function getMetadataFromBlockchain(tokenId: string): Promise<any | null> {
   try {
     console.log('🔗 Querying blockchain for token:', tokenId);
     
     const MUSIC_NFT_ADDRESS = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
     
-    // Call tokenURI on the contract
     const response = await fetch(MONAD_RPC, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,7 +90,6 @@ async function getMetadataFromBlockchain(tokenId: string): Promise<any | null> {
       return null;
     }
 
-    // Decode the URI from hex
     const decoded = Buffer.from(result.result.slice(2), 'hex').toString('utf8');
     const uriMatch = decoded.match(/ipfs:\/\/([A-Za-z0-9]+)/);
     
@@ -138,13 +133,11 @@ export async function GET(request: NextRequest) {
     let musicData: any = null;
 
     if (tokenId) {
-      // ✅ Check cache first
       const cached = ogCache.get(`music:${tokenId}`);
       if (cached && cached.expiry > Date.now()) {
         console.log('✅ Using cached OG data');
         musicData = cached.data;
       } else {
-        // PRIORITY 1: Query Envio - CORRECTED: Use MusicNFT (singular)
         console.log('🔍 Querying Envio for token:', tokenId);
         try {
           const query = `
@@ -168,16 +161,13 @@ export async function GET(request: NextRequest) {
 
           if (response.ok) {
             const data = await response.json();
-            // ✅ CORRECTED: MusicNFT returns array directly
             const nft = data.data?.MusicNFT?.[0];
             
             if (nft) {
               console.log('✅ Found in Envio:', nft);
               
-              // ✅ Convert price from wei to readable TOURS
               const priceDisplay = convertPriceFromWei(nft.price || '0');
               
-              // ✅ Look up FID for display
               let artistDisplay = nft.artist || 'Artist';
               if (nft.artist && nft.artist.startsWith('0x')) {
                 const fid = await getFidFromWallet(nft.artist);
@@ -195,7 +185,6 @@ export async function GET(request: NextRequest) {
                 artist: artistDisplay
               };
               
-              // Cache for 5 minutes
               ogCache.set(`music:${tokenId}`, {
                 data: musicData,
                 expiry: Date.now() + 5 * 60 * 1000
@@ -205,13 +194,10 @@ export async function GET(request: NextRequest) {
             } else {
               console.log('⚠️ Token not found in Envio, trying blockchain...');
               
-              // PRIORITY 2: Fall back to blockchain
               const blockchainData = await getMetadataFromBlockchain(tokenId);
               if (blockchainData) {
-                // ✅ Convert price from wei
                 const priceDisplay = convertPriceFromWei(blockchainData.price || '0');
                 
-                // ✅ Look up FID for display
                 let artistDisplay = blockchainData.artist || 'Artist';
                 if (blockchainData.artist && blockchainData.artist.startsWith('0x')) {
                   const fid = await getFidFromWallet(blockchainData.artist);
@@ -227,7 +213,6 @@ export async function GET(request: NextRequest) {
                   artist: artistDisplay
                 };
                 
-                // Cache
                 ogCache.set(`music:${tokenId}`, {
                   data: musicData,
                   expiry: Date.now() + 5 * 60 * 1000
@@ -240,7 +225,6 @@ export async function GET(request: NextRequest) {
         } catch (err: any) {
           console.error('❌ Envio query failed:', err.message);
           
-          // Still try blockchain as fallback
           const blockchainData = await getMetadataFromBlockchain(tokenId);
           if (blockchainData) {
             const priceDisplay = convertPriceFromWei(blockchainData.price || '0');
@@ -267,10 +251,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ RENDER: IMPROVED - Large cover art on top (60%), info on bottom (40%)
+    // ✅ RENDER: Working 50/50 layout with all fixes
     if (musicData?.imageUrl) {
       const imageUrl = getImageUrl(musicData.imageUrl);
-      console.log('🎨 Rendering with large cover art');
+      console.log('🎨 Rendering with cover art');
 
       const priceDisplay = musicData.price || '0';
 
@@ -281,145 +265,107 @@ export async function GET(request: NextRequest) {
               width: '100%',
               height: '100%',
               display: 'flex',
-              flexDirection: 'column',
-              background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #0f3460 100%)',
+              flexDirection: 'row',
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
               fontFamily: 'system-ui, -apple-system, sans-serif',
-              position: 'relative',
             }}
           >
-            {/* Cover Art - Top (60%) - MUCH LARGER! */}
+            {/* Cover Art - Left Side (50%) */}
             <div
               style={{
-                width: '100%',
-                height: '60%',
+                width: '50%',
+                height: '100%',
                 backgroundImage: `url('${imageUrl}')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                position: 'relative',
+                backgroundAttachment: 'scroll',
               }}
-            >
-              {/* Gradient overlay at bottom to fade into info */}
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: '120px',
-                  background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(15,15,30,0.98))',
-                }}
-              />
-            </div>
+            />
 
-            {/* Song Info - Bottom (40%) */}
+            {/* Song Info - Right Side (50%) */}
             <div
               style={{
-                width: '100%',
-                height: '40%',
+                width: '50%',
+                height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'flex-start',
                 alignItems: 'flex-start',
-                padding: '28px 50px 35px 50px',
+                justifyContent: 'center',
+                padding: '60px 60px',
                 color: 'white',
-                background: 'linear-gradient(135deg, rgba(15,15,30,0.98) 0%, rgba(22,33,62,0.98) 100%)',
-                position: 'relative',
-                boxSizing: 'border-box',
               }}
             >
+              {/* Music Icon */}
+              <div style={{ fontSize: 60, marginBottom: 20, display: 'flex' }}>
+                🎵
+              </div>
+
               {/* Song Title */}
               <div
                 style={{
-                  fontSize: 44,
+                  fontSize: 48,
                   fontWeight: 'bold',
-                  marginBottom: 6,
-                  lineHeight: 1.15,
-                  maxWidth: '100%',
+                  marginBottom: 20,
+                  lineHeight: 1.2,
+                  maxWidth: '90%',
                   display: 'flex',
                   flexWrap: 'wrap',
-                  color: '#ffffff',
-                  letterSpacing: '-0.5px',
                 }}
               >
                 {musicData.name}
               </div>
 
-              {/* Artist + Price Row */}
+              {/* Artist - NOW WITH FID! */}
               <div
                 style={{
+                  fontSize: 28,
+                  opacity: 0.8,
+                  marginBottom: 30,
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '18px',
-                  marginBottom: 10,
-                  fontSize: 19,
-                  width: '100%',
-                  justifyContent: 'space-between',
+                  color: '#a0aec0',
                 }}
               >
-                {/* Artist (NOW SHOWS FID OR WALLET) */}
-                <div
-                  style={{
-                    opacity: 0.85,
-                    display: 'flex',
-                    color: '#a0aec0',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  {musicData.artist}
-                </div>
-
-                {/* Price */}
-                <div
-                  style={{
-                    color: '#00d4ff',
-                    fontWeight: 'bold',
-                    fontSize: 24,
-                    display: 'flex',
-                  }}
-                >
-                  💰 {priceDisplay} TOURS
-                </div>
+                {musicData.artist}
               </div>
 
-              {/* Bottom Row - Token Badge + CTA */}
+              {/* Token Badge */}
               <div
                 style={{
+                  fontSize: 24,
+                  background: 'rgba(124, 58, 237, 0.3)',
+                  padding: '10px 24px',
+                  borderRadius: '20px',
+                  border: '2px solid rgba(124, 58, 237, 0.5)',
+                  marginBottom: 30,
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  width: '100%',
-                  marginTop: 'auto',
-                  justifyContent: 'space-between',
                 }}
               >
-                {/* Token Badge */}
-                <div
-                  style={{
-                    fontSize: 15,
-                    background: 'rgba(124, 58, 237, 0.4)',
-                    padding: '5px 14px',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(124, 58, 237, 0.6)',
-                    display: 'flex',
-                    color: '#c4b5fd',
-                  }}
-                >
-                  🎵 Track #{musicData.tokenId}
-                </div>
+                Token #{musicData.tokenId}
+              </div>
 
-                {/* CTA */}
-                <div
-                  style={{
-                    fontSize: 17,
-                    opacity: 0.8,
-                    display: 'flex',
-                    color: '#a0aec0',
-                    fontWeight: '500',
-                  }}
-                >
-                  🎧 License on EmpowerTours
-                </div>
+              {/* Price - NOW PROPERLY CONVERTED! */}
+              <div
+                style={{
+                  fontSize: 32,
+                  fontWeight: 'bold',
+                  color: '#00d4ff',
+                  marginBottom: 20,
+                  display: 'flex',
+                }}
+              >
+                {priceDisplay} TOURS
+              </div>
+
+              {/* CTA */}
+              <div
+                style={{
+                  fontSize: 20,
+                  opacity: 0.7,
+                  display: 'flex',
+                }}
+              >
+                🎧 License on EmpowerTours
               </div>
             </div>
           </div>
