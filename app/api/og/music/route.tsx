@@ -35,17 +35,18 @@ async function getFidFromWallet(walletAddress: string): Promise<string | null> {
   if (!NEYNAR_API_KEY) return null;
   
   try {
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`,
-      {
-        headers: { 'api_key': NEYNAR_API_KEY }
-      }
-    );
+    // Use bulk_by_address endpoint (correct one for wallet lookups)
+    const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${walletAddress}`;
+    const response = await fetch(url, {
+      headers: { 'api_key': NEYNAR_API_KEY }
+    });
     
     if (response.ok) {
       const data: any = await response.json();
-      if (data.users && data.users.length > 0) {
-        const user = data.users[0];
+      
+      // bulk_by_address returns an object with address as key
+      if (data[walletAddress.toLowerCase()] && data[walletAddress.toLowerCase()].length > 0) {
+        const user = data[walletAddress.toLowerCase()][0];
         return user.username ? user.username : null;
       }
     }
@@ -251,7 +252,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ RENDER: Working 50/50 layout with properly centered and constrained cover art
+    // ✅ RENDER: 50/50 layout with MAXIMUM padding to prevent any edge cropping
     if (musicData?.imageUrl) {
       const imageUrl = getImageUrl(musicData.imageUrl);
       console.log('🎨 Rendering with cover art');
@@ -270,7 +271,7 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) - FIXED: Properly constrained with padding */}
+            {/* Cover Art - Left Side (50%) - ULTRA-SAFE with maximum padding */}
             <div
               style={{
                 width: '50%',
@@ -279,14 +280,27 @@ export async function GET(request: NextRequest) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '40px',
+                padding: '0px',
                 boxSizing: 'border-box',
-                backgroundImage: `url('${imageUrl}')`,
-                backgroundSize: 'contain',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
               }}
-            />
+            >
+              {/* Inner container with maximum padding to constrain image */}
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '100px',
+                  boxSizing: 'border-box',
+                  backgroundImage: `url('${imageUrl}')`,
+                  backgroundSize: 'contain',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                }}
+              />
+            </div>
 
             {/* Song Info - Right Side (50%) */}
             <div
@@ -321,7 +335,7 @@ export async function GET(request: NextRequest) {
                 {musicData.name}
               </div>
 
-              {/* Artist - NOW WITH FID! */}
+              {/* Artist - WITH FID */}
               <div
                 style={{
                   fontSize: 28,
@@ -349,7 +363,7 @@ export async function GET(request: NextRequest) {
                 Token #{musicData.tokenId}
               </div>
 
-              {/* Price - NOW PROPERLY CONVERTED! */}
+              {/* Price */}
               <div
                 style={{
                   fontSize: 32,

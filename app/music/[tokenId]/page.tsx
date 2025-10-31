@@ -22,7 +22,7 @@ const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 
 console.log('🔑 NEYNAR_API_KEY available:', !!NEYNAR_API_KEY);
 
-// Helper to resolve wallet address to Farcaster username
+// Helper to resolve wallet address to Farcaster username using correct endpoint
 async function resolveFidFromWallet(walletAddress: string): Promise<string | null> {
   if (!walletAddress || !walletAddress.startsWith('0x')) {
     console.log('⚠️ Invalid wallet address format:', walletAddress);
@@ -36,7 +36,8 @@ async function resolveFidFromWallet(walletAddress: string): Promise<string | nul
   try {
     console.log('🔍 [Neynar] Resolving FID for wallet:', walletAddress);
     
-    const url = `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`;
+    // Use bulk_by_address endpoint (correct one for wallet lookups)
+    const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${walletAddress}`;
     console.log('📤 [Neynar] Request URL:', url);
     console.log('📤 [Neynar] Using API key:', NEYNAR_API_KEY.substring(0, 8) + '...');
 
@@ -52,8 +53,9 @@ async function resolveFidFromWallet(walletAddress: string): Promise<string | nul
       const data: any = await response.json();
       console.log('📥 [Neynar] Response data:', data);
 
-      if (data.users && data.users.length > 0) {
-        const user = data.users[0];
+      // bulk_by_address returns an object with address as key
+      if (data[walletAddress.toLowerCase()] && data[walletAddress.toLowerCase()].length > 0) {
+        const user = data[walletAddress.toLowerCase()][0];
         console.log('✅ [Neynar] Found user:', user);
         
         const username = user.username;
@@ -64,7 +66,7 @@ async function resolveFidFromWallet(walletAddress: string): Promise<string | nul
           console.warn('⚠️ [Neynar] User has no username');
         }
       } else {
-        console.warn('⚠️ [Neynar] No users in response');
+        console.warn('⚠️ [Neynar] No users found for wallet');
       }
     } else {
       const errorText = await response.text();
@@ -163,8 +165,7 @@ export default function MusicPage() {
               displayArtist = `@${fid}`;
               console.log('✅ Successfully resolved to FID:', displayArtist);
             } else {
-              console.log('⚠️ FID resolution failed, keeping wallet address');
-              // Show truncated wallet if resolution fails
+              console.log('⚠️ FID resolution failed, showing truncated wallet');
               displayArtist = `${nft.artist.substring(0, 6)}...${nft.artist.substring(-4)}`;
             }
           }
