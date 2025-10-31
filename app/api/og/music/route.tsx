@@ -128,7 +128,9 @@ export async function GET(request: NextRequest) {
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
               }}
-            />
+            >
+              {/* Empty flex container - required by next/og */}
+            </div>
 
             {/* Song Info - Right Side (50%) */}
             <div
@@ -144,7 +146,7 @@ export async function GET(request: NextRequest) {
               }}
             >
               {/* Music Icon */}
-              <div style={{ fontSize: 80, marginBottom: 20 }}>
+              <div style={{ fontSize: 80, marginBottom: 20, display: 'flex' }}>
                 🎵
               </div>
 
@@ -156,6 +158,7 @@ export async function GET(request: NextRequest) {
                   marginBottom: 20,
                   lineHeight: 1.2,
                   maxWidth: '90%',
+                  display: 'flex',
                 }}
               >
                 {musicData.songTitle}
@@ -167,6 +170,7 @@ export async function GET(request: NextRequest) {
                   fontSize: 32,
                   opacity: 0.8,
                   marginBottom: 30,
+                  display: 'flex',
                 }}
               >
                 {musicData.artist && musicData.artist.length > 10
@@ -183,6 +187,7 @@ export async function GET(request: NextRequest) {
                   borderRadius: '20px',
                   border: '2px solid rgba(124, 58, 237, 0.5)',
                   marginBottom: 30,
+                  display: 'flex',
                 }}
               >
                 Token #{musicData.tokenId}
@@ -195,6 +200,7 @@ export async function GET(request: NextRequest) {
                   fontWeight: 'bold',
                   color: '#00d4ff',
                   marginBottom: 20,
+                  display: 'flex',
                 }}
               >
                 {musicData.price} TOURS
@@ -205,6 +211,7 @@ export async function GET(request: NextRequest) {
                 style={{
                   fontSize: 24,
                   opacity: 0.7,
+                  display: 'flex',
                 }}
               >
                 🎧 License on EmpowerTours
@@ -236,7 +243,7 @@ export async function GET(request: NextRequest) {
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          <div style={{ fontSize: 120, marginBottom: 30 }}>🎵</div>
+          <div style={{ fontSize: 120, marginBottom: 30, display: 'flex' }}>🎵</div>
 
           <div
             style={{
@@ -244,6 +251,7 @@ export async function GET(request: NextRequest) {
               fontWeight: 'bold',
               marginBottom: 20,
               textAlign: 'center',
+              display: 'flex',
             }}
           >
             EmpowerTours Music
@@ -255,6 +263,7 @@ export async function GET(request: NextRequest) {
               opacity: 0.9,
               textAlign: 'center',
               maxWidth: '900px',
+              display: 'flex',
             }}
           >
             Mint & License Music NFTs on Monad
@@ -272,11 +281,11 @@ export async function GET(request: NextRequest) {
               gap: 20,
             }}
           >
-            <span>🎸 Artist Owned</span>
-            <span>•</span>
-            <span>💎 90/10 Split</span>
-            <span>•</span>
-            <span>⚡ Gasless</span>
+            <span style={{ display: 'flex' }}>🎸 Artist Owned</span>
+            <span style={{ display: 'flex' }}>•</span>
+            <span style={{ display: 'flex' }}>💎 90/10 Split</span>
+            <span style={{ display: 'flex' }}>•</span>
+            <span style={{ display: 'flex' }}>⚡ Gasless</span>
           </div>
         </div>
       ),
