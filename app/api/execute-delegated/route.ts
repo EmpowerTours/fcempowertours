@@ -225,6 +225,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         }
 
         // ✅ POST CAST WITH FRAME - WITH imageUrl, price, artist, songTitle PASSED
+        let frameUrl = '';
         if (params?.fid) {
           try {
             // Build frame URL with query params
@@ -236,7 +237,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             frameParams.append('artist', userAddress);
             frameParams.append('songTitle', params.songTitle || 'Untitled');
 
-            const frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}?${frameParams.toString()}`;
+            frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}?${frameParams.toString()}`;
             const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
 
             const castText = `🎵 New Music Master NFT Minted!
