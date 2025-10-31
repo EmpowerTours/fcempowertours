@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
-    const directImageUrl = searchParams.get('imageUrl');  // ✅ From bot
-    const directPrice = searchParams.get('price');  // ✅ From bot
-    const directArtist = searchParams.get('artist');  // ✅ From bot
-    const directSongTitle = searchParams.get('songTitle');  // ✅ From bot
+    const directImageUrl = searchParams.get('imageUrl');
+    const directPrice = searchParams.get('price');
+    const directArtist = searchParams.get('artist');
+    const directSongTitle = searchParams.get('songTitle');
 
     console.log('🎨 OG Request:', {
       tokenId,
@@ -114,7 +114,6 @@ export async function GET(request: NextRequest) {
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
       };
 
-      // Format price - ensure it shows the actual price
       const priceDisplay = musicData.price || '0';
 
       return new ImageResponse(
@@ -129,7 +128,7 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) - FULL BLEED */}
+            {/* Cover Art - Left Side (50%) */}
             <div
               style={{
                 width: '50%',
@@ -142,18 +141,8 @@ export async function GET(request: NextRequest) {
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                position: 'relative',
               }}
-            >
-              {/* Overlay for image quality */}
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.2) 100%)',
-                }}
-              />
-            </div>
+            />
 
             {/* Song Info - Right Side (50%) */}
             <div
@@ -214,7 +203,7 @@ export async function GET(request: NextRequest) {
                 Token #{musicData.tokenId}
               </div>
 
-              {/* Price - NOW DISPLAYS CORRECTLY */}
+              {/* Price */}
               <div
                 style={{
                   fontSize: 36,

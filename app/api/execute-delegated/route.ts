@@ -123,7 +123,12 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
               frameUrl
             });
           } catch (castError: any) {
-            console.warn('⚠️ Passport cast posting failed (non-blocking):', castError.message);
+            console.error('❌ Passport cast posting failed:', {
+              message: castError.message,
+              status: castError.response?.status,
+              statusText: castError.response?.statusText,
+              errorData: castError.response?.data,
+            });
             // Don't fail the transaction if cast fails
           }
         }
@@ -152,6 +157,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           artist: userAddress,
           price: params.price,
           tokenURI: params.tokenURI,
+          songTitle: params.songTitle,
           imageUrl: params.imageUrl ? 'provided' : 'none'
         });
 
@@ -221,14 +227,16 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         // ✅ POST CAST WITH FRAME - WITH imageUrl, price, artist, songTitle PASSED
         if (params?.fid) {
           try {
-            // ✅ Build frame URL with ALL metadata for immediate OG display
-            const queryParams = new URLSearchParams();
-            if (params.imageUrl) queryParams.append('imageUrl', params.imageUrl);
-            queryParams.append('price', params.price.toString());
-            queryParams.append('artist', userAddress);
-            queryParams.append('songTitle', params.songTitle || 'Untitled');
+            // Build frame URL with query params
+            const frameParams = new URLSearchParams();
+            if (params.imageUrl) {
+              frameParams.append('imageUrl', params.imageUrl);
+            }
+            frameParams.append('price', params.price.toString());
+            frameParams.append('artist', userAddress);
+            frameParams.append('songTitle', params.songTitle || 'Untitled');
 
-            const frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}?${queryParams.toString()}`;
+            const frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}?${frameParams.toString()}`;
             const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
 
             const castText = `🎵 New Music Master NFT Minted!
@@ -242,15 +250,18 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 @empowertours`;
 
             console.log('📢 Posting music cast with frame...');
-            console.log('🎬 Frame URL:', frameUrl);
+            console.log('🎬 Frame URL length:', frameUrl.length);
+            console.log('🎬 Frame URL:', frameUrl.substring(0, 150) + '...');
             console.log('🎬 Mini App URL:', miniAppUrl);
-            console.log('🖼️  Image URL:', params.imageUrl ? 'provided' : 'will use Envio fallback');
+            console.log('🎬 Bot Signer UUID:', process.env.BOT_SIGNER_UUID ? 'set' : 'NOT SET');
+            console.log('🎬 Neynar API Key:', process.env.NEXT_PUBLIC_NEYNAR_API_KEY ? 'set' : 'NOT SET');
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
               apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
             });
 
+            console.log('📤 Calling Neynar publishCast...');
             const castResult = await client.publishCast({
               signerUuid: process.env.BOT_SIGNER_UUID || '',
               text: castText,
@@ -261,10 +272,19 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
               hash: castResult.cast?.hash,
               songTitle: params.songTitle,
               tokenId: extractedTokenId,
-              frameUrl
+              frameUrl: frameUrl.substring(0, 100) + '...'
             });
           } catch (castError: any) {
-            console.warn('⚠️ Music cast posting failed (non-blocking):', castError.message);
+            console.error('❌ Music cast posting FAILED:', {
+              errorMessage: castError.message,
+              httpStatus: castError.response?.status,
+              statusText: castError.response?.statusText,
+              responseData: castError.response?.data,
+              responseText: castError.response?.text,
+              tokenId: extractedTokenId,
+              songTitle: params.songTitle,
+              frameUrlLength: frameUrl?.length,
+            });
             // Don't fail the transaction if cast fails
           }
         }
@@ -355,7 +375,12 @@ ${params.songTitle || 'Track'} #${tokenId}
               frameUrl
             });
           } catch (castError: any) {
-            console.warn('⚠️ Purchase cast posting failed (non-blocking):', castError.message);
+            console.error('❌ Purchase cast posting failed:', {
+              message: castError.message,
+              status: castError.response?.status,
+              statusText: castError.response?.statusText,
+              errorData: castError.response?.data,
+            });
             // Don't fail the transaction if cast fails
           }
         }
