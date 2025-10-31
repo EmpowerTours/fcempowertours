@@ -294,7 +294,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS (Token #${extractedTokenId})`,
         });
 
-      // ==================== BUY MUSIC (WITH CAST + FRAME) ====================
+      // ==================== BUY MUSIC (WITH CAST + FRAME) - FIXED ====================
       case 'buy_music':
         console.log('🎵 Action: buy_music (batched approve + purchaseLicenseFor)');
         if (!params?.tokenId) {
@@ -335,13 +335,63 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const buyTxHash = await sendSafeTransaction(buyCalls);
         console.log('✅ Music purchase successful, TX:', buyTxHash);
 
-        // ✅ POST CAST WITH FRAME
+        // ✅ POST CAST WITH FRAME - FETCH MUSIC DATA FROM ENVIO
         if (params?.fid) {
           try {
+            let songTitle = params.songTitle || 'Track';
+            let songPrice = '?';
+            let songArtist = 'Artist';
+
+            // 🔍 Fetch music metadata from Envio
+            console.log('🔍 Fetching music metadata from Envio for token:', tokenId.toString());
+            const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+            
+            try {
+              const query = `
+                query GetMusicNFT($tokenId: String!) {
+                  MusicLicenseNFTs(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                    items {
+                      tokenId
+                      songTitle
+                      price
+                      artist
+                    }
+                  }
+                }
+              `;
+
+              const envioRes = await fetch(ENVIO_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query,
+                  variables: { tokenId: tokenId.toString() }
+                })
+              });
+
+              if (envioRes.ok) {
+                const envioData = await envioRes.json();
+                const musicNFT = envioData.data?.MusicLicenseNFTs?.items?.[0];
+                
+                if (musicNFT) {
+                  songTitle = musicNFT.songTitle || 'Track';
+                  songPrice = musicNFT.price || '?';
+                  songArtist = musicNFT.artist || 'Artist';
+                  console.log('✅ Got music metadata from Envio:', { songTitle, songPrice, songArtist });
+                } else {
+                  console.warn('⚠️ Music NFT not found in Envio');
+                }
+              }
+            } catch (envioErr: any) {
+              console.warn('⚠️ Failed to fetch from Envio:', envioErr.message);
+            }
+
             const frameUrl = `${APP_URL}/api/frames/music/${tokenId.toString()}`;
             const castText = `💎 Music License Purchased!
 
-${params.songTitle || 'Track'} #${tokenId}
+"${songTitle}" #${tokenId}
+🎤 ${songArtist}
+💰 ${songPrice} TOURS
 
 ⚡ Gasless transaction powered by @empowertours
 🎧 Enjoy streaming!
@@ -350,6 +400,7 @@ ${params.songTitle || 'Track'} #${tokenId}
 
             console.log('📢 Posting purchase cast with frame...');
             console.log('🎬 Frame URL:', frameUrl);
+            console.log('🎬 Cast text:', castText);
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
@@ -365,6 +416,9 @@ ${params.songTitle || 'Track'} #${tokenId}
             console.log('✅ Purchase cast posted with frame:', {
               hash: castResult.cast?.hash,
               tokenId: tokenId.toString(),
+              songTitle,
+              songPrice,
+              songArtist,
               frameUrl
             });
           } catch (castError: any) {

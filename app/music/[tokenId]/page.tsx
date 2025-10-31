@@ -74,7 +74,7 @@ export default function MusicPage() {
 
       console.log('🔍 Fetching music data for token:', tokenId);
 
-      // PRIORITY 1: Try Envio first
+      // PRIORITY 1: Try Envio first - CORRECTED QUERY
       const query = `
         query GetMusicNFT($tokenId: String!) {
           MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
@@ -83,13 +83,14 @@ export default function MusicPage() {
             imageUrl
             price
             artist
-            previewAudioUrl
             fullAudioUrl
-            createdAt
+            previewAudioUrl
+            mintedAt
           }
         }
       `;
 
+      console.log('📤 Sending Envio query for tokenId:', tokenId);
       const response = await fetch(
         process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql',
         {
@@ -101,12 +102,17 @@ export default function MusicPage() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('📥 Envio response:', data);
+        
+        // ✅ CORRECTED: MusicNFT returns array directly, not nested in items
         const nft = data.data?.MusicNFT?.[0];
 
-        if (nft) {
-          console.log('✅ Found in Envio');
+        if (nft && nft.name) {
+          console.log('✅ Found in Envio:', nft);
           
-          let artistDisplay = nft.artist;
+          let artistDisplay = nft.artist || 'Unknown Artist';
+          let artistAddress = nft.artist || 'Unknown Artist';
+          
           if (nft.artist && nft.artist.startsWith('0x')) {
             const fid = await getFidFromWallet(nft.artist);
             if (fid) {
@@ -119,14 +125,18 @@ export default function MusicPage() {
             tokenId: nft.tokenId,
             name: nft.name,
             artist: artistDisplay,
-            artistAddress: nft.artist,
-            price: nft.price,
-            imageUrl: nft.imageUrl,
+            artistAddress: artistAddress,
+            price: String(nft.price || '0'),
+            imageUrl: nft.imageUrl || '',
             audioUrl: nft.fullAudioUrl || nft.previewAudioUrl || '',
-            createdAt: nft.createdAt,
+            createdAt: nft.mintedAt,
           });
           return;
+        } else {
+          console.log('⚠️ No data in Envio response, falling back to blockchain');
         }
+      } else {
+        console.log('⚠️ Envio query failed:', response.status);
       }
 
       // PRIORITY 2: If not in Envio, try blockchain directly
@@ -182,7 +192,6 @@ export default function MusicPage() {
             ? `https://${PINATA_GATEWAY}/ipfs/${audioUrl.replace('ipfs://', '')}`
             : audioUrl;
 
-          // ✅ FIXED: Extract artist from metadata properly
           let artistAddress = metadata.artist || 'Unknown Artist';
           let artistDisplay = artistAddress;
           
@@ -201,7 +210,7 @@ export default function MusicPage() {
             name: metadata.name || 'Untitled',
             artist: artistDisplay,
             artistAddress: artistAddress,
-            price: metadata.price || '0',
+            price: String(metadata.price || '0'),
             imageUrl: metadata.image || '',
             audioUrl: audioHttpUrl,
             createdAt: new Date().toISOString(),

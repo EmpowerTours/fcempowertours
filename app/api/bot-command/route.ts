@@ -150,6 +150,7 @@ Address: ${userAddress.slice(0, 10)}...`
           console.log(`[BOT] Searching for song: "${searchSongName}"`);
 
           try {
+            // ✅ CORRECTED: Query MusicNFT (singular) with correct field names
             const searchQuery = `
               query SearchMusicByName($name: String!) {
                 MusicNFT(
@@ -157,7 +158,6 @@ Address: ${userAddress.slice(0, 10)}...`
                   limit: 1
                   order_by: {mintedAt: desc}
                 ) {
-                  id
                   tokenId
                   name
                   price
@@ -180,6 +180,9 @@ Address: ${userAddress.slice(0, 10)}...`
             }
 
             const searchData = await searchRes.json();
+            console.log('[BOT] Envio search response:', searchData);
+            
+            // ✅ CORRECTED: Direct array access, not nested in items
             const musicNFT = searchData.data?.MusicNFT?.[0];
 
             if (!musicNFT) {
@@ -190,7 +193,7 @@ Address: ${userAddress.slice(0, 10)}...`
             }
 
             tokenId = parseInt(musicNFT.tokenId);
-            songTitle = musicNFT.name;
+            songTitle = musicNFT.name;  // ✅ Use "name" not "songTitle"
             console.log(`[BOT] Found song "${songTitle}" with tokenId: ${tokenId}`);
           } catch (searchErr: any) {
             console.error('[BOT] Song search error:', searchErr);
@@ -526,7 +529,6 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
                 }
                 limit: 1
               ) {
-                id
                 tokenId
                 countryCode
                 countryName
