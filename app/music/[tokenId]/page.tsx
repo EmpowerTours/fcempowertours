@@ -20,39 +20,58 @@ interface MusicData {
 const PINATA_GATEWAY = 'harlequin-used-hare-224.mypinata.cloud';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 
+console.log('🔑 NEYNAR_API_KEY available:', !!NEYNAR_API_KEY);
+
 // Helper to resolve wallet address to Farcaster username
 async function resolveFidFromWallet(walletAddress: string): Promise<string | null> {
-  if (!walletAddress || !walletAddress.startsWith('0x')) return null;
-  if (!NEYNAR_API_KEY) return null;
+  if (!walletAddress || !walletAddress.startsWith('0x')) {
+    console.log('⚠️ Invalid wallet address format:', walletAddress);
+    return null;
+  }
+  if (!NEYNAR_API_KEY) {
+    console.error('❌ NEYNAR_API_KEY not available');
+    return null;
+  }
 
   try {
-    console.log('🔍 Resolving FID for wallet:', walletAddress);
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`,
-      {
-        headers: {
-          'api_key': NEYNAR_API_KEY,
-        }
+    console.log('🔍 [Neynar] Resolving FID for wallet:', walletAddress);
+    
+    const url = `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`;
+    console.log('📤 [Neynar] Request URL:', url);
+    console.log('📤 [Neynar] Using API key:', NEYNAR_API_KEY.substring(0, 8) + '...');
+
+    const response = await fetch(url, {
+      headers: {
+        'api_key': NEYNAR_API_KEY,
       }
-    );
+    });
+
+    console.log('📥 [Neynar] Response status:', response.status);
 
     if (response.ok) {
       const data: any = await response.json();
-      console.log('📤 Neynar response:', data);
+      console.log('📥 [Neynar] Response data:', data);
 
       if (data.users && data.users.length > 0) {
         const user = data.users[0];
+        console.log('✅ [Neynar] Found user:', user);
+        
         const username = user.username;
         if (username) {
-          console.log('✅ Found FID:', username);
+          console.log('✅ [Neynar] Resolved to username:', username);
           return username;
+        } else {
+          console.warn('⚠️ [Neynar] User has no username');
         }
+      } else {
+        console.warn('⚠️ [Neynar] No users in response');
       }
     } else {
-      console.warn('⚠️ Neynar response not ok:', response.status);
+      const errorText = await response.text();
+      console.warn('⚠️ [Neynar] Response not ok:', response.status, errorText);
     }
   } catch (err: any) {
-    console.warn('⚠️ FID lookup failed:', err.message);
+    console.error('❌ [Neynar] FID lookup failed:', err.message);
   }
 
   return null;
@@ -135,14 +154,18 @@ export default function MusicPage() {
             }
           }
 
-          // ✅ RESOLVE FID FROM WALLET ADDRESS IMMEDIATELY
+          // ✅ RESOLVE FID FROM WALLET ADDRESS
           let displayArtist = nft.artist || 'Unknown Artist';
           if (nft.artist && nft.artist.startsWith('0x')) {
-            console.log('🔍 Artist is wallet address, resolving to FID:', nft.artist);
+            console.log('🔍 Artist is wallet address, attempting FID resolution:', nft.artist);
             const fid = await resolveFidFromWallet(nft.artist);
             if (fid) {
               displayArtist = `@${fid}`;
-              console.log('✅ Resolved to FID:', displayArtist);
+              console.log('✅ Successfully resolved to FID:', displayArtist);
+            } else {
+              console.log('⚠️ FID resolution failed, keeping wallet address');
+              // Show truncated wallet if resolution fails
+              displayArtist = `${nft.artist.substring(0, 6)}...${nft.artist.substring(-4)}`;
             }
           }
 
@@ -232,14 +255,17 @@ export default function MusicPage() {
 
           const artistAddress = metadata.artist || 'Unknown Artist';
 
-          // ✅ RESOLVE FID FROM WALLET ADDRESS IMMEDIATELY
+          // ✅ RESOLVE FID FROM WALLET ADDRESS
           let displayArtist = artistAddress;
           if (artistAddress && artistAddress.startsWith('0x')) {
-            console.log('🔍 Artist is wallet address, resolving to FID:', artistAddress);
+            console.log('🔍 Artist is wallet address, attempting FID resolution:', artistAddress);
             const fid = await resolveFidFromWallet(artistAddress);
             if (fid) {
               displayArtist = `@${fid}`;
-              console.log('✅ Resolved to FID:', displayArtist);
+              console.log('✅ Successfully resolved to FID:', displayArtist);
+            } else {
+              console.log('⚠️ FID resolution failed, showing truncated wallet');
+              displayArtist = `${artistAddress.substring(0, 6)}...${artistAddress.substring(-4)}`;
             }
           }
 
@@ -399,7 +425,7 @@ export default function MusicPage() {
 
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        {/* Cover Art - ✅ FIXED: Smaller so entire image fits in box */}
+        {/* Cover Art */}
         <div className="flex items-center justify-center">
           {imageUrl ? (
             <div className="w-full max-w-xs aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-purple-500/30 flex items-center justify-center bg-gray-900">
@@ -424,7 +450,7 @@ export default function MusicPage() {
             <h2 className="text-4xl font-bold text-white leading-tight">{musicData.name}</h2>
           </div>
 
-          {/* Artist - FIXED: Now displays @username instead of wallet address */}
+          {/* Artist - FIXED: Shows @username or truncated wallet */}
           <div>
             <p className="text-gray-400 text-sm mb-1">ARTIST</p>
             <p className="text-xl text-gray-300 font-mono break-all">{musicData.artist}</p>
