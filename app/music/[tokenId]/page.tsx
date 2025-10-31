@@ -20,31 +20,6 @@ interface MusicData {
 const PINATA_GATEWAY = 'harlequin-used-hare-224.mypinata.cloud';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 
-async function getFidFromWallet(walletAddress: string): Promise<string | null> {
-  if (!NEYNAR_API_KEY || !walletAddress) return null;
-  
-  try {
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`,
-      {
-        headers: { 'api_key': NEYNAR_API_KEY }
-      }
-    );
-    
-    if (response.ok) {
-      const data: any = await response.json();
-      if (data.users && data.users.length > 0) {
-        const user = data.users[0];
-        return user.username || null;
-      }
-    }
-  } catch (e) {
-    console.error('❌ Failed to look up FID:', e);
-  }
-  
-  return null;
-}
-
 export default function MusicPage() {
   const params = useParams();
   const tokenId = params.tokenId as string;
@@ -66,6 +41,58 @@ export default function MusicPage() {
   useEffect(() => {
     fetchMusicData();
   }, [tokenId]);
+
+  // ✅ FIX: Resolve FID from wallet on client-side after data loads
+  useEffect(() => {
+    const resolveFid = async () => {
+      if (musicData?.artistAddress && musicData.artistAddress.startsWith('0x')) {
+        // Only resolve if not already resolved (doesn't start with @)
+        if (musicData.artist.startsWith('@')) {
+          console.log('✅ Artist already resolved:', musicData.artist);
+          return;
+        }
+
+        try {
+          console.log('🔍 Resolving FID for artist:', musicData.artistAddress);
+          const response = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/by_verification?address=${musicData.artistAddress}`,
+            {
+              headers: {
+                'api_key': NEYNAR_API_KEY || '',
+              }
+            }
+          );
+
+          if (response.ok) {
+            const data: any = await response.json();
+            console.log('📤 Neynar response:', data);
+
+            if (data.users && data.users.length > 0) {
+              const user = data.users[0];
+              const username = user.username;
+              if (username) {
+                console.log('✅ Found FID:', username);
+                setMusicData(prev => prev ? {
+                  ...prev,
+                  artist: `@${username}`
+                } : null);
+              }
+            } else {
+              console.warn('⚠️ No users in Neynar response');
+            }
+          } else {
+            console.warn('⚠️ Neynar response not ok:', response.status);
+          }
+        } catch (err: any) {
+          console.warn('⚠️ FID lookup failed:', err.message);
+        }
+      }
+    };
+
+    if (musicData) {
+      resolveFid();
+    }
+  }, [musicData?.artistAddress]);
 
   const fetchMusicData = async () => {
     try {
@@ -103,25 +130,14 @@ export default function MusicPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('📥 Envio response:', data);
-        
+
         // ✅ CORRECTED: MusicNFT returns array directly, not nested in items
         const nft = data.data?.MusicNFT?.[0];
 
         if (nft && nft.name) {
           console.log('✅ Found in Envio:', nft);
-          
-          let artistDisplay = nft.artist || 'Unknown Artist';
-          let artistAddress = nft.artist || 'Unknown Artist';
-          
-          if (nft.artist && nft.artist.startsWith('0x')) {
-            const fid = await getFidFromWallet(nft.artist);
-            if (fid) {
-              artistDisplay = `@${fid}`;
-              console.log('✅ Artist FID:', artistDisplay);
-            }
-          }
-          
-          // ✅ Convert price from wei (18 decimals) to readable TOURS
+
+          // ✅ Convert price from wei to readable TOURS
           let priceInTours = '0';
           if (nft.price) {
             try {
@@ -137,8 +153,8 @@ export default function MusicPage() {
           setMusicData({
             tokenId: nft.tokenId,
             name: nft.name,
-            artist: artistDisplay,
-            artistAddress: artistAddress,
+            artist: nft.artist || 'Unknown Artist',
+            artistAddress: nft.artist || 'Unknown Artist',
             price: priceInTours,
             imageUrl: nft.imageUrl || '',
             audioUrl: nft.fullAudioUrl || nft.previewAudioUrl || '',
@@ -205,25 +221,27 @@ export default function MusicPage() {
             ? `https://${PINATA_GATEWAY}/ipfs/${audioUrl.replace('ipfs://', '')}`
             : audioUrl;
 
-          let artistAddress = metadata.artist || 'Unknown Artist';
-          let artistDisplay = artistAddress;
-          
-          console.log('🎤 Artist from metadata:', artistAddress);
-          
-          if (artistAddress && artistAddress.startsWith('0x')) {
-            const fid = await getFidFromWallet(artistAddress);
-            if (fid) {
-              artistDisplay = `@${fid}`;
-              console.log('✅ Artist FID:', artistDisplay);
+          // ✅ Convert price from wei
+          let priceInTours = '0';
+          if (metadata.price) {
+            try {
+              const priceBI = BigInt(metadata.price);
+              const priceNum = Number(priceBI) / 1e18;
+              priceInTours = priceNum.toString();
+            } catch (e) {
+              console.warn('Failed to convert price:', metadata.price);
+              priceInTours = String(metadata.price);
             }
           }
+
+          const artistAddress = metadata.artist || 'Unknown Artist';
 
           setMusicData({
             tokenId,
             name: metadata.name || 'Untitled',
-            artist: artistDisplay,
+            artist: artistAddress,
             artistAddress: artistAddress,
-            price: String(metadata.price || '0'),
+            price: priceInTours,
             imageUrl: metadata.image || '',
             audioUrl: audioHttpUrl,
             createdAt: new Date().toISOString(),
@@ -273,15 +291,15 @@ export default function MusicPage() {
     setBuying(true);
     setPurchaseStatus('loading');
     setPurchaseMessage('⏳ Processing purchase...');
-    
+
     try {
       console.log('💎 Starting purchase for token:', tokenId);
       console.log('🎵 Song:', musicData?.name);
       console.log('💰 Price:', musicData?.price, 'TOURS');
-      
+
       const command = `buy_music ${tokenId}`;
       console.log('🤖 Executing command:', command);
-      
+
       const result = await executeCommand(command);
 
       console.log('📤 Full purchase result:', result);
@@ -294,7 +312,7 @@ export default function MusicPage() {
         setPurchaseStatus('success');
         setPurchaseMessage(`🎉 License purchased!\n\n"${musicData?.name}"\n💰 ${musicData?.price} TOURS\n\nEnjoy your music!`);
         console.log('✅ Purchase successful - alert should show');
-        
+
         // Show success message for 5 seconds
         setTimeout(() => {
           setPurchaseStatus('idle');
@@ -305,7 +323,7 @@ export default function MusicPage() {
         setPurchaseStatus('error');
         setPurchaseMessage(`❌ Purchase failed:\n${errorMsg}`);
         console.error('❌ Purchase failed:', errorMsg);
-        
+
         setTimeout(() => {
           setPurchaseStatus('idle');
           setPurchaseMessage('');
@@ -316,7 +334,7 @@ export default function MusicPage() {
       setPurchaseStatus('error');
       setPurchaseMessage(`❌ Purchase failed:\n${errorMsg}`);
       console.error('❌ Purchase error:', error);
-      
+
       setTimeout(() => {
         setPurchaseStatus('idle');
         setPurchaseMessage('');
@@ -374,15 +392,18 @@ export default function MusicPage() {
 
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        {/* Cover Art */}
+        {/* Cover Art - ✅ FIXED: Smaller so entire image fits in box */}
         <div className="flex items-center justify-center">
           {imageUrl ? (
-            <div className="relative w-full max-w-sm aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-purple-500/30">
-              <img src={imageUrl} alt={musicData.name} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div className="w-full max-w-xs aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-purple-500/30 flex items-center justify-center bg-gray-900">
+              <img
+                src={imageUrl}
+                alt={musicData.name}
+                className="w-full h-full object-contain"
+              />
             </div>
           ) : (
-            <div className="w-full max-w-sm aspect-square bg-gradient-to-br from-purple-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl">
+            <div className="w-full max-w-xs aspect-square bg-gradient-to-br from-purple-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl">
               <div className="text-9xl">🎵</div>
             </div>
           )}
@@ -399,7 +420,7 @@ export default function MusicPage() {
           {/* Artist */}
           <div>
             <p className="text-gray-400 text-sm mb-1">ARTIST</p>
-            <p className="text-xl text-gray-300 font-mono">{musicData.artist}</p>
+            <p className="text-xl text-gray-300 font-mono break-all">{musicData.artist}</p>
           </div>
 
           {/* Token ID */}
