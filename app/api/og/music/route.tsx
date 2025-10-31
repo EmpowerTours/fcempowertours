@@ -251,7 +251,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ RENDER: Working 50/50 layout with all fixes
+    // ✅ RENDER: Working 50/50 layout with all fixes + IMPROVED COVER ART
     if (musicData?.imageUrl) {
       const imageUrl = getImageUrl(musicData.imageUrl);
       console.log('🎨 Rendering with cover art');
@@ -270,16 +270,19 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) */}
+            {/* Cover Art - Left Side (50%) - FIXED: Now displays full image with proper aspect ratio */}
             <div
               style={{
                 width: '50%',
                 height: '100%',
                 backgroundImage: `url('${imageUrl}')`,
-                backgroundSize: 'cover',
+                backgroundSize: 'contain',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                backgroundAttachment: 'scroll',
+                backgroundColor: '#0f3460',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             />
 

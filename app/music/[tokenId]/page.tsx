@@ -20,6 +20,44 @@ interface MusicData {
 const PINATA_GATEWAY = 'harlequin-used-hare-224.mypinata.cloud';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 
+// Helper to resolve wallet address to Farcaster username
+async function resolveFidFromWallet(walletAddress: string): Promise<string | null> {
+  if (!walletAddress || !walletAddress.startsWith('0x')) return null;
+  if (!NEYNAR_API_KEY) return null;
+
+  try {
+    console.log('🔍 Resolving FID for wallet:', walletAddress);
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`,
+      {
+        headers: {
+          'api_key': NEYNAR_API_KEY,
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data: any = await response.json();
+      console.log('📤 Neynar response:', data);
+
+      if (data.users && data.users.length > 0) {
+        const user = data.users[0];
+        const username = user.username;
+        if (username) {
+          console.log('✅ Found FID:', username);
+          return username;
+        }
+      }
+    } else {
+      console.warn('⚠️ Neynar response not ok:', response.status);
+    }
+  } catch (err: any) {
+    console.warn('⚠️ FID lookup failed:', err.message);
+  }
+
+  return null;
+}
+
 export default function MusicPage() {
   const params = useParams();
   const tokenId = params.tokenId as string;
@@ -42,58 +80,6 @@ export default function MusicPage() {
     fetchMusicData();
   }, [tokenId]);
 
-  // ✅ FIX: Resolve FID from wallet on client-side after data loads
-  useEffect(() => {
-    const resolveFid = async () => {
-      if (musicData?.artistAddress && musicData.artistAddress.startsWith('0x')) {
-        // Only resolve if not already resolved (doesn't start with @)
-        if (musicData.artist.startsWith('@')) {
-          console.log('✅ Artist already resolved:', musicData.artist);
-          return;
-        }
-
-        try {
-          console.log('🔍 Resolving FID for artist:', musicData.artistAddress);
-          const response = await fetch(
-            `https://api.neynar.com/v2/farcaster/user/by_verification?address=${musicData.artistAddress}`,
-            {
-              headers: {
-                'api_key': NEYNAR_API_KEY || '',
-              }
-            }
-          );
-
-          if (response.ok) {
-            const data: any = await response.json();
-            console.log('📤 Neynar response:', data);
-
-            if (data.users && data.users.length > 0) {
-              const user = data.users[0];
-              const username = user.username;
-              if (username) {
-                console.log('✅ Found FID:', username);
-                setMusicData(prev => prev ? {
-                  ...prev,
-                  artist: `@${username}`
-                } : null);
-              }
-            } else {
-              console.warn('⚠️ No users in Neynar response');
-            }
-          } else {
-            console.warn('⚠️ Neynar response not ok:', response.status);
-          }
-        } catch (err: any) {
-          console.warn('⚠️ FID lookup failed:', err.message);
-        }
-      }
-    };
-
-    if (musicData) {
-      resolveFid();
-    }
-  }, [musicData?.artistAddress]);
-
   const fetchMusicData = async () => {
     try {
       setLoading(true);
@@ -101,7 +87,7 @@ export default function MusicPage() {
 
       console.log('🔍 Fetching music data for token:', tokenId);
 
-      // PRIORITY 1: Try Envio first - CORRECTED QUERY
+      // PRIORITY 1: Try Envio first
       const query = `
         query GetMusicNFT($tokenId: String!) {
           MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
@@ -131,7 +117,6 @@ export default function MusicPage() {
         const data = await response.json();
         console.log('📥 Envio response:', data);
 
-        // ✅ CORRECTED: MusicNFT returns array directly, not nested in items
         const nft = data.data?.MusicNFT?.[0];
 
         if (nft && nft.name) {
@@ -150,10 +135,21 @@ export default function MusicPage() {
             }
           }
 
+          // ✅ RESOLVE FID FROM WALLET ADDRESS IMMEDIATELY
+          let displayArtist = nft.artist || 'Unknown Artist';
+          if (nft.artist && nft.artist.startsWith('0x')) {
+            console.log('🔍 Artist is wallet address, resolving to FID:', nft.artist);
+            const fid = await resolveFidFromWallet(nft.artist);
+            if (fid) {
+              displayArtist = `@${fid}`;
+              console.log('✅ Resolved to FID:', displayArtist);
+            }
+          }
+
           setMusicData({
             tokenId: nft.tokenId,
             name: nft.name,
-            artist: nft.artist || 'Unknown Artist',
+            artist: displayArtist,
             artistAddress: nft.artist || 'Unknown Artist',
             price: priceInTours,
             imageUrl: nft.imageUrl || '',
@@ -236,10 +232,21 @@ export default function MusicPage() {
 
           const artistAddress = metadata.artist || 'Unknown Artist';
 
+          // ✅ RESOLVE FID FROM WALLET ADDRESS IMMEDIATELY
+          let displayArtist = artistAddress;
+          if (artistAddress && artistAddress.startsWith('0x')) {
+            console.log('🔍 Artist is wallet address, resolving to FID:', artistAddress);
+            const fid = await resolveFidFromWallet(artistAddress);
+            if (fid) {
+              displayArtist = `@${fid}`;
+              console.log('✅ Resolved to FID:', displayArtist);
+            }
+          }
+
           setMusicData({
             tokenId,
             name: metadata.name || 'Untitled',
-            artist: artistAddress,
+            artist: displayArtist,
             artistAddress: artistAddress,
             price: priceInTours,
             imageUrl: metadata.image || '',
@@ -417,7 +424,7 @@ export default function MusicPage() {
             <h2 className="text-4xl font-bold text-white leading-tight">{musicData.name}</h2>
           </div>
 
-          {/* Artist */}
+          {/* Artist - FIXED: Now displays @username instead of wallet address */}
           <div>
             <p className="text-gray-400 text-sm mb-1">ARTIST</p>
             <p className="text-xl text-gray-300 font-mono break-all">{musicData.artist}</p>
