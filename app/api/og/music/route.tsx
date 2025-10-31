@@ -6,12 +6,11 @@ export const runtime = 'edge';
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
-// Cache for OG data
 const ogCache = new Map<string, { data: any; expiry: number }>();
 
 function getImageUrl(ipfsUrl: string): string {
   if (!ipfsUrl) return '';
-  if (ipfsUrl.startsWith('http')) return ipfsUrl; // ✅ Already a full URL
+  if (ipfsUrl.startsWith('http')) return ipfsUrl;
   if (ipfsUrl.startsWith('ipfs://')) {
     const cid = ipfsUrl.replace('ipfs://', '');
     return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
@@ -19,79 +18,44 @@ function getImageUrl(ipfsUrl: string): string {
   return ipfsUrl;
 }
 
-async function fetchMetadataFromIPFS(metadataUrl: string) {
-  try {
-    const httpUrl = getImageUrl(metadataUrl);
-    console.log('📥 Fetching metadata from:', httpUrl);
-
-    const response = await fetch(httpUrl, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(5000)
-    });
-
-    if (!response.ok) {
-      console.warn(`⚠️ Metadata fetch returned ${response.status}`);
-      return null;
-    }
-
-    const metadata = await response.json();
-    console.log('✅ Metadata fetched:', {
-      name: metadata.name,
-      hasImage: !!metadata.image
-    });
-
-    return metadata;
-  } catch (error: any) {
-    console.error('❌ Error fetching metadata:', error.message);
-    return null;
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
-
-    // ✅ Direct params from bot
-    const directImageUrl = searchParams.get('imageUrl');  // ✅ NOW: This is the DIRECT image URL, not metadata!
+    const directImageUrl = searchParams.get('imageUrl');
     const directSongTitle = searchParams.get('songTitle');
     const directPrice = searchParams.get('price');
     const artist = searchParams.get('artist');
-    const song = searchParams.get('song');
 
     console.log('🎨 OG Request:', {
       tokenId,
       hasDirect: !!directImageUrl,
       songTitle: directSongTitle,
-      isDirectImage: directImageUrl?.startsWith('http') || directImageUrl?.startsWith('ipfs://')
     });
 
     let musicData: any = null;
 
-    // ✅ PRIORITY 1: Direct params from bot (fresh mint)
+    // PRIORITY 1: Direct params from bot (fresh mint)
     if (directImageUrl && directSongTitle) {
       console.log('✅ Using direct params - image URL provided by bot');
-
-      // ✅ FIXED: directImageUrl IS the image URL, not metadata!
       const imageUrl = getImageUrl(directImageUrl);
-
       musicData = {
         tokenId: tokenId || '0',
         songTitle: directSongTitle,
-        coverImageUrl: imageUrl,  // ✅ Direct image, not fetched metadata
+        coverImageUrl: imageUrl,
         price: directPrice || '0',
         artist: artist || 'Artist'
       };
       console.log('✅ Using direct image URL:', imageUrl.substring(0, 80) + '...');
     }
-    // ✅ PRIORITY 2: Check cache
+    // PRIORITY 2: Check cache
     else if (tokenId) {
       const cached = ogCache.get(`music:${tokenId}`);
       if (cached && cached.expiry > Date.now()) {
         console.log('✅ Using cached OG data');
         musicData = cached.data;
       }
-      // ✅ PRIORITY 3: Query Envio
+      // PRIORITY 3: Query Envio
       else {
         console.log('🔍 Querying Envio for token:', tokenId);
         try {
@@ -125,7 +89,6 @@ export async function GET(request: NextRequest) {
                 price: nft.price,
                 artist: nft.artist
               };
-              // Cache for 5 minutes
               ogCache.set(`music:${tokenId}`, {
                 data: musicData,
                 expiry: Date.now() + 5 * 60 * 1000
@@ -139,8 +102,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ RENDER WITH COVER ART
-    if (musicData) {
+    // RENDER: Full layout with cover art
+    if (musicData?.coverImageUrl) {
       const imageUrl = getImageUrl(musicData.coverImageUrl);
       console.log('🎨 Rendering with cover art:', imageUrl.substring(0, 80) + '...');
 
@@ -151,11 +114,12 @@ export async function GET(request: NextRequest) {
               width: '100%',
               height: '100%',
               display: 'flex',
+              flexDirection: 'row',
               background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-              fontFamily: 'system-ui',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art on Left */}
+            {/* Cover Art - Left Side (50%) */}
             <div
               style={{
                 width: '50%',
@@ -164,23 +128,14 @@ export async function GET(request: NextRequest) {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '60px',
+                backgroundImage: `url('${imageUrl}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
               }}
-            >
-              <img
-                src={imageUrl}
-                alt="Cover Art"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  borderRadius: '20px',
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-                }}
-              />
-            </div>
+            />
 
-            {/* Song Details on Right */}
+            {/* Song Info - Right Side (50%) */}
             <div
               style={{
                 width: '50%',
@@ -206,11 +161,6 @@ export async function GET(request: NextRequest) {
                   marginBottom: 20,
                   lineHeight: 1.2,
                   maxWidth: '90%',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
                 }}
               >
                 {musicData.songTitle}
@@ -274,92 +224,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fallback: Generic song preview (old format)
-    const songTitle = song || directSongTitle;
-    if (songTitle && artist) {
-      return new ImageResponse(
-        (
-          <div
-            style={{
-              fontSize: 60,
-              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontFamily: 'system-ui',
-              padding: '60px',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 100, marginBottom: 30 }}>
-              🎵
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                fontSize: 64,
-                fontWeight: 'bold',
-                marginBottom: 20,
-                textAlign: 'center',
-                maxWidth: '1000px',
-              }}
-            >
-              {songTitle}
-            </div>
-
-            <div
-              style={{
-                fontSize: 40,
-                opacity: 0.8,
-                marginBottom: 30,
-              }}
-            >
-              By {artist.length > 10 ? `${artist.slice(0, 6)}...${artist.slice(-4)}` : artist}
-            </div>
-
-            {tokenId && (
-              <div
-                style={{
-                  fontSize: 32,
-                  opacity: 0.7,
-                  background: 'rgba(124, 58, 237, 0.3)',
-                  padding: '12px 30px',
-                  borderRadius: '20px',
-                  border: '2px solid rgba(124, 58, 237, 0.5)',
-                }}
-              >
-                Token #{tokenId}
-              </div>
-            )}
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                fontSize: 32,
-                opacity: 0.9,
-                marginTop: 50,
-              }}
-            >
-              🎧 License this track on EmpowerTours
-            </div>
-          </div>
-        ),
-        {
-          width: 1200,
-          height: 630,
-        }
-      );
-    }
-
-    // Default music page OG image
+    // FALLBACK: Title-only (no cover art)
     return new ImageResponse(
       (
         <div
@@ -373,24 +238,23 @@ export async function GET(request: NextRequest) {
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontFamily: 'system-ui',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 120, marginBottom: 30 }}>
+          <div style={{ fontSize: 120, marginBottom: 30 }}>
             🎵
           </div>
 
           <div
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
               fontSize: 70,
               fontWeight: 'bold',
               marginBottom: 20,
+              textAlign: 'center',
+              maxWidth: '900px',
             }}
           >
-            EmpowerTours Music
+            {directSongTitle || 'EmpowerTours Music'}
           </div>
 
           <div
@@ -430,7 +294,40 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (e: any) {
-    console.error('OG Image generation error:', e);
-    return new Response('Failed to generate OG image', { status: 500 });
+    console.error('🔴 OG generation error:', e.message);
+
+    // Emergency fallback - always returns valid image
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontFamily: 'system-ui',
+            fontSize: 60,
+          }}
+        >
+          <div style={{ fontSize: 120, marginBottom: 30 }}>
+            🎵
+          </div>
+          <div style={{ fontSize: 48, fontWeight: 'bold', textAlign: 'center' }}>
+            EmpowerTours Music NFT
+          </div>
+          <div style={{ fontSize: 28, marginTop: 40, opacity: 0.7 }}>
+            License Music on Monad
+          </div>
+        </div>
+      ),
+      {
+        width: 1200,
+        height: 630,
+      }
+    );
   }
 }
