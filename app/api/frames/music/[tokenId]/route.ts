@@ -13,24 +13,28 @@ export async function GET(
   try {
     const { tokenId } = await params;
     const miniAppUrl = `${APP_URL}/music/${tokenId}`;
-    const buyMiniAppUrl = `${APP_URL}/music/${tokenId}?action=buy`;
-    const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
-    const splashImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
+    
+    // ✅ Get imageUrl from query params (passed by bot)
+    const imageUrl = new URL(request.url).searchParams.get('imageUrl');
+    
+    // ✅ Build OG image URL with imageUrl if available
+    const ogImageUrl = imageUrl 
+      ? `${APP_URL}/api/og/music?tokenId=${tokenId}&imageUrl=${encodeURIComponent(imageUrl)}`
+      : `${APP_URL}/api/og/music?tokenId=${tokenId}`;
 
     console.log('🎬 Frame request for music token:', tokenId);
-    console.log('   Mini App URL:', miniAppUrl);
+    console.log('   Image URL:', imageUrl ? 'provided' : 'will query Envio');
 
-    // ✅ OFFICIAL FARCASTER MINI APPS SCHEMA
     const frameData = {
-      version: '1',  // Must be "1" not "next"
-      imageUrl: ogImageUrl,  // 3:2 aspect ratio (1200x630)
+      version: '1',
+      imageUrl: ogImageUrl,
       button: {
-        title: '🎵 Listen Now',  // Max 32 characters
+        title: '🎵 Listen & Buy',
         action: {
-          type: 'launch_frame',  // Official type for launching mini apps
+          type: 'launch_frame',
           name: 'EmpowerTours Music',
           url: miniAppUrl,
-          splashImageUrl: splashImageUrl,
+          splashImageUrl: ogImageUrl,
           splashBackgroundColor: '#0f172a'
         }
       }
@@ -43,12 +47,10 @@ export async function GET(
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <meta property="og:title" content="Music NFT #${tokenId}">
-          <meta property="og:description" content="Check out this exclusive music NFT on EmpowerTours - Mint & License Music NFTs on Monad">
-          <meta property="og:image" content="${ogImageUrl}">
-          <meta property="og:url" content="${miniAppUrl}">
+          <meta property="og:description" content="EmpowerTours - Mint & License Music NFTs on Monad">
           <meta property="og:type" content="website">
           
-          <!-- Official Farcaster Mini App Meta Tag (NOT fc:frame) -->
+          <!-- Official Farcaster Mini App Meta Tag -->
           <meta name="fc:miniapp" content='${JSON.stringify(frameData)}' />
 
           <title>Music NFT #${tokenId} - EmpowerTours</title>

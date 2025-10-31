@@ -22,31 +22,26 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
-    const directImageUrl = searchParams.get('imageUrl');
-    const directSongTitle = searchParams.get('songTitle');
-    const directPrice = searchParams.get('price');
-    const artist = searchParams.get('artist');
+    const directImageUrl = searchParams.get('imageUrl');  // ✅ From bot
 
     console.log('🎨 OG Request:', {
       tokenId,
       hasDirect: !!directImageUrl,
-      songTitle: directSongTitle,
     });
 
     let musicData: any = null;
 
-    // PRIORITY 1: Direct params from bot (fresh mint)
-    if (directImageUrl && directSongTitle) {
-      console.log('✅ Using direct params - image URL provided by bot');
+    // ✅ PRIORITY 1: Direct imageUrl from bot (fresh mint - no indexer delay!)
+    if (directImageUrl) {
+      console.log('✅ Using direct imageUrl from bot');
       const imageUrl = getImageUrl(directImageUrl);
       musicData = {
         tokenId: tokenId || '0',
-        songTitle: directSongTitle,
+        songTitle: 'New Release',
         coverImageUrl: imageUrl,
-        price: directPrice || '0',
-        artist: artist || 'Artist'
+        price: '0',
+        artist: 'Artist'
       };
-      console.log('✅ Using direct image URL:', imageUrl.substring(0, 80) + '...');
     }
     // PRIORITY 2: Check cache
     else if (tokenId) {
@@ -55,7 +50,7 @@ export async function GET(request: NextRequest) {
         console.log('✅ Using cached OG data');
         musicData = cached.data;
       }
-      // PRIORITY 3: Query Envio
+      // PRIORITY 3: Query Envio (fallback for old mints)
       else {
         console.log('🔍 Querying Envio for token:', tokenId);
         try {
@@ -102,7 +97,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // RENDER: Full layout with cover art
+    // ✅ RENDER: Full layout with cover art
     if (musicData?.coverImageUrl) {
       const imageUrl = getImageUrl(musicData.coverImageUrl);
       console.log('🎨 Rendering with cover art:', imageUrl.substring(0, 80) + '...');
@@ -224,7 +219,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // FALLBACK: Title-only (no cover art)
+    // ✅ FALLBACK: Simple gradient (no cover art)
     return new ImageResponse(
       (
         <div
@@ -241,9 +236,7 @@ export async function GET(request: NextRequest) {
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          <div style={{ fontSize: 120, marginBottom: 30 }}>
-            🎵
-          </div>
+          <div style={{ fontSize: 120, marginBottom: 30 }}>🎵</div>
 
           <div
             style={{
@@ -251,10 +244,9 @@ export async function GET(request: NextRequest) {
               fontWeight: 'bold',
               marginBottom: 20,
               textAlign: 'center',
-              maxWidth: '900px',
             }}
           >
-            {directSongTitle || 'EmpowerTours Music'}
+            EmpowerTours Music
           </div>
 
           <div
@@ -295,39 +287,6 @@ export async function GET(request: NextRequest) {
     );
   } catch (e: any) {
     console.error('🔴 OG generation error:', e.message);
-
-    // Emergency fallback - always returns valid image
-    return new ImageResponse(
-      (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontFamily: 'system-ui',
-            fontSize: 60,
-          }}
-        >
-          <div style={{ fontSize: 120, marginBottom: 30 }}>
-            🎵
-          </div>
-          <div style={{ fontSize: 48, fontWeight: 'bold', textAlign: 'center' }}>
-            EmpowerTours Music NFT
-          </div>
-          <div style={{ fontSize: 28, marginTop: 40, opacity: 0.7 }}>
-            License Music on Monad
-          </div>
-        </div>
-      ),
-      {
-        width: 1200,
-        height: 630,
-      }
-    );
+    return new Response('Failed to generate image', { status: 500 });
   }
 }

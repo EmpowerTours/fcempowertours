@@ -151,7 +151,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         console.log('🎵 Minting music NFT:', {
           artist: userAddress,
           price: params.price,
-          tokenURI: params.tokenURI
+          tokenURI: params.tokenURI,
+          imageUrl: params.imageUrl ? 'provided' : 'none'
         });
 
         const musicCalls = [
@@ -217,12 +218,15 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
         }
 
-        // ✅ POST CAST WITH FRAME
+        // ✅ POST CAST WITH FRAME - WITH imageUrl PASSED
         if (params?.fid) {
           try {
-            const frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}`;
+            // ✅ PASS imageUrl in frame URL so OG route can use it immediately (no Envio delay)
+            const frameUrl = params.imageUrl
+              ? `${APP_URL}/api/frames/music/${extractedTokenId}?imageUrl=${encodeURIComponent(params.imageUrl)}`
+              : `${APP_URL}/api/frames/music/${extractedTokenId}`;
             const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
-            
+
             const castText = `🎵 New Music Master NFT Minted!
 
 "${params.songTitle || 'Untitled'}"
@@ -236,6 +240,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             console.log('📢 Posting music cast with frame...');
             console.log('🎬 Frame URL:', frameUrl);
             console.log('🎬 Mini App URL:', miniAppUrl);
+            console.log('🖼️  Image URL:', params.imageUrl ? 'provided' : 'will use Envio fallback');
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
