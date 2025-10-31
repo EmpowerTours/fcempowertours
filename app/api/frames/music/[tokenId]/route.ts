@@ -13,30 +13,14 @@ export async function GET(
   try {
     const { tokenId } = await params;
     const miniAppUrl = `${APP_URL}/music/${tokenId}`;
-
-    // ✅ Get ALL query params and forward them to OG endpoint
-    const searchParams = new URL(request.url).searchParams;
-    const imageUrl = searchParams.get('imageUrl');
-    const price = searchParams.get('price');
-    const artist = searchParams.get('artist');
-    const songTitle = searchParams.get('songTitle');
-
-    // ✅ Build OG image URL with ALL params
-    const ogParams = new URLSearchParams();
-    ogParams.append('tokenId', tokenId);
-    if (imageUrl) ogParams.append('imageUrl', imageUrl);
-    if (price) ogParams.append('price', price);
-    if (artist) ogParams.append('artist', artist);
-    if (songTitle) ogParams.append('songTitle', songTitle);
-
-    const ogImageUrl = `${APP_URL}/api/og/music?${ogParams.toString()}`;
+    
+    // ✅ SIMPLIFIED: Only pass tokenId to OG endpoint
+    // OG endpoint will query Envio to fetch metadata + cover art
+    const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
 
     console.log('🎬 Frame request for music token:', tokenId);
-    console.log('   Image URL:', imageUrl ? 'provided' : 'will query Envio');
-    console.log('   Price:', price);
-    console.log('   Artist:', artist);
-    console.log('   Song Title:', songTitle);
-    console.log('   OG URL:', ogImageUrl);
+    console.log('🎬 Frame URL length:', ogImageUrl.length, 'bytes (limit: 256)');
+    console.log('🎬 Frame URL:', ogImageUrl);
 
     const frameData = {
       version: '1',
@@ -62,10 +46,8 @@ export async function GET(
           <meta property="og:title" content="Music NFT #${tokenId}">
           <meta property="og:description" content="EmpowerTours - Mint & License Music NFTs on Monad">
           <meta property="og:type" content="website">
-
           <!-- Official Farcaster Mini App Meta Tag -->
           <meta name="fc:miniapp" content='${JSON.stringify(frameData)}' />
-
           <title>Music NFT #${tokenId} - EmpowerTours</title>
         </head>
         <body style="background: #0f172a; margin: 0; padding: 0;"></body>

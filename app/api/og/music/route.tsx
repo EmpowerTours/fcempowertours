@@ -22,52 +22,31 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
-    const directImageUrl = searchParams.get('imageUrl');
-    const directPrice = searchParams.get('price');
-    const directArtist = searchParams.get('artist');
-    const directSongTitle = searchParams.get('songTitle');
 
-    console.log('🎨 OG Request:', {
-      tokenId,
-      hasDirect: !!directImageUrl,
-      price: directPrice,
-      artist: directArtist,
-      songTitle: directSongTitle,
-    });
+    console.log('🎨 OG Request for token:', tokenId);
 
     let musicData: any = null;
 
-    // ✅ PRIORITY 1: Direct params from bot (fresh mint - no indexer delay!)
-    if (directImageUrl || directPrice || directArtist) {
-      console.log('✅ Using direct params from bot');
-      const imageUrl = getImageUrl(directImageUrl || '');
-      musicData = {
-        tokenId: tokenId || '0',
-        songTitle: directSongTitle || 'New Release',
-        coverImageUrl: imageUrl,
-        price: directPrice || '0',
-        artist: directArtist || 'Artist'
-      };
-    }
-    // PRIORITY 2: Check cache
-    else if (tokenId) {
+    if (tokenId) {
+      // ✅ Check cache first
       const cached = ogCache.get(`music:${tokenId}`);
       if (cached && cached.expiry > Date.now()) {
         console.log('✅ Using cached OG data');
         musicData = cached.data;
-      }
-      // PRIORITY 3: Query Envio (fallback for old mints)
-      else {
+      } else {
+        // Query Envio for metadata
         console.log('🔍 Querying Envio for token:', tokenId);
         try {
           const query = `
-            query GetMusicNFT($tokenId: String!) {
-              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-                tokenId
-                name
-                imageUrl
-                price
-                artist
+            query {
+              MusicLicenseNFTs(where: { tokenId: { eq: "${tokenId}" } }) {
+                items {
+                  tokenId
+                  songTitle
+                  imageUrl
+                  price
+                  artist
+                }
               }
             }
           `;
@@ -75,27 +54,38 @@ export async function GET(request: NextRequest) {
           const response = await fetch(ENVIO_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, variables: { tokenId } }),
+            body: JSON.stringify({ query }),
             cache: 'no-store'
           });
 
           if (response.ok) {
             const data = await response.json();
-            const nft = data.data?.MusicNFT?.[0];
+            const nft = data.data?.MusicLicenseNFTs?.items?.[0];
+            
             if (nft) {
               musicData = {
                 tokenId: nft.tokenId,
-                songTitle: nft.name,
+                songTitle: nft.songTitle || 'New Release',
                 coverImageUrl: nft.imageUrl,
-                price: nft.price,
-                artist: nft.artist
+                price: nft.price || '0',
+                artist: nft.artist || 'Artist'
               };
+              
+              // Cache for 5 minutes
               ogCache.set(`music:${tokenId}`, {
                 data: musicData,
                 expiry: Date.now() + 5 * 60 * 1000
               });
-              console.log('✅ Got from Envio and cached');
+              
+              console.log('✅ Got from Envio and cached:', {
+                songTitle: musicData.songTitle,
+                hasImage: !!musicData.coverImageUrl
+              });
+            } else {
+              console.log('⚠️ Token not found in Envio');
             }
+          } else {
+            console.log('⚠️ Envio response not ok:', response.status);
           }
         } catch (err: any) {
           console.error('❌ Envio query failed:', err.message);
@@ -103,12 +93,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ RENDER: Full layout with cover art
+    // ✅ RENDER: Full layout with cover art if available
     if (musicData?.coverImageUrl) {
       const imageUrl = getImageUrl(musicData.coverImageUrl);
-      console.log('🎨 Rendering with cover art:', imageUrl.substring(0, 80) + '...');
+      console.log('🎨 Rendering with cover art');
 
-      // Format artist address
       const formatArtist = (addr: string) => {
         if (!addr || addr.length <= 10) return addr || 'Artist';
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;

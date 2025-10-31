@@ -224,20 +224,12 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
         }
 
-        // ✅ POST CAST WITH FRAME - WITH imageUrl, price, artist, songTitle PASSED
+        // ✅ POST CAST WITH FRAME - SIMPLIFIED: ONLY tokenId (OG route queries Envio for metadata)
         let frameUrl = '';
         if (params?.fid) {
           try {
-            // Build frame URL with query params
-            const frameParams = new URLSearchParams();
-            if (params.imageUrl) {
-              frameParams.append('imageUrl', params.imageUrl);
-            }
-            frameParams.append('price', params.price.toString());
-            frameParams.append('artist', userAddress);
-            frameParams.append('songTitle', params.songTitle || 'Untitled');
-
-            frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}?${frameParams.toString()}`;
+            // ✅ SIMPLIFIED: Just pass tokenId, OG route will fetch metadata from Envio
+            frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}`;
             const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
 
             const castText = `🎵 New Music Master NFT Minted!
@@ -251,8 +243,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 @empowertours`;
 
             console.log('📢 Posting music cast with frame...');
-            console.log('🎬 Frame URL length:', frameUrl.length);
-            console.log('🎬 Frame URL:', frameUrl.substring(0, 150) + '...');
+            console.log('🎬 Frame URL length:', frameUrl.length, 'bytes (Neynar limit: 256)');
+            console.log('🎬 Frame URL:', frameUrl);
             console.log('🎬 Mini App URL:', miniAppUrl);
             console.log('🎬 Bot Signer UUID:', process.env.BOT_SIGNER_UUID ? 'set' : 'NOT SET');
             console.log('🎬 Neynar API Key:', process.env.NEXT_PUBLIC_NEYNAR_API_KEY ? 'set' : 'NOT SET');
@@ -273,7 +265,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
               hash: castResult.cast?.hash,
               songTitle: params.songTitle,
               tokenId: extractedTokenId,
-              frameUrl: frameUrl.substring(0, 100) + '...'
+              frameUrl
             });
           } catch (castError: any) {
             console.error('❌ Music cast posting FAILED:', {
