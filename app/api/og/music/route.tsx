@@ -103,8 +103,8 @@ async function getMetadataFromBlockchain(tokenId: string): Promise<any | null> {
       
       return {
         tokenId,
-        songTitle: metadata.name || 'New Release',
-        coverImageUrl: metadata.image || '',
+        name: metadata.name || 'New Release',
+        imageUrl: metadata.image || '',
         price: metadata.price || '0',
         artist: metadata.artist || 'Artist'
       };
@@ -132,19 +132,17 @@ export async function GET(request: NextRequest) {
         console.log('✅ Using cached OG data');
         musicData = cached.data;
       } else {
-        // PRIORITY 1: Query Envio
+        // PRIORITY 1: Query Envio - CORRECTED: Use MusicNFT (singular)
         console.log('🔍 Querying Envio for token:', tokenId);
         try {
           const query = `
             query {
-              MusicLicenseNFTs(where: { tokenId: { eq: "${tokenId}" } }) {
-                items {
-                  tokenId
-                  songTitle
-                  imageUrl
-                  price
-                  artist
-                }
+              MusicNFT(where: { tokenId: { _eq: "${tokenId}" } }, limit: 1) {
+                tokenId
+                name
+                imageUrl
+                price
+                artist
               }
             }
           `;
@@ -158,10 +156,11 @@ export async function GET(request: NextRequest) {
 
           if (response.ok) {
             const data = await response.json();
-            const nft = data.data?.MusicLicenseNFTs?.items?.[0];
+            // ✅ CORRECTED: MusicNFT returns array directly
+            const nft = data.data?.MusicNFT?.[0];
             
             if (nft) {
-              console.log('✅ Found in Envio');
+              console.log('✅ Found in Envio:', nft);
               
               // ✅ Look up FID for display
               let artistDisplay = nft.artist || 'Artist';
@@ -175,8 +174,8 @@ export async function GET(request: NextRequest) {
               
               musicData = {
                 tokenId: nft.tokenId,
-                songTitle: nft.songTitle || 'New Release',
-                coverImageUrl: nft.imageUrl,
+                name: nft.name || 'New Release',
+                imageUrl: nft.imageUrl,
                 price: nft.price || '0',
                 artist: artistDisplay
               };
@@ -248,8 +247,8 @@ export async function GET(request: NextRequest) {
     }
 
     // ✅ RENDER: Full layout with cover art if available
-    if (musicData?.coverImageUrl) {
-      const imageUrl = getImageUrl(musicData.coverImageUrl);
+    if (musicData?.imageUrl) {
+      const imageUrl = getImageUrl(musicData.imageUrl);
       console.log('🎨 Rendering with cover art');
 
       const priceDisplay = musicData.price || '0';
@@ -266,19 +265,16 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) */}
+            {/* Cover Art - Left Side (50%) - FIXED: Proper backgroundImage sizing */}
             <div
               style={{
                 width: '50%',
                 height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
                 backgroundImage: `url('${imageUrl}')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'scroll',
               }}
             />
 
@@ -291,36 +287,38 @@ export async function GET(request: NextRequest) {
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 justifyContent: 'center',
-                padding: '80px 60px',
+                padding: '60px 60px',
                 color: 'white',
               }}
             >
               {/* Music Icon */}
-              <div style={{ fontSize: 80, marginBottom: 20, display: 'flex' }}>
+              <div style={{ fontSize: 60, marginBottom: 20, display: 'flex' }}>
                 🎵
               </div>
 
               {/* Song Title */}
               <div
                 style={{
-                  fontSize: 52,
+                  fontSize: 48,
                   fontWeight: 'bold',
                   marginBottom: 20,
                   lineHeight: 1.2,
                   maxWidth: '90%',
                   display: 'flex',
+                  flexWrap: 'wrap',
                 }}
               >
-                {musicData.songTitle}
+                {musicData.name}
               </div>
 
               {/* Artist (NOW SHOWS FID OR WALLET) */}
               <div
                 style={{
-                  fontSize: 32,
+                  fontSize: 28,
                   opacity: 0.8,
                   marginBottom: 30,
                   display: 'flex',
+                  color: '#a0aec0',
                 }}
               >
                 {musicData.artist}
@@ -329,9 +327,9 @@ export async function GET(request: NextRequest) {
               {/* Token Badge */}
               <div
                 style={{
-                  fontSize: 28,
+                  fontSize: 24,
                   background: 'rgba(124, 58, 237, 0.3)',
-                  padding: '12px 30px',
+                  padding: '10px 24px',
                   borderRadius: '20px',
                   border: '2px solid rgba(124, 58, 237, 0.5)',
                   marginBottom: 30,
@@ -344,7 +342,7 @@ export async function GET(request: NextRequest) {
               {/* Price */}
               <div
                 style={{
-                  fontSize: 36,
+                  fontSize: 32,
                   fontWeight: 'bold',
                   color: '#00d4ff',
                   marginBottom: 20,
@@ -357,7 +355,7 @@ export async function GET(request: NextRequest) {
               {/* CTA */}
               <div
                 style={{
-                  fontSize: 24,
+                  fontSize: 20,
                   opacity: 0.7,
                   display: 'flex',
                 }}
