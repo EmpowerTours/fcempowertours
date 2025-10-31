@@ -5,6 +5,8 @@ export const runtime = 'edge';
 
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+const MONAD_RPC = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
 
 const ogCache = new Map<string, { data: any; expiry: number }>();
 
@@ -16,6 +18,102 @@ function getImageUrl(ipfsUrl: string): string {
     return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
   }
   return ipfsUrl;
+}
+
+// ✅ NEW: Look up FID from wallet address using Neynar
+async function getFidFromWallet(walletAddress: string): Promise<string | null> {
+  if (!NEYNAR_API_KEY) return null;
+  
+  try {
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`,
+      {
+        headers: { 'api_key': NEYNAR_API_KEY }
+      }
+    );
+    
+    if (response.ok) {
+      const data: any = await response.json();
+      if (data.users && data.users.length > 0) {
+        const user = data.users[0];
+        return user.username ? `@${user.username}` : null;
+      }
+    }
+  } catch (e) {
+    console.error('❌ Failed to look up FID:', e);
+  }
+  
+  return null;
+}
+
+// ✅ NEW: Query blockchain directly when Envio hasn't indexed yet
+async function getMetadataFromBlockchain(tokenId: string): Promise<any | null> {
+  try {
+    console.log('🔗 Querying blockchain for token:', tokenId);
+    
+    const MUSIC_NFT_ADDRESS = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
+    
+    // Call tokenURI on the contract
+    const response = await fetch(MONAD_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_call',
+        params: [
+          {
+            to: MUSIC_NFT_ADDRESS,
+            data: `0xc87b56dd${BigInt(tokenId).toString(16).padStart(64, '0')}`
+          },
+          'latest'
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      console.log('⚠️ Blockchain query failed');
+      return null;
+    }
+
+    const result: any = await response.json();
+    if (!result.result || result.result === '0x') {
+      console.log('⚠️ Token not found on blockchain');
+      return null;
+    }
+
+    // Decode the URI from hex
+    const decoded = Buffer.from(result.result.slice(2), 'hex').toString('utf8');
+    const uriMatch = decoded.match(/ipfs:\/\/([A-Za-z0-9]+)/);
+    
+    if (!uriMatch) {
+      console.log('⚠️ Could not extract IPFS URI');
+      return null;
+    }
+
+    const ipfsUri = `ipfs://${uriMatch[1]}`;
+    const metadataUrl = getImageUrl(ipfsUri);
+
+    console.log('📥 Fetching metadata from IPFS:', metadataUrl);
+    const metadataResponse = await fetch(metadataUrl);
+    
+    if (metadataResponse.ok) {
+      const metadata = await metadataResponse.json();
+      console.log('✅ Got metadata from blockchain IPFS');
+      
+      return {
+        tokenId,
+        songTitle: metadata.name || 'New Release',
+        coverImageUrl: metadata.image || '',
+        price: metadata.price || '0',
+        artist: metadata.artist || 'Artist'
+      };
+    }
+  } catch (e: any) {
+    console.error('❌ Blockchain query error:', e.message);
+  }
+  
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -34,7 +132,7 @@ export async function GET(request: NextRequest) {
         console.log('✅ Using cached OG data');
         musicData = cached.data;
       } else {
-        // Query Envio for metadata
+        // PRIORITY 1: Query Envio
         console.log('🔍 Querying Envio for token:', tokenId);
         try {
           const query = `
@@ -63,12 +161,24 @@ export async function GET(request: NextRequest) {
             const nft = data.data?.MusicLicenseNFTs?.items?.[0];
             
             if (nft) {
+              console.log('✅ Found in Envio');
+              
+              // ✅ Look up FID for display
+              let artistDisplay = nft.artist || 'Artist';
+              if (nft.artist && nft.artist.startsWith('0x')) {
+                const fid = await getFidFromWallet(nft.artist);
+                if (fid) {
+                  artistDisplay = fid;
+                  console.log('✅ Converted wallet to FID:', fid);
+                }
+              }
+              
               musicData = {
                 tokenId: nft.tokenId,
                 songTitle: nft.songTitle || 'New Release',
                 coverImageUrl: nft.imageUrl,
                 price: nft.price || '0',
-                artist: nft.artist || 'Artist'
+                artist: artistDisplay
               };
               
               // Cache for 5 minutes
@@ -77,18 +187,62 @@ export async function GET(request: NextRequest) {
                 expiry: Date.now() + 5 * 60 * 1000
               });
               
-              console.log('✅ Got from Envio and cached:', {
-                songTitle: musicData.songTitle,
-                hasImage: !!musicData.coverImageUrl
-              });
+              console.log('✅ Got from Envio and cached');
             } else {
-              console.log('⚠️ Token not found in Envio');
+              console.log('⚠️ Token not found in Envio, trying blockchain...');
+              
+              // PRIORITY 2: Fall back to blockchain
+              const blockchainData = await getMetadataFromBlockchain(tokenId);
+              if (blockchainData) {
+                // ✅ Look up FID for display
+                let artistDisplay = blockchainData.artist || 'Artist';
+                if (blockchainData.artist && blockchainData.artist.startsWith('0x')) {
+                  const fid = await getFidFromWallet(blockchainData.artist);
+                  if (fid) {
+                    artistDisplay = fid;
+                    console.log('✅ Converted wallet to FID:', fid);
+                  }
+                }
+                
+                musicData = {
+                  ...blockchainData,
+                  artist: artistDisplay
+                };
+                
+                // Cache
+                ogCache.set(`music:${tokenId}`, {
+                  data: musicData,
+                  expiry: Date.now() + 5 * 60 * 1000
+                });
+                
+                console.log('✅ Got from blockchain');
+              }
             }
-          } else {
-            console.log('⚠️ Envio response not ok:', response.status);
           }
         } catch (err: any) {
           console.error('❌ Envio query failed:', err.message);
+          
+          // Still try blockchain as fallback
+          const blockchainData = await getMetadataFromBlockchain(tokenId);
+          if (blockchainData) {
+            let artistDisplay = blockchainData.artist || 'Artist';
+            if (blockchainData.artist && blockchainData.artist.startsWith('0x')) {
+              const fid = await getFidFromWallet(blockchainData.artist);
+              if (fid) {
+                artistDisplay = fid;
+              }
+            }
+            
+            musicData = {
+              ...blockchainData,
+              artist: artistDisplay
+            };
+            
+            ogCache.set(`music:${tokenId}`, {
+              data: musicData,
+              expiry: Date.now() + 5 * 60 * 1000
+            });
+          }
         }
       }
     }
@@ -97,11 +251,6 @@ export async function GET(request: NextRequest) {
     if (musicData?.coverImageUrl) {
       const imageUrl = getImageUrl(musicData.coverImageUrl);
       console.log('🎨 Rendering with cover art');
-
-      const formatArtist = (addr: string) => {
-        if (!addr || addr.length <= 10) return addr || 'Artist';
-        return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-      };
 
       const priceDisplay = musicData.price || '0';
 
@@ -165,7 +314,7 @@ export async function GET(request: NextRequest) {
                 {musicData.songTitle}
               </div>
 
-              {/* Artist */}
+              {/* Artist (NOW SHOWS FID OR WALLET) */}
               <div
                 style={{
                   fontSize: 32,
@@ -174,7 +323,7 @@ export async function GET(request: NextRequest) {
                   display: 'flex',
                 }}
               >
-                {formatArtist(musicData.artist)}
+                {musicData.artist}
               </div>
 
               {/* Token Badge */}

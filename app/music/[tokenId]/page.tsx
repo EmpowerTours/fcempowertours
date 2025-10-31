@@ -10,6 +10,7 @@ interface MusicData {
   tokenId: string;
   name: string;
   artist: string;
+  artistAddress: string;
   price: string;
   imageUrl: string;
   audioUrl: string;
@@ -17,6 +18,32 @@ interface MusicData {
 }
 
 const PINATA_GATEWAY = 'harlequin-used-hare-224.mypinata.cloud';
+const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+
+async function getFidFromWallet(walletAddress: string): Promise<string | null> {
+  if (!NEYNAR_API_KEY || !walletAddress) return null;
+  
+  try {
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/by_verification?address=${walletAddress}`,
+      {
+        headers: { 'api_key': NEYNAR_API_KEY }
+      }
+    );
+    
+    if (response.ok) {
+      const data: any = await response.json();
+      if (data.users && data.users.length > 0) {
+        const user = data.users[0];
+        return user.username || null;
+      }
+    }
+  } catch (e) {
+    console.error('❌ Failed to look up FID:', e);
+  }
+  
+  return null;
+}
 
 export default function MusicPage() {
   const params = useParams();
@@ -33,6 +60,8 @@ export default function MusicPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [purchaseStatus, setPurchaseStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [purchaseMessage, setPurchaseMessage] = useState('');
 
   useEffect(() => {
     fetchMusicData();
@@ -43,9 +72,9 @@ export default function MusicPage() {
       setLoading(true);
       setError(null);
 
-      // ✅ PRIORITY 1: Try Envio first
       console.log('🔍 Fetching music data for token:', tokenId);
 
+      // PRIORITY 1: Try Envio first
       const query = `
         query GetMusicNFT($tokenId: String!) {
           MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
@@ -76,10 +105,21 @@ export default function MusicPage() {
 
         if (nft) {
           console.log('✅ Found in Envio');
+          
+          let artistDisplay = nft.artist;
+          if (nft.artist && nft.artist.startsWith('0x')) {
+            const fid = await getFidFromWallet(nft.artist);
+            if (fid) {
+              artistDisplay = `@${fid}`;
+              console.log('✅ Artist FID:', artistDisplay);
+            }
+          }
+          
           setMusicData({
             tokenId: nft.tokenId,
             name: nft.name,
-            artist: nft.artist,
+            artist: artistDisplay,
+            artistAddress: nft.artist,
             price: nft.price,
             imageUrl: nft.imageUrl,
             audioUrl: nft.fullAudioUrl || nft.previewAudioUrl || '',
@@ -89,7 +129,7 @@ export default function MusicPage() {
         }
       }
 
-      // ✅ PRIORITY 2: If not in Envio, try blockchain directly
+      // PRIORITY 2: If not in Envio, try blockchain directly
       console.log('⏳ Not in Envio yet, checking blockchain...');
       const client = createPublicClient({
         chain: {
@@ -130,10 +170,11 @@ export default function MusicPage() {
           ? `https://${PINATA_GATEWAY}/ipfs/${uriData.replace('ipfs://', '')}`
           : uriData;
 
+        console.log('📥 Fetching metadata from IPFS:', ipfsUrl);
         const metadataResponse = await fetch(ipfsUrl);
         if (metadataResponse.ok) {
           const metadata = await metadataResponse.json();
-          console.log('✅ Got metadata from IPFS');
+          console.log('✅ Got metadata from IPFS:', metadata);
 
           const audioUrl =
             metadata.animation_url || metadata.audio || metadata.full || metadata.audio_url || '';
@@ -141,10 +182,25 @@ export default function MusicPage() {
             ? `https://${PINATA_GATEWAY}/ipfs/${audioUrl.replace('ipfs://', '')}`
             : audioUrl;
 
+          // ✅ FIXED: Extract artist from metadata properly
+          let artistAddress = metadata.artist || 'Unknown Artist';
+          let artistDisplay = artistAddress;
+          
+          console.log('🎤 Artist from metadata:', artistAddress);
+          
+          if (artistAddress && artistAddress.startsWith('0x')) {
+            const fid = await getFidFromWallet(artistAddress);
+            if (fid) {
+              artistDisplay = `@${fid}`;
+              console.log('✅ Artist FID:', artistDisplay);
+            }
+          }
+
           setMusicData({
             tokenId,
             name: metadata.name || 'Untitled',
-            artist: metadata.artist || 'Unknown',
+            artist: artistDisplay,
+            artistAddress: artistAddress,
             price: metadata.price || '0',
             imageUrl: metadata.image || '',
             audioUrl: audioHttpUrl,
@@ -173,14 +229,6 @@ export default function MusicPage() {
     return ipfsUrl;
   };
 
-  const formatArtist = (address: string) => {
-    if (!address) return 'Unknown Artist';
-    if (address.length > 10) {
-      return `${address.slice(0, 6)}...${address.slice(-4)}`;
-    }
-    return address;
-  };
-
   const formatTime = (seconds: number) => {
     if (!seconds || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -195,23 +243,62 @@ export default function MusicPage() {
       return;
     }
 
-    if (walletAddress.toLowerCase() === musicData?.artist.toLowerCase()) {
+    if (walletAddress.toLowerCase() === musicData?.artistAddress.toLowerCase()) {
       alert('You cannot buy your own music!');
       return;
     }
 
     setBuying(true);
+    setPurchaseStatus('loading');
+    setPurchaseMessage('⏳ Processing purchase...');
+    
     try {
+      console.log('💎 Starting purchase for token:', tokenId);
+      console.log('🎵 Song:', musicData?.name);
+      console.log('💰 Price:', musicData?.price, 'TOURS');
+      
       const command = `buy_music ${tokenId}`;
+      console.log('🤖 Executing command:', command);
+      
       const result = await executeCommand(command);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Purchase failed');
-      }
+      console.log('📤 Full purchase result:', result);
+      console.log('📊 Result keys:', Object.keys(result));
+      console.log('✔️ Success flag:', result?.success);
+      console.log('📝 Message:', result?.message);
+      console.log('🚨 Error:', result?.error);
 
-      alert(`🎉 License purchased!\n\n"${musicData?.name}"\n💰 ${musicData?.price} TOURS\n\nEnjoy your music!`);
+      if (result?.success === true) {
+        setPurchaseStatus('success');
+        setPurchaseMessage(`🎉 License purchased!\n\n"${musicData?.name}"\n💰 ${musicData?.price} TOURS\n\nEnjoy your music!`);
+        console.log('✅ Purchase successful - alert should show');
+        
+        // Show success message for 5 seconds
+        setTimeout(() => {
+          setPurchaseStatus('idle');
+          setPurchaseMessage('');
+        }, 5000);
+      } else {
+        const errorMsg = result?.error || result?.message || 'Purchase failed for unknown reason';
+        setPurchaseStatus('error');
+        setPurchaseMessage(`❌ Purchase failed:\n${errorMsg}`);
+        console.error('❌ Purchase failed:', errorMsg);
+        
+        setTimeout(() => {
+          setPurchaseStatus('idle');
+          setPurchaseMessage('');
+        }, 5000);
+      }
     } catch (error: any) {
-      alert(`Purchase failed: ${error.message}`);
+      const errorMsg = error?.message || String(error) || 'Unknown error';
+      setPurchaseStatus('error');
+      setPurchaseMessage(`❌ Purchase failed:\n${errorMsg}`);
+      console.error('❌ Purchase error:', error);
+      
+      setTimeout(() => {
+        setPurchaseStatus('idle');
+        setPurchaseMessage('');
+      }, 5000);
     } finally {
       setBuying(false);
     }
@@ -290,7 +377,7 @@ export default function MusicPage() {
           {/* Artist */}
           <div>
             <p className="text-gray-400 text-sm mb-1">ARTIST</p>
-            <p className="text-xl text-gray-300 font-mono">{formatArtist(musicData.artist)}</p>
+            <p className="text-xl text-gray-300 font-mono">{musicData.artist}</p>
           </div>
 
           {/* Token ID */}
@@ -373,6 +460,22 @@ export default function MusicPage() {
             </p>
           </div>
 
+          {/* Purchase Status Alert */}
+          {purchaseStatus !== 'idle' && (
+            <div
+              className={`p-4 rounded-xl border ${
+                purchaseStatus === 'loading'
+                  ? 'bg-blue-900/30 border-blue-600/50 text-blue-300'
+                  : purchaseStatus === 'success'
+                  ? 'bg-green-900/30 border-green-600/50 text-green-300'
+                  : 'bg-red-900/30 border-red-600/50 text-red-300'
+              }`}
+              style={{ whiteSpace: 'pre-wrap' }}
+            >
+              {purchaseMessage}
+            </div>
+          )}
+
           {/* Wallet Connection */}
           {!walletAddress ? (
             <div className="p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-xl">
@@ -384,17 +487,17 @@ export default function MusicPage() {
                 🔗 Connect Wallet
               </button>
             </div>
-          ) : walletAddress.toLowerCase() === musicData.artist.toLowerCase() ? (
+          ) : walletAddress.toLowerCase() === musicData.artistAddress.toLowerCase() ? (
             <div className="p-4 bg-gray-700/50 border border-gray-600 rounded-xl text-center">
               <p className="text-gray-300">✓ This is your music</p>
             </div>
           ) : (
             <button
               onClick={handleBuyLicense}
-              disabled={buying || commandLoading}
+              disabled={buying || commandLoading || purchaseStatus === 'loading'}
               className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-all active:scale-95"
             >
-              {buying || commandLoading ? (
+              {buying || commandLoading || purchaseStatus === 'loading' ? (
                 <>⏳ Processing...</>
               ) : (
                 <>💎 Purchase License</>
