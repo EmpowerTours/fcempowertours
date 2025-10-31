@@ -20,6 +20,18 @@ function getImageUrl(ipfsUrl: string): string {
   return ipfsUrl;
 }
 
+// ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
+function convertPriceFromWei(price: string | number | bigint): string {
+  try {
+    const priceBI = BigInt(price);
+    const priceNum = Number(priceBI) / 1e18;
+    return priceNum.toString();
+  } catch (e) {
+    console.warn('Failed to convert price:', price);
+    return String(price);
+  }
+}
+
 // ✅ NEW: Look up FID from wallet address using Neynar
 async function getFidFromWallet(walletAddress: string): Promise<string | null> {
   if (!NEYNAR_API_KEY) return null;
@@ -36,7 +48,7 @@ async function getFidFromWallet(walletAddress: string): Promise<string | null> {
       const data: any = await response.json();
       if (data.users && data.users.length > 0) {
         const user = data.users[0];
-        return user.username ? `@${user.username}` : null;
+        return user.username ? user.username : null;
       }
     }
   } catch (e) {
@@ -162,12 +174,15 @@ export async function GET(request: NextRequest) {
             if (nft) {
               console.log('✅ Found in Envio:', nft);
               
+              // ✅ Convert price from wei to readable TOURS
+              const priceDisplay = convertPriceFromWei(nft.price || '0');
+              
               // ✅ Look up FID for display
               let artistDisplay = nft.artist || 'Artist';
               if (nft.artist && nft.artist.startsWith('0x')) {
                 const fid = await getFidFromWallet(nft.artist);
                 if (fid) {
-                  artistDisplay = fid;
+                  artistDisplay = `@${fid}`;
                   console.log('✅ Converted wallet to FID:', fid);
                 }
               }
@@ -176,7 +191,7 @@ export async function GET(request: NextRequest) {
                 tokenId: nft.tokenId,
                 name: nft.name || 'New Release',
                 imageUrl: nft.imageUrl,
-                price: nft.price || '0',
+                price: priceDisplay,
                 artist: artistDisplay
               };
               
@@ -193,18 +208,22 @@ export async function GET(request: NextRequest) {
               // PRIORITY 2: Fall back to blockchain
               const blockchainData = await getMetadataFromBlockchain(tokenId);
               if (blockchainData) {
+                // ✅ Convert price from wei
+                const priceDisplay = convertPriceFromWei(blockchainData.price || '0');
+                
                 // ✅ Look up FID for display
                 let artistDisplay = blockchainData.artist || 'Artist';
                 if (blockchainData.artist && blockchainData.artist.startsWith('0x')) {
                   const fid = await getFidFromWallet(blockchainData.artist);
                   if (fid) {
-                    artistDisplay = fid;
+                    artistDisplay = `@${fid}`;
                     console.log('✅ Converted wallet to FID:', fid);
                   }
                 }
                 
                 musicData = {
                   ...blockchainData,
+                  price: priceDisplay,
                   artist: artistDisplay
                 };
                 
@@ -224,16 +243,18 @@ export async function GET(request: NextRequest) {
           // Still try blockchain as fallback
           const blockchainData = await getMetadataFromBlockchain(tokenId);
           if (blockchainData) {
+            const priceDisplay = convertPriceFromWei(blockchainData.price || '0');
             let artistDisplay = blockchainData.artist || 'Artist';
             if (blockchainData.artist && blockchainData.artist.startsWith('0x')) {
               const fid = await getFidFromWallet(blockchainData.artist);
               if (fid) {
-                artistDisplay = fid;
+                artistDisplay = `@${fid}`;
               }
             }
             
             musicData = {
               ...blockchainData,
+              price: priceDisplay,
               artist: artistDisplay
             };
             

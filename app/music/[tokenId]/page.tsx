@@ -121,12 +121,25 @@ export default function MusicPage() {
             }
           }
           
+          // ✅ Convert price from wei (18 decimals) to readable TOURS
+          let priceInTours = '0';
+          if (nft.price) {
+            try {
+              const priceBI = BigInt(nft.price);
+              const priceNum = Number(priceBI) / 1e18;
+              priceInTours = priceNum.toString();
+            } catch (e) {
+              console.warn('Failed to convert price:', nft.price);
+              priceInTours = String(nft.price);
+            }
+          }
+
           setMusicData({
             tokenId: nft.tokenId,
             name: nft.name,
             artist: artistDisplay,
             artistAddress: artistAddress,
-            price: String(nft.price || '0'),
+            price: priceInTours,
             imageUrl: nft.imageUrl || '',
             audioUrl: nft.fullAudioUrl || nft.previewAudioUrl || '',
             createdAt: nft.mintedAt,

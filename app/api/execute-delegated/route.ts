@@ -8,6 +8,19 @@ import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } from 'viem';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+
+// ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
+function convertPriceFromWei(price: string | number | bigint): string {
+  try {
+    const priceBI = BigInt(price);
+    const priceNum = Number(priceBI) / 1e18;
+    return priceNum.toString();
+  } catch (e) {
+    console.warn('Failed to convert price:', price);
+    return String(price);
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -344,18 +357,15 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 
             // 🔍 Fetch music metadata from Envio
             console.log('🔍 Fetching music metadata from Envio for token:', tokenId.toString());
-            const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
             
             try {
               const query = `
                 query GetMusicNFT($tokenId: String!) {
-                  MusicLicenseNFTs(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-                    items {
-                      tokenId
-                      songTitle
-                      price
-                      artist
-                    }
+                  MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                    tokenId
+                    name
+                    price
+                    artist
                   }
                 }
               `;
@@ -371,11 +381,12 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 
               if (envioRes.ok) {
                 const envioData = await envioRes.json();
-                const musicNFT = envioData.data?.MusicLicenseNFTs?.items?.[0];
+                const musicNFT = envioData.data?.MusicNFT?.[0];
                 
                 if (musicNFT) {
-                  songTitle = musicNFT.songTitle || 'Track';
-                  songPrice = musicNFT.price || '?';
+                  songTitle = musicNFT.name || 'Track';
+                  // ✅ Convert price from wei to readable TOURS
+                  songPrice = convertPriceFromWei(musicNFT.price || '0');
                   songArtist = musicNFT.artist || 'Artist';
                   console.log('✅ Got music metadata from Envio:', { songTitle, songPrice, songArtist });
                 } else {
