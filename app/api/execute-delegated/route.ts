@@ -218,13 +218,17 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
         }
 
-        // ✅ POST CAST WITH FRAME - WITH imageUrl PASSED
+        // ✅ POST CAST WITH FRAME - WITH imageUrl, price, artist, songTitle PASSED
         if (params?.fid) {
           try {
-            // ✅ PASS imageUrl in frame URL so OG route can use it immediately (no Envio delay)
-            const frameUrl = params.imageUrl
-              ? `${APP_URL}/api/frames/music/${extractedTokenId}?imageUrl=${encodeURIComponent(params.imageUrl)}`
-              : `${APP_URL}/api/frames/music/${extractedTokenId}`;
+            // ✅ Build frame URL with ALL metadata for immediate OG display
+            const queryParams = new URLSearchParams();
+            if (params.imageUrl) queryParams.append('imageUrl', params.imageUrl);
+            queryParams.append('price', params.price.toString());
+            queryParams.append('artist', userAddress);
+            queryParams.append('songTitle', params.songTitle || 'Untitled');
+
+            const frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}?${queryParams.toString()}`;
             const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
 
             const castText = `🎵 New Music Master NFT Minted!

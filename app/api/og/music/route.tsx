@@ -23,24 +23,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get('tokenId');
     const directImageUrl = searchParams.get('imageUrl');  // ✅ From bot
+    const directPrice = searchParams.get('price');  // ✅ From bot
+    const directArtist = searchParams.get('artist');  // ✅ From bot
+    const directSongTitle = searchParams.get('songTitle');  // ✅ From bot
 
     console.log('🎨 OG Request:', {
       tokenId,
       hasDirect: !!directImageUrl,
+      price: directPrice,
+      artist: directArtist,
+      songTitle: directSongTitle,
     });
 
     let musicData: any = null;
 
-    // ✅ PRIORITY 1: Direct imageUrl from bot (fresh mint - no indexer delay!)
-    if (directImageUrl) {
-      console.log('✅ Using direct imageUrl from bot');
-      const imageUrl = getImageUrl(directImageUrl);
+    // ✅ PRIORITY 1: Direct params from bot (fresh mint - no indexer delay!)
+    if (directImageUrl || directPrice || directArtist) {
+      console.log('✅ Using direct params from bot');
+      const imageUrl = getImageUrl(directImageUrl || '');
       musicData = {
         tokenId: tokenId || '0',
-        songTitle: 'New Release',
+        songTitle: directSongTitle || 'New Release',
         coverImageUrl: imageUrl,
-        price: '0',
-        artist: 'Artist'
+        price: directPrice || '0',
+        artist: directArtist || 'Artist'
       };
     }
     // PRIORITY 2: Check cache
@@ -102,6 +108,15 @@ export async function GET(request: NextRequest) {
       const imageUrl = getImageUrl(musicData.coverImageUrl);
       console.log('🎨 Rendering with cover art:', imageUrl.substring(0, 80) + '...');
 
+      // Format artist address
+      const formatArtist = (addr: string) => {
+        if (!addr || addr.length <= 10) return addr || 'Artist';
+        return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+      };
+
+      // Format price - ensure it shows the actual price
+      const priceDisplay = musicData.price || '0';
+
       return new ImageResponse(
         (
           <div
@@ -114,7 +129,7 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) */}
+            {/* Cover Art - Left Side (50%) - FULL BLEED */}
             <div
               style={{
                 width: '50%',
@@ -127,9 +142,17 @@ export async function GET(request: NextRequest) {
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
+                position: 'relative',
               }}
             >
-              {/* Empty flex container - required by next/og */}
+              {/* Overlay for image quality */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.2) 100%)',
+                }}
+              />
             </div>
 
             {/* Song Info - Right Side (50%) */}
@@ -173,9 +196,7 @@ export async function GET(request: NextRequest) {
                   display: 'flex',
                 }}
               >
-                {musicData.artist && musicData.artist.length > 10
-                  ? `${musicData.artist.slice(0, 6)}...${musicData.artist.slice(-4)}`
-                  : musicData.artist || 'Artist'}
+                {formatArtist(musicData.artist)}
               </div>
 
               {/* Token Badge */}
@@ -193,7 +214,7 @@ export async function GET(request: NextRequest) {
                 Token #{musicData.tokenId}
               </div>
 
-              {/* Price */}
+              {/* Price - NOW DISPLAYS CORRECTLY */}
               <div
                 style={{
                   fontSize: 36,
@@ -203,7 +224,7 @@ export async function GET(request: NextRequest) {
                   display: 'flex',
                 }}
               >
-                {musicData.price} TOURS
+                {priceDisplay} TOURS
               </div>
 
               {/* CTA */}
