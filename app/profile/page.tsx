@@ -1,8 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { PassportSVG } from '@/components/PassportSVG';
 import Link from 'next/link';
+import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/PageTransition';
+import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
+import { AnimatedStatCard, AnimatedCard } from '@/app/components/animations/AnimatedCard';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
@@ -415,31 +419,51 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
+    <PageTransition className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <motion.div
+          className="bg-white rounded-2xl shadow-xl p-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
           <div className="text-center mb-8">
-            {user?.pfpUrl ? (
-              <img
-                src={user.pfpUrl}
-                alt={user.username || 'Profile'}
-                className="rounded-full mx-auto mb-4 border-2 border-purple-200 shadow-lg"
-                style={{ width: '56px', height: '56px', objectFit: 'cover' }}
-              />
-            ) : (
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                {user.username?.charAt(0).toUpperCase() || 'U'}
-              </div>
-            )}
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <ScaleIn delay={0.2}>
+              {user?.pfpUrl ? (
+                <motion.img
+                  src={user.pfpUrl}
+                  alt={user.username || 'Profile'}
+                  className="rounded-full mx-auto mb-4 border-2 border-purple-200 shadow-lg ring-4 ring-purple-100"
+                  style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                />
+              ) : (
+                <motion.div
+                  className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-purple-100"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  {user.username?.charAt(0).toUpperCase() || 'U'}
+                </motion.div>
+              )}
+            </ScaleIn>
+            <motion.h1
+              className="text-3xl font-bold text-gray-900 mb-2"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
               {user.username ? `@${user.username}` : 'Your Profile'}
-            </h1>
-            <p className="text-gray-600 font-mono text-sm">
-              {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
-            </p>
-            {user.fid && (
-              <p className="text-gray-500 text-sm mt-1">Farcaster FID: {user.fid}</p>
-            )}
+            </motion.h1>
+            <FadeIn delay={0.4}>
+              <p className="text-gray-600 font-mono text-sm">
+                {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+              </p>
+              {user.fid && (
+                <p className="text-gray-500 text-sm mt-1">Farcaster FID: {user.fid}</p>
+              )}
+            </FadeIn>
           </div>
 
           {isMobile && (
@@ -509,45 +533,102 @@ export default function ProfilePage() {
           )}
 
           <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm">
+            <motion.div
+              className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 }}
+              whileHover={{ scale: 1.03, y: -5 }}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-xs text-gray-600 mb-1 font-medium">MON Balance</p>
-                  <p className="text-2xl font-bold text-yellow-700">{balances.mon}</p>
+                  <motion.p
+                    className="text-2xl font-bold text-yellow-700"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.7, type: 'spring', stiffness: 200 }}
+                  >
+                    {balances.mon}
+                  </motion.p>
                   <p className="text-xs text-gray-500 mt-1">Native Token</p>
                 </div>
-                <div className="text-3xl">💰</div>
+                <motion.div
+                  className="text-3xl"
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                >
+                  💰
+                </motion.div>
               </div>
-            </div>
-            <div className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm">
+            </motion.div>
+            <motion.div
+              className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.6 }}
+              whileHover={{ scale: 1.03, y: -5 }}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-xs text-gray-600 mb-1 font-medium">TOURS Balance</p>
-                  <p className="text-2xl font-bold text-green-700">{balances.tours}</p>
+                  <motion.p
+                    className="text-2xl font-bold text-green-700"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.8, type: 'spring', stiffness: 200 }}
+                  >
+                    {balances.tours}
+                  </motion.p>
                   <p className="text-xs text-gray-500 mt-1">EmpowerTours Token</p>
                 </div>
-                <div className="text-3xl">🎫</div>
+                <motion.div
+                  className="text-3xl"
+                  animate={{ rotate: [0, -10, 10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                >
+                  🎫
+                </motion.div>
               </div>
-            </div>
+            </motion.div>
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-8">
-            <div className="p-4 bg-purple-50 rounded-lg text-center">
-              <p className="text-3xl font-bold text-purple-600">{passportNFTs.length}</p>
-              <p className="text-sm text-gray-600">Passports</p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg text-center">
-              <p className="text-3xl font-bold text-blue-600">{createdMusic.length}</p>
-              <p className="text-sm text-gray-600">Created</p>
-            </div>
-            <div className="p-4 bg-pink-50 rounded-lg text-center">
-              <p className="text-3xl font-bold text-pink-600">{purchasedMusic.length}</p>
-              <p className="text-sm text-gray-600">Purchased</p>
-            </div>
-            <div className="p-4 bg-green-50 rounded-lg text-center">
-              <p className="text-3xl font-bold text-green-600">{purchasedItineraries.length}</p>
-              <p className="text-sm text-gray-600">Itineraries</p>
-            </div>
+            <AnimatedStatCard
+              value={passportNFTs.length}
+              label="Passports"
+              color="purple"
+              delay={0.9}
+            />
+            <AnimatedStatCard
+              value={createdMusic.length}
+              label="Created"
+              color="blue"
+              delay={1.0}
+            />
+            <AnimatedStatCard
+              value={purchasedMusic.length}
+              label="Purchased"
+              color="pink"
+              delay={1.1}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={{ scale: 1.05 }}
+              className="bg-green-50 text-green-600 rounded-lg p-4 text-center cursor-default"
+            >
+              <motion.p
+                className="text-3xl font-bold"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 1.4, type: 'spring', stiffness: 200 }}
+              >
+                {purchasedItineraries.length}
+              </motion.p>
+              <p className="text-sm text-gray-600 mt-1">Itineraries</p>
+            </motion.div>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-8">
@@ -1010,16 +1091,45 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-8 text-center">
-            <button
+            <motion.button
               onClick={() => {
                 loadAllData();
                 loadBalances();
               }}
               disabled={loading}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
             >
-              {loading ? '⏳ Refreshing...' : '🔄 Refresh All Data'}
-            </button>
+              <AnimatePresence mode="wait">
+                {loading ? (
+                  <motion.span
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2"
+                  >
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    >
+                      ⏳
+                    </motion.span>
+                    Refreshing...
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="refresh"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    🔄 Refresh All Data
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
             <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
             {queriedAddresses.length > 0 && (
               <p className="text-xs text-gray-400 mt-1">
@@ -1027,8 +1137,8 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

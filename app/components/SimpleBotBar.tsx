@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useBotCommand } from '@/app/hooks/useBotCommand';
 import { useGeolocation } from '@/lib/useGeolocation';
+import { DotsLoader } from '@/app/components/animations/AnimatedLoader';
 
 // ✅ IMPROVED: Parse response and render with React components instead of innerHTML
 interface ParsedResponse {
@@ -179,33 +181,55 @@ export default function SimpleBotBar() {
     const parsed = parseResponse(response);
 
     return (
-      <div className="p-3 bg-blue-900/50 text-blue-100 rounded-lg border border-blue-700 animate-fade-in">
-        <div className="text-xs sm:text-sm font-mono leading-relaxed">
+      <motion.div
+        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="p-3 bg-gradient-to-r from-blue-900/50 to-purple-900/50 text-blue-100 rounded-lg border border-blue-700 shadow-lg backdrop-blur-sm"
+      >
+        <motion.div
+          className="text-xs sm:text-sm font-mono leading-relaxed"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+        >
           {parsed.parts.map((part, index) => {
             if (part.type === 'txlink') {
               return (
-                <a
+                <motion.a
                   key={index}
                   href={part.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-medium transition-colors mx-1"
                   title={part.shortHash}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
                 >
                   {part.content}
-                </a>
+                </motion.a>
               );
             } else {
               // Regular text - preserve newlines
               return (
-                <span key={index} className="whitespace-pre-wrap">
+                <motion.span
+                  key={index}
+                  className="whitespace-pre-wrap"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: index * 0.02 }}
+                >
                   {part.content}
-                </span>
+                </motion.span>
               );
             }
           })}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   };
 
@@ -214,81 +238,137 @@ export default function SimpleBotBar() {
     if (!errorMsg) return null;
 
     return (
-      <div className="p-3 bg-red-900/50 text-red-100 rounded-lg border border-red-700 animate-fade-in">
-        <div className="text-xs sm:text-sm font-mono">
+      <motion.div
+        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="p-3 bg-gradient-to-r from-red-900/50 to-pink-900/50 text-red-100 rounded-lg border border-red-700 shadow-lg backdrop-blur-sm"
+      >
+        <motion.div
+          className="text-xs sm:text-sm font-mono flex items-center gap-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+        >
+          <motion.span
+            animate={{ rotate: [0, 10, -10, 0] }}
+            transition={{ duration: 0.5, repeat: 2 }}
+          >
+            ⚠️
+          </motion.span>
           {errorMsg}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   };
 
   return (
-    <div className="w-full bg-gradient-to-r from-gray-900 to-gray-800 p-4 border-t border-gray-700 shadow-lg">
+    <motion.div
+      className="w-full bg-gradient-to-r from-gray-900 via-purple-900/20 to-gray-800 p-4 border-t border-gray-700 shadow-2xl backdrop-blur-lg"
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+    >
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col gap-2">
           {/* Wallet Status */}
-          {walletAddress && (
-            <div className="text-xs text-green-400 flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-              Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              {location && (
-                <span className="ml-2 text-blue-400">
-                  📍 {location.countryName}
-                </span>
-              )}
-            </div>
-          )}
+          <AnimatePresence>
+            {walletAddress && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="text-xs text-green-400 flex items-center gap-2 bg-green-900/20 rounded-full px-3 py-1 w-fit"
+              >
+                <motion.span
+                  className="w-2 h-2 bg-green-400 rounded-full"
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [1, 0.7, 1]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
+                />
+                Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                {location && (
+                  <motion.span
+                    className="ml-2 text-blue-400"
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    📍 {location.countryName}
+                  </motion.span>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Input and Button Row */}
           <div className="flex gap-2">
-            <input
+            <motion.input
               type="text"
               placeholder="🤖 Try: 'swap 0.5 MON', 'mint music', 'help'..."
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="flex-1 p-3 bg-gray-800 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none placeholder-gray-400 text-sm sm:text-base"
+              className="flex-1 p-3 bg-gray-800/80 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none placeholder-gray-400 text-sm sm:text-base backdrop-blur-sm transition-all"
               disabled={sending}
               autoComplete="off"
               spellCheck="false"
+              whileFocus={{
+                scale: 1.01,
+                borderColor: '#3b82f6',
+                boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+              }}
             />
-            <button
+            <motion.button
               onClick={handleSend}
               disabled={sending || !command.trim()}
-              className="px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors min-w-[60px] flex items-center justify-center"
+              className="px-4 sm:px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all min-w-[60px] flex items-center justify-center shadow-lg"
               aria-label="Send command"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
             >
-              {sending ? (
-                <span className="animate-spin">⏳</span>
-              ) : (
-                <span>🚀</span>
-              )}
-            </button>
+              <AnimatePresence mode="wait">
+                {sending ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0 }}
+                  >
+                    <DotsLoader />
+                  </motion.div>
+                ) : (
+                  <motion.span
+                    key="send"
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0 }}
+                  >
+                    🚀
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
           </div>
 
           {/* Error Message */}
-          {renderError()}
+          <AnimatePresence>
+            {renderError()}
+          </AnimatePresence>
 
           {/* Response Message with Clickable Links */}
-          {renderResponse()}
+          <AnimatePresence>
+            {renderResponse()}
+          </AnimatePresence>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-      `}</style>
-    </div>
+    </motion.div>
   );
 }
