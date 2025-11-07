@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import HomeClient from './home-client';
+import { redirect } from 'next/navigation';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -34,4 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default HomeClient;
+export default function Page() {
+  // Redirect to music discovery page instead of showing home with recent casts
+  redirect('/discover');
+}
