@@ -6,7 +6,7 @@ import { PassportSVG } from '@/components/PassportSVG';
 import Link from 'next/link';
 import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/PageTransition';
 import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
-import { AnimatedStatCard, AnimatedCard } from '@/app/components/animations/AnimatedCard';
+import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
