@@ -4,6 +4,7 @@ import ClientProviders from './ClientProviders';
 import ClientNav from './components/ClientNav';
 import SimpleBotBar from './components/SimpleBotBar';
 import SDKProvider from './components/SDKProvider';
+import SwipeNavigation from './components/SwipeNavigation';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -72,7 +73,9 @@ export default function RootLayout({
           <SDKProvider>
             <ClientNav />
             <SimpleBotBar />
-            <main className="flex-1">{children}</main>
+            <SwipeNavigation>
+              <main className="flex-1">{children}</main>
+            </SwipeNavigation>
           </SDKProvider>
         </ClientProviders>
       </body>
