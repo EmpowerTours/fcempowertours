@@ -76,7 +76,7 @@ export function DemandSignalDisplay() {
       {/* Top Events */}
       <Card className="p-6">
         <h3 className="text-xl font-bold mb-4">Top Demand Events</h3>
-        {typedTopEvents?.[0]?.length > 0 ? (
+        {typedTopEvents && typedTopEvents[0] && typedTopEvents[0].length > 0 ? (
           <div className="space-y-3">
             {typedTopEvents[0].map((eventId: bigint, index: number) => {
               const demand = typedTopEvents[1]?.[index] || 0n;
@@ -163,7 +163,11 @@ export function DemandSignalDisplay() {
               selectedEventId && handleSubmitDemand(selectedEventId)
             }
             disabled={
-              !address || isPending || isConfirming || !selectedEventId || !demandAmount
+              !address ||
+              isPending ||
+              isConfirming ||
+              !selectedEventId ||
+              !demandAmount
             }
             className="w-full"
           >
