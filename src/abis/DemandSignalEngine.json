@@ -1,0 +1,82 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "submitDemand",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"},
+      {"name": "demandAmount", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getDemandSignal",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {"name": "totalDemand", "type": "uint256", "internalType": "uint256"},
+      {"name": "uniqueSignals", "type": "uint256", "internalType": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserDemand",
+    "inputs": [
+      {"name": "user", "type": "address", "internalType": "address"},
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {"name": "", "type": "uint256", "internalType": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTopEvents",
+    "inputs": [
+      {"name": "limit", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {"name": "eventIds", "type": "uint256[]", "internalType": "uint256[]"},
+      {"name": "demands", "type": "uint256[]", "internalType": "uint256[]"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawDemand",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "DemandSubmitted",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "eventId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DemandWithdrawn",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "eventId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  }
+]
