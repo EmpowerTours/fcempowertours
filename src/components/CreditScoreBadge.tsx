@@ -70,7 +70,7 @@ export function CreditScoreBadge() {
             </div>
 
             <h3 className="text-xl font-bold mb-1">
-              {tier ? tier : 'No Tier'}
+              {tier ? String(tier) : 'No Tier'}
             </h3>
 
             <p className="text-sm text-gray-600">

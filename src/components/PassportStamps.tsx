@@ -20,8 +20,11 @@ export function PassportStamps() {
   const { data: balance } = useBalanceOf(address!);
   const [passports, setPassports] = useState<PassportData[]>([]);
 
+  // Type assertion for balance as bigint
+  const typedBalance = balance as bigint | undefined;
+
   // For demo purposes, we'll show the first passport if the user has any
-  const { data: passportData } = useGetPassportData(balance && balance > 0n ? 0n : 0n);
+  const { data: passportData } = useGetPassportData(typedBalance && typedBalance > 0n ? 0n : 0n);
 
   useEffect(() => {
     if (passportData) {
@@ -40,7 +43,7 @@ export function PassportStamps() {
     );
   }
 
-  if (!balance || balance === 0n) {
+  if (!typedBalance || typedBalance === 0n) {
     return (
       <Card className="p-6 max-w-4xl mx-auto">
         <h2 className="text-2xl font-bold mb-4">Passport Stamps</h2>
@@ -99,7 +102,7 @@ export function PassportStamps() {
         <h3 className="text-xl font-bold mb-4">Collection Stats</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <div className="text-2xl font-bold">{balance.toString()}</div>
+            <div className="text-2xl font-bold">{typedBalance?.toString()}</div>
             <div className="text-sm text-gray-600">Total Passports</div>
           </div>
           <div>

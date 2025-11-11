@@ -193,7 +193,7 @@ export function TandaGroup() {
               />
             </div>
 
-            {groupData && (
+            {groupData ? (
               <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Name:</span>
@@ -228,7 +228,7 @@ export function TandaGroup() {
                   </span>
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2">
               <Button

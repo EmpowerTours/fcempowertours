@@ -24,7 +24,13 @@ export function DemandSignalDisplay() {
   const [selectedEventId, setSelectedEventId] = useState<bigint | null>(null);
   const [demandAmount, setDemandAmount] = useState('');
 
+  // Type assertion for topEvents as tuple of [eventIds[], demands[]]
+  const typedTopEvents = topEvents as [bigint[], bigint[]] | undefined;
+
   const { data: selectedEventDemand } = useGetDemandSignal(selectedEventId || 0n);
+
+  // Type assertion for selectedEventDemand as tuple of [totalDemand, signalCount]
+  const typedSelectedEventDemand = selectedEventDemand as [bigint, bigint] | undefined;
 
   const handleSubmitDemand = async (eventId: bigint) => {
     if (!address) {
@@ -72,10 +78,10 @@ export function DemandSignalDisplay() {
         <Card className="p-6">
           <h3 className="text-xl font-bold mb-4">Top Demand Events</h3>
 
-          {topEvents && topEvents[0] && topEvents[0].length > 0 ? (
+          {typedTopEvents && typedTopEvents[0] && typedTopEvents[0].length > 0 ? (
             <div className="space-y-3">
-              {topEvents[0].map((eventId: bigint, index: number) => {
-                const demand = topEvents[1] ? topEvents[1][index] : 0n;
+              {typedTopEvents[0].map((eventId: bigint, index: number) => {
+                const demand = typedTopEvents[1] ? typedTopEvents[1][index] : 0n;
                 return (
                   <div
                     key={index}
@@ -106,17 +112,17 @@ export function DemandSignalDisplay() {
         <Card className="p-6">
           <h3 className="text-xl font-bold mb-4">Submit Demand Signal</h3>
 
-          {selectedEventId !== null && selectedEventDemand && (
+          {selectedEventId !== null && typedSelectedEventDemand ? (
             <div className="mb-4 p-3 bg-blue-50 rounded-lg">
               <div className="text-sm font-medium">Event #{selectedEventId.toString()}</div>
               <div className="text-xs text-gray-600">
-                Total Demand: {selectedEventDemand[0] ? (Number(selectedEventDemand[0]) / 1e18).toFixed(2) : '0'} TOURS
+                Total Demand: {typedSelectedEventDemand[0] ? (Number(typedSelectedEventDemand[0]) / 1e18).toFixed(2) : '0'} TOURS
               </div>
               <div className="text-xs text-gray-600">
-                Signals: {selectedEventDemand[1] ? selectedEventDemand[1].toString() : '0'}
+                Signals: {typedSelectedEventDemand[1] ? typedSelectedEventDemand[1].toString() : '0'}
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-4">
             <div>

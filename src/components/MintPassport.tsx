@@ -59,11 +59,11 @@ export function MintPassport() {
     <Card className="p-6 max-w-md mx-auto">
       <h2 className="text-2xl font-bold mb-4">Mint EmpowerTours Passport</h2>
 
-      {mintPrice && (
+      {mintPrice ? (
         <p className="text-sm text-gray-600 mb-4">
           Mint Price: {mintPrice.toString()} TOURS
         </p>
-      )}
+      ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
