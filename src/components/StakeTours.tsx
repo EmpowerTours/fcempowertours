@@ -26,6 +26,10 @@ export function StakeTours() {
   const { data: pendingRewards } = useGetPendingRewards(address!);
   const { data: apy } = useGetAPY();
 
+  // Type assertions
+  const typedStakedAmount = stakedAmount as bigint | undefined;
+  const typedPendingRewards = pendingRewards as bigint | undefined;
+
   const [stakeAmount, setStakeAmount] = useState('');
   const [unstakeAmount, setUnstakeAmount] = useState('');
 
@@ -102,14 +106,14 @@ export function StakeTours() {
           <div className="flex justify-between">
             <span className="text-gray-600">Your Staked:</span>
             <span className="font-semibold">
-              {stakedAmount ? formatUnits(stakedAmount, 18) : '0'} TOURS
+              {typedStakedAmount ? formatUnits(typedStakedAmount, 18) : '0'} TOURS
             </span>
           </div>
 
           <div className="flex justify-between">
             <span className="text-gray-600">Pending Rewards:</span>
             <span className="font-semibold text-green-600">
-              {pendingRewards ? formatUnits(pendingRewards, 18) : '0'} TOURS
+              {typedPendingRewards ? formatUnits(typedPendingRewards, 18) : '0'} TOURS
             </span>
           </div>
 

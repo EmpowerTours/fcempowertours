@@ -18,6 +18,10 @@ export function PortfolioDisplay() {
   const { data: creditScore } = useGetScore(address!);
   const { data: scoreTier } = useGetScoreTier(address!);
 
+  // Type assertions
+  const typedStakedAmount = stakedAmount as bigint | undefined;
+  const typedPendingRewards = pendingRewards as bigint | undefined;
+
   if (!address) {
     return (
       <Card className="p-6 max-w-4xl mx-auto">
@@ -28,8 +32,8 @@ export function PortfolioDisplay() {
     );
   }
 
-  const totalValue = stakedAmount && pendingRewards
-    ? formatUnits(stakedAmount + pendingRewards, 18)
+  const totalValue = typedStakedAmount && typedPendingRewards
+    ? formatUnits(typedStakedAmount + typedPendingRewards, 18)
     : '0';
 
   return (
@@ -48,17 +52,17 @@ export function PortfolioDisplay() {
           <div className="text-3xl font-bold">
             {creditScore ? creditScore.toString() : '0'}
           </div>
-          {scoreTier && (
+          {scoreTier ? (
             <div className="text-sm text-gray-600 mt-1">
-              Tier: {scoreTier}
+              Tier: {String(scoreTier)}
             </div>
-          )}
+          ) : null}
         </Card>
 
         <Card className="p-6">
           <div className="text-sm text-gray-600 mb-1">Staked Amount</div>
           <div className="text-3xl font-bold">
-            {stakedAmount ? formatUnits(stakedAmount, 18) : '0'} TOURS
+            {typedStakedAmount ? formatUnits(typedStakedAmount, 18) : '0'} TOURS
           </div>
         </Card>
       </div>
@@ -75,7 +79,7 @@ export function PortfolioDisplay() {
             </div>
             <div className="text-right">
               <div className="font-bold">
-                {stakedAmount ? formatUnits(stakedAmount, 18) : '0'}
+                {typedStakedAmount ? formatUnits(typedStakedAmount, 18) : '0'}
               </div>
               <div className="text-sm text-gray-600">TOURS</div>
             </div>
@@ -88,7 +92,7 @@ export function PortfolioDisplay() {
             </div>
             <div className="text-right">
               <div className="font-bold text-green-600">
-                {pendingRewards ? formatUnits(pendingRewards, 18) : '0'}
+                {typedPendingRewards ? formatUnits(typedPendingRewards, 18) : '0'}
               </div>
               <div className="text-sm text-gray-600">TOURS</div>
             </div>
