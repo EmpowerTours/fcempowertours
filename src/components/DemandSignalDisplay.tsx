@@ -72,10 +72,10 @@ export function DemandSignalDisplay() {
         <Card className="p-6">
           <h3 className="text-xl font-bold mb-4">Top Demand Events</h3>
 
-          {topEvents && topEvents[0] && topEvents[0].length > 0 ? (
+          {topEvents && Array.isArray(topEvents) && topEvents[0] && Array.isArray(topEvents[0]) && topEvents[0].length > 0 ? (
             <div className="space-y-3">
               {topEvents[0].map((eventId: bigint, index: number) => {
-                const demand = topEvents[1] ? topEvents[1][index] : 0n;
+                const demand = topEvents[1] && Array.isArray(topEvents[1]) ? topEvents[1][index] : 0n;
                 return (
                   <div
                     key={index}
