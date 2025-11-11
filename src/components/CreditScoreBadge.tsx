@@ -30,9 +30,9 @@ export function CreditScoreBadge() {
     );
   }
 
-  const getTierColor = (tierName: string | undefined) => {
+  const getTierColor = (tierName: any) => {
     if (!tierName) return 'bg-gray-500';
-    const lowerTier = tierName.toLowerCase();
+    const lowerTier = String(tierName).toLowerCase();
     if (lowerTier.includes('platinum') || lowerTier.includes('diamond')) return 'bg-purple-600';
     if (lowerTier.includes('gold')) return 'bg-yellow-600';
     if (lowerTier.includes('silver')) return 'bg-gray-400';
@@ -40,9 +40,9 @@ export function CreditScoreBadge() {
     return 'bg-blue-600';
   };
 
-  const getTierEmoji = (tierName: string | undefined) => {
+  const getTierEmoji = (tierName: any) => {
     if (!tierName) return '⭐';
-    const lowerTier = tierName.toLowerCase();
+    const lowerTier = String(tierName).toLowerCase();
     if (lowerTier.includes('platinum') || lowerTier.includes('diamond')) return '💎';
     if (lowerTier.includes('gold')) return '🥇';
     if (lowerTier.includes('silver')) return '🥈';
@@ -70,7 +70,7 @@ export function CreditScoreBadge() {
             </div>
 
             <h3 className="text-xl font-bold mb-1">
-              {tier ? tier : 'No Tier'}
+              {tier ? String(tier) : 'No Tier'}
             </h3>
 
             <p className="text-sm text-gray-600">
