@@ -401,6 +401,10 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
     region: region,
     continent: continent,
     tokenURI: "",
+    stakedAmount: BigInt(0),
+    stampCount: 0,
+    verifiedStampCount: 0,
+    creditScore: 100, // Base credit score
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -485,6 +489,89 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
       owner: to.toLowerCase(),
     });
     context.log.info(`🎫 Passport NFT #${tokenId} transferred from ${from} to ${to}`);
+  }
+});
+
+// ✅ NEW: PassportNFTv2 staking handler
+PassportNFT.PassportStaked.handler(async ({ event, context }) => {
+  const { tokenId, amount, positionId } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+  const passportStakeId = `passport-stake-${event.block.number}-${event.logIndex}`;
+
+  // Create passport stake event
+  const passportStake = {
+    id: passportStakeId,
+    passport_id: passportNFTId,
+    tokenId: tokenId.toString(),
+    amount: amount,
+    positionId: positionId,
+    stakedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.PassportStake.set(passportStake);
+
+  // Update passport staked amount and credit score
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+  if (passportNFT) {
+    const newStakedAmount = passportNFT.stakedAmount + amount;
+    const stakedUnits = Number(newStakedAmount) / 1e18;
+    const stampBonus = passportNFT.stampCount * 10;
+    const verifiedBonus = passportNFT.verifiedStampCount * 5;
+    const newCreditScore = 100 + Math.floor(stakedUnits) + stampBonus + verifiedBonus;
+
+    await context.PassportNFT.set({
+      ...passportNFT,
+      stakedAmount: newStakedAmount,
+      creditScore: newCreditScore,
+    });
+
+    context.log.info(`💰 Passport #${tokenId} staked ${amount.toString()} TOURS (position: ${positionId.toString()}). New credit score: ${newCreditScore}`);
+  }
+});
+
+// ✅ NEW: Venue stamp handler
+PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
+  const { tokenId, location, eventType, timestamp } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+  const venueStampId = `venue-stamp-${event.block.number}-${event.logIndex}`;
+
+  // Create venue stamp
+  const venueStamp = {
+    id: venueStampId,
+    passport_id: passportNFTId,
+    tokenId: tokenId.toString(),
+    location: location,
+    eventType: eventType,
+    artist: undefined,
+    timestamp: timestamp,
+    verified: false, // Default to false, can be updated later
+    addedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.VenueStamp.set(venueStamp);
+
+  // Update passport stamp count and credit score
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+  if (passportNFT) {
+    const newStampCount = passportNFT.stampCount + 1;
+    const stakedUnits = Number(passportNFT.stakedAmount) / 1e18;
+    const stampBonus = newStampCount * 10;
+    const verifiedBonus = passportNFT.verifiedStampCount * 5;
+    const newCreditScore = 100 + Math.floor(stakedUnits) + stampBonus + verifiedBonus;
+
+    await context.PassportNFT.set({
+      ...passportNFT,
+      stampCount: newStampCount,
+      creditScore: newCreditScore,
+    });
+
+    context.log.info(`🎟️ Venue stamp added to Passport #${tokenId}: ${location} - ${eventType}. New credit score: ${newCreditScore}`);
   }
 });
 

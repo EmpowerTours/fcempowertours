@@ -52,8 +52,26 @@ networks:
           - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ NEW: PassportNFTv2
         handler: src/EventHandlers.ts
         events:
-          # Passport minting with country data
+          # Passport minting with country data (v1)
           - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Passport minting (v2 - simple)
+          - event: "PassportMinted(uint256 indexed tokenId, address indexed to)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ NEW: Passport staking with NFT
+          - event: "PassportStaked(uint256 indexed tokenId, uint256 amount, uint256 positionId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ NEW: Venue stamps (event attendance)
+          - event: "VenueStampAdded(uint256 indexed tokenId, string location, string eventType, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
