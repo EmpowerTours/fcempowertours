@@ -106,7 +106,7 @@ export function DemandSignalDisplay() {
         <Card className="p-6">
           <h3 className="text-xl font-bold mb-4">Submit Demand Signal</h3>
 
-          {selectedEventId !== null && selectedEventDemand && (
+          {selectedEventId !== null && selectedEventDemand && Array.isArray(selectedEventDemand) ? (
             <div className="mb-4 p-3 bg-blue-50 rounded-lg">
               <div className="text-sm font-medium">Event #{selectedEventId.toString()}</div>
               <div className="text-xs text-gray-600">
@@ -116,7 +116,7 @@ export function DemandSignalDisplay() {
                 Signals: {selectedEventDemand[1] ? selectedEventDemand[1].toString() : '0'}
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-4">
             <div>
