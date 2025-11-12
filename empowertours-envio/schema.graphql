@@ -12,7 +12,7 @@ type MusicNFT @entity {
   totalSold: Int               # Track total licenses sold
   active: Boolean              # Track if sales are active
   royaltyPercentage: Int       # Track royalty % (optional)
-  
+
   # ✅ NEW: Metadata fields fetched from IPFS during indexing
   name: String                 # Song title from metadata.name
   description: String          # Description from metadata.description
@@ -20,7 +20,7 @@ type MusicNFT @entity {
   previewAudioUrl: String      # Preview audio (metadata.animation_url resolved)
   fullAudioUrl: String         # Full track (metadata.external_url resolved)
   metadataFetched: Boolean!    # Track if metadata was successfully fetched
-  
+
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!
@@ -80,6 +80,179 @@ type ItineraryPurchase @entity {
   txHash: String!
 }
 
+# ✅ NEW: YieldStrategy Staking Entities
+type StakeEvent @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  totalStaked: BigInt!         # User's total staked after this event
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UnstakeEvent @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  totalStaked: BigInt!         # User's total staked after this event
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type RewardsClaimed @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UserStakingStats @entity {
+  id: ID!                      # user address
+  user: String!
+  totalStaked: BigInt!
+  totalRewardsClaimed: BigInt!
+  stakeCount: Int!
+  unstakeCount: Int!
+  lastStakeTime: Timestamp
+  lastUnstakeTime: Timestamp
+  lastRewardClaim: Timestamp
+}
+
+# ✅ NEW: DemandSignalEngine Entities
+type DemandSignal @entity {
+  id: ID!
+  eventId: String!
+  user: String!
+  amount: BigInt!
+  active: Boolean!
+  submittedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type EventDemandStats @entity {
+  id: ID!                      # eventId
+  eventId: String!
+  totalDemand: BigInt!
+  signalCount: Int!
+  uniqueUsers: Int!
+  lastUpdated: Timestamp!
+}
+
+# ✅ NEW: SmartEventManifest Entities
+type SmartEvent @entity {
+  id: ID!
+  eventId: String!
+  name: String!
+  location: String!
+  startDate: BigInt!
+  endDate: BigInt
+  capacity: BigInt!
+  ticketsSold: Int!
+  price: BigInt!
+  active: Boolean!
+  cancelled: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  tickets: [TicketPurchase!]! @derivedFrom(field: "event")
+}
+
+type TicketPurchase @entity {
+  id: ID!
+  event: SmartEvent!
+  eventId: String!
+  buyer: String!
+  quantity: Int!
+  totalPrice: BigInt!
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: TandaYieldGroup Entities
+type TandaGroup @entity {
+  id: ID!
+  groupId: String!
+  name: String!
+  creator: String!
+  contributionAmount: BigInt!
+  maxMembers: Int!
+  currentMembers: Int!
+  currentRound: Int!
+  totalPool: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  members: [TandaMember!]! @derivedFrom(field: "group")
+  contributions: [TandaContribution!]! @derivedFrom(field: "group")
+  payouts: [TandaPayout!]! @derivedFrom(field: "group")
+}
+
+type TandaMember @entity {
+  id: ID!
+  group: TandaGroup!
+  groupId: String!
+  member: String!
+  joinedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TandaContribution @entity {
+  id: ID!
+  group: TandaGroup!
+  groupId: String!
+  member: String!
+  amount: BigInt!
+  round: Int!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TandaPayout @entity {
+  id: ID!
+  group: TandaGroup!
+  groupId: String!
+  member: String!
+  amount: BigInt!
+  round: Int!
+  claimedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: CreditScoreCalculator Entities
+type CreditScore @entity {
+  id: ID!                      # user address
+  user: String!
+  score: BigInt!
+  tier: String
+  paymentHistory: BigInt!
+  stakeAmount: BigInt!
+  tandaParticipation: BigInt!
+  eventAttendance: BigInt!
+  lastUpdated: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type PaymentRecord @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  onTime: Boolean!
+  recordedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
 type UserStats @entity {
   id: ID!
   address: String!
@@ -88,6 +261,8 @@ type UserStats @entity {
   itinerariesCreated: Int!
   itinerariesPurchased: Int!
   licensesOwned: Int!          # Licenses purchased by user
+  eventsAttended: Int!         # ✅ NEW
+  tandaGroupsJoined: Int!      # ✅ NEW
   totalNFTs: Int!
   lastActive: Timestamp!
 }
@@ -98,7 +273,13 @@ type GlobalStats @entity {
   totalPassports: Int!
   totalItineraries: Int!
   totalItineraryPurchases: Int!
-  totalMusicLicensesPurchased: Int!  # Total licenses sold
+  totalMusicLicensesPurchased: Int!
+  totalStaked: BigInt!                    # ✅ NEW
+  totalStakers: Int!                      # ✅ NEW
+  totalEvents: Int!                       # ✅ NEW
+  totalTicketsSold: Int!                  # ✅ NEW
+  totalTandaGroups: Int!                  # ✅ NEW
+  totalDemandSignals: Int!                # ✅ NEW
   totalUsers: Int!
   lastUpdated: Timestamp!
 }
