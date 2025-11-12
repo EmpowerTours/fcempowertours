@@ -2,6 +2,11 @@ import {
   MusicLicenseNFT,
   PassportNFT,
   Marketplace,
+  YieldStrategy,
+  DemandSignalEngine,
+  SmartEventManifest,
+  TandaYieldGroup,
+  CreditScoreCalculator,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -190,6 +195,8 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
       itinerariesPurchased: 0,
       totalNFTs: 1,
       licensesOwned: 0,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -211,6 +218,12 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
       totalItineraries: 0,
       totalItineraryPurchases: 0,
       totalMusicLicensesPurchased: 0,
+      totalStaked: BigInt(0),
+      totalStakers: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalTandaGroups: 0,
+      totalDemandSignals: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -284,6 +297,8 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
       itinerariesPurchased: 0,
       totalNFTs: 0,
       licensesOwned: 1,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
       lastActive: timestamp,
     });
   }
@@ -306,6 +321,12 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
       totalItineraries: 0,
       totalItineraryPurchases: 0,
       totalMusicLicensesPurchased: 1,
+      totalStaked: BigInt(0),
+      totalStakers: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalTandaGroups: 0,
+      totalDemandSignals: 0,
       totalUsers: 1,
       lastUpdated: timestamp,
     });
@@ -380,6 +401,10 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
     region: region,
     continent: continent,
     tokenURI: "",
+    stakedAmount: BigInt(0),
+    stampCount: 0,
+    verifiedStampCount: 0,
+    creditScore: 100, // Base credit score
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -409,6 +434,8 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       itinerariesPurchased: 0,
       totalNFTs: 1,
       licensesOwned: 0,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -430,6 +457,12 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       totalItineraries: 0,
       totalItineraryPurchases: 0,
       totalMusicLicensesPurchased: 0,
+      totalStaked: BigInt(0),
+      totalStakers: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalTandaGroups: 0,
+      totalDemandSignals: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -456,6 +489,89 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
       owner: to.toLowerCase(),
     });
     context.log.info(`🎫 Passport NFT #${tokenId} transferred from ${from} to ${to}`);
+  }
+});
+
+// ✅ NEW: PassportNFTv2 staking handler
+PassportNFT.PassportStaked.handler(async ({ event, context }) => {
+  const { tokenId, amount, positionId } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+  const passportStakeId = `passport-stake-${event.block.number}-${event.logIndex}`;
+
+  // Create passport stake event
+  const passportStake = {
+    id: passportStakeId,
+    passport_id: passportNFTId,
+    tokenId: tokenId.toString(),
+    amount: amount,
+    positionId: positionId,
+    stakedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.PassportStake.set(passportStake);
+
+  // Update passport staked amount and credit score
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+  if (passportNFT) {
+    const newStakedAmount = passportNFT.stakedAmount + amount;
+    const stakedUnits = Number(newStakedAmount) / 1e18;
+    const stampBonus = passportNFT.stampCount * 10;
+    const verifiedBonus = passportNFT.verifiedStampCount * 5;
+    const newCreditScore = 100 + Math.floor(stakedUnits) + stampBonus + verifiedBonus;
+
+    await context.PassportNFT.set({
+      ...passportNFT,
+      stakedAmount: newStakedAmount,
+      creditScore: newCreditScore,
+    });
+
+    context.log.info(`💰 Passport #${tokenId} staked ${amount.toString()} TOURS (position: ${positionId.toString()}). New credit score: ${newCreditScore}`);
+  }
+});
+
+// ✅ NEW: Venue stamp handler
+PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
+  const { tokenId, location, eventType, timestamp } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+  const venueStampId = `venue-stamp-${event.block.number}-${event.logIndex}`;
+
+  // Create venue stamp
+  const venueStamp = {
+    id: venueStampId,
+    passport_id: passportNFTId,
+    tokenId: tokenId.toString(),
+    location: location,
+    eventType: eventType,
+    artist: undefined,
+    timestamp: timestamp,
+    verified: false, // Default to false, can be updated later
+    addedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.VenueStamp.set(venueStamp);
+
+  // Update passport stamp count and credit score
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+  if (passportNFT) {
+    const newStampCount = passportNFT.stampCount + 1;
+    const stakedUnits = Number(passportNFT.stakedAmount) / 1e18;
+    const stampBonus = newStampCount * 10;
+    const verifiedBonus = passportNFT.verifiedStampCount * 5;
+    const newCreditScore = 100 + Math.floor(stakedUnits) + stampBonus + verifiedBonus;
+
+    await context.PassportNFT.set({
+      ...passportNFT,
+      stampCount: newStampCount,
+      creditScore: newCreditScore,
+    });
+
+    context.log.info(`🎟️ Venue stamp added to Passport #${tokenId}: ${location} - ${eventType}. New credit score: ${newCreditScore}`);
   }
 });
 
@@ -503,6 +619,8 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
       itinerariesPurchased: 0,
       totalNFTs: 0,
       licensesOwned: 0,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -524,6 +642,12 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
       totalItineraries: 1,
       totalItineraryPurchases: 0,
       totalMusicLicensesPurchased: 0,
+      totalStaked: BigInt(0),
+      totalStakers: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalTandaGroups: 0,
+      totalDemandSignals: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -571,6 +695,8 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
       itinerariesPurchased: 1,
       totalNFTs: 0,
       licensesOwned: 0,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -592,10 +718,574 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
       totalItineraries: 0,
       totalItineraryPurchases: 1,
       totalMusicLicensesPurchased: 0,
+      totalStaked: BigInt(0),
+      totalStakers: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalTandaGroups: 0,
+      totalDemandSignals: 0,
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
   }
 
   context.log.info(`🛒 Itinerary #${itineraryId} purchased by ${buyer}`);
+});
+
+// ============================================
+// YIELD STRATEGY (STAKING) EVENTS
+// ============================================
+
+YieldStrategy.Staked.handler(async ({ event, context }) => {
+  const { user, amount } = event.params;
+
+  const stakeEventId = `stake-${event.block.number}-${event.logIndex}`;
+  const userId = user.toLowerCase();
+
+  // Get user's current staking stats
+  let userStakingStats = await context.UserStakingStats.get(userId);
+  const currentStaked = userStakingStats ? userStakingStats.totalStaked : BigInt(0);
+  const newTotalStaked = currentStaked + amount;
+
+  // Create stake event
+  const stakeEvent = {
+    id: stakeEventId,
+    user: userId,
+    amount: amount,
+    totalStaked: newTotalStaked,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.StakeEvent.set(stakeEvent);
+
+  // Update user staking stats
+  if (userStakingStats) {
+    await context.UserStakingStats.set({
+      ...userStakingStats,
+      totalStaked: newTotalStaked,
+      stakeCount: userStakingStats.stakeCount + 1,
+      lastStakeTime: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.UserStakingStats.set({
+      id: userId,
+      user: userId,
+      totalStaked: amount,
+      totalRewardsClaimed: BigInt(0),
+      stakeCount: 1,
+      unstakeCount: 0,
+      lastStakeTime: new Date(event.block.timestamp * 1000),
+      lastUnstakeTime: undefined,
+      lastRewardClaim: undefined,
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalStaked: (globalStats.totalStaked || BigInt(0)) + amount,
+      totalStakers: userStakingStats ? globalStats.totalStakers || 0 : (globalStats.totalStakers || 0) + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`💰 User ${user} staked ${amount.toString()} TOURS. New total: ${newTotalStaked.toString()}`);
+});
+
+YieldStrategy.Unstaked.handler(async ({ event, context }) => {
+  const { user, amount } = event.params;
+
+  const unstakeEventId = `unstake-${event.block.number}-${event.logIndex}`;
+  const userId = user.toLowerCase();
+
+  // Get user's current staking stats
+  let userStakingStats = await context.UserStakingStats.get(userId);
+  const currentStaked = userStakingStats ? userStakingStats.totalStaked : BigInt(0);
+  const newTotalStaked = currentStaked - amount;
+
+  // Create unstake event
+  const unstakeEvent = {
+    id: unstakeEventId,
+    user: userId,
+    amount: amount,
+    totalStaked: newTotalStaked >= BigInt(0) ? newTotalStaked : BigInt(0),
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.UnstakeEvent.set(unstakeEvent);
+
+  // Update user staking stats
+  if (userStakingStats) {
+    await context.UserStakingStats.set({
+      ...userStakingStats,
+      totalStaked: newTotalStaked >= BigInt(0) ? newTotalStaked : BigInt(0),
+      unstakeCount: userStakingStats.unstakeCount + 1,
+      lastUnstakeTime: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    const newGlobalStaked = (globalStats.totalStaked || BigInt(0)) - amount;
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalStaked: newGlobalStaked >= BigInt(0) ? newGlobalStaked : BigInt(0),
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`💸 User ${user} unstaked ${amount.toString()} TOURS. New total: ${newTotalStaked.toString()}`);
+});
+
+YieldStrategy.RewardsClaimed.handler(async ({ event, context }) => {
+  const { user, amount } = event.params;
+
+  const rewardId = `reward-${event.block.number}-${event.logIndex}`;
+  const userId = user.toLowerCase();
+
+  // Create rewards claimed event
+  const rewardsClaimed = {
+    id: rewardId,
+    user: userId,
+    amount: amount,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.RewardsClaimed.set(rewardsClaimed);
+
+  // Update user staking stats
+  let userStakingStats = await context.UserStakingStats.get(userId);
+  if (userStakingStats) {
+    await context.UserStakingStats.set({
+      ...userStakingStats,
+      totalRewardsClaimed: userStakingStats.totalRewardsClaimed + amount,
+      lastRewardClaim: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🎁 User ${user} claimed ${amount.toString()} TOURS in rewards`);
+});
+
+// ============================================
+// DEMAND SIGNAL ENGINE EVENTS
+// ============================================
+
+DemandSignalEngine.DemandSubmitted.handler(async ({ event, context }) => {
+  const { user, eventId, amount } = event.params;
+
+  const demandSignalId = `demand-${event.chainId}-${eventId.toString()}-${user.toLowerCase()}-${event.block.number}`;
+  const userId = user.toLowerCase();
+  const eventIdStr = eventId.toString();
+
+  // Create demand signal
+  const demandSignal = {
+    id: demandSignalId,
+    eventId: eventIdStr,
+    user: userId,
+    amount: amount,
+    active: true,
+    submittedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.DemandSignal.set(demandSignal);
+
+  // Update event demand stats
+  let eventStats = await context.EventDemandStats.get(eventIdStr);
+  if (eventStats) {
+    await context.EventDemandStats.set({
+      ...eventStats,
+      totalDemand: eventStats.totalDemand + amount,
+      signalCount: eventStats.signalCount + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.EventDemandStats.set({
+      id: eventIdStr,
+      eventId: eventIdStr,
+      totalDemand: amount,
+      signalCount: 1,
+      uniqueUsers: 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalDemandSignals: (globalStats.totalDemandSignals || 0) + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`📊 User ${user} submitted ${amount.toString()} demand for event #${eventId}`);
+});
+
+DemandSignalEngine.DemandWithdrawn.handler(async ({ event, context }) => {
+  const { user, eventId, amount } = event.params;
+
+  const userId = user.toLowerCase();
+  const eventIdStr = eventId.toString();
+
+  // Update event demand stats
+  let eventStats = await context.EventDemandStats.get(eventIdStr);
+  if (eventStats) {
+    const newTotalDemand = eventStats.totalDemand - amount;
+    await context.EventDemandStats.set({
+      ...eventStats,
+      totalDemand: newTotalDemand >= BigInt(0) ? newTotalDemand : BigInt(0),
+      signalCount: eventStats.signalCount > 0 ? eventStats.signalCount - 1 : 0,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`📉 User ${user} withdrew ${amount.toString()} demand from event #${eventId}`);
+});
+
+// ============================================
+// SMART EVENT MANIFEST EVENTS
+// ============================================
+
+SmartEventManifest.EventCreated.handler(async ({ event, context }) => {
+  const { eventId, name, location, startDate } = event.params;
+
+  const smartEventId = `event-${event.chainId}-${eventId.toString()}`;
+
+  // Create smart event
+  const smartEvent = {
+    id: smartEventId,
+    eventId: eventId.toString(),
+    name: name,
+    location: location,
+    startDate: startDate,
+    endDate: undefined,
+    capacity: BigInt(1000), // Default capacity
+    ticketsSold: 0,
+    price: BigInt(0),
+    active: true,
+    cancelled: false,
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.SmartEvent.set(smartEvent);
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalEvents: (globalStats.totalEvents || 0) + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🎉 Event #${eventId} created: ${name} at ${location} on ${new Date(Number(startDate) * 1000).toISOString()}`);
+});
+
+SmartEventManifest.TicketPurchased.handler(async ({ event, context }) => {
+  const { eventId, buyer, quantity } = event.params;
+
+  const ticketId = `ticket-${event.block.number}-${event.logIndex}`;
+  const smartEventId = `event-${event.chainId}-${eventId.toString()}`;
+  const userId = buyer.toLowerCase();
+
+  // Get event to calculate total price
+  const smartEvent = await context.SmartEvent.get(smartEventId);
+  const totalPrice = smartEvent ? smartEvent.price * BigInt(quantity) : BigInt(0);
+
+  // Create ticket purchase
+  const ticketPurchase = {
+    id: ticketId,
+    event_id: smartEventId,
+    eventId: eventId.toString(),
+    buyer: userId,
+    quantity: quantity,
+    totalPrice: totalPrice,
+    purchasedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.TicketPurchase.set(ticketPurchase);
+
+  // Update event tickets sold
+  if (smartEvent) {
+    await context.SmartEvent.set({
+      ...smartEvent,
+      ticketsSold: smartEvent.ticketsSold + quantity,
+    });
+  }
+
+  // Update user stats
+  let userStats = await context.UserStats.get(userId);
+  if (userStats) {
+    await context.UserStats.set({
+      ...userStats,
+      eventsAttended: (userStats.eventsAttended || 0) + 1,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalTicketsSold: (globalStats.totalTicketsSold || 0) + quantity,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🎫 User ${buyer} purchased ${quantity} tickets for event #${eventId}`);
+});
+
+SmartEventManifest.EventCancelled.handler(async ({ event, context }) => {
+  const { eventId } = event.params;
+
+  const smartEventId = `event-${event.chainId}-${eventId.toString()}`;
+  const smartEvent = await context.SmartEvent.get(smartEventId);
+
+  if (smartEvent) {
+    await context.SmartEvent.set({
+      ...smartEvent,
+      cancelled: true,
+      active: false,
+    });
+
+    context.log.info(`❌ Event #${eventId} cancelled: ${smartEvent.name}`);
+  }
+});
+
+// ============================================
+// TANDA YIELD GROUP EVENTS
+// ============================================
+
+TandaYieldGroup.GroupCreated.handler(async ({ event, context }) => {
+  const { groupId, creator, name } = event.params;
+
+  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
+
+  // Create tanda group
+  const tandaGroup = {
+    id: tandaGroupId,
+    groupId: groupId.toString(),
+    name: name,
+    creator: creator.toLowerCase(),
+    contributionAmount: BigInt(0),
+    maxMembers: 0,
+    currentMembers: 0,
+    currentRound: 0,
+    totalPool: BigInt(0),
+    active: true,
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.TandaGroup.set(tandaGroup);
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalTandaGroups: (globalStats.totalTandaGroups || 0) + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🤝 Tanda Group #${groupId} created by ${creator}: ${name}`);
+});
+
+TandaYieldGroup.MemberJoined.handler(async ({ event, context }) => {
+  const { groupId, member } = event.params;
+
+  const memberId = `tandamember-${event.chainId}-${groupId.toString()}-${member.toLowerCase()}`;
+  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
+  const userId = member.toLowerCase();
+
+  // Create tanda member
+  const tandaMember = {
+    id: memberId,
+    group_id: tandaGroupId,
+    groupId: groupId.toString(),
+    member: userId,
+    joinedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.TandaMember.set(tandaMember);
+
+  // Update tanda group
+  const tandaGroup = await context.TandaGroup.get(tandaGroupId);
+  if (tandaGroup) {
+    await context.TandaGroup.set({
+      ...tandaGroup,
+      currentMembers: tandaGroup.currentMembers + 1,
+    });
+  }
+
+  // Update user stats
+  let userStats = await context.UserStats.get(userId);
+  if (userStats) {
+    await context.UserStats.set({
+      ...userStats,
+      tandaGroupsJoined: (userStats.tandaGroupsJoined || 0) + 1,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`👥 Member ${member} joined Tanda Group #${groupId}`);
+});
+
+TandaYieldGroup.ContributionMade.handler(async ({ event, context }) => {
+  const { groupId, member, amount } = event.params;
+
+  const contributionId = `contribution-${event.block.number}-${event.logIndex}`;
+  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
+  const userId = member.toLowerCase();
+
+  // Get tanda group to get current round
+  const tandaGroup = await context.TandaGroup.get(tandaGroupId);
+  const currentRound = tandaGroup ? tandaGroup.currentRound : 0;
+
+  // Create contribution
+  const contribution = {
+    id: contributionId,
+    group_id: tandaGroupId,
+    groupId: groupId.toString(),
+    member: userId,
+    amount: amount,
+    round: currentRound,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.TandaContribution.set(contribution);
+
+  // Update tanda group pool
+  if (tandaGroup) {
+    await context.TandaGroup.set({
+      ...tandaGroup,
+      totalPool: tandaGroup.totalPool + amount,
+    });
+  }
+
+  context.log.info(`💵 Member ${member} contributed ${amount.toString()} to Tanda Group #${groupId}`);
+});
+
+TandaYieldGroup.PayoutClaimed.handler(async ({ event, context }) => {
+  const { groupId, member, amount } = event.params;
+
+  const payoutId = `payout-${event.block.number}-${event.logIndex}`;
+  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
+  const userId = member.toLowerCase();
+
+  // Get tanda group to get current round
+  const tandaGroup = await context.TandaGroup.get(tandaGroupId);
+  const currentRound = tandaGroup ? tandaGroup.currentRound : 0;
+
+  // Create payout
+  const payout = {
+    id: payoutId,
+    group_id: tandaGroupId,
+    groupId: groupId.toString(),
+    member: userId,
+    amount: amount,
+    round: currentRound,
+    claimedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.TandaPayout.set(payout);
+
+  context.log.info(`💰 Member ${member} claimed ${amount.toString()} payout from Tanda Group #${groupId}`);
+});
+
+// ============================================
+// CREDIT SCORE CALCULATOR EVENTS
+// ============================================
+
+CreditScoreCalculator.ScoreUpdated.handler(async ({ event, context }) => {
+  const { user, oldScore, newScore } = event.params;
+
+  const userId = user.toLowerCase();
+
+  // Get or create credit score
+  let creditScore = await context.CreditScore.get(userId);
+
+  if (creditScore) {
+    await context.CreditScore.set({
+      ...creditScore,
+      score: newScore,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+      blockNumber: BigInt(event.block.number),
+      txHash: event.transaction.hash,
+    });
+  } else {
+    await context.CreditScore.set({
+      id: userId,
+      user: userId,
+      score: newScore,
+      tier: undefined,
+      paymentHistory: BigInt(0),
+      stakeAmount: BigInt(0),
+      tandaParticipation: BigInt(0),
+      eventAttendance: BigInt(0),
+      lastUpdated: new Date(event.block.timestamp * 1000),
+      blockNumber: BigInt(event.block.number),
+      txHash: event.transaction.hash,
+    });
+  }
+
+  context.log.info(`⭐ Credit score updated for ${user}: ${oldScore.toString()} -> ${newScore.toString()}`);
+});
+
+CreditScoreCalculator.PaymentRecorded.handler(async ({ event, context }) => {
+  const { user, amount, onTime } = event.params;
+
+  const paymentId = `payment-${event.block.number}-${event.logIndex}`;
+  const userId = user.toLowerCase();
+
+  // Create payment record
+  const paymentRecord = {
+    id: paymentId,
+    user: userId,
+    amount: amount,
+    onTime: onTime,
+    recordedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.PaymentRecord.set(paymentRecord);
+
+  // Update credit score payment history
+  let creditScore = await context.CreditScore.get(userId);
+  if (creditScore) {
+    await context.CreditScore.set({
+      ...creditScore,
+      paymentHistory: creditScore.paymentHistory + BigInt(1),
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`💳 Payment recorded for ${user}: ${amount.toString()} TOURS (${onTime ? 'on time' : 'late'})`);
 });

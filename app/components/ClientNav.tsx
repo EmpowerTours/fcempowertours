@@ -31,7 +31,8 @@ export default function ClientNav() {
     { path: '/tanda', label: 'Tanda', icon: '🤝' },
     { path: '/credit-score', label: 'Score', icon: '⭐' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
-    { path: '/passport', label: 'Passport', icon: '✈️' },
+    { path: '/passport', label: 'Mint', icon: '✈️' },
+    { path: '/passport-staking', label: 'P-Stake', icon: '🎫' },
     { path: '/market', label: 'Market', icon: '💱' },
   ];
 

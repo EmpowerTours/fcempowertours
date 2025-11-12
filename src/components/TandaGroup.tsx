@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ interface Group {
 }
 
 export function TandaGroup() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
   const {
     createGroup,
     joinGroup,
@@ -47,8 +47,14 @@ export function TandaGroup() {
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
+      return;
+    }
+
+    // Validate form
+    if (!createGroupForm.name || !createGroupForm.contributionAmount || !createGroupForm.frequency || !createGroupForm.maxMembers) {
+      toast.error('Please fill in all fields');
       return;
     }
 
@@ -69,7 +75,7 @@ export function TandaGroup() {
   };
 
   const handleJoinGroup = async () => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -84,7 +90,7 @@ export function TandaGroup() {
   };
 
   const handleContribute = async () => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -99,7 +105,7 @@ export function TandaGroup() {
   };
 
   const handleClaimPayout = async () => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -170,7 +176,15 @@ export function TandaGroup() {
 
             <Button
               type="submit"
-              disabled={!address || isPending || isConfirming}
+              disabled={
+                !walletAddress ||
+                !createGroupForm.name ||
+                !createGroupForm.contributionAmount ||
+                !createGroupForm.frequency ||
+                !createGroupForm.maxMembers ||
+                isPending ||
+                isConfirming
+              }
               className="w-full"
             >
               {isPending || isConfirming ? 'Creating...' : 'Create Group'}
@@ -233,14 +247,14 @@ export function TandaGroup() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={handleJoinGroup}
-                disabled={!address || isPending || isConfirming}
+                disabled={!walletAddress || isPending || isConfirming}
                 variant="outline"
               >
                 Join Group
               </Button>
               <Button
                 onClick={handleContribute}
-                disabled={!address || isPending || isConfirming}
+                disabled={!walletAddress || isPending || isConfirming}
               >
                 Contribute
               </Button>
@@ -248,7 +262,7 @@ export function TandaGroup() {
 
             <Button
               onClick={handleClaimPayout}
-              disabled={!address || isPending || isConfirming}
+              disabled={!walletAddress || isPending || isConfirming}
               className="w-full"
               variant="outline"
             >

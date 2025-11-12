@@ -1,28 +1,28 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { useYieldStrategy } from '../hooks/useYieldStrategy';
 import { useTandaYieldGroup } from '../hooks/useTandaYieldGroup';
 import { useCreditScoreCalculator } from '../hooks/useCreditScoreCalculator';
-import { formatUnits } from 'viem';
+import { formatUnits, Address } from 'viem';
 
 export function PortfolioDisplay() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
 
   const { useGetStakedAmount, useGetPendingRewards } = useYieldStrategy();
   const { useGetScore, useGetScoreTier } = useCreditScoreCalculator();
 
-  const { data: stakedAmount } = useGetStakedAmount(address!);
-  const { data: pendingRewards } = useGetPendingRewards(address!);
-  const { data: creditScore } = useGetScore(address!);
-  const { data: scoreTier } = useGetScoreTier(address!);
+  const { data: stakedAmount } = useGetStakedAmount(walletAddress as Address);
+  const { data: pendingRewards } = useGetPendingRewards(walletAddress as Address);
+  const { data: creditScore } = useGetScore(walletAddress as Address);
+  const { data: scoreTier } = useGetScoreTier(walletAddress as Address);
 
   // Type assertions
   const typedStakedAmount = stakedAmount as bigint | undefined;
   const typedPendingRewards = pendingRewards as bigint | undefined;
 
-  if (!address) {
+  if (!walletAddress) {
     return (
       <Card className="p-6 max-w-4xl mx-auto">
         <p className="text-center text-gray-600">

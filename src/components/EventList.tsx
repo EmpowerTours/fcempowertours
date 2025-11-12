@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSmartEventManifest } from '../hooks/useSmartEventManifest';
@@ -20,7 +20,7 @@ interface Event {
 }
 
 export function EventList() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
   const {
     purchaseTicket,
     isPending,
@@ -38,7 +38,7 @@ export function EventList() {
   const typedActiveEventIds = activeEventIds as bigint[] | undefined;
 
   const handlePurchaseTicket = async (eventId: bigint, quantity: bigint) => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -102,7 +102,7 @@ export function EventList() {
                         e.stopPropagation();
                         handlePurchaseTicket(eventId, 1n);
                       }}
-                      disabled={!address || isPending || isConfirming}
+                      disabled={!walletAddress || isPending || isConfirming}
                       className="w-full mt-4"
                     >
                       {isPending || isConfirming ? 'Purchasing...' : 'Buy Ticket'}

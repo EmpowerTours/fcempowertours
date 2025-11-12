@@ -1,9 +1,10 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { usePassportNFT } from '../hooks/usePassportNFT';
 import { useState, useEffect } from 'react';
+import { Address } from 'viem';
 
 interface PassportData {
   name: string;
@@ -14,10 +15,10 @@ interface PassportData {
 }
 
 export function PassportStamps() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
   const { useBalanceOf, useGetPassportData } = usePassportNFT();
 
-  const { data: balance } = useBalanceOf(address!);
+  const { data: balance } = useBalanceOf(walletAddress as Address);
   const [passports, setPassports] = useState<PassportData[]>([]);
 
   // Type assertion for balance as bigint
@@ -33,7 +34,7 @@ export function PassportStamps() {
     }
   }, [passportData]);
 
-  if (!address) {
+  if (!walletAddress) {
     return (
       <Card className="p-6 max-w-4xl mx-auto">
         <p className="text-center text-gray-600">
