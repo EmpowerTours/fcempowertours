@@ -1,16 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useYieldStrategy } from '../hooks/useYieldStrategy';
 import { toast } from 'sonner';
-import { formatUnits, parseUnits } from 'viem';
+import { formatUnits, parseUnits, Address } from 'viem';
 
 export function StakeTours() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
   const {
     stake,
     unstake,
@@ -22,8 +22,8 @@ export function StakeTours() {
     useGetAPY,
   } = useYieldStrategy();
 
-  const { data: stakedAmount } = useGetStakedAmount(address!);
-  const { data: pendingRewards } = useGetPendingRewards(address!);
+  const { data: stakedAmount } = useGetStakedAmount(walletAddress as Address);
+  const { data: pendingRewards } = useGetPendingRewards(walletAddress as Address);
   const { data: apy } = useGetAPY();
 
   // Type assertions
@@ -36,7 +36,7 @@ export function StakeTours() {
   const handleStake = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -60,7 +60,7 @@ export function StakeTours() {
   const handleUnstake = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -82,7 +82,7 @@ export function StakeTours() {
   };
 
   const handleClaimRewards = async () => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -127,7 +127,7 @@ export function StakeTours() {
 
         <Button
           onClick={handleClaimRewards}
-          disabled={!address || isPending || isConfirming || !pendingRewards || pendingRewards === 0n}
+          disabled={!walletAddress || isPending || isConfirming || !pendingRewards || pendingRewards === 0n}
           className="w-full mt-4"
         >
           Claim Rewards
@@ -152,7 +152,7 @@ export function StakeTours() {
 
           <Button
             type="submit"
-            disabled={isPending || isConfirming || !address}
+            disabled={isPending || isConfirming || !walletAddress}
             className="w-full"
           >
             {isPending || isConfirming ? 'Staking...' : 'Stake'}
@@ -177,7 +177,7 @@ export function StakeTours() {
             <Button
               type="submit"
               variant="outline"
-              disabled={isPending || isConfirming || !address}
+              disabled={isPending || isConfirming || !walletAddress}
               className="w-full"
             >
               {isPending || isConfirming ? 'Unstaking...' : 'Unstake'}

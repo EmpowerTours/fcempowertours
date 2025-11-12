@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { parseUnits } from 'viem';
 
 export function DemandSignalDisplay() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
   const {
     submitDemand,
     withdrawDemand,
@@ -33,7 +33,7 @@ export function DemandSignalDisplay() {
   const typedSelectedEventDemand = selectedEventDemand as [bigint, bigint] | undefined;
 
   const handleSubmitDemand = async (eventId: bigint) => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -55,7 +55,7 @@ export function DemandSignalDisplay() {
   };
 
   const handleWithdrawDemand = async (eventId: bigint) => {
-    if (!address) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet');
       return;
     }
@@ -148,7 +148,7 @@ export function DemandSignalDisplay() {
 
             <Button
               onClick={() => selectedEventId && handleSubmitDemand(selectedEventId)}
-              disabled={!address || isPending || isConfirming || !selectedEventId || !demandAmount}
+              disabled={!walletAddress || isPending || isConfirming || !selectedEventId || !demandAmount}
               className="w-full"
             >
               {isPending || isConfirming ? 'Submitting...' : 'Submit Demand'}
@@ -157,7 +157,7 @@ export function DemandSignalDisplay() {
             {selectedEventId && (
               <Button
                 onClick={() => handleWithdrawDemand(selectedEventId)}
-                disabled={!address || isPending || isConfirming}
+                disabled={!walletAddress || isPending || isConfirming}
                 variant="outline"
                 className="w-full"
               >

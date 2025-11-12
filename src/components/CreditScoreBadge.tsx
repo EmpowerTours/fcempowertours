@@ -1,8 +1,9 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { Card } from '@/components/ui/card';
 import { useCreditScoreCalculator } from '../hooks/useCreditScoreCalculator';
+import { Address } from 'viem';
 
 interface ScoreBreakdown {
   paymentHistory: bigint;
@@ -13,14 +14,14 @@ interface ScoreBreakdown {
 }
 
 export function CreditScoreBadge() {
-  const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
   const { useGetScore, useGetScoreTier, useGetScoreBreakdown } = useCreditScoreCalculator();
 
-  const { data: score } = useGetScore(address!);
-  const { data: tier } = useGetScoreTier(address!);
-  const { data: breakdown } = useGetScoreBreakdown(address!);
+  const { data: score } = useGetScore(walletAddress as Address);
+  const { data: tier } = useGetScoreTier(walletAddress as Address);
+  const { data: breakdown } = useGetScoreBreakdown(walletAddress as Address);
 
-  if (!address) {
+  if (!walletAddress) {
     return (
       <Card className="p-6 max-w-md mx-auto">
         <p className="text-center text-gray-600">
