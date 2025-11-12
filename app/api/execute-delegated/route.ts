@@ -64,6 +64,12 @@ export async function POST(req: NextRequest) {
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     const MINT_PRICE = parseEther('10'); // 10 TOURS for passport mint
 
+    // DeFi contract addresses
+    const YIELD_STRATEGY = '0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866' as Address;
+    const TANDA_YIELD_GROUP = '0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8' as Address;
+    const SMART_EVENT_MANIFEST = '0x5cfe8379058cA460aA60ef15051Be57dab4A651C' as Address;
+    const DEMAND_SIGNAL_ENGINE = '0xC2Eb75ddf31cd481765D550A91C5A63363B36817' as Address;
+
     switch (action) {
       // ==================== MINT PASSPORT (WITH CAST + FRAME) ====================
       case 'mint_passport':
@@ -584,6 +590,380 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           userAddress,
           monAmount: monAmount.toString(),
           message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
+        });
+
+      // ==================== STAKE TOURS ====================
+      case 'stake_tours':
+        console.log('💰 Action: stake_tours');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for stake_tours' },
+            { status: 400 }
+          );
+        }
+
+        const stakeAmount = parseUnits(params.amount.toString(), 18);
+        console.log('💰 Staking:', stakeAmount.toString(), 'TOURS');
+
+        const stakeCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [YIELD_STRATEGY, stakeAmount],
+            }) as Hex,
+          },
+          {
+            to: YIELD_STRATEGY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function stake(uint256 amount) external']),
+              functionName: 'stake',
+              args: [stakeAmount],
+            }) as Hex,
+          },
+        ];
+
+        const stakeTxHash = await sendSafeTransaction(stakeCalls);
+        console.log('✅ Stake successful, TX:', stakeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Staked ${params.amount} TOURS successfully`,
+        });
+
+      // ==================== UNSTAKE TOURS ====================
+      case 'unstake_tours':
+        console.log('💰 Action: unstake_tours');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for unstake_tours' },
+            { status: 400 }
+          );
+        }
+
+        const unstakeAmount = parseUnits(params.amount.toString(), 18);
+        console.log('💰 Unstaking:', unstakeAmount.toString(), 'TOURS');
+
+        const unstakeCalls = [
+          {
+            to: YIELD_STRATEGY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unstake(uint256 amount) external']),
+              functionName: 'unstake',
+              args: [unstakeAmount],
+            }) as Hex,
+          },
+        ];
+
+        const unstakeTxHash = await sendSafeTransaction(unstakeCalls);
+        console.log('✅ Unstake successful, TX:', unstakeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Unstaked ${params.amount} TOURS successfully`,
+        });
+
+      // ==================== CLAIM REWARDS ====================
+      case 'claim_rewards':
+        console.log('💰 Action: claim_rewards');
+
+        const claimCalls = [
+          {
+            to: YIELD_STRATEGY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claimRewards() external']),
+              functionName: 'claimRewards',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        const claimTxHash = await sendSafeTransaction(claimCalls);
+        console.log('✅ Claim rewards successful, TX:', claimTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: claimTxHash,
+          action,
+          userAddress,
+          message: 'Rewards claimed successfully',
+        });
+
+      // ==================== CREATE TANDA GROUP ====================
+      case 'create_tanda_group':
+        console.log('🤝 Action: create_tanda_group');
+        if (!params?.name || !params?.contributionAmount || !params?.frequency || !params?.maxMembers) {
+          return NextResponse.json(
+            { success: false, error: 'Missing parameters for create_tanda_group' },
+            { status: 400 }
+          );
+        }
+
+        const tandaContribution = parseUnits(params.contributionAmount.toString(), 18);
+        console.log('🤝 Creating Tanda group:', params.name);
+
+        const createTandaCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createGroup(string name, uint256 contributionAmount, uint256 frequency, uint256 maxMembers) external']),
+              functionName: 'createGroup',
+              args: [params.name, tandaContribution, BigInt(params.frequency), BigInt(params.maxMembers)],
+            }) as Hex,
+          },
+        ];
+
+        const createTandaTxHash = await sendSafeTransaction(createTandaCalls);
+        console.log('✅ Tanda group created, TX:', createTandaTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: createTandaTxHash,
+          action,
+          userAddress,
+          message: `Tanda group "${params.name}" created successfully`,
+        });
+
+      // ==================== JOIN TANDA GROUP ====================
+      case 'join_tanda_group':
+        console.log('🤝 Action: join_tanda_group');
+        if (!params?.groupId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing groupId for join_tanda_group' },
+            { status: 400 }
+          );
+        }
+
+        const joinTandaCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function joinGroup(uint256 groupId) external']),
+              functionName: 'joinGroup',
+              args: [BigInt(params.groupId)],
+            }) as Hex,
+          },
+        ];
+
+        const joinTandaTxHash = await sendSafeTransaction(joinTandaCalls);
+        console.log('✅ Joined Tanda group, TX:', joinTandaTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: joinTandaTxHash,
+          action,
+          userAddress,
+          groupId: params.groupId,
+          message: `Joined Tanda group #${params.groupId} successfully`,
+        });
+
+      // ==================== CONTRIBUTE TO TANDA ====================
+      case 'contribute_tanda':
+        console.log('🤝 Action: contribute_tanda');
+        if (!params?.groupId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing groupId for contribute_tanda' },
+            { status: 400 }
+          );
+        }
+
+        const contributeCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function contribute(uint256 groupId) external']),
+              functionName: 'contribute',
+              args: [BigInt(params.groupId)],
+            }) as Hex,
+          },
+        ];
+
+        const contributeTxHash = await sendSafeTransaction(contributeCalls);
+        console.log('✅ Contributed to Tanda, TX:', contributeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: contributeTxHash,
+          action,
+          userAddress,
+          groupId: params.groupId,
+          message: `Contributed to Tanda group #${params.groupId} successfully`,
+        });
+
+      // ==================== CLAIM TANDA PAYOUT ====================
+      case 'claim_tanda_payout':
+        console.log('🤝 Action: claim_tanda_payout');
+        if (!params?.groupId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing groupId for claim_tanda_payout' },
+            { status: 400 }
+          );
+        }
+
+        const claimTandaCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claimPayout(uint256 groupId) external']),
+              functionName: 'claimPayout',
+              args: [BigInt(params.groupId)],
+            }) as Hex,
+          },
+        ];
+
+        const claimTandaTxHash = await sendSafeTransaction(claimTandaCalls);
+        console.log('✅ Tanda payout claimed, TX:', claimTandaTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: claimTandaTxHash,
+          action,
+          userAddress,
+          groupId: params.groupId,
+          message: `Claimed payout from Tanda group #${params.groupId} successfully`,
+        });
+
+      // ==================== PURCHASE EVENT TICKET ====================
+      case 'purchase_event_ticket':
+        console.log('🎉 Action: purchase_event_ticket');
+        if (!params?.eventId || !params?.quantity) {
+          return NextResponse.json(
+            { success: false, error: 'Missing eventId or quantity for purchase_event_ticket' },
+            { status: 400 }
+          );
+        }
+
+        const ticketCalls = [
+          {
+            to: SMART_EVENT_MANIFEST,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function purchaseTicket(uint256 eventId, uint256 quantity) external']),
+              functionName: 'purchaseTicket',
+              args: [BigInt(params.eventId), BigInt(params.quantity)],
+            }) as Hex,
+          },
+        ];
+
+        const ticketTxHash = await sendSafeTransaction(ticketCalls);
+        console.log('✅ Event ticket purchased, TX:', ticketTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: ticketTxHash,
+          action,
+          userAddress,
+          eventId: params.eventId,
+          quantity: params.quantity,
+          message: `Purchased ${params.quantity} ticket(s) for event #${params.eventId} successfully`,
+        });
+
+      // ==================== SUBMIT DEMAND SIGNAL ====================
+      case 'submit_demand_signal':
+        console.log('📊 Action: submit_demand_signal');
+        if (!params?.eventId || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing eventId or amount for submit_demand_signal' },
+            { status: 400 }
+          );
+        }
+
+        const demandAmount = parseUnits(params.amount.toString(), 18);
+        console.log('📊 Submitting demand signal:', demandAmount.toString(), 'TOURS for event', params.eventId);
+
+        const demandCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [DEMAND_SIGNAL_ENGINE, demandAmount],
+            }) as Hex,
+          },
+          {
+            to: DEMAND_SIGNAL_ENGINE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function submitDemand(uint256 eventId, uint256 amount) external']),
+              functionName: 'submitDemand',
+              args: [BigInt(params.eventId), demandAmount],
+            }) as Hex,
+          },
+        ];
+
+        const demandTxHash = await sendSafeTransaction(demandCalls);
+        console.log('✅ Demand signal submitted, TX:', demandTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: demandTxHash,
+          action,
+          userAddress,
+          eventId: params.eventId,
+          amount: params.amount,
+          message: `Demand signal of ${params.amount} TOURS submitted for event #${params.eventId}`,
+        });
+
+      // ==================== WITHDRAW DEMAND SIGNAL ====================
+      case 'withdraw_demand_signal':
+        console.log('📊 Action: withdraw_demand_signal');
+        if (!params?.eventId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing eventId for withdraw_demand_signal' },
+            { status: 400 }
+          );
+        }
+
+        const withdrawDemandCalls = [
+          {
+            to: DEMAND_SIGNAL_ENGINE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function withdrawDemand(uint256 eventId) external']),
+              functionName: 'withdrawDemand',
+              args: [BigInt(params.eventId)],
+            }) as Hex,
+          },
+        ];
+
+        const withdrawDemandTxHash = await sendSafeTransaction(withdrawDemandCalls);
+        console.log('✅ Demand signal withdrawn, TX:', withdrawDemandTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: withdrawDemandTxHash,
+          action,
+          userAddress,
+          eventId: params.eventId,
+          message: `Demand signal withdrawn for event #${params.eventId}`,
         });
 
       default:

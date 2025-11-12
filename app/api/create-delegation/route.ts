@@ -45,11 +45,23 @@ export async function POST(req: NextRequest) {
         maxTransactions,
         // ✅ FIXED: Use correct permission names that match execute-delegated action names
         permissions: permissions.length > 0 ? permissions : [
-          'mint_passport', 
-          'mint_music', 
-          'swap_mon_for_tours',  // ← MUST match execute-delegated case statement
+          'mint_passport',
+          'mint_music',
+          'buy_music',
+          'swap_mon_for_tours',
           'buy_itinerary',
-          'send_tours'
+          'send_tours',
+          // DeFi permissions
+          'stake_tours',
+          'unstake_tours',
+          'claim_rewards',
+          'create_tanda_group',
+          'join_tanda_group',
+          'contribute_tanda',
+          'claim_tanda_payout',
+          'purchase_event_ticket',
+          'submit_demand_signal',
+          'withdraw_demand_signal',
         ],
       }
     };
