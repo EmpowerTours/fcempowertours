@@ -605,16 +605,24 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const stakeAmount = parseUnits(params.amount.toString(), 18);
         console.log('💰 Staking:', stakeAmount.toString(), 'TOURS');
 
-        // ✅ Query user's passport NFTs to use as collateral
+        // ✅ Query user's passport NFTs to use as collateral (from NEW contract only)
         let nftTokenId = '0';
         try {
           console.log('🔍 Fetching user passport NFTs for collateral...');
           const passportQuery = `
-            query GetUserPassports($owner: String!) {
-              PassportNFT(where: { owner: { _eq: $owner } }, limit: 1, order_by: { mintedAt: desc }) {
+            query GetUserPassports($owner: String!, $contract: String!) {
+              PassportNFT(
+                where: {
+                  owner: { _eq: $owner }
+                  contract: { _eq: $contract }
+                },
+                limit: 1,
+                order_by: { mintedAt: desc }
+              ) {
                 tokenId
                 countryCode
                 countryName
+                contract
               }
             }
           `;
@@ -624,7 +632,10 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: passportQuery,
-              variables: { owner: userAddress.toLowerCase() }
+              variables: {
+                owner: userAddress.toLowerCase(),
+                contract: PASSPORT_NFT.toLowerCase()
+              }
             })
           });
 
@@ -634,7 +645,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 
             if (!passport) {
               return NextResponse.json(
-                { success: false, error: 'No passport NFT found. Mint a passport first with "mint passport"' },
+                { success: false, error: 'No passport NFT found on the new contract. Mint a passport first with "mint passport"' },
                 { status: 400 }
               );
             }
@@ -642,7 +653,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             nftTokenId = passport.tokenId;
             console.log('✅ Using passport NFT as collateral:', {
               tokenId: nftTokenId,
-              country: passport.countryCode
+              country: passport.countryCode,
+              contract: passport.contract
             });
           } else {
             throw new Error('Failed to fetch passport NFTs');

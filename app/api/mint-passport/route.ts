@@ -5,7 +5,7 @@ import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/generatePassportSVG";
 import { getCountryByCode } from "@/lib/passport/countries";
 
-const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT || "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08";
+const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT || "0x04a8983587B79cd0a4927AE71040caf3baA613f1"; // NEW PassportNFTv2
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;
@@ -122,17 +122,19 @@ export async function POST(req: NextRequest) {
     
     try {
       const checkQuery = `
-        query CheckExistingPassport($owner: String!, $countryCode: String!) {
+        query CheckExistingPassport($owner: String!, $countryCode: String!, $contract: String!) {
           PassportNFT(
             where: {
               owner: {_eq: $owner}
               countryCode: {_eq: $countryCode}
+              contract: {_eq: $contract}
             }
             limit: 1
           ) {
             id
             tokenId
             countryCode
+            contract
           }
         }
       `;
@@ -144,7 +146,8 @@ export async function POST(req: NextRequest) {
           query: checkQuery,
           variables: {
             owner: recipientAddress.toLowerCase(),
-            countryCode: countryCode
+            countryCode: countryCode,
+            contract: PASSPORT_NFT_ADDRESS.toLowerCase()
           }
         })
       });

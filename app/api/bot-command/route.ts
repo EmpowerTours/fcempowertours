@@ -537,20 +537,24 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         console.log(`🔍 Checking if user has existing passport for ${countryCode}...`);
         try {
           const checkQuery = `
-            query CheckPassport($owner: String!, $countryCode: String!) {
+            query CheckPassport($owner: String!, $countryCode: String!, $contract: String!) {
               PassportNFT(
                 where: {
                   owner: { _eq: $owner }
                   countryCode: { _eq: $countryCode }
+                  contract: { _eq: $contract }
                 }
                 limit: 1
               ) {
                 tokenId
                 countryCode
                 countryName
+                contract
               }
             }
           `;
+
+          const PASSPORT_NFT_ADDRESS = '0x04a8983587B79cd0a4927AE71040caf3baA613f1'; // NEW PassportNFTv2
 
           const checkRes = await fetch(ENVIO_ENDPOINT, {
             method: 'POST',
@@ -559,7 +563,8 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
               query: checkQuery,
               variables: {
                 owner: userAddress.toLowerCase(),
-                countryCode: countryCode.toUpperCase()
+                countryCode: countryCode.toUpperCase(),
+                contract: PASSPORT_NFT_ADDRESS.toLowerCase()
               }
             })
           });
