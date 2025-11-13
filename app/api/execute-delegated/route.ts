@@ -667,8 +667,6 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
                 order_by: { mintedAt: desc }
               ) {
                 tokenId
-                countryCode
-                countryName
                 contract
               }
             }
@@ -700,7 +698,6 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             nftTokenId = passport.tokenId;
             console.log('✅ Using passport NFT as collateral:', {
               tokenId: nftTokenId,
-              country: passport.countryCode,
               contract: passport.contract
             });
           } else {
