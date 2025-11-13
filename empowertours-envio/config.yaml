@@ -48,8 +48,7 @@ networks:
 
       - name: PassportNFT
         address:
-          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"
-          - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ NEW: PassportNFTv2
+          - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ NEW: PassportNFTv2 ONLY
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data (v1)
