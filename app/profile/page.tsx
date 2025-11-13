@@ -212,8 +212,15 @@ export default function ProfilePage() {
       setQueriedAddresses(uniqueAddresses);
 
       const query = `
-        query GetUserData($addresses: [String!]!) {
-          PassportNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
+        query GetUserData($addresses: [String!]!, $passportContract: String!) {
+          PassportNFT(
+            where: {
+              owner: {_in: $addresses}
+              contract: {_eq: $passportContract}
+            },
+            order_by: {mintedAt: desc},
+            limit: 100
+          ) {
             id
             tokenId
             owner
@@ -224,6 +231,7 @@ export default function ProfilePage() {
             tokenURI
             mintedAt
             txHash
+            contract
           }
           MusicNFT(where: {artist: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
             id
@@ -268,10 +276,17 @@ export default function ProfilePage() {
           }
         }
       `;
+      const PASSPORT_CONTRACT = '0x04a8983587b79cd0a4927ae71040caf3baa613f1'; // NEW PassportNFTv2
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, variables: { addresses: uniqueAddresses } }),
+        body: JSON.stringify({
+          query,
+          variables: {
+            addresses: uniqueAddresses,
+            passportContract: PASSPORT_CONTRACT.toLowerCase()
+          }
+        }),
       });
       if (!response.ok) throw new Error(`Envio API returned ${response.status}`);
       const result = await response.json();

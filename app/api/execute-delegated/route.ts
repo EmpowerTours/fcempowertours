@@ -74,6 +74,53 @@ export async function POST(req: NextRequest) {
       // ==================== MINT PASSPORT (WITH CAST + FRAME) ====================
       case 'mint_passport':
         console.log('🎫 Action: mint_passport (batched approve + mint)');
+
+        // ✅ Check if user has enough TOURS tokens in their Safe wallet
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const client = createPublicClient({
+            chain: {
+              id: 20143,
+              name: 'Monad Testnet',
+              network: 'monad-testnet',
+              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+              rpcUrls: {
+                default: {
+                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
+                },
+                public: {
+                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
+                },
+              },
+            },
+            transport: http(),
+          });
+
+          const toursBalance = await client.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [userAddress as Address],
+          });
+
+          console.log('💰 User TOURS balance:', toursBalance.toString(), 'required:', MINT_PRICE.toString());
+
+          if (toursBalance < MINT_PRICE) {
+            const requiredTours = Number(MINT_PRICE) / 1e18;
+            const currentTours = Number(toursBalance) / 1e18;
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient TOURS tokens. You need ${requiredTours} TOURS to mint a passport, but only have ${currentTours.toFixed(2)} TOURS. Try "swap 0.5 mon" to get TOURS tokens first.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.error('❌ Failed to check TOURS balance:', balanceErr);
+          // Continue with mint attempt - don't block on balance check failure
+        }
+
         const mintCalls = [
           {
             to: TOURS_TOKEN,
