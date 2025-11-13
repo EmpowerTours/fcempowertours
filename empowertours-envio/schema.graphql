@@ -47,12 +47,41 @@ type PassportNFT @entity {
   tokenId: String!
   contract: String!
   owner: String!
-  countryCode: String          # Optional (v1 only)
-  countryName: String          # Country name (v1 only)
-  region: String               # Geographic region (v1 only)
-  continent: String            # Continent (v1 only)
   tokenURI: String
+  stakedAmount: BigInt!        # ✅ Total TOURS staked with this passport
+  stampCount: Int!             # ✅ Number of venue stamps
+  verifiedStampCount: Int!     # ✅ Number of verified stamps
+  creditScore: Int!            # ✅ Calculated credit score
   mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  stakes: [PassportStake!]! @derivedFrom(field: "passport")
+  stamps: [VenueStamp!]! @derivedFrom(field: "passport")
+}
+
+# ✅ Passport Staking Events
+type PassportStake @entity {
+  id: ID!
+  passport: PassportNFT!
+  tokenId: String!
+  amount: BigInt!
+  positionId: BigInt!
+  stakedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ Venue Stamps (Event Attendance)
+type VenueStamp @entity {
+  id: ID!
+  passport: PassportNFT!
+  tokenId: String!
+  location: String!
+  eventType: String!
+  artist: String
+  timestamp: BigInt!
+  verified: Boolean!
+  addedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!
 }
