@@ -51,7 +51,7 @@ export function DemandSignalDisplay() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userAddress: walletAddress,
+          userAddress: address,
           action: 'submit_demand_signal',
           params: {
             eventId: eventId.toString(),
@@ -90,7 +90,7 @@ export function DemandSignalDisplay() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userAddress: walletAddress,
+          userAddress: address,
           action: 'withdraw_demand_signal',
           params: {
             eventId: eventId.toString()
