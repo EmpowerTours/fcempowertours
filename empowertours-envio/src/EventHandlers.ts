@@ -377,29 +377,16 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // ============================================
 
 PassportNFT.PassportMinted.handler(async ({ event, context }) => {
-  const { tokenId, owner, countryCode, countryName, region, continent } = event.params;
+  // ✅ v2 event only has tokenId and to (no country data)
+  const { tokenId, to } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
-
-  // ✅ CRITICAL FIX: Normalize countryCode to uppercase for consistency
-  const normalizedCountryCode = countryCode.toUpperCase();
-
-  // ✅ VALIDATION: Ensure countryCode is valid
-  if (!normalizedCountryCode || normalizedCountryCode.length !== 2) {
-    context.log.error(
-      `❌ Invalid countryCode for passport #${tokenId}: "${countryCode}" (normalized: "${normalizedCountryCode}")`
-    );
-  }
 
   const passportNFT = {
     id: passportNFTId,
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
-    owner: owner.toLowerCase(),
-    countryCode: normalizedCountryCode, // ✅ FIX: Store as uppercase
-    countryName: countryName,
-    region: region,
-    continent: continent,
+    owner: to.toLowerCase(),
     tokenURI: "",
     stakedAmount: BigInt(0),
     stampCount: 0,
@@ -412,7 +399,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
 
   await context.PassportNFT.set(passportNFT);
 
-  const userId = owner.toLowerCase();
+  const userId = to.toLowerCase();
   let userStats = await context.UserStats.get(userId);
 
   const isNewUser = !userStats;
@@ -427,7 +414,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   } else {
     await context.UserStats.set({
       id: userId,
-      address: owner.toLowerCase(),
+      address: to.toLowerCase(),
       musicNFTCount: 0,
       passportNFTCount: 1,
       itinerariesCreated: 0,
@@ -469,7 +456,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   }
 
   context.log.info(
-    `🎫 Passport NFT #${tokenId} minted for ${owner} - ${normalizedCountryCode} ${countryName} (${region}, ${continent})`
+    `🎫 Passport NFT #${tokenId} minted for ${to.toLowerCase()}`
   );
 });
 
@@ -1013,7 +1000,7 @@ SmartEventManifest.TicketPurchased.handler(async ({ event, context }) => {
     event_id: smartEventId,
     eventId: eventId.toString(),
     buyer: userId,
-    quantity: quantity,
+    quantity: Number(quantity), // ✅ Convert bigint to number
     totalPrice: totalPrice,
     purchasedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
@@ -1026,7 +1013,7 @@ SmartEventManifest.TicketPurchased.handler(async ({ event, context }) => {
   if (smartEvent) {
     await context.SmartEvent.set({
       ...smartEvent,
-      ticketsSold: smartEvent.ticketsSold + quantity,
+      ticketsSold: smartEvent.ticketsSold + Number(quantity), // ✅ Convert bigint to number
     });
   }
 
@@ -1045,7 +1032,7 @@ SmartEventManifest.TicketPurchased.handler(async ({ event, context }) => {
   if (globalStats) {
     await context.GlobalStats.set({
       ...globalStats,
-      totalTicketsSold: (globalStats.totalTicketsSold || 0) + quantity,
+      totalTicketsSold: (globalStats.totalTicketsSold || 0) + Number(quantity), // ✅ Convert bigint to number
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
   }
