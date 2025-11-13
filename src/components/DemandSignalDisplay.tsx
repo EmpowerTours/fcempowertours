@@ -44,13 +44,35 @@ export function DemandSignalDisplay() {
     }
 
     try {
-      const amount = parseUnits(demandAmount, 18);
-      submitDemand(eventId, amount);
-      toast.success('Submitting demand signal...');
+      toast.loading('Submitting demand signal...');
+
+      // Call delegation API for gasless demand signal
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'submit_demand_signal',
+          params: {
+            eventId: eventId.toString(),
+            amount: demandAmount
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Demand signal submission failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Submitted demand signal for Event #${eventId}! (Gasless)`);
       setDemandAmount('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting demand:', error);
-      toast.error('Failed to submit demand signal');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to submit demand signal');
     }
   };
 
@@ -61,11 +83,33 @@ export function DemandSignalDisplay() {
     }
 
     try {
-      withdrawDemand(eventId);
-      toast.success('Withdrawing demand signal...');
-    } catch (error) {
+      toast.loading('Withdrawing demand signal...');
+
+      // Call delegation API for gasless demand withdrawal
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'withdraw_demand_signal',
+          params: {
+            eventId: eventId.toString()
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Demand signal withdrawal failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Withdrew demand signal for Event #${eventId}! (Gasless)`);
+    } catch (error: any) {
       console.error('Error withdrawing demand:', error);
-      toast.error('Failed to withdraw demand signal');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to withdraw demand signal');
     }
   };
 

@@ -42,22 +42,33 @@ Navigation:
 - "go to passport" - Mint travel passport
 - "go to music" - Mint music NFT
 - "go to discover" - Browse all music
+- "go to staking" - Stake TOURS tokens
+- "go to events" - View & buy event tickets
+- "go to tanda" - Join savings groups
+- "go to credit score" - View your score
 - "go to profile" - View your NFTs
 - "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
-Transactions (Gasless - We Pay!):
-- "swap 0.1 mon" - Swap MON for TOURS tokens
-- "mint passport" - Mint a passport NFT (FREE)
-- "mint music <Song Name> <ipfs://...> <price>" - Mint a music NFT
-- "send <amount> tours to @username" - Send TOURS to another user
-- "buy music <tokenId>" - Buy a music license by ID
-- "buy song <Song Name>" - Buy a music license by name
-- "check balance" - Check your MON/TOURS balance
+Basic Transactions (Gasless):
+- "swap 0.1 mon" - Swap MON for TOURS
+- "mint passport" - Mint passport NFT (FREE)
+- "mint music <Song> <ipfs://...> <price>" - Mint music NFT
+- "send <amount> tours to @user" - Send TOURS
+- "buy music <tokenId>" - Buy music license
+- "check balance" - Check balances
+DeFi Actions (Gasless):
+- "stake <amount> tours" - Stake for rewards
+- "unstake <amount> tours" - Unstake tokens
+- "claim rewards" - Claim staking rewards
+- "create tanda <name>" - Create savings group
+- "join tanda <id>" - Join savings group
+- "buy ticket <eventId>" - Purchase event ticket
+- "signal demand <eventId>" - Show interest in event
 Info:
 - "help" - Show this message
 - "status" - Check wallet connection
 - "about" - Learn about EmpowerTours
-All transactions are FREE - we pay the gas!`
+All transactions are FREE - we pay gas!`
       });
     }
 
@@ -84,13 +95,18 @@ Try: "go to profile"`
         action: 'info',
         message: `EmpowerTours
 A Farcaster Mini App for:
-- Minting travel passport NFTs (195 countries!)
-- Minting music NFTs (with royalties)
-- Trading itineraries on marketplace
-- Swapping MON ↔ TOURS tokens
+- Travel passport NFTs (195 countries!)
+- Music NFTs with royalties
+- TOURS token staking for rewards
+- Tanda (rotating savings groups)
+- Event tickets & demand signals
+- Credit scoring system
+- Passport staking for benefits
+- Marketplace trading
+- MON ↔ TOURS token swaps
 Built on Monad Testnet
 Powered by Envio Indexer
-All minting is FREE - we pay gas!
+All transactions are FREE - we pay gas!
 Try "help" to see all commands!`
       });
     }
@@ -746,6 +762,19 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       'go to discover': '/discover',
       'discover': '/discover',
       'browse music': '/discover',
+      'go to staking': '/staking',
+      'staking': '/staking',
+      'stake': '/staking',
+      'go to events': '/events',
+      'events': '/events',
+      'go to tanda': '/tanda',
+      'tanda': '/tanda',
+      'savings': '/tanda',
+      'go to credit score': '/credit-score',
+      'credit score': '/credit-score',
+      'score': '/credit-score',
+      'go to passport staking': '/passport-staking',
+      'passport staking': '/passport-staking',
       'go to profile': '/profile',
       'profile': '/profile',
       'my profile': '/profile',

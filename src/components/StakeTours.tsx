@@ -47,13 +47,34 @@ export function StakeTours() {
     }
 
     try {
-      const amount = parseUnits(stakeAmount, 18);
-      stake(amount);
-      toast.success('Staking TOURS...');
+      toast.loading('Staking TOURS...');
+
+      // Call delegation API for gasless staking
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'stake_tours',
+          params: {
+            amount: stakeAmount
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Staking failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Staked ${stakeAmount} TOURS! (Gasless)`);
       setStakeAmount('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error staking:', error);
-      toast.error('Failed to stake');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to stake');
     }
   };
 
@@ -71,13 +92,34 @@ export function StakeTours() {
     }
 
     try {
-      const amount = parseUnits(unstakeAmount, 18);
-      unstake(amount);
-      toast.success('Unstaking TOURS...');
+      toast.loading('Unstaking TOURS...');
+
+      // Call delegation API for gasless unstaking
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'unstake_tours',
+          params: {
+            amount: unstakeAmount
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Unstaking failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Unstaked ${unstakeAmount} TOURS! (Gasless)`);
       setUnstakeAmount('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error unstaking:', error);
-      toast.error('Failed to unstake');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to unstake');
     }
   };
 
@@ -88,11 +130,31 @@ export function StakeTours() {
     }
 
     try {
-      claimRewards();
-      toast.success('Claiming rewards...');
-    } catch (error) {
+      toast.loading('Claiming rewards...');
+
+      // Call delegation API for gasless claim
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'claim_rewards',
+          params: {}
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Claiming failed');
+      }
+
+      toast.dismiss();
+      toast.success('Rewards claimed! (Gasless)');
+    } catch (error: any) {
       console.error('Error claiming rewards:', error);
-      toast.error('Failed to claim rewards');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to claim rewards');
     }
   };
 
