@@ -643,6 +643,84 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       }
     }
 
+    // ==================== STAKE TOURS COMMAND (GASLESS VIA DELEGATION) ====================
+    if (lowerCommand.includes('stake') && lowerCommand.includes('tours')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      const match = lowerCommand.match(/([\d.]+)\s*tours/);
+      const amount = match ? parseFloat(match[1]) : 0;
+      if (amount <= 0 || amount > 100000) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid amount. Please use 1 - 100000 TOURS'
+        });
+      }
+      try {
+        console.log(`Executing stake via delegation: ${amount} TOURS for user ${userAddress}`);
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        const hasValidDelegation = delegationData.success &&
+                                  delegationData.delegation &&
+                                  Array.isArray(delegationData.delegation.permissions) &&
+                                  delegationData.delegation.permissions.includes('stake_tours');
+        if (!hasValidDelegation) {
+          console.warn('[BOT] No delegation with stake_tours permission - creating one...');
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+          console.log('[BOT] Delegation created with stake_tours permission');
+        }
+        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'stake_tours',
+            params: {
+              amount: amount.toString()
+            }
+          })
+        });
+        const stakeData = await stakeRes.json();
+        if (!stakeData.success) {
+          throw new Error(stakeData.error || 'Stake failed');
+        }
+        console.log('Stake successful:', stakeData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeData.txHash,
+          action: 'transaction',
+          message: `Staking Complete (FREE)!
+${amount} TOURS staked for yield
+Position ID: ${stakeData.positionId || 'pending'}
+TX: ${stakeData.txHash?.slice(0, 10)}...
+Gasless - we paid the gas!
+View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('Stake failed:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Stake failed: ${error.message || 'Unknown error'}`
+        });
+      }
+    }
+
     // ==================== MINT MUSIC COMMAND (WITH CAST) ====================
     if (lowerCommand.includes('mint music')) {
       if (!userAddress) {
@@ -764,7 +842,6 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       'browse music': '/discover',
       'go to staking': '/staking',
       'staking': '/staking',
-      'stake': '/staking',
       'go to events': '/events',
       'events': '/events',
       'go to tanda': '/tanda',

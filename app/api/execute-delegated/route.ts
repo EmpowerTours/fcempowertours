@@ -605,6 +605,56 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const stakeAmount = parseUnits(params.amount.toString(), 18);
         console.log('💰 Staking:', stakeAmount.toString(), 'TOURS');
 
+        // ✅ Query user's passport NFTs to use as collateral
+        let nftTokenId = '0';
+        try {
+          console.log('🔍 Fetching user passport NFTs for collateral...');
+          const passportQuery = `
+            query GetUserPassports($owner: String!) {
+              PassportNFT(where: { owner: { _eq: $owner } }, limit: 1, order_by: { mintedAt: desc }) {
+                tokenId
+                countryCode
+                countryName
+              }
+            }
+          `;
+
+          const passportRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: passportQuery,
+              variables: { owner: userAddress.toLowerCase() }
+            })
+          });
+
+          if (passportRes.ok) {
+            const passportData = await passportRes.json();
+            const passport = passportData.data?.PassportNFT?.[0];
+
+            if (!passport) {
+              return NextResponse.json(
+                { success: false, error: 'No passport NFT found. Mint a passport first with "mint passport"' },
+                { status: 400 }
+              );
+            }
+
+            nftTokenId = passport.tokenId;
+            console.log('✅ Using passport NFT as collateral:', {
+              tokenId: nftTokenId,
+              country: passport.countryCode
+            });
+          } else {
+            throw new Error('Failed to fetch passport NFTs');
+          }
+        } catch (nftErr: any) {
+          console.error('❌ Failed to fetch passport NFT:', nftErr);
+          return NextResponse.json(
+            { success: false, error: 'Failed to fetch passport NFT for collateral. Please try again.' },
+            { status: 500 }
+          );
+        }
+
         const stakeCalls = [
           {
             to: TOURS_TOKEN,
@@ -619,15 +669,55 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function stake(uint256 amount) external']),
-              functionName: 'stake',
-              args: [stakeAmount],
+              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
+              functionName: 'stakeWithNFT',
+              args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount],
             }) as Hex,
           },
         ];
 
         const stakeTxHash = await sendSafeTransaction(stakeCalls);
         console.log('✅ Stake successful, TX:', stakeTxHash);
+
+        // ✅ Extract position ID from transaction receipt
+        let positionId = '0';
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const client = createPublicClient({
+            chain: {
+              id: 20143,
+              name: 'Monad Testnet',
+              network: 'monad-testnet',
+              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+              rpcUrls: {
+                default: {
+                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
+                },
+                public: {
+                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
+                },
+              },
+            },
+            transport: http(),
+          });
+
+          const receipt = await client.getTransactionReceipt({
+            hash: stakeTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for StakingPositionCreated event
+            const stakeLog = receipt.logs.find(
+              log => log.topics[0] === '0x' // Event signature for StakingPositionCreated
+            );
+            if (stakeLog && stakeLog.topics[1]) {
+              positionId = BigInt(stakeLog.topics[1]).toString();
+              console.log('🎫 Extracted position ID from receipt:', positionId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract position ID:', extractError.message);
+        }
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -636,30 +726,31 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           action,
           userAddress,
           amount: params.amount,
+          positionId: positionId,
+          nftTokenId: nftTokenId,
           message: `Staked ${params.amount} TOURS successfully`,
         });
 
       // ==================== UNSTAKE TOURS ====================
       case 'unstake_tours':
         console.log('💰 Action: unstake_tours');
-        if (!params?.amount) {
+        if (!params?.positionId) {
           return NextResponse.json(
-            { success: false, error: 'Missing amount for unstake_tours' },
+            { success: false, error: 'Missing positionId for unstake_tours' },
             { status: 400 }
           );
         }
 
-        const unstakeAmount = parseUnits(params.amount.toString(), 18);
-        console.log('💰 Unstaking:', unstakeAmount.toString(), 'TOURS');
+        console.log('💰 Unstaking position:', params.positionId);
 
         const unstakeCalls = [
           {
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function unstake(uint256 amount) external']),
+              abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
               functionName: 'unstake',
-              args: [unstakeAmount],
+              args: [BigInt(params.positionId)],
             }) as Hex,
           },
         ];
@@ -673,8 +764,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           txHash: unstakeTxHash,
           action,
           userAddress,
-          amount: params.amount,
-          message: `Unstaked ${params.amount} TOURS successfully`,
+          positionId: params.positionId,
+          message: `Unstaked position #${params.positionId} successfully`,
         });
 
       // ==================== CLAIM REWARDS ====================
