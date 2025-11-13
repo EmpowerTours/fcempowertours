@@ -41,37 +41,53 @@ export default function PassportPage() {
     setSuccess('');
 
     try {
-      console.log('🎫 Step 1: Approving TOURS...');
-      
-      // First, approve the passport contract to spend TOURS
-      const approveRes = await fetch('/api/approve-tours', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: '100' }),
-      });
+      console.log('🎫 Minting passport via delegation API (gasless)...');
 
-      if (!approveRes.ok) {
-        const approveErr = await approveRes.json();
-        throw new Error(`Approval failed: ${approveErr.error}`);
+      // ✅ Check for existing delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+                                delegationData.delegation &&
+                                Array.isArray(delegationData.delegation.permissions) &&
+                                delegationData.delegation.permissions.includes('mint_passport');
+
+      if (!hasValidDelegation) {
+        console.log('📝 Creating delegation...');
+        setSuccess('⏳ Setting up gasless transactions...');
+
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+        console.log('✅ Delegation created');
       }
 
-      const approveData = await approveRes.json();
-      console.log('✅ TOURS approved:', approveData.txHash);
-      setSuccess('✅ Step 1/2: Approved TOURS\n⏳ Minting passport...');
-      
-      // Wait for blockchain
-      await new Promise(r => setTimeout(r, 2000));
+      setSuccess('⏳ Minting passport (FREE - we pay gas)...');
 
-      console.log('🎫 Step 2: Minting passport...');
-
-      const response = await fetch('/api/mint-passport', {
+      // ✅ Execute mint via delegation API
+      const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fid: farcasterFid,
           userAddress: walletAddress,
-          countryCode: selectedCountry.code,
-          countryName: selectedCountry.name,
+          action: 'mint_passport',
+          params: {
+            countryCode: selectedCountry.code,
+            countryName: selectedCountry.name,
+            fid: farcasterFid
+          }
         }),
       });
 
@@ -81,7 +97,11 @@ export default function PassportPage() {
       }
 
       const { txHash, tokenId } = await response.json();
-      setSuccess(`🎉 Passport #${tokenId} minted!\n\n${txHash.slice(0, 10)}...`);
+      setSuccess(`🎉 Passport minted (FREE)!
+${selectedCountry.flag} ${selectedCountry.name}
+Token #${tokenId || 'pending'}
+TX: ${txHash?.slice(0, 10)}...
+Gasless - we paid the gas!`);
       setSelectedCountryCode('');
     } catch (err: any) {
       console.error('❌ Error:', err);
