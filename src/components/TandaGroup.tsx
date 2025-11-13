@@ -59,18 +59,37 @@ export function TandaGroup() {
     }
 
     try {
-      const amount = parseUnits(createGroupForm.contributionAmount, 18);
-      createGroup(
-        createGroupForm.name,
-        amount,
-        BigInt(createGroupForm.frequency),
-        BigInt(createGroupForm.maxMembers)
-      );
-      toast.success('Creating Tanda group...');
+      toast.loading('Creating Tanda group...');
+
+      // Call delegation API for gasless group creation
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'create_tanda_group',
+          params: {
+            name: createGroupForm.name,
+            contributionAmount: createGroupForm.contributionAmount,
+            frequency: createGroupForm.frequency,
+            maxMembers: createGroupForm.maxMembers
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Group creation failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Created group "${createGroupForm.name}"! (Gasless)`);
       setCreateGroupForm({ name: '', contributionAmount: '', frequency: '', maxMembers: '' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating group:', error);
-      toast.error('Failed to create group');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to create group');
     }
   };
 
@@ -81,11 +100,33 @@ export function TandaGroup() {
     }
 
     try {
-      joinGroup(groupId);
-      toast.success('Joining group...');
-    } catch (error) {
+      toast.loading('Joining group...');
+
+      // Call delegation API for gasless group joining
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'join_tanda_group',
+          params: {
+            groupId: groupId.toString()
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Joining group failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Joined group #${groupId}! (Gasless)`);
+    } catch (error: any) {
       console.error('Error joining group:', error);
-      toast.error('Failed to join group');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to join group');
     }
   };
 
@@ -96,11 +137,33 @@ export function TandaGroup() {
     }
 
     try {
-      contribute(groupId);
-      toast.success('Contributing to group...');
-    } catch (error) {
+      toast.loading('Contributing to group...');
+
+      // Call delegation API for gasless contribution
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'contribute_tanda',
+          params: {
+            groupId: groupId.toString()
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Contribution failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Contributed to group #${groupId}! (Gasless)`);
+    } catch (error: any) {
       console.error('Error contributing:', error);
-      toast.error('Failed to contribute');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to contribute');
     }
   };
 
@@ -111,11 +174,33 @@ export function TandaGroup() {
     }
 
     try {
-      claimPayout(groupId);
-      toast.success('Claiming payout...');
-    } catch (error) {
+      toast.loading('Claiming payout...');
+
+      // Call delegation API for gasless payout claim
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'claim_tanda_payout',
+          params: {
+            groupId: groupId.toString()
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Claiming payout failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Claimed payout from group #${groupId}! (Gasless)`);
+    } catch (error: any) {
       console.error('Error claiming payout:', error);
-      toast.error('Failed to claim payout');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to claim payout');
     }
   };
 

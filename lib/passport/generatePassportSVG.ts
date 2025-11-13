@@ -64,22 +64,31 @@ export function generatePassportSVG(countryCode: string, countryName: string, to
   <text x="320" y="195" font-family="Arial, sans-serif" font-size="12" fill="#ef4444" text-anchor="middle">
     #${tokenId}
   </text>
-  
+
+  <!-- Staking Badge -->
+  <rect x="60" y="160" width="100" height="50" fill="#10b981" rx="8" opacity="0.9"/>
+  <text x="110" y="180" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">
+    ⚡ STAKEABLE
+  </text>
+  <text x="110" y="200" font-family="Arial, sans-serif" font-size="9" fill="#d1fae5" text-anchor="middle">
+    Earn Rewards
+  </text>
+
   <!-- Bottom Info -->
   <rect x="20" y="440" width="360" height="140" fill="#1e40af" rx="8" opacity="0.3"/>
-  <text x="200" y="475" font-family="Arial, sans-serif" font-size="14" fill="#93c5fd" text-anchor="middle">
+  <text x="200" y="470" font-family="Arial, sans-serif" font-size="14" fill="#93c5fd" text-anchor="middle">
     Token ID: ${tokenId}
   </text>
-  <text x="200" y="500" font-family="Arial, sans-serif" font-size="13" fill="#60a5fa" text-anchor="middle">
-    ${continent}
+  <text x="200" y="492" font-family="Arial, sans-serif" font-size="12" fill="#60a5fa" text-anchor="middle">
+    ${continent} • Stakeable NFT
   </text>
-  <text x="200" y="525" font-family="Arial, sans-serif" font-size="12" fill="#3b82f6" text-anchor="middle">
+  <text x="200" y="515" font-family="Arial, sans-serif" font-size="11" fill="#10b981" text-anchor="middle">
+    💎 Collect Stamps • Build Credit Score
+  </text>
+  <text x="200" y="540" font-family="Arial, sans-serif" font-size="11" fill="#3b82f6" text-anchor="middle">
     Monad Testnet
   </text>
-  <text x="200" y="550" font-family="Arial, sans-serif" font-size="11" fill="#3b82f6" text-anchor="middle">
-    Minted via EmpowerTours
-  </text>
-  <text x="200" y="570" font-family="Arial, sans-serif" font-size="10" fill="#93c5fd" text-anchor="middle">
+  <text x="200" y="560" font-family="Arial, sans-serif" font-size="10" fill="#93c5fd" text-anchor="middle">
     ${new Date().toLocaleDateString()}
   </text>
   
@@ -108,7 +117,7 @@ export function generatePassportMetadata(
 
   return {
     name: `EmpowerTours Passport - ${countryName}`,
-    description: `Digital passport NFT for ${countryName}. Unlock travel experiences and collect stamps as you explore the world with EmpowerTours. Part of a collection representing all 195 countries.`,
+    description: `Stakeable digital passport NFT for ${countryName}. Stake your passport to earn rewards and build your credit score. Collect venue stamps as you explore events. Unlock DeFi features and exclusive benefits. Part of a collection representing all 195 countries on Monad Testnet.`,
     image: imageDataURI, // SVG embedded as base64
     external_url: `https://fcempowertours-production-6551.up.railway.app/passport/${tokenId}`,
     attributes: [
@@ -127,6 +136,14 @@ export function generatePassportMetadata(
       {
         trait_type: 'Region',
         value: country?.region || 'Unknown',
+      },
+      {
+        trait_type: 'Type',
+        value: 'Stakeable NFT',
+      },
+      {
+        trait_type: 'Features',
+        value: 'Staking, Credit Score, Venue Stamps',
       },
       {
         trait_type: 'Token ID',

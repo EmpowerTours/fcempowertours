@@ -44,11 +44,34 @@ export function EventList() {
     }
 
     try {
-      purchaseTicket(eventId, quantity);
-      toast.success('Purchasing ticket...');
-    } catch (error) {
+      toast.loading('Purchasing ticket...');
+
+      // Call delegation API for gasless ticket purchase
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'purchase_event_ticket',
+          params: {
+            eventId: eventId.toString(),
+            quantity: quantity.toString()
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Ticket purchase failed');
+      }
+
+      toast.dismiss();
+      toast.success(`Purchased ticket for Event #${eventId}! (Gasless)`);
+    } catch (error: any) {
       console.error('Error purchasing ticket:', error);
-      toast.error('Failed to purchase ticket');
+      toast.dismiss();
+      toast.error(error.message || 'Failed to purchase ticket');
     }
   };
 
