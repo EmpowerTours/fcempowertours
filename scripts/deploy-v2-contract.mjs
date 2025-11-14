@@ -58,8 +58,9 @@ async function compileContract() {
       },
       optimizer: {
         enabled: true,
-        runs: 200,
+        runs: 10000,  // Higher runs = smaller deployment size
       },
+      viaIR: true,  // Use new IR-based compiler for better optimization
     },
   };
 
@@ -132,6 +133,7 @@ async function deployContract() {
       abi,
       bytecode,
       args: [TOURS_TOKEN, KINTSU, TOKEN_SWAP, DRAGON_ROUTER, KEEPER],
+      gas: 15000000n,  // Manual gas limit to bypass estimation
     });
 
     console.log('✅ Deployment transaction sent!');
