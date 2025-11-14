@@ -36,18 +36,25 @@ export function StakeTours() {
   const handleStake = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log('🎯 [STAKE] handleStake called');
+    console.log('🎯 [STAKE] walletAddress:', walletAddress);
+    console.log('🎯 [STAKE] stakeAmount:', stakeAmount);
+
     if (!walletAddress) {
-      toast.error('Please connect your wallet');
+      console.warn('⚠️ [STAKE] No wallet address');
+      toast.error('Please connect your wallet first. Visit your profile to connect.');
       return;
     }
 
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) {
-      toast.error('Please enter a valid amount');
+      console.warn('⚠️ [STAKE] Invalid amount:', stakeAmount);
+      toast.error('Please enter a valid amount greater than 0');
       return;
     }
 
     try {
-      toast.loading('Staking TOURS...');
+      console.log('🔄 [STAKE] Starting stake process...');
+      toast.loading('Staking TOURS tokens (gasless)...');
 
       // Call delegation API for gasless staking
       const response = await fetch('/api/execute-delegated', {
@@ -62,19 +69,26 @@ export function StakeTours() {
         })
       });
 
+      console.log('📥 [STAKE] Response status:', response.status);
       const data = await response.json();
+      console.log('📥 [STAKE] Response data:', data);
 
       if (!data.success) {
         throw new Error(data.error || 'Staking failed');
       }
 
       toast.dismiss();
-      toast.success(`Staked ${stakeAmount} TOURS! (Gasless)`);
+      toast.success(`Successfully staked ${stakeAmount} TOURS! (Gasless transaction)`);
       setStakeAmount('');
+
+      // Refresh the page data after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error: any) {
-      console.error('Error staking:', error);
+      console.error('❌ [STAKE] Error staking:', error);
       toast.dismiss();
-      toast.error(error.message || 'Failed to stake');
+      toast.error(error.message || 'Failed to stake. Please try again.');
     }
   };
 
@@ -160,6 +174,31 @@ export function StakeTours() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+      {/* Connection Status Banner */}
+      {!walletAddress && (
+        <div className="md:col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-2 text-yellow-800">
+            <span className="text-xl">⚠️</span>
+            <div>
+              <p className="font-semibold">Wallet Not Connected</p>
+              <p className="text-sm">Please visit your profile page to connect your wallet first.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {walletAddress && (
+        <div className="md:col-span-2 bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-2 text-green-800">
+            <span className="text-xl">✅</span>
+            <div>
+              <p className="font-semibold">Wallet Connected</p>
+              <p className="text-sm font-mono">{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Card */}
       <Card className="p-6">
         <h2 className="text-2xl font-bold mb-4">Staking Stats</h2>
