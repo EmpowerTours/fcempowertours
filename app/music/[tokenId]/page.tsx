@@ -191,16 +191,7 @@ export default function MusicPage() {
       // PRIORITY 2: If not in Envio, try blockchain directly
       console.log('⏳ Not in Envio yet, checking blockchain...');
       const client = createPublicClient({
-        chain: {
-          id: 20143,
-          name: 'Monad Testnet',
-          network: 'monad-testnet',
-          nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-          rpcUrls: {
-            default: { http: ['https://testnet-rpc.monad.xyz'] },
-            public: { http: ['https://testnet-rpc.monad.xyz'] },
-          },
-        },
+        chain: monadTestnet,
         transport: http(),
       });
 

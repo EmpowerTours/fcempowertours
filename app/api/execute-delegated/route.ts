@@ -79,21 +79,9 @@ export async function POST(req: NextRequest) {
         // ✅ Check if user has enough TOURS tokens in their Safe wallet
         try {
           const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
           const client = createPublicClient({
-            chain: {
-              id: 20143,
-              name: 'Monad Testnet',
-              network: 'monad-testnet',
-              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-              rpcUrls: {
-                default: {
-                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
-                },
-                public: {
-                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
-                },
-              },
-            },
+            chain: monadTestnet,
             transport: http(),
           });
 
@@ -142,6 +130,16 @@ export async function POST(req: NextRequest) {
           // Continue with mint attempt - don't block on balance check failure
         }
 
+        // 🔍 DEBUG: Log the actual addresses and amounts involved
+        console.log('🔍 [MINT-DEBUG] Transaction details:', {
+          safeAccount: SAFE_ACCOUNT,
+          userAddress: userAddress,
+          toursToken: TOURS_TOKEN,
+          passportNFT: PASSPORT_NFT,
+          mintPrice: MINT_PRICE.toString(),
+          countryCode: params?.countryCode || 'US',
+        });
+
         const mintCalls = [
           {
             to: TOURS_TOKEN,
@@ -172,7 +170,7 @@ export async function POST(req: NextRequest) {
           },
         ];
 
-        console.log('💳 Executing batched mint transaction...');
+        console.log('💳 Executing batched mint transaction (Safe pays, NFT goes to user)...');
         const mintTxHash = await sendSafeTransaction(mintCalls);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
@@ -275,21 +273,9 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         let extractedTokenId = '0';
         try {
           const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
           const client = createPublicClient({
-            chain: {
-              id: 20143,
-              name: 'Monad Testnet',
-              network: 'monad-testnet',
-              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-              rpcUrls: {
-                default: {
-                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
-                },
-                public: {
-                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
-                },
-              },
-            },
+            chain: monadTestnet,
             transport: http(),
           });
 
@@ -763,21 +749,9 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         let positionId = '0';
         try {
           const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
           const client = createPublicClient({
-            chain: {
-              id: 20143,
-              name: 'Monad Testnet',
-              network: 'monad-testnet',
-              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-              rpcUrls: {
-                default: {
-                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
-                },
-                public: {
-                  http: [process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz'],
-                },
-              },
-            },
+            chain: monadTestnet,
             transport: http(),
           });
 
