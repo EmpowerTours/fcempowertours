@@ -60,12 +60,12 @@ export async function GET(req: NextRequest) {
 
     // Check following relationship - need to paginate through all following
     let isFollowing = false;
-    let cursor = null;
+    let cursor: string | null = null;
     let attempts = 0;
     const maxAttempts = 10; // Limit to prevent infinite loops
 
     while (attempts < maxAttempts && !isFollowing) {
-      const followingUrl = cursor
+      const followingUrl: string = cursor
         ? `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=100&cursor=${cursor}`
         : `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=100`;
 
