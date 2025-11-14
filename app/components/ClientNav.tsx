@@ -26,13 +26,12 @@ export default function ClientNav() {
   const navItems = [
     { path: '/discover', label: 'Discover', icon: '🎵' },
     { path: '/music', label: 'Music', icon: '🎤' },
-    { path: '/staking', label: 'Staking', icon: '💰' },
+    { path: '/passport-staking', label: 'Staking', icon: '💰' },
     { path: '/events', label: 'Events', icon: '🎉' },
     { path: '/tanda', label: 'Tanda', icon: '🤝' },
     { path: '/credit-score', label: 'Score', icon: '⭐' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/passport', label: 'Mint', icon: '✈️' },
-    { path: '/passport-staking', label: 'P-Stake', icon: '🎫' },
     { path: '/market', label: 'Market', icon: '💱' },
   ];
 

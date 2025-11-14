@@ -1,26 +1,27 @@
 'use client';
 
-import { StakeTours } from '@/src/components/StakeTours';
-import { PortfolioDisplay } from '@/src/components/PortfolioDisplay';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function StakingPage() {
+// ✨ CONSOLIDATED STAKING EXPERIENCE
+// This page redirects to /passport-staking because:
+// 1. Everyone using the app has a passport (required by PassportGate)
+// 2. Passport staking provides SAME yield + credit score benefits
+// 3. No reason to stake without passport - you'd miss out on benefits!
+
+export default function StakingRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to passport-staking page
+    router.replace('/passport-staking');
+  }, [router]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">💰 Staking & Yield</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Stake your TOURS tokens to earn rewards and increase your credit score
-          </p>
-        </div>
-
-        {/* Portfolio Overview */}
-        <PortfolioDisplay />
-
-        {/* Staking Interface */}
-        <div className="mt-8">
-          <StakeTours />
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin text-6xl mb-4">🎫</div>
+        <p className="text-gray-600 text-lg">Redirecting to Passport Staking...</p>
       </div>
     </div>
   );
