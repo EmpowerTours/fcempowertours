@@ -87,28 +87,41 @@ export function useGeolocation() {
       }
     };
 
-    const errorHandler = (err: GeolocationPositionError) => {
+    const errorHandler = async (err: GeolocationPositionError) => {
       console.error('❌ Geolocation error:', err.code, err.message);
 
       let errorMsg = 'Unable to get location';
       switch (err.code) {
         case err.PERMISSION_DENIED:
-          errorMsg = 'Location permission denied. Please enable location access in your browser settings.';
+          errorMsg = 'Location permission denied. Using IP-based detection...';
           break;
         case err.POSITION_UNAVAILABLE:
-          errorMsg = 'Location information is unavailable.';
+          errorMsg = 'Location information is unavailable. Using IP-based detection...';
           break;
         case err.TIMEOUT:
-          errorMsg = 'Location request timed out.';
+          errorMsg = 'Location request timed out. Using IP-based detection...';
           break;
       }
 
-      setError(errorMsg);
-      setLoading(false);
-
-      // Fallback to IP-based detection
+      // ✅ FIX: Fallback to IP-based detection and update state
       console.log('⚠️ Falling back to IP-based location detection...');
-      fetchIPBasedLocation();
+      const ipLocation = await fetchIPBasedLocation();
+
+      if (ipLocation) {
+        setLocation(ipLocation);
+        setError(null);
+      } else {
+        setError(errorMsg);
+        // Set default location if all else fails
+        setLocation({
+          country: 'US',
+          countryName: 'United States',
+          latitude: 0,
+          longitude: 0,
+        });
+      }
+
+      setLoading(false);
     };
 
     // Request user location with high accuracy
@@ -123,14 +136,27 @@ export function useGeolocation() {
 }
 
 // Fallback: IP-based geolocation
-async function fetchIPBasedLocation() {
+async function fetchIPBasedLocation(): Promise<GeolocationData | null> {
   try {
     console.log('🌐 Using IP-based geolocation fallback...');
     const response = await fetch('/api/geo');
     if (response.ok) {
       const data = await response.json();
-      console.log('✅ IP-based location:', data);
-      return data;
+      console.log('✅ IP-based location response:', data);
+
+      // Transform API response to GeolocationData format
+      // API returns: { country: "US", country_name: "United States", city: "...", region: "..." }
+      const locationData: GeolocationData = {
+        country: data.country || 'US',
+        countryName: data.country_name || 'United States',
+        latitude: 0, // IP-based doesn't provide exact coordinates
+        longitude: 0,
+        city: data.city,
+        region: data.region,
+      };
+
+      console.log('✅ Formatted IP-based location:', locationData);
+      return locationData;
     }
   } catch (error) {
     console.error('❌ IP-based geolocation failed:', error);

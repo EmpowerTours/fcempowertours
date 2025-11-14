@@ -44,6 +44,20 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
     }
   }, [location, selectedCountryCode]);
 
+  // 🐛 DEBUG: Log button state to diagnose desktop issue
+  useEffect(() => {
+    if (currentStep === 'requirements' && isFollowing && hasCasted) {
+      console.log('🔍 [BUTTON-DEBUG] Mint button state:', {
+        isMinting,
+        geoLoading,
+        selectedCountryCode,
+        hasCountryCode: !!selectedCountryCode,
+        isDisabled: isMinting || geoLoading || !selectedCountryCode,
+        location: location ? { country: location.country, countryName: location.countryName } : 'null'
+      });
+    }
+  }, [isMinting, geoLoading, selectedCountryCode, location, currentStep, isFollowing, hasCasted]);
+
   // Check if user has passport
   useEffect(() => {
     if (!balanceLoading && hasPassport) {
@@ -454,8 +468,21 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
               disabled={isMinting || geoLoading || !selectedCountryCode}
               className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg"
             >
-              {isMinting ? '⏳ Minting...' : geoLoading ? '📍 Detecting location...' : '🎫 Mint Passport (FREE)'}
+              {isMinting
+                ? '⏳ Minting...'
+                : geoLoading
+                  ? '📍 Detecting location...'
+                  : !selectedCountryCode
+                    ? '📍 Waiting for location...'
+                    : '🎫 Mint Passport (FREE)'}
             </button>
+          )}
+
+          {/* 🐛 DEBUG: Show button state for debugging */}
+          {isFollowing && hasCasted && (isMinting || geoLoading || !selectedCountryCode) && (
+            <div className="mt-2 text-xs text-white/50 text-center">
+              Debug: {isMinting ? 'Minting in progress' : geoLoading ? 'Geolocation loading...' : !selectedCountryCode ? 'No country code yet' : 'Unknown'}
+            </div>
           )}
 
           {/* Refresh buttons */}
