@@ -204,16 +204,30 @@ export async function sendSafeTransaction(
     console.log('   Max fee per gas:', maxFeePerGas.toString(), 'wei');
     console.log('   Max priority fee:', maxPriorityFeePerGas.toString(), 'wei');
 
+    // ✅ CRITICAL FIX: Provide initial gas limits for estimation
+    // Without these, the bundler simulation may fail with insufficient gas
+    const initialGasLimits = {
+      callGasLimit: 500_000n, // Gas for the actual execution
+      verificationGasLimit: 500_000n, // Gas for signature verification
+      preVerificationGas: 100_000n, // Gas for bundler overhead
+    };
+
     // Try to manually estimate gas first to get better error messages
+    let estimatedGas;
     try {
-      console.log('🔍 Attempting manual gas estimation...');
-      const gasEstimate = await smartAccountClient.estimateUserOperationGas({
+      console.log('🔍 Attempting manual gas estimation with initial limits...');
+      console.log('   Initial callGasLimit:', initialGasLimits.callGasLimit.toString());
+      console.log('   Initial verificationGasLimit:', initialGasLimits.verificationGasLimit.toString());
+      console.log('   Initial preVerificationGas:', initialGasLimits.preVerificationGas.toString());
+
+      estimatedGas = await smartAccountClient.estimateUserOperationGas({
         account: smartAccountClient.account,
         calls,
         maxFeePerGas,
         maxPriorityFeePerGas,
+        ...initialGasLimits,
       });
-      console.log('✅ Gas estimation successful:', JSON.stringify(gasEstimate, (_, v) =>
+      console.log('✅ Gas estimation successful:', JSON.stringify(estimatedGas, (_, v) =>
         typeof v === 'bigint' ? v.toString() : v
       ));
     } catch (gasErr: any) {
@@ -236,12 +250,25 @@ export async function sendSafeTransaction(
       throw new Error(`Gas estimation failed: ${gasErr.shortMessage || gasErr.message}. This usually means the transaction would revert. Check: 1) Safe has sufficient TOURS tokens, 2) Safe has correct AA modules enabled, 3) All contract addresses are valid.`);
     }
 
-    // sendUserOperation will automatically estimate gas internally
+    // ✅ Use estimated gas values (with 20% buffer for safety)
+    const gasWithBuffer = {
+      callGasLimit: (estimatedGas.callGasLimit * 120n) / 100n,
+      verificationGasLimit: (estimatedGas.verificationGasLimit * 120n) / 100n,
+      preVerificationGas: (estimatedGas.preVerificationGas * 120n) / 100n,
+    };
+
+    console.log('🚀 Using gas estimates with 20% buffer:');
+    console.log('   callGasLimit:', gasWithBuffer.callGasLimit.toString());
+    console.log('   verificationGasLimit:', gasWithBuffer.verificationGasLimit.toString());
+    console.log('   preVerificationGas:', gasWithBuffer.preVerificationGas.toString());
+
+    // sendUserOperation with explicit gas values
     const userOpHash = await smartAccountClient.sendUserOperation({
       account: smartAccountClient.account,
       calls,
       maxFeePerGas,
       maxPriorityFeePerGas,
+      ...gasWithBuffer,
     });
 
     console.log('✅ UserOperation hash:', userOpHash);
