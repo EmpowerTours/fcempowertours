@@ -29,7 +29,8 @@ const TOURS_TOKEN = getAddress('0x96aD3dEa5D1a4D3Db4e8bb7e86f0e47F02E1c48B');
 const KINTSU = getAddress('0xe1d2439b75fb9746e7Bc6cB777Ae10AA7f7ef9c5');
 const TOKEN_SWAP = getAddress('0x66090c97f4f57c8f3cb5bec90ab35f8fa68de1e2');
 const DRAGON_ROUTER = getAddress('0xc57c80c43c0daf5c40f4eb37e6db32dbfa2f09ea');
-const KEEPER = getAddress('0x37302543aeF0b06202adcb06Db36daB05F8237E9');
+// KEEPER = deployer address (same as old contract)
+const KEEPER = getAddress('0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9');
 
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || '0x054c4eb995fd41652d23d042cc3b0e7143a67c8b7f4804b09df450ca863f44d6';
 
