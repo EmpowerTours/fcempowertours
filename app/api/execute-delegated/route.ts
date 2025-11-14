@@ -879,6 +879,17 @@ View profile and collection!
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
 
+          // Check if it's an NFT whitelist issue
+          if (errorMsg.includes('Invalid NFT address')) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `The Passport NFT contract (${PASSPORT_NFT}) is not whitelisted in the V2 staking contract. Please contact the team to whitelist this NFT address, or use the owner account to call addAcceptedNFT(${PASSPORT_NFT}) on the YieldStrategy contract.`
+              },
+              { status: 400 }
+            );
+          }
+
           // Check if it's an NFT ownership issue
           if (errorMsg.includes('ERC721') || errorMsg.includes('not owner') || errorMsg.includes('does not own')) {
             return NextResponse.json(
