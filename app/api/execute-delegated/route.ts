@@ -676,6 +676,43 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const stakeAmount = parseUnits(params.amount.toString(), 18);
         console.log('💰 Staking:', stakeAmount.toString(), 'TOURS');
 
+        // ✅ CHECK: Verify Safe has enough TOURS tokens
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const toursBalance = await client.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [SAFE_ACCOUNT],
+          });
+
+          console.log('💰 Safe TOURS balance:', toursBalance.toString());
+
+          if (toursBalance < stakeAmount) {
+            const currentTours = Number(toursBalance) / 1e18;
+            const requiredTours = Number(stakeAmount) / 1e18;
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient TOURS tokens in Safe. Required: ${requiredTours} TOURS, but Safe only has ${currentTours.toFixed(4)} TOURS. Use "swap" to get more TOURS.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.error('❌ Failed to check TOURS balance:', balanceErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to verify TOURS balance: ${balanceErr.message}` },
+            { status: 500 }
+          );
+        }
+
         // ✅ Query user's passport NFTs to use as collateral (from NEW contract only)
         let nftTokenId = '0';
         try {
