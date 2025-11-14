@@ -20,7 +20,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
 
   // Check if user has any passports
   const { data: passportBalance, isLoading: balanceLoading } = useBalanceOf(walletAddress as Address);
-  const hasPassport = passportBalance !== undefined && passportBalance !== null && passportBalance > 0n;
+  const hasPassport = passportBalance !== undefined && passportBalance !== null && typeof passportBalance === 'bigint' && passportBalance > 0n;
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('');
   const [isFollowing, setIsFollowing] = useState(false);
