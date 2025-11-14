@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # V3 Contract Verification Command for Foundry
-# Run this once Foundry (forge/cast) is installed
+# This script builds the contract and verifies it on Monadscan
 
 CONTRACT_ADDRESS="0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086"
 API_KEY="FQSX86QUTQYPUNG1WJTYBNC665XPTRYD6J"
@@ -38,8 +38,53 @@ fi
 echo "✅ Foundry found: $(forge --version | head -1)"
 echo ""
 
-# Run verification
-echo "🚀 Submitting verification..."
+# Step 1: Build the contract with correct compiler version
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📦 Building contract with Solidity 0.8.20..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Try to build with specified version
+if ! forge build --force --use 0.8.20; then
+    echo ""
+    echo "❌ Build failed!"
+    echo ""
+    echo "Trying to install Solidity 0.8.20..."
+
+    # Install solc 0.8.20 using svm (Solidity Version Manager)
+    if command -v svm &> /dev/null; then
+        svm install 0.8.20
+        svm use 0.8.20
+    else
+        echo ""
+        echo "⚠️  svm not found. Installing via Foundry..."
+        # Foundry's built-in solc installation
+        forge install --no-commit foundry-rs/forge-std
+    fi
+
+    # Try building again
+    echo ""
+    echo "Retrying build..."
+    if ! forge build --force --use 0.8.20; then
+        echo ""
+        echo "❌ Build still failed!"
+        echo ""
+        echo "Please try manually:"
+        echo "  1. foundryup  # Update Foundry"
+        echo "  2. forge build --force --use 0.8.20"
+        echo ""
+        exit 1
+    fi
+fi
+
+echo ""
+echo "✅ Build successful!"
+echo ""
+
+# Step 2: Verify the contract
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 Submitting verification to Monadscan..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 forge verify-contract \
@@ -53,11 +98,26 @@ forge verify-contract \
   "$CONTRACT_ADDRESS" \
   contracts/EmpowerToursYieldStrategyV3.sol:EmpowerToursYieldStrategyV3
 
+VERIFY_EXIT_CODE=$?
+
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Verification Complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "View contract at:"
-echo "https://testnet.monadexplorer.com/address/$CONTRACT_ADDRESS"
-echo ""
+if [ $VERIFY_EXIT_CODE -eq 0 ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "✅ Verification Complete!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "View contract at:"
+    echo "https://testnet.monadexplorer.com/address/$CONTRACT_ADDRESS"
+    echo ""
+else
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "⚠️  Verification Failed"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "This might be due to Monadscan API issues."
+    echo "You can try manual verification at:"
+    echo "https://testnet.monadexplorer.com/address/$CONTRACT_ADDRESS"
+    echo ""
+    echo "See V3_VERIFICATION_INSTRUCTIONS.md for manual steps."
+    echo ""
+fi
