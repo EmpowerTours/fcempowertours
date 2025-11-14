@@ -3,7 +3,7 @@ name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries + DeFi
 networks:
   - id: 10143
-    start_block: 41800000  # ✅ UPDATED: Block where contracts were deployed
+    start_block: 49490860  # ✅ V3 deployed: Block 49490860
     contracts:
       - name: MusicLicenseNFT
         address:
@@ -92,21 +92,29 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ NEW: YieldStrategy Contract
+      # ✅ V3: YieldStrategy Contract (NFT-gated staking)
       - name: YieldStrategy
         address:
-          - "0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866"
+          - "0x2804add55b205Ce5930D7807Ad6183D8f3345974"  # V3 deployed with Foundry
         handler: src/EventHandlers.ts
         events:
-          - event: "Staked(address indexed user, uint256 amount)"
+          - event: "Initialized(address indexed toursToken, address indexed kintsu, address indexed tokenSwap, address dragonRouter, address keeper)"
             field_selection:
               transaction_fields:
                 - hash
-          - event: "Unstaked(address indexed user, uint256 amount)"
+          - event: "NFTWhitelisted(address indexed nftAddress, bool accepted)"
             field_selection:
               transaction_fields:
                 - hash
-          - event: "RewardsClaimed(address indexed user, uint256 amount)"
+          - event: "StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 toursAmount, uint256 monAmount, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "StakingPositionClosed(uint256 indexed positionId, address indexed beneficiary, uint256 toursRefund, uint256 yieldShare, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "YieldHarvested(uint256 yieldMonAmount, uint256 yieldToursAmount, uint256 totalAssets, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash

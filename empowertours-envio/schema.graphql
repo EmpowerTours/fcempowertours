@@ -113,46 +113,56 @@ type ItineraryPurchase @entity {
   txHash: String!
 }
 
-# ✅ NEW: YieldStrategy Staking Entities
-type StakeEvent @entity {
+# ✅ V3: YieldStrategy NFT-Gated Staking Entities
+type StakingPosition @entity {
+  id: ID!                      # positionId
+  positionId: String!
+  nftAddress: String!
+  nftTokenId: String!
+  owner: String!
+  beneficiary: String!
+  toursAmount: BigInt!
+  monAmount: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  closedAt: Timestamp
+  toursRefund: BigInt
+  yieldShare: BigInt
+  createdTxHash: String!
+  closedTxHash: String
+  createdBlockNumber: BigInt!
+  closedBlockNumber: BigInt
+}
+
+type NFTWhitelistEvent @entity {
   id: ID!
-  user: String!
-  amount: BigInt!
-  totalStaked: BigInt!         # User's total staked after this event
+  nftAddress: String!
+  accepted: Boolean!
   timestamp: Timestamp!
   blockNumber: BigInt!
   txHash: String!
 }
 
-type UnstakeEvent @entity {
+type YieldHarvestEvent @entity {
   id: ID!
-  user: String!
-  amount: BigInt!
-  totalStaked: BigInt!         # User's total staked after this event
-  timestamp: Timestamp!
-  blockNumber: BigInt!
-  txHash: String!
-}
-
-type RewardsClaimed @entity {
-  id: ID!
-  user: String!
-  amount: BigInt!
+  yieldMonAmount: BigInt!
+  yieldToursAmount: BigInt!
+  totalAssets: BigInt!
   timestamp: Timestamp!
   blockNumber: BigInt!
   txHash: String!
 }
 
 type UserStakingStats @entity {
-  id: ID!                      # user address
+  id: ID!                      # user address (beneficiary)
   user: String!
-  totalStaked: BigInt!
-  totalRewardsClaimed: BigInt!
-  stakeCount: Int!
-  unstakeCount: Int!
+  activePositions: Int!
+  totalPositionsCreated: Int!
+  totalPositionsClosed: Int!
+  totalToursStaked: BigInt!
+  totalYieldEarned: BigInt!
   lastStakeTime: Timestamp
-  lastUnstakeTime: Timestamp
-  lastRewardClaim: Timestamp
+  lastWithdrawTime: Timestamp
 }
 
 # ✅ NEW: DemandSignalEngine Entities

@@ -733,146 +733,171 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
 });
 
 // ============================================
-// YIELD STRATEGY (STAKING) EVENTS
+// YIELD STRATEGY V3 (NFT-GATED STAKING) EVENTS
 // ============================================
 
-YieldStrategy.Staked.handler(async ({ event, context }) => {
-  const { user, amount } = event.params;
+YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
+  const { positionId, nftAddress, nftTokenId, owner, beneficiary, toursAmount, monAmount, timestamp } = event.params;
 
-  const stakeEventId = `stake-${event.block.number}-${event.logIndex}`;
-  const userId = user.toLowerCase();
+  const stakingPositionId = positionId.toString();
+  const beneficiaryId = beneficiary.toLowerCase();
 
-  // Get user's current staking stats
-  let userStakingStats = await context.UserStakingStats.get(userId);
-  const currentStaked = userStakingStats ? userStakingStats.totalStaked : BigInt(0);
-  const newTotalStaked = currentStaked + amount;
-
-  // Create stake event
-  const stakeEvent = {
-    id: stakeEventId,
-    user: userId,
-    amount: amount,
-    totalStaked: newTotalStaked,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
+  // Create staking position
+  const stakingPosition = {
+    id: stakingPositionId,
+    positionId: stakingPositionId,
+    nftAddress: nftAddress.toLowerCase(),
+    nftTokenId: nftTokenId.toString(),
+    owner: owner.toLowerCase(),
+    beneficiary: beneficiaryId,
+    toursAmount: toursAmount,
+    monAmount: monAmount,
+    active: true,
+    createdAt: new Date(Number(timestamp) * 1000),
+    closedAt: undefined,
+    toursRefund: undefined,
+    yieldShare: undefined,
+    createdTxHash: event.transaction.hash,
+    closedTxHash: undefined,
+    createdBlockNumber: BigInt(event.block.number),
+    closedBlockNumber: undefined,
   };
 
-  await context.StakeEvent.set(stakeEvent);
+  await context.StakingPosition.set(stakingPosition);
 
   // Update user staking stats
+  let userStakingStats = await context.UserStakingStats.get(beneficiaryId);
+
   if (userStakingStats) {
     await context.UserStakingStats.set({
       ...userStakingStats,
-      totalStaked: newTotalStaked,
-      stakeCount: userStakingStats.stakeCount + 1,
-      lastStakeTime: new Date(event.block.timestamp * 1000),
+      activePositions: userStakingStats.activePositions + 1,
+      totalPositionsCreated: userStakingStats.totalPositionsCreated + 1,
+      totalToursStaked: userStakingStats.totalToursStaked + toursAmount,
+      lastStakeTime: new Date(Number(timestamp) * 1000),
     });
   } else {
     await context.UserStakingStats.set({
-      id: userId,
-      user: userId,
-      totalStaked: amount,
-      totalRewardsClaimed: BigInt(0),
-      stakeCount: 1,
-      unstakeCount: 0,
-      lastStakeTime: new Date(event.block.timestamp * 1000),
-      lastUnstakeTime: undefined,
-      lastRewardClaim: undefined,
+      id: beneficiaryId,
+      user: beneficiaryId,
+      activePositions: 1,
+      totalPositionsCreated: 1,
+      totalPositionsClosed: 0,
+      totalToursStaked: toursAmount,
+      totalYieldEarned: BigInt(0),
+      lastStakeTime: new Date(Number(timestamp) * 1000),
+      lastWithdrawTime: undefined,
     });
   }
 
   // Update global stats
   let globalStats = await context.GlobalStats.get("global");
   if (globalStats) {
+    const isNewStaker = !userStakingStats;
     await context.GlobalStats.set({
       ...globalStats,
-      totalStaked: (globalStats.totalStaked || BigInt(0)) + amount,
-      totalStakers: userStakingStats ? globalStats.totalStakers || 0 : (globalStats.totalStakers || 0) + 1,
+      totalStaked: (globalStats.totalStaked || BigInt(0)) + toursAmount,
+      totalStakers: isNewStaker ? (globalStats.totalStakers || 0) + 1 : (globalStats.totalStakers || 0),
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
   }
 
-  context.log.info(`💰 User ${user} staked ${amount.toString()} TOURS. New total: ${newTotalStaked.toString()}`);
+  context.log.info(`💰 Staking position #${positionId} created for ${beneficiary} - ${toursAmount.toString()} TOURS (NFT: ${nftAddress}#${nftTokenId})`);
 });
 
-YieldStrategy.Unstaked.handler(async ({ event, context }) => {
-  const { user, amount } = event.params;
+YieldStrategy.StakingPositionClosed.handler(async ({ event, context }) => {
+  const { positionId, beneficiary, toursRefund, yieldShare, timestamp } = event.params;
 
-  const unstakeEventId = `unstake-${event.block.number}-${event.logIndex}`;
-  const userId = user.toLowerCase();
+  const stakingPositionId = positionId.toString();
+  const beneficiaryId = beneficiary.toLowerCase();
 
-  // Get user's current staking stats
-  let userStakingStats = await context.UserStakingStats.get(userId);
-  const currentStaked = userStakingStats ? userStakingStats.totalStaked : BigInt(0);
-  const newTotalStaked = currentStaked - amount;
+  // Update staking position
+  const stakingPosition = await context.StakingPosition.get(stakingPositionId);
 
-  // Create unstake event
-  const unstakeEvent = {
-    id: unstakeEventId,
-    user: userId,
-    amount: amount,
-    totalStaked: newTotalStaked >= BigInt(0) ? newTotalStaked : BigInt(0),
+  if (stakingPosition) {
+    await context.StakingPosition.set({
+      ...stakingPosition,
+      active: false,
+      closedAt: new Date(Number(timestamp) * 1000),
+      toursRefund: toursRefund,
+      yieldShare: yieldShare,
+      closedTxHash: event.transaction.hash,
+      closedBlockNumber: BigInt(event.block.number),
+    });
+
+    // Update user staking stats
+    let userStakingStats = await context.UserStakingStats.get(beneficiaryId);
+
+    if (userStakingStats) {
+      await context.UserStakingStats.set({
+        ...userStakingStats,
+        activePositions: userStakingStats.activePositions > 0 ? userStakingStats.activePositions - 1 : 0,
+        totalPositionsClosed: userStakingStats.totalPositionsClosed + 1,
+        totalYieldEarned: userStakingStats.totalYieldEarned + yieldShare,
+        lastWithdrawTime: new Date(Number(timestamp) * 1000),
+      });
+    }
+
+    // Update global stats
+    let globalStats = await context.GlobalStats.get("global");
+    if (globalStats) {
+      const newGlobalStaked = (globalStats.totalStaked || BigInt(0)) - stakingPosition.toursAmount;
+      await context.GlobalStats.set({
+        ...globalStats,
+        totalStaked: newGlobalStaked >= BigInt(0) ? newGlobalStaked : BigInt(0),
+        lastUpdated: new Date(event.block.timestamp * 1000),
+      });
+    }
+
+    context.log.info(`💸 Staking position #${positionId} closed for ${beneficiary} - Refund: ${toursRefund.toString()}, Yield: ${yieldShare.toString()}`);
+  }
+});
+
+YieldStrategy.NFTWhitelisted.handler(async ({ event, context }) => {
+  const { nftAddress, accepted } = event.params;
+
+  const whitelistEventId = `whitelist-${event.block.number}-${event.logIndex}`;
+
+  // Create NFT whitelist event
+  const nftWhitelistEvent = {
+    id: whitelistEventId,
+    nftAddress: nftAddress.toLowerCase(),
+    accepted: accepted,
     timestamp: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   };
 
-  await context.UnstakeEvent.set(unstakeEvent);
+  await context.NFTWhitelistEvent.set(nftWhitelistEvent);
 
-  // Update user staking stats
-  if (userStakingStats) {
-    await context.UserStakingStats.set({
-      ...userStakingStats,
-      totalStaked: newTotalStaked >= BigInt(0) ? newTotalStaked : BigInt(0),
-      unstakeCount: userStakingStats.unstakeCount + 1,
-      lastUnstakeTime: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    const newGlobalStaked = (globalStats.totalStaked || BigInt(0)) - amount;
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalStaked: newGlobalStaked >= BigInt(0) ? newGlobalStaked : BigInt(0),
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`💸 User ${user} unstaked ${amount.toString()} TOURS. New total: ${newTotalStaked.toString()}`);
+  context.log.info(`${accepted ? '✅' : '❌'} NFT ${nftAddress} ${accepted ? 'whitelisted' : 'removed from whitelist'}`);
 });
 
-YieldStrategy.RewardsClaimed.handler(async ({ event, context }) => {
-  const { user, amount } = event.params;
+YieldStrategy.YieldHarvested.handler(async ({ event, context }) => {
+  const { yieldMonAmount, yieldToursAmount, totalAssets, timestamp } = event.params;
 
-  const rewardId = `reward-${event.block.number}-${event.logIndex}`;
-  const userId = user.toLowerCase();
+  const harvestEventId = `harvest-${event.block.number}-${event.logIndex}`;
 
-  // Create rewards claimed event
-  const rewardsClaimed = {
-    id: rewardId,
-    user: userId,
-    amount: amount,
-    timestamp: new Date(event.block.timestamp * 1000),
+  // Create yield harvest event
+  const yieldHarvestEvent = {
+    id: harvestEventId,
+    yieldMonAmount: yieldMonAmount,
+    yieldToursAmount: yieldToursAmount,
+    totalAssets: totalAssets,
+    timestamp: new Date(Number(timestamp) * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   };
 
-  await context.RewardsClaimed.set(rewardsClaimed);
+  await context.YieldHarvestEvent.set(yieldHarvestEvent);
 
-  // Update user staking stats
-  let userStakingStats = await context.UserStakingStats.get(userId);
-  if (userStakingStats) {
-    await context.UserStakingStats.set({
-      ...userStakingStats,
-      totalRewardsClaimed: userStakingStats.totalRewardsClaimed + amount,
-      lastRewardClaim: new Date(event.block.timestamp * 1000),
-    });
-  }
+  context.log.info(`🌾 Yield harvested - MON: ${yieldMonAmount.toString()}, TOURS: ${yieldToursAmount.toString()}, Total Assets: ${totalAssets.toString()}`);
+});
 
-  context.log.info(`🎁 User ${user} claimed ${amount.toString()} TOURS in rewards`);
+YieldStrategy.Initialized.handler(async ({ event, context }) => {
+  const { toursToken, kintsu, tokenSwap, dragonRouter, keeper } = event.params;
+
+  context.log.info(`🚀 YieldStrategy V3 initialized - TOURS: ${toursToken}, Kintsu: ${kintsu}, Keeper: ${keeper}`);
 });
 
 // ============================================
