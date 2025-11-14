@@ -377,16 +377,29 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // ============================================
 
 PassportNFT.PassportMinted.handler(async ({ event, context }) => {
-  // ✅ v2 event only has tokenId and to (no country data)
-  const { tokenId, to } = event.params;
+  const { tokenId, owner, countryCode, countryName, region, continent } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+
+  // ✅ CRITICAL FIX: Normalize countryCode to uppercase for consistency
+  const normalizedCountryCode = countryCode.toUpperCase();
+
+  // ✅ VALIDATION: Ensure countryCode is valid
+  if (!normalizedCountryCode || normalizedCountryCode.length !== 2) {
+    context.log.error(
+      `❌ Invalid countryCode for passport #${tokenId}: "${countryCode}" (normalized: "${normalizedCountryCode}")`
+    );
+  }
 
   const passportNFT = {
     id: passportNFTId,
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
-    owner: to.toLowerCase(),
+    owner: owner.toLowerCase(),
+    countryCode: normalizedCountryCode, // ✅ FIX: Store as uppercase
+    countryName: countryName,
+    region: region,
+    continent: continent,
     tokenURI: "",
     stakedAmount: BigInt(0),
     stampCount: 0,
@@ -399,7 +412,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
 
   await context.PassportNFT.set(passportNFT);
 
-  const userId = to.toLowerCase();
+  const userId = owner.toLowerCase();
   let userStats = await context.UserStats.get(userId);
 
   const isNewUser = !userStats;
@@ -414,7 +427,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   } else {
     await context.UserStats.set({
       id: userId,
-      address: to.toLowerCase(),
+      address: owner.toLowerCase(),
       musicNFTCount: 0,
       passportNFTCount: 1,
       itinerariesCreated: 0,
@@ -456,7 +469,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   }
 
   context.log.info(
-    `🎫 Passport NFT #${tokenId} minted for ${to.toLowerCase()}`
+    `🎫 Passport NFT #${tokenId} minted for ${owner} - ${normalizedCountryCode} ${countryName} (${region}, ${continent})`
   );
 });
 

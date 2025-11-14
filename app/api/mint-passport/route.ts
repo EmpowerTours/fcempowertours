@@ -5,7 +5,7 @@ import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/generatePassportSVG";
 import { getCountryByCode } from "@/lib/passport/countries";
 
-const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT || "0x04a8983587B79cd0a4927AE71040caf3baA613f1"; // NEW PassportNFTv2
+const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT || "0x54e935c5f1ec987bb87f36fc046cf13fb393acc8"; // NEW PassportNFTv2
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;

@@ -48,11 +48,11 @@ networks:
 
       - name: PassportNFT
         address:
-          - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ NEW: PassportNFTv2 ONLY
+          - "0x54e935c5f1ec987bb87f36fc046cf13fb393acc8"  # ✅ NEW: PassportNFTv2 with country data
         handler: src/EventHandlers.ts
         events:
-          # Passport minting (v2 - simple, no country data)
-          - event: "PassportMinted(uint256 indexed tokenId, address indexed to)"
+          # Passport minting with country data
+          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
             field_selection:
               transaction_fields:
                 - hash

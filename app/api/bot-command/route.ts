@@ -533,25 +533,28 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
           console.warn('Location detection failed, using default');
         }
 
-        // ✅ QUERY INDEXER: Check if user already owns a passport (v2 doesn't store country data)
-        console.log(`🔍 Checking if user has existing passport...`);
+        // ✅ QUERY INDEXER: Check if user already owns a passport for this country
+        console.log(`🔍 Checking if user has existing passport for ${countryCode}...`);
         try {
           const checkQuery = `
-            query CheckPassport($owner: String!, $contract: String!) {
+            query CheckPassport($owner: String!, $countryCode: String!, $contract: String!) {
               PassportNFT(
                 where: {
                   owner: { _eq: $owner }
+                  countryCode: { _eq: $countryCode }
                   contract: { _eq: $contract }
                 }
                 limit: 1
               ) {
                 tokenId
+                countryCode
+                countryName
                 contract
               }
             }
           `;
 
-          const PASSPORT_NFT_ADDRESS = '0x04a8983587B79cd0a4927AE71040caf3baA613f1'; // NEW PassportNFTv2
+          const PASSPORT_NFT_ADDRESS = '0x54e935c5f1ec987bb87f36fc046cf13fb393acc8'; // NEW PassportNFTv2
 
           const checkRes = await fetch(ENVIO_ENDPOINT, {
             method: 'POST',
@@ -560,6 +563,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
               query: checkQuery,
               variables: {
                 owner: userAddress.toLowerCase(),
+                countryCode: countryCode.toUpperCase(),
                 contract: PASSPORT_NFT_ADDRESS.toLowerCase()
               }
             })
@@ -570,17 +574,17 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
             const existingPassport = checkData.data?.PassportNFT?.[0];
 
             if (existingPassport) {
-              console.warn(`⚠️ User already owns passport:`, existingPassport);
+              console.warn(`⚠️ User already owns passport for ${countryCode}:`, existingPassport);
               return NextResponse.json({
                 success: false,
-                message: `You already own a passport!
+                message: `You already own a passport for ${countryCode} ${countryName}!
 Token #${existingPassport.tokenId}
-You can only mint one passport per wallet.
-Try "help" for other commands.`
+You can only mint one passport per country.
+Try "mint passport" from a different location or "help" for other commands.`
               });
             }
 
-            console.log(`✅ No existing passport found - proceeding with mint`);
+            console.log(`✅ No existing passport found for ${countryCode} - proceeding with mint`);
           }
         } catch (checkErr: any) {
           console.warn('⚠️ Passport duplicate check failed:', checkErr.message);

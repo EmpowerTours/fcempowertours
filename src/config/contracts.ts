@@ -21,7 +21,7 @@ export const CONTRACTS = {
     abi: YieldStrategyABI,
   },
   PassportNFTv2: {
-    address: '0x04a8983587B79cd0a4927AE71040caf3baA613f1' as Address,
+    address: '0x54e935c5f1ec987bb87f36fc046cf13fb393acc8' as Address,
     abi: PassportNFTv2ABI,
   },
   DragonRouter: {
@@ -71,7 +71,7 @@ export const toursTokenConfig = CONTRACTS.ToursToken;
 // Verification status (✅ = verified on Monad testnet)
 export const VERIFICATION_STATUS = {
   YieldStrategy: '0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866',
-  PassportNFTv2: '0x04a8983587B79cd0a4927AE71040caf3baA613f1',
+  PassportNFTv2: '✅ 0x54e935c5f1ec987bb87f36fc046cf13fb393acc8',
   DragonRouter: '0x00EA77CfCD29d461250B85D3569D0E235d8Fbd1e',
   DemandSignalEngine: '✅ 0xC2Eb75ddf31cd481765D550A91C5A63363B36817',
   SmartEventManifest: '✅ 0x5cfe8379058cA460aA60ef15051Be57dab4A651C',
