@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 const REQUIRED_CAST_TEXT = 'empowertours'; // Keywords that must be in the cast
@@ -16,18 +15,25 @@ export async function GET(req: NextRequest) {
 
     console.log(`🔍 Checking if FID ${fid} has posted about EmpowerTours...`);
 
-    // Use Neynar SDK to fetch user's casts
-    const client = new NeynarAPIClient({
-      apiKey: NEYNAR_API_KEY,
-    });
+    // Use Neynar API directly to fetch user's recent casts
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/feed?feed_type=filter&filter_type=fids&fid=${fid}&fids=${fid}&limit=25`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'api_key': NEYNAR_API_KEY,
+        },
+      }
+    );
 
-    const response = await client.fetchFeed('filter', {
-      filterType: 'fids',
-      fids: [parseInt(fid)],
-      limit: 25,
-    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Neynar API error ${response.status}:`, errorText);
+      throw new Error(`Neynar API error: ${response.status} - ${errorText}`);
+    }
 
-    const casts = response.casts || [];
+    const data = await response.json();
+    const casts = data.casts || [];
     console.log(`📊 Received ${casts.length} casts from Neynar`);
 
     // Check if any cast contains the required text (case-insensitive) OR the app URL
