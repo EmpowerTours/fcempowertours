@@ -21,7 +21,7 @@ export default function PassportGate({ children }: PassportGateProps) {
 
   // Check if user has any passports
   const { data: passportBalance, isLoading: balanceLoading } = useBalanceOf(walletAddress as Address);
-  const hasPassport = passportBalance !== undefined && passportBalance > 0n;
+  const hasPassport = passportBalance !== undefined && passportBalance !== null && passportBalance > 0n;
 
   useEffect(() => {
     // Don't check until we have a wallet address and balance has loaded
