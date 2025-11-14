@@ -14,8 +14,10 @@
 
 ## Compilation Settings
 
+**IMPORTANT:** Contract was deployed with Solidity 0.8.30 (from deploy-v3-contract.mjs using npm solc package)
+
 ```
-Compiler Version: v0.8.20+commit.a1b79de6
+Compiler Version: v0.8.30+commit.73712a01
 Optimization: Enabled
 Optimization Runs: 10000
 Via IR: Yes (CRITICAL - must be enabled!)
@@ -68,7 +70,7 @@ Look for a button that says "Verify Contract" or similar
 ```
 Contract Address: 0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086
 Contract Name: EmpowerToursYieldStrategyV3
-Compiler Version: v0.8.20+commit.a1b79de6
+Compiler Version: v0.8.30+commit.73712a01
 ```
 
 ### 5. Optimization Settings
@@ -116,7 +118,7 @@ Several helper scripts are available:
 
 ### "Bytecode does not match"
 - ✅ Make sure "Via IR" is enabled
-- ✅ Check compiler version exactly: v0.8.20+commit.a1b79de6
+- ✅ Check compiler version exactly: v0.8.30+commit.73712a01
 - ✅ Verify optimization runs: 10000
 - ✅ Ensure EVM version is "paris"
 

@@ -39,10 +39,10 @@ This script will:
 
 ### Step 1: Build the Contract
 
-First, build the contract to generate artifacts:
+First, build the contract to generate artifacts (must use 0.8.30 to match deployment):
 
 ```bash
-forge build --force --use 0.8.20
+forge build --force --use 0.8.30
 ```
 
 **If you get "solc not found" error:**
@@ -64,7 +64,7 @@ export MONAD_API_KEY="FQSX86QUTQYPUNG1WJTYBNC665XPTRYD6J"
 forge verify-contract \
   --watch \
   --chain-id 10143 \
-  --compiler-version v0.8.20+commit.a1b79de6 \
+  --compiler-version v0.8.30+commit.73712a01 \
   --optimizer-runs 10000 \
   --via-ir \
   --constructor-args $(cast abi-encode "constructor(address,address,address,address,address)" \
@@ -83,10 +83,10 @@ forge verify-contract \
 ### "No matching artifact found"
 **Cause:** Contract not built, or built with wrong compiler version.
 
-**Fix:** Run `forge build --force --use 0.8.20` first.
+**Fix:** Run `forge build --force --use 0.8.30` first.
 
 ### "Compiler version not found"
-**Cause:** Solc 0.8.20 not installed.
+**Cause:** Solc 0.8.30 not installed.
 
 **Fix:** Update Foundry:
 ```bash
@@ -112,13 +112,13 @@ https://testnet.monadexplorer.com/address/0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043
 
 2. **Build First:** Previous attempts failed because forge needs local build artifacts to verify. Now the script builds first.
 
-3. **Correct Compiler:** The script ensures Solidity 0.8.20 is used (matching foundry.toml and the contract pragma).
+3. **Correct Compiler:** The contract was deployed with Solidity 0.8.30 (from deploy-v3-contract.mjs using npm's solc package). Foundry must compile with the SAME version to match bytecode.
 
 ## Contract Details
 
 - **Address:** `0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086`
 - **Network:** Monad Testnet (Chain ID: 10143)
-- **Compiler:** v0.8.20+commit.a1b79de6
+- **Compiler:** v0.8.30+commit.73712a01 (deployed with npm solc package)
 - **Optimization:** Yes (10000 runs)
 - **Via IR:** Yes (CRITICAL - must match deployment)
 - **EVM Version:** paris

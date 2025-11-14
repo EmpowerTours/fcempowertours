@@ -40,21 +40,21 @@ echo ""
 
 # Step 1: Build the contract with correct compiler version
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📦 Building contract with Solidity 0.8.20..."
+echo "📦 Building contract with Solidity 0.8.30..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Try to build with specified version
-if ! forge build --force --use 0.8.20; then
+# Try to build with specified version (must match deployment: 0.8.30)
+if ! forge build --force --use 0.8.30; then
     echo ""
     echo "❌ Build failed!"
     echo ""
-    echo "Trying to install Solidity 0.8.20..."
+    echo "Trying to install Solidity 0.8.30..."
 
-    # Install solc 0.8.20 using svm (Solidity Version Manager)
+    # Install solc 0.8.30 using svm (Solidity Version Manager)
     if command -v svm &> /dev/null; then
-        svm install 0.8.20
-        svm use 0.8.20
+        svm install 0.8.30
+        svm use 0.8.30
     else
         echo ""
         echo "⚠️  svm not found. Installing via Foundry..."
@@ -65,13 +65,13 @@ if ! forge build --force --use 0.8.20; then
     # Try building again
     echo ""
     echo "Retrying build..."
-    if ! forge build --force --use 0.8.20; then
+    if ! forge build --force --use 0.8.30; then
         echo ""
         echo "❌ Build still failed!"
         echo ""
         echo "Please try manually:"
         echo "  1. foundryup  # Update Foundry"
-        echo "  2. forge build --force --use 0.8.20"
+        echo "  2. forge build --force --use 0.8.30"
         echo ""
         exit 1
     fi
@@ -90,7 +90,7 @@ echo ""
 forge verify-contract \
   --watch \
   --chain-id 10143 \
-  --compiler-version v0.8.20+commit.a1b79de6 \
+  --compiler-version v0.8.30+commit.73712a01 \
   --optimizer-runs 10000 \
   --via-ir \
   --constructor-args $(cast abi-encode "constructor(address,address,address,address,address)" "$TOURS_TOKEN" "$KINTSU" "$TOKEN_SWAP" "$DRAGON_ROUTER" "$KEEPER") \
