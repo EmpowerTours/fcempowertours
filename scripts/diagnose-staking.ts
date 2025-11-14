@@ -15,7 +15,7 @@ import 'dotenv/config';
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
 const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
-const YIELD_STRATEGY = '0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866' as Address;
+const YIELD_STRATEGY = '0xe1895d0A166cf750E5e8620A63445661C67112d5' as Address;
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 // Example user who's trying to stake
@@ -152,12 +152,12 @@ async function diagnoseStakingIssue() {
     const stakeAmount = parseUnits('100', 18);
 
     try {
-      // First check if the function exists
+      // First check if the function exists (V2 contract with beneficiary parameter)
       const result = await client.simulateContract({
         address: YIELD_STRATEGY,
-        abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
+        abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
         functionName: 'stakeWithNFT',
-        args: [PASSPORT_NFT, BigInt(passport.tokenId), stakeAmount],
+        args: [PASSPORT_NFT, BigInt(passport.tokenId), stakeAmount, USER_ADDRESS],
         account: SAFE_ACCOUNT,
       });
 
@@ -180,9 +180,9 @@ async function diagnoseStakingIssue() {
       try {
         const data = await client.readContract({
           address: YIELD_STRATEGY,
-          abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
+          abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
           functionName: 'stakeWithNFT',
-          args: [PASSPORT_NFT, BigInt(passport.tokenId), stakeAmount],
+          args: [PASSPORT_NFT, BigInt(passport.tokenId), stakeAmount, USER_ADDRESS],
         });
         console.log('   Unexpected success:', data);
       } catch (detailErr: any) {

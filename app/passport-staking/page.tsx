@@ -27,9 +27,6 @@ export default function PassportStakingPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [stakeTxHash, setStakeTxHash] = useState('');
-  const [isApproved, setIsApproved] = useState(false);
-  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
 
   // Fetch user's passports
   useEffect(() => {
@@ -75,91 +72,6 @@ export default function PassportStakingPage() {
 
     fetchPassports();
   }, [walletAddress]);
-
-  // Check if Safe is approved to transfer user's passports
-  useEffect(() => {
-    if (!walletAddress || typeof window === 'undefined') {
-      return;
-    }
-
-    const checkApproval = async () => {
-      try {
-        setIsCheckingApproval(true);
-        const { createPublicClient, http, parseAbi } = await import('viem');
-        const { monadTestnet } = await import('@/app/chains');
-
-        const client = createPublicClient({
-          chain: monadTestnet,
-          transport: http(),
-        });
-
-        const approved = await client.readContract({
-          address: PASSPORT_NFT as `0x${string}`,
-          abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
-          functionName: 'isApprovedForAll',
-          args: [walletAddress as `0x${string}`, SAFE_ACCOUNT as `0x${string}`],
-        });
-
-        console.log('🔍 NFT approval status:', approved);
-        setIsApproved(approved as boolean);
-      } catch (err) {
-        console.error('Error checking approval:', err);
-        setIsApproved(false);
-      } finally {
-        setIsCheckingApproval(false);
-      }
-    };
-
-    checkApproval();
-  }, [walletAddress]);
-
-  const handleApproveNFT = async () => {
-    if (!walletAddress || typeof window === 'undefined') {
-      setError('Please connect your wallet');
-      return;
-    }
-
-    setIsApproving(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      console.log('📝 Requesting NFT approval...');
-      setSuccess('⏳ Requesting approval in your wallet...');
-
-      const { createWalletClient, custom, parseAbi } = await import('viem');
-      const { monadTestnet } = await import('@/app/chains');
-
-      // @ts-ignore - ethereum is injected by wallet
-      const client = createWalletClient({
-        chain: monadTestnet,
-        // @ts-ignore
-        transport: custom(window.ethereum),
-        account: walletAddress as `0x${string}`,
-      });
-
-      const hash = await client.writeContract({
-        address: PASSPORT_NFT as `0x${string}`,
-        abi: parseAbi(['function setApprovalForAll(address operator, bool approved) external']),
-        functionName: 'setApprovalForAll',
-        args: [SAFE_ACCOUNT as `0x${string}`, true],
-      });
-
-      setSuccess('⏳ Waiting for approval confirmation...');
-      console.log('✅ Approval TX:', hash);
-
-      // Wait a bit for transaction to confirm
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      setIsApproved(true);
-      setSuccess('✅ NFT approval successful! You can now stake your passports.');
-    } catch (err: any) {
-      console.error('❌ Approval error:', err);
-      setError(err.message || 'Failed to approve NFT transfers. Please try again.');
-    } finally {
-      setIsApproving(false);
-    }
-  };
 
   const handleStake = async () => {
     if (!walletAddress || !selectedTokenId || !stakeAmount) {
@@ -312,63 +224,6 @@ Gasless - we paid the gas!`);
           </div>
         ) : (
           <div className="space-y-8">
-            {/* NFT Approval Banner (only shown if not approved) */}
-            {!isApproved && !isCheckingApproval && (
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg shadow-lg p-6 border-2 border-yellow-300">
-                <div className="flex items-start gap-4">
-                  <div className="text-4xl">🔒</div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      🎫 One-Time Setup Required
-                    </h3>
-                    <p className="text-gray-700 mb-4">
-                      Before you can stake, you need to approve the Safe account to temporarily hold your passport NFT during staking.
-                      This is a one-time approval that enables gasless staking.
-                    </p>
-                    <div className="bg-white rounded-lg p-4 mb-4 border border-yellow-200">
-                      <p className="text-sm text-gray-600 mb-2"><strong>How it works:</strong></p>
-                      <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-                        <li>When you stake: Your passport is transferred to the Safe temporarily</li>
-                        <li>The Safe stakes your TOURS tokens with the passport as collateral</li>
-                        <li>When you unstake: Your passport and TOURS (+ yield) are returned automatically</li>
-                        <li>You remain in control - only you can trigger stake/unstake</li>
-                      </ul>
-                    </div>
-                    <button
-                      onClick={handleApproveNFT}
-                      disabled={isApproving}
-                      className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all"
-                    >
-                      {isApproving ? '⏳ Approving...' : '✅ Approve NFT Transfers (One-Time)'}
-                    </button>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Safe Account: {SAFE_ACCOUNT.slice(0, 10)}...{SAFE_ACCOUNT.slice(-8)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isCheckingApproval && (
-              <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-                <div className="animate-spin text-4xl mb-2">⏳</div>
-                <p className="text-gray-600">Checking NFT approval status...</p>
-              </div>
-            )}
-
-            {/* Approval Success Badge */}
-            {isApproved && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg shadow p-4 border-2 border-green-300">
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">✅</div>
-                  <div>
-                    <p className="font-semibold text-green-800">NFT Approval Active</p>
-                    <p className="text-sm text-green-600">Your passports are ready for gasless staking!</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Yield Statistics Dashboard */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg p-6 border-2 border-green-200">
               <h3 className="text-2xl font-bold mb-4 text-gray-900">💰 Staking Rewards Dashboard</h3>
@@ -427,7 +282,7 @@ Gasless - we paid the gas!`);
                 <div className="text-sm text-gray-700">
                   <strong>💡 How Yield Works:</strong> Your TOURS tokens are swapped to MON and staked via Kintsu integration.
                   Yield is generated from MON staking, converted back to TOURS, and distributed on unstake.
-                  Your passport NFT is transferred to our Safe during staking as collateral, then returned to you when you unstake.
+                  Your passport NFT stays in your wallet - no transfers needed! The Safe stakes on your behalf as the beneficiary.
                 </div>
               </div>
             </div>
@@ -457,11 +312,10 @@ Gasless - we paid the gas!`);
                     />
                     <button
                       onClick={handleStake}
-                      disabled={!isApproved || isStaking || !stakeAmount || selectedTokenId !== passport.tokenId}
+                      disabled={isStaking || !stakeAmount || selectedTokenId !== passport.tokenId}
                       className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
-                      title={!isApproved ? 'Please approve NFT transfers first' : ''}
                     >
-                      {isStaking ? '⏳ Staking...' : !isApproved ? '🔒 Approve NFT First' : 'Stake TOURS (FREE)'}
+                      {isStaking ? '⏳ Staking...' : 'Stake TOURS (FREE)'}
                     </button>
                   </div>
                 </div>
@@ -476,9 +330,9 @@ Gasless - we paid the gas!`);
                 <p>• Earn yield from MON staking via Kintsu integration</p>
                 <p>• Build your credit score by staking consistently</p>
                 <p>• All transactions are gasless - we pay the gas!</p>
-                <p>• Your passport is held by our Safe during active staking</p>
-                <p>• When you unstake, your passport and TOURS (+ yield) are returned automatically</p>
-                <p>• One-time NFT approval required to enable this flow</p>
+                <p>• Your passport NFT stays in your wallet - no transfers needed!</p>
+                <p>• When you unstake, your TOURS (+ yield) are returned automatically</p>
+                <p>• The Safe stakes on your behalf as the beneficiary</p>
               </div>
             </div>
 
