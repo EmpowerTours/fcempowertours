@@ -37,89 +37,49 @@ export async function GET(req: NextRequest) {
 
     console.log(`📍 @${UNIFY34_USERNAME} FID: ${unify34Fid}`);
 
-    // Check if user follows @unify34 using Neynar API
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-      {
-        headers: {
-          'api_key': NEYNAR_API_KEY,
-        },
-      }
-    );
+    // ✅ IMPROVED: Use v2 bulk users API with viewer_fid to check follow relationship
+    // This returns viewer_context.following which is much more efficient than paginating links
+    console.log(`🔍 Checking follow relationship using viewer_fid approach...`);
 
-    if (!response.ok) {
-      throw new Error(`Neynar API error: ${response.status}`);
+    const bulkUserUrl = `https://api.neynar.com/v2/farcaster/user/bulk?fids=${unify34Fid}&viewer_fid=${fid}`;
+    const bulkResponse = await fetch(bulkUserUrl, {
+      headers: {
+        'api_key': NEYNAR_API_KEY,
+      },
+    });
+
+    if (!bulkResponse.ok) {
+      const errorText = await bulkResponse.text();
+      console.error(`❌ Neynar bulk user API error (${bulkResponse.status}):`, errorText);
+      throw new Error(`Neynar API error: ${bulkResponse.status}`);
     }
 
-    const data = await response.json();
-    const user = data.users?.[0];
+    const bulkData = await bulkResponse.json();
+    const targetUser = bulkData.users?.[0];
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!targetUser) {
+      throw new Error(`Could not fetch user data for @${UNIFY34_USERNAME}`);
     }
 
-    // Check following relationship using v1 linksByFid API
-    let isFollowing = false;
-    let pageToken: string | null = null;
-    let attempts = 0;
-    const maxAttempts = 10; // Limit to prevent infinite loops
+    // Check if viewer (fid) follows the target (@unify34)
+    const isFollowing = targetUser.viewer_context?.following === true;
 
-    console.log(`🔎 Searching through follow links for FID ${fid}...`);
-
-    while (attempts < maxAttempts && !isFollowing) {
-      const linksUrl: string = pageToken
-        ? `https://api.neynar.com/v1/farcaster/linksByFid?fid=${fid}&link_type=follow&pageSize=100&pageToken=${encodeURIComponent(pageToken)}`
-        : `https://api.neynar.com/v1/farcaster/linksByFid?fid=${fid}&link_type=follow&pageSize=100`;
-
-      const linksResponse = await fetch(linksUrl, {
-        headers: {
-          'api_key': NEYNAR_API_KEY,
-        },
-      });
-
-      if (!linksResponse.ok) {
-        const errorText = await linksResponse.text();
-        console.error(`❌ Neynar v1 links API error (${linksResponse.status}):`, errorText);
-        throw new Error(`Neynar links API error: ${linksResponse.status}`);
-      }
-
-      const linksData = await linksResponse.json();
-      const messages = linksData.messages || [];
-
-      console.log(`📦 Fetched ${messages.length} link messages (attempt ${attempts + 1})`);
-
-      // Check if @unify34 is in this batch
-      // Link messages have data.linkBody.targetFid
-      isFollowing = messages.some((msg: any) => {
-        const targetFid = msg.data?.linkBody?.targetFid?.toString();
-        if (targetFid) {
-          console.log(`  🔗 Found link to FID: ${targetFid}`);
-        }
-        return targetFid === unify34Fid;
-      });
-
-      if (isFollowing) {
-        console.log(`✅ Found follow link to @${UNIFY34_USERNAME} (FID: ${unify34Fid})`);
-        break;
-      }
-
-      // Check if there's more data to fetch
-      pageToken = linksData.nextPageToken;
-      if (!pageToken || pageToken === '') {
-        console.log(`📄 No more pages to fetch`);
-        break; // No more pages
-      }
-
-      attempts++;
-    }
+    console.log(`📊 Viewer context:`, {
+      following: targetUser.viewer_context?.following,
+      followed_by: targetUser.viewer_context?.followed_by,
+    });
 
     console.log(`${isFollowing ? '✅' : '❌'} FID ${fid} ${isFollowing ? 'follows' : 'does not follow'} @${UNIFY34_USERNAME}`);
 
     return NextResponse.json({
       success: true,
       isFollowing,
-      username: user.username,
+      username: targetUser.username,
       targetFid: unify34Fid,
+      viewerContext: {
+        following: targetUser.viewer_context?.following || false,
+        followed_by: targetUser.viewer_context?.followed_by || false,
+      },
     });
 
   } catch (error: any) {
