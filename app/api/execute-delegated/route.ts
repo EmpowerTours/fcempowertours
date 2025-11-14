@@ -854,27 +854,22 @@ View profile and collection!
             transport: http(),
           });
 
-          console.log('🔍 Simulating staking flow (approve + stake with beneficiary)...');
+          console.log('🔍 Simulating staking preconditions...');
 
-          // Step 1: Simulate approve
-          await client.simulateContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-            functionName: 'approve',
-            args: [YIELD_STRATEGY, stakeAmount],
-            account: SAFE_ACCOUNT,
+          // Only simulate NFT ownership check - can't simulate the full stake because
+          // the approve simulation doesn't actually set allowance
+          const nftOwner = await client.readContract({
+            address: PASSPORT_NFT,
+            abi: parseAbi(['function ownerOf(uint256 tokenId) external view returns (address)']),
+            functionName: 'ownerOf',
+            args: [BigInt(nftTokenId)],
           });
-          console.log('✅ Approve simulation successful');
 
-          // Step 2: Simulate stakeWithNFT with beneficiary (user keeps their NFT)
-          await client.simulateContract({
-            address: YIELD_STRATEGY,
-            abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
-            functionName: 'stakeWithNFT',
-            args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
-            account: SAFE_ACCOUNT,
-          });
-          console.log('✅ StakeWithNFT simulation successful');
+          if (nftOwner.toLowerCase() !== userAddress.toLowerCase()) {
+            throw new Error(`Beneficiary must own NFT #${nftTokenId}`);
+          }
+
+          console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
         } catch (simErr: any) {
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
