@@ -76,6 +76,48 @@ export async function POST(req: NextRequest) {
       case 'mint_passport':
         console.log('🎫 Action: mint_passport (batched approve + mint)');
 
+        // ✅ VALIDATION: Check if contracts are deployed
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Validating contract deployments...');
+
+          // Check TOURS token
+          const toursCode = await client.getCode({ address: TOURS_TOKEN });
+          if (!toursCode || toursCode === '0x') {
+            throw new Error(`TOURS token at ${TOURS_TOKEN} is not deployed!`);
+          }
+          console.log('✅ TOURS token is deployed');
+
+          // Check Passport NFT
+          const passportCode = await client.getCode({ address: PASSPORT_NFT });
+          if (!passportCode || passportCode === '0x') {
+            throw new Error(`Passport NFT at ${PASSPORT_NFT} is not deployed!`);
+          }
+          console.log('✅ Passport NFT is deployed');
+
+          // Check Safe account
+          const safeCode = await client.getCode({ address: SAFE_ACCOUNT });
+          if (!safeCode || safeCode === '0x') {
+            throw new Error(`Safe account at ${SAFE_ACCOUNT} is not deployed!`);
+          }
+          console.log('✅ Safe account is deployed');
+        } catch (validationErr: any) {
+          console.error('❌ Contract validation failed:', validationErr.message);
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Contract validation failed: ${validationErr.message}. Please ensure all contracts are deployed on chain 10143 (Monad Testnet).`
+            },
+            { status: 500 }
+          );
+        }
+
         // ✅ Check if user has enough TOURS tokens in their Safe wallet
         try {
           const { createPublicClient, http } = await import('viem');

@@ -2,7 +2,7 @@ import {
   createSmartAccountClient,
   SmartAccountClient,
 } from 'permissionless';
-import { createPublicClient, http, Address, Hex, parseAbi } from 'viem';
+import { createPublicClient, http, Address, Hex, parseAbi, parseEther } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
@@ -151,14 +151,86 @@ export async function sendSafeTransaction(
   try {
     console.log('📤 Sending batched transaction through Safe SmartAccount...');
     console.log('📦 Number of calls:', calls.length);
-    
+    console.log('📋 Call details:', JSON.stringify(calls.map(c => ({
+      to: c.to,
+      value: c.value.toString(),
+      dataLength: c.data.length
+    })), null, 2));
+
     const smartAccountClient = await createSafeSmartAccountClient();
+
+    console.log('🔍 Account details:', {
+      address: smartAccountClient.account.address,
+      entryPoint: smartAccountClient.account.entryPoint,
+    });
+
+    // Check if EntryPoint is deployed
+    console.log('🔍 Checking if EntryPoint is deployed...');
+    const entryPointCode = await publicClient.getCode({ address: ENTRYPOINT_ADDRESS });
+    if (!entryPointCode || entryPointCode === '0x') {
+      throw new Error(
+        `EntryPoint ${ENTRYPOINT_ADDRESS} is NOT deployed on chain ${monadTestnet.id}! ` +
+        `ERC-4337 EntryPoint v0.7 must be deployed before using Account Abstraction. ` +
+        `Either deploy the EntryPoint or use a different AA solution.`
+      );
+    }
+    console.log('✅ EntryPoint is deployed (code length: ' + entryPointCode.length + ')');
+
+    // Check if account is deployed
+    console.log('🔍 Checking if Safe account is deployed...');
+    const accountCode = await publicClient.getCode({ address: SAFE_ACCOUNT });
+    if (!accountCode || accountCode === '0x') {
+      throw new Error(`Safe account ${SAFE_ACCOUNT} is NOT deployed! Deploy it first before using AA.`);
+    }
+    console.log('✅ Safe account is deployed (code length: ' + accountCode.length + ')');
+
+    // Check Safe balance
+    const safeBalance = await publicClient.getBalance({ address: SAFE_ACCOUNT });
+    console.log('💰 Safe MON balance:', (Number(safeBalance) / 1e18).toFixed(4), 'MON');
+
+    if (safeBalance < parseEther('0.001')) {
+      console.warn('⚠️ WARNING: Safe has very low MON balance, transaction may fail due to insufficient gas');
+    }
 
     // ✅ CRITICAL FIX: Fetch gas prices from Pimlico's API
     // Pimlico enforces minimum gas prices that may be higher than the chain's current price
     const { maxFeePerGas, maxPriorityFeePerGas } = await getPimlicoGasPrices();
 
     console.log('🚀 Submitting UserOperation with Pimlico gas prices...');
+    console.log('   Max fee per gas:', maxFeePerGas.toString(), 'wei');
+    console.log('   Max priority fee:', maxPriorityFeePerGas.toString(), 'wei');
+
+    // Try to manually estimate gas first to get better error messages
+    try {
+      console.log('🔍 Attempting manual gas estimation...');
+      const gasEstimate = await smartAccountClient.estimateUserOperationGas({
+        account: smartAccountClient.account,
+        calls,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+      });
+      console.log('✅ Gas estimation successful:', JSON.stringify(gasEstimate, (_, v) =>
+        typeof v === 'bigint' ? v.toString() : v
+      ));
+    } catch (gasErr: any) {
+      console.error('❌ Manual gas estimation failed:', {
+        message: gasErr.message,
+        shortMessage: gasErr.shortMessage,
+        details: gasErr.details,
+        cause: gasErr.cause,
+      });
+
+      // Try to extract more details from the error
+      if (gasErr.walk) {
+        const baseError = gasErr.walk();
+        console.error('   Base error:', {
+          name: baseError.name,
+          message: baseError.message,
+        });
+      }
+
+      throw new Error(`Gas estimation failed: ${gasErr.shortMessage || gasErr.message}. This usually means the transaction would revert. Check: 1) Safe has sufficient TOURS tokens, 2) Safe has correct AA modules enabled, 3) All contract addresses are valid.`);
+    }
 
     // sendUserOperation will automatically estimate gas internally
     const userOpHash = await smartAccountClient.sendUserOperation({
