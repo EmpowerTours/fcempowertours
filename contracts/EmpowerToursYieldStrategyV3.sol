@@ -24,9 +24,9 @@ interface ITokenSwap {
 
 /**
  * @title EmpowerToursYieldStrategyV3
- * @notice V3 is identical to V2 but compiled with Solidity 0.8.20 for verification compatibility
- * @notice V2 features: NFT whitelist + beneficiary parameter for delegated staking
- * @dev Keeps all V1 functionality (Kintsu, yield, dragon router) + new features
+ * @notice V3 removes the unnecessary keeper parameter from V2
+ * @notice Features: NFT whitelist + beneficiary parameter for delegated staking
+ * @dev Kintsu, yield, dragon router integration
  */
 contract EmpowerToursYieldStrategyV3 is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -38,7 +38,6 @@ contract EmpowerToursYieldStrategyV3 is Ownable, ReentrancyGuard {
     IKintsu public kintsu;
     ITokenSwap public tokenSwap;
     address public dragonRouter;
-    address public keeper;
 
     // V2: NFT Whitelist
     mapping(address => bool) public acceptedNFTs;
@@ -66,36 +65,28 @@ contract EmpowerToursYieldStrategyV3 is Ownable, ReentrancyGuard {
     uint256 public totalPositionsClosed;
     uint256 public totalYieldDistributed;
 
-    event Initialized(address indexed toursToken, address indexed kintsu, address indexed tokenSwap, address dragonRouter, address keeper);
+    event Initialized(address indexed toursToken, address indexed kintsu, address indexed tokenSwap, address dragonRouter);
     event NFTWhitelisted(address indexed nftAddress, bool accepted);
     event StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 toursAmount, uint256 monAmount, uint256 timestamp);
     event StakingPositionClosed(uint256 indexed positionId, address indexed beneficiary, uint256 toursRefund, uint256 yieldShare, uint256 timestamp);
     event YieldHarvested(uint256 yieldMonAmount, uint256 yieldToursAmount, uint256 totalAssets, uint256 timestamp);
     event YieldAllocatedToDragonRouter(string indexed location, uint256 amount, uint256 timestamp);
-    event KeeperUpdated(address indexed newKeeper);
     event DragonRouterUpdated(address indexed newRouter);
     event TokenSwapUpdated(address indexed newSwap);
 
-    modifier onlyKeeperOrOwner() {
-        require(msg.sender == keeper || msg.sender == owner(), "Not authorized");
-        _;
-    }
-
-    constructor(address _toursToken, address _kintsu, address _tokenSwap, address _dragonRouter, address _keeper) Ownable(msg.sender) {
+    constructor(address _toursToken, address _kintsu, address _tokenSwap, address _dragonRouter) Ownable(msg.sender) {
         require(_toursToken != address(0), "Invalid TOURS");
         require(_kintsu != address(0), "Invalid Kintsu");
         require(_tokenSwap != address(0), "Invalid TokenSwap");
         require(_dragonRouter != address(0), "Invalid DragonRouter");
-        require(_keeper != address(0), "Invalid keeper");
 
         toursToken = IERC20(_toursToken);
         kintsu = IKintsu(_kintsu);
         tokenSwap = ITokenSwap(_tokenSwap);
         dragonRouter = _dragonRouter;
-        keeper = _keeper;
         lastHarvestTime = block.timestamp;
 
-        emit Initialized(_toursToken, _kintsu, _tokenSwap, _dragonRouter, _keeper);
+        emit Initialized(_toursToken, _kintsu, _tokenSwap, _dragonRouter);
     }
 
     // V2: Whitelist management
@@ -195,7 +186,7 @@ contract EmpowerToursYieldStrategyV3 is Ownable, ReentrancyGuard {
         return netRefund;
     }
 
-    function harvest() external onlyKeeperOrOwner nonReentrant returns (uint256 yieldTours) {
+    function harvest() external onlyOwner nonReentrant returns (uint256 yieldTours) {
         uint256 kintsuBalance = kintsu.balanceOf(address(this));
         uint256 currentMonValue = 0;
         if (kintsuBalance > 0) {
@@ -295,12 +286,6 @@ contract EmpowerToursYieldStrategyV3 is Ownable, ReentrancyGuard {
                 count++;
             }
         }
-    }
-
-    function setKeeper(address newKeeper) external onlyOwner {
-        require(newKeeper != address(0), "Invalid keeper");
-        keeper = newKeeper;
-        emit KeeperUpdated(newKeeper);
     }
 
     function setDragonRouter(address newRouter) external onlyOwner {
