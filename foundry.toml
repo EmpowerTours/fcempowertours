@@ -5,9 +5,14 @@ libs = ["node_modules"]
 remappings = [
   "@openzeppelin/=node_modules/@openzeppelin/"
 ]
+solc_version = "0.8.20"
+optimizer = true
+optimizer_runs = 10000
+via_ir = true
+evm_version = "paris"
 
 [rpc_endpoints]
 monad = "https://testnet-rpc.monad.xyz"
 
 [etherscan]
-monad = { key = "no-key-needed", url = "https://testnet-explorer.monad.xyz/api" }
+monad = { key = "${MONAD_API_KEY}", url = "https://testnet.monadexplorer.com/api", chain = 10143 }
