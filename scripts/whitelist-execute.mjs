@@ -18,7 +18,7 @@ const monadTestnet = defineChain({
   },
 });
 
-const YIELD_STRATEGY = '0xe1895d0A166cf750E5e8620A63445661C67112d5';
+const YIELD_STRATEGY = '0xbc65380d216c83a7f12b789ce5aa66ff03c32c7c';
 const OWNER_PRIVATE_KEY = '0xc65948a8029bf615d2ec716435dbedc5187ac2ba91e248e65e0ed33ecd3175e2';
 
 const functionName = process.argv[2];
