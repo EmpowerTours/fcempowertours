@@ -92,5 +92,16 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "@types/react": "18.3.25"
+  },
+  "overrides": {
+    "@solana/kit": "3.0.3",
+    "@solana-program/token": "0.6.0",
+    "@solana/programs": "3.0.3",
+    "@solana/signers": "3.0.3",
+    "@solana/sysvars": "3.0.3",
+    "@solana/accounts": "3.0.3",
+    "@solana/codecs": "3.0.3",
+    "@solana/options": "3.0.3",
+    "ws": "8.18.3"
   }
 }
