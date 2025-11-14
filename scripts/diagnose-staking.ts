@@ -15,7 +15,7 @@ import 'dotenv/config';
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
 const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
-const YIELD_STRATEGY = '0x24fe4651F8633b37a2eDaF5152c876678273B7f0' as Address;
+const YIELD_STRATEGY = '0xbc65380d216c83a7f12b789ce5aa66ff03c32c7c' as Address;
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 // Example user who's trying to stake
