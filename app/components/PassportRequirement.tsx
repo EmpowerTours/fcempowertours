@@ -11,12 +11,16 @@ interface PassportRequirementProps {
   onPassportMinted?: () => void;
 }
 
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const UNIFY34_USERNAME = 'unify34';
+
 export default function PassportRequirement({ onPassportMinted }: PassportRequirementProps) {
   const { user, walletAddress, isLoading: contextLoading, requestWallet } = useFarcasterContext();
   const { location, loading: geoLoading } = useGeolocation();
   const { useBalanceOf } = usePassportNFT();
 
   const farcasterFid = user?.fid;
+  const isUnify34 = user?.username?.toLowerCase() === UNIFY34_USERNAME;
 
   // Check if user has any passports
   const { data: passportBalance, isLoading: balanceLoading } = useBalanceOf(walletAddress as Address);
@@ -30,7 +34,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   const [isMinting, setIsMinting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showRequirements, setShowRequirements] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'welcome' | 'requirements' | 'minting'>('welcome');
 
   // Auto-select country once geolocation loads
   useEffect(() => {
@@ -42,7 +46,6 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   // Check if user has passport
   useEffect(() => {
     if (!balanceLoading && hasPassport) {
-      // User has passport, call callback
       onPassportMinted?.();
     }
   }, [hasPassport, balanceLoading, onPassportMinted]);
@@ -50,6 +53,12 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   // Check follow status when FID is available
   const checkFollowStatus = async () => {
     if (!farcasterFid) return;
+
+    // Skip check if user is @unify34
+    if (isUnify34) {
+      setIsFollowing(true);
+      return;
+    }
 
     setIsCheckingFollow(true);
     try {
@@ -87,24 +96,20 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
 
   // Initial checks when component mounts
   useEffect(() => {
-    if (farcasterFid && !hasPassport && showRequirements) {
+    if (farcasterFid && !hasPassport && currentStep === 'requirements') {
       checkFollowStatus();
       checkCastStatus();
     }
-  }, [farcasterFid, hasPassport, showRequirements]);
+  }, [farcasterFid, hasPassport, currentStep]);
 
   const handleFollowClick = () => {
-    // Open Warpcast to follow @unify34
     window.open('https://warpcast.com/unify34', '_blank');
-    // Recheck after 2 seconds
     setTimeout(checkFollowStatus, 2000);
   };
 
   const handleCastClick = () => {
-    // Open Warpcast composer with pre-filled text
-    const castText = encodeURIComponent('Just minted my digital passport on @empowertours! 🌍✈️ Get yours and join the travel revolution!');
-    window.open(`https://warpcast.com/~/compose?text=${castText}`, '_blank');
-    // Recheck after 2 seconds
+    const castText = encodeURIComponent(`Just got my digital passport on EmpowerTours! 🌍✈️\n\nGet yours: ${APP_URL}\n\n@empowertours`);
+    window.open(`https://warpcast.com/~/compose?text=${castText}&embeds[]=${APP_URL}`, '_blank');
     setTimeout(checkCastStatus, 2000);
   };
 
@@ -128,6 +133,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
     setIsMinting(true);
     setError('');
     setSuccess('');
+    setCurrentStep('minting');
 
     try {
       console.log('🎫 Minting passport via delegation API (gasless)...');
@@ -143,7 +149,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
 
       if (!hasValidDelegation) {
         console.log('📝 Creating delegation...');
-        setSuccess('⏳ Setting up gasless transactions...');
+        setSuccess('Setting up gasless transactions...');
 
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
@@ -163,7 +169,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
         console.log('✅ Delegation created');
       }
 
-      setSuccess('⏳ Minting passport (FREE - we pay gas)...');
+      setSuccess('Minting your passport...');
 
       // Execute mint via delegation API
       const response = await fetch('/api/execute-delegated', {
@@ -186,12 +192,8 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
       }
 
       const { txHash, tokenId } = await response.json();
-      setSuccess(`🎉 Passport minted successfully!
-${selectedCountry.flag} ${selectedCountry.name}
-Token #${tokenId || 'pending'}
-TX: ${txHash?.slice(0, 10)}...`);
+      setSuccess(`🎉 Passport minted successfully!\n${selectedCountry.flag} ${selectedCountry.name}\nToken #${tokenId || 'pending'}`);
 
-      // Call callback to allow navigation
       setTimeout(() => {
         onPassportMinted?.();
       }, 2000);
@@ -199,6 +201,7 @@ TX: ${txHash?.slice(0, 10)}...`);
     } catch (err: any) {
       console.error('❌ Error:', err);
       setError(err.message || 'Failed to mint passport');
+      setCurrentStep('requirements');
     } finally {
       setIsMinting(false);
     }
@@ -207,10 +210,10 @@ TX: ${txHash?.slice(0, 10)}...`);
   // Show loading while checking balance
   if (balanceLoading || contextLoading) {
     return (
-      <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-50">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-white">Checking passport status...</p>
+          <div className="animate-spin text-6xl mb-4">🌍</div>
+          <p className="text-white text-lg">Checking passport status...</p>
         </div>
       </div>
     );
@@ -221,168 +224,257 @@ TX: ${txHash?.slice(0, 10)}...`);
     return null;
   }
 
-  // Show requirements screen
-  if (!showRequirements) {
+  // Welcome screen
+  if (currentStep === 'welcome') {
     return (
-      <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div className="w-full max-w-md bg-gradient-to-br from-purple-900/90 via-black/90 to-blue-900/90 rounded-2xl border border-purple-500/30 shadow-2xl p-8 text-center">
-          <div className="text-6xl mb-6">🌍</div>
-          <h1 className="text-3xl font-bold text-white mb-4">Welcome to EmpowerTours!</h1>
-          <p className="text-gray-300 mb-6">
-            To access EmpowerTours, you need to mint your Digital Passport NFT.
-          </p>
-          <p className="text-gray-400 text-sm mb-8">
-            Complete a few quick steps to get started on your travel journey!
-          </p>
-          <button
-            onClick={() => setShowRequirements(true)}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-bold text-lg hover:from-purple-700 hover:to-blue-700 active:scale-95 transition-all"
-          >
-            Get Started ✨
-          </button>
+      <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-50 p-4">
+        <div className="w-full max-w-md">
+          {/* Animated passport icon */}
+          <div className="text-center mb-8 animate-bounce">
+            <div className="text-8xl mb-4">✈️</div>
+          </div>
+
+          {/* Main card */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 text-center">
+            <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
+              Welcome to<br />EmpowerTours
+            </h1>
+
+            {user?.pfpUrl && (
+              <img
+                src={user.pfpUrl}
+                alt={user.username || 'User'}
+                className="rounded-full mx-auto mb-4 border-4 border-white/30 shadow-xl"
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  objectFit: 'cover'
+                }}
+              />
+            )}
+
+            <p className="text-white/90 text-xl mb-2">
+              Hello, <span className="font-semibold">@{user?.username || 'traveler'}</span>!
+            </p>
+
+            <p className="text-white/80 mb-8 text-base leading-relaxed">
+              To start your journey, you'll need to mint your<br />
+              <span className="font-bold text-white">Digital Passport NFT</span>
+            </p>
+
+            <div className="space-y-3 mb-8">
+              <div className="flex items-center gap-3 text-left bg-white/5 rounded-xl p-3">
+                <div className="text-2xl">🌍</div>
+                <div className="text-white/90 text-sm">
+                  <div className="font-semibold">Global Access</div>
+                  <div className="text-white/70">Mint passports for 195 countries</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-left bg-white/5 rounded-xl p-3">
+                <div className="text-2xl">⚡</div>
+                <div className="text-white/90 text-sm">
+                  <div className="font-semibold">100% Free</div>
+                  <div className="text-white/70">We pay all gas fees for you</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-left bg-white/5 rounded-xl p-3">
+                <div className="text-2xl">🎫</div>
+                <div className="text-white/90 text-sm">
+                  <div className="font-semibold">Quick Setup</div>
+                  <div className="text-white/70">Just 2 simple steps to get started</div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setCurrentStep('requirements')}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-4 rounded-xl font-bold text-lg hover:from-pink-600 hover:to-purple-700 active:scale-95 transition-all shadow-lg"
+            >
+              Get Started ✨
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="w-full max-w-lg bg-gradient-to-br from-purple-900/90 via-black/90 to-blue-900/90 rounded-2xl border border-purple-500/30 shadow-2xl p-8 my-4">
-        <div className="text-center mb-8">
-          {user?.pfpUrl && (
-            <img
-              src={user.pfpUrl}
-              alt={user.username || 'User'}
-              className="rounded-full mx-auto mb-4 border-2 border-purple-500"
-              style={{
-                width: '60px',
-                height: '60px',
-                objectFit: 'cover'
-              }}
-            />
+  // Minting screen
+  if (currentStep === 'minting') {
+    return (
+      <div className="fixed inset-0 bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center z-50 p-4">
+        <div className="w-full max-w-md bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 text-center">
+          <div className="animate-spin text-6xl mb-6">🎫</div>
+          <h2 className="text-3xl font-bold text-white mb-4">Minting Your Passport</h2>
+
+          {success && (
+            <div className="bg-green-500/20 border border-green-400/50 rounded-xl p-4 mb-4">
+              <p className="text-green-100 whitespace-pre-line">{success}</p>
+            </div>
           )}
-          <h1 className="text-3xl font-bold text-white mb-2">🌍 Mint Your Digital Passport</h1>
-          <p className="text-gray-400">@{user?.username || 'User'}</p>
+
+          {error && (
+            <div className="bg-red-500/20 border border-red-400/50 rounded-xl p-4 mb-4">
+              <p className="text-red-100">{error}</p>
+            </div>
+          )}
+
+          <p className="text-white/80 text-sm">Please wait while we process your transaction...</p>
         </div>
+      </div>
+    );
+  }
 
-        {/* Requirements Checklist */}
-        <div className="space-y-4 mb-6">
-          <h2 className="text-xl font-bold text-white mb-4">Requirements:</h2>
+  // Requirements screen
+  return (
+    <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="w-full max-w-lg my-8">
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
 
-          {/* Requirement 1: Follow @unify34 */}
-          <div className={`p-4 rounded-lg border ${isFollowing ? 'bg-green-500/20 border-green-500/50' : 'bg-gray-800/50 border-gray-600'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">{isFollowing ? '✅' : '1️⃣'}</div>
-                <div>
-                  <p className="text-white font-medium">Follow @unify34</p>
-                  <p className="text-gray-400 text-sm">Required to mint passport</p>
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-3">🌍</div>
+            <h1 className="text-3xl font-bold text-white mb-2">Get Your Digital Passport</h1>
+            <p className="text-white/80 text-sm">Complete these steps to unlock EmpowerTours</p>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mb-6">
+            <div className="flex justify-between mb-2 text-xs text-white/70">
+              <span>Progress</span>
+              <span>{isFollowing && hasCasted ? '2/2' : isFollowing || hasCasted ? '1/2' : '0/2'}</span>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${(isFollowing && hasCasted ? 100 : isFollowing || hasCasted ? 50 : 0)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Requirements */}
+          <div className="space-y-3 mb-6">
+            {/* Requirement 1: Follow (skip if user is unify34) */}
+            {!isUnify34 && (
+              <div className={`rounded-xl border transition-all ${
+                isFollowing
+                  ? 'bg-green-500/20 border-green-400/50'
+                  : 'bg-white/5 border-white/10 hover:border-white/30'
+              }`}>
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="text-3xl">{isFollowing ? '✅' : '1️⃣'}</div>
+                    <div className="flex-1">
+                      <h3 className="text-white font-semibold text-lg">Follow @unify34</h3>
+                      <p className="text-white/70 text-sm">Support our community on Farcaster</p>
+                    </div>
+                  </div>
+                  {!isFollowing && (
+                    <button
+                      onClick={handleFollowClick}
+                      disabled={isCheckingFollow}
+                      className="w-full mt-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-semibold disabled:opacity-50 transition-all"
+                    >
+                      {isCheckingFollow ? '⏳ Checking...' : '👤 Follow on Warpcast'}
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
-            {!isFollowing && (
-              <button
-                onClick={handleFollowClick}
-                disabled={isCheckingFollow}
-                className="w-full mt-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium disabled:opacity-50"
-              >
-                {isCheckingFollow ? '⏳ Checking...' : '👤 Follow on Warpcast'}
-              </button>
             )}
-          </div>
 
-          {/* Requirement 2: Post a cast */}
-          <div className={`p-4 rounded-lg border ${hasCasted ? 'bg-green-500/20 border-green-500/50' : 'bg-gray-800/50 border-gray-600'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">{hasCasted ? '✅' : '2️⃣'}</div>
-                <div>
-                  <p className="text-white font-medium">Post about Digital Passports</p>
-                  <p className="text-gray-400 text-sm">Share with your network</p>
+            {/* Requirement 2: Post a cast */}
+            <div className={`rounded-xl border transition-all ${
+              hasCasted
+                ? 'bg-green-500/20 border-green-400/50'
+                : 'bg-white/5 border-white/10 hover:border-white/30'
+            }`}>
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="text-3xl">{hasCasted ? '✅' : isUnify34 ? '1️⃣' : '2️⃣'}</div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold text-lg">Share on Warpcast</h3>
+                    <p className="text-white/70 text-sm">Tell your network about EmpowerTours</p>
+                  </div>
                 </div>
+                {!hasCasted && (
+                  <button
+                    onClick={handleCastClick}
+                    disabled={isCheckingCast}
+                    className="w-full mt-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold disabled:opacity-50 transition-all"
+                  >
+                    {isCheckingCast ? '⏳ Checking...' : '📢 Share on Warpcast'}
+                  </button>
+                )}
               </div>
             </div>
-            {!hasCasted && (
+          </div>
+
+          {/* Country Selection - shows after completing requirements */}
+          {isFollowing && hasCasted && (
+            <div className="space-y-4 mb-6 animate-fade-in">
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <label className="block text-white text-sm font-semibold mb-3">
+                  {location
+                    ? `🎯 Your Country: ${location.countryName}`
+                    : '🌎 Select Your Country'
+                  }
+                </label>
+                <select
+                  value={selectedCountryCode}
+                  onChange={(e) => setSelectedCountryCode(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-400 text-base backdrop-blur"
+                >
+                  <option value="" className="bg-gray-800">Choose a country...</option>
+                  {ALL_COUNTRIES.map((country) => (
+                    <option key={country.code} value={country.code} className="bg-gray-800">
+                      {country.flag} {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-4 bg-red-500/20 border border-red-400/50 rounded-xl p-3">
+              <p className="text-red-100 text-sm">❌ {error}</p>
+            </div>
+          )}
+
+          {/* Mint Button */}
+          {isFollowing && hasCasted && (
+            <button
+              onClick={handleMint}
+              disabled={isMinting || !selectedCountryCode || !walletAddress}
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg"
+            >
+              {isMinting ? '⏳ Minting...' : '🎫 Mint Passport (FREE)'}
+            </button>
+          )}
+
+          {/* Refresh buttons */}
+          <div className="flex gap-2 mt-4">
+            {!isUnify34 && (
               <button
-                onClick={handleCastClick}
-                disabled={isCheckingCast}
-                className="w-full mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+                onClick={checkFollowStatus}
+                disabled={isCheckingFollow || isFollowing}
+                className="flex-1 px-3 py-2 bg-white/10 text-white/90 rounded-lg text-xs hover:bg-white/20 disabled:opacity-50 transition-all border border-white/10"
               >
-                {isCheckingCast ? '⏳ Checking...' : '📢 Post Cast'}
+                {isCheckingFollow ? '⏳' : isFollowing ? '✅' : '🔄'} Follow
               </button>
             )}
+            <button
+              onClick={checkCastStatus}
+              disabled={isCheckingCast || hasCasted}
+              className="flex-1 px-3 py-2 bg-white/10 text-white/90 rounded-lg text-xs hover:bg-white/20 disabled:opacity-50 transition-all border border-white/10"
+            >
+              {isCheckingCast ? '⏳' : hasCasted ? '✅' : '🔄'} Cast
+            </button>
           </div>
-        </div>
 
-        {/* Country Selection */}
-        {isFollowing && hasCasted && (
-          <div className="space-y-4 mb-6 animate-fade-in">
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">
-                {location
-                  ? `Country (Auto-detected: ${location.country} 🎯)`
-                  : 'Select Your Country'
-                }
-              </label>
-              <select
-                value={selectedCountryCode}
-                onChange={(e) => setSelectedCountryCode(e.target.value)}
-                className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 text-base"
-              >
-                <option value="">Choose a country...</option>
-                {ALL_COUNTRIES.map((country) => (
-                  <option key={country.code} value={country.code}>
-                    {country.flag} {country.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-3">
-            <p className="text-red-300 text-sm">❌ {error}</p>
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
-            <p className="text-green-300 text-sm">{success}</p>
-          </div>
-        )}
-
-        {/* Mint Button */}
-        {isFollowing && hasCasted && (
-          <button
-            onClick={handleMint}
-            disabled={isMinting || !selectedCountryCode || !walletAddress}
-            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all"
-          >
-            {isMinting ? '⏳ Minting...' : '🎫 Mint Passport (FREE)'}
-          </button>
-        )}
-
-        <p className="text-gray-500 text-xs text-center mt-4">
-          Free mint - we pay gas! Each wallet can mint one passport per country.
-        </p>
-
-        {/* Refresh buttons */}
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={checkFollowStatus}
-            disabled={isCheckingFollow}
-            className="flex-1 px-3 py-2 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 disabled:opacity-50"
-          >
-            {isCheckingFollow ? '⏳' : '🔄'} Refresh Follow
-          </button>
-          <button
-            onClick={checkCastStatus}
-            disabled={isCheckingCast}
-            className="flex-1 px-3 py-2 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 disabled:opacity-50"
-          >
-            {isCheckingCast ? '⏳' : '🔄'} Refresh Cast
-          </button>
+          <p className="text-white/50 text-xs text-center mt-4">
+            ⚡ Free mint - we pay all gas fees!
+          </p>
         </div>
       </div>
     </div>
