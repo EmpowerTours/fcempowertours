@@ -738,6 +738,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           );
         }
 
+        // ✅ FIXED: YieldStrategy only has stake(amount), not stakeWithNFT
+        // The NFT tracking is for UI/credit score purposes only
         const stakeCalls = [
           {
             to: TOURS_TOKEN,
@@ -752,9 +754,9 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
-              functionName: 'stakeWithNFT',
-              args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount],
+              abi: parseAbi(['function stake(uint256 amount) external']),
+              functionName: 'stake',
+              args: [stakeAmount],
             }) as Hex,
           },
         ];
@@ -762,33 +764,16 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const stakeTxHash = await sendSafeTransaction(stakeCalls);
         console.log('✅ Stake successful, TX:', stakeTxHash);
 
-        // ✅ Extract position ID from transaction receipt
-        let positionId = '0';
-        try {
-          const { createPublicClient, http } = await import('viem');
-          const { monadTestnet } = await import('@/app/chains');
-          const client = createPublicClient({
-            chain: monadTestnet,
-            transport: http(),
-          });
-
-          const receipt = await client.getTransactionReceipt({
-            hash: stakeTxHash as Hex,
-          });
-
-          if (receipt?.logs && receipt.logs.length > 0) {
-            // Look for StakingPositionCreated event
-            const stakeLog = receipt.logs.find(
-              log => log.topics[0] === '0x' // Event signature for StakingPositionCreated
-            );
-            if (stakeLog && stakeLog.topics[1]) {
-              positionId = BigInt(stakeLog.topics[1]).toString();
-              console.log('🎫 Extracted position ID from receipt:', positionId);
-            }
-          }
-        } catch (extractError: any) {
-          console.warn('⚠️ Could not extract position ID:', extractError.message);
-        }
+        // ✅ NOTE: Current YieldStrategy doesn't have position IDs
+        // It's a simple stake(amount) contract
+        // Position tracking can be done in the database using:
+        // - txHash
+        // - userAddress
+        // - nftTokenId (passport used)
+        // - stakeAmount
+        // - timestamp
+        const positionId = `${userAddress.slice(2, 10)}-${nftTokenId}`; // Generate a unique ID
+        console.log('🎫 Generated position ID:', positionId);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -805,23 +790,25 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
       // ==================== UNSTAKE TOURS ====================
       case 'unstake_tours':
         console.log('💰 Action: unstake_tours');
-        if (!params?.positionId) {
+        if (!params?.amount) {
           return NextResponse.json(
-            { success: false, error: 'Missing positionId for unstake_tours' },
+            { success: false, error: 'Missing amount for unstake_tours' },
             { status: 400 }
           );
         }
 
-        console.log('💰 Unstaking position:', params.positionId);
+        const unstakeAmount = parseUnits(params.amount.toString(), 18);
+        console.log('💰 Unstaking:', unstakeAmount.toString(), 'TOURS');
 
+        // ✅ FIXED: YieldStrategy only has unstake(amount), not unstake(positionId)
         const unstakeCalls = [
           {
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
+              abi: parseAbi(['function unstake(uint256 amount) external']),
               functionName: 'unstake',
-              args: [BigInt(params.positionId)],
+              args: [unstakeAmount],
             }) as Hex,
           },
         ];
@@ -835,8 +822,8 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           txHash: unstakeTxHash,
           action,
           userAddress,
-          positionId: params.positionId,
-          message: `Unstaked position #${params.positionId} successfully`,
+          amount: params.amount,
+          message: `Unstaked ${params.amount} TOURS successfully`,
         });
 
       // ==================== CLAIM REWARDS ====================
