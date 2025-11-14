@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -23,11 +23,12 @@ interface ITokenSwap {
 }
 
 /**
- * @title EmpowerToursYieldStrategyV2
- * @notice V2 adds NFT whitelist + beneficiary parameter for delegated staking
+ * @title EmpowerToursYieldStrategyV3
+ * @notice V3 is identical to V2 but compiled with Solidity 0.8.20 for verification compatibility
+ * @notice V2 features: NFT whitelist + beneficiary parameter for delegated staking
  * @dev Keeps all V1 functionality (Kintsu, yield, dragon router) + new features
  */
-contract EmpowerToursYieldStrategyV2 is Ownable, ReentrancyGuard {
+contract EmpowerToursYieldStrategyV3 is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant BASIS_POINTS = 10000;

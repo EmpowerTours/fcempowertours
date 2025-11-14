@@ -1,5 +1,11 @@
 /**
- * Verify contract on Monad Explorer via API
+ * Verify EmpowerToursYieldStrategyV2 contract on Monad Explorer via API
+ *
+ * NOTE: This contract has a pragma/compiler mismatch:
+ * - Source says: pragma solidity ^0.8.24
+ * - Compiled with: v0.8.20
+ *
+ * For proper verification, use V3 which has matching pragma 0.8.20
  */
 
 import { readFileSync } from 'fs';

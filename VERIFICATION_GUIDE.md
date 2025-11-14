@@ -1,10 +1,18 @@
-# Contract Verification Guide
+# Contract Verification Guide for V2 (Deployed)
 
-## Contract Information
+## ⚠️ IMPORTANT: V2 vs V3
+
+The deployed contract at `0xbc65380d216c83a7f12b789ce5aa66ff03c32c7c` is **V2** and was compiled with:
+- **Pragma:** `^0.8.24`
+- **Actual compiler:** `v0.8.20` (but source says 0.8.24 - MISMATCH!)
+
+**This creates a verification problem.** For verification to work, you need to use **V3** which has the correct pragma.
+
+## Contract Information (V2 - Currently Deployed)
 
 - **Address:** `0xbc65380d216c83a7f12b789ce5aa66ff03c32c7c`
 - **Network:** Monad Testnet (Chain ID: 10143)
-- **Contract Name:** `EmpowerToursYieldStrategyV2`
+- **Contract Name:** `EmpowerToursYieldStrategyV2` (but source file pragma doesn't match compiler)
 
 ## Compilation Settings
 
