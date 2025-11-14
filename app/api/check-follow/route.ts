@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     console.log(`🔎 Searching through follow links for FID ${fid}...`);
 
     while (attempts < maxAttempts && !isFollowing) {
-      const linksUrl = pageToken
+      const linksUrl: string = pageToken
         ? `https://api.neynar.com/v1/farcaster/linksByFid?fid=${fid}&link_type=follow&pageSize=100&pageToken=${encodeURIComponent(pageToken)}`
         : `https://api.neynar.com/v1/farcaster/linksByFid?fid=${fid}&link_type=follow&pageSize=100`;
 
