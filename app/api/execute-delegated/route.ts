@@ -777,6 +777,35 @@ View profile and collection!
           );
         }
 
+        // ✅ CHECK: Verify YieldStrategy contract is deployed
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Checking if YieldStrategy is deployed...');
+          const yieldStrategyCode = await client.getCode({ address: YIELD_STRATEGY });
+          if (!yieldStrategyCode || yieldStrategyCode === '0x') {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `YieldStrategy contract at ${YIELD_STRATEGY} is not deployed on Monad Testnet. Staking is currently unavailable. Please contact support.`
+              },
+              { status: 500 }
+            );
+          }
+          console.log('✅ YieldStrategy is deployed (code length: ' + yieldStrategyCode.length + ')');
+        } catch (deployCheckErr: any) {
+          console.error('❌ Failed to check YieldStrategy deployment:', deployCheckErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to verify YieldStrategy contract: ${deployCheckErr.message}` },
+            { status: 500 }
+          );
+        }
+
         // ✅ FIXED: YieldStrategy only has stake(amount), not stakeWithNFT
         // The NFT tracking is for UI/credit score purposes only
         const stakeCalls = [
@@ -799,6 +828,48 @@ View profile and collection!
             }) as Hex,
           },
         ];
+
+        // ✅ TRY: Simulate the stake call to get better error messages
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Simulating stake call to check for errors...');
+
+          // First simulate approve (should succeed)
+          await client.simulateContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+            functionName: 'approve',
+            args: [YIELD_STRATEGY, stakeAmount],
+            account: SAFE_ACCOUNT,
+          });
+          console.log('✅ Approve simulation successful');
+
+          // Then simulate stake (this might fail and give us a better error)
+          await client.simulateContract({
+            address: YIELD_STRATEGY,
+            abi: parseAbi(['function stake(uint256 amount) external']),
+            functionName: 'stake',
+            args: [stakeAmount],
+            account: SAFE_ACCOUNT,
+          });
+          console.log('✅ Stake simulation successful');
+        } catch (simErr: any) {
+          console.error('❌ Stake simulation failed:', simErr);
+          const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Staking would fail: ${errorMsg}. The YieldStrategy contract may not be properly configured or may have reverted. Please try again later or contact support.`
+            },
+            { status: 400 }
+          );
+        }
 
         const stakeTxHash = await sendSafeTransaction(stakeCalls);
         console.log('✅ Stake successful, TX:', stakeTxHash);
