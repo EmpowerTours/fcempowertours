@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     // Get user's recent casts using Neynar API v2
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/casts?fid=${fid}&limit=25`,
+      `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${fid}&limit=25`,
       {
         headers: {
           'api_key': NEYNAR_API_KEY,
@@ -26,10 +26,13 @@ export async function GET(req: NextRequest) {
     );
 
     if (!response.ok) {
-      throw new Error(`Neynar API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`❌ Neynar API error ${response.status}:`, errorText);
+      throw new Error(`Neynar API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log(`📊 Received ${data.casts?.length || 0} casts from Neynar`);
     const casts = data.casts || [];
 
     // Check if any cast contains the required text (case-insensitive) OR the app URL
@@ -37,12 +40,31 @@ export async function GET(req: NextRequest) {
       const text = cast.text?.toLowerCase() || '';
       const embedsText = (cast.embeds || []).map((e: any) => e.url?.toLowerCase() || '').join(' ');
 
-      return text.includes(REQUIRED_CAST_TEXT.toLowerCase()) ||
-             embedsText.includes(APP_URL.toLowerCase()) ||
-             text.includes('digital passport');
+      const matchesKeyword = text.includes(REQUIRED_CAST_TEXT.toLowerCase());
+      const matchesUrl = embedsText.includes(APP_URL.toLowerCase());
+      const matchesPassport = text.includes('digital passport');
+
+      if (matchesKeyword || matchesUrl || matchesPassport) {
+        console.log(`✅ Found matching cast:`, {
+          text: cast.text?.substring(0, 100),
+          embeds: cast.embeds?.map((e: any) => e.url),
+          matchesKeyword,
+          matchesUrl,
+          matchesPassport
+        });
+      }
+
+      return matchesKeyword || matchesUrl || matchesPassport;
     });
 
     console.log(`${hasPostedCast ? '✅' : '❌'} FID ${fid} ${hasPostedCast ? 'has' : 'has not'} posted about EmpowerTours`);
+
+    if (!hasPostedCast && casts.length > 0) {
+      console.log(`📝 Sample casts checked:`, casts.slice(0, 3).map((c: any) => ({
+        text: c.text?.substring(0, 80),
+        embeds: c.embeds?.map((e: any) => e.url)
+      })));
+    }
 
     return NextResponse.json({
       success: true,
