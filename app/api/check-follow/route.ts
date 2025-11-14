@@ -58,40 +58,55 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check following relationship - need to paginate through all following
+    // Check following relationship using v1 linksByFid API
     let isFollowing = false;
-    let cursor: string | null = null;
+    let pageToken: string | null = null;
     let attempts = 0;
     const maxAttempts = 10; // Limit to prevent infinite loops
 
-    while (attempts < maxAttempts && !isFollowing) {
-      const followingUrl: string = cursor
-        ? `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=100&cursor=${cursor}`
-        : `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=100`;
+    console.log(`🔎 Searching through follow links for FID ${fid}...`);
 
-      const followingResponse = await fetch(followingUrl, {
+    while (attempts < maxAttempts && !isFollowing) {
+      const linksUrl = pageToken
+        ? `https://api.neynar.com/v1/farcaster/linksByFid?fid=${fid}&link_type=follow&pageSize=100&pageToken=${encodeURIComponent(pageToken)}`
+        : `https://api.neynar.com/v1/farcaster/linksByFid?fid=${fid}&link_type=follow&pageSize=100`;
+
+      const linksResponse = await fetch(linksUrl, {
         headers: {
           'api_key': NEYNAR_API_KEY,
         },
       });
 
-      if (!followingResponse.ok) {
-        throw new Error(`Neynar following API error: ${followingResponse.status}`);
+      if (!linksResponse.ok) {
+        const errorText = await linksResponse.text();
+        console.error(`❌ Neynar v1 links API error (${linksResponse.status}):`, errorText);
+        throw new Error(`Neynar links API error: ${linksResponse.status}`);
       }
 
-      const followingData = await followingResponse.json();
-      const following = followingData.users || [];
+      const linksData = await linksResponse.json();
+      const messages = linksData.messages || [];
+
+      console.log(`📦 Fetched ${messages.length} link messages (attempt ${attempts + 1})`);
 
       // Check if @unify34 is in this batch
-      isFollowing = following.some((u: any) => u.fid?.toString() === unify34Fid);
+      // Link messages have data.linkBody.targetFid
+      isFollowing = messages.some((msg: any) => {
+        const targetFid = msg.data?.linkBody?.targetFid?.toString();
+        if (targetFid) {
+          console.log(`  🔗 Found link to FID: ${targetFid}`);
+        }
+        return targetFid === unify34Fid;
+      });
 
       if (isFollowing) {
+        console.log(`✅ Found follow link to @${UNIFY34_USERNAME} (FID: ${unify34Fid})`);
         break;
       }
 
       // Check if there's more data to fetch
-      cursor = followingData.next?.cursor;
-      if (!cursor) {
+      pageToken = linksData.nextPageToken;
+      if (!pageToken || pageToken === '') {
+        console.log(`📄 No more pages to fetch`);
         break; // No more pages
       }
 
