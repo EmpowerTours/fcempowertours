@@ -633,11 +633,14 @@ Try "mint passport" from a different location or "help" for other commands.`
           success: true,
           txHash: mintData.txHash,
           action: 'transaction',
-          message: `Passport Minted (FREE)!
+          message: `Passport Minted Successfully! 🎫
+
 ${countryCode} ${countryName}
-TX: ${mintData.txHash?.slice(0, 10)}...
+
 Gasless transaction - we paid the gas!
-View: https://testnet.monadscan.com/tx/${mintData.txHash}`
+
+View on Monadscan:
+https://testnet.monadscan.com/tx/${mintData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Passport mint error:', error);

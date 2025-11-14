@@ -191,11 +191,11 @@ export async function POST(req: NextRequest) {
         const mintTxHash = await sendSafeTransaction(mintCalls);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
-        // ✅ POST CAST WITH FRAME
+        // ✅ POST CAST WITH MINIAPP LINK (to minter's profile, not frame)
         if (params?.fid) {
           try {
             const tokenId = params.tokenId || 0;
-            const frameUrl = `${APP_URL}/api/frames/passport/${tokenId}`;
+            const miniAppUrl = `${APP_URL}/profile?address=${userAddress}`;
             const castText = `🎫 New Travel Passport NFT Minted!
 
 ${params.countryCode || 'US'} ${params.countryName || 'United States'}
@@ -203,10 +203,12 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 ⚡ Gasless minting powered by @empowertours
 🌍 Collect all 195 countries
 
+View profile and collection!
+
 @empowertours`;
 
-            console.log('📢 Posting passport cast with frame...');
-            console.log('🎬 Frame URL:', frameUrl);
+            console.log('📢 Posting passport cast with miniapp link...');
+            console.log('🎬 MiniApp URL:', miniAppUrl);
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
@@ -216,13 +218,13 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
             const castResult = await client.publishCast({
               signerUuid: process.env.BOT_SIGNER_UUID || '',
               text: castText,
-              embeds: [{ url: frameUrl }]
+              embeds: [{ url: miniAppUrl }]
             });
 
-            console.log('✅ Passport cast posted with frame:', {
+            console.log('✅ Passport cast posted with miniapp link:', {
               hash: castResult.cast?.hash,
               countryCode: params.countryCode,
-              frameUrl
+              miniAppUrl
             });
           } catch (castError: any) {
             console.error('❌ Passport cast posting failed:', {
