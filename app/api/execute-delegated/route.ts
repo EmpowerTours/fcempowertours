@@ -806,8 +806,15 @@ View profile and collection!
           );
         }
 
-        // ✅ FIXED: YieldStrategy only has stake(amount), not stakeWithNFT
-        // The NFT tracking is for UI/credit score purposes only
+        // ✅ CRITICAL FIX: YieldStrategy requires stakeWithNFT(address, uint256, uint256)
+        // The contract uses NFT as collateral and tracks it internally
+        console.log('💎 Preparing stakeWithNFT call:', {
+          nftAddress: PASSPORT_NFT,
+          nftTokenId: nftTokenId,
+          toursAmount: stakeAmount.toString(),
+          user: userAddress
+        });
+
         const stakeCalls = [
           {
             to: TOURS_TOKEN,
@@ -822,9 +829,9 @@ View profile and collection!
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function stake(uint256 amount) external']),
-              functionName: 'stake',
-              args: [stakeAmount],
+              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
+              functionName: 'stakeWithNFT',
+              args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount],
             }) as Hex,
           },
         ];
@@ -850,15 +857,15 @@ View profile and collection!
           });
           console.log('✅ Approve simulation successful');
 
-          // Then simulate stake (this might fail and give us a better error)
+          // Then simulate stakeWithNFT (this might fail and give us a better error)
           await client.simulateContract({
             address: YIELD_STRATEGY,
-            abi: parseAbi(['function stake(uint256 amount) external']),
-            functionName: 'stake',
-            args: [stakeAmount],
+            abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
+            functionName: 'stakeWithNFT',
+            args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount],
             account: SAFE_ACCOUNT,
           });
-          console.log('✅ Stake simulation successful');
+          console.log('✅ StakeWithNFT simulation successful');
         } catch (simErr: any) {
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
@@ -874,16 +881,16 @@ View profile and collection!
         const stakeTxHash = await sendSafeTransaction(stakeCalls);
         console.log('✅ Stake successful, TX:', stakeTxHash);
 
-        // ✅ NOTE: Current YieldStrategy doesn't have position IDs
-        // It's a simple stake(amount) contract
-        // Position tracking can be done in the database using:
-        // - txHash
-        // - userAddress
-        // - nftTokenId (passport used)
-        // - stakeAmount
-        // - timestamp
-        const positionId = `${userAddress.slice(2, 10)}-${nftTokenId}`; // Generate a unique ID
-        console.log('🎫 Generated position ID:', positionId);
+        // ✅ NOTE: YieldStrategy's stakeWithNFT returns a position ID
+        // The contract tracks:
+        // - NFT address and tokenId (collateral)
+        // - Owner (original staker)
+        // - Amount staked
+        // - Deposit time
+        // We generate a client-side ID for tracking, but the real positionId
+        // is returned by the contract (starts at 0 and increments)
+        const positionId = `${userAddress.slice(2, 10)}-${nftTokenId}`; // Client-side tracking ID
+        console.log('🎫 Generated client position ID:', positionId);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -900,25 +907,26 @@ View profile and collection!
       // ==================== UNSTAKE TOURS ====================
       case 'unstake_tours':
         console.log('💰 Action: unstake_tours');
-        if (!params?.amount) {
+        if (!params?.positionId) {
           return NextResponse.json(
-            { success: false, error: 'Missing amount for unstake_tours' },
+            { success: false, error: 'Missing positionId for unstake_tours. You need to provide the position ID from your staking position.' },
             { status: 400 }
           );
         }
 
-        const unstakeAmount = parseUnits(params.amount.toString(), 18);
-        console.log('💰 Unstaking:', unstakeAmount.toString(), 'TOURS');
+        const unstakePositionId = BigInt(params.positionId);
+        console.log('💰 Unstaking position:', unstakePositionId.toString());
 
-        // ✅ FIXED: YieldStrategy only has unstake(amount), not unstake(positionId)
+        // ✅ CRITICAL FIX: YieldStrategy requires unstake(positionId), not unstake(amount)
+        // The contract looks up the position and returns all TOURS + yield to the owner
         const unstakeCalls = [
           {
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function unstake(uint256 amount) external']),
+              abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
               functionName: 'unstake',
-              args: [unstakeAmount],
+              args: [unstakePositionId],
             }) as Hex,
           },
         ];
@@ -932,37 +940,21 @@ View profile and collection!
           txHash: unstakeTxHash,
           action,
           userAddress,
-          amount: params.amount,
-          message: `Unstaked ${params.amount} TOURS successfully`,
+          positionId: params.positionId,
+          message: `Unstaked position #${params.positionId} successfully`,
         });
 
       // ==================== CLAIM REWARDS ====================
+      // ⚠️ NOTE: The EmpowerToursYieldStrategy contract doesn't have a separate
+      // claimRewards() function. Rewards are automatically distributed when you
+      // call unstake(positionId). The unstake function calculates your yield share
+      // and returns it along with your original stake.
       case 'claim_rewards':
-        console.log('💰 Action: claim_rewards');
-
-        const claimCalls = [
-          {
-            to: YIELD_STRATEGY,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function claimRewards() external']),
-              functionName: 'claimRewards',
-              args: [],
-            }) as Hex,
-          },
-        ];
-
-        const claimTxHash = await sendSafeTransaction(claimCalls);
-        console.log('✅ Claim rewards successful, TX:', claimTxHash);
-
-        await incrementTransactionCount(userAddress);
+        console.log('💰 Action: claim_rewards (not supported by current contract)');
         return NextResponse.json({
-          success: true,
-          txHash: claimTxHash,
-          action,
-          userAddress,
-          message: 'Rewards claimed successfully',
-        });
+          success: false,
+          error: 'Claim rewards is not available. Rewards are automatically distributed when you unstake your position. Use "unstake <positionId>" to withdraw your stake and claim rewards.',
+        }, { status: 400 });
 
       // ==================== CREATE TANDA GROUP ====================
       case 'create_tanda_group':
