@@ -806,16 +806,39 @@ View profile and collection!
           );
         }
 
-        // ✅ CRITICAL FIX: YieldStrategy requires stakeWithNFT(address, uint256, uint256)
-        // The contract uses NFT as collateral and tracks it internally
-        console.log('💎 Preparing stakeWithNFT call:', {
+        // ✅ CRITICAL FIX: Transfer NFT to Safe, then stake
+        // The YieldStrategy contract checks msg.sender owns the NFT.
+        // Since Safe executes the transaction, NFT must be in Safe during staking.
+        //
+        // ⚠️ PREREQUISITE: User must approve Safe for NFT transfers FIRST!
+        // User needs to call: passportNFT.setApprovalForAll(SAFE_ACCOUNT, true)
+        // This is a one-time setup step that allows the Safe to manage their passports.
+        //
+        // Flow:
+        // 1. Transfer NFT: User → Safe (requires prior approval)
+        // 2. Approve TOURS: Safe → YieldStrategy
+        // 3. Stake: Safe calls stakeWithNFT (Safe owns NFT now)
+        // On unstake: Safe → User (returns NFT + TOURS + yield)
+        console.log('💎 Preparing stakeWithNFT with NFT transfer:', {
           nftAddress: PASSPORT_NFT,
           nftTokenId: nftTokenId,
           toursAmount: stakeAmount.toString(),
-          user: userAddress
+          user: userAddress,
+          safe: SAFE_ACCOUNT
         });
 
         const stakeCalls = [
+          // Step 1: Transfer passport NFT from user to Safe (temporary custody)
+          {
+            to: PASSPORT_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transferFrom(address from, address to, uint256 tokenId) external']),
+              functionName: 'transferFrom',
+              args: [userAddress as Address, SAFE_ACCOUNT, BigInt(nftTokenId)],
+            }) as Hex,
+          },
+          // Step 2: Approve TOURS tokens for YieldStrategy
           {
             to: TOURS_TOKEN,
             value: 0n,
@@ -825,6 +848,7 @@ View profile and collection!
               args: [YIELD_STRATEGY, stakeAmount],
             }) as Hex,
           },
+          // Step 3: Stake with NFT (Safe now owns the NFT, so this will succeed)
           {
             to: YIELD_STRATEGY,
             value: 0n,
@@ -836,7 +860,7 @@ View profile and collection!
           },
         ];
 
-        // ✅ TRY: Simulate the stake call to get better error messages
+        // ✅ TRY: Simulate all three calls to catch errors early
         try {
           const { createPublicClient, http } = await import('viem');
           const { monadTestnet } = await import('@/app/chains');
@@ -845,9 +869,19 @@ View profile and collection!
             transport: http(),
           });
 
-          console.log('🔍 Simulating stake call to check for errors...');
+          console.log('🔍 Simulating staking flow (NFT transfer + approve + stake)...');
 
-          // First simulate approve (should succeed)
+          // Step 1: Simulate NFT transfer (user must own the NFT)
+          await client.simulateContract({
+            address: PASSPORT_NFT,
+            abi: parseAbi(['function transferFrom(address from, address to, uint256 tokenId) external']),
+            functionName: 'transferFrom',
+            args: [userAddress as Address, SAFE_ACCOUNT, BigInt(nftTokenId)],
+            account: SAFE_ACCOUNT,
+          });
+          console.log('✅ NFT transfer simulation successful');
+
+          // Step 2: Simulate approve
           await client.simulateContract({
             address: TOURS_TOKEN,
             abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
@@ -857,7 +891,8 @@ View profile and collection!
           });
           console.log('✅ Approve simulation successful');
 
-          // Then simulate stakeWithNFT (this might fail and give us a better error)
+          // Step 3: Simulate stakeWithNFT (after NFT transfer, Safe will own it)
+          // Note: This simulation assumes NFT is already in Safe
           await client.simulateContract({
             address: YIELD_STRATEGY,
             abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount) external returns (uint256)']),
@@ -869,10 +904,22 @@ View profile and collection!
         } catch (simErr: any) {
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
+
+          // Check if it's an NFT ownership/approval issue
+          if (errorMsg.includes('ERC721') || errorMsg.includes('not approved') || errorMsg.includes('caller is not')) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `NFT approval required. The Safe needs permission to transfer your passport NFT. Please approve the Safe (${SAFE_ACCOUNT}) to manage your passport NFT, then try again.`
+              },
+              { status: 400 }
+            );
+          }
+
           return NextResponse.json(
             {
               success: false,
-              error: `Staking would fail: ${errorMsg}. The YieldStrategy contract may not be properly configured or may have reverted. Please try again later or contact support.`
+              error: `Staking would fail: ${errorMsg}. Please ensure your passport NFT is properly set up and try again.`
             },
             { status: 400 }
           );
@@ -917,9 +964,67 @@ View profile and collection!
         const unstakePositionId = BigInt(params.positionId);
         console.log('💰 Unstaking position:', unstakePositionId.toString());
 
-        // ✅ CRITICAL FIX: YieldStrategy requires unstake(positionId), not unstake(amount)
-        // The contract looks up the position and returns all TOURS + yield to the owner
+        // ✅ QUERY: Get position details to know which NFT to return
+        let unstakeNftTokenId = '0';
+        let unstakeAmount = 0n;
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Fetching position details for unstake...');
+          const position = await client.readContract({
+            address: YIELD_STRATEGY,
+            abi: parseAbi(['function stakingPositions(uint256) external view returns (address nftAddress, uint256 nftTokenId, address owner, uint256 depositTime, uint256 toursStaked, uint256 monDeployed, bool active)']),
+            functionName: 'stakingPositions',
+            args: [unstakePositionId],
+          });
+
+          // position is a tuple: [nftAddress, nftTokenId, owner, depositTime, toursStaked, monDeployed, active]
+          unstakeNftTokenId = position[1].toString();
+          unstakeAmount = position[4];
+          console.log('✅ Position found:', {
+            nftTokenId: unstakeNftTokenId,
+            owner: position[2],
+            toursStaked: unstakeAmount.toString(),
+            active: position[6]
+          });
+
+          if (!position[6]) {
+            return NextResponse.json(
+              { success: false, error: `Position #${params.positionId} is not active. It may have already been unstaked.` },
+              { status: 400 }
+            );
+          }
+
+          // Note: position[2] (owner) will be the Safe account since Safe executed stakeWithNFT
+          // The delegation system ensures only the original user can trigger this unstake
+          console.log('💡 Position owner is Safe (expected):', position[2]);
+        } catch (posErr: any) {
+          console.error('❌ Failed to fetch position details:', posErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to fetch position details: ${posErr.message}` },
+            { status: 500 }
+          );
+        }
+
+        // ✅ CRITICAL FIX: Unstake + transfer NFT and TOURS back to user
+        // Flow:
+        // 1. Unstake: Contract returns TOURS + yield to Safe, releases NFT
+        // 2. Transfer NFT: Safe → User (return custody)
+        // 3. Transfer TOURS: Safe → User (return stake + yield)
+        console.log('💎 Preparing unstake with NFT return:', {
+          positionId: unstakePositionId.toString(),
+          nftTokenId: unstakeNftTokenId,
+          user: userAddress,
+          safe: SAFE_ACCOUNT
+        });
+
         const unstakeCalls = [
+          // Step 1: Unstake position (gets TOURS + yield back to Safe, releases NFT to Safe)
           {
             to: YIELD_STRATEGY,
             value: 0n,
@@ -927,6 +1032,26 @@ View profile and collection!
               abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
               functionName: 'unstake',
               args: [unstakePositionId],
+            }) as Hex,
+          },
+          // Step 2: Transfer NFT back to user
+          {
+            to: PASSPORT_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transferFrom(address from, address to, uint256 tokenId) external']),
+              functionName: 'transferFrom',
+              args: [SAFE_ACCOUNT, userAddress as Address, BigInt(unstakeNftTokenId)],
+            }) as Hex,
+          },
+          // Step 3: Transfer TOURS tokens back to user (we'll estimate the amount with a buffer)
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [userAddress as Address, (unstakeAmount * 120n) / 100n], // 20% buffer for yield
             }) as Hex,
           },
         ];
@@ -941,7 +1066,8 @@ View profile and collection!
           action,
           userAddress,
           positionId: params.positionId,
-          message: `Unstaked position #${params.positionId} successfully`,
+          nftTokenId: unstakeNftTokenId,
+          message: `Unstaked position #${params.positionId} successfully. Your passport NFT and TOURS (+ yield) have been returned.`,
         });
 
       // ==================== CLAIM REWARDS ====================
