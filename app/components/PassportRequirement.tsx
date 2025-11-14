@@ -39,6 +39,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   // Auto-select country once geolocation loads
   useEffect(() => {
     if (location && location.country && !selectedCountryCode) {
+      console.log('🌍 Auto-selecting country:', location.country);
       setSelectedCountryCode(location.country);
     }
   }, [location, selectedCountryCode]);
@@ -114,8 +115,8 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   };
 
   const handleMint = async () => {
-    if (!walletAddress || !selectedCountryCode) {
-      setError('Please select a country and connect wallet');
+    if (!walletAddress) {
+      setError('Wallet not connected');
       return;
     }
 
@@ -124,9 +125,14 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
       return;
     }
 
+    if (!selectedCountryCode) {
+      setError('Unable to detect your country. Please refresh the page.');
+      return;
+    }
+
     const selectedCountry = getCountryByCode(selectedCountryCode);
     if (!selectedCountry) {
-      setError('Invalid country selected');
+      setError('Invalid country detected. Please refresh the page.');
       return;
     }
 
@@ -408,28 +414,28 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
             </div>
           </div>
 
-          {/* Country Selection - shows after completing requirements */}
+          {/* Country Display - shows after completing requirements */}
           {isFollowing && hasCasted && (
             <div className="space-y-4 mb-6 animate-fade-in">
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                <label className="block text-white text-sm font-semibold mb-3">
-                  {location
-                    ? `🎯 Your Country: ${location.countryName}`
-                    : '🌎 Select Your Country'
-                  }
-                </label>
-                <select
-                  value={selectedCountryCode}
-                  onChange={(e) => setSelectedCountryCode(e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-400 text-base backdrop-blur"
-                >
-                  <option value="" className="bg-gray-800">Choose a country...</option>
-                  {ALL_COUNTRIES.map((country) => (
-                    <option key={country.code} value={country.code} className="bg-gray-800">
-                      {country.flag} {country.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-4 border border-green-500/30">
+                <div className="flex items-center gap-3">
+                  <div className="text-4xl">
+                    {selectedCountryCode ? getCountryByCode(selectedCountryCode)?.flag : '🌍'}
+                  </div>
+                  <div>
+                    <p className="text-white/70 text-xs font-medium">Your passport will be minted for:</p>
+                    <p className="text-white text-lg font-bold">
+                      {selectedCountryCode
+                        ? getCountryByCode(selectedCountryCode)?.name
+                        : (location?.countryName || 'Detecting location...')}
+                    </p>
+                  </div>
+                </div>
+                {location && (
+                  <p className="text-white/60 text-xs mt-2">
+                    📍 Detected from your location: {location.city || ''}{location.city && location.region ? ', ' : ''}{location.region || ''}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -445,10 +451,10 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
           {isFollowing && hasCasted && (
             <button
               onClick={handleMint}
-              disabled={isMinting || !selectedCountryCode || !walletAddress}
+              disabled={isMinting || geoLoading || !selectedCountryCode}
               className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg"
             >
-              {isMinting ? '⏳ Minting...' : '🎫 Mint Passport (FREE)'}
+              {isMinting ? '⏳ Minting...' : geoLoading ? '📍 Detecting location...' : '🎫 Mint Passport (FREE)'}
             </button>
           )}
 
