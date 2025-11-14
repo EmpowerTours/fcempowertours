@@ -53,7 +53,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       account: safeSmartAccount,
       chain: monadTestnet,
       bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 60000 }),
-      pollingInterval: 200,
+      pollingInterval: 2000, // 2 seconds (Monad testnet might be slow)
     });
 
     const modulesAbi = parseAbi([
@@ -247,17 +247,54 @@ export async function sendSafeTransaction(
     console.log('✅ UserOperation hash:', userOpHash);
 
     // Wait for the UserOperation to be included in a transaction
-    console.log('⏳ Waiting for UserOperation to be mined...');
-    const receipt = await smartAccountClient.waitForUserOperationReceipt({
-      hash: userOpHash,
-    });
+    // Monad testnet can be slow, so use a longer timeout (5 minutes)
+    console.log('⏳ Waiting for UserOperation to be mined (timeout: 5 minutes)...');
+    console.log('   Polling every 2 seconds...');
 
-    const txHash = receipt.receipt.transactionHash;
-    console.log('✅ Transaction mined:', txHash);
-    console.log('   Gas used:', receipt.receipt.gasUsed.toString());
-    console.log('   Block:', receipt.receipt.blockNumber.toString());
+    try {
+      const receipt = await smartAccountClient.waitForUserOperationReceipt({
+        hash: userOpHash,
+        timeout: 300_000, // 5 minutes (Monad testnet can be slow)
+      });
 
-    return txHash;
+      const txHash = receipt.receipt.transactionHash;
+      console.log('✅ Transaction mined:', txHash);
+      console.log('   Gas used:', receipt.receipt.gasUsed.toString());
+      console.log('   Block:', receipt.receipt.blockNumber.toString());
+
+      return txHash;
+    } catch (timeoutErr: any) {
+      // If timeout, try to manually check the receipt one more time
+      console.warn('⚠️  Initial wait timed out, checking receipt manually...');
+
+      try {
+        // Manual check via Pimlico bundler
+        const receiptCheck = await fetch(PIMLICO_BUNDLER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'eth_getUserOperationReceipt',
+            params: [userOpHash],
+          }),
+        });
+
+        const receiptData = await receiptCheck.json();
+        console.log('📥 Manual receipt check:', receiptData);
+
+        if (receiptData.result) {
+          const txHash = receiptData.result.receipt.transactionHash;
+          console.log('✅ Transaction was actually mined:', txHash);
+          return txHash;
+        }
+      } catch (manualErr) {
+        console.error('❌ Manual receipt check also failed:', manualErr);
+      }
+
+      // Re-throw the original timeout error
+      throw timeoutErr;
+    }
   } catch (error: any) {
     console.error('❌ Transaction error:', error.message);
     console.error('   Stack:', error.stack);
