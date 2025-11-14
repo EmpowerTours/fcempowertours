@@ -9,6 +9,7 @@ import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } fr
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
 // ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
 function convertPriceFromWei(price: string | number | bigint): string {
@@ -96,14 +97,16 @@ export async function POST(req: NextRequest) {
             transport: http(),
           });
 
+          // ✅ CRITICAL: Check Safe's TOURS balance, not user's balance
+          // The Safe account is the one that will pay for the mint
           const toursBalance = await client.readContract({
             address: TOURS_TOKEN,
             abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
             functionName: 'balanceOf',
-            args: [userAddress as Address],
+            args: [SAFE_ACCOUNT],
           });
 
-          console.log('💰 User TOURS balance:', toursBalance.toString(), 'required:', MINT_PRICE.toString());
+          console.log('💰 Safe TOURS balance:', toursBalance.toString(), 'required:', MINT_PRICE.toString());
 
           if (toursBalance < MINT_PRICE) {
             const requiredTours = Number(MINT_PRICE) / 1e18;
@@ -111,7 +114,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(
               {
                 success: false,
-                error: `Insufficient TOURS tokens. You need ${requiredTours} TOURS to mint a passport, but only have ${currentTours.toFixed(2)} TOURS. Try "swap 0.5 mon" to get TOURS tokens first.`
+                error: `Insufficient TOURS tokens in Safe account. The Safe needs ${requiredTours} TOURS to mint passports, but only has ${currentTours.toFixed(2)} TOURS. Please contact support to fund the Safe account.`
+              },
+              { status: 400 }
+            );
+          }
+
+          // ✅ Also check Safe's MON balance for gas
+          const monBalance = await client.getBalance({
+            address: SAFE_ACCOUNT,
+          });
+
+          console.log('⛽ Safe MON balance:', monBalance.toString());
+
+          if (monBalance < parseEther('0.001')) {
+            const currentMon = Number(monBalance) / 1e18;
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe account for gas. The Safe has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`
               },
               { status: 400 }
             );

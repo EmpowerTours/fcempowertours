@@ -158,10 +158,9 @@ export async function sendSafeTransaction(
     // Pimlico enforces minimum gas prices that may be higher than the chain's current price
     const { maxFeePerGas, maxPriorityFeePerGas } = await getPimlicoGasPrices();
 
-    console.log('🚀 Submitting UserOperation with Pimlico-recommended gas prices...');
+    console.log('🚀 Submitting UserOperation with Pimlico gas prices...');
 
-    // ✅ For EntryPoint v0.7, just pass account, calls, and gas prices
-    // The permissionless client will automatically format the UserOperation correctly
+    // sendUserOperation will automatically estimate gas internally
     const userOpHash = await smartAccountClient.sendUserOperation({
       account: smartAccountClient.account,
       calls,
@@ -170,18 +169,18 @@ export async function sendSafeTransaction(
     });
 
     console.log('✅ UserOperation hash:', userOpHash);
-    
+
     // Wait for the UserOperation to be included in a transaction
     console.log('⏳ Waiting for UserOperation to be mined...');
     const receipt = await smartAccountClient.waitForUserOperationReceipt({
       hash: userOpHash,
     });
-    
+
     const txHash = receipt.receipt.transactionHash;
     console.log('✅ Transaction mined:', txHash);
     console.log('   Gas used:', receipt.receipt.gasUsed.toString());
     console.log('   Block:', receipt.receipt.blockNumber.toString());
-    
+
     return txHash;
   } catch (error: any) {
     console.error('❌ Transaction error:', error.message);
