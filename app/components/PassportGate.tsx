@@ -52,10 +52,15 @@ export default function PassportGate({ children }: PassportGateProps) {
     return <>{children}</>;
   }
 
+  // 🔒 CRITICAL: Don't render children until passport requirement is met
+  // This prevents users from navigating the site in the background
   return (
     <>
-      {showGate && <PassportRequirement onPassportMinted={handlePassportMinted} />}
-      {children}
+      {showGate ? (
+        <PassportRequirement onPassportMinted={handlePassportMinted} />
+      ) : (
+        children
+      )}
     </>
   );
 }

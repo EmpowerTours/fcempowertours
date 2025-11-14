@@ -230,7 +230,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   // Show loading while checking balance
   if (balanceLoading || contextLoading) {
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
         <div className="text-center">
           <div className="animate-spin text-6xl mb-4">🌍</div>
           <p className="text-white text-lg">Checking passport status...</p>
@@ -247,7 +247,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   // Welcome screen
   if (currentStep === 'welcome') {
     return (
-      <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-[9999] p-4">
         <div className="w-full max-w-md">
           {/* Animated passport icon */}
           <div className="text-center mb-8 animate-bounce">
@@ -321,7 +321,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   // Minting screen
   if (currentStep === 'minting') {
     return (
-      <div className="fixed inset-0 bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center z-[9999] p-4">
         <div className="w-full max-w-md bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 text-center">
           <div className="animate-spin text-6xl mb-6">🎫</div>
           <h2 className="text-3xl font-bold text-white mb-4">Minting Your Passport</h2>
@@ -346,7 +346,7 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
 
   // Requirements screen
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-[9999] p-4 overflow-y-auto">
       <div className="w-full max-w-lg my-8">
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
 
