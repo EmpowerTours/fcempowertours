@@ -210,7 +210,7 @@ async function diagnoseStakingIssue() {
           functionName: check.name,
           args: check.args || [],
         });
-        console.log(`   ${check.name}:`, result.toString());
+        console.log(`   ${check.name}:`, String(result));
       } catch (err: any) {
         console.log(`   ${check.name}: N/A (function may not exist)`);
       }
