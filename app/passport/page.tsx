@@ -15,6 +15,7 @@ export default function PassportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [txHash, setTxHash] = useState('');
 
   // Auto-select country once geolocation loads
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function PassportPage() {
     setIsLoading(true);
     setError('');
     setSuccess('');
+    setTxHash('');
 
     try {
       console.log('🎫 Minting passport via delegation API (gasless)...');
@@ -96,12 +98,12 @@ export default function PassportPage() {
         throw new Error(errorData.error || 'Mint failed');
       }
 
-      const { txHash, tokenId } = await response.json();
+      const { txHash: responseTxHash, tokenId } = await response.json();
+
+      setTxHash(responseTxHash);
       setSuccess(`🎉 Passport minted (FREE)!
 ${selectedCountry.flag} ${selectedCountry.name}
-Token #${tokenId || 'pending'}
-TX: ${txHash?.slice(0, 10)}...
-Gasless - we paid the gas!`);
+Token #${tokenId || 'pending'}`);
       setSelectedCountryCode('');
     } catch (err: any) {
       console.error('❌ Error:', err);
@@ -229,7 +231,17 @@ Gasless - we paid the gas!`);
 
         {success && (
           <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
-            <p className="text-green-300 text-sm">{success}</p>
+            <p className="text-green-300 text-sm whitespace-pre-line">{success}</p>
+            {txHash && (
+              <a
+                href={`https://explorer.monad.xyz/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-green-200 hover:text-green-100 underline text-sm font-mono"
+              >
+                🔗 View Transaction: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+              </a>
+            )}
           </div>
         )}
 

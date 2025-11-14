@@ -1,23 +1,174 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+
+interface Passport {
+  tokenId: string;
+  countryCode: string;
+  countryName: string;
+  region: string;
+  continent: string;
+  mintedAt: string;
+}
+
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 export default function PassportStakingPage() {
   const { walletAddress } = useFarcasterContext();
   const [stakeAmount, setStakeAmount] = useState('');
   const [selectedTokenId, setSelectedTokenId] = useState('');
+  const [passports, setPassports] = useState<Passport[]>([]);
+  const [isLoadingPassports, setIsLoadingPassports] = useState(true);
+  const [isStaking, setIsStaking] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Mock data - replace with actual hook calls
-  const passports = [
-    { tokenId: '1', stakedAmount: '100', stampCount: 5, creditScore: 250 },
-    { tokenId: '2', stakedAmount: '0', stampCount: 2, creditScore: 120 },
-  ];
+  // Fetch user's passports
+  useEffect(() => {
+    if (!walletAddress) {
+      setIsLoadingPassports(false);
+      return;
+    }
+
+    const fetchPassports = async () => {
+      try {
+        setIsLoadingPassports(true);
+        const response = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `
+              query GetPassportsByOwner($owner: String!) {
+                PassportNFT(where: { owner: { _eq: $owner } }) {
+                  id
+                  tokenId
+                  countryCode
+                  countryName
+                  region
+                  continent
+                  mintedAt
+                }
+              }
+            `,
+            variables: { owner: walletAddress.toLowerCase() }
+          })
+        });
+
+        const data = await response.json();
+        if (data.data?.PassportNFT) {
+          setPassports(data.data.PassportNFT);
+        }
+      } catch (err) {
+        console.error('Error fetching passports:', err);
+      } finally {
+        setIsLoadingPassports(false);
+      }
+    };
+
+    fetchPassports();
+  }, [walletAddress]);
 
   const handleStake = async () => {
-    // Implementation for staking
-    console.log(`Staking ${stakeAmount} TOURS with passport #${selectedTokenId}`);
+    if (!walletAddress || !selectedTokenId || !stakeAmount) {
+      setError('Please select a passport and enter an amount');
+      return;
+    }
+
+    const amount = parseFloat(stakeAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
+    setIsStaking(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      console.log(`🔄 Staking ${stakeAmount} TOURS with passport #${selectedTokenId}`);
+
+      // Check for delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('stake_tours');
+
+      if (!hasValidDelegation) {
+        console.log('📝 Creating delegation...');
+        setSuccess('⏳ Setting up gasless transactions...');
+
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+        console.log('✅ Delegation created');
+      }
+
+      setSuccess('⏳ Staking TOURS (FREE - we pay gas)...');
+
+      // Execute stake via delegation API
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'stake_tours',
+          params: {
+            amount: stakeAmount
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Stake failed');
+      }
+
+      const { txHash, positionId } = await response.json();
+      setSuccess(`🎉 Successfully staked ${stakeAmount} TOURS!
+Position ID: ${positionId}
+TX: ${txHash?.slice(0, 10)}...
+Gasless - we paid the gas!`);
+      setStakeAmount('');
+      setSelectedTokenId('');
+
+      // Refresh passports after a delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (err: any) {
+      console.error('❌ Error:', err);
+      setError(err.message || 'Failed to stake TOURS');
+    } finally {
+      setIsStaking(false);
+    }
   };
+
+  if (isLoadingPassports) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <p className="text-gray-900">Loading your passports...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
@@ -28,6 +179,18 @@ export default function PassportStakingPage() {
             Stake TOURS tokens using your passport NFTs to earn rewards and build credit score
           </p>
         </div>
+
+        {error && (
+          <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-3 max-w-2xl mx-auto">
+            <p className="text-red-700 text-sm">❌ {error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-3 max-w-2xl mx-auto">
+            <p className="text-green-700 text-sm whitespace-pre-line">{success}</p>
+          </div>
+        )}
 
         {!walletAddress ? (
           <div className="bg-white rounded-lg shadow-lg p-8 text-center">
@@ -52,44 +215,44 @@ export default function PassportStakingPage() {
                   <div className="text-center mb-4">
                     <div className="text-6xl mb-2">🎫</div>
                     <h3 className="text-xl font-bold">Passport #{passport.tokenId}</h3>
-                  </div>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Staked:</span>
-                      <span className="font-semibold">{passport.stakedAmount} TOURS</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Stamps:</span>
-                      <span className="font-semibold">{passport.stampCount}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Credit Score:</span>
-                      <span className="font-semibold text-green-600">{passport.creditScore}</span>
-                    </div>
+                    <p className="text-sm text-gray-600 mt-1">{passport.countryName}</p>
+                    <p className="text-xs text-gray-500">{passport.region}</p>
                   </div>
 
                   <div className="mt-4 space-y-2">
                     <input
                       type="number"
-                      placeholder="Amount to stake"
+                      placeholder="Amount to stake (e.g. 100)"
                       value={selectedTokenId === passport.tokenId ? stakeAmount : ''}
                       onChange={(e) => {
                         setSelectedTokenId(passport.tokenId);
                         setStakeAmount(e.target.value);
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      disabled={isStaking}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
                     />
                     <button
                       onClick={handleStake}
-                      disabled={!stakeAmount || selectedTokenId !== passport.tokenId}
-                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isStaking || !stakeAmount || selectedTokenId !== passport.tokenId}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
                     >
-                      Stake TOURS
+                      {isStaking ? '⏳ Staking...' : 'Stake TOURS (FREE)'}
                     </button>
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Info Card */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4">ℹ️ About Passport Staking</h3>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p>• Stake TOURS tokens against your passport NFT as collateral</p>
+                <p>• Earn yield from MON staking via Kintsu integration</p>
+                <p>• Build your credit score by staking consistently</p>
+                <p>• All transactions are gasless - we pay the gas!</p>
+                <p>• Your passport is used as collateral but remains in your wallet</p>
+              </div>
             </div>
 
             {/* Credit Score Formula */}
