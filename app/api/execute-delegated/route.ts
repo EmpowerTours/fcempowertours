@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
     const MUSIC_NFT_V4 = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address;
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
-    const MINT_PRICE = parseEther('10'); // 10 TOURS for passport mint
+    // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
     // DeFi contract addresses
     const YIELD_STRATEGY = '0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866' as Address;
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // ✅ Check if user has enough TOURS tokens in their Safe wallet
+        // ✅ Check Safe's MON balance - Passport minting requires MON, not TOURS
         try {
           const { createPublicClient, http } = await import('viem');
           const { monadTestnet } = await import('@/app/chains');
@@ -127,48 +127,28 @@ export async function POST(req: NextRequest) {
             transport: http(),
           });
 
-          // ✅ CRITICAL: Check Safe's TOURS balance, not user's balance
-          // The Safe account is the one that will pay for the mint
-          const toursBalance = await client.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
-            functionName: 'balanceOf',
-            args: [SAFE_ACCOUNT],
-          });
-
-          console.log('💰 Safe TOURS balance:', toursBalance.toString(), 'required:', MINT_PRICE.toString());
-
-          if (toursBalance < MINT_PRICE) {
-            const requiredTours = Number(MINT_PRICE) / 1e18;
-            const currentTours = Number(toursBalance) / 1e18;
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Insufficient TOURS tokens in Safe account. The Safe needs ${requiredTours} TOURS to mint passports, but only has ${currentTours.toFixed(2)} TOURS. Please contact support to fund the Safe account.`
-              },
-              { status: 400 }
-            );
-          }
-
-          // ✅ Also check Safe's MON balance for gas
+          // ✅ CRITICAL: Check Safe's MON balance for MINT PRICE (0.01 MON) + gas
           const monBalance = await client.getBalance({
             address: SAFE_ACCOUNT,
           });
 
           console.log('⛽ Safe MON balance:', monBalance.toString());
 
-          if (monBalance < parseEther('0.001')) {
+          // Need 0.01 MON for mint + ~0.001 MON for gas = 0.011 MON minimum
+          const MIN_MON_REQUIRED = parseEther('0.011');
+          if (monBalance < MIN_MON_REQUIRED) {
             const currentMon = Number(monBalance) / 1e18;
+            const requiredMon = Number(MIN_MON_REQUIRED) / 1e18;
             return NextResponse.json(
               {
                 success: false,
-                error: `Insufficient MON in Safe account for gas. The Safe has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`
+                error: `Insufficient MON in Safe account. The Safe needs ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`
               },
               { status: 400 }
             );
           }
         } catch (balanceErr: any) {
-          console.error('❌ Failed to check TOURS balance:', balanceErr);
+          console.error('❌ Failed to check MON balance:', balanceErr);
           // Continue with mint attempt - don't block on balance check failure
         }
 
@@ -176,28 +156,23 @@ export async function POST(req: NextRequest) {
         console.log('🔍 [MINT-DEBUG] Transaction details:', {
           safeAccount: SAFE_ACCOUNT,
           userAddress: userAddress,
-          toursToken: TOURS_TOKEN,
           passportNFT: PASSPORT_NFT,
-          mintPrice: MINT_PRICE.toString(),
+          mintPriceMON: '0.01 MON',
           countryCode: params?.countryCode || 'US',
         });
 
+        // ✅ CRITICAL FIX: Passport contract requires 0.01 MON payment (not TOURS tokens)
+        // The contract checks: require(msg.value >= MINT_PRICE, "Insufficient payment")
+        // where MINT_PRICE = 0.01 ether
+        const PASSPORT_MINT_PRICE_MON = parseEther('0.01');
+
         const mintCalls = [
           {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [PASSPORT_NFT, MINT_PRICE],
-            }) as Hex,
-          },
-          {
             to: PASSPORT_NFT,
-            value: 0n,
+            value: PASSPORT_MINT_PRICE_MON,  // ✅ Send 0.01 MON as required by contract
             data: encodeFunctionData({
               abi: parseAbi([
-                'function mint(address to, string countryCode, string countryName, string region, string continent, string uri) external returns (uint256)'
+                'function mint(address to, string countryCode, string countryName, string region, string continent, string uri) external payable returns (uint256)'
               ]),
               functionName: 'mint',
               args: [
