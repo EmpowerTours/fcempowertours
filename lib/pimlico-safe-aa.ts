@@ -159,6 +159,10 @@ export async function sendSafeTransaction(
 
     const smartAccountClient = await createSafeSmartAccountClient();
 
+    if (!smartAccountClient.account) {
+      throw new Error('Failed to create smart account client - account is undefined');
+    }
+
     console.log('🔍 Account details:', {
       address: smartAccountClient.account.address,
       entryPoint: smartAccountClient.account.entryPoint,
