@@ -72,21 +72,24 @@ echo ""
 
 # Deploy using forge create
 # Uses settings from foundry.toml automatically
-CONTRACT_ADDRESS=$(forge create \
+forge create "$CONTRACT_PATH:$CONTRACT_NAME" \
     --rpc-url https://testnet-rpc.monad.xyz \
     --private-key "$DEPLOYER_PRIVATE_KEY" \
     --constructor-args "$TOURS_TOKEN" "$KINTSU" "$TOKEN_SWAP" "$DRAGON_ROUTER" "$KEEPER" \
-    "$CONTRACT_PATH:$CONTRACT_NAME" \
-    --json | jq -r '.deployedTo')
+    --json > /tmp/deploy_output.json
+
+CONTRACT_ADDRESS=$(cat /tmp/deploy_output.json | jq -r '.deployedTo')
 
 if [ -z "$CONTRACT_ADDRESS" ] || [ "$CONTRACT_ADDRESS" == "null" ]; then
     echo "❌ Deployment failed!"
     echo ""
+    echo "Check /tmp/deploy_output.json for error details"
+    echo ""
     echo "Try deploying manually:"
-    echo "  forge create --rpc-url https://testnet-rpc.monad.xyz \\"
+    echo "  forge create $CONTRACT_PATH:$CONTRACT_NAME \\"
+    echo "    --rpc-url https://testnet-rpc.monad.xyz \\"
     echo "    --private-key \$DEPLOYER_PRIVATE_KEY \\"
-    echo "    --constructor-args $TOURS_TOKEN $KINTSU $TOKEN_SWAP $DRAGON_ROUTER $KEEPER \\"
-    echo "    $CONTRACT_PATH:$CONTRACT_NAME"
+    echo "    --constructor-args $TOURS_TOKEN $KINTSU $TOKEN_SWAP $DRAGON_ROUTER $KEEPER"
     echo ""
     exit 1
 fi
