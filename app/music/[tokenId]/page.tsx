@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createPublicClient, http, Address } from 'viem';
+import { monadTestnet } from '@/app/chains';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useBotCommand } from '@/app/hooks/useBotCommand';
 
