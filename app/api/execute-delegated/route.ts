@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
     // DeFi contract addresses
-    const YIELD_STRATEGY = '0xe1895d0A166cf750E5e8620A63445661C67112d5' as Address;
+    const YIELD_STRATEGY = '0x24fe4651F8633b37a2eDaF5152c876678273B7f0' as Address;
     const TANDA_YIELD_GROUP = '0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8' as Address;
     const SMART_EVENT_MANIFEST = '0x5cfe8379058cA460aA60ef15051Be57dab4A651C' as Address;
     const DEMAND_SIGNAL_ENGINE = '0xC2Eb75ddf31cd481765D550A91C5A63363B36817' as Address;
@@ -879,23 +879,12 @@ View profile and collection!
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
 
-          // Check if it's an NFT whitelist issue
-          if (errorMsg.includes('Invalid NFT address')) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `The Passport NFT contract (${PASSPORT_NFT}) is not whitelisted in the V2 staking contract. Please contact the team to whitelist this NFT address, or use the owner account to call addAcceptedNFT(${PASSPORT_NFT}) on the YieldStrategy contract.`
-              },
-              { status: 400 }
-            );
-          }
-
           // Check if it's an NFT ownership issue
-          if (errorMsg.includes('ERC721') || errorMsg.includes('not owner') || errorMsg.includes('does not own')) {
+          if (errorMsg.includes('Beneficiary must own NFT') || errorMsg.includes('ERC721') || errorMsg.includes('not owner')) {
             return NextResponse.json(
               {
                 success: false,
-                error: `NFT ownership verification failed. Please ensure you own passport #${nftTokenId} and try again.`
+                error: `You must own passport #${nftTokenId} to stake with it. Please ensure you own the NFT and try again.`
               },
               { status: 400 }
             );
@@ -904,7 +893,7 @@ View profile and collection!
           return NextResponse.json(
             {
               success: false,
-              error: `Staking would fail: ${errorMsg}. Please ensure your passport NFT is valid and try again.`
+              error: `Staking would fail: ${errorMsg}. Please try again or contact support.`
             },
             { status: 400 }
           );
