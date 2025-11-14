@@ -57,7 +57,8 @@ Basic Transactions (Gasless):
 - "buy music <tokenId>" - Buy music license
 - "check balance" - Check balances
 DeFi Actions (Gasless):
-- "stake <amount> tours" - Stake for rewards
+- "stake passport 10" - Stake TOURS with passport
+- "stake 10 tours" - Stake TOURS for rewards
 - "unstake <amount> tours" - Unstake tokens
 - "claim rewards" - Claim staking rewards
 - "create tanda <name>" - Create savings group
@@ -644,6 +645,85 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
         return NextResponse.json({
           success: false,
           message: `Mint failed: ${error.message}`
+        });
+      }
+    }
+
+    // ==================== STAKE PASSPORT COMMAND (STAKE TOURS WITH PASSPORT) ====================
+    // Handle "stake passport" separately - it stakes TOURS using passport as collateral
+    if (lowerCommand.includes('stake') && lowerCommand.includes('passport')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      const match = lowerCommand.match(/([\d.]+)/);
+      const amount = match ? parseFloat(match[1]) : 0;
+      if (amount <= 0 || amount > 100000) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid amount. Use: "stake passport 10" to stake 10 TOURS'
+        });
+      }
+      try {
+        console.log(`[BOT] Staking ${amount} TOURS with passport as collateral for user ${userAddress}`);
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        const hasValidDelegation = delegationData.success &&
+                                  delegationData.delegation &&
+                                  Array.isArray(delegationData.delegation.permissions) &&
+                                  delegationData.delegation.permissions.includes('stake_tours');
+        if (!hasValidDelegation) {
+          console.warn('[BOT] No delegation with stake_tours permission - creating one...');
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+          console.log('[BOT] Delegation created with stake_tours permission');
+        }
+        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'stake_tours',
+            params: {
+              amount: amount.toString()
+            }
+          })
+        });
+        const stakeData = await stakeRes.json();
+        if (!stakeData.success) {
+          throw new Error(stakeData.error || 'Stake failed');
+        }
+        console.log('[BOT] Passport stake successful:', stakeData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeData.txHash,
+          action: 'transaction',
+          message: `Passport Staking Complete (FREE)!
+${amount} TOURS staked with passport as collateral
+Position ID: ${stakeData.positionId || 'pending'}
+TX: ${stakeData.txHash?.slice(0, 10)}...
+Gasless - we paid the gas!
+View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('[BOT] Passport stake failed:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Stake failed: ${error.message || 'Unknown error'}`
         });
       }
     }
