@@ -3,7 +3,7 @@
 # V3 Contract Verification Command for Foundry
 # This script builds the contract and verifies it on Monadscan
 
-CONTRACT_ADDRESS="0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086"
+CONTRACT_ADDRESS="0x2804add55b205Ce5930D7807Ad6183D8f3345974"
 API_KEY="FQSX86QUTQYPUNG1WJTYBNC665XPTRYD6J"
 
 # Constructor arguments
