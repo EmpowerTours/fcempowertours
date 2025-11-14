@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
     // DeFi contract addresses
-    const YIELD_STRATEGY = '0xbc65380d216c83a7f12b789ce5aa66ff03c32c7c' as Address; // V2 with NFT whitelist & beneficiary
+    const YIELD_STRATEGY = '0x2804add55b205Ce5930D7807Ad6183D8f3345974' as Address; // V3 deployed with Foundry (verified)
     const TANDA_YIELD_GROUP = '0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8' as Address;
     const SMART_EVENT_MANIFEST = '0x5cfe8379058cA460aA60ef15051Be57dab4A651C' as Address;
     const DEMAND_SIGNAL_ENGINE = '0xC2Eb75ddf31cd481765D550A91C5A63363B36817' as Address;

@@ -2,19 +2,20 @@
 
 ## Contract Details
 
-- **Contract Address:** `0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086`
+- **Contract Address:** `0x2804add55b205Ce5930D7807Ad6183D8f3345974`
 - **Network:** Monad Testnet (Chain ID: 10143)
 - **Contract Name:** `EmpowerToursYieldStrategyV3`
 - **Deployed:** November 14, 2025
+- **Status:** ✅ VERIFIED on Monadscan
 
 ## Quick Links
 
-- **Explorer:** https://testnet.monadexplorer.com/address/0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086
-- **Verify Page:** https://testnet.monadexplorer.com/address/0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086#code
+- **Explorer:** https://testnet.monadexplorer.com/address/0x2804add55b205Ce5930D7807Ad6183D8f3345974
+- **Verify Page:** https://testnet.monadexplorer.com/address/0x2804add55b205Ce5930D7807Ad6183D8f3345974#code
 
 ## Compilation Settings
 
-**IMPORTANT:** Contract was deployed with Solidity 0.8.30 (from deploy-v3-contract.mjs using npm solc package)
+**IMPORTANT:** Contract was deployed with Foundry using Solidity 0.8.30
 
 ```
 Compiler Version: v0.8.30+commit.73712a01

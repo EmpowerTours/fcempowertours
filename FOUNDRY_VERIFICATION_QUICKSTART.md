@@ -116,12 +116,13 @@ https://testnet.monadexplorer.com/address/0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043
 
 ## Contract Details
 
-- **Address:** `0xb2e9ee8b35c84bdaaf2c14fb2cdd95983043e086`
+- **Address:** `0x2804add55b205Ce5930D7807Ad6183D8f3345974`
 - **Network:** Monad Testnet (Chain ID: 10143)
-- **Compiler:** v0.8.30+commit.73712a01 (deployed with npm solc package)
+- **Compiler:** v0.8.30+commit.73712a01 (deployed with Foundry)
 - **Optimization:** Yes (10000 runs)
 - **Via IR:** Yes (CRITICAL - must match deployment)
 - **EVM Version:** paris
+- **Status:** ✅ VERIFIED on Monadscan
 
 ## After Verification Succeeds
 

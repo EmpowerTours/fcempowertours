@@ -18,7 +18,7 @@ const monadTestnet = defineChain({
   },
 });
 
-const YIELD_STRATEGY = '0xbc65380d216c83a7f12b789ce5aa66ff03c32c7c';
+const YIELD_STRATEGY = '0x2804add55b205Ce5930D7807Ad6183D8f3345974'; // V3 deployed with Foundry
 const OWNER_PRIVATE_KEY = '0x054c4eb995fd41652d23d042cc3b0e7143a67c8b7f4804b09df450ca863f44d6';
 
 const functionName = process.argv[2];
