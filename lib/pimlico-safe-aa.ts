@@ -343,6 +343,58 @@ export async function sendSafeTransaction(
     console.log('   Max fee per gas:', maxFeePerGas.toString(), 'wei');
     console.log('   Max priority fee:', maxPriorityFeePerGas.toString(), 'wei');
 
+    // ✅ ENHANCED: Simulate each call individually BEFORE attempting batch gas estimation
+    // This helps identify which specific call is causing the revert
+    console.log('🔍 Pre-simulating each call individually to catch errors early...');
+    for (let i = 0; i < calls.length; i++) {
+      const call = calls[i];
+      const functionSelector = call.data.slice(0, 10);
+
+      try {
+        console.log(`   [Call ${i}] Simulating: ${call.to} (selector: ${functionSelector})`);
+
+        // Simulate the call as if it's coming from the Safe account
+        await publicClient.call({
+          account: SAFE_ACCOUNT,
+          to: call.to,
+          data: call.data,
+          value: call.value,
+        });
+
+        console.log(`   [Call ${i}] ✅ Simulation passed`);
+      } catch (simErr: any) {
+        console.error(`   [Call ${i}] ❌ Simulation failed:`, {
+          message: simErr.message,
+          shortMessage: simErr.shortMessage,
+          details: simErr.details,
+          data: simErr.data,
+        });
+
+        // Try to decode the revert reason
+        if (simErr.data) {
+          console.error(`   [Call ${i}] Revert data:`, simErr.data);
+        }
+
+        // Provide specific error message based on which call failed
+        let specificError = '';
+        if (functionSelector === '0x095ea7b3') {
+          specificError = 'Token approval failed. This could indicate an issue with the token contract or Safe account state.';
+        } else if (functionSelector === '0xa48999b6') {
+          specificError = 'stakeWithNFT call would fail. Please verify: 1) NFT is whitelisted, 2) You own the NFT, 3) NFT is not already used as collateral, 4) Safe has sufficient TOURS balance.';
+        } else if (functionSelector === '0xa9059cbb') {
+          specificError = 'Token transfer failed. Safe may have insufficient token balance.';
+        } else {
+          specificError = `Call to ${call.to} (${functionSelector}) would fail.`;
+        }
+
+        throw new Error(
+          `Pre-simulation check failed for call ${i}: ${specificError}\n` +
+          `Original error: ${simErr.shortMessage || simErr.message}`
+        );
+      }
+    }
+    console.log('✅ All individual call simulations passed\n');
+
     // ✅ CRITICAL FIX: Provide initial gas limits for estimation
     // Without these, the bundler simulation may fail with insufficient gas
     // Increased limits significantly to handle complex multi-call operations
@@ -378,13 +430,35 @@ export async function sendSafeTransaction(
         cause: gasErr.cause,
       });
 
-      // Try to extract more details from the error
+      // ✅ ENHANCED: Extract more details from nested errors
       if (gasErr.walk) {
         const baseError = gasErr.walk();
         console.error('   Base error:', {
           name: baseError.name,
           message: baseError.message,
+          code: baseError.code,
+          data: baseError.data,
         });
+      }
+
+      // ✅ ENHANCED: Try to extract revert data from the RPC error
+      if (gasErr.cause?.cause?.data) {
+        console.error('   Revert data from RPC:', gasErr.cause.cause.data);
+      }
+
+      // ✅ ENHANCED: Check for common error patterns and provide better messages
+      const errorMsg = gasErr.shortMessage || gasErr.message || '';
+      if (errorMsg.includes('reverted during simulation with reason: 0x') || errorMsg.includes('reason: 0x')) {
+        console.error('   ⚠️ EMPTY REVERT DETECTED: The UserOperation simulation failed with no revert reason.');
+        console.error('   This usually indicates one of the following:');
+        console.error('   1. The Safe account validation logic is rejecting the operation');
+        console.error('   2. One of the calls in the batch is reverting without a message');
+        console.error('   3. The EntryPoint detected an invalid operation state');
+        console.error('   4. Insufficient gas for the operation (try with higher limits)');
+        console.error('\n   Individual call simulations passed, so the issue is likely with:');
+        console.error('   - UserOperation validation in the Safe account');
+        console.error('   - EntryPoint-specific validation');
+        console.error('   - Gas estimation parameters');
       }
 
       // ✅ ENHANCED: Try with even higher gas limits as a fallback
