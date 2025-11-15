@@ -14,7 +14,8 @@
     "check-safe": "npx tsx scripts/check-safe-balance.ts",
     "fund-safe": "npx tsx scripts/fund-safe.ts",
     "verify-deployment": "./scripts/verify-railway-deployment.sh",
-    "check-delegation": "npx tsx scripts/check-delegation-status.ts"
+    "check-delegation": "npx tsx scripts/check-delegation-status.ts",
+    "whitelist-nft": "npx tsx scripts/whitelist-passport-nft.ts"
   },
   "dependencies": {
     "@farcaster/hub-nodejs": "^0.15.9",
