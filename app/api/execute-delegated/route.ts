@@ -886,14 +886,13 @@ View profile and collection!
 
           console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
 
-          // ✅ ENHANCED: Verify YieldStrategy can accept the stake
+          // ✅ CRITICAL: Check current allowance - this determines if we need to approve first
+          console.log('🔍 Checking current TOURS allowance for YieldStrategy...');
+          console.log('   TOURS_TOKEN:', TOURS_TOKEN);
+          console.log('   SAFE_ACCOUNT:', SAFE_ACCOUNT);
+          console.log('   YIELD_STRATEGY:', YIELD_STRATEGY);
+
           try {
-            console.log('🔍 Checking YieldStrategy contract state...');
-
-            // Check if contract is paused (if it has a paused state)
-            const yieldStrategyCode = await client.getCode({ address: YIELD_STRATEGY });
-            console.log('   YieldStrategy code size:', yieldStrategyCode?.length || 0);
-
             // Verify the Safe's current allowance
             currentAllowance = await client.readContract({
               address: TOURS_TOKEN,
@@ -901,8 +900,9 @@ View profile and collection!
               functionName: 'allowance',
               args: [SAFE_ACCOUNT, YIELD_STRATEGY],
             }) as bigint;
-            console.log('   Current TOURS allowance for YieldStrategy:', currentAllowance.toString());
+            console.log('✅ Current TOURS allowance for YieldStrategy:', currentAllowance.toString());
             console.log('   Stake amount needed:', stakeAmount.toString());
+            console.log('   Allowance sufficient?', currentAllowance >= stakeAmount);
 
             // Double-check TOURS balance one more time before proceeding
             const currentToursBalance = await client.readContract({
@@ -918,10 +918,12 @@ View profile and collection!
               throw new Error(`Insufficient TOURS balance: has ${currentToursBalance}, needs ${stakeAmount}`);
             }
 
-            console.log('✅ All preconditions verified for staking');
-          } catch (contractCheckErr: any) {
-            console.warn('⚠️ Contract state check warning:', contractCheckErr.message);
-            // Don't fail here, let the actual transaction attempt proceed
+            console.log('✅ All balance checks passed');
+          } catch (allowanceCheckErr: any) {
+            console.error('❌ CRITICAL: Allowance check FAILED:', allowanceCheckErr.message);
+            console.error('   This means we cannot determine if approval is needed!');
+            console.error('   Defaulting to: currentAllowance = 0 (will trigger auto-approve)');
+            // currentAllowance remains at 0n, which will trigger the approve below
           }
         } catch (simErr: any) {
           console.error('❌ Stake simulation failed:', simErr);
@@ -960,15 +962,20 @@ View profile and collection!
 
         // ✅ CRITICAL FIX: Auto-approve if allowance is insufficient
         // This is done as a SEPARATE transaction to prevent bundler from dropping the UserOp
+        console.log('\n🔍 ALLOWANCE CHECK DECISION POINT:');
+        console.log('   Current allowance:', currentAllowance.toString());
+        console.log('   Stake amount needed:', stakeAmount.toString());
+        console.log('   Needs approval?', currentAllowance < stakeAmount);
+
         if (currentAllowance < stakeAmount) {
-          console.log('⚠️  Insufficient allowance, will approve first as separate transaction');
+          console.log('\n⚠️  INSUFFICIENT ALLOWANCE - Will approve first as separate transaction');
           console.log('   Current allowance:', currentAllowance.toString());
           console.log('   Required allowance:', stakeAmount.toString());
           console.log('   Deficit:', (stakeAmount - currentAllowance).toString());
 
           // ✅ SOLUTION: Call approve_yield_strategy as a SEPARATE transaction first
           // This prevents the approve + spend pattern that causes bundler to drop the UserOp
-          console.log('🔓 Auto-approving YieldStrategy with max allowance...');
+          console.log('\n🔓 Auto-approving YieldStrategy with max allowance...');
 
           const { maxUint256 } = await import('viem');
           const approveCalls = [
@@ -984,14 +991,21 @@ View profile and collection!
           ];
 
           console.log('💳 Executing approval transaction (max uint256 for unlimited approval)...');
+          console.log('   Approval call:', {
+            to: TOURS_TOKEN,
+            spender: YIELD_STRATEGY,
+            amount: 'max uint256'
+          });
+
           const approveTxHash = await sendSafeTransaction(approveCalls);
           console.log('✅ Approval successful, TX:', approveTxHash);
           console.log('   YieldStrategy now has unlimited approval to spend TOURS');
-          console.log('   Proceeding with stake transaction...');
+          console.log('   Proceeding with stake transaction...\n');
         } else {
-          console.log('✅ Sufficient allowance exists, skipping approve call');
+          console.log('\n✅ SUFFICIENT ALLOWANCE - Skipping approve call');
           console.log('   Current allowance:', currentAllowance.toString());
           console.log('   Required amount:', stakeAmount.toString());
+          console.log('   Proceeding directly to stake transaction...\n');
         }
 
         // Build stakeCalls with ONLY the stakeWithDeposit call (no approve)
