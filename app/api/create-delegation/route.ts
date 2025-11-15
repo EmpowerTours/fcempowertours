@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
           'buy_itinerary',
           'send_tours',
           // DeFi permissions
+          'approve_yield_strategy', // One-time setup for staking
           'stake_tours',
           'unstake_tours',
           'claim_rewards',
