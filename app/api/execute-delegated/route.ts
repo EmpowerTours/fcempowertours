@@ -839,15 +839,15 @@ View profile and collection!
           );
         }
 
-        // ✅ V2 CONTRACT: Simplified staking with beneficiary parameter
-        // The new V2 contract accepts a beneficiary parameter, so no NFT transfer is needed!
+        // ✅ V4 CONTRACT: Simplified staking with beneficiary parameter
+        // The V4 contract accepts a beneficiary parameter, so no NFT transfer is needed!
         // The user keeps their NFT and the Safe stakes on their behalf.
         //
         // Flow:
-        // 1. Approve TOURS: Safe → YieldStrategy
-        // 2. Stake: Safe calls stakeWithNFT with beneficiary=user
+        // 1. Approve TOURS: Safe → YieldStrategy (one-time max approval)
+        // 2. Stake: Safe calls stakeWithDeposit with beneficiary=user
         // On unstake: TOURS + yield go to beneficiary
-        console.log('💎 Preparing stakeWithNFT with beneficiary:', {
+        console.log('💎 Preparing stakeWithDeposit with beneficiary:', {
           nftAddress: PASSPORT_NFT,
           nftTokenId: nftTokenId,
           toursAmount: stakeAmount.toString(),
@@ -994,14 +994,14 @@ View profile and collection!
           console.log('   Required amount:', stakeAmount.toString());
         }
 
-        // Build stakeCalls with ONLY the stakeWithNFT call (no approve)
+        // Build stakeCalls with ONLY the stakeWithDeposit call (no approve)
         stakeCalls = [
           {
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
-              functionName: 'stakeWithNFT',
+              abi: parseAbi(['function stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
+              functionName: 'stakeWithDeposit',
               args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
             }) as Hex,
           },
@@ -1010,10 +1010,11 @@ View profile and collection!
         const stakeTxHash = await sendSafeTransaction(stakeCalls);
         console.log('✅ Stake successful, TX:', stakeTxHash);
 
-        // ✅ NOTE: YieldStrategy's stakeWithNFT returns a position ID
+        // ✅ NOTE: YieldStrategy's stakeWithDeposit returns a position ID
         // The contract tracks:
         // - NFT address and tokenId (collateral)
-        // - Owner (original staker)
+        // - Owner (Safe account that staked)
+        // - Beneficiary (user who receives rewards)
         // - Amount staked
         // - Deposit time
         // We generate a client-side ID for tracking, but the real positionId
