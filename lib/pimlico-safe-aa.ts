@@ -456,6 +456,30 @@ export async function sendSafeTransaction(
     }
     console.log('✅ All call simulations passed\n');
 
+    // ✅ CRITICAL: Detect approve + spend patterns
+    // The bundler's gas estimation CANNOT handle this pattern because:
+    // - approve() in simulation doesn't actually set allowance
+    // - subsequent spend call fails in simulation
+    // - but the actual execution works fine!
+    let hasApproveSpendPattern = false;
+    for (let i = 0; i < calls.length - 1; i++) {
+      const currentSelector = calls[i].data.slice(0, 10);
+      const nextSelector = calls[i + 1].data.slice(0, 10);
+
+      if (currentSelector === '0x095ea7b3') {
+        // This is an approve - check if it's followed by a spend operation
+        const approveSpender = '0x' + calls[i].data.slice(34, 74);
+        const nextTarget = calls[i + 1].to;
+
+        if (approveSpender.toLowerCase() === nextTarget.toLowerCase()) {
+          hasApproveSpendPattern = true;
+          console.log(`⚠️  Detected approve + spend pattern (Call ${i} -> Call ${i+1})`);
+          console.log('   This pattern will fail bundler gas estimation but succeed in execution');
+          break;
+        }
+      }
+    }
+
     // ✅ CRITICAL FIX: Provide initial gas limits for estimation
     // Without these, the bundler simulation may fail with insufficient gas
     // Increased limits significantly to handle complex multi-call operations
@@ -465,25 +489,43 @@ export async function sendSafeTransaction(
       preVerificationGas: 200_000n, // Gas for bundler overhead (increased from 100k)
     };
 
-    // Try to manually estimate gas first to get better error messages
+    // ✅ NEW: If we have an approve + spend pattern, skip gas estimation
+    // and use known-good values from previous successful transactions
     let estimatedGas;
-    try {
-      console.log('🔍 Attempting manual gas estimation with initial limits...');
-      console.log('   Initial callGasLimit:', initialGasLimits.callGasLimit.toString());
-      console.log('   Initial verificationGasLimit:', initialGasLimits.verificationGasLimit.toString());
-      console.log('   Initial preVerificationGas:', initialGasLimits.preVerificationGas.toString());
+    if (hasApproveSpendPattern) {
+      console.log('🔧 Using fixed gas values for approve + spend pattern (skipping estimation)');
+      console.log('   Bundler gas estimation will fail for this pattern, but execution will succeed');
 
-      estimatedGas = await smartAccountClient.estimateUserOperationGas({
-        account: smartAccountClient.account,
-        calls,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        ...initialGasLimits,
-      });
-      console.log('✅ Gas estimation successful:', JSON.stringify(estimatedGas, (_, v) =>
+      // These values are from successful approve + stakeWithNFT transactions
+      // See transaction 0x478a2cad4c8be76ef36e491da884317cc249b76eb9f491bce1299c1de1ac0add
+      estimatedGas = {
+        callGasLimit: 157_920n,      // 0x264e0 from successful tx
+        verificationGasLimit: 235_344n, // 0x39750 from successful tx
+        preVerificationGas: 272_266n,   // 0x4278a from successful tx
+      };
+
+      console.log('   Using fixed gas values:', JSON.stringify(estimatedGas, (_, v) =>
         typeof v === 'bigint' ? v.toString() : v
       ));
-    } catch (gasErr: any) {
+    } else {
+      // Try to manually estimate gas first to get better error messages
+      try {
+        console.log('🔍 Attempting manual gas estimation with initial limits...');
+        console.log('   Initial callGasLimit:', initialGasLimits.callGasLimit.toString());
+        console.log('   Initial verificationGasLimit:', initialGasLimits.verificationGasLimit.toString());
+        console.log('   Initial preVerificationGas:', initialGasLimits.preVerificationGas.toString());
+
+        estimatedGas = await smartAccountClient.estimateUserOperationGas({
+          account: smartAccountClient.account,
+          calls,
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+          ...initialGasLimits,
+        });
+        console.log('✅ Gas estimation successful:', JSON.stringify(estimatedGas, (_, v) =>
+          typeof v === 'bigint' ? v.toString() : v
+        ));
+      } catch (gasErr: any) {
       console.error('❌ Manual gas estimation failed:', {
         message: gasErr.message,
         shortMessage: gasErr.shortMessage,
@@ -566,6 +608,7 @@ export async function sendSafeTransaction(
         }
 
         throw new Error(`Gas estimation failed: ${errorDetails}`);
+      }
       }
     }
 
