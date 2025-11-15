@@ -250,6 +250,26 @@ export async function sendSafeTransaction(
         console.log(`   [Call ${i}] TOURS Amount: ${toursAmount.toString()}`);
         console.log(`   [Call ${i}] Beneficiary: ${beneficiary}`);
 
+        // Check if NFT is whitelisted in YieldStrategy
+        try {
+          const yieldStrategyAddress = call.to;
+          const isAccepted = await publicClient.readContract({
+            address: yieldStrategyAddress,
+            abi: parseAbi(['function acceptedNFTs(address) external view returns (bool)']),
+            functionName: 'acceptedNFTs',
+            args: [nftAddress as Address],
+          });
+          console.log(`   [Call ${i}] NFT whitelisted in YieldStrategy: ${isAccepted}`);
+
+          if (!isAccepted) {
+            throw new Error(`NFT address ${nftAddress} is not whitelisted in YieldStrategy. The NFT contract must be added to the whitelist before staking. Please contact support.`);
+          }
+          console.log(`   [Call ${i}] ✅ NFT is whitelisted`);
+        } catch (whitelistErr: any) {
+          console.error(`   [Call ${i}] ❌ NFT whitelist check failed:`, whitelistErr.message);
+          throw new Error(`NFT whitelist validation failed: ${whitelistErr.message}`);
+        }
+
         // Check if beneficiary owns the NFT
         try {
           const nftOwner = await publicClient.readContract({
@@ -267,6 +287,26 @@ export async function sendSafeTransaction(
         } catch (ownerErr: any) {
           console.error(`   [Call ${i}] ❌ NFT ownership check failed:`, ownerErr.message);
           throw new Error(`NFT ownership validation failed: ${ownerErr.message}`);
+        }
+
+        // Check if NFT is already used as collateral
+        try {
+          const yieldStrategyAddress = call.to;
+          const isUsed = await publicClient.readContract({
+            address: yieldStrategyAddress,
+            abi: parseAbi(['function nftCollateralUsed(address, uint256) external view returns (bool)']),
+            functionName: 'nftCollateralUsed',
+            args: [nftAddress as Address, nftTokenId],
+          });
+          console.log(`   [Call ${i}] NFT already used as collateral: ${isUsed}`);
+
+          if (isUsed) {
+            throw new Error(`NFT #${nftTokenId} is already being used as collateral in another staking position. You cannot stake with the same NFT twice.`);
+          }
+          console.log(`   [Call ${i}] ✅ NFT is available for staking`);
+        } catch (collateralErr: any) {
+          console.error(`   [Call ${i}] ❌ NFT collateral check failed:`, collateralErr.message);
+          throw new Error(`NFT collateral validation failed: ${collateralErr.message}`);
         }
       }
     }
