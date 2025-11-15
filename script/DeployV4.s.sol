@@ -7,7 +7,7 @@ import "../contracts/EmpowerToursYieldStrategyV4.sol";
 contract DeployV4 is Script {
     function run() external {
         // Constructor parameters (checksummed)
-        address TOURS_TOKEN = 0x96aD3dEa5D1a4D3Db4e8bb7e86f0e47F02E1c48B;
+        address TOURS_TOKEN = 0x96ad3dEA5d1a4D3dB4E8Bb7E86F0e47F02e1c48b;
         address KINTSU = 0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5;
         address TOKEN_SWAP = 0x66090C97F4f57C8f3cB5Bec90Ab35f8Fa68DE1E2;
         address DRAGON_ROUTER = 0xc57c80C43C0dAf5c40f4eb37e6db32dBFA2f09ea;

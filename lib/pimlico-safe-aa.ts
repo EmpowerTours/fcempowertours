@@ -260,9 +260,9 @@ export async function sendSafeTransaction(
         } catch (balanceErr: any) {
           console.error(`   [Call ${i}] ⚠️  Balance check failed:`, balanceErr.message);
         }
-      } else if (functionSelector === '0xa48999b6') {
-        // stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
-        console.log(`   [Call ${i}] Type: stakeWithNFT`);
+      } else if (functionSelector === '0xb438aa31') {
+        // stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
+        console.log(`   [Call ${i}] Type: stakeWithDeposit`);
         const nftAddress = '0x' + call.data.slice(34, 74);
         const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
         const toursAmount = BigInt('0x' + call.data.slice(138, 202));
@@ -376,8 +376,8 @@ export async function sendSafeTransaction(
         });
 
         // Extract parameters to provide better error context
-        if (functionSelector === '0xa48999b6') {
-          // stakeWithNFT
+        if (functionSelector === '0xb438aa31') {
+          // stakeWithDeposit
           try {
             const nftAddress = ('0x' + call.data.slice(34, 74)) as Address;
             const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
@@ -415,7 +415,7 @@ export async function sendSafeTransaction(
                 `NFT at ${nftAddress} is not whitelisted in YieldStrategy (${call.to}).\n` +
                 `Please verify you're using the correct YieldStrategy contract address.\n` +
                 `Current target: ${call.to}\n` +
-                `Expected V3 contract: 0x2804add55b205Ce5930D7807Ad6183D8f3345974`
+                `Expected V4 contract: 0xe3d8E4358aD401F857100aB05747Ed91e78D6913`
               );
             } else if (errMsg.includes('Beneficiary must own NFT') || errMsg.includes('ownerOf')) {
               throw new Error(
@@ -496,7 +496,7 @@ export async function sendSafeTransaction(
       console.log('🔧 Using fixed gas values for approve + spend pattern (skipping estimation)');
       console.log('   Bundler gas estimation will fail for this pattern, but execution will succeed');
 
-      // These values are from successful approve + stakeWithNFT transactions
+      // These values are from successful approve + stakeWithDeposit transactions
       // See transaction 0x478a2cad4c8be76ef36e491da884317cc249b76eb9f491bce1299c1de1ac0add
       estimatedGas = {
         callGasLimit: 157_920n,      // 0x264e0 from successful tx

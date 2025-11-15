@@ -10,7 +10,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN;
-const YIELD_STRATEGY = '0x2804add55b205Ce5930D7807Ad6183D8f3345974';
+const YIELD_STRATEGY = '0xe3d8E4358aD401F857100aB05747Ed91e78D6913'; // V4
 
 async function approveYieldStrategyMax() {
   console.log('🔓 Approving YieldStrategy for max TOURS tokens...');

@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
     // DeFi contract addresses
-    const YIELD_STRATEGY = '0x2804add55b205Ce5930D7807Ad6183D8f3345974' as Address; // V3 deployed with Foundry (verified)
+    const YIELD_STRATEGY = '0xe3d8E4358aD401F857100aB05747Ed91e78D6913' as Address; // V4 deployed with Foundry
     const TANDA_YIELD_GROUP = '0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8' as Address;
     const SMART_EVENT_MANIFEST = '0x5cfe8379058cA460aA60ef15051Be57dab4A651C' as Address;
     const DEMAND_SIGNAL_ENGINE = '0xC2Eb75ddf31cd481765D550A91C5A63363B36817' as Address;
@@ -992,8 +992,8 @@ View profile and collection!
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
-              functionName: 'stakeWithNFT',
+              abi: parseAbi(['function stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
+              functionName: 'stakeWithDeposit',
               args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
             }) as Hex,
           },
