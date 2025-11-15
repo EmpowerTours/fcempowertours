@@ -1346,13 +1346,39 @@ View profile and collection!
     }
   } catch (error: any) {
     console.error('❌ [DELEGATED] Execution error:', error.message);
+
+    // ✅ Enhanced error handling for common AA/bundler errors
+    let userFriendlyError = error.message || 'Failed to execute action';
+    let statusCode = 500;
+
+    // Check for Pimlico reserve balance errors
+    if (error.message?.includes('reserve balance') || error.message?.includes('Insufficient MON balance')) {
+      statusCode = 503; // Service Unavailable - Safe needs funding
+      userFriendlyError = error.message; // Already user-friendly
+    }
+    // Check for gas estimation errors
+    else if (error.message?.includes('Gas estimation failed')) {
+      statusCode = 400; // Bad Request - likely an invalid operation
+      userFriendlyError = error.message; // Already detailed
+    }
+    // Check for insufficient token balance
+    else if (error.message?.includes('Insufficient token balance') || error.message?.includes('Insufficient TOURS')) {
+      statusCode = 400;
+      userFriendlyError = error.message; // Already user-friendly
+    }
+    // Check for NFT ownership/whitelist errors
+    else if (error.message?.includes('not whitelisted') || error.message?.includes('does not own NFT')) {
+      statusCode = 400;
+      userFriendlyError = error.message; // Already user-friendly
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to execute action',
+        error: userFriendlyError,
         action: 'execute_delegated',
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }

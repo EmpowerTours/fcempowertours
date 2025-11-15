@@ -193,13 +193,32 @@ export async function sendSafeTransaction(
     }
     console.log('✅ Safe account is deployed (code length: ' + accountCode.length + ')');
 
-    // Check Safe balance
+    // ✅ CRITICAL: Check Safe balance for Pimlico's reserve requirement (10 MON minimum)
     const safeBalance = await publicClient.getBalance({ address: SAFE_ACCOUNT });
     console.log('💰 Safe MON balance:', (Number(safeBalance) / 1e18).toFixed(4), 'MON');
 
-    if (safeBalance < parseEther('0.001')) {
-      console.warn('⚠️ WARNING: Safe has very low MON balance, transaction may fail due to insufficient gas');
+    // Pimlico requires a minimum reserve balance of 10 MON for the sender
+    // This ensures the account can cover gas costs for UserOperations
+    const PIMLICO_RESERVE_REQUIREMENT = parseEther('10');
+    const RECOMMENDED_BUFFER = parseEther('0.5'); // Additional buffer for gas fluctuations
+    const MINIMUM_REQUIRED = PIMLICO_RESERVE_REQUIREMENT + RECOMMENDED_BUFFER;
+
+    if (safeBalance < MINIMUM_REQUIRED) {
+      const currentMON = (Number(safeBalance) / 1e18).toFixed(4);
+      const requiredMON = (Number(MINIMUM_REQUIRED) / 1e18).toFixed(1);
+      const shortfall = (Number(MINIMUM_REQUIRED - safeBalance) / 1e18).toFixed(4);
+
+      throw new Error(
+        `Insufficient MON balance in Safe account. ` +
+        `Pimlico bundler requires ${requiredMON} MON (10 MON reserve + 0.5 MON buffer), ` +
+        `but Safe only has ${currentMON} MON. ` +
+        `Please fund the Safe with ${shortfall} more MON to proceed. ` +
+        `Safe address: ${SAFE_ACCOUNT}`
+      );
     }
+
+    console.log('✅ Safe has sufficient MON balance for Pimlico reserve requirement');
+    console.log(`   Required: ${(Number(MINIMUM_REQUIRED) / 1e18).toFixed(1)} MON, Available: ${(Number(safeBalance) / 1e18).toFixed(4)} MON`);
 
     // ✅ ENHANCED: Analyze each call and validate its preconditions
     console.log('🔍 Validating preconditions for each call...');
