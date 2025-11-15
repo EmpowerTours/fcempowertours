@@ -343,47 +343,97 @@ export async function sendSafeTransaction(
     console.log('   Max fee per gas:', maxFeePerGas.toString(), 'wei');
     console.log('   Max priority fee:', maxPriorityFeePerGas.toString(), 'wei');
 
-    // ✅ ENHANCED: Pre-validate calls before attempting gas estimation
-    // Note: We use simulateContract for better error messages, but skip validation errors
-    // that are expected (like approve not setting allowance in simulation)
-    console.log('🔍 Pre-validating calls for common errors...');
+    // ✅ ENHANCED: Simulate each call individually to catch configuration errors early
+    // This helps identify issues like wrong contract addresses, missing whitelists, etc.
+    console.log('🔍 Simulating each call individually to catch errors early...');
     for (let i = 0; i < calls.length; i++) {
       const call = calls[i];
       const functionSelector = call.data.slice(0, 10);
 
-      console.log(`   [Call ${i}] Checking: ${call.to} (selector: ${functionSelector})`);
+      console.log(`   [Call ${i}] Simulating: ${call.to} (selector: ${functionSelector})`);
 
-      // For approve calls, just log - simulation won't actually set allowance
+      // Skip approve calls - they need to be executed in the same transaction as the spend
       if (functionSelector === '0x095ea7b3') {
-        console.log(`   [Call ${i}] Type: ERC20 approve - will be validated during execution`);
+        console.log(`   [Call ${i}] Type: ERC20 approve - skipping simulation (executes in batch)`);
         continue;
       }
 
-      // For stakeWithNFT, perform detailed validation
-      if (functionSelector === '0xa48999b6') {
-        console.log(`   [Call ${i}] Type: stakeWithNFT - performing detailed validation`);
+      // Simulate all other calls to catch real configuration issues
+      try {
+        await publicClient.call({
+          account: SAFE_ACCOUNT,
+          to: call.to,
+          data: call.data,
+          value: call.value,
+        });
 
-        try {
-          // Extract parameters from calldata
-          // stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
-          const nftAddress = ('0x' + call.data.slice(34, 74)) as Address;
-          const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
-          const toursAmount = BigInt('0x' + call.data.slice(138, 202));
-          const beneficiary = ('0x' + call.data.slice(226, 266)) as Address;
+        console.log(`   [Call ${i}] ✅ Simulation passed`);
+      } catch (simErr: any) {
+        console.error(`   [Call ${i}] ❌ Simulation failed:`, {
+          message: simErr.message,
+          shortMessage: simErr.shortMessage,
+          details: simErr.details,
+        });
 
-          console.log(`   [Call ${i}] Validating stakeWithNFT parameters:`);
-          console.log(`   [Call ${i}]   NFT: ${nftAddress}, TokenID: ${nftTokenId}`);
-          console.log(`   [Call ${i}]   Amount: ${toursAmount}, Beneficiary: ${beneficiary}`);
+        // Extract parameters to provide better error context
+        if (functionSelector === '0xa48999b6') {
+          // stakeWithNFT
+          try {
+            const nftAddress = ('0x' + call.data.slice(34, 74)) as Address;
+            const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
+            const toursAmount = BigInt('0x' + call.data.slice(138, 202));
+            const beneficiary = ('0x' + call.data.slice(226, 266)) as Address;
 
-          // Check if this is likely to fail by doing read-only checks
-          // Note: We already did these checks earlier, but we'll do a quick re-check here
-          console.log(`   [Call ${i}] ✅ Parameters extracted successfully`);
-        } catch (err: any) {
-          console.warn(`   [Call ${i}] ⚠️ Could not extract parameters:`, err.message);
+            console.error(`   [Call ${i}] Call details:`, {
+              target: call.to,
+              nftAddress,
+              nftTokenId: nftTokenId.toString(),
+              toursAmount: (Number(toursAmount) / 1e18).toFixed(2) + ' TOURS',
+              beneficiary,
+            });
+
+            // Provide specific guidance based on error
+            const errMsg = simErr.shortMessage || simErr.message || '';
+            if (errMsg.includes('Invalid NFT address') || errMsg.includes('acceptedNFTs')) {
+              throw new Error(
+                `NFT at ${nftAddress} is not whitelisted in YieldStrategy (${call.to}).\n` +
+                `Please verify you're using the correct YieldStrategy contract address.\n` +
+                `Current target: ${call.to}\n` +
+                `Expected V3 contract: 0x2804add55b205Ce5930D7807Ad6183D8f3345974`
+              );
+            } else if (errMsg.includes('Beneficiary must own NFT') || errMsg.includes('ownerOf')) {
+              throw new Error(
+                `Beneficiary ${beneficiary} does not own NFT #${nftTokenId} from ${nftAddress}.\n` +
+                `Verify the correct NFT token ID is being used.`
+              );
+            } else if (errMsg.includes('NFT already used') || errMsg.includes('collateral')) {
+              throw new Error(
+                `NFT #${nftTokenId} is already being used as collateral in another staking position.\n` +
+                `Each NFT can only be used once. Please unstake the existing position first.`
+              );
+            } else if (errMsg.includes('ERC20') || errMsg.includes('transferFrom')) {
+              // This is expected - approve hasn't happened yet
+              console.log(`   [Call ${i}] ⚠️ ERC20 error is expected (approve executes in same batch)`);
+              continue;
+            }
+          } catch (extractErr) {
+            // If we can't extract params, just continue
+          }
         }
+
+        // Generic error - throw with the original message
+        throw new Error(
+          `Simulation failed for call ${i} to ${call.to}:\n` +
+          `${simErr.shortMessage || simErr.message}\n\n` +
+          `This indicates a real configuration issue. Common causes:\n` +
+          `1. Wrong contract address configured\n` +
+          `2. NFT not whitelisted in the target contract\n` +
+          `3. Beneficiary doesn't own the NFT\n` +
+          `4. NFT already used as collateral`
+        );
       }
     }
-    console.log('✅ Pre-validation complete\n');
+    console.log('✅ All call simulations passed\n');
 
     // ✅ CRITICAL FIX: Provide initial gas limits for estimation
     // Without these, the bundler simulation may fail with insufficient gas
