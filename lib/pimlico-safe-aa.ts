@@ -170,7 +170,8 @@ export async function sendSafeTransaction(
 
     console.log('🔍 Account details:', {
       address: smartAccountClient.account.address,
-      entryPoint: smartAccountClient.account.entryPoint,
+      entryPoint: smartAccountClient.account.entryPoint.address,
+      entryPointVersion: smartAccountClient.account.entryPoint.version,
     });
 
     // Check if EntryPoint is deployed
