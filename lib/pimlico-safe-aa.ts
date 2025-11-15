@@ -193,32 +193,36 @@ export async function sendSafeTransaction(
     }
     console.log('✅ Safe account is deployed (code length: ' + accountCode.length + ')');
 
-    // ✅ CRITICAL: Check Safe balance for Pimlico's reserve requirement (10 MON minimum)
+    // Check Safe balance and warn if low
     const safeBalance = await publicClient.getBalance({ address: SAFE_ACCOUNT });
     console.log('💰 Safe MON balance:', (Number(safeBalance) / 1e18).toFixed(4), 'MON');
 
-    // Pimlico requires a minimum reserve balance of 10 MON for the sender
-    // This ensures the account can cover gas costs for UserOperations
-    const PIMLICO_RESERVE_REQUIREMENT = parseEther('10');
-    const RECOMMENDED_BUFFER = parseEther('0.5'); // Additional buffer for gas fluctuations
-    const MINIMUM_REQUIRED = PIMLICO_RESERVE_REQUIREMENT + RECOMMENDED_BUFFER;
+    // ⚠️ NOTE: Pimlico bundler may require varying reserve balances depending on:
+    // - Current gas prices on the network
+    // - Complexity of the UserOperation
+    // - Type of operation (swap with value transfer may need more than simple calls)
+    // We do a basic sanity check here, but let Pimlico's actual error guide us.
+    const MINIMUM_SAFE_BALANCE = parseEther('0.1'); // Absolute minimum for any operation
 
-    if (safeBalance < MINIMUM_REQUIRED) {
+    if (safeBalance < MINIMUM_SAFE_BALANCE) {
       const currentMON = (Number(safeBalance) / 1e18).toFixed(4);
-      const requiredMON = (Number(MINIMUM_REQUIRED) / 1e18).toFixed(1);
-      const shortfall = (Number(MINIMUM_REQUIRED - safeBalance) / 1e18).toFixed(4);
+      const requiredMON = (Number(MINIMUM_SAFE_BALANCE) / 1e18).toFixed(1);
 
       throw new Error(
-        `Insufficient MON balance in Safe account. ` +
-        `Pimlico bundler requires ${requiredMON} MON (10 MON reserve + 0.5 MON buffer), ` +
-        `but Safe only has ${currentMON} MON. ` +
-        `Please fund the Safe with ${shortfall} more MON to proceed. ` +
-        `Safe address: ${SAFE_ACCOUNT}`
+        `Safe account has critically low MON balance: ${currentMON} MON. ` +
+        `Minimum required: ${requiredMON} MON. ` +
+        `Safe address: ${SAFE_ACCOUNT}. ` +
+        `Please fund the Safe to ensure operations can execute.`
       );
     }
 
-    console.log('✅ Safe has sufficient MON balance for Pimlico reserve requirement');
-    console.log(`   Required: ${(Number(MINIMUM_REQUIRED) / 1e18).toFixed(1)} MON, Available: ${(Number(safeBalance) / 1e18).toFixed(4)} MON`);
+    // Warn if balance is getting low (but don't fail yet - let bundler decide)
+    const RECOMMENDED_BALANCE = parseEther('5'); // Recommended to handle most operations
+    if (safeBalance < RECOMMENDED_BALANCE) {
+      const currentMON = (Number(safeBalance) / 1e18).toFixed(4);
+      console.warn(`⚠️  WARNING: Safe balance is low (${currentMON} MON). Recommended: 5+ MON for reliable operation.`);
+      console.warn(`   If this transaction fails with "reserve balance check" errors, the Safe may need more MON.`);
+    }
 
     // ✅ ENHANCED: Analyze each call and validate its preconditions
     console.log('🔍 Validating preconditions for each call...');
@@ -505,7 +509,7 @@ export async function sendSafeTransaction(
   } catch (error: any) {
     console.error('❌ Transaction error:', error.message);
     console.error('   Stack:', error.stack);
-    
+
     // Log more details if available
     if (error.cause) {
       console.error('   Cause:', error.cause);
@@ -516,7 +520,26 @@ export async function sendSafeTransaction(
     if (error.shortMessage) {
       console.error('   Short message:', error.shortMessage);
     }
-    
+
+    // ✅ Enhanced error messaging for bundler reserve balance errors
+    if (error.message?.includes('reserve balance check') || error.details?.includes('reserve balance check')) {
+      // Extract the specific reserve requirement from the error if possible
+      const reserveMatch = error.message?.match(/reserve balance check of ([\d.]+) MON/) ||
+                          error.details?.match(/reserve balance check of ([\d.]+) MON/);
+
+      if (reserveMatch) {
+        const requiredReserve = reserveMatch[1];
+        const currentBalance = (Number(await publicClient.getBalance({ address: SAFE_ACCOUNT })) / 1e18).toFixed(4);
+
+        throw new Error(
+          `Pimlico bundler rejected the transaction: Sender needs ${requiredReserve} MON as reserve balance. ` +
+          `Safe currently has ${currentBalance} MON. ` +
+          `This requirement may vary based on gas prices and operation complexity. ` +
+          `Safe address: ${SAFE_ACCOUNT}`
+        );
+      }
+    }
+
     throw error;
   }
 }
