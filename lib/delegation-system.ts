@@ -162,6 +162,54 @@ export async function incrementTransactionCount(userAddress: string): Promise<vo
 }
 
 /**
+ * Update delegation permissions
+ * Adds new permissions to existing delegation without resetting transaction count
+ */
+export async function updateDelegationPermissions(
+  userAddress: string,
+  newPermissions: string[]
+): Promise<Delegation | null> {
+  try {
+    const key = `delegation:${userAddress.toLowerCase()}`;
+    const data = await redis.get(key);
+
+    const delegation = parseDelegationData(data);
+    if (!delegation) {
+      console.warn('⚠️ No delegation found to update for:', userAddress);
+      return null;
+    }
+
+    if (delegation.expiresAt < Date.now()) {
+      await redis.del(key);
+      console.log(`⚠️ Delegation expired for ${userAddress}, cannot update`);
+      return null;
+    }
+
+    // Merge existing permissions with new ones (deduplicate)
+    const mergedPermissions = Array.from(
+      new Set([...delegation.config.permissions, ...newPermissions])
+    );
+
+    delegation.config.permissions = mergedPermissions;
+
+    // Calculate remaining TTL and update in Redis
+    const remainingTime = delegation.expiresAt - Date.now();
+    const ttlSeconds = Math.max(1, Math.floor(remainingTime / 1000));
+
+    await redis.setex(key, ttlSeconds, JSON.stringify(delegation));
+
+    console.log(`✅ Delegation updated for ${userAddress}`);
+    console.log(`   Added permissions:`, newPermissions);
+    console.log(`   Total permissions:`, mergedPermissions.length);
+
+    return delegation;
+  } catch (error) {
+    console.error('❌ Error updating delegation:', error);
+    return null;
+  }
+}
+
+/**
  * Revoke delegation
  */
 export async function revokeDelegation(userAddress: string): Promise<void> {

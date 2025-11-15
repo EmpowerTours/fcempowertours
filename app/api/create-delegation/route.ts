@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { updateDelegationPermissions } from '@/lib/delegation-system';
 
 /**
  * 🔐 CREATE DELEGATION ENDPOINT
@@ -163,6 +164,61 @@ export async function GET(req: NextRequest) {
     console.error('❌ Error checking delegation:', error);
     return NextResponse.json(
       { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { userAddress, addPermissions } = await req.json();
+
+    if (!userAddress) {
+      return NextResponse.json(
+        { success: false, error: 'userAddress required' },
+        { status: 400 }
+      );
+    }
+
+    if (!addPermissions || !Array.isArray(addPermissions) || addPermissions.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'addPermissions array required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔄 Updating delegation for:', userAddress);
+    console.log('   Adding permissions:', addPermissions);
+
+    const updatedDelegation = await updateDelegationPermissions(userAddress, addPermissions);
+
+    if (!updatedDelegation) {
+      return NextResponse.json(
+        { success: false, error: 'No active delegation found to update' },
+        { status: 404 }
+      );
+    }
+
+    const timeLeft = updatedDelegation.expiresAt - Date.now();
+    const hoursLeft = Math.round(timeLeft / (1000 * 60 * 60));
+    const transactionsLeft = updatedDelegation.config.maxTransactions - updatedDelegation.transactionsExecuted;
+
+    return NextResponse.json({
+      success: true,
+      delegation: {
+        user: updatedDelegation.user,
+        permissions: updatedDelegation.config.permissions,
+        addedPermissions: addPermissions,
+        hoursLeft,
+        transactionsLeft,
+        message: '✅ Delegation permissions updated successfully!'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error updating delegation:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to update delegation' },
       { status: 500 }
     );
   }
