@@ -958,28 +958,36 @@ View profile and collection!
           );
         }
 
-        // ✅ CRITICAL FIX: Only include approve if allowance is insufficient
-        // This prevents the approve + spend pattern that causes bundler to drop the UserOp
+        // ✅ CRITICAL FIX: Auto-approve if allowance is insufficient
+        // This is done as a SEPARATE transaction to prevent bundler from dropping the UserOp
         if (currentAllowance < stakeAmount) {
-          console.log('⚠️  Insufficient allowance, including approve call in transaction');
+          console.log('⚠️  Insufficient allowance, will approve first as separate transaction');
           console.log('   Current allowance:', currentAllowance.toString());
           console.log('   Required allowance:', stakeAmount.toString());
           console.log('   Deficit:', (stakeAmount - currentAllowance).toString());
 
-          // ❌ PROBLEM: Including approve + spend in same UserOp causes bundler to drop it
-          // The bundler simulates the transaction and the approve doesn't actually set allowance in simulation
-          // So the subsequent stakeWithNFT fails in simulation and bundler drops the UserOp
+          // ✅ SOLUTION: Call approve_yield_strategy as a SEPARATE transaction first
+          // This prevents the approve + spend pattern that causes bundler to drop the UserOp
+          console.log('🔓 Auto-approving YieldStrategy with max allowance...');
 
-          return NextResponse.json(
+          const { maxUint256 } = await import('viem');
+          const approveCalls = [
             {
-              success: false,
-              error: `Insufficient allowance for YieldStrategy. The Safe account needs approval to spend TOURS tokens. Please contact support to set up allowance first. Current: ${(Number(currentAllowance) / 1e18).toFixed(4)} TOURS, Needed: ${(Number(stakeAmount) / 1e18).toFixed(4)} TOURS`,
-              needsApproval: true,
-              currentAllowance: currentAllowance.toString(),
-              requiredAmount: stakeAmount.toString(),
+              to: TOURS_TOKEN,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+                functionName: 'approve',
+                args: [YIELD_STRATEGY, maxUint256],
+              }) as Hex,
             },
-            { status: 400 }
-          );
+          ];
+
+          console.log('💳 Executing approval transaction (max uint256 for unlimited approval)...');
+          const approveTxHash = await sendSafeTransaction(approveCalls);
+          console.log('✅ Approval successful, TX:', approveTxHash);
+          console.log('   YieldStrategy now has unlimited approval to spend TOURS');
+          console.log('   Proceeding with stake transaction...');
         } else {
           console.log('✅ Sufficient allowance exists, skipping approve call');
           console.log('   Current allowance:', currentAllowance.toString());
@@ -992,8 +1000,8 @@ View profile and collection!
             to: YIELD_STRATEGY,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
-              functionName: 'stakeWithDeposit',
+              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
+              functionName: 'stakeWithNFT',
               args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
             }) as Hex,
           },
