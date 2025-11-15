@@ -665,6 +665,39 @@ View profile and collection!
           message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
         });
 
+      // ==================== APPROVE YIELD STRATEGY (ONE-TIME SETUP) ====================
+      case 'approve_yield_strategy':
+        console.log('🔓 Action: approve_yield_strategy (one-time max approval)');
+
+        // Approve max uint256 so we never need to approve again
+        const { maxUint256 } = await import('viem');
+
+        const approveCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [YIELD_STRATEGY, maxUint256],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing max approval for YieldStrategy...');
+        console.log('   Amount: max uint256 (unlimited)');
+        const approveTxHash = await sendSafeTransaction(approveCalls);
+        console.log('✅ Approval successful, TX:', approveTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: approveTxHash,
+          action,
+          userAddress,
+          message: `YieldStrategy approved for unlimited TOURS tokens. You can now stake without approval!`,
+        });
+
       // ==================== STAKE TOURS ====================
       case 'stake_tours':
         console.log('💰 Action: stake_tours');
@@ -822,28 +855,10 @@ View profile and collection!
           safe: SAFE_ACCOUNT
         });
 
-        const stakeCalls = [
-          // Step 1: Approve TOURS tokens for YieldStrategy
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [YIELD_STRATEGY, stakeAmount],
-            }) as Hex,
-          },
-          // Step 2: Stake with NFT and beneficiary (no NFT transfer needed!)
-          {
-            to: YIELD_STRATEGY,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
-              functionName: 'stakeWithNFT',
-              args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
-            }) as Hex,
-          },
-        ];
+        // ✅ CRITICAL: Check allowance first, only include approve if needed
+        // This avoids the approve + spend pattern that causes bundler to drop the UserOp
+        let currentAllowance = 0n;
+        let stakeCalls: any[] = [];
 
         // ✅ TRY: Simulate the calls to catch errors early
         try {
@@ -880,13 +895,14 @@ View profile and collection!
             console.log('   YieldStrategy code size:', yieldStrategyCode?.length || 0);
 
             // Verify the Safe's current allowance
-            const currentAllowance = await client.readContract({
+            currentAllowance = await client.readContract({
               address: TOURS_TOKEN,
               abi: parseAbi(['function allowance(address owner, address spender) external view returns (uint256)']),
               functionName: 'allowance',
               args: [SAFE_ACCOUNT, YIELD_STRATEGY],
-            });
+            }) as bigint;
             console.log('   Current TOURS allowance for YieldStrategy:', currentAllowance.toString());
+            console.log('   Stake amount needed:', stakeAmount.toString());
 
             // Double-check TOURS balance one more time before proceeding
             const currentToursBalance = await client.readContract({
@@ -941,6 +957,47 @@ View profile and collection!
             { status: 400 }
           );
         }
+
+        // ✅ CRITICAL FIX: Only include approve if allowance is insufficient
+        // This prevents the approve + spend pattern that causes bundler to drop the UserOp
+        if (currentAllowance < stakeAmount) {
+          console.log('⚠️  Insufficient allowance, including approve call in transaction');
+          console.log('   Current allowance:', currentAllowance.toString());
+          console.log('   Required allowance:', stakeAmount.toString());
+          console.log('   Deficit:', (stakeAmount - currentAllowance).toString());
+
+          // ❌ PROBLEM: Including approve + spend in same UserOp causes bundler to drop it
+          // The bundler simulates the transaction and the approve doesn't actually set allowance in simulation
+          // So the subsequent stakeWithNFT fails in simulation and bundler drops the UserOp
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Insufficient allowance for YieldStrategy. The Safe account needs approval to spend TOURS tokens. Please contact support to set up allowance first. Current: ${(Number(currentAllowance) / 1e18).toFixed(4)} TOURS, Needed: ${(Number(stakeAmount) / 1e18).toFixed(4)} TOURS`,
+              needsApproval: true,
+              currentAllowance: currentAllowance.toString(),
+              requiredAmount: stakeAmount.toString(),
+            },
+            { status: 400 }
+          );
+        } else {
+          console.log('✅ Sufficient allowance exists, skipping approve call');
+          console.log('   Current allowance:', currentAllowance.toString());
+          console.log('   Required amount:', stakeAmount.toString());
+        }
+
+        // Build stakeCalls with ONLY the stakeWithNFT call (no approve)
+        stakeCalls = [
+          {
+            to: YIELD_STRATEGY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
+              functionName: 'stakeWithNFT',
+              args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
+            }) as Hex,
+          },
+        ];
 
         const stakeTxHash = await sendSafeTransaction(stakeCalls);
         console.log('✅ Stake successful, TX:', stakeTxHash);

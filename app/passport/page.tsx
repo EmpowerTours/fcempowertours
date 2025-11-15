@@ -67,7 +67,7 @@ export default function PassportPage() {
             userAddress: walletAddress,
             durationHours: 24,
             maxTransactions: 100,
-            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours']
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'approve_yield_strategy']
           })
         });
 
