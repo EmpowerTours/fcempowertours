@@ -151,10 +151,15 @@ export async function sendSafeTransaction(
   try {
     console.log('📤 Sending batched transaction through Safe SmartAccount...');
     console.log('📦 Number of calls:', calls.length);
-    console.log('📋 Call details:', JSON.stringify(calls.map(c => ({
+    console.log('📋 Call details:', JSON.stringify(calls.map((c, idx) => ({
+      index: idx,
       to: c.to,
       value: c.value.toString(),
-      dataLength: c.data.length
+      dataLength: c.data.length,
+      // Extract function selector (first 4 bytes) for debugging
+      functionSelector: c.data.slice(0, 10),
+      // Show full data for debugging (truncated if too long)
+      data: c.data.length > 200 ? c.data.slice(0, 200) + '...' : c.data
     })), null, 2));
 
     const smartAccountClient = await createSafeSmartAccountClient();
@@ -206,10 +211,11 @@ export async function sendSafeTransaction(
 
     // ✅ CRITICAL FIX: Provide initial gas limits for estimation
     // Without these, the bundler simulation may fail with insufficient gas
+    // Increased limits significantly to handle complex multi-call operations
     const initialGasLimits = {
-      callGasLimit: 500_000n, // Gas for the actual execution
-      verificationGasLimit: 500_000n, // Gas for signature verification
-      preVerificationGas: 100_000n, // Gas for bundler overhead
+      callGasLimit: 2_000_000n, // Gas for the actual execution (increased from 500k)
+      verificationGasLimit: 1_000_000n, // Gas for signature verification (increased from 500k)
+      preVerificationGas: 200_000n, // Gas for bundler overhead (increased from 100k)
     };
 
     // Try to manually estimate gas first to get better error messages
@@ -247,7 +253,51 @@ export async function sendSafeTransaction(
         });
       }
 
-      throw new Error(`Gas estimation failed: ${gasErr.shortMessage || gasErr.message}. This usually means the transaction would revert. Check: 1) Safe has sufficient TOURS tokens, 2) Safe has correct AA modules enabled, 3) All contract addresses are valid.`);
+      // ✅ ENHANCED: Try with even higher gas limits as a fallback
+      console.warn('⚠️ Retrying gas estimation with maximum gas limits...');
+      const maxGasLimits = {
+        callGasLimit: 5_000_000n, // Maximum gas for complex operations
+        verificationGasLimit: 2_000_000n, // Maximum verification gas
+        preVerificationGas: 500_000n, // Maximum pre-verification gas
+      };
+
+      try {
+        console.log('🔍 Retry with maxGasLimits:', JSON.stringify(maxGasLimits, (_, v) =>
+          typeof v === 'bigint' ? v.toString() : v
+        ));
+
+        estimatedGas = await smartAccountClient.estimateUserOperationGas({
+          account: smartAccountClient.account,
+          calls,
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+          ...maxGasLimits,
+        });
+
+        console.log('✅ Gas estimation succeeded with higher limits:', JSON.stringify(estimatedGas, (_, v) =>
+          typeof v === 'bigint' ? v.toString() : v
+        ));
+      } catch (retryErr: any) {
+        console.error('❌ Gas estimation failed even with maximum limits:', {
+          message: retryErr.message,
+          shortMessage: retryErr.shortMessage,
+          details: retryErr.details,
+        });
+
+        // Extract more specific error information
+        let errorDetails = retryErr.shortMessage || retryErr.message;
+
+        // Check for common error patterns
+        if (errorDetails.includes('insufficient') || errorDetails.includes('balance')) {
+          errorDetails = 'Insufficient token balance. Please ensure the Safe has enough tokens for this operation.';
+        } else if (errorDetails.includes('not owner') || errorDetails.includes('ownership')) {
+          errorDetails = 'NFT ownership verification failed. Please ensure you own the required NFT.';
+        } else if (errorDetails.includes('revert') && errorDetails.includes('0x')) {
+          errorDetails = 'Transaction would revert. This could be due to: 1) Insufficient token balance, 2) Missing NFT ownership, 3) Invalid contract state, or 4) Missing approvals.';
+        }
+
+        throw new Error(`Gas estimation failed: ${errorDetails}`);
+      }
     }
 
     // ✅ Use estimated gas values (with 20% buffer for safety)

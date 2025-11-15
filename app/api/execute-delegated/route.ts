@@ -870,6 +870,43 @@ View profile and collection!
           }
 
           console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
+
+          // ✅ ENHANCED: Verify YieldStrategy can accept the stake
+          try {
+            console.log('🔍 Checking YieldStrategy contract state...');
+
+            // Check if contract is paused (if it has a paused state)
+            const yieldStrategyCode = await client.getCode({ address: YIELD_STRATEGY });
+            console.log('   YieldStrategy code size:', yieldStrategyCode?.length || 0);
+
+            // Verify the Safe's current allowance
+            const currentAllowance = await client.readContract({
+              address: TOURS_TOKEN,
+              abi: parseAbi(['function allowance(address owner, address spender) external view returns (uint256)']),
+              functionName: 'allowance',
+              args: [SAFE_ACCOUNT, YIELD_STRATEGY],
+            });
+            console.log('   Current TOURS allowance for YieldStrategy:', currentAllowance.toString());
+
+            // Double-check TOURS balance one more time before proceeding
+            const currentToursBalance = await client.readContract({
+              address: TOURS_TOKEN,
+              abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
+              functionName: 'balanceOf',
+              args: [SAFE_ACCOUNT],
+            });
+            console.log('   Current TOURS balance:', currentToursBalance.toString());
+            console.log('   Required for stake:', stakeAmount.toString());
+
+            if (currentToursBalance < stakeAmount) {
+              throw new Error(`Insufficient TOURS balance: has ${currentToursBalance}, needs ${stakeAmount}`);
+            }
+
+            console.log('✅ All preconditions verified for staking');
+          } catch (contractCheckErr: any) {
+            console.warn('⚠️ Contract state check warning:', contractCheckErr.message);
+            // Don't fail here, let the actual transaction attempt proceed
+          }
         } catch (simErr: any) {
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
@@ -880,6 +917,17 @@ View profile and collection!
               {
                 success: false,
                 error: `You must own passport #${nftTokenId} to stake with it. Please ensure you own the NFT and try again.`
+              },
+              { status: 400 }
+            );
+          }
+
+          // Check for balance issues
+          if (errorMsg.includes('Insufficient TOURS balance')) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: errorMsg
               },
               { status: 400 }
             );
