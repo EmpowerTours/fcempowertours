@@ -334,40 +334,49 @@ export async function sendSafeTransaction(
         }
 
         // ✅ NEW: Check if YieldStrategy has approval to manage the NFT
+        // Only check when beneficiary is the Safe (i.e., not a delegated stake)
+        // In delegated scenarios, the beneficiary must approve their NFT before calling stake
         try {
           const yieldStrategyAddress = call.to;
+          const isSafeBeneficiary = beneficiary.toLowerCase() === SAFE_ACCOUNT.toLowerCase();
 
-          // Check if beneficiary has approved YieldStrategy for this specific token
-          const approvedAddress = await publicClient.readContract({
-            address: nftAddress as Address,
-            abi: parseAbi(['function getApproved(uint256 tokenId) external view returns (address)']),
-            functionName: 'getApproved',
-            args: [nftTokenId],
-          });
-          console.log(`   [Call ${i}] NFT approved address: ${approvedAddress}`);
+          if (!isSafeBeneficiary) {
+            console.log(`   [Call ${i}] ⚠️  Skipping NFT approval check - beneficiary (${beneficiary}) is not the Safe`);
+            console.log(`   [Call ${i}] Note: In delegated staking, the beneficiary must have pre-approved the YieldStrategy`);
+            console.log(`   [Call ${i}] The contract will validate approval during execution`);
+          } else {
+            // Check if beneficiary has approved YieldStrategy for this specific token
+            const approvedAddress = await publicClient.readContract({
+              address: nftAddress as Address,
+              abi: parseAbi(['function getApproved(uint256 tokenId) external view returns (address)']),
+              functionName: 'getApproved',
+              args: [nftTokenId],
+            });
+            console.log(`   [Call ${i}] NFT approved address: ${approvedAddress}`);
 
-          // Also check if beneficiary has set approval for all to YieldStrategy
-          const isApprovedForAll = await publicClient.readContract({
-            address: nftAddress as Address,
-            abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
-            functionName: 'isApprovedForAll',
-            args: [beneficiary as Address, yieldStrategyAddress],
-          });
-          console.log(`   [Call ${i}] NFT approved for all: ${isApprovedForAll}`);
+            // Also check if beneficiary has set approval for all to YieldStrategy
+            const isApprovedForAll = await publicClient.readContract({
+              address: nftAddress as Address,
+              abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
+              functionName: 'isApprovedForAll',
+              args: [beneficiary as Address, yieldStrategyAddress],
+            });
+            console.log(`   [Call ${i}] NFT approved for all: ${isApprovedForAll}`);
 
-          const hasApproval =
-            approvedAddress.toLowerCase() === yieldStrategyAddress.toLowerCase() ||
-            isApprovedForAll;
+            const hasApproval =
+              approvedAddress.toLowerCase() === yieldStrategyAddress.toLowerCase() ||
+              isApprovedForAll;
 
-          if (!hasApproval) {
-            throw new Error(
-              `YieldStrategy does not have approval to manage NFT #${nftTokenId}. ` +
-              `The beneficiary (${beneficiary}) needs to approve the YieldStrategy contract (${yieldStrategyAddress}) ` +
-              `to transfer/manage their NFT before staking. ` +
-              `This can be done by calling: NFT.approve(yieldStrategy, tokenId) or NFT.setApprovalForAll(yieldStrategy, true)`
-            );
+            if (!hasApproval) {
+              throw new Error(
+                `YieldStrategy does not have approval to manage NFT #${nftTokenId}. ` +
+                `The Safe (${SAFE_ACCOUNT}) needs to approve the YieldStrategy contract (${yieldStrategyAddress}) ` +
+                `to transfer/manage the NFT before staking. ` +
+                `This can be done by calling: NFT.approve(yieldStrategy, tokenId) or NFT.setApprovalForAll(yieldStrategy, true)`
+              );
+            }
+            console.log(`   [Call ${i}] ✅ YieldStrategy has approval for NFT`);
           }
-          console.log(`   [Call ${i}] ✅ YieldStrategy has approval for NFT`);
         } catch (approvalErr: any) {
           console.error(`   [Call ${i}] ❌ NFT approval check failed:`, approvalErr.message);
           throw approvalErr;
