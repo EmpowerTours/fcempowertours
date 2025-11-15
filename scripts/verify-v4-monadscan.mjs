@@ -84,16 +84,18 @@ console.log('');
 // Read the contract source
 const contractSource = fs.readFileSync('./contracts/EmpowerToursYieldStrategyV4.sol', 'utf8');
 
-// Read OpenZeppelin dependencies
+// Read OpenZeppelin dependencies (IMPORTANT: Order matters for dependencies!)
 const ozFiles = {
   'Context.sol': './node_modules/@openzeppelin/contracts/utils/Context.sol',
   'Ownable.sol': './node_modules/@openzeppelin/contracts/access/Ownable.sol',
-  'IERC721.sol': './node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol',
   'IERC165.sol': './node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol',
+  'IERC721.sol': './node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol',
   'IERC20.sol': './node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol',
-  'SafeERC20.sol': './node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol',
   'IERC20Permit.sol': './node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol',
+  'IERC1363.sol': './node_modules/@openzeppelin/contracts/interfaces/IERC1363.sol',
+  'Errors.sol': './node_modules/@openzeppelin/contracts/utils/Errors.sol',
   'Address.sol': './node_modules/@openzeppelin/contracts/utils/Address.sol',
+  'SafeERC20.sol': './node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol',
   'ReentrancyGuard.sol': './node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol',
 };
 
