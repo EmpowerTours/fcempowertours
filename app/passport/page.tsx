@@ -16,6 +16,7 @@ export default function PassportPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
+  const [userOpHash, setUserOpHash] = useState('');
 
   // Auto-select country once geolocation loads
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function PassportPage() {
     setError('');
     setSuccess('');
     setTxHash('');
+    setUserOpHash('');
 
     try {
       console.log('🎫 Minting passport via delegation API (gasless)...');
@@ -95,6 +97,13 @@ export default function PassportPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // ✅ Extract UserOp hash from error response if available
+        if (errorData.userOpHash) {
+          setUserOpHash(errorData.userOpHash);
+          console.log('📋 UserOperation hash from error:', errorData.userOpHash);
+        }
+
         throw new Error(errorData.error || 'Mint failed');
       }
 
@@ -225,7 +234,17 @@ Token #${tokenId || 'pending'}`);
 
         {error && (
           <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-3">
-            <p className="text-red-300 text-sm">❌ {error}</p>
+            <p className="text-red-300 text-sm whitespace-pre-line">❌ {error}</p>
+            {userOpHash && (
+              <a
+                href={`https://explorer.monad.xyz/op/${userOpHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-yellow-200 hover:text-yellow-100 underline text-sm font-mono"
+              >
+                🔗 Track UserOperation: {userOpHash.slice(0, 10)}...{userOpHash.slice(-8)}
+              </a>
+            )}
           </div>
         )}
 

@@ -1351,6 +1351,9 @@ View profile and collection!
     let userFriendlyError = error.message || 'Failed to execute action';
     let statusCode = 500;
 
+    // ✅ Extract UserOperation hash if available (from timeout or other errors)
+    const userOpHash = error.userOpHash;
+
     // Check for Pimlico reserve balance errors
     if (error.message?.includes('reserve balance') || error.message?.includes('Insufficient MON balance')) {
       statusCode = 503; // Service Unavailable - Safe needs funding
@@ -1371,14 +1374,24 @@ View profile and collection!
       statusCode = 400;
       userFriendlyError = error.message; // Already user-friendly
     }
+    // ✅ Check for transaction timeout with UserOp hash
+    else if (error.message?.includes('taking longer than expected') && userOpHash) {
+      statusCode = 202; // Accepted - transaction is processing
+      userFriendlyError = error.message; // Already includes userOpHash
+    }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: userFriendlyError,
-        action: 'execute_delegated',
-      },
-      { status: statusCode }
-    );
+    const errorResponse: any = {
+      success: false,
+      error: userFriendlyError,
+      action: 'execute_delegated',
+    };
+
+    // ✅ Include UserOp hash in response if available so users can track their transaction
+    if (userOpHash) {
+      errorResponse.userOpHash = userOpHash;
+      console.log('📋 Including UserOperation hash in error response:', userOpHash);
+    }
+
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

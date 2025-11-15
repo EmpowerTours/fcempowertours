@@ -634,6 +634,7 @@ export async function sendSafeTransaction(
     });
 
     console.log('✅ UserOperation hash:', userOpHash);
+    console.log('   Track your UserOperation: https://explorer.monad.xyz/op/' + userOpHash);
 
     // Wait for the UserOperation to be included in a transaction
     // Monad testnet can be slow, so use a longer timeout (5 minutes)
@@ -681,8 +682,15 @@ export async function sendSafeTransaction(
         console.error('❌ Manual receipt check also failed:', manualErr);
       }
 
-      // Re-throw the original timeout error
-      throw timeoutErr;
+      // ✅ CRITICAL FIX: Include userOpHash in timeout error so users can track their transaction
+      const enhancedError: any = new Error(
+        `Transaction is taking longer than expected to mine. ` +
+        `UserOperation was submitted successfully and is being processed by the network. ` +
+        `UserOp Hash: ${userOpHash}`
+      );
+      enhancedError.userOpHash = userOpHash;
+      enhancedError.originalError = timeoutErr;
+      throw enhancedError;
     }
   } catch (error: any) {
     console.error('❌ Transaction error:', error.message);
