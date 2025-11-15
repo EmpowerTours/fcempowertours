@@ -332,6 +332,46 @@ export async function sendSafeTransaction(
           console.error(`   [Call ${i}] ❌ NFT collateral check failed:`, collateralErr.message);
           throw new Error(`NFT collateral validation failed: ${collateralErr.message}`);
         }
+
+        // ✅ NEW: Check if YieldStrategy has approval to manage the NFT
+        try {
+          const yieldStrategyAddress = call.to;
+
+          // Check if beneficiary has approved YieldStrategy for this specific token
+          const approvedAddress = await publicClient.readContract({
+            address: nftAddress as Address,
+            abi: parseAbi(['function getApproved(uint256 tokenId) external view returns (address)']),
+            functionName: 'getApproved',
+            args: [nftTokenId],
+          });
+          console.log(`   [Call ${i}] NFT approved address: ${approvedAddress}`);
+
+          // Also check if beneficiary has set approval for all to YieldStrategy
+          const isApprovedForAll = await publicClient.readContract({
+            address: nftAddress as Address,
+            abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
+            functionName: 'isApprovedForAll',
+            args: [beneficiary as Address, yieldStrategyAddress],
+          });
+          console.log(`   [Call ${i}] NFT approved for all: ${isApprovedForAll}`);
+
+          const hasApproval =
+            approvedAddress.toLowerCase() === yieldStrategyAddress.toLowerCase() ||
+            isApprovedForAll;
+
+          if (!hasApproval) {
+            throw new Error(
+              `YieldStrategy does not have approval to manage NFT #${nftTokenId}. ` +
+              `The beneficiary (${beneficiary}) needs to approve the YieldStrategy contract (${yieldStrategyAddress}) ` +
+              `to transfer/manage their NFT before staking. ` +
+              `This can be done by calling: NFT.approve(yieldStrategy, tokenId) or NFT.setApprovalForAll(yieldStrategy, true)`
+            );
+          }
+          console.log(`   [Call ${i}] ✅ YieldStrategy has approval for NFT`);
+        } catch (approvalErr: any) {
+          console.error(`   [Call ${i}] ❌ NFT approval check failed:`, approvalErr.message);
+          throw approvalErr;
+        }
       }
     }
     console.log('✅ All precondition validations passed');
@@ -427,6 +467,13 @@ export async function sendSafeTransaction(
               throw new Error(
                 `NFT #${nftTokenId} is already being used as collateral in another staking position.\n` +
                 `Each NFT can only be used once. Please unstake the existing position first.`
+              );
+            } else if (errMsg.includes('not approved') || errMsg.includes('ERC721: transfer caller is not owner nor approved') || errMsg.includes('approve')) {
+              throw new Error(
+                `NFT #${nftTokenId} is not approved for YieldStrategy to manage.\n` +
+                `The beneficiary (${beneficiary}) must first approve the YieldStrategy contract.\n` +
+                `Please execute: NFT.approve(${call.to}, ${nftTokenId}) from the beneficiary's wallet.\n` +
+                `Or use: NFT.setApprovalForAll(${call.to}, true) to approve all NFTs at once.`
               );
             } else if (errMsg.includes('ERC20') || errMsg.includes('transferFrom') || errMsg.includes('insufficient allowance')) {
               // This is expected - approve hasn't happened yet
