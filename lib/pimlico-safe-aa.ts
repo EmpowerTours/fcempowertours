@@ -260,9 +260,9 @@ export async function sendSafeTransaction(
         } catch (balanceErr: any) {
           console.error(`   [Call ${i}] ⚠️  Balance check failed:`, balanceErr.message);
         }
-      } else if (functionSelector === '0xb438aa31') {
-        // stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
-        console.log(`   [Call ${i}] Type: stakeWithDeposit`);
+      } else if (functionSelector === '0x3e8b2f3c') {
+        // stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
+        console.log(`   [Call ${i}] Type: stakeWithNFT`);
         const nftAddress = '0x' + call.data.slice(34, 74);
         const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
         const toursAmount = BigInt('0x' + call.data.slice(138, 202));
@@ -376,8 +376,8 @@ export async function sendSafeTransaction(
         });
 
         // Extract parameters to provide better error context
-        if (functionSelector === '0xb438aa31') {
-          // stakeWithDeposit
+        if (functionSelector === '0x3e8b2f3c') {
+          // stakeWithNFT
           try {
             const nftAddress = ('0x' + call.data.slice(34, 74)) as Address;
             const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
