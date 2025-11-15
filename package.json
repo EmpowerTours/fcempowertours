@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
+    "start": "node scripts/start-server.js",
+    "start:legacy": "PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "check-deployer": "npx tsx scripts/check-deployer.ts",
     "check-safe": "npx tsx scripts/check-safe-balance.ts",
