@@ -201,6 +201,77 @@ export async function sendSafeTransaction(
       console.warn('⚠️ WARNING: Safe has very low MON balance, transaction may fail due to insufficient gas');
     }
 
+    // ✅ ENHANCED: Analyze each call and validate its preconditions
+    console.log('🔍 Validating preconditions for each call...');
+    for (let i = 0; i < calls.length; i++) {
+      const call = calls[i];
+      const functionSelector = call.data.slice(0, 10);
+
+      console.log(`   [Call ${i}] Target: ${call.to}`);
+      console.log(`   [Call ${i}] Function selector: ${functionSelector}`);
+      console.log(`   [Call ${i}] Value: ${call.value.toString()}`);
+
+      // Decode common function selectors to understand what's being called
+      if (functionSelector === '0x095ea7b3') {
+        // approve(address spender, uint256 amount)
+        const spender = '0x' + call.data.slice(34, 74);
+        const amount = BigInt('0x' + call.data.slice(74, 138));
+        console.log(`   [Call ${i}] Type: ERC20 approve`);
+        console.log(`   [Call ${i}] Spender: ${spender}`);
+        console.log(`   [Call ${i}] Amount: ${amount.toString()}`);
+
+        // Check if Safe has enough token balance
+        try {
+          const tokenAddress = call.to;
+          const balance = await publicClient.readContract({
+            address: tokenAddress,
+            abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [SAFE_ACCOUNT],
+          });
+          console.log(`   [Call ${i}] Safe's token balance: ${balance.toString()}`);
+
+          if (balance < amount) {
+            throw new Error(`Insufficient token balance. Safe has ${balance}, needs ${amount}`);
+          }
+        } catch (balanceErr: any) {
+          console.error(`   [Call ${i}] ⚠️  Balance check failed:`, balanceErr.message);
+        }
+      } else if (functionSelector === '0xa48999b6') {
+        // stakeWithNFT(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
+        console.log(`   [Call ${i}] Type: stakeWithNFT`);
+        const nftAddress = '0x' + call.data.slice(34, 74);
+        const nftTokenId = BigInt('0x' + call.data.slice(74, 138));
+        const toursAmount = BigInt('0x' + call.data.slice(138, 202));
+        const beneficiary = '0x' + call.data.slice(226, 266);
+
+        console.log(`   [Call ${i}] NFT Address: ${nftAddress}`);
+        console.log(`   [Call ${i}] NFT Token ID: ${nftTokenId.toString()}`);
+        console.log(`   [Call ${i}] TOURS Amount: ${toursAmount.toString()}`);
+        console.log(`   [Call ${i}] Beneficiary: ${beneficiary}`);
+
+        // Check if beneficiary owns the NFT
+        try {
+          const nftOwner = await publicClient.readContract({
+            address: nftAddress as Address,
+            abi: parseAbi(['function ownerOf(uint256 tokenId) external view returns (address)']),
+            functionName: 'ownerOf',
+            args: [nftTokenId],
+          });
+          console.log(`   [Call ${i}] NFT owner: ${nftOwner}`);
+
+          if (nftOwner.toLowerCase() !== beneficiary.toLowerCase()) {
+            throw new Error(`Beneficiary ${beneficiary} does not own NFT #${nftTokenId} (owned by ${nftOwner})`);
+          }
+          console.log(`   [Call ${i}] ✅ Beneficiary owns the NFT`);
+        } catch (ownerErr: any) {
+          console.error(`   [Call ${i}] ❌ NFT ownership check failed:`, ownerErr.message);
+          throw new Error(`NFT ownership validation failed: ${ownerErr.message}`);
+        }
+      }
+    }
+    console.log('✅ All precondition validations passed');
+
     // ✅ CRITICAL FIX: Fetch gas prices from Pimlico's API
     // Pimlico enforces minimum gas prices that may be higher than the chain's current price
     const { maxFeePerGas, maxPriorityFeePerGas } = await getPimlicoGasPrices();
