@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
 import { monadTestnet } from '../chains';
 
 function SendMonContent() {
-  const { login, authenticated, user } = usePrivy();
+  const { login, authenticated, user, ready } = usePrivy();
   const { wallets } = useWallets();
 
   // Get URL parameters
@@ -19,6 +19,17 @@ function SendMonContent() {
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔐 Privy state:', {
+      ready,
+      authenticated,
+      user: user?.id,
+      walletsCount: wallets.length,
+      walletAddresses: wallets.map(w => w.address)
+    });
+  }, [ready, authenticated, user, wallets]);
 
   const handleSend = async () => {
     if (!amount || !recipient || wallets.length === 0) return;
@@ -73,25 +84,42 @@ function SendMonContent() {
     }
   };
 
+  // Show loading while Privy initializes
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black flex items-center justify-center p-4">
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 max-w-md w-full space-y-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-white mb-2">Send MON</h1>
+            <p className="text-gray-300 text-sm">Loading Privy...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black flex items-center justify-center p-4">
       <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 max-w-md w-full space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-white mb-2">Send MON</h1>
-          <p className="text-gray-300 text-sm">Use Privy to access your Farcaster wallet</p>
+          <p className="text-gray-300 text-sm">Connect your Farcaster account via Privy</p>
         </div>
 
         {!authenticated ? (
           <div className="space-y-4">
             <button
-              onClick={login}
+              onClick={() => {
+                console.log('🔐 Login button clicked');
+                login();
+              }}
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200"
             >
               Connect with Farcaster
             </button>
             <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4">
               <p className="text-blue-200 text-sm">
-                💡 This will connect to your Farcaster wallet to send MON on Monad testnet
+                💡 Privy will access your verified wallets linked to your Farcaster account
               </p>
             </div>
           </div>
@@ -194,9 +222,16 @@ export default function SendMonPage() {
         appearance: {
           theme: 'dark',
           accentColor: '#8B5CF6',
+          logo: 'https://fcempowertours-production-6551.up.railway.app/logo.png',
         },
         defaultChain: monadTestnet,
         supportedChains: [monadTestnet],
+        farcaster: {
+          enabled: true,
+        },
+      }}
+      onSuccess={(user) => {
+        console.log('✅ Privy login success:', user);
       }}
     >
       <SendMonContent />
