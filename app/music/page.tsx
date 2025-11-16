@@ -295,7 +295,7 @@ export default function MusicPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Preview Audio (30s clip) *
+                Preview Audio (3s clip) *
               </label>
               <input
                 type="file"
@@ -397,7 +397,7 @@ export default function MusicPage() {
               <li>Set your price per license in TOURS tokens (what fans pay to own your track)</li> {/* ✅ FIXED: Say TOURS */}
               <li>You receive 90% of sales + 10% royalties on resales</li>
               <li>Minting is FREE - we cover all gas costs for you</li>
-              <li>Fans can preview 30s for free before buying</li>
+              <li>Fans can preview 3s for free before buying</li>
             </ul>
           </div>
         </div>

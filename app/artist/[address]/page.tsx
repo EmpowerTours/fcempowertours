@@ -526,7 +526,7 @@ export default function ArtistProfilePage() {
         <div className="mt-12 p-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border-2 border-purple-200">
           <h3 className="font-bold text-gray-900 mb-3">💡 How Music Licenses Work:</h3>
           <ul className="space-y-2 text-sm text-gray-700">
-            <li>🎧 <strong>Preview:</strong> Listen to 30s preview for free</li>
+            <li>🎧 <strong>Preview:</strong> Listen to 3s preview for free</li>
             <li>💳 <strong>Buy License:</strong> Pay in TOURS tokens to access full track forever</li>
             <li>💰 <strong>Artist Royalties:</strong> 10% royalties on all sales go to the artist</li>
             <li>⚡ <strong>Instant Access:</strong> Full track unlocked immediately after purchase</li>

@@ -63,33 +63,25 @@ export default function PassportStakingPage() {
   const [globalStaked, setGlobalStaked] = useState('0');
   const [globalStakers, setGlobalStakers] = useState(0);
 
-  // Fetch global staking stats
+  // Fetch global staking stats directly from contract
   useEffect(() => {
     const fetchGlobalStats = async () => {
       try {
-        const response = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `
-              query GetGlobalStats {
-                GlobalStats(where: { id: { _eq: "global" } }) {
-                  id
-                  totalStaked
-                  totalStakers
-                  lastUpdated
-                }
-              }
-            `
-          })
-        });
+        const provider = new ethers.JsonRpcProvider(MONAD_RPC);
+        const contract = new ethers.Contract(YIELD_STRATEGY, YIELD_STRATEGY_ABI, provider);
 
-        const data = await response.json();
-        if (data.data?.GlobalStats?.[0]) {
-          const stats = data.data.GlobalStats[0];
-          setGlobalStaked(ethers.formatUnits(stats.totalStaked || '0', 18));
-          setGlobalStakers(stats.totalStakers || 0);
-        }
+        // Get total assets (total MON staked globally)
+        const totalAssets = await contract.totalAssets();
+        setGlobalStaked(ethers.formatUnits(totalAssets, 18));
+
+        // Get total positions to estimate stakers (approximation)
+        const positionCounter = await contract.positionCounter();
+        setGlobalStakers(Number(positionCounter));
+
+        console.log('📊 Global stats:', {
+          totalStaked: ethers.formatUnits(totalAssets, 18),
+          totalStakers: Number(positionCounter)
+        });
       } catch (err) {
         console.error('Error fetching global stats:', err);
       }
