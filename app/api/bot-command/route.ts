@@ -536,62 +536,27 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
           });
         }
 
-        // ✅ MON transfers come from USER's wallet via Neynar transaction frame
-        // This prompts the user's Farcaster wallet to sign the transaction
-        console.log(`Creating transaction frame to send ${amount} MON to ${recipient}`);
+        // ✅ MON transfers come from USER's wallet via Farcaster transaction frame
+        // Return transaction frame metadata that Farcaster will use to prompt user's wallet
+        console.log(`Preparing MON transfer: ${amount} MON to ${recipient}`);
 
-        try {
-          // Convert amount to wei (MON has 18 decimals)
-          const amountInWei = BigInt(Math.floor(amount * 1e18)).toString();
+        // Convert amount to wei (MON has 18 decimals)
+        const amountInWei = BigInt(Math.floor(amount * 1e18)).toString(16); // Hex for transaction
 
-          // Create Neynar transaction frame
-          const neynarResponse = await fetch('https://api.neynar.com/v2/farcaster/frame/transaction', {
-            method: 'POST',
-            headers: {
-              'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              chain_id: 'eip155:10143', // Monad testnet
-              method: 'eth_sendTransaction',
-              params: {
-                to: recipient,
-                value: amountInWei,
-                data: '0x', // Empty data for plain MON transfer
-              },
-            }),
-          });
-
-          if (!neynarResponse.ok) {
-            const errorData = await neynarResponse.json();
-            throw new Error(`Neynar API error: ${JSON.stringify(errorData)}`);
-          }
-
-          const frameData = await neynarResponse.json();
-          console.log('✅ Transaction frame created:', frameData);
-
-          return NextResponse.json({
-            success: true,
-            action: 'transaction_frame',
-            frame: frameData,
-            message: `Click to send ${amount} MON to ${recipient.slice(0, 6)}...${recipient.slice(-4)}`,
-          });
-        } catch (frameError: any) {
-          console.error('Failed to create transaction frame:', frameError);
-
-          // Fallback to instructions if frame creation fails
-          return NextResponse.json({
-            success: false,
-            action: 'info',
-            message: `To send ${amount} MON from YOUR wallet:
-
-1. Open your wallet app (MetaMask, Rainbow, etc.)
-2. Send ${amount} MON to:
-   ${recipient}
-
-(Transaction frame creation failed: ${frameError.message})`
-          });
-        }
+        // Return Farcaster-compatible transaction response
+        // This will prompt the user's connected Farcaster wallet
+        return NextResponse.json({
+          success: true,
+          type: 'transaction',
+          chainId: `eip155:10143`, // Monad testnet
+          method: 'eth_sendTransaction',
+          params: {
+            abi: [],
+            to: recipient,
+            value: `0x${amountInWei}`,
+          },
+          attribution: false,
+        });
       } catch (error: any) {
         console.error('Send MON failed:', error);
         return NextResponse.json({
