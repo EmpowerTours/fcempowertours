@@ -207,7 +207,7 @@ export default function PassportStakingPage() {
     setStakeTxHash('');
 
     try {
-      console.log(`🔄 Staking ${stakeAmount} TOURS with passport #${selectedTokenId}`);
+      console.log(`🔄 Staking ${stakeAmount} MON with passport #${selectedTokenId}`);
 
       // Check for delegation
       const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
@@ -240,7 +240,7 @@ export default function PassportStakingPage() {
         console.log('✅ Delegation created');
       }
 
-      setSuccess('⏳ Staking TOURS (FREE - we pay gas)...');
+      setSuccess('⏳ Staking MON (FREE - we pay gas)...');
 
       // Execute stake via delegation API
       const response = await fetch('/api/execute-delegated', {
@@ -263,7 +263,7 @@ export default function PassportStakingPage() {
       const { txHash, positionId } = await response.json();
 
       setStakeTxHash(txHash);
-      setSuccess(`🎉 Successfully staked ${stakeAmount} TOURS!
+      setSuccess(`🎉 Successfully staked ${stakeAmount} MON!
 Position ID: ${positionId}
 Gasless - we paid the gas!`);
       setStakeAmount('');
@@ -275,7 +275,7 @@ Gasless - we paid the gas!`);
       }, 5000);
     } catch (err: any) {
       console.error('❌ Error:', err);
-      setError(err.message || 'Failed to stake TOURS');
+      setError(err.message || 'Failed to stake MON');
     } finally {
       setIsStaking(false);
     }
@@ -298,7 +298,7 @@ Gasless - we paid the gas!`);
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">🎫 Passport Staking</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Stake TOURS tokens using your passport NFTs to earn rewards and build credit score
+            Stake MON using your passport NFTs to earn rewards and build credit score
           </p>
         </div>
 
@@ -355,7 +355,7 @@ Gasless - we paid the gas!`);
                     <div className="bg-white rounded-lg p-4 shadow">
                       <div className="text-sm text-gray-600 mb-1">Total Staked</div>
                       <div className="text-2xl font-bold text-purple-600">
-                        {parseFloat(totalStaked).toFixed(2)} TOURS
+                        {parseFloat(totalStaked).toFixed(2)} MON
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         Across {stakingPositions.length} active position{stakingPositions.length !== 1 ? 's' : ''}
@@ -366,7 +366,7 @@ Gasless - we paid the gas!`);
                     <div className="bg-white rounded-lg p-4 shadow">
                       <div className="text-sm text-gray-600 mb-1">Total Yield Earned</div>
                       <div className="text-2xl font-bold text-green-600">
-                        +{parseFloat(totalYield).toFixed(4)} TOURS
+                        +{parseFloat(totalYield).toFixed(4)} MON
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         Accumulating in real-time
@@ -432,8 +432,8 @@ Gasless - we paid the gas!`);
               {/* How It Works */}
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="text-sm text-gray-700">
-                  <strong>💡 How Yield Works:</strong> Your TOURS tokens are swapped to MON and staked via Kintsu integration.
-                  Yield is generated from MON staking, converted back to TOURS, and distributed on unstake.
+                  <strong>💡 How Yield Works:</strong> Your MON is deposited directly into Kintsu vault.
+                  Yield is generated from MON staking and distributed as MON on unstake.
                   Your passport NFT stays in your wallet - no transfers needed! The Safe stakes on your behalf as the beneficiary.
                 </div>
               </div>
@@ -452,10 +452,10 @@ Gasless - we paid the gas!`);
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-purple-600">
-                              {parseFloat(position.toursStaked).toFixed(2)} TOURS
+                              {parseFloat(position.toursStaked).toFixed(2)} MON
                             </div>
                             <div className="text-xs text-green-600 font-semibold">
-                              +{parseFloat(position.accumulatedYield).toFixed(4)} TOURS yield
+                              +{parseFloat(position.accumulatedYield).toFixed(4)} MON yield
                             </div>
                           </div>
                         </div>
@@ -500,7 +500,7 @@ Gasless - we paid the gas!`);
                       disabled={isStaking || !stakeAmount || selectedTokenId !== passport.tokenId}
                       className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
                     >
-                      {isStaking ? '⏳ Staking...' : 'Stake TOURS (FREE)'}
+                      {isStaking ? '⏳ Staking...' : 'Stake MON (FREE)'}
                     </button>
                   </div>
                 </div>
@@ -511,12 +511,12 @@ Gasless - we paid the gas!`);
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-bold mb-4">ℹ️ About Passport Staking</h3>
               <div className="space-y-2 text-sm text-gray-600">
-                <p>• Stake TOURS tokens using your passport NFT as collateral</p>
+                <p>• Stake MON using your passport NFT as collateral</p>
                 <p>• Earn yield from MON staking via Kintsu integration</p>
                 <p>• Build your credit score by staking consistently</p>
                 <p>• All transactions are gasless - we pay the gas!</p>
                 <p>• Your passport NFT stays in your wallet - no transfers needed!</p>
-                <p>• When you unstake, your TOURS (+ yield) are returned automatically</p>
+                <p>• When you unstake, your MON (+ yield) are returned automatically
                 <p>• The Safe stakes on your behalf as the beneficiary</p>
               </div>
             </div>
@@ -526,12 +526,12 @@ Gasless - we paid the gas!`);
               <h3 className="text-xl font-bold mb-4">📊 Credit Score Formula</h3>
               <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm">
                 <div>Score = 100 (base)</div>
-                <div className="ml-4">+ Staked TOURS (in whole units)</div>
+                <div className="ml-4">+ Staked MON (in whole units)</div>
                 <div className="ml-4">+ (Stamps × 10)</div>
                 <div className="ml-4">+ (Verified Stamps × 5)</div>
               </div>
               <p className="text-gray-600 text-sm mt-4">
-                Stake more TOURS and collect more venue stamps to increase your credit score!
+                Stake more MON and collect more venue stamps to increase your credit score!
               </p>
             </div>
           </div>
