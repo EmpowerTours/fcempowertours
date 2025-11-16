@@ -536,26 +536,22 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
           });
         }
 
-        // ✅ MON transfers come from USER's wallet via Farcaster transaction frame
-        // Return transaction frame metadata that Farcaster will use to prompt user's wallet
+        // ✅ MON transfers come from USER's wallet via Privy connection
+        // Redirect to /send-mon page where user can connect with Farcaster and send
         console.log(`Preparing MON transfer: ${amount} MON to ${recipient}`);
 
-        // Convert amount to wei (MON has 18 decimals)
-        const amountInWei = BigInt(Math.floor(amount * 1e18)).toString(16); // Hex for transaction
+        const sendMonUrl = `${APP_URL}/send-mon?amount=${amount}&to=${recipient}&from=${userAddress}`;
 
-        // Return Farcaster-compatible transaction response
-        // This will prompt the user's connected Farcaster wallet
         return NextResponse.json({
           success: true,
-          type: 'transaction',
-          chainId: `eip155:10143`, // Monad testnet
-          method: 'eth_sendTransaction',
-          params: {
-            abi: [],
-            to: recipient,
-            value: `0x${amountInWei}`,
-          },
-          attribution: false,
+          action: 'redirect',
+          url: sendMonUrl,
+          message: `📤 Send ${amount} MON
+
+From your wallet to:
+${recipient.slice(0, 6)}...${recipient.slice(-4)}
+
+Click below to open the transaction page and connect your Farcaster wallet with Privy.`,
         });
       } catch (error: any) {
         console.error('Send MON failed:', error);
