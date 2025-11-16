@@ -54,6 +54,7 @@ Basic Transactions (Gasless):
 - "mint passport" - Mint passport NFT (FREE)
 - "mint music <Song> <ipfs://...> <price>" - Mint music NFT
 - "send <amount> tours to @user" - Send TOURS
+- "send <amount> mon to 0x..." - Send MON
 - "buy music <tokenId>" - Buy music license
 - "check balance" - Check balances
 DeFi Actions (Gasless):
@@ -496,6 +497,96 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
         });
       } catch (error: any) {
         console.error('Send TOURS failed:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Send failed: ${error.message}`
+        });
+      }
+    }
+
+    // ==================== SEND MON COMMAND ====================
+    if (lowerCommand.includes('send') && lowerCommand.includes('mon') && !lowerCommand.includes('tours')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      try {
+        const amountMatch = lowerCommand.match(/send\s+([\d.]+)\s+mon/);
+        const recipientMatch = lowerCommand.match(/to\s+(0x[a-fA-F0-9]{40})/);
+        if (!amountMatch || !recipientMatch) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid format. Use: "send 1.5 mon to 0x..." (MON transfers require exact address)'
+          });
+        }
+        const amount = parseFloat(amountMatch[1]);
+        const recipient = recipientMatch[1];
+        if (amount <= 0 || amount > 1000) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid amount. Please use 0.01 - 1000 MON'
+          });
+        }
+        if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid recipient address format'
+          });
+        }
+        console.log(`Sending ${amount} MON to ${recipient}`);
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        const hasValidDelegation = delegationData.success &&
+                                  delegationData.delegation &&
+                                  Array.isArray(delegationData.delegation.permissions) &&
+                                  delegationData.delegation.permissions.includes('send_mon');
+        if (!hasValidDelegation) {
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['send_mon', 'send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+        const sendRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'send_mon',
+            params: {
+              recipient,
+              amount: amount.toString()
+            }
+          })
+        });
+        const sendData = await sendRes.json();
+        if (!sendData.success) {
+          throw new Error(sendData.error || 'Send failed');
+        }
+        console.log('MON sent:', sendData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: sendData.txHash,
+          action: 'transaction',
+          message: `Sent ${amount} MON! (FREE)
+To: ${recipient.slice(0, 6)}...${recipient.slice(-4)}
+TX: ${sendData.txHash?.slice(0, 10)}...
+Gasless - we paid the fees!
+View: https://testnet.monadscan.com/tx/${sendData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('Send MON failed:', error);
         return NextResponse.json({
           success: false,
           message: `Send failed: ${error.message}`

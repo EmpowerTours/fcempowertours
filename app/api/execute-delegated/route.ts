@@ -633,6 +633,85 @@ View profile and collection!
           message: `Sent ${params.amount} TOURS successfully`,
         });
 
+      // ==================== SEND MON ====================
+      case 'send_mon':
+        console.log('💸 Action: send_mon');
+        if (!params?.recipient || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing recipient or amount for send_mon' },
+            { status: 400 }
+          );
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid recipient address' },
+            { status: 400 }
+          );
+        }
+
+        const sendMonAmount = parseEther(params.amount.toString());
+        console.log('💸 Sending:', sendMonAmount.toString(), 'MON to', params.recipient);
+
+        // Check Safe has enough MON
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeBalance = await client.getBalance({
+            address: SAFE_ACCOUNT as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeBalance.toString());
+          console.log('   Requested send amount:', sendMonAmount.toString());
+
+          if (safeBalance < sendMonAmount) {
+            const currentMON = (Number(safeBalance) / 1e18).toFixed(4);
+            const requestedMON = (Number(sendMonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON balance. Safe has ${currentMON} MON, but you're trying to send ${requestedMON} MON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.error('❌ Failed to check MON balance:', balanceErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to verify MON balance: ${balanceErr.message}` },
+            { status: 500 }
+          );
+        }
+
+        // Native MON transfer (plain value transfer)
+        const sendMonCalls = [
+          {
+            to: params.recipient as Address,
+            value: sendMonAmount,
+            data: '0x' as Hex, // Empty data for plain transfer
+          },
+        ];
+
+        console.log('💳 Executing MON transfer transaction...');
+        const sendMonTxHash = await sendSafeTransaction(sendMonCalls);
+        console.log('✅ MON sent successfully, TX:', sendMonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: sendMonTxHash,
+          action,
+          userAddress,
+          recipient: params.recipient,
+          amount: params.amount,
+          message: `Sent ${params.amount} MON successfully`,
+        });
+
       // ==================== SWAP MON FOR TOURS ====================
       case 'swap_mon_for_tours':
         console.log('💱 Action: swap_mon_for_tours');
