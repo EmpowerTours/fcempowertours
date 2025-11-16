@@ -97,7 +97,27 @@ Gasless - they paid the gas! 🚀
     // ==================== STAKING CAST ====================
     else if (type === 'stake_tours') {
       const stakingUrl = `${APP_URL}/passport-staking`;
-      castText = `💎 Just Staked ${amount} TOURS on @empowertours!
+
+      // Try to get username from FID
+      let username = '';
+      if (fid && NEYNAR_API_KEY) {
+        try {
+          const userResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+            headers: { 'api_key': NEYNAR_API_KEY }
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.users && userData.users.length > 0) {
+              username = userData.users[0].username;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch username from FID:', err);
+        }
+      }
+
+      const userMention = username ? `@${username} just staked` : 'Just staked';
+      castText = `💎 ${userMention} ${amount} TOURS on @empowertours!
 
 📈 Earning yield + building credit score
 🎫 Collateral: Passport NFT #${tokenId}

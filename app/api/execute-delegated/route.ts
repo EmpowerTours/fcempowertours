@@ -1040,7 +1040,29 @@ View profile and collection!
 
         // ✅ POST FARCASTER CAST: Announce the stake on Farcaster
         try {
-          const fid = delegation?.metadata?.fid;
+          // Try to get FID from params, or lookup from wallet address
+          let fid = params?.fid;
+
+          if (!fid && process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
+            // Try to get FID from wallet address using Neynar
+            try {
+              const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${userAddress}`;
+              const response = await fetch(url, {
+                headers: { 'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY }
+              });
+
+              if (response.ok) {
+                const data: any = await response.json();
+                const userData = data[userAddress.toLowerCase()];
+                if (userData && userData.length > 0) {
+                  fid = userData[0].fid?.toString();
+                }
+              }
+            } catch (lookupErr) {
+              console.log('ℹ️ Could not lookup FID from wallet:', lookupErr);
+            }
+          }
+
           if (fid) {
             console.log('📢 Posting staking cast to Farcaster...');
             const castResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/cast-nft`, {
@@ -1058,7 +1080,7 @@ View profile and collection!
             const castResult = await castResponse.json();
             console.log('✅ Staking cast posted:', castResult.castHash);
           } else {
-            console.log('ℹ️ No FID in delegation metadata, skipping cast');
+            console.log('ℹ️ No FID found for user, skipping cast');
           }
         } catch (castErr: any) {
           console.error('⚠️ Failed to post staking cast (non-critical):', castErr.message);

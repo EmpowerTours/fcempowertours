@@ -25,7 +25,7 @@ const config: HardhatUserConfig = {
       url: MONAD_RPC,
       accounts: [DEPLOYER_PRIVATE_KEY],
       chainId: 41454, // Monad testnet chain ID
-    },
+    } as any, // Type assertion to fix build error - using Foundry for deployment
   },
   etherscan: {
     apiKey: {
