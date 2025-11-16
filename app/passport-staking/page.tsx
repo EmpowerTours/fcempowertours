@@ -48,6 +48,7 @@ export default function PassportStakingPage() {
   const [passports, setPassports] = useState<Passport[]>([]);
   const [isLoadingPassports, setIsLoadingPassports] = useState(true);
   const [isStaking, setIsStaking] = useState(false);
+  const [isUnstaking, setIsUnstaking] = useState<string | null>(null); // Tracks which position is being unstaked
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [stakeTxHash, setStakeTxHash] = useState('');
@@ -272,7 +273,7 @@ export default function PassportStakingPage() {
             userAddress: walletAddress,
             durationHours: 24,
             maxTransactions: 100,
-            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours']
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours']
           })
         });
 
@@ -321,6 +322,88 @@ Gasless - we paid the gas!`);
       setError(err.message || 'Failed to stake MON');
     } finally {
       setIsStaking(false);
+    }
+  };
+
+  const handleUnstake = async (positionId: string) => {
+    if (!walletAddress) {
+      setError('Wallet not connected');
+      return;
+    }
+
+    setIsUnstaking(positionId);
+    setError('');
+    setSuccess('');
+    setStakeTxHash('');
+
+    try {
+      console.log(`🔄 Unstaking position #${positionId}`);
+
+      // Check for delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('unstake_tours');
+
+      if (!hasValidDelegation) {
+        console.log('📝 Creating delegation with unstake permission...');
+        setSuccess('⏳ Setting up gasless transactions...');
+
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+        console.log('✅ Delegation created');
+      }
+
+      setSuccess('⏳ Unstaking position (FREE - we pay gas)...');
+
+      // Execute unstake via delegation API
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'unstake_tours',
+          params: {
+            positionId: positionId
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Unstake failed');
+      }
+
+      const { txHash } = await response.json();
+      setStakeTxHash(txHash);
+      setSuccess(`🎉 Position #${positionId} unstaked successfully!
+Your MON + yield have been returned to your wallet.`);
+
+      // Refresh positions after a delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (err: any) {
+      console.error('❌ Error:', err);
+      setError(err.message || 'Failed to unstake position');
+    } finally {
+      setIsUnstaking(null);
     }
   };
 
@@ -560,10 +643,17 @@ Gasless - we paid the gas!`);
                           </div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-gray-100">
-                          <div className="flex justify-between text-xs text-gray-600">
+                          <div className="flex justify-between text-xs text-gray-600 mb-3">
                             <span>Deposited: {new Date(parseInt(position.depositTime) * 1000).toLocaleDateString()}</span>
                             <span>ROI: {((parseFloat(position.accumulatedYield) / parseFloat(position.toursStaked)) * 100).toFixed(3)}%</span>
                           </div>
+                          <button
+                            onClick={() => handleUnstake(position.positionId)}
+                            disabled={isUnstaking === position.positionId}
+                            className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold active:scale-95 touch-manipulation"
+                          >
+                            {isUnstaking === position.positionId ? '⏳ Unstaking...' : '💰 Unstake + Claim Yield (FREE)'}
+                          </button>
                         </div>
                       </div>
                     ))}

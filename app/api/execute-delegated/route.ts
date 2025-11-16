@@ -1486,6 +1486,120 @@ View profile and collection!
           message: `Demand signal withdrawn for event #${params.eventId}`,
         });
 
+      // ==================== MUSIC NFT V5: STAKING ====================
+      case 'stake_music':
+        console.log('🎵 Action: stake_music');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for stake_music' },
+            { status: 400 }
+          );
+        }
+
+        const MUSIC_NFT_V5 = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
+        const stakeTokenId = BigInt(params.tokenId);
+
+        const stakeMusicCalls = [
+          {
+            to: MUSIC_NFT_V5,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function stakeMusicNFT(uint256 tokenId) external']),
+              functionName: 'stakeMusicNFT',
+              args: [stakeTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const stakeMusicTxHash = await sendSafeTransaction(stakeMusicCalls);
+        console.log('✅ Music NFT staked, TX:', stakeMusicTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeMusicTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Music NFT #${params.tokenId} staked successfully`,
+        });
+
+      // ==================== MUSIC NFT V5: UNSTAKING ====================
+      case 'unstake_music':
+        console.log('🎵 Action: unstake_music');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for unstake_music' },
+            { status: 400 }
+          );
+        }
+
+        const MUSIC_NFT_V5_UNSTAKE = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
+        const unstakeTokenId = BigInt(params.tokenId);
+
+        const unstakeMusicCalls = [
+          {
+            to: MUSIC_NFT_V5_UNSTAKE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unstakeMusicNFT(uint256 tokenId) external']),
+              functionName: 'unstakeMusicNFT',
+              args: [unstakeTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const unstakeMusicTxHash = await sendSafeTransaction(unstakeMusicCalls);
+        console.log('✅ Music NFT unstaked, TX:', unstakeMusicTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeMusicTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
+        });
+
+      // ==================== MUSIC NFT V5: BURNING ====================
+      case 'burn_music':
+        console.log('🔥 Action: burn_music');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for burn_music' },
+            { status: 400 }
+          );
+        }
+
+        const MUSIC_NFT_V5_BURN = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
+        const burnTokenId = BigInt(params.tokenId);
+
+        const burnMusicCalls = [
+          {
+            to: MUSIC_NFT_V5_BURN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function burnMusic(uint256 tokenId) external']),
+              functionName: 'burnMusic',
+              args: [burnTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const burnMusicTxHash = await sendSafeTransaction(burnMusicCalls);
+        console.log('✅ Music NFT burned, TX:', burnMusicTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: burnMusicTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Music NFT #${params.tokenId} burned for 5 TOURS reward`,
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },

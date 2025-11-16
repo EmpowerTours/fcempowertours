@@ -157,7 +157,14 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     previewAudioUrl: metadata?.previewAudioUrl || "",
     fullAudioUrl: metadata?.fullAudioUrl || "",
     metadataFetched: !!metadata,
-    
+
+    // ✅ V5: Initialize staking & burning fields
+    isStaked: false,
+    stakedAt: BigInt(0),
+    staker: "",
+    isBurned: false,
+    burnedAt: BigInt(0),
+
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -370,6 +377,78 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
     });
     context.log.info(`🎵 Music NFT #${tokenId} transferred from ${from} to ${to}`);
   }
+});
+
+// ============================================
+// MUSIC NFT V5: STAKING & BURNING EVENTS
+// ============================================
+
+MusicLicenseNFT.MusicStaked.handler(async ({ event, context }) => {
+  const { tokenId, staker, timestamp } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      isStaked: true,
+      stakedAt: timestamp,
+      staker: staker.toLowerCase(),
+    });
+    context.log.info(`🎵 Music NFT #${tokenId} staked by ${staker}`);
+  }
+});
+
+MusicLicenseNFT.MusicUnstaked.handler(async ({ event, context }) => {
+  const { tokenId, staker, rewardsClaimed, timestamp } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      isStaked: false,
+      stakedAt: BigInt(0),
+      staker: "",
+    });
+    context.log.info(`🎵 Music NFT #${tokenId} unstaked by ${staker}, rewards: ${rewardsClaimed}`);
+  }
+});
+
+MusicLicenseNFT.RewardsClaimed.handler(async ({ event, context }) => {
+  const { tokenId, staker, amount, timestamp } = event.params;
+
+  context.log.info(`💰 Music NFT #${tokenId} rewards claimed by ${staker}: ${amount} TOURS`);
+});
+
+MusicLicenseNFT.MusicBurned.handler(async ({ event, context }) => {
+  const { tokenId, burner, rewardReceived, timestamp } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      isBurned: true,
+      burnedAt: timestamp,
+    });
+    context.log.info(`🔥 Music NFT #${tokenId} burned by ${burner}, reward: ${rewardReceived} TOURS`);
+  }
+});
+
+MusicLicenseNFT.BurnRewardUpdated.handler(async ({ event, context }) => {
+  const { newReward, timestamp } = event.params;
+
+  context.log.info(`🔥 Burn reward updated to ${newReward} TOURS at ${timestamp}`);
+});
+
+MusicLicenseNFT.RewardRateUpdated.handler(async ({ event, context }) => {
+  const { newRate, timestamp } = event.params;
+
+  context.log.info(`💰 Staking reward rate updated to ${newRate} TOURS/day at ${timestamp}`);
 });
 
 // ============================================
@@ -737,7 +816,8 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
 // ============================================
 
 YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
-  const { positionId, nftAddress, nftTokenId, owner, beneficiary, toursAmount, monAmount, timestamp } = event.params;
+  // V8: Only has monAmount (no toursAmount)
+  const { positionId, nftAddress, nftTokenId, owner, beneficiary, monAmount, timestamp } = event.params;
 
   const stakingPositionId = positionId.toString();
   const beneficiaryId = beneficiary.toLowerCase();
@@ -750,7 +830,7 @@ YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
     nftTokenId: nftTokenId.toString(),
     owner: owner.toLowerCase(),
     beneficiary: beneficiaryId,
-    toursAmount: toursAmount,
+    toursAmount: monAmount, // V8 uses MON instead of TOURS
     monAmount: monAmount,
     active: true,
     createdAt: new Date(Number(timestamp) * 1000),
@@ -773,7 +853,7 @@ YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
       ...userStakingStats,
       activePositions: userStakingStats.activePositions + 1,
       totalPositionsCreated: userStakingStats.totalPositionsCreated + 1,
-      totalToursStaked: userStakingStats.totalToursStaked + toursAmount,
+      totalToursStaked: userStakingStats.totalToursStaked + monAmount,
       lastStakeTime: new Date(Number(timestamp) * 1000),
     });
   } else {
@@ -783,7 +863,7 @@ YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
       activePositions: 1,
       totalPositionsCreated: 1,
       totalPositionsClosed: 0,
-      totalToursStaked: toursAmount,
+      totalToursStaked: monAmount,
       totalYieldEarned: BigInt(0),
       lastStakeTime: new Date(Number(timestamp) * 1000),
       lastWithdrawTime: undefined,
@@ -796,17 +876,20 @@ YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
     const isNewStaker = !userStakingStats;
     await context.GlobalStats.set({
       ...globalStats,
-      totalStaked: (globalStats.totalStaked || BigInt(0)) + toursAmount,
+      totalStaked: (globalStats.totalStaked || BigInt(0)) + monAmount,
       totalStakers: isNewStaker ? (globalStats.totalStakers || 0) + 1 : (globalStats.totalStakers || 0),
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
   }
 
-  context.log.info(`💰 Staking position #${positionId} created for ${beneficiary} - ${toursAmount.toString()} TOURS (NFT: ${nftAddress}#${nftTokenId})`);
+  context.log.info(`💰 Staking position #${positionId} created for ${beneficiary} - ${monAmount.toString()} MON (NFT: ${nftAddress}#${nftTokenId})`);
 });
 
 YieldStrategy.StakingPositionClosed.handler(async ({ event, context }) => {
-  const { positionId, beneficiary, toursRefund, yieldShare, timestamp } = event.params;
+  // V8: user and monStaked instead of beneficiary and toursRefund
+  const { positionId, user, monStaked, yieldShare, timestamp } = event.params;
+  const beneficiary = user; // Alias for compatibility
+  const toursRefund = monStaked; // V8 uses MON
 
   const stakingPositionId = positionId.toString();
   const beneficiaryId = beneficiary.toLowerCase();

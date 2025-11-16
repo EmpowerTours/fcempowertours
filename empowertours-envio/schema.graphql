@@ -21,6 +21,13 @@ type MusicNFT @entity {
   fullAudioUrl: String         # Full track (metadata.external_url resolved)
   metadataFetched: Boolean!    # Track if metadata was successfully fetched
 
+  # ✅ V5: Staking & Burning fields
+  isStaked: Boolean            # Whether NFT is currently staked
+  stakedAt: BigInt             # Timestamp when staked
+  staker: String               # Address that staked this NFT
+  isBurned: Boolean            # Whether NFT has been burned
+  burnedAt: BigInt             # Timestamp when burned
+
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!

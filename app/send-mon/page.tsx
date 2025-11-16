@@ -8,14 +8,23 @@ function SendMonContent() {
   const { login, authenticated, user, ready } = usePrivy();
   const { wallets } = useWallets();
 
-  // Get URL parameters
-  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const defaultRecipient = urlParams?.get('to') || '0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20';
-  const defaultAmount = urlParams?.get('amount') || '';
-  const preferredWallet = urlParams?.get('from')?.toLowerCase(); // Wallet address that has the MON
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [preferredWallet, setPreferredWallet] = useState<string | null>(null);
 
-  const [recipient, setRecipient] = useState(defaultRecipient);
-  const [amount, setAmount] = useState(defaultAmount);
+  // Get URL parameters on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const toAddress = urlParams.get('to');
+      const amountParam = urlParams.get('amount');
+      const fromAddress = urlParams.get('from')?.toLowerCase();
+
+      if (toAddress) setRecipient(toAddress);
+      if (amountParam) setAmount(amountParam);
+      if (fromAddress) setPreferredWallet(fromAddress);
+    }
+  }, []);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -37,8 +46,23 @@ function SendMonContent() {
           console.warn('⚠️ Preferred wallet not found, using first wallet');
         }
       } else {
-        // No preference, use first wallet
-        setSelectedWallet(wallets[0]);
+        // No preference, prefer Privy embedded wallet or Farcaster-linked wallet over MetaMask
+        const privyWallet = wallets.find(w => w.walletClientType === 'privy');
+        const nonMetaMaskWallet = wallets.find(w =>
+          w.walletClientType !== 'metamask' && w.walletClientType !== 'injected'
+        );
+
+        if (privyWallet) {
+          setSelectedWallet(privyWallet);
+          console.log('✅ Auto-selected Privy embedded wallet:', privyWallet.address);
+        } else if (nonMetaMaskWallet) {
+          setSelectedWallet(nonMetaMaskWallet);
+          console.log('✅ Auto-selected non-MetaMask wallet:', nonMetaMaskWallet.address);
+        } else {
+          // Fallback to first wallet (might be MetaMask)
+          setSelectedWallet(wallets[0]);
+          console.log('⚠️ Using first available wallet:', wallets[0].address);
+        }
       }
     }
   }, [wallets, preferredWallet]);
@@ -103,6 +127,11 @@ function SendMonContent() {
 
       // ✅ Notify bot about successful transaction
       try {
+        // Extract Farcaster info from Privy's linked_accounts
+        const farcasterAccount = (user as any)?.linked_accounts?.find((acc: any) => acc.type === 'farcaster');
+        const username = farcasterAccount?.username || wallet.address.slice(0, 8);
+        const fid = farcasterAccount?.fid;
+
         const callbackResponse = await fetch('/api/send-mon-callback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -111,8 +140,8 @@ function SendMonContent() {
             amount,
             fromAddress: wallet.address,
             toAddress: recipient,
-            username: (user as any)?.username || wallet.address.slice(0, 8),
-            fid: (user as any)?.farcaster?.fid,
+            username,
+            fid,
           }),
         });
 
@@ -223,7 +252,7 @@ function SendMonContent() {
 
               <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-3">
                 <p className="text-blue-200 text-xs">
-                  💡 Default is Safe address (for funding gasless transactions)
+                  💡 You'll pay gas fees from your connected wallet for this transaction
                 </p>
               </div>
             </div>

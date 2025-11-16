@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
+import FarcasterAppSetup from '@/app/components/FarcasterAppSetup';
 
 export default function PassportPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
-  
+
   const farcasterFid = user?.fid;
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('');
@@ -17,6 +18,25 @@ export default function PassportPage() {
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [userOpHash, setUserOpHash] = useState('');
+
+  // ✅ NEW: Check if Farcaster app setup is complete
+  const [setupComplete, setSetupComplete] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+
+  // Check setup status on mount
+  useEffect(() => {
+    const checkSetupStatus = () => {
+      const appAdded = localStorage.getItem('fc_app_added') === 'true';
+      const notificationsEnabled = localStorage.getItem('fc_notifications_enabled') === 'true';
+
+      if (appAdded && notificationsEnabled) {
+        setSetupComplete(true);
+      }
+      setCheckingSetup(false);
+    };
+
+    checkSetupStatus();
+  }, []);
 
   // Auto-select country once geolocation loads
   useEffect(() => {
@@ -121,6 +141,22 @@ Token #${tokenId || 'pending'}`);
       setIsLoading(false);
     }
   };
+
+  // ✅ Show setup screen if not complete
+  if (checkingSetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <p className="text-white">Checking app status...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!setupComplete) {
+    return <FarcasterAppSetup onComplete={() => setSetupComplete(true)} />;
+  }
 
   if (contextLoading || geoLoading) {
     return (

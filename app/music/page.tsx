@@ -311,7 +311,7 @@ export default function MusicPage() {
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">Max 600KB (~30 seconds) - Public preview</p>
+              <p className="text-xs text-gray-500 mt-1">Max 600KB (~3 seconds) - Public preview</p>
             </div>
 
             <div>

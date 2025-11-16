@@ -26,12 +26,10 @@ export async function POST(req: NextRequest) {
     });
 
     // Create a cast about the transaction
-    const shortHash = `${txHash.slice(0, 10)}...${txHash.slice(-8)}`;
     const explorerUrl = `https://testnet.monadscan.com/tx/${txHash}`;
 
     let castText = `✅ ${username ? `@${username}` : 'User'} sent ${amount} MON!\n\n`;
-    castText += `TX: ${shortHash}\n`;
-    castText += `View: ${explorerUrl}`;
+    castText += `View transaction:\n${explorerUrl}`;
 
     try {
       const cast = await neynar.publishCast({

@@ -7,7 +7,7 @@ networks:
     contracts:
       - name: MusicLicenseNFT
         address:
-          - "0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6"  # ✅ UPDATED: v4 address
+          - "0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5"  # ✅ V5: Staking + Burning
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting
@@ -42,6 +42,38 @@ networks:
 
           # NFT transfer tracking
           - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ V5: Staking events
+          - event: "MusicStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "MusicUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardsClaimed(uint256 indexed tokenId, address indexed staker, uint256 amount, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ V5: Burning events
+          - event: "MusicBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BurnRewardUpdated(uint256 newReward, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardRateUpdated(uint256 newRate, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
@@ -92,10 +124,10 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ V3: YieldStrategy Contract (NFT-gated staking)
+      # ✅ V8: YieldStrategy Contract (NFT-gated staking with MON deposits)
       - name: YieldStrategy
         address:
-          - "0x2804add55b205Ce5930D7807Ad6183D8f3345974"  # V3 deployed with Foundry
+          - "0xefbD7fE4DeA1280cc5a3a8Bc3762Aa251BBf5ADE"  # V8 deployed - MON staking with Kintsu integration
         handler: src/EventHandlers.ts
         events:
           - event: "Initialized(address indexed toursToken, address indexed kintsu, address indexed tokenSwap, address dragonRouter, address keeper)"
@@ -106,11 +138,11 @@ networks:
             field_selection:
               transaction_fields:
                 - hash
-          - event: "StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 toursAmount, uint256 monAmount, uint256 timestamp)"
+          - event: "StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 monAmount, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
-          - event: "StakingPositionClosed(uint256 indexed positionId, address indexed beneficiary, uint256 toursRefund, uint256 yieldShare, uint256 timestamp)"
+          - event: "StakingPositionClosed(uint256 indexed positionId, address indexed user, uint256 monStaked, uint256 yieldShare, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
