@@ -516,7 +516,7 @@ Gasless - we paid the gas!`);
                 <p>• Build your credit score by staking consistently</p>
                 <p>• All transactions are gasless - we pay the gas!</p>
                 <p>• Your passport NFT stays in your wallet - no transfers needed!</p>
-                <p>• When you unstake, your MON (+ yield) are returned automatically
+                <p>• When you unstake, your MON (+ yield) are returned automatically</p>
                 <p>• The Safe stakes on your behalf as the beneficiary</p>
               </div>
             </div>
