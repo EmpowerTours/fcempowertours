@@ -522,7 +522,7 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
           });
         }
         const amount = parseFloat(amountMatch[1]);
-        const recipient = recipientMatch[1];
+        const recipient = recipientMatch[1].toLowerCase();
         if (amount <= 0 || amount > 1000) {
           return NextResponse.json({
             success: false,
@@ -535,56 +535,63 @@ View: https://testnet.monadscan.com/tx/${sendData.txHash}`
             message: 'Invalid recipient address format'
           });
         }
-        console.log(`Sending ${amount} MON to ${recipient}`);
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        const hasValidDelegation = delegationData.success &&
-                                  delegationData.delegation &&
-                                  Array.isArray(delegationData.delegation.permissions) &&
-                                  delegationData.delegation.permissions.includes('send_mon');
-        if (!hasValidDelegation) {
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+
+        // ✅ MON transfers come from USER's wallet via Neynar transaction frame
+        // This prompts the user's Farcaster wallet to sign the transaction
+        console.log(`Creating transaction frame to send ${amount} MON to ${recipient}`);
+
+        try {
+          // Convert amount to wei (MON has 18 decimals)
+          const amountInWei = BigInt(Math.floor(amount * 1e18)).toString();
+
+          // Create Neynar transaction frame
+          const neynarResponse = await fetch('https://api.neynar.com/v2/farcaster/frame/transaction', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
-              userAddress,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['send_mon', 'send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'buy_music']
-            })
+              chain_id: 'eip155:10143', // Monad testnet
+              method: 'eth_sendTransaction',
+              params: {
+                to: recipient,
+                value: amountInWei,
+                data: '0x', // Empty data for plain MON transfer
+              },
+            }),
           });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
+
+          if (!neynarResponse.ok) {
+            const errorData = await neynarResponse.json();
+            throw new Error(`Neynar API error: ${JSON.stringify(errorData)}`);
           }
+
+          const frameData = await neynarResponse.json();
+          console.log('✅ Transaction frame created:', frameData);
+
+          return NextResponse.json({
+            success: true,
+            action: 'transaction_frame',
+            frame: frameData,
+            message: `Click to send ${amount} MON to ${recipient.slice(0, 6)}...${recipient.slice(-4)}`,
+          });
+        } catch (frameError: any) {
+          console.error('Failed to create transaction frame:', frameError);
+
+          // Fallback to instructions if frame creation fails
+          return NextResponse.json({
+            success: false,
+            action: 'info',
+            message: `To send ${amount} MON from YOUR wallet:
+
+1. Open your wallet app (MetaMask, Rainbow, etc.)
+2. Send ${amount} MON to:
+   ${recipient}
+
+(Transaction frame creation failed: ${frameError.message})`
+          });
         }
-        const sendRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress,
-            action: 'send_mon',
-            params: {
-              recipient,
-              amount: amount.toString()
-            }
-          })
-        });
-        const sendData = await sendRes.json();
-        if (!sendData.success) {
-          throw new Error(sendData.error || 'Send failed');
-        }
-        console.log('MON sent:', sendData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: sendData.txHash,
-          action: 'transaction',
-          message: `Sent ${amount} MON! (FREE)
-To: ${recipient.slice(0, 6)}...${recipient.slice(-4)}
-TX: ${sendData.txHash?.slice(0, 10)}...
-Gasless - we paid the fees!
-View: https://testnet.monadscan.com/tx/${sendData.txHash}`
-        });
       } catch (error: any) {
         console.error('Send MON failed:', error);
         return NextResponse.json({
