@@ -31,7 +31,7 @@ async function approveYieldStrategyMax() {
     const txHash = await sendSafeTransaction(calls);
     console.log('✅ Max approval successful!');
     console.log('   Transaction:', txHash);
-    console.log('   Explorer:', `https://explorer.monad.xyz/tx/${txHash}`);
+    console.log('   Explorer:', `https://testnet.monadscan.com/tx/${txHash}`);
     console.log('');
     console.log('🎉 Safe can now stake TOURS without approve calls!');
   } catch (error: any) {

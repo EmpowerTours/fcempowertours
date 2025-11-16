@@ -237,7 +237,7 @@ Token #${tokenId || 'pending'}`);
             <p className="text-red-300 text-sm whitespace-pre-line">❌ {error}</p>
             {userOpHash && (
               <a
-                href={`https://explorer.monad.xyz/op/${userOpHash}`}
+                href={`https://testnet.monadscan.com/op/${userOpHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 mt-2 text-yellow-200 hover:text-yellow-100 underline text-sm font-mono"
@@ -253,7 +253,7 @@ Token #${tokenId || 'pending'}`);
             <p className="text-green-300 text-sm whitespace-pre-line">{success}</p>
             {txHash && (
               <a
-                href={`https://explorer.monad.xyz/tx/${txHash}`}
+                href={`https://testnet.monadscan.com/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 mt-2 text-green-200 hover:text-green-100 underline text-sm font-mono"

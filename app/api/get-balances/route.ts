@@ -34,25 +34,25 @@ export async function POST(req: NextRequest) {
 
     // =============================================
     // STEP 1: Get MON balance (native currency)
-    // ✅ CRITICAL FIX: Check BOTH user wallet AND bot Safe
+    // ✅ Check BOTH user wallet AND bot Safe separately
     // =============================================
     console.log('⏳ Fetching MON balance from user wallet...');
     let monBalanceUser = 0n;
     try {
-      monBalanceUser = await publicClient.getBalance({ 
-        address: userAddress 
+      monBalanceUser = await publicClient.getBalance({
+        address: userAddress
       });
       console.log(`✅ User MON balance: ${monBalanceUser.toString()} wei`);
     } catch (error) {
       console.error('❌ Error fetching user MON balance:', error);
     }
 
-    // Check bot Safe account MON balance too
+    // Check bot Safe account MON balance separately
     let monBalanceSafe = 0n;
     if (BOT_SAFE_ACCOUNT) {
       try {
-        monBalanceSafe = await publicClient.getBalance({ 
-          address: BOT_SAFE_ACCOUNT 
+        monBalanceSafe = await publicClient.getBalance({
+          address: BOT_SAFE_ACCOUNT
         });
         console.log(`✅ Safe MON balance: ${monBalanceSafe.toString()} wei`);
       } catch (error) {
@@ -60,10 +60,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Total MON = user wallet + safe
+    // Format separately for display
+    const monFormattedUser = parseFloat(formatEther(monBalanceUser)).toFixed(4);
+    const monFormattedSafe = parseFloat(formatEther(monBalanceSafe)).toFixed(4);
     const totalMonBalance = monBalanceUser + monBalanceSafe;
     const monFormatted = parseFloat(formatEther(totalMonBalance)).toFixed(4);
-    console.log(`✅ TOTAL MON balance (user + safe): ${totalMonBalance.toString()} wei = ${monFormatted} MON`);
+    console.log(`✅ MON balances - User: ${monFormattedUser}, Safe: ${monFormattedSafe}, Total: ${monFormatted}`);
 
     // =============================================
     // STEP 2: Get TOURS balance (ERC-20 token)
@@ -154,17 +156,19 @@ export async function POST(req: NextRequest) {
     }
 
     // =============================================
-    // STEP 4: Return aggregated balances
+    // STEP 4: Return aggregated balances with breakdown
     // =============================================
     const finalResponse = {
       mon: monFormatted,
+      monWallet: monFormattedUser,  // ✅ User's personal wallet MON
+      monSafe: monFormattedSafe,     // ✅ Safe's MON (for gasless txs)
       tours: toursFormatted,
       nfts: nftData,
       // ✅ ADDED: Breakdown for debugging
       breakdown: {
         mon: {
-          user: parseFloat(formatEther(monBalanceUser)).toFixed(4),
-          safe: parseFloat(formatEther(monBalanceSafe)).toFixed(4),
+          user: monFormattedUser,
+          safe: monFormattedSafe,
           total: monFormatted,
         },
         tours: {

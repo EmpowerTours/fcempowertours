@@ -691,7 +691,7 @@ export async function sendSafeTransaction(
     });
 
     console.log('✅ UserOperation hash:', userOpHash);
-    console.log('   Track your UserOperation: https://explorer.monad.xyz/op/' + userOpHash);
+    console.log('   Track your UserOperation: https://testnet.monadscan.com/op/' + userOpHash);
 
     // Wait for the UserOperation to be included in a transaction
     // Monad testnet can be slow, so use a longer timeout (5 minutes)

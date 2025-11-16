@@ -551,7 +551,14 @@ export default function ProfilePage() {
                   >
                     {balances.mon}
                   </motion.p>
-                  <p className="text-xs text-gray-500 mt-1">Native Token</p>
+                  <div className="mt-2 space-y-0.5">
+                    <p className="text-xs text-gray-500">
+                      💳 Wallet: {(balances as any).monWallet || '0.0000'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      🔒 Safe: {(balances as any).monSafe || '0.0000'}
+                    </p>
+                  </div>
                 </div>
                 <motion.div
                   className="text-3xl"

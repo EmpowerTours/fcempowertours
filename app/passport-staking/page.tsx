@@ -58,6 +58,49 @@ export default function PassportStakingPage() {
   const [totalStaked, setTotalStaked] = useState('0');
   const [totalYield, setTotalYield] = useState('0');
 
+  // Global staking stats
+  const [globalStaked, setGlobalStaked] = useState('0');
+  const [globalStakers, setGlobalStakers] = useState(0);
+
+  // Fetch global staking stats
+  useEffect(() => {
+    const fetchGlobalStats = async () => {
+      try {
+        const response = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `
+              query GetGlobalStats {
+                GlobalStats(where: { id: { _eq: "global" } }) {
+                  id
+                  totalStaked
+                  totalStakers
+                  lastUpdated
+                }
+              }
+            `
+          })
+        });
+
+        const data = await response.json();
+        if (data.data?.GlobalStats?.[0]) {
+          const stats = data.data.GlobalStats[0];
+          setGlobalStaked(ethers.formatUnits(stats.totalStaked || '0', 18));
+          setGlobalStakers(stats.totalStakers || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching global stats:', err);
+      }
+    };
+
+    fetchGlobalStats();
+
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchGlobalStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Fetch user's passports
   useEffect(() => {
     if (!walletAddress) {
@@ -313,7 +356,7 @@ Gasless - we paid the gas!`);
             <p className="text-green-700 text-sm whitespace-pre-line">{success}</p>
             {stakeTxHash && (
               <a
-                href={`https://explorer.monad.xyz/tx/${stakeTxHash}`}
+                href={`https://testnet.monadscan.com/tx/${stakeTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 mt-2 text-green-600 hover:text-green-800 underline text-sm font-mono"
@@ -340,6 +383,34 @@ Gasless - we paid the gas!`);
           </div>
         ) : (
           <div className="space-y-8">
+            {/* Global Staking Stats */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg shadow-lg p-6 border-2 border-purple-200">
+              <h3 className="text-2xl font-bold mb-4 text-gray-900">🌍 Global Staking Statistics</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg p-4 shadow">
+                  <div className="text-sm text-gray-600 mb-1">Total Staked Globally</div>
+                  <div className="text-3xl font-bold text-purple-600">
+                    {parseFloat(globalStaked).toFixed(2)} MON
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Across all users in the ecosystem
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow">
+                  <div className="text-sm text-gray-600 mb-1">Total Stakers</div>
+                  <div className="text-3xl font-bold text-pink-600">
+                    {globalStakers.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Unique users staking right now
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 text-xs text-gray-600 text-center">
+                📊 Stats update every 30 seconds
+              </div>
+            </div>
+
             {/* Yield Statistics Dashboard */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg p-6 border-2 border-green-200">
               <h3 className="text-2xl font-bold mb-4 text-gray-900">💰 Staking Rewards Dashboard</h3>
@@ -397,34 +468,63 @@ Gasless - we paid the gas!`);
                     </div>
                   </div>
 
-                  {/* Yield Progress Bar */}
+                  {/* Yield Progress Bar - Enhanced */}
                   <div className="mt-6">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-gray-700">📈 Yield Accumulation</span>
+                      <span className="text-sm font-medium text-gray-700">📈 Yield Accumulation Progress</span>
                       <span className="text-sm text-gray-600">
                         {stakingPositions.length > 0 ? 'Auto-refresh every 30s' : 'No active positions'}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                      <div
-                        className={`h-4 bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-500 ${
-                          stakingPositions.length > 0 ? 'animate-pulse' : ''
-                        }`}
-                        style={{
-                          width: stakingPositions.length > 0
-                            ? `${Math.min((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100 * 10, 100)}%`
-                            : '0%'
-                        }}
-                      />
+
+                    {/* Enhanced progress bar with minimum visibility */}
+                    <div className="relative w-full bg-gray-200 rounded-full h-6 overflow-hidden shadow-inner">
+                      {stakingPositions.length > 0 ? (
+                        <>
+                          {/* Background animated shimmer effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+
+                          {/* Actual progress */}
+                          <div
+                            className="relative h-6 bg-gradient-to-r from-green-400 via-emerald-500 to-blue-500 rounded-full transition-all duration-1000 flex items-center justify-end pr-2"
+                            style={{
+                              width: stakingPositions.length > 0
+                                ? `${Math.max(5, Math.min((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100 * 20, 100))}%`
+                                : '0%'
+                            }}
+                          >
+                            <div className="animate-pulse">
+                              <div className="w-2 h-2 bg-white rounded-full shadow-lg"></div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="h-6 bg-gray-300 rounded-full"></div>
+                      )}
                     </div>
+
                     <div className="flex justify-between mt-2 text-xs text-gray-600">
-                      <span>{stakingPositions.length > 0 ? 'Staking active' : 'No stakes yet'}</span>
-                      <span>
+                      <span className="flex items-center gap-1">
+                        {stakingPositions.length > 0 && (
+                          <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        )}
+                        {stakingPositions.length > 0 ? 'Earning yield continuously' : 'No stakes yet'}
+                      </span>
+                      <span className="font-mono">
                         {stakingPositions.length > 0
-                          ? `${((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100).toFixed(3)}% yield so far`
+                          ? `+${parseFloat(totalYield).toFixed(6)} MON (${((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100).toFixed(4)}% ROI)`
                           : 'Start staking to earn'}
                       </span>
                     </div>
+
+                    {/* Estimated APY info */}
+                    {stakingPositions.length > 0 && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                        <div className="text-xs text-blue-700">
+                          💡 Yield accrues every block from Kintsu vault staking rewards. Check back in a few hours to see meaningful gains!
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

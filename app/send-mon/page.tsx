@@ -100,6 +100,32 @@ function SendMonContent() {
       setTxHash(hash);
       setSuccess(`Transaction sent! Hash: ${hash}`);
       console.log('✅ Transaction sent:', hash);
+
+      // ✅ Notify bot about successful transaction
+      try {
+        const callbackResponse = await fetch('/api/send-mon-callback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            txHash: hash,
+            amount,
+            fromAddress: wallet.address,
+            toAddress: recipient,
+            username: user?.username,
+            fid: user?.farcaster?.fid,
+          }),
+        });
+
+        if (callbackResponse.ok) {
+          const callbackData = await callbackResponse.json();
+          console.log('✅ Bot notified of transaction:', callbackData);
+        } else {
+          console.warn('⚠️ Failed to notify bot of transaction');
+        }
+      } catch (callbackError) {
+        console.error('❌ Failed to notify bot:', callbackError);
+        // Don't fail the transaction if callback fails
+      }
     } catch (err: any) {
       console.error('❌ Transaction failed:', err);
       setError(err.message || 'Transaction failed');
