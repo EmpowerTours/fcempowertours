@@ -178,9 +178,6 @@ export default function SendMonPage() {
           theme: 'dark',
           accentColor: '#8B5CF6',
         },
-        embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
-        },
         defaultChain: monadTestnet,
         supportedChains: [monadTestnet],
       }}
