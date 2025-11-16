@@ -880,7 +880,7 @@ View profile and collection!
 
           console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
 
-          // ✅ V6: Check MON balance (native currency)
+          // ✅ V6: Check MON balance (native currency) + reserve for gas
           console.log('🔍 Checking Safe MON balance...');
           const safeMonBalance = await client.getBalance({
             address: SAFE_ACCOUNT as Address,
@@ -888,8 +888,22 @@ View profile and collection!
           console.log('   Safe MON balance:', safeMonBalance.toString());
           console.log('   Required for stake:', stakeAmount.toString());
 
-          if (safeMonBalance < stakeAmount) {
-            throw new Error(`Insufficient MON balance: Safe has ${safeMonBalance}, needs ${stakeAmount}`);
+          // ✅ Require Safe to keep 1 MON reserve for gas costs
+          const RESERVE_BALANCE = parseUnits('1', 18); // 1 MON reserve
+          const totalRequired = stakeAmount + RESERVE_BALANCE;
+
+          console.log('   Reserve balance requirement:', RESERVE_BALANCE.toString(), '(1 MON)');
+          console.log('   Total required (stake + reserve):', totalRequired.toString());
+
+          if (safeMonBalance < totalRequired) {
+            const currentMON = (Number(safeMonBalance) / 1e18).toFixed(4);
+            const requiredMON = (Number(totalRequired) / 1e18).toFixed(4);
+            const stakeMON = (Number(stakeAmount) / 1e18).toFixed(4);
+            throw new Error(
+              `Insufficient MON balance. Safe has ${currentMON} MON but needs ${requiredMON} MON total ` +
+              `(${stakeMON} MON for stake + 1 MON reserve for gas). ` +
+              `Please reduce stake amount or add more MON to the Safe.`
+            );
           }
 
           console.log('✅ All precondition checks passed - proceeding with stake');
