@@ -12,6 +12,7 @@ function SendMonContent() {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const defaultRecipient = urlParams?.get('to') || '0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20';
   const defaultAmount = urlParams?.get('amount') || '';
+  const preferredWallet = urlParams?.get('from')?.toLowerCase(); // Wallet address that has the MON
 
   const [recipient, setRecipient] = useState(defaultRecipient);
   const [amount, setAmount] = useState(defaultAmount);
@@ -19,6 +20,28 @@ function SendMonContent() {
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<any>(null);
+
+  // Auto-select wallet based on URL parameter or show selection
+  useEffect(() => {
+    if (wallets.length > 0) {
+      // Try to find the preferred wallet from URL
+      if (preferredWallet) {
+        const matchingWallet = wallets.find(w => w.address.toLowerCase() === preferredWallet);
+        if (matchingWallet) {
+          setSelectedWallet(matchingWallet);
+          console.log('✅ Auto-selected wallet from URL:', matchingWallet.address);
+        } else {
+          // Preferred wallet not found, use first one
+          setSelectedWallet(wallets[0]);
+          console.warn('⚠️ Preferred wallet not found, using first wallet');
+        }
+      } else {
+        // No preference, use first wallet
+        setSelectedWallet(wallets[0]);
+      }
+    }
+  }, [wallets, preferredWallet]);
 
   // Debug logging
   useEffect(() => {
@@ -27,12 +50,14 @@ function SendMonContent() {
       authenticated,
       user: user?.id,
       walletsCount: wallets.length,
-      walletAddresses: wallets.map(w => w.address)
+      walletAddresses: wallets.map(w => w.address),
+      preferredWallet,
+      selectedWallet: selectedWallet?.address
     });
-  }, [ready, authenticated, user, wallets]);
+  }, [ready, authenticated, user, wallets, preferredWallet, selectedWallet]);
 
   const handleSend = async () => {
-    if (!amount || !recipient || wallets.length === 0) return;
+    if (!amount || !recipient || !selectedWallet) return;
 
     try {
       setError('');
@@ -40,14 +65,13 @@ function SendMonContent() {
       setTxHash('');
       setLoading(true);
 
-      // Get the embedded wallet (created when user logs in with Farcaster)
-      const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
-      const wallet = embeddedWallet || wallets[0];
+      const wallet = selectedWallet;
 
-      console.log('Using wallet:', {
+      console.log('Using selected wallet:', {
         address: wallet.address,
         type: wallet.walletClientType,
-        chainId: wallet.chainId
+        chainId: wallet.chainId,
+        isPreferred: wallet.address.toLowerCase() === preferredWallet
       });
 
       // Switch to Monad testnet if needed
@@ -126,13 +150,23 @@ function SendMonContent() {
         ) : (
           <>
             <div className="bg-black/20 rounded-xl p-4">
-              <p className="text-gray-400 text-xs">Connected as</p>
+              <p className="text-gray-400 text-xs">Sending from</p>
               <p className="text-white font-mono text-sm break-all">
-                {wallets.length > 0 ? wallets[0].address : (user?.wallet?.address || 'Loading...')}
+                {selectedWallet ? selectedWallet.address : (wallets.length > 0 ? wallets[0].address : 'Loading...')}
               </p>
-              {wallets.length > 0 && (
-                <p className="text-gray-500 text-xs mt-1">
-                  Type: {wallets.find(w => w.walletClientType === 'privy') ? 'Privy Embedded Wallet' : wallets[0].walletClientType}
+              {selectedWallet && (
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-gray-500 text-xs">
+                    Type: {selectedWallet.walletClientType === 'privy' ? 'Privy Embedded Wallet' : selectedWallet.walletClientType}
+                  </p>
+                  {preferredWallet && selectedWallet.address.toLowerCase() === preferredWallet && (
+                    <span className="text-green-400 text-xs">✓ Auto-selected</span>
+                  )}
+                </div>
+              )}
+              {wallets.length > 1 && (
+                <p className="text-blue-400 text-xs mt-2">
+                  💡 {wallets.length} wallets available
                 </p>
               )}
             </div>
@@ -195,7 +229,7 @@ function SendMonContent() {
 
             <button
               onClick={handleSend}
-              disabled={loading || !amount || !recipient || wallets.length === 0}
+              disabled={loading || !amount || !recipient || !selectedWallet}
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
             >
               {loading ? '⏳ Sending...' : 'Send MON'}
