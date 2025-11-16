@@ -39,11 +39,11 @@ export async function POST(req: NextRequest) {
         text: castText,
       });
 
-      console.log('✅ [SEND-MON-CALLBACK] Bot cast published:', cast.hash);
+      console.log('✅ [SEND-MON-CALLBACK] Bot cast published:', cast.cast?.hash);
 
       return NextResponse.json({
         success: true,
-        castHash: cast.hash,
+        castHash: cast.cast?.hash,
         message: 'Transaction recorded and cast published'
       });
     } catch (castError: any) {

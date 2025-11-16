@@ -111,8 +111,8 @@ function SendMonContent() {
             amount,
             fromAddress: wallet.address,
             toAddress: recipient,
-            username: user?.username,
-            fid: user?.farcaster?.fid,
+            username: (user as any)?.username || wallet.address.slice(0, 8),
+            fid: (user as any)?.farcaster?.fid,
           }),
         });
 
