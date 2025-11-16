@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { ethers } from 'ethers';
 
 interface Passport {
   tokenId: string;
@@ -12,10 +13,33 @@ interface Passport {
   mintedAt: string;
 }
 
+interface StakingPosition {
+  positionId: string;
+  nftAddress: string;
+  nftTokenId: string;
+  owner: string;
+  beneficiary: string;
+  depositTime: string;
+  toursStaked: string;
+  monDeployed: string;
+  yieldDebt: string;
+  active: boolean;
+  accumulatedYield: string; // Calculated yield
+}
+
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const YIELD_STRATEGY = process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x6863674C89faD0c7e3C0B406BA35182649eE216b';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT || '';
 const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT || '';
+
+// Minimal ABI for YieldStrategy V5 view functions
+const YIELD_STRATEGY_ABI = [
+  'function getUserPositions(address user) external view returns (uint256[])',
+  'function getPosition(uint256 positionId) external view returns (tuple(address nftAddress, uint256 nftTokenId, address owner, address beneficiary, uint256 depositTime, uint256 toursStaked, uint256 monDeployed, uint256 yieldDebt, bool active))',
+  'function accYieldPerShare() external view returns (uint256)',
+];
 
 export default function PassportStakingPage() {
   const { walletAddress } = useFarcasterContext();
@@ -27,6 +51,12 @@ export default function PassportStakingPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [stakeTxHash, setStakeTxHash] = useState('');
+
+  // Staking positions state
+  const [stakingPositions, setStakingPositions] = useState<StakingPosition[]>([]);
+  const [isLoadingPositions, setIsLoadingPositions] = useState(false);
+  const [totalStaked, setTotalStaked] = useState('0');
+  const [totalYield, setTotalYield] = useState('0');
 
   // Fetch user's passports
   useEffect(() => {
@@ -71,6 +101,92 @@ export default function PassportStakingPage() {
     };
 
     fetchPassports();
+  }, [walletAddress]);
+
+  // Fetch user's staking positions from YieldStrategy V5
+  useEffect(() => {
+    if (!walletAddress) {
+      setIsLoadingPositions(false);
+      return;
+    }
+
+    const fetchStakingPositions = async () => {
+      try {
+        setIsLoadingPositions(true);
+
+        // Create provider and contract instance
+        const provider = new ethers.JsonRpcProvider(MONAD_RPC);
+        const contract = new ethers.Contract(YIELD_STRATEGY, YIELD_STRATEGY_ABI, provider);
+
+        // Get user's position IDs
+        const positionIds = await contract.getUserPositions(walletAddress);
+        console.log('📊 Found position IDs:', positionIds);
+
+        if (positionIds.length === 0) {
+          setStakingPositions([]);
+          setTotalStaked('0');
+          setTotalYield('0');
+          setIsLoadingPositions(false);
+          return;
+        }
+
+        // Get global accYieldPerShare for yield calculations
+        const accYieldPerShare = await contract.accYieldPerShare();
+        console.log('📈 Global accYieldPerShare:', accYieldPerShare.toString());
+
+        // Fetch each position and calculate accumulated yield
+        const positions: StakingPosition[] = [];
+        let totalStakedAmount = BigInt(0);
+        let totalYieldAmount = BigInt(0);
+
+        for (const positionId of positionIds) {
+          const pos = await contract.getPosition(positionId);
+
+          // Only include active positions
+          if (!pos.active) continue;
+
+          // Calculate accumulated yield: ((toursStaked * accYieldPerShare) / 1e18) - yieldDebt
+          const toursStaked = BigInt(pos.toursStaked);
+          const yieldDebt = BigInt(pos.yieldDebt);
+          const accYield = BigInt(accYieldPerShare);
+
+          const accumulatedYield = (toursStaked * accYield) / BigInt(1e18) - yieldDebt;
+
+          positions.push({
+            positionId: positionId.toString(),
+            nftAddress: pos.nftAddress,
+            nftTokenId: pos.nftTokenId.toString(),
+            owner: pos.owner,
+            beneficiary: pos.beneficiary,
+            depositTime: pos.depositTime.toString(),
+            toursStaked: ethers.formatUnits(pos.toursStaked, 18),
+            monDeployed: ethers.formatUnits(pos.monDeployed, 18),
+            yieldDebt: pos.yieldDebt.toString(),
+            active: pos.active,
+            accumulatedYield: ethers.formatUnits(accumulatedYield, 18),
+          });
+
+          totalStakedAmount += toursStaked;
+          totalYieldAmount += accumulatedYield;
+        }
+
+        setStakingPositions(positions);
+        setTotalStaked(ethers.formatUnits(totalStakedAmount, 18));
+        setTotalYield(ethers.formatUnits(totalYieldAmount, 18));
+
+        console.log('✅ Fetched staking positions:', positions);
+      } catch (err) {
+        console.error('Error fetching staking positions:', err);
+      } finally {
+        setIsLoadingPositions(false);
+      }
+    };
+
+    fetchStakingPositions();
+
+    // Refresh positions every 30 seconds to show yield accumulation
+    const interval = setInterval(fetchStakingPositions, 30000);
+    return () => clearInterval(interval);
   }, [walletAddress]);
 
   const handleStake = async () => {
@@ -227,55 +343,91 @@ Gasless - we paid the gas!`);
             {/* Yield Statistics Dashboard */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg p-6 border-2 border-green-200">
               <h3 className="text-2xl font-bold mb-4 text-gray-900">💰 Staking Rewards Dashboard</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Total Staked */}
-                <div className="bg-white rounded-lg p-4 shadow">
-                  <div className="text-sm text-gray-600 mb-1">Total Staked</div>
-                  <div className="text-2xl font-bold text-purple-600">
-                    {passports.reduce((sum) => sum, 0)} TOURS
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">Across {passports.length} passport{passports.length !== 1 ? 's' : ''}</div>
+              {isLoadingPositions ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin text-3xl mb-2">⏳</div>
+                  <p className="text-gray-600">Loading staking positions...</p>
                 </div>
-
-                {/* Estimated APY */}
-                <div className="bg-white rounded-lg p-4 shadow">
-                  <div className="text-sm text-gray-600 mb-1">Estimated APY</div>
-                  <div className="text-2xl font-bold text-green-600">5-15%</div>
-                  <div className="text-xs text-gray-500 mt-1">Based on MON staking via Kintsu</div>
-                </div>
-
-                {/* Yield Status */}
-                <div className="bg-white rounded-lg p-4 shadow">
-                  <div className="text-sm text-gray-600 mb-1">Yield Status</div>
-                  <div className="flex items-center gap-2">
-                    <div className="animate-pulse">
-                      <div className="h-3 w-3 bg-green-500 rounded-full"></div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Total Staked */}
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <div className="text-sm text-gray-600 mb-1">Total Staked</div>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {parseFloat(totalStaked).toFixed(2)} TOURS
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Across {stakingPositions.length} active position{stakingPositions.length !== 1 ? 's' : ''}
+                      </div>
                     </div>
-                    <div className="text-lg font-semibold text-green-600">Earning</div>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {stakeTxHash ? 'Active staking position' : 'Start staking to earn'}
-                  </div>
-                </div>
-              </div>
 
-              {/* Yield Progress Bar */}
-              <div className="mt-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">📈 Yield Accumulation</span>
-                  <span className="text-sm text-gray-600">Updated every block</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                  <div
-                    className="h-4 bg-gradient-to-r from-green-400 to-blue-500 rounded-full animate-pulse"
-                    style={{ width: '45%' }}
-                  />
-                </div>
-                <div className="flex justify-between mt-2 text-xs text-gray-600">
-                  <span>Staking active</span>
-                  <span>Rewards compounding automatically</span>
-                </div>
-              </div>
+                    {/* Total Yield Earned */}
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <div className="text-sm text-gray-600 mb-1">Total Yield Earned</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        +{parseFloat(totalYield).toFixed(4)} TOURS
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Accumulating in real-time
+                      </div>
+                    </div>
+
+                    {/* Yield Status */}
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <div className="text-sm text-gray-600 mb-1">Yield Status</div>
+                      <div className="flex items-center gap-2">
+                        {stakingPositions.length > 0 ? (
+                          <>
+                            <div className="animate-pulse">
+                              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
+                            </div>
+                            <div className="text-lg font-semibold text-green-600">Earning</div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
+                            <div className="text-lg font-semibold text-gray-600">Inactive</div>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {stakingPositions.length > 0 ? 'Active staking positions' : 'Start staking to earn'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Yield Progress Bar */}
+                  <div className="mt-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">📈 Yield Accumulation</span>
+                      <span className="text-sm text-gray-600">
+                        {stakingPositions.length > 0 ? 'Auto-refresh every 30s' : 'No active positions'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                      <div
+                        className={`h-4 bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-500 ${
+                          stakingPositions.length > 0 ? 'animate-pulse' : ''
+                        }`}
+                        style={{
+                          width: stakingPositions.length > 0
+                            ? `${Math.min((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100 * 10, 100)}%`
+                            : '0%'
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs text-gray-600">
+                      <span>{stakingPositions.length > 0 ? 'Staking active' : 'No stakes yet'}</span>
+                      <span>
+                        {stakingPositions.length > 0
+                          ? `${((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100).toFixed(3)}% yield so far`
+                          : 'Start staking to earn'}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* How It Works */}
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -285,6 +437,39 @@ Gasless - we paid the gas!`);
                   Your passport NFT stays in your wallet - no transfers needed! The Safe stakes on your behalf as the beneficiary.
                 </div>
               </div>
+
+              {/* Individual Staking Positions */}
+              {stakingPositions.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-lg font-bold text-gray-900 mb-3">📊 Your Staking Positions</h4>
+                  <div className="space-y-3">
+                    {stakingPositions.map((position) => (
+                      <div key={position.positionId} className="bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">Position #{position.positionId}</div>
+                            <div className="text-xs text-gray-500">Passport NFT #{position.nftTokenId}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-purple-600">
+                              {parseFloat(position.toursStaked).toFixed(2)} TOURS
+                            </div>
+                            <div className="text-xs text-green-600 font-semibold">
+                              +{parseFloat(position.accumulatedYield).toFixed(4)} TOURS yield
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                          <div className="flex justify-between text-xs text-gray-600">
+                            <span>Deposited: {new Date(parseInt(position.depositTime) * 1000).toLocaleDateString()}</span>
+                            <span>ROI: {((parseFloat(position.accumulatedYield) / parseFloat(position.toursStaked)) * 100).toFixed(3)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Passport List */}

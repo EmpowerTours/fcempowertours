@@ -8,7 +8,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 export async function POST(req: NextRequest) {
   try {
     const {
-      type,           // 'passport' | 'music_mint' | 'music_purchase'
+      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours'
       fid,            // Farcaster ID
       tokenId,        // NFT token ID
       txHash,         // Transaction hash
@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
       songTitle,      // For music
       price,          // For music
       artist,         // For music purchase
+      amount,         // For staking
+      positionId,     // For staking
     } = await req.json();
 
     console.log('🎵 [CAST] Posting cast:', { type, fid, tokenId, countryCode, songTitle });
@@ -90,6 +92,25 @@ Gasless - they paid the gas! 🚀
 @empowertours`;
 
       console.log('📢 Music purchase cast text:', castText);
+    }
+
+    // ==================== STAKING CAST ====================
+    else if (type === 'stake_tours') {
+      const stakingUrl = `${APP_URL}/passport-staking`;
+      castText = `💎 Just Staked ${amount} TOURS on @empowertours!
+
+📈 Earning yield + building credit score
+🎫 Collateral: Passport NFT #${tokenId}
+🏦 Position #${positionId}
+
+TX: https://testnet.monadscan.com/tx/${txHash}
+
+⚡ Gasless staking - they paid the gas!
+
+@empowertours`;
+
+      embeds = [{ url: stakingUrl }];
+      console.log('📢 Staking cast text:', castText);
     }
 
     if (!castText) {

@@ -1037,6 +1037,34 @@ View profile and collection!
         console.log('🎫 Generated client position ID:', positionId);
 
         await incrementTransactionCount(userAddress);
+
+        // ✅ POST FARCASTER CAST: Announce the stake on Farcaster
+        try {
+          const fid = delegation?.metadata?.fid;
+          if (fid) {
+            console.log('📢 Posting staking cast to Farcaster...');
+            const castResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/cast-nft`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'stake_tours',
+                fid: fid,
+                tokenId: nftTokenId,
+                txHash: stakeTxHash,
+                amount: params.amount,
+                positionId: positionId,
+              }),
+            });
+            const castResult = await castResponse.json();
+            console.log('✅ Staking cast posted:', castResult.castHash);
+          } else {
+            console.log('ℹ️ No FID in delegation metadata, skipping cast');
+          }
+        } catch (castErr: any) {
+          console.error('⚠️ Failed to post staking cast (non-critical):', castErr.message);
+          // Don't fail the stake if casting fails
+        }
+
         return NextResponse.json({
           success: true,
           txHash: stakeTxHash,

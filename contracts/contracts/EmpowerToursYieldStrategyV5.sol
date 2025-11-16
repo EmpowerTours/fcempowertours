@@ -15,6 +15,7 @@ interface IKintsu {
     function totalAssets() external view returns (uint256);
     function previewRedeem(uint256 shares) external view returns (uint256);
     function previewDeposit(uint256 assets) external view returns (uint256);
+    function previewWithdraw(uint256 assets) external view returns (uint256);
 }
 
 interface ITokenSwap {
@@ -55,6 +56,7 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
      * - depositTime: When the position was created
      * - toursStaked: Amount of TOURS tokens staked
      * - monDeployed: Amount of MON deployed to Kintsu
+     * - yieldDebt: Accumulated yield per share when position was created (prevents yield theft)
      * - active: Whether the position is still active
      */
     struct StakingPosition {
@@ -65,6 +67,7 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
         uint256 depositTime;
         uint256 toursStaked;
         uint256 monDeployed;
+        uint256 yieldDebt;       // FIX: Track yield debt to prevent late-staker theft
         bool active;
     }
 
@@ -78,6 +81,7 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
     uint256 public totalToursStaked;
     uint256 public totalMonDeployed;
     uint256 public totalYieldHarvested;
+    uint256 public accYieldPerShare;     // FIX: Accumulated yield per staked TOURS (scaled by 1e18)
     uint256 public lastHarvestTime;
     uint256 public totalPositionsClosed;
     uint256 public totalYieldDistributed;
@@ -218,6 +222,7 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
             depositTime: block.timestamp,
             toursStaked: toursAmount,
             monDeployed: monAmount,
+            yieldDebt: (toursAmount * accYieldPerShare) / 1e18,  // FIX: Set yield debt to prevent claiming past yield
             active: true
         });
 
@@ -245,7 +250,7 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
 
     /**
      * @notice Unstake a position and claim rewards
-     * @dev Only the beneficiary can unstake their position
+     * @dev Both beneficiary and owner can unstake (owner must verify NFT still owned by beneficiary)
      * @param positionId The position ID to unstake
      * @return netRefund The amount of TOURS refunded (after fees)
      */
@@ -254,17 +259,22 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
 
         // Validation
         require(pos.active, "Position not active");
-        require(pos.beneficiary == msg.sender, "Only beneficiary can unstake");
+        // FIX: Allow both beneficiary and owner to unstake
+        require(pos.beneficiary == msg.sender || pos.owner == msg.sender, "Not authorized");
+
+        // FIX: If owner unstakes, verify NFT is still owned by beneficiary
+        if (msg.sender == pos.owner) {
+            address currentNftOwner = IERC721(pos.nftAddress).ownerOf(pos.nftTokenId);
+            require(currentNftOwner == pos.beneficiary, "NFT ownership changed");
+        }
 
         // Mark position as closed
         pos.active = false;
         nftCollateralUsed[pos.nftAddress][pos.nftTokenId] = false;
 
-        // Calculate yield share
-        uint256 yieldShare = 0;
-        if (totalYieldHarvested > 0 && totalToursStaked > 0) {
-            yieldShare = (totalYieldHarvested * pos.toursStaked) / totalToursStaked;
-        }
+        // FIX: Calculate yield share using per-position tracking (prevents yield theft)
+        // Only give yield earned AFTER this position was created
+        uint256 yieldShare = ((pos.toursStaked * accYieldPerShare) / 1e18) - pos.yieldDebt;
 
         // Calculate refund with fee
         uint256 totalRefund = pos.toursStaked + yieldShare;
@@ -280,13 +290,13 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
             totalMonDeployed -= pos.monDeployed;
         }
 
-        // Transfer TOURS to beneficiary
-        toursToken.safeTransfer(pos.beneficiary, netRefund);
+        // FIX: Transfer TOURS to whoever initiated unstake (owner or beneficiary)
+        toursToken.safeTransfer(msg.sender, netRefund);
 
         totalPositionsClosed++;
         totalYieldDistributed += yieldShare;
 
-        emit StakingPositionClosed(positionId, pos.beneficiary, pos.toursStaked, yieldShare, block.timestamp);
+        emit StakingPositionClosed(positionId, msg.sender, pos.toursStaked, yieldShare, block.timestamp);
 
         return netRefund;
     }
@@ -325,6 +335,12 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
 
         // Update stats
         totalYieldHarvested += yieldTours;
+
+        // FIX: Update accumulated yield per share to distribute yield fairly over time
+        if (totalToursStaked > 0) {
+            accYieldPerShare += (yieldTours * 1e18) / totalToursStaked;
+        }
+
         lastHarvestTime = block.timestamp;
 
         emit YieldHarvested(yieldMon, yieldTours, currentMonValue, block.timestamp);
@@ -365,12 +381,11 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
 
     function _withdrawFromKintsu(uint256 monAmount) internal {
         require(monAmount > 0, "Amount must be > 0");
-        uint256 shares = kintsu.previewDeposit(monAmount);
+        // FIX: Use previewWithdraw to calculate shares needed to withdraw monAmount
+        uint256 shares = kintsu.previewWithdraw(monAmount);
         if (shares > 0) {
-            (bool success, ) = address(kintsu).call(
-                abi.encodeWithSignature("redeem(uint256,address,address)", shares, address(this), address(this))
-            );
-            require(success, "Kintsu redeem failed");
+            uint256 assets = kintsu.redeem(shares, address(this), address(this));
+            require(assets >= monAmount, "Insufficient withdrawal");
         }
     }
 
@@ -393,11 +408,9 @@ contract EmpowerToursYieldStrategyV5 is Ownable, ReentrancyGuard {
             if (pos.active) {
                 totalValue += pos.toursStaked;
 
-                // Add proportional yield
-                if (totalYieldHarvested > 0 && totalToursStaked > 0) {
-                    uint256 userYield = (totalYieldHarvested * pos.toursStaked) / totalToursStaked;
-                    totalValue += userYield;
-                }
+                // FIX: Add earned yield using per-position tracking
+                uint256 earnedYield = ((pos.toursStaked * accYieldPerShare) / 1e18) - pos.yieldDebt;
+                totalValue += earnedYield;
 
                 // Estimate pending yield (4% APY)
                 uint256 timeStaked = block.timestamp - pos.depositTime;
