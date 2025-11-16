@@ -709,9 +709,9 @@ View profile and collection!
         }
 
         const stakeAmount = parseUnits(params.amount.toString(), 18);
-        console.log('💰 Staking:', stakeAmount.toString(), 'TOURS');
+        console.log('💰 Staking:', stakeAmount.toString(), 'MON (V6)');
 
-        // ✅ CHECK: Verify Safe has enough TOURS tokens
+        // ✅ V6 CHECK: Verify Safe has enough MON (native currency)
         try {
           const { createPublicClient, http } = await import('viem');
           const { monadTestnet } = await import('@/app/chains');
@@ -720,30 +720,27 @@ View profile and collection!
             transport: http(),
           });
 
-          const toursBalance = await client.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
-            functionName: 'balanceOf',
-            args: [SAFE_ACCOUNT],
+          const monBalance = await client.getBalance({
+            address: SAFE_ACCOUNT as Address,
           });
 
-          console.log('💰 Safe TOURS balance:', toursBalance.toString());
+          console.log('💰 Safe MON balance:', monBalance.toString());
 
-          if (toursBalance < stakeAmount) {
-            const currentTours = Number(toursBalance) / 1e18;
-            const requiredTours = Number(stakeAmount) / 1e18;
+          if (monBalance < stakeAmount) {
+            const currentMon = Number(monBalance) / 1e18;
+            const requiredMon = Number(stakeAmount) / 1e18;
             return NextResponse.json(
               {
                 success: false,
-                error: `Insufficient TOURS tokens in Safe. Required: ${requiredTours} TOURS, but Safe only has ${currentTours.toFixed(4)} TOURS. Use "swap" to get more TOURS.`
+                error: `Insufficient MON in Safe. Required: ${requiredMon} MON, but Safe only has ${currentMon.toFixed(4)} MON.`
               },
               { status: 400 }
             );
           }
         } catch (balanceErr: any) {
-          console.error('❌ Failed to check TOURS balance:', balanceErr);
+          console.error('❌ Failed to check MON balance:', balanceErr);
           return NextResponse.json(
-            { success: false, error: `Failed to verify TOURS balance: ${balanceErr.message}` },
+            { success: false, error: `Failed to verify MON balance: ${balanceErr.message}` },
             { status: 500 }
           );
         }
@@ -839,25 +836,23 @@ View profile and collection!
           );
         }
 
-        // ✅ V4 CONTRACT: Simplified staking with beneficiary parameter
-        // The V4 contract accepts a beneficiary parameter, so no NFT transfer is needed!
-        // The user keeps their NFT and the Safe stakes on their behalf.
+        // ✅ V6 CONTRACT: MON-based staking with beneficiary parameter
+        // The V6 contract accepts MON directly (payable), no TOURS/TokenSwap needed!
+        // The user keeps their NFT and the Safe stakes MON on their behalf.
         //
         // Flow:
-        // 1. Approve TOURS: Safe → YieldStrategy (one-time max approval)
-        // 2. Stake: Safe calls stakeWithDeposit with beneficiary=user
-        // On unstake: TOURS + yield go to beneficiary
-        console.log('💎 Preparing stakeWithDeposit with beneficiary:', {
+        // 1. Safe calls stakeWithDeposit with MON sent as msg.value
+        // 2. User receives MON + yield on unstake
+        // No TOURS approval needed - MON is native currency
+        console.log('💎 Preparing stakeWithDeposit with beneficiary (V6 - MON deposits):', {
           nftAddress: PASSPORT_NFT,
           nftTokenId: nftTokenId,
-          toursAmount: stakeAmount.toString(),
+          monAmount: stakeAmount.toString(),
           beneficiary: userAddress,
           safe: SAFE_ACCOUNT
         });
 
-        // ✅ CRITICAL: Check allowance first, only include approve if needed
-        // This avoids the approve + spend pattern that causes bundler to drop the UserOp
-        let currentAllowance = 0n;
+        // ✅ V6: Check MON balance and NFT ownership
         let stakeCalls: any[] = [];
 
         // ✅ TRY: Simulate the calls to catch errors early
@@ -869,10 +864,9 @@ View profile and collection!
             transport: http(),
           });
 
-          console.log('🔍 Simulating staking preconditions...');
+          console.log('🔍 Simulating staking preconditions (V6 - MON based)...');
 
-          // Only simulate NFT ownership check - can't simulate the full stake because
-          // the approve simulation doesn't actually set allowance
+          // Check NFT ownership
           const nftOwner = await client.readContract({
             address: PASSPORT_NFT,
             abi: parseAbi(['function ownerOf(uint256 tokenId) external view returns (address)']),
@@ -886,45 +880,19 @@ View profile and collection!
 
           console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
 
-          // ✅ CRITICAL: Check current allowance - this determines if we need to approve first
-          console.log('🔍 Checking current TOURS allowance for YieldStrategy...');
-          console.log('   TOURS_TOKEN:', TOURS_TOKEN);
-          console.log('   SAFE_ACCOUNT:', SAFE_ACCOUNT);
-          console.log('   YIELD_STRATEGY:', YIELD_STRATEGY);
+          // ✅ V6: Check MON balance (native currency)
+          console.log('🔍 Checking Safe MON balance...');
+          const safeMonBalance = await client.getBalance({
+            address: SAFE_ACCOUNT as Address,
+          });
+          console.log('   Safe MON balance:', safeMonBalance.toString());
+          console.log('   Required for stake:', stakeAmount.toString());
 
-          try {
-            // Verify the Safe's current allowance
-            currentAllowance = await client.readContract({
-              address: TOURS_TOKEN,
-              abi: parseAbi(['function allowance(address owner, address spender) external view returns (uint256)']),
-              functionName: 'allowance',
-              args: [SAFE_ACCOUNT, YIELD_STRATEGY],
-            }) as bigint;
-            console.log('✅ Current TOURS allowance for YieldStrategy:', currentAllowance.toString());
-            console.log('   Stake amount needed:', stakeAmount.toString());
-            console.log('   Allowance sufficient?', currentAllowance >= stakeAmount);
-
-            // Double-check TOURS balance one more time before proceeding
-            const currentToursBalance = await client.readContract({
-              address: TOURS_TOKEN,
-              abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
-              functionName: 'balanceOf',
-              args: [SAFE_ACCOUNT],
-            });
-            console.log('   Current TOURS balance:', currentToursBalance.toString());
-            console.log('   Required for stake:', stakeAmount.toString());
-
-            if (currentToursBalance < stakeAmount) {
-              throw new Error(`Insufficient TOURS balance: has ${currentToursBalance}, needs ${stakeAmount}`);
-            }
-
-            console.log('✅ All balance checks passed');
-          } catch (allowanceCheckErr: any) {
-            console.error('❌ CRITICAL: Allowance check FAILED:', allowanceCheckErr.message);
-            console.error('   This means we cannot determine if approval is needed!');
-            console.error('   Defaulting to: currentAllowance = 0 (will trigger auto-approve)');
-            // currentAllowance remains at 0n, which will trigger the approve below
+          if (safeMonBalance < stakeAmount) {
+            throw new Error(`Insufficient MON balance: Safe has ${safeMonBalance}, needs ${stakeAmount}`);
           }
+
+          console.log('✅ All precondition checks passed - proceeding with stake');
         } catch (simErr: any) {
           console.error('❌ Stake simulation failed:', simErr);
           const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
@@ -941,7 +909,7 @@ View profile and collection!
           }
 
           // Check for balance issues
-          if (errorMsg.includes('Insufficient TOURS balance')) {
+          if (errorMsg.includes('Insufficient MON balance')) {
             return NextResponse.json(
               {
                 success: false,
@@ -960,63 +928,19 @@ View profile and collection!
           );
         }
 
-        // ✅ CRITICAL FIX: Auto-approve if allowance is insufficient
-        // This is done as a SEPARATE transaction to prevent bundler from dropping the UserOp
-        console.log('\n🔍 ALLOWANCE CHECK DECISION POINT:');
-        console.log('   Current allowance:', currentAllowance.toString());
-        console.log('   Stake amount needed:', stakeAmount.toString());
-        console.log('   Needs approval?', currentAllowance < stakeAmount);
+        // ✅ V6: Build stake call with MON sent as value (no approval needed)
+        console.log('\n💎 Building V6 stake transaction (MON as native currency)...');
+        console.log('   Sending', stakeAmount.toString(), 'MON to YieldStrategy');
+        console.log('   No TOURS approval needed - using native MON');
 
-        if (currentAllowance < stakeAmount) {
-          console.log('\n⚠️  INSUFFICIENT ALLOWANCE - Will approve first as separate transaction');
-          console.log('   Current allowance:', currentAllowance.toString());
-          console.log('   Required allowance:', stakeAmount.toString());
-          console.log('   Deficit:', (stakeAmount - currentAllowance).toString());
-
-          // ✅ SOLUTION: Call approve_yield_strategy as a SEPARATE transaction first
-          // This prevents the approve + spend pattern that causes bundler to drop the UserOp
-          console.log('\n🔓 Auto-approving YieldStrategy with max allowance...');
-
-          const { maxUint256 } = await import('viem');
-          const approveCalls = [
-            {
-              to: TOURS_TOKEN,
-              value: 0n,
-              data: encodeFunctionData({
-                abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-                functionName: 'approve',
-                args: [YIELD_STRATEGY, maxUint256],
-              }) as Hex,
-            },
-          ];
-
-          console.log('💳 Executing approval transaction (max uint256 for unlimited approval)...');
-          console.log('   Approval call:', {
-            to: TOURS_TOKEN,
-            spender: YIELD_STRATEGY,
-            amount: 'max uint256'
-          });
-
-          const approveTxHash = await sendSafeTransaction(approveCalls);
-          console.log('✅ Approval successful, TX:', approveTxHash);
-          console.log('   YieldStrategy now has unlimited approval to spend TOURS');
-          console.log('   Proceeding with stake transaction...\n');
-        } else {
-          console.log('\n✅ SUFFICIENT ALLOWANCE - Skipping approve call');
-          console.log('   Current allowance:', currentAllowance.toString());
-          console.log('   Required amount:', stakeAmount.toString());
-          console.log('   Proceeding directly to stake transaction...\n');
-        }
-
-        // Build stakeCalls with ONLY the stakeWithDeposit call (no approve)
         stakeCalls = [
           {
             to: YIELD_STRATEGY,
-            value: 0n,
+            value: stakeAmount, // ✅ V6: Send MON with transaction
             data: encodeFunctionData({
-              abi: parseAbi(['function stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary) external returns (uint256)']),
+              abi: parseAbi(['function stakeWithDeposit(address nftAddress, uint256 nftTokenId, address beneficiary) external payable returns (uint256)']),
               functionName: 'stakeWithDeposit',
-              args: [PASSPORT_NFT, BigInt(nftTokenId), stakeAmount, userAddress as Address],
+              args: [PASSPORT_NFT, BigInt(nftTokenId), userAddress as Address], // ✅ V6: No toursAmount parameter
             }) as Hex,
           },
         ];
@@ -1095,7 +1019,7 @@ View profile and collection!
           amount: params.amount,
           positionId: positionId,
           nftTokenId: nftTokenId,
-          message: `Staked ${params.amount} TOURS successfully`,
+          message: `Staked ${params.amount} MON successfully`,
         });
 
       // ==================== UNSTAKE TOURS ====================
@@ -1122,25 +1046,26 @@ View profile and collection!
             transport: http(),
           });
 
-          console.log('🔍 Fetching position details for unstake...');
+          console.log('🔍 Fetching V6 position details for unstake...');
           const position = await client.readContract({
             address: YIELD_STRATEGY,
-            abi: parseAbi(['function stakingPositions(uint256) external view returns (address nftAddress, uint256 nftTokenId, address owner, uint256 depositTime, uint256 toursStaked, uint256 monDeployed, bool active)']),
+            abi: parseAbi(['function stakingPositions(uint256) external view returns (address nftAddress, uint256 nftTokenId, address owner, address beneficiary, uint256 depositTime, uint256 monStaked, uint256 monDeployed, uint256 yieldDebt, bool active)']),
             functionName: 'stakingPositions',
             args: [unstakePositionId],
           });
 
-          // position is a tuple: [nftAddress, nftTokenId, owner, depositTime, toursStaked, monDeployed, active]
+          // V6 position tuple: [nftAddress, nftTokenId, owner, beneficiary, depositTime, monStaked, monDeployed, yieldDebt, active]
           unstakeNftTokenId = position[1].toString();
-          unstakeAmount = position[4];
+          unstakeAmount = position[5]; // monStaked at index 5
           console.log('✅ Position found:', {
             nftTokenId: unstakeNftTokenId,
             owner: position[2],
-            toursStaked: unstakeAmount.toString(),
-            active: position[6]
+            beneficiary: position[3],
+            monStaked: unstakeAmount.toString(),
+            active: position[8] // active at index 8
           });
 
-          if (!position[6]) {
+          if (!position[8]) { // V6: active field at index 8
             return NextResponse.json(
               { success: false, error: `Position #${params.positionId} is not active. It may have already been unstaked.` },
               { status: 400 }
