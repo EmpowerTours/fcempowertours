@@ -558,7 +558,7 @@ Your MON + yield have been returned to your wallet.`);
                     </div>
                   </div>
 
-                  {/* Yield Progress Bar - Enhanced */}
+                  {/* Yield Progress Bar - Animated with Projected Yield */}
                   <div className="mt-6">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">📈 Yield Accumulation Progress</span>
@@ -567,54 +567,111 @@ Your MON + yield have been returned to your wallet.`);
                       </span>
                     </div>
 
-                    {/* Enhanced progress bar with minimum visibility */}
-                    <div className="relative w-full bg-gray-200 rounded-full h-6 overflow-hidden shadow-inner">
-                      {stakingPositions.length > 0 ? (
+                    {/* Calculate projected yield sum and target (1 week at 10% APY) */}
+                    {(() => {
+                      const projectedYieldSum = stakingPositions.reduce((sum, pos) =>
+                        sum + parseFloat(pos.projectedYield || '0'), 0
+                      );
+                      const stakedAmount = parseFloat(totalStaked || '0');
+                      // Target: 1 week of yield at 10% APY
+                      const targetYield = (stakedAmount * 0.10 * 7) / 365.25;
+                      const progressPercent = targetYield > 0
+                        ? Math.min((projectedYieldSum / targetYield) * 100, 100)
+                        : 0;
+
+                      return (
                         <>
-                          {/* Background animated shimmer effect */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+                          {/* Animated progress bar */}
+                          <div className="relative w-full bg-gray-200 rounded-full h-8 overflow-hidden shadow-inner">
+                            {stakingPositions.length > 0 ? (
+                              <>
+                                {/* Background animated gradient shimmer */}
+                                <div
+                                  className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100/40 to-transparent"
+                                  style={{
+                                    animation: 'shimmer 3s ease-in-out infinite',
+                                  }}
+                                />
 
-                          {/* Actual progress */}
-                          <div
-                            className="relative h-6 bg-gradient-to-r from-green-400 via-emerald-500 to-blue-500 rounded-full transition-all duration-1000 flex items-center justify-end pr-2"
-                            style={{
-                              width: stakingPositions.length > 0
-                                ? `${Math.max(5, Math.min((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100 * 20, 100))}%`
-                                : '0%'
-                            }}
-                          >
-                            <div className="animate-pulse">
-                              <div className="w-2 h-2 bg-white rounded-full shadow-lg"></div>
-                            </div>
+                                {/* Main progress fill - smoothly animates */}
+                                <div
+                                  className="relative h-8 bg-gradient-to-r from-green-400 via-emerald-500 to-blue-500 rounded-full flex items-center justify-between px-3 overflow-hidden"
+                                  style={{
+                                    width: `${Math.max(3, progressPercent)}%`,
+                                    transition: 'width 2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  }}
+                                >
+                                  {/* Flowing shimmer effect inside bar */}
+                                  <div
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                                    style={{
+                                      animation: 'flow 2s linear infinite',
+                                    }}
+                                  />
+
+                                  <span className="relative z-10 text-xs font-bold text-white drop-shadow">
+                                    {progressPercent.toFixed(1)}%
+                                  </span>
+
+                                  {/* Pulsing dot at end */}
+                                  <div className="relative z-10 animate-pulse">
+                                    <div className="w-3 h-3 bg-white rounded-full shadow-lg"></div>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                                <span className="text-xs text-gray-500 font-medium">No active stakes</span>
+                              </div>
+                            )}
                           </div>
+
+                          <div className="flex justify-between mt-2 text-xs text-gray-600">
+                            <span className="flex items-center gap-1">
+                              {stakingPositions.length > 0 && (
+                                <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                              )}
+                              <span className="font-medium">
+                                {stakingPositions.length > 0
+                                  ? `Projected: ~${projectedYieldSum.toFixed(6)} MON`
+                                  : 'No stakes yet'}
+                              </span>
+                            </span>
+                            <span className="font-mono text-gray-500">
+                              {stakingPositions.length > 0 && `Target: ${targetYield.toFixed(6)} MON (7d)`}
+                            </span>
+                          </div>
+
+                          {/* Progress info */}
+                          {stakingPositions.length > 0 && (
+                            <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                              <div className="flex items-start gap-2">
+                                <span className="text-lg">💡</span>
+                                <div className="text-xs text-gray-700 leading-relaxed">
+                                  <div className="font-semibold mb-1">Progress to weekly target ({progressPercent.toFixed(1)}%)</div>
+                                  <div className="text-gray-600">
+                                    Bar fills as projected yield approaches 1 week's earnings at 10% APY.
+                                    Actual on-chain yield: <span className="font-mono text-green-600">+{parseFloat(totalYield).toFixed(6)} MON</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* CSS animations */}
+                          <style jsx>{`
+                            @keyframes shimmer {
+                              0%, 100% { transform: translateX(-100%); opacity: 0; }
+                              50% { transform: translateX(100%); opacity: 1; }
+                            }
+                            @keyframes flow {
+                              0% { transform: translateX(-100%); }
+                              100% { transform: translateX(100%); }
+                            }
+                          `}</style>
                         </>
-                      ) : (
-                        <div className="h-6 bg-gray-300 rounded-full"></div>
-                      )}
-                    </div>
-
-                    <div className="flex justify-between mt-2 text-xs text-gray-600">
-                      <span className="flex items-center gap-1">
-                        {stakingPositions.length > 0 && (
-                          <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        )}
-                        {stakingPositions.length > 0 ? 'Earning yield continuously' : 'No stakes yet'}
-                      </span>
-                      <span className="font-mono">
-                        {stakingPositions.length > 0
-                          ? `+${parseFloat(totalYield).toFixed(6)} MON (${((parseFloat(totalYield) / parseFloat(totalStaked || '1')) * 100).toFixed(4)}% ROI)`
-                          : 'Start staking to earn'}
-                      </span>
-                    </div>
-
-                    {/* Estimated APY info */}
-                    {stakingPositions.length > 0 && (
-                      <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                        <div className="text-xs text-blue-700">
-                          💡 Yield accrues every block from Kintsu vault staking rewards. Check back in a few hours to see meaningful gains!
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </>
               )}

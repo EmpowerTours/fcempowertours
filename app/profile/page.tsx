@@ -225,7 +225,7 @@ export default function ProfilePage() {
             mintedAt
             txHash
           }
-          MusicNFT(where: {artist: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
+          MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             artist
@@ -311,7 +311,7 @@ export default function ProfilePage() {
       if (masterTokenIds.length > 0) {
         const masterQuery = `
           query GetMasterTokens($tokenIds: [String!]!) {
-            MusicNFT(where: {tokenId: {_in: $tokenIds}}) {
+            MusicNFT(where: {tokenId: {_in: $tokenIds}, isBurned: {_eq: false}}) {
               id
               tokenId
               artist

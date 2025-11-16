@@ -79,6 +79,7 @@ export default function MusicDiscoveryPage() {
       const query = `
         query GetAllMusic {
           MusicNFT(
+            where: {isBurned: {_eq: false}},
             order_by: {mintedAt: desc},
             limit: 100
           ) {

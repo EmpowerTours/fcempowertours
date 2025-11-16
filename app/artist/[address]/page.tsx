@@ -169,7 +169,10 @@ export default function ArtistProfilePage() {
       const query = `
         query GetArtistMusic($address: String!) {
           MusicNFT(
-            where: {artist: {_eq: $address}},
+            where: {
+              artist: {_eq: $address},
+              isBurned: {_eq: false}
+            },
             order_by: {mintedAt: desc},
             limit: 50
           ) {
