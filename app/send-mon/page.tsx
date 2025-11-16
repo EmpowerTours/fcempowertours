@@ -226,9 +226,6 @@ export default function SendMonPage() {
         },
         defaultChain: monadTestnet,
         supportedChains: [monadTestnet],
-        farcaster: {
-          enabled: true,
-        },
       }}
       onSuccess={(user) => {
         console.log('✅ Privy login success:', user);
