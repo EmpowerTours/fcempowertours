@@ -135,6 +135,24 @@ export default function SimpleBotBar() {
             setCommand('');
             setResponse('');
           }, 1000);
+        } else if (data.action === 'redirect' && data.url) {
+          // ✅ Handle redirect action (e.g., for send MON page)
+          // Extract path from full URL if it's our app URL
+          let redirectPath = data.url;
+          if (data.url.startsWith('http')) {
+            try {
+              const urlObj = new URL(data.url);
+              redirectPath = urlObj.pathname + urlObj.search; // Get /path?params
+            } catch (e) {
+              console.error('Failed to parse redirect URL:', e);
+            }
+          }
+          console.log('🔗 Redirecting to:', redirectPath);
+          setTimeout(() => {
+            router.push(redirectPath);  // Navigate inside mini-app
+            setCommand('');
+            setResponse('');
+          }, 1500);
         } else if (data.action === 'transaction') {
           setTimeout(() => {
             setCommand('');
