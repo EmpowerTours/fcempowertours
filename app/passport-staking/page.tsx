@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { ethers } from 'ethers';
+import { calculateProjectedYield, formatYieldProjection } from '@/lib/switchboard-yield';
 
 interface Passport {
   tokenId: string;
@@ -24,7 +25,10 @@ interface StakingPosition {
   monDeployed: string;
   yieldDebt: string;
   active: boolean;
-  accumulatedYield: string; // Calculated yield
+  accumulatedYield: string; // On-chain yield
+  projectedYield?: string;   // Projected yield from Switchboard
+  estimatedAPY?: number;      // Current APY estimate
+  daysStaked?: number;        // Days since staking
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -188,6 +192,14 @@ export default function PassportStakingPage() {
 
           const accumulatedYield = (toursStaked * accYield) / BigInt(1e18) - yieldDebt;
 
+          // Calculate projected yield using Switchboard
+          const projection = await calculateProjectedYield(
+            BigInt(pos.monDeployed),
+            BigInt(pos.depositTime),
+            accumulatedYield
+          );
+          const formatted = formatYieldProjection(projection);
+
           positions.push({
             positionId: positionId.toString(),
             nftAddress: pos.nftAddress,
@@ -200,6 +212,9 @@ export default function PassportStakingPage() {
             yieldDebt: pos.yieldDebt.toString(),
             active: pos.active,
             accumulatedYield: ethers.formatUnits(accumulatedYield, 18),
+            projectedYield: projection.projectedYield,
+            estimatedAPY: projection.estimatedAPY,
+            daysStaked: formatted.daysStaked,
           });
 
           totalStakedAmount += toursStaked;
@@ -629,15 +644,30 @@ Your MON + yield have been returned to your wallet.`);
                             <div className="text-lg font-bold text-purple-600">
                               {parseFloat(position.toursStaked).toFixed(2)} MON
                             </div>
-                            <div className="text-xs text-green-600 font-semibold">
-                              +{parseFloat(position.accumulatedYield).toFixed(4)} MON yield
+                            <div className="text-xs text-gray-600">
+                              <div className="text-green-600 font-semibold">
+                                Actual: +{parseFloat(position.accumulatedYield).toFixed(6)} MON
+                              </div>
+                              {position.projectedYield && (
+                                <div className="text-blue-600 font-medium">
+                                  Projected: ~{parseFloat(position.projectedYield).toFixed(6)} MON
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-gray-100">
-                          <div className="flex justify-between text-xs text-gray-600 mb-3">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
                             <span>Deposited: {new Date(parseInt(position.depositTime) * 1000).toLocaleDateString()}</span>
-                            <span>ROI: {((parseFloat(position.accumulatedYield) / parseFloat(position.toursStaked)) * 100).toFixed(3)}%</span>
+                            <span>Days: {position.daysStaked || 0}</span>
+                          </div>
+                          <div className="flex justify-between text-xs mb-3">
+                            <span className="text-gray-600">
+                              Est. APY: <span className="font-semibold text-blue-600">{position.estimatedAPY ? `${(position.estimatedAPY * 100).toFixed(2)}%` : 'N/A'}</span>
+                            </span>
+                            <span className="text-gray-600">
+                              ROI: <span className="font-semibold text-green-600">{((parseFloat(position.accumulatedYield) / parseFloat(position.toursStaked)) * 100).toFixed(4)}%</span>
+                            </span>
                           </div>
                           <button
                             onClick={() => handleUnstake(position.positionId)}
