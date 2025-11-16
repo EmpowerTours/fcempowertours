@@ -4,7 +4,9 @@ import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID!;
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
 
-const neynar = new NeynarAPIClient(NEYNAR_API_KEY);
+const neynar = new NeynarAPIClient({
+  apiKey: NEYNAR_API_KEY,
+});
 
 export async function POST(req: NextRequest) {
   try {
