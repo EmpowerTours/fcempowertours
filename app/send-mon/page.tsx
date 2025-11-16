@@ -21,7 +21,7 @@ function SendMonContent() {
   const [loading, setLoading] = useState(false);
 
   const handleSend = async () => {
-    if (!amount || !recipient || !wallets[0]) return;
+    if (!amount || !recipient || wallets.length === 0) return;
 
     try {
       setError('');
@@ -29,22 +29,34 @@ function SendMonContent() {
       setTxHash('');
       setLoading(true);
 
-      const wallet = wallets[0];
+      // Get the embedded wallet (created when user logs in with Farcaster)
+      const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+      const wallet = embeddedWallet || wallets[0];
 
-      // Switch to Monad testnet
-      await wallet.switchChain(monadTestnet.id);
+      console.log('Using wallet:', {
+        address: wallet.address,
+        type: wallet.walletClientType,
+        chainId: wallet.chainId
+      });
+
+      // Switch to Monad testnet if needed
+      if (wallet.chainId !== monadTestnet.id.toString()) {
+        console.log('Switching to Monad testnet...');
+        await wallet.switchChain(monadTestnet.id);
+      }
 
       // Convert amount to wei (hex)
       const amountInWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
+      console.log('Sending', amount, 'MON =', amountInWei.toString(), 'wei');
+
+      // Get provider from wallet
+      const provider = await wallet.getEthereumProvider();
 
       // Send transaction
-      const provider = await wallet.getEthereumProvider();
-      const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
-
       const hash = await provider.request({
         method: 'eth_sendTransaction',
         params: [{
-          from: accounts[0],
+          from: wallet.address,
           to: recipient,
           value: '0x' + amountInWei.toString(16),
         }],
@@ -54,7 +66,7 @@ function SendMonContent() {
       setSuccess(`Transaction sent! Hash: ${hash}`);
       console.log('✅ Transaction sent:', hash);
     } catch (err: any) {
-      console.error('Transaction failed:', err);
+      console.error('❌ Transaction failed:', err);
       setError(err.message || 'Transaction failed');
     } finally {
       setLoading(false);
@@ -88,8 +100,13 @@ function SendMonContent() {
             <div className="bg-black/20 rounded-xl p-4">
               <p className="text-gray-400 text-xs">Connected as</p>
               <p className="text-white font-mono text-sm break-all">
-                {wallets[0]?.address || user?.wallet?.address || 'Loading...'}
+                {wallets.length > 0 ? wallets[0].address : (user?.wallet?.address || 'Loading...')}
               </p>
+              {wallets.length > 0 && (
+                <p className="text-gray-500 text-xs mt-1">
+                  Type: {wallets.find(w => w.walletClientType === 'privy') ? 'Privy Embedded Wallet' : wallets[0].walletClientType}
+                </p>
+              )}
             </div>
 
             <div className="bg-black/20 rounded-xl p-6 space-y-4">
@@ -150,7 +167,7 @@ function SendMonContent() {
 
             <button
               onClick={handleSend}
-              disabled={loading || !amount || !recipient || !wallets[0]}
+              disabled={loading || !amount || !recipient || wallets.length === 0}
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
             >
               {loading ? '⏳ Sending...' : 'Send MON'}
