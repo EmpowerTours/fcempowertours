@@ -32,7 +32,7 @@ interface StakingPosition {
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const YIELD_STRATEGY = process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x6863674C89faD0c7e3C0B406BA35182649eE216b';
+const YIELD_STRATEGY = process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x37aC86916Ae673bDFCc9c712057092E57b270f5f';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT || '';

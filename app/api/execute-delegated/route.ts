@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
     // DeFi contract addresses
-    const YIELD_STRATEGY = (process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0xe3d8E4358aD401F857100aB05747Ed91e78D6913') as Address;
+    const YIELD_STRATEGY = (process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x37aC86916Ae673bDFCc9c712057092E57b270f5f') as Address;
     const TANDA_YIELD_GROUP = '0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8' as Address;
     const SMART_EVENT_MANIFEST = '0x5cfe8379058cA460aA60ef15051Be57dab4A651C' as Address;
     const DEMAND_SIGNAL_ENGINE = '0xC2Eb75ddf31cd481765D550A91C5A63363B36817' as Address;
@@ -860,6 +860,7 @@ View profile and collection!
         }
 
         // ✅ Query user's passport NFTs to use as collateral (from NEW contract only)
+        // Find a passport that is NOT already being used in YieldStrategy
         let nftTokenId = '0';
         try {
           console.log('🔍 Fetching user passport NFTs for collateral...');
@@ -870,7 +871,6 @@ View profile and collection!
                   owner: { _eq: $owner }
                   contract: { _eq: $contract }
                 },
-                limit: 1,
                 order_by: { mintedAt: desc }
               ) {
                 tokenId
@@ -895,20 +895,54 @@ View profile and collection!
 
           if (passportRes.ok) {
             const passportData = await passportRes.json();
-            const passport = passportData.data?.PassportNFT?.[0];
+            const passports = passportData.data?.PassportNFT || [];
 
-            if (!passport) {
+            if (passports.length === 0) {
               return NextResponse.json(
-                { success: false, error: 'No passport NFT found on the new contract. Mint a passport first with "mint passport"' },
+                { success: false, error: 'No passport NFT found. Mint a passport first!' },
                 { status: 400 }
               );
             }
 
-            nftTokenId = passport.tokenId;
-            console.log('✅ Using passport NFT as collateral:', {
+            // ✅ Check each passport to find one that's not already used as collateral
+            const { createPublicClient, http } = await import('viem');
+            const { monadTestnet } = await import('@/app/chains');
+            const client = createPublicClient({
+              chain: monadTestnet,
+              transport: http(),
+            });
+
+            let availablePassport = null;
+            for (const passport of passports) {
+              const isUsed = await client.readContract({
+                address: YIELD_STRATEGY,
+                abi: parseAbi(['function nftCollateralUsed(address,uint256) external view returns (bool)']),
+                functionName: 'nftCollateralUsed',
+                args: [PASSPORT_NFT, BigInt(passport.tokenId)],
+              });
+
+              if (!isUsed) {
+                availablePassport = passport;
+                break;
+              }
+            }
+
+            if (!availablePassport) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: `All your ${passports.length} passport NFT${passports.length > 1 ? 's are' : ' is'} already being used as collateral in active staking positions. Please unstake a position first, or mint another passport to create a new staking position.`
+                },
+                { status: 400 }
+              );
+            }
+
+            nftTokenId = availablePassport.tokenId;
+            console.log('✅ Using available passport NFT as collateral:', {
               tokenId: nftTokenId,
-              country: passport.countryCode,
-              contract: passport.contract
+              country: availablePassport.countryCode,
+              contract: availablePassport.contract,
+              totalPassports: passports.length
             });
           } else {
             throw new Error('Failed to fetch passport NFTs');
