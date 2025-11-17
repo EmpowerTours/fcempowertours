@@ -80,7 +80,7 @@ networks:
 
       - name: PassportNFT
         address:
-          - "0x54e935c5f1ec987BB87F36fC046cf13fb393aCc8"  # ✅ PassportNFTv2 with country data
+          - "0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163"  # ✅ PassportNFTv3 with V9 staking + itinerary stamps
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data
@@ -124,10 +124,10 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ V8: YieldStrategy Contract (NFT-gated staking with MON deposits)
+      # ✅ V9: YieldStrategy Contract (NFT-gated staking with MON deposits - Two-step unstaking)
       - name: YieldStrategy
         address:
-          - "0xefbD7fE4DeA1280cc5a3a8Bc3762Aa251BBf5ADE"  # V8 deployed - MON staking with Kintsu integration
+          - "0x37aC86916Ae673bDFCc9c712057092E57b270f5f"  # V9 deployed - Fixed Kintsu unstaking with cooldown
         handler: src/EventHandlers.ts
         events:
           - event: "Initialized(address indexed toursToken, address indexed kintsu, address indexed tokenSwap, address dragonRouter, address keeper)"

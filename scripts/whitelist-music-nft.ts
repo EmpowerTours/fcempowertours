@@ -1,17 +1,17 @@
 /**
- * Whitelist MusicLicenseNFTv5 in YieldStrategyV8
+ * Whitelist MusicLicenseNFTv5 in YieldStrategyV9
  * This allows Music NFTs to be used as collateral for MON staking
  */
 
 import { config } from 'dotenv';
 import { createWalletClient, http, parseAbi, Address, createPublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { monadTestnet } from '../app/chains';
+import { monadTestnet } from '../app/chains.js';
 
 // Load environment variables
 config({ path: '.env.local' });
 
-const YIELD_STRATEGY_V8 = '0xefbD7fE4DeA1280cc5a3a8Bc3762Aa251BBf5ADE' as Address;
+const YIELD_STRATEGY_V9 = '0x37aC86916Ae673bDFCc9c712057092E57b270f5f' as Address;
 const MUSIC_NFT_V5 = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
 
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
@@ -21,7 +21,7 @@ if (!DEPLOYER_PRIVATE_KEY) {
 }
 
 async function main() {
-  console.log('🎵 Whitelisting MusicLicenseNFTv5 in YieldStrategyV8...\n');
+  console.log('🎵 Whitelisting MusicLicenseNFTv5 in YieldStrategyV9...\n');
 
   // Create account from private key
   const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY as `0x${string}`);
@@ -34,7 +34,7 @@ async function main() {
   });
 
   console.log('📝 Configuration:');
-  console.log('  YieldStrategyV8:', YIELD_STRATEGY_V8);
+  console.log('  YieldStrategyV9:', YIELD_STRATEGY_V9);
   console.log('  MusicNFTv5:', MUSIC_NFT_V5);
   console.log('  Deployer:', account.address);
   console.log();
@@ -48,7 +48,7 @@ async function main() {
 
   try {
     const isWhitelisted = await publicClient.readContract({
-      address: YIELD_STRATEGY_V8,
+      address: YIELD_STRATEGY_V9,
       abi: parseAbi(['function acceptedNFTs(address) external view returns (bool)']),
       functionName: 'acceptedNFTs',
       args: [MUSIC_NFT_V5],
@@ -68,7 +68,7 @@ async function main() {
   console.log('\n💎 Executing whitelistNFT transaction...');
 
   const hash = await walletClient.writeContract({
-    address: YIELD_STRATEGY_V8,
+    address: YIELD_STRATEGY_V9,
     abi: parseAbi(['function whitelistNFT(address nftAddress, bool accepted) external']),
     functionName: 'whitelistNFT',
     args: [MUSIC_NFT_V5, true],
@@ -88,7 +88,7 @@ async function main() {
   // Verify whitelisting
   console.log('\n🔍 Verifying whitelist status...');
   const verified = await publicClient.readContract({
-    address: YIELD_STRATEGY_V8,
+    address: YIELD_STRATEGY_V9,
     abi: parseAbi(['function acceptedNFTs(address) external view returns (bool)']),
     functionName: 'acceptedNFTs',
     args: [MUSIC_NFT_V5],
@@ -96,7 +96,7 @@ async function main() {
 
   console.log('  Verification:', verified ? '✅ Whitelisted successfully!' : '❌ Verification failed');
 
-  console.log('\n🎉 MusicLicenseNFTv5 is now whitelisted in YieldStrategyV8!');
+  console.log('\n🎉 MusicLicenseNFTv5 is now whitelisted in YieldStrategyV9!');
   console.log('\n📋 Next steps:');
   console.log('  1. Users can now stake Music NFTs with MON capital');
   console.log('  2. Music NFTs will earn Kintsu vault yields');

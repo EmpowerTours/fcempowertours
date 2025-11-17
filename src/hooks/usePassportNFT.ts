@@ -1,6 +1,6 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { Address } from 'viem';
-import { passportNFTv2Config } from '../config/contracts';
+import { passportNFTv3Config } from '../config/contracts';
 
 export function usePassportNFT() {
   const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
@@ -12,7 +12,7 @@ export function usePassportNFT() {
   // Read functions
   const useGetPassportData = (tokenId: bigint) => {
     return useReadContract({
-      ...passportNFTv2Config,
+      ...passportNFTv3Config,
       functionName: 'getPassportData',
       args: [tokenId],
     });
@@ -20,7 +20,7 @@ export function usePassportNFT() {
 
   const useHasPassport = (user: Address, country: string) => {
     return useReadContract({
-      ...passportNFTv2Config,
+      ...passportNFTv3Config,
       functionName: 'hasPassport',
       args: [user, country],
     });
@@ -28,7 +28,7 @@ export function usePassportNFT() {
 
   const useBalanceOf = (owner: Address) => {
     return useReadContract({
-      ...passportNFTv2Config,
+      ...passportNFTv3Config,
       functionName: 'balanceOf',
       args: [owner],
     });
@@ -36,14 +36,14 @@ export function usePassportNFT() {
 
   const useMintPrice = () => {
     return useReadContract({
-      ...passportNFTv2Config,
+      ...passportNFTv3Config,
       functionName: 'MINT_PRICE',
     });
   };
 
   const useTokenURI = (tokenId: bigint) => {
     return useReadContract({
-      ...passportNFTv2Config,
+      ...passportNFTv3Config,
       functionName: 'tokenURI',
       args: [tokenId],
     });
@@ -59,7 +59,7 @@ export function usePassportNFT() {
     metadataUri: string
   ) => {
     writeContract({
-      ...passportNFTv2Config,
+      ...passportNFTv3Config,
       functionName: 'mint',
       args: [to, name, country, pfp, bio, metadataUri],
     });

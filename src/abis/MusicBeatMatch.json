@@ -1,0 +1,1010 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_toursToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_keeper",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "BASE_REWARD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "CHALLENGE_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "DAILY_POOL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PERFECT_SPEED_BONUS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SPEED_THRESHOLD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "STREAK_BONUS_MULTIPLIER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "challengePlayers",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "challenges",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "artistId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "songTitle",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "ipfsAudioHash",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "startTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "endTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "correctGuesses",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalGuesses",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardPool",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "answerHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "createDailyChallenge",
+    "inputs": [
+      {
+        "name": "artistId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "songTitle",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "ipfsAudioHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "finalizeChallenge",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fundRewards",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getChallenge",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MusicBeatMatch.DailyChallenge",
+        "components": [
+          {
+            "name": "challengeId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "artistId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "songTitle",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "ipfsAudioHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "startTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "endTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "correctGuesses",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalGuesses",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rewardPool",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "answerHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getChallengePlayers",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getChallengeStats",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "totalPlayers",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "correctGuesses",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "accuracy",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timeRemaining",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getContractBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCurrentChallenge",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MusicBeatMatch.DailyChallenge",
+        "components": [
+          {
+            "name": "challengeId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "artistId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "songTitle",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "ipfsAudioHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "startTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "endTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "correctGuesses",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalGuesses",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rewardPool",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "answerHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPlayerStats",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MusicBeatMatch.PlayerStats",
+        "components": [
+          {
+            "name": "totalGuesses",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "correctGuesses",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currentStreak",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "longestStreak",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalRewards",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "lastPlayedDay",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "level",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserGuess",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MusicBeatMatch.UserGuess",
+        "components": [
+          {
+            "name": "challengeId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "user",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "guessedArtistId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "guessedSongTitle",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "correct",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rewardEarned",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasPlayed",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "keeper",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "playerStats",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "totalGuesses",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "correctGuesses",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currentStreak",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "longestStreak",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalRewards",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lastPlayedDay",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "level",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setKeeper",
+    "inputs": [
+      {
+        "name": "newKeeper",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "submitGuess",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "guessedArtistId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "guessedSongTitle",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "toursToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateRewardConfig",
+    "inputs": [
+      {
+        "name": "baseReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "streakBonusMultiplier",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "speedBonus",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "dailyPool",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "userGuesses",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "guessedArtistId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "guessedSongTitle",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "correct",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardEarned",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawTours",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ChallengeCreated",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "artistId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "songTitle",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "startTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardPool",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GuessSubmitted",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "artistId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "correct",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "rewardEarned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RewardsDistributed",
+    "inputs": [
+      {
+        "name": "challengeId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalDistributed",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "winnersCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StreakAchieved",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "streakDays",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bonusMultiplier",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  }
+]

@@ -8,7 +8,7 @@
 import { encodeFunctionData, type Address, type Hex } from 'viem';
 import { createUserSmartAccount } from '@/lib/pimlico/smartAccount';
 import {
-  passportNFTv2Config,
+  passportNFTv3Config,
   yieldStrategyConfig,
   dragonRouterConfig,
   demandSignalEngineConfig,
@@ -74,8 +74,8 @@ export async function mintPassportGasless(
 ): Promise<Hex> {
   return executeGaslessTransaction(
     userPrivateKey,
-    passportNFTv2Config.address,
-    passportNFTv2Config.abi,
+    passportNFTv3Config.address,
+    passportNFTv3Config.abi,
     'mint',
     [to, name, country, pfp, bio, metadataUri]
   );
