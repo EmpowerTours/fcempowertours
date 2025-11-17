@@ -30,10 +30,11 @@ export default function ClientNav() {
     { path: '/beat-match', label: 'Beat Match', icon: '🎯' },
     { path: '/country-collector', label: 'Countries', icon: '🌍' },
     { path: '/tanda', label: 'Tanda', icon: '🤝' },
+    { path: '/swap', label: 'Swap', icon: '💱' },
     { path: '/events', label: 'Events', icon: '🎉' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/passport', label: 'Mint', icon: '✈️' },
-    { path: '/market', label: 'Market', icon: '💱' },
+    { path: '/market', label: 'Market', icon: '🏪' },
   ];
 
   return (

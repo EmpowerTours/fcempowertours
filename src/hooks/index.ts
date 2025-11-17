@@ -11,3 +11,4 @@ export { useCreditScoreCalculator } from './useCreditScoreCalculator';
 export { useMusicBeatMatch } from './useMusicBeatMatch';
 export { useTandaPool, PoolType } from './useTandaPool';
 export { useCountryCollector } from './useCountryCollector';
+export { useSwap } from './useSwap';
