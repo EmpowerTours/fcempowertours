@@ -4,6 +4,17 @@ import { useState } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useBotCommand } from '@/app/hooks/useBotCommand';
 
+// Add animation styles
+const styles = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-out;
+  }
+`;
+
 // ✅ Uses env var which should be updated
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5';
 
@@ -20,8 +31,23 @@ export default function MusicPage() {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string; songTitle: string; price: string } | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [nftType, setNftType] = useState<'music' | 'art'>('music');
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(3);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const farcasterFid = user?.fid || 0;
+
+  const steps = [
+    { number: 1, title: 'Choose Type', icon: '🎨' },
+    { number: 2, title: 'Upload Files', icon: '📁' },
+    { number: 3, title: 'Set Details', icon: '✏️' },
+    { number: 4, title: 'Review & Mint', icon: '🚀' },
+  ];
 
   const handleFileChange =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
@@ -30,10 +56,135 @@ export default function MusicPage() {
         const file = e.target.files[0];
         console.log('📎 File selected:', file?.name, 'Size:', (file?.size / 1024).toFixed(0) + 'KB');
         setter(file);
+
+        // If it's the full track, load it for trimming
+        if (setter === setFullFile) {
+          const url = URL.createObjectURL(file);
+          setAudioUrl(url);
+
+          // Create audio element to get duration
+          const audio = new Audio(url);
+          audio.addEventListener('loadedmetadata', () => {
+            setAudioDuration(audio.duration);
+            setTrimStart(0);
+            setTrimEnd(Math.min(3, audio.duration));
+          });
+          setAudioElement(audio);
+        }
       }
     };
 
+  const trimAudio = async (file: File, startTime: number, endTime: number): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+          const sampleRate = audioBuffer.sampleRate;
+          const startOffset = Math.floor(startTime * sampleRate);
+          const endOffset = Math.floor(endTime * sampleRate);
+          const frameCount = endOffset - startOffset;
+
+          const trimmedBuffer = audioContext.createBuffer(
+            audioBuffer.numberOfChannels,
+            frameCount,
+            sampleRate
+          );
+
+          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const sourceData = audioBuffer.getChannelData(channel);
+            const targetData = trimmedBuffer.getChannelData(channel);
+            for (let i = 0; i < frameCount; i++) {
+              targetData[i] = sourceData[startOffset + i];
+            }
+          }
+
+          // Convert to WAV
+          const wav = audioBufferToWav(trimmedBuffer);
+          const blob = new Blob([wav], { type: 'audio/wav' });
+          const trimmedFile = new File([blob], 'preview.wav', { type: 'audio/wav' });
+
+          resolve(trimmedFile);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
+    const numOfChan = buffer.numberOfChannels;
+    const length = buffer.length * numOfChan * 2 + 44;
+    const arrayBuffer = new ArrayBuffer(length);
+    const view = new DataView(arrayBuffer);
+    const channels = [];
+    let pos = 0;
+
+    // Write WAV header
+    const setUint16 = (data: number) => {
+      view.setUint16(pos, data, true);
+      pos += 2;
+    };
+    const setUint32 = (data: number) => {
+      view.setUint32(pos, data, true);
+      pos += 4;
+    };
+
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+    setUint32(0x20746d66); // "fmt " chunk
+    setUint32(16); // length = 16
+    setUint16(1); // PCM (uncompressed)
+    setUint16(numOfChan);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+    setUint16(numOfChan * 2); // block-align
+    setUint16(16); // 16-bit
+    setUint32(0x61746164); // "data" - chunk
+    setUint32(length - pos - 4); // chunk length
+
+    // Write interleaved data
+    for (let i = 0; i < buffer.numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+
+    let offset = 0;
+    while (pos < length) {
+      for (let i = 0; i < numOfChan; i++) {
+        let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+        sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        view.setInt16(pos, sample, true);
+        pos += 2;
+      }
+      offset++;
+    }
+
+    return arrayBuffer;
+  };
+
+  const playPreview = () => {
+    if (audioElement) {
+      audioElement.currentTime = trimStart;
+      audioElement.play();
+      setIsPlaying(true);
+
+      setTimeout(() => {
+        audioElement.pause();
+        setIsPlaying(false);
+      }, (trimEnd - trimStart) * 1000);
+    }
+  };
+
   const uploadAndMint = async () => {
+    // File size validations
     if (previewFile && previewFile.size > 600 * 1024) {
       setError(`Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`);
       return;
@@ -46,13 +197,22 @@ export default function MusicPage() {
       setError(`Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`);
       return;
     }
-    if (!previewFile || !fullFile || !coverFile || !songTitle) {
+
+    // ✅ NEW: Support art-only NFTs (cover art + title required, audio optional)
+    const isArtOnly = !previewFile && !fullFile;
+    const isMusicNFT = previewFile || fullFile;
+
+    if (!coverFile || !songTitle) {
       const missing = [];
-      if (!previewFile) missing.push('Preview Audio');
-      if (!fullFile) missing.push('Full Track');
       if (!coverFile) missing.push('Cover Art');
-      if (!songTitle) missing.push('Song Title');
-      setError(`Please fill all fields: ${missing.join(', ')}`);
+      if (!songTitle) missing.push('Title');
+      setError(`Please fill required fields: ${missing.join(', ')}`);
+      return;
+    }
+
+    // If user provides one audio file, require both
+    if ((previewFile && !fullFile) || (!previewFile && fullFile)) {
+      setError('If uploading music, please provide both Preview Audio and Full Track');
       return;
     }
     const priceNum = parseFloat(price);
@@ -71,12 +231,27 @@ export default function MusicPage() {
 
     try {
       const formData = new FormData();
-      formData.append('previewAudio', previewFile);
-      formData.append('fullAudio', fullFile);
+
+      // ✅ Auto-trim full track to create preview if no preview provided
+      let actualPreviewFile = previewFile;
+      if (!previewFile && fullFile && nftType === 'music') {
+        console.log(`🎬 Auto-trimming preview from ${trimStart}s to ${trimEnd}s`);
+        actualPreviewFile = await trimAudio(fullFile, trimStart, trimEnd);
+        console.log(`✂️ Trimmed preview created: ${(actualPreviewFile.size / 1024).toFixed(0)}KB`);
+      }
+
+      // ✅ Only append audio files if they exist (support art-only NFTs)
+      if (actualPreviewFile) {
+        formData.append('previewAudio', actualPreviewFile);
+      }
+      if (fullFile) {
+        formData.append('fullAudio', fullFile);
+      }
       formData.append('cover', coverFile);
-      formData.append('description', songTitle); // ✅ FIXED: Use songTitle for description
+      formData.append('description', songTitle);
       formData.append('address', walletAddress);
       formData.append('fid', farcasterFid?.toString() || '0');
+      formData.append('isArtOnly', isArtOnly.toString()); // Flag for backend
 
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
@@ -146,30 +321,71 @@ export default function MusicPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            {user?.pfpUrl && (
-              <img
-                src={user.pfpUrl}
-                alt={user.username || 'User'}
-                className="rounded-full mx-auto mb-4 border-2 border-purple-200"
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  minWidth: '40px',
-                  minHeight: '40px',
-                  maxWidth: '40px',
-                  maxHeight: '40px',
-                  objectFit: 'cover'
-                }}
-              />
-            )}
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">🎵 Mint Music NFT</h1>
-            <p className="text-gray-600">Upload your music and mint it as an NFT on Monad</p>
-            <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-              <p className="text-sm font-bold text-green-900">✨ FREE Mint! We pay the gas fees</p>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: styles }} />
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50 to-pink-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8">
+            <div className="text-center mb-8">
+              {user?.pfpUrl && (
+                <img
+                  src={user.pfpUrl}
+                  alt={user.username || 'User'}
+                  className="rounded-full mx-auto mb-4 border-2 border-purple-200"
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    minWidth: '40px',
+                    minHeight: '40px',
+                    maxWidth: '40px',
+                    maxHeight: '40px',
+                    objectFit: 'cover'
+                  }}
+                />
+              )}
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Create Your NFT</h1>
+              <p className="text-gray-600 text-lg">Choose music or art, upload files, and mint on Monad</p>
+              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
+                <p className="text-sm font-bold text-green-900">✨ FREE Mint! We pay all gas fees</p>
+              </div>
+            </div>
+
+          {/* Progress Stepper */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between">
+              {steps.map((step, index) => (
+                <div key={step.number} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center flex-1">
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold transition-all ${
+                        currentStep >= step.number
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white scale-110 shadow-lg'
+                          : 'bg-gray-200 text-gray-400'
+                      }`}
+                    >
+                      {step.icon}
+                    </div>
+                    <div className="mt-2 text-center">
+                      <p
+                        className={`text-xs font-medium ${
+                          currentStep >= step.number ? 'text-purple-600' : 'text-gray-400'
+                        }`}
+                      >
+                        {step.title}
+                      </p>
+                    </div>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div
+                      className={`h-1 flex-1 mx-2 rounded transition-all ${
+                        currentStep > step.number
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600'
+                          : 'bg-gray-200'
+                      }`}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -231,177 +447,396 @@ export default function MusicPage() {
             </div>
           )}
 
+          {/* Step Content */}
           <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Song Title *</label>
-              <input
-                type="text"
-                value={songTitle}
-                onChange={(e) => setSongTitle(e.target.value)}
-                placeholder="e.g., Money Making Machine - Electronic Mix"
-                maxLength={200}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">{songTitle.length}/200 characters</p>
-            </div>
+            {/* STEP 1: Choose NFT Type */}
+            {currentStep === 1 && (
+              <div className="space-y-4 animate-fadeIn">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">What would you like to create?</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => {
+                      setNftType('music');
+                      setCurrentStep(2);
+                    }}
+                    className="group relative p-8 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-4 border-purple-200 hover:border-purple-500 hover:scale-105 transition-all shadow-lg hover:shadow-2xl"
+                  >
+                    <div className="text-6xl mb-4">🎵</div>
+                    <h3 className="text-2xl font-bold text-purple-900 mb-2">Music NFT</h3>
+                    <p className="text-gray-700">Upload cover art + audio files to create a music NFT</p>
+                    <div className="mt-4 text-sm text-purple-600 font-medium">Includes: Cover + Preview + Full Track →</div>
+                  </button>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                License Price (TOURS) * {/* ✅ FIXED: Say TOURS */}
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0.001"
-                  max="10"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="0.01"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-                <span className="absolute right-4 top-3.5 text-gray-600 text-sm font-medium pointer-events-none">TOURS</span> {/* ✅ FIXED: Say TOURS */}
-              </div>
-              <p className="text-xs text-gray-500 mt-3">
-                💰 How much fans pay to own this track (min: 0.001, max: 10 TOURS) {/* ✅ FIXED: Say TOURS */}
-              </p>
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => setPrice('0.01')}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
-                >
-                  0.01 TOURS
-                </button>
-                <button
-                  onClick={() => setPrice('0.05')}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
-                >
-                  0.05 TOURS
-                </button>
-                <button
-                  onClick={() => setPrice('0.1')}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
-                >
-                  0.1 TOURS
-                </button>
-                <button
-                  onClick={() => setPrice('1')}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs hover:bg-gray-200"
-                >
-                  1 TOURS
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Preview Audio (3s clip) *
-              </label>
-              <input
-                type="file"
-                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/aac,audio/*"
-                onChange={handleFileChange(setPreviewFile)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-              {previewFile && (
-                <p className="text-sm text-green-600 mt-2 font-medium">
-                  ✓ {previewFile.name} ({(previewFile.size / 1024).toFixed(0)}KB)
-                  {previewFile.size > 600 * 1024 && (
-                    <span className="text-red-600 ml-2">⚠️ Too large!</span>
-                  )}
-                </p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">Max 600KB (~3 seconds) - Public preview</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Full Track *</label>
-              <input
-                type="file"
-                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/aac,audio/*"
-                onChange={handleFileChange(setFullFile)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-              {fullFile && (
-                <p className="text-sm text-green-600 mt-2 font-medium">
-                  ✓ {fullFile.name} ({(fullFile.size / 1024 / 1024).toFixed(2)}MB)
-                  {fullFile.size > 15 * 1024 * 1024 && (
-                    <span className="text-red-600 ml-2">⚠️ Too large!</span>
-                  )}
-                </p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">Max 15MB - Only license owners can access</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cover Art *</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange(setCoverFile)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-              {coverFile && (
-                <div className="mt-3">
-                  <p className="text-sm text-green-600 font-medium mb-2">
-                    ✓ {coverFile.name} ({(coverFile.size / 1024).toFixed(0)}KB)
-                  </p>
-                  <img
-                    src={URL.createObjectURL(coverFile)}
-                    alt="Cover preview"
-                    className="w-48 h-48 object-cover rounded-lg shadow-md"
-                  />
+                  <button
+                    onClick={() => {
+                      setNftType('art');
+                      setCurrentStep(2);
+                    }}
+                    className="group relative p-8 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border-4 border-blue-200 hover:border-blue-500 hover:scale-105 transition-all shadow-lg hover:shadow-2xl"
+                  >
+                    <div className="text-6xl mb-4">🎨</div>
+                    <h3 className="text-2xl font-bold text-blue-900 mb-2">Art NFT</h3>
+                    <p className="text-gray-700">Upload only cover art to create a visual art NFT</p>
+                    <div className="mt-4 text-sm text-blue-600 font-medium">Includes: Cover Art Only →</div>
+                  </button>
                 </div>
-              )}
-              <p className="text-xs text-gray-500 mt-1">JPG, PNG, or WebP - Max 3MB</p>
-            </div>
+              </div>
+            )}
 
-            <button
-              onClick={uploadAndMint}
-              disabled={
-                !previewFile ||
-                !fullFile ||
-                !coverFile ||
-                !songTitle ||
-                !price ||
-                uploading ||
-                minting ||
-                botLoading
-              }
-              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95 touch-manipulation"
-              style={{ minHeight: '56px' }}
-            >
-              {uploading
-                ? '⏳ Uploading to IPFS...'
-                : minting || botLoading
-                ? '⚡ Minting NFT (FREE)...'
-                : `🎵 Mint for ${price} TOURS (FREE for you!)`} {/* ✅ FIXED: Say TOURS */}
-            </button>
+            {/* STEP 2: Upload Files */}
+            {currentStep === 2 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Upload Your {nftType === 'music' ? 'Music' : 'Art'} Files
+                  </h2>
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    ← Back
+                  </button>
+                </div>
 
-            {!walletAddress && (
-              <button
-                onClick={requestWallet}
-                className="w-full mt-3 px-6 py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-all active:scale-95 touch-manipulation"
-                style={{ minHeight: '56px' }}
-              >
-                🔑 Connect Wallet First
-              </button>
+                {/* Cover Art Upload */}
+                <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-dashed border-gray-300">
+                  <label className="block cursor-pointer">
+                    <div className="text-center">
+                      {coverFile ? (
+                        <div>
+                          <img
+                            src={URL.createObjectURL(coverFile)}
+                            alt="Cover"
+                            className="w-64 h-64 object-cover rounded-xl mx-auto mb-4 shadow-lg"
+                          />
+                          <p className="text-green-600 font-bold text-lg">✓ {coverFile.name}</p>
+                          <p className="text-gray-500 text-sm">{(coverFile.size / 1024).toFixed(0)}KB</p>
+                        </div>
+                      ) : (
+                        <div className="py-12">
+                          <div className="text-6xl mb-4">🖼️</div>
+                          <p className="text-xl font-bold text-gray-700">Click to upload cover art</p>
+                          <p className="text-sm text-gray-500 mt-2">JPG, PNG, or WebP - Max 3MB</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange(setCoverFile)}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Audio Files (only for music NFTs) */}
+                {nftType === 'music' && (
+                  <>
+                    <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-dashed border-purple-300">
+                      <label className="block cursor-pointer">
+                        <div className="text-center">
+                          {previewFile ? (
+                            <div className="py-6">
+                              <div className="text-5xl mb-3">🎧</div>
+                              <p className="text-purple-600 font-bold text-lg">✓ Preview Audio</p>
+                              <p className="text-gray-700">{previewFile.name}</p>
+                              <p className="text-gray-500 text-sm">{(previewFile.size / 1024).toFixed(0)}KB</p>
+                              {previewFile.size > 600 * 1024 && (
+                                <p className="text-red-600 font-bold mt-2">⚠️ File too large! Max 600KB</p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="py-8">
+                              <div className="text-5xl mb-3">🎧</div>
+                              <p className="text-xl font-bold text-gray-700">Upload Preview Audio (Optional)</p>
+                              <p className="text-sm text-gray-500 mt-2">MP3, WAV, M4A - Max 600KB</p>
+                              <p className="text-xs text-purple-600 font-medium mt-2">
+                                💡 Or skip this - we'll auto-generate a 3s preview from your full track!
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          onChange={handleFileChange(setPreviewFile)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border-2 border-dashed border-blue-300">
+                      <label className="block cursor-pointer">
+                        <div className="text-center">
+                          {fullFile ? (
+                            <div className="py-6">
+                              <div className="text-5xl mb-3">🎵</div>
+                              <p className="text-blue-600 font-bold text-lg">✓ Full Track</p>
+                              <p className="text-gray-700">{fullFile.name}</p>
+                              <p className="text-gray-500 text-sm">{(fullFile.size / 1024 / 1024).toFixed(2)}MB</p>
+                              {fullFile.size > 15 * 1024 * 1024 && (
+                                <p className="text-red-600 font-bold mt-2">⚠️ File too large! Max 15MB</p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="py-8">
+                              <div className="text-5xl mb-3">🎵</div>
+                              <p className="text-xl font-bold text-gray-700">Upload Full Track</p>
+                              <p className="text-sm text-gray-500 mt-2">MP3, WAV, M4A - Max 15MB</p>
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          onChange={handleFileChange(setFullFile)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {/* Audio Trimmer - Show when full track is uploaded */}
+                {nftType === 'music' && fullFile && !previewFile && audioUrl && (
+                  <div className="p-6 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl border-2 border-yellow-300">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">✂️ Select 3-Second Preview</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Choose which part of your track to use as the preview
+                    </p>
+
+                    {/* Waveform/Timeline */}
+                    <div className="mb-4">
+                      <div className="relative h-16 bg-gradient-to-r from-purple-200 to-pink-200 rounded-lg overflow-hidden">
+                        {/* Selection Range */}
+                        <div
+                          className="absolute top-0 h-full bg-gradient-to-r from-purple-500 to-pink-500 opacity-50"
+                          style={{
+                            left: `${(trimStart / audioDuration) * 100}%`,
+                            width: `${((trimEnd - trimStart) / audioDuration) * 100}%`,
+                          }}
+                        />
+
+                        {/* Time markers */}
+                        <div className="absolute inset-0 flex items-center justify-between px-2 text-xs text-white font-bold">
+                          <span>0:00</span>
+                          <span>{Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}</span>
+                        </div>
+                      </div>
+
+                      {/* Selected Range Display */}
+                      <div className="flex justify-between items-center mt-2 text-sm text-gray-700">
+                        <span>Start: {trimStart.toFixed(1)}s</span>
+                        <span className="font-bold text-purple-600">{(trimEnd - trimStart).toFixed(1)}s preview</span>
+                        <span>End: {trimEnd.toFixed(1)}s</span>
+                      </div>
+                    </div>
+
+                    {/* Slider Controls */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Start Time</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max={Math.max(0, audioDuration - 3)}
+                          step="0.1"
+                          value={trimStart}
+                          onChange={(e) => {
+                            const newStart = parseFloat(e.target.value);
+                            setTrimStart(newStart);
+                            setTrimEnd(Math.min(newStart + 3, audioDuration));
+                          }}
+                          className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Play Preview Button */}
+                      <button
+                        onClick={playPreview}
+                        disabled={isPlaying}
+                        className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold hover:scale-105 disabled:opacity-50 transition-all shadow-lg"
+                      >
+                        {isPlaying ? '▶️ Playing...' : '▶️ Play Preview'}
+                      </button>
+
+                      <p className="text-xs text-gray-500 text-center">
+                        This 3-second clip will be auto-generated as your preview
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  disabled={!coverFile || (nftType === 'music' && !fullFile)}
+                  className="w-full px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg"
+                >
+                  Continue to Details →
+                </button>
+              </div>
+            )}
+
+            {/* STEP 3: Set Details */}
+            {currentStep === 3 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">Set NFT Details</h2>
+                  <button
+                    onClick={() => setCurrentStep(2)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    ← Back
+                  </button>
+                </div>
+
+                <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-purple-200">
+                  <label className="block text-xl font-bold text-gray-900 mb-4">
+                    {nftType === 'music' ? '🎵 Song Title' : '🎨 Art Title'}
+                  </label>
+                  <input
+                    type="text"
+                    value={songTitle}
+                    onChange={(e) => setSongTitle(e.target.value)}
+                    placeholder={nftType === 'music' ? 'e.g., Money Making Machine - Electronic Mix' : 'e.g., Sunset Over Mountains'}
+                    maxLength={200}
+                    className="w-full px-6 py-4 text-lg border-2 border-purple-300 rounded-xl focus:ring-4 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">{songTitle.length}/200 characters</p>
+                </div>
+
+                <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200">
+                  <label className="block text-xl font-bold text-gray-900 mb-4">💰 License Price</label>
+                  <p className="text-sm text-gray-600 mb-4">How much will fans pay to own this NFT?</p>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {['0.01', '0.05', '0.1', '1'].map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPrice(p)}
+                        className={`px-6 py-4 rounded-xl font-bold text-lg transition-all ${
+                          price === p
+                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white scale-110 shadow-lg'
+                            : 'bg-white text-gray-700 hover:scale-105 border-2 border-gray-200'
+                        }`}
+                      >
+                        {p} TOURS
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0.001"
+                      max="10"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="Custom price"
+                      className="w-full px-6 py-4 text-lg border-2 border-green-300 rounded-xl focus:ring-4 focus:ring-green-500 focus:border-transparent"
+                    />
+                    <span className="absolute right-6 top-4.5 text-gray-600 font-bold pointer-events-none">TOURS</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 | Max: 10 TOURS</p>
+                </div>
+
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  disabled={!songTitle || !price}
+                  className="w-full px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg"
+                >
+                  Review & Mint →
+                </button>
+              </div>
+            )}
+
+            {/* STEP 4: Review & Mint */}
+            {currentStep === 4 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">Review Your NFT</h2>
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    ← Back
+                  </button>
+                </div>
+
+                {/* Preview Card */}
+                <div className="p-8 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 rounded-3xl border-4 border-purple-200 shadow-2xl">
+                  <div className="flex flex-col md:flex-row gap-6 items-center">
+                    {coverFile && (
+                      <img
+                        src={URL.createObjectURL(coverFile)}
+                        alt="Preview"
+                        className="w-48 h-48 object-cover rounded-2xl shadow-xl"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-purple-600 mb-2">
+                        {nftType === 'music' ? '🎵 MUSIC NFT' : '🎨 ART NFT'}
+                      </div>
+                      <h3 className="text-3xl font-bold text-gray-900 mb-4">{songTitle || 'Untitled'}</h3>
+                      <div className="space-y-2 text-gray-700">
+                        <p><strong>Type:</strong> {nftType === 'music' ? 'Music NFT' : 'Art NFT'}</p>
+                        <p><strong>Price:</strong> {price} TOURS per license</p>
+                        <p><strong>Creator:</strong> @{user?.username || 'You'}</p>
+                        {nftType === 'music' && (
+                          <>
+                            <p><strong>Preview Audio:</strong> ✓ {previewFile?.name}</p>
+                            <p><strong>Full Track:</strong> ✓ {fullFile?.name}</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mint Button */}
+                <button
+                  onClick={uploadAndMint}
+                  disabled={uploading || minting || botLoading}
+                  className="w-full px-8 py-6 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-2xl font-bold text-2xl hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all shadow-2xl"
+                >
+                  {uploading
+                    ? '⏳ Uploading to IPFS...'
+                    : minting || botLoading
+                    ? '⚡ Minting NFT (FREE)...'
+                    : `🚀 Mint NFT (FREE!)` }
+                </button>
+
+                {!walletAddress && (
+                  <button
+                    onClick={requestWallet}
+                    className="w-full px-6 py-4 bg-yellow-500 text-white rounded-xl font-bold text-lg hover:bg-yellow-600 transition-all shadow-lg"
+                  >
+                    🔑 Connect Wallet First
+                  </button>
+                )}
+
+                <div className="p-4 bg-green-50 rounded-xl border-2 border-green-200">
+                  <p className="text-green-900 font-bold text-center">✨ FREE Mint! We pay all gas fees for you</p>
+                </div>
+              </div>
             )}
           </div>
 
-          <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="mt-8 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
             <p className="text-sm text-blue-900 font-medium mb-2">
-              💡 How Music NFT Pricing Works:
+              💡 How NFT Pricing Works:
             </p>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-              <li>Set your price per license in TOURS tokens (what fans pay to own your track)</li> {/* ✅ FIXED: Say TOURS */}
+              <li>Set your price in TOURS tokens (what fans pay to own your NFT)</li>
               <li>You receive 90% of sales + 10% royalties on resales</li>
               <li>Minting is FREE - we cover all gas costs for you</li>
-              <li>Fans can preview 3s for free before buying</li>
+              <li>Music NFTs: Fans can preview audio before buying</li>
             </ul>
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

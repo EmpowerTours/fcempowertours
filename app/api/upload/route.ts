@@ -15,40 +15,66 @@ export async function POST(request: NextRequest) {
     const description = formData.get('description') as string;
     const fid = formData.get('fid') as string;
     const address = formData.get('address') as string;
+    const isArtOnly = formData.get('isArtOnly') === 'true';
 
-    if (!previewFile || !fullFile || !coverFile || !description || !address) {
+    // ✅ Support art-only NFTs: only cover, description, and address are required
+    if (!coverFile || !description || !address) {
       return NextResponse.json(
-        { error: 'Missing required fields: previewAudio, fullAudio, cover, description, address' },
+        { error: 'Missing required fields: cover, description, address' },
+        { status: 400 }
+      );
+    }
+
+    // ✅ If one audio file is provided, require both
+    if ((previewFile && !fullFile) || (!previewFile && fullFile)) {
+      return NextResponse.json(
+        { error: 'If uploading music, please provide both previewAudio and fullAudio' },
         { status: 400 }
       );
     }
 
     console.log('📤 Starting upload process...');
     console.log('📦 Files received:', {
-      preview: previewFile instanceof File ? previewFile.name : 'not a file',
-      full: fullFile instanceof File ? fullFile.name : 'not a file',
+      preview: previewFile instanceof File ? previewFile.name : 'not provided',
+      full: fullFile instanceof File ? fullFile.name : 'not provided',
       cover: coverFile instanceof File ? coverFile.name : 'not a file',
       description,
       address,
+      isArtOnly,
     });
 
-    // Ensure we have File objects
-    if (!(previewFile instanceof File) || !(fullFile instanceof File) || !(coverFile instanceof File)) {
+    // ✅ Ensure cover is a File object
+    if (!(coverFile instanceof File)) {
       return NextResponse.json(
-        { error: 'Invalid file upload. All files must be valid File objects.' },
+        { error: 'Invalid cover file upload. Cover must be a valid File object.' },
+        { status: 400 }
+      );
+    }
+
+    // ✅ If audio files are provided, ensure they are File objects
+    if (previewFile && !(previewFile instanceof File)) {
+      return NextResponse.json(
+        { error: 'Invalid preview audio file.' },
+        { status: 400 }
+      );
+    }
+
+    if (fullFile && !(fullFile instanceof File)) {
+      return NextResponse.json(
+        { error: 'Invalid full audio file.' },
         { status: 400 }
       );
     }
 
     // ✅ CRITICAL: Validate file sizes BEFORE upload
-    if (previewFile.size > 600 * 1024) {
+    if (previewFile instanceof File && previewFile.size > 600 * 1024) {
       return NextResponse.json({
         success: false,
         error: `Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB. Max 600KB. Please compress to MP3 format.`,
       }, { status: 400 });
     }
 
-    if (fullFile.size > 15 * 1024 * 1024) {
+    if (fullFile instanceof File && fullFile.size > 15 * 1024 * 1024) {
       return NextResponse.json({
         success: false,
         error: `Full track too large: ${(fullFile.size / 1024 / 1024).toFixed(1)}MB. Max 15MB.`,
@@ -110,32 +136,49 @@ export async function POST(request: NextRequest) {
       throw new Error(`Upload failed for ${fileType}`);
     };
 
-    // Upload preview clip (for NFT animation_url)
-    console.log('📤 Uploading preview audio...');
-    const previewCid = await uploadFileToPinata(previewFile, 'preview audio');
+    // ✅ Conditionally upload audio files (only if provided)
+    let previewCid = null;
+    let fullCid = null;
 
-    // Upload full song (for external_url)
-    console.log('📤 Uploading full song...');
-    const fullCid = await uploadFileToPinata(fullFile, 'full song');
+    if (previewFile instanceof File && fullFile instanceof File) {
+      // Upload preview clip (for NFT animation_url)
+      console.log('📤 Uploading preview audio...');
+      previewCid = await uploadFileToPinata(previewFile, 'preview audio');
+
+      // Upload full song (for external_url)
+      console.log('📤 Uploading full song...');
+      fullCid = await uploadFileToPinata(fullFile, 'full song');
+    } else {
+      console.log('📸 Art-only NFT detected, skipping audio uploads');
+    }
 
     // Upload cover image (for image field)
     console.log('📤 Uploading cover image...');
     const coverCid = await uploadFileToPinata(coverFile, 'cover image');
 
-    // ✅ FIXED: Proper metadata structure with correct field names
-    const metadata = {
+    // ✅ FIXED: Proper metadata structure with conditional audio fields
+    const metadata: any = {
       name: description,  // ✅ Use the actual song title from user input
-      description: `Music NFT by ${address.slice(0, 6)}...${address.slice(-4)}`,
+      description: isArtOnly
+        ? `Art NFT by ${address.slice(0, 6)}...${address.slice(-4)}`
+        : `Music NFT by ${address.slice(0, 6)}...${address.slice(-4)}`,
       image: `ipfs://${coverCid}`,  // ✅ Cover art for display
-      animation_url: `ipfs://${previewCid}`,  // ✅ Preview audio (30s clip)
-      external_url: `ipfs://${fullCid}`,  // ✅ Full track (for access after purchase)
       attributes: [
         { trait_type: 'Creator Address', value: address },
         { trait_type: 'Creator FID', value: fid || 'Unknown' },
-        { trait_type: 'Preview CID', value: previewCid },
-        { trait_type: 'Full Track CID', value: fullCid },
+        { trait_type: 'Type', value: isArtOnly ? 'Art' : 'Music' },
       ],
     };
+
+    // ✅ Only add audio fields if this is a music NFT
+    if (previewCid && fullCid) {
+      metadata.animation_url = `ipfs://${previewCid}`;  // ✅ Preview audio (30s clip)
+      metadata.external_url = `ipfs://${fullCid}`;  // ✅ Full track (for access after purchase)
+      metadata.attributes.push(
+        { trait_type: 'Preview CID', value: previewCid },
+        { trait_type: 'Full Track CID', value: fullCid }
+      );
+    }
 
     console.log('📝 Metadata prepared:', {
       name: metadata.name,
@@ -173,21 +216,25 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Metadata uploaded successfully:', metadataCid);
 
-    // ✅ Return comprehensive response
-    const response = {
+    // ✅ Return comprehensive response with conditional audio URLs
+    const response: any = {
       success: true,
-      previewCid,
-      fullCid,
       coverCid,
       metadataCid,
       metadataCID: metadataCid,  // camelCase variation for compatibility
       tokenURI: `ipfs://${metadataCid}`,
-      // ✅ Also return gateway URLs for easy verification
-      previewUrl: `https://${PINATA_GATEWAY}/ipfs/${previewCid}`,
-      fullUrl: `https://${PINATA_GATEWAY}/ipfs/${fullCid}`,
       coverUrl: `https://${PINATA_GATEWAY}/ipfs/${coverCid}`,
       metadataUrl: `https://${PINATA_GATEWAY}/ipfs/${metadataCid}`,
+      isArtOnly,
     };
+
+    // ✅ Only include audio URLs if this is a music NFT
+    if (previewCid && fullCid) {
+      response.previewCid = previewCid;
+      response.fullCid = fullCid;
+      response.previewUrl = `https://${PINATA_GATEWAY}/ipfs/${previewCid}`;
+      response.fullUrl = `https://${PINATA_GATEWAY}/ipfs/${fullCid}`;
+    }
 
     console.log('📤 Upload complete! Response:', {
       tokenURI: response.tokenURI,
