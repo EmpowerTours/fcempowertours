@@ -5,9 +5,12 @@ import { useState } from 'react';
 import { useTandaPool, PoolType } from '@/src/hooks';
 import { useAccount } from 'wagmi';
 import { formatEther, parseEther } from 'viem';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export function TandaPoolManager() {
   const { address } = useAccount();
+  const { walletAddress } = useFarcasterContext();
+  const effectiveAddress = (address || walletAddress) as `0x${string}` | undefined;
   const [activeTab, setActiveTab] = useState<'browse' | 'create' | 'my-pools'>('browse');
   const [poolId, setPoolId] = useState<string>('');
 

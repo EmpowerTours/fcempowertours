@@ -7,6 +7,8 @@ import { useAccount } from 'wagmi';
 import { formatEther, parseEther } from 'viem';
 import PassportGate from '@/app/components/PassportGate';
 
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+
 export default function BeatMatchPage() {
   return (
     <PassportGate>
@@ -20,6 +22,8 @@ function BeatMatchContent() {
   const [selectedArtist, setSelectedArtist] = useState<bigint | null>(null);
   const [guessReason, setGuessReason] = useState('');
   const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
+  const [musicNFTs, setMusicNFTs] = useState([]);
+  const [loadingMusic, setLoadingMusic] = useState(true);
 
   const {
     useGetCurrentChallenge,
@@ -35,6 +39,45 @@ function BeatMatchContent() {
   const { data: challenge, isLoading: challengeLoading } = useGetCurrentChallenge();
   const { data: playerStats } = useGetPlayerStats(address!);
   const { data: hasPlayed } = useHasPlayed(address!, (challenge as any)?.id || BigInt(0));
+
+  // Fetch music NFTs from Envio
+  useEffect(() => {
+    const fetchMusicNFTs = async () => {
+      try {
+        const query = `
+          query GetMusicNFTs {
+            MusicNFT(limit: 50, order_by: {mintedAt: desc}) {
+              id
+              tokenId
+              name
+              artist
+              imageUrl
+              previewAudioUrl
+              fullAudioUrl
+              owner
+            }
+          }
+        `;
+
+        const response = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setMusicNFTs(result.data?.MusicNFT || []);
+        }
+      } catch (error) {
+        console.error('Error fetching music NFTs:', error);
+      } finally {
+        setLoadingMusic(false);
+      }
+    };
+
+    fetchMusicNFTs();
+  }, []);
 
   useEffect(() => {
     if (isConfirmed) {
@@ -125,19 +168,49 @@ function BeatMatchContent() {
                 <div>
                   <h3 className="text-2xl font-bold text-white">{(challenge as any).songTitle}</h3>
                   <p className="text-blue-200">Challenge #{(challenge as any).id.toString()}</p>
+                  <p className="text-purple-300 text-sm">Artist ID: {(challenge as any).artistId?.toString()}</p>
                 </div>
               </div>
 
-              {(challenge as any).spotifyUri && (
-                <a
-                  href={`https://open.spotify.com/track/${(challenge as any).spotifyUri}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  <span>🎧</span>
-                  Listen on Spotify
-                </a>
+              {/* Display music NFT if we have music data */}
+              {musicNFTs.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-white font-semibold mb-3">🎵 Available Music NFTs</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                    {musicNFTs.map((nft) => (
+                      <div
+                        key={nft.id}
+                        className="bg-white/5 rounded-lg p-4 flex gap-3 hover:bg-white/10 transition-colors"
+                      >
+                        {nft.imageUrl && (
+                          <img
+                            src={nft.imageUrl}
+                            alt={nft.name}
+                            className="w-16 h-16 rounded-lg object-cover"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <div className="text-white font-semibold">{nft.name || 'Untitled'}</div>
+                          <div className="text-blue-300 text-sm">by {nft.artist}</div>
+                          <div className="text-purple-300 text-xs">Token ID: {nft.tokenId}</div>
+                          {nft.previewAudioUrl && (
+                            <audio
+                              controls
+                              className="w-full mt-2 h-8"
+                              style={{ maxWidth: '100%' }}
+                            >
+                              <source src={nft.previewAudioUrl} type="audio/mpeg" />
+                            </audio>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {loadingMusic && (
+                <div className="text-blue-200 text-center py-4">Loading music...</div>
               )}
             </div>
 

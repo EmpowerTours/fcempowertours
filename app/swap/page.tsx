@@ -59,13 +59,14 @@ function SwapContent() {
   const { data: reserves } = useGetReserves();
   const { data: price } = useGetPrice();
 
-  // Get quote based on direction
+  // Get quote based on direction (only when valid amount is entered)
+  const validInputAmount = inputAmount && parseFloat(inputAmount) > 0 ? inputAmount : '';
   const { data: quote } = swapDirection === 'tours-to-wmon'
-    ? useGetToursToWMONQuote(inputAmount || '0')
-    : useGetWMONToToursQuote(inputAmount || '0');
+    ? useGetToursToWMONQuote(validInputAmount)
+    : useGetWMONToToursQuote(validInputAmount);
 
   const outputAmount = quote ? formatEther(quote as bigint) : '0';
-  const minOutput = outputAmount ? (parseFloat(outputAmount) * (1 - parseFloat(slippage) / 100)).toFixed(6) : '0';
+  const minOutput = outputAmount && parseFloat(outputAmount) > 0 ? (parseFloat(outputAmount) * (1 - parseFloat(slippage) / 100)).toFixed(6) : '0';
 
   const handleSwap = () => {
     if (!inputAmount || parseFloat(inputAmount) <= 0) {
