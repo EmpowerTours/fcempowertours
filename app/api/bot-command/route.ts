@@ -1058,6 +1058,217 @@ View: https://testnet.monadscan.com/tx/${mintData.txHash}`
       }
     }
 
+    // ==================== STAKE MUSIC YIELD COMMAND ====================
+    if (lowerCommand.includes('stake music yield') || lowerCommand.includes('stake_music_yield')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      try {
+        const regex = /stake[_ ]music[_ ]yield\s+(\d+)\s+([\d.]+)/i;
+        const match = originalCommand.match(regex);
+
+        if (!match) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `Music NFT Yield Staking
+Stake your Music NFT with MON capital to earn Kintsu vault yields!
+
+Usage:
+"stake music yield <tokenId> <MON amount>"
+
+Example:
+"stake music yield 1 50"
+
+This will:
+✅ Stake Music NFT #1 with 50 MON
+✅ Earn variable yield from Kintsu DeFi vault
+✅ Keep your NFT in your wallet (never transferred!)
+✅ Yield can be allocated to DragonRouter locations
+
+Note: Requires MON capital deposit`
+          });
+        }
+
+        const tokenId = match[1].trim();
+        const monAmount = parseFloat(match[2]);
+
+        if (monAmount <= 0) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid MON amount. Must be greater than 0.'
+          });
+        }
+
+        console.log('[BOT] Staking Music NFT with YieldStrategy:', {
+          tokenId,
+          monAmount,
+          userAddress
+        });
+
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        if (!delegationData.success || !delegationData.delegation) {
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['stake_music_yield', 'unstake_music_yield', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+
+        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'stake_music_yield',
+            params: {
+              tokenId,
+              monAmount: monAmount.toString()
+            }
+          })
+        });
+        const stakeData = await stakeRes.json();
+        if (!stakeData.success) {
+          throw new Error(stakeData.error || 'Stake failed');
+        }
+
+        console.log('[BOT] Music NFT staked in YieldStrategy:', stakeData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeData.txHash,
+          positionId: stakeData.positionId,
+          action: 'transaction',
+          message: `Music NFT #${tokenId} Staked with YieldStrategy!
+💎 Capital: ${monAmount} MON
+📊 Position ID: ${stakeData.positionId || 'Pending'}
+⛽ Gasless - we paid the gas!
+TX: ${stakeData.txHash?.slice(0, 10)}...
+
+Your NFT stays in your wallet while earning Kintsu vault yields!
+View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('[BOT] Music yield stake error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Stake failed: ${error.message}`
+        });
+      }
+    }
+
+    // ==================== UNSTAKE MUSIC YIELD COMMAND ====================
+    if (lowerCommand.includes('unstake music yield') || lowerCommand.includes('unstake_music_yield')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      try {
+        const regex = /unstake[_ ]music[_ ]yield\s+(\d+)/i;
+        const match = originalCommand.match(regex);
+
+        if (!match) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `Music NFT Yield Unstaking
+Unstake your Music NFT position and claim accumulated yield!
+
+Usage:
+"unstake music yield <positionId>"
+
+Example:
+"unstake music yield 0"
+
+This will:
+✅ Unstake your position from YieldStrategy
+✅ Withdraw principal MON + accumulated yield
+✅ Pay 0.5% withdrawal fee
+✅ Receive MON to your wallet
+
+Note: You need the position ID from when you staked`
+          });
+        }
+
+        const positionId = match[1].trim();
+
+        console.log('[BOT] Unstaking Music NFT from YieldStrategy:', {
+          positionId,
+          userAddress
+        });
+
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        if (!delegationData.success || !delegationData.delegation) {
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['stake_music_yield', 'unstake_music_yield', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+
+        const unstakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'unstake_music_yield',
+            params: {
+              positionId
+            }
+          })
+        });
+        const unstakeData = await unstakeRes.json();
+        if (!unstakeData.success) {
+          throw new Error(unstakeData.error || 'Unstake failed');
+        }
+
+        console.log('[BOT] Music NFT position unstaked:', unstakeData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeData.txHash,
+          action: 'transaction',
+          message: `Music NFT Position Unstaked!
+📤 Position #${positionId} closed
+💰 MON principal + yield sent to your wallet
+⛽ Gasless - we paid the gas!
+TX: ${unstakeData.txHash?.slice(0, 10)}...
+
+Check your wallet for the refund!
+View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('[BOT] Music yield unstake error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Unstake failed: ${error.message}`
+        });
+      }
+    }
+
     // ==================== NAVIGATION COMMANDS ====================
     const navCommands: Record<string, string> = {
       'go to passport': '/passport',

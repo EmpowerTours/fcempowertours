@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
-    const MUSIC_NFT_V4 = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address;
+    const MUSIC_NFT_V5 = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
@@ -256,6 +256,41 @@ View profile and collection!
           );
         }
 
+        // ✅ CHECK IF SONG ALREADY EXISTS
+        const songTitle = params.songTitle || 'Untitled';
+        console.log('🔍 Checking if song already exists:', { artist: userAddress, songTitle });
+
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const checkClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const songExists = await checkClient.readContract({
+            address: MUSIC_NFT_V5 as Address,
+            abi: parseAbi(['function hasSong(address artist, string songTitle) external view returns (bool)']),
+            functionName: 'hasSong',
+            args: [userAddress as Address, songTitle],
+          });
+
+          if (songExists) {
+            console.log('❌ Song already minted:', songTitle);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Song "${songTitle}" has already been minted by this artist. Please use a different song title.`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Song title available');
+        } catch (checkError: any) {
+          console.warn('⚠️ Could not verify song existence, proceeding with mint:', checkError.message);
+          // Continue with mint if check fails (backwards compatible)
+        }
+
         const musicPrice = parseEther(params.price.toString());
         console.log('🎵 Minting music NFT:', {
           artist: userAddress,
@@ -267,7 +302,7 @@ View profile and collection!
 
         const musicCalls = [
           {
-            to: MUSIC_NFT_V4,
+            to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
@@ -407,11 +442,11 @@ View profile and collection!
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [MUSIC_NFT_V4, parseEther('1000')],
+              args: [MUSIC_NFT_V5, parseEther('1000')],
             }) as Hex,
           },
           {
-            to: MUSIC_NFT_V4,
+            to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
@@ -1499,6 +1534,38 @@ View profile and collection!
         const MUSIC_NFT_V5 = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
         const stakeTokenId = BigInt(params.tokenId);
 
+        // ✅ Check if NFT is already used as collateral in YieldStrategy (prevent dual staking)
+        try {
+          const YIELD_STRATEGY_CHECK = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const yieldClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const isCollateral = await yieldClient.readContract({
+            address: YIELD_STRATEGY_CHECK,
+            abi: parseAbi(['function nftCollateralUsed(address,uint256) external view returns (bool)']),
+            functionName: 'nftCollateralUsed',
+            args: [MUSIC_NFT_V5, stakeTokenId],
+          });
+
+          if (isCollateral) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Music NFT #${params.tokenId} is already staked in YieldStrategy for Kintsu yields. Please unstake it first with "unstake music yield <positionId>" before staking internally.`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Music NFT is not used as YieldStrategy collateral');
+        } catch (collateralCheckError: any) {
+          console.warn('⚠️ Could not verify YieldStrategy collateral status:', collateralCheckError.message);
+          // Continue - if check fails, proceed anyway (backwards compatible)
+        }
+
         const stakeMusicCalls = [
           {
             to: MUSIC_NFT_V5,
@@ -1598,6 +1665,286 @@ View profile and collection!
           userAddress,
           tokenId: params.tokenId,
           message: `Music NFT #${params.tokenId} burned for 5 TOURS reward`,
+        });
+
+      // ==================== MUSIC NFT YIELD STAKING (YieldStrategyV8) ====================
+      case 'stake_music_yield':
+        console.log('💎 Action: stake_music_yield (YieldStrategyV8)');
+        if (!params?.tokenId || !params?.monAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId or monAmount for stake_music_yield' },
+            { status: 400 }
+          );
+        }
+
+        const YIELD_STRATEGY_V8 = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
+        const stakeMusicYieldTokenId = BigInt(params.tokenId);
+        const stakeMusicMonAmount = parseEther(params.monAmount.toString());
+
+        console.log('💎 Staking Music NFT with YieldStrategyV8:', {
+          nftAddress: MUSIC_NFT_V5,
+          tokenId: stakeMusicYieldTokenId.toString(),
+          beneficiary: userAddress,
+          monAmount: params.monAmount,
+          yieldStrategy: YIELD_STRATEGY_V8
+        });
+
+        // ✅ Check if Music NFT is whitelisted
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const checkClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const isWhitelisted = await checkClient.readContract({
+            address: YIELD_STRATEGY_V8,
+            abi: parseAbi(['function acceptedNFTs(address) external view returns (bool)']),
+            functionName: 'acceptedNFTs',
+            args: [MUSIC_NFT_V5],
+          });
+
+          if (!isWhitelisted) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Music NFT is not whitelisted in YieldStrategy. Contact admin to whitelist.'
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Music NFT is whitelisted in YieldStrategy');
+        } catch (checkError: any) {
+          console.warn('⚠️ Could not verify Music NFT whitelist status:', checkError.message);
+        }
+
+        // ✅ Verify user owns the Music NFT
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const nftClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const nftOwner = await nftClient.readContract({
+            address: MUSIC_NFT_V5,
+            abi: parseAbi(['function ownerOf(uint256) external view returns (address)']),
+            functionName: 'ownerOf',
+            args: [stakeMusicYieldTokenId],
+          });
+
+          if (nftOwner.toLowerCase() !== userAddress.toLowerCase()) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `You do not own Music NFT #${params.tokenId}. Owner: ${nftOwner}`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ User owns Music NFT #' + params.tokenId);
+        } catch (nftError: any) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Failed to verify NFT ownership: ${nftError.message}`
+            },
+            { status: 400 }
+          );
+        }
+
+        // ✅ Check if NFT is already staked internally (prevent dual staking)
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const stakingClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const stakingInfo = await stakingClient.readContract({
+            address: MUSIC_NFT_V5,
+            abi: parseAbi([
+              'function stakingInfo(uint256) external view returns (tuple(address staker, uint256 stakedAt, uint256 lastClaimAt, bool isStaked))'
+            ]),
+            functionName: 'stakingInfo',
+            args: [stakeMusicYieldTokenId],
+          });
+
+          if (stakingInfo.isStaked) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Music NFT #${params.tokenId} is already staked internally for TOURS rewards. Please unstake it first with "unstake_music ${params.tokenId}" before staking with YieldStrategy.`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Music NFT is not staked internally');
+        } catch (stakingCheckError: any) {
+          console.warn('⚠️ Could not verify internal staking status:', stakingCheckError.message);
+          // Continue - if check fails, proceed anyway (backwards compatible)
+        }
+
+        // ✅ Check Safe MON balance
+        const safeMusicMonBalance = await publicClient.getBalance({
+          address: SAFE_ACCOUNT,
+        });
+
+        console.log('💰 Safe MON balance:', formatEther(safeMusicMonBalance), 'MON');
+        console.log('📊 Required MON:', params.monAmount, 'MON');
+
+        if (safeMusicMonBalance < stakeMusicMonAmount) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Insufficient MON balance in Safe. Has: ${formatEther(safeMusicMonBalance)} MON, needs: ${params.monAmount} MON`
+            },
+            { status: 400 }
+          );
+        }
+
+        // ✅ Build stake call with MON as value
+        const stakeMusicYieldCalls = [
+          {
+            to: YIELD_STRATEGY_V8,
+            value: stakeMusicMonAmount, // Send MON with transaction
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function stakeWithDeposit(address nftAddress, uint256 nftTokenId, address beneficiary) external payable returns (uint256)'
+              ]),
+              functionName: 'stakeWithDeposit',
+              args: [MUSIC_NFT_V5, stakeMusicYieldTokenId, userAddress as Address],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing Music NFT yield stake transaction...');
+        const stakeMusicYieldTxHash = await sendSafeTransaction(stakeMusicYieldCalls);
+        console.log('✅ Music NFT staked in YieldStrategy, TX:', stakeMusicYieldTxHash);
+
+        // ✅ Extract position ID from transaction receipt
+        let positionId = '0';
+        try {
+          const receipt = await publicClient.getTransactionReceipt({
+            hash: stakeMusicYieldTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for StakingPositionCreated event
+            // event StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, ...)
+            const positionLog = receipt.logs.find(
+              log => log.topics[0] === '0x' + '...' // Event signature hash
+            );
+            if (positionLog && positionLog.topics[1]) {
+              positionId = BigInt(positionLog.topics[1]).toString();
+              console.log('🎫 Extracted position ID:', positionId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract position ID:', extractError.message);
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeMusicYieldTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          monAmount: params.monAmount,
+          positionId,
+          message: `Music NFT #${params.tokenId} staked with ${params.monAmount} MON in YieldStrategy`,
+        });
+
+      // ==================== MUSIC NFT YIELD UNSTAKING (YieldStrategyV8) ====================
+      case 'unstake_music_yield':
+        console.log('💎 Action: unstake_music_yield (YieldStrategyV8)');
+        if (!params?.positionId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing positionId for unstake_music_yield' },
+            { status: 400 }
+          );
+        }
+
+        const YIELD_STRATEGY_V8_UNSTAKE = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
+        const unstakePositionId = BigInt(params.positionId);
+
+        console.log('💎 Unstaking position from YieldStrategyV8:', {
+          positionId: unstakePositionId.toString(),
+          yieldStrategy: YIELD_STRATEGY_V8_UNSTAKE,
+          user: userAddress
+        });
+
+        // ✅ Verify position exists and belongs to user
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const posClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const position = await posClient.readContract({
+            address: YIELD_STRATEGY_V8_UNSTAKE,
+            abi: parseAbi([
+              'function getPosition(uint256) external view returns (tuple(address nftAddress, uint256 nftTokenId, address owner, address beneficiary, uint256 depositTime, uint256 monStaked, uint256 monDeployed, uint256 yieldDebt, bool active))'
+            ]),
+            functionName: 'getPosition',
+            args: [unstakePositionId],
+          });
+
+          console.log('📋 Position details:', position);
+
+          if (!position.active) {
+            return NextResponse.json(
+              { success: false, error: 'Position is not active (already unstaked)' },
+              { status: 400 }
+            );
+          }
+
+          if (position.beneficiary.toLowerCase() !== userAddress.toLowerCase()) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Position does not belong to you. Beneficiary: ${position.beneficiary}`
+              },
+              { status: 400 }
+            );
+          }
+
+          console.log('✅ Position is valid and active');
+        } catch (posError: any) {
+          console.warn('⚠️ Could not verify position:', posError.message);
+        }
+
+        // ✅ Build unstake call
+        const unstakeMusicYieldCalls = [
+          {
+            to: YIELD_STRATEGY_V8_UNSTAKE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
+              functionName: 'unstake',
+              args: [unstakePositionId],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing Music NFT yield unstake transaction...');
+        const unstakeMusicYieldTxHash = await sendSafeTransaction(unstakeMusicYieldCalls);
+        console.log('✅ Music NFT position unstaked, TX:', unstakeMusicYieldTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeMusicYieldTxHash,
+          action,
+          userAddress,
+          positionId: params.positionId,
+          message: `Music NFT position #${params.positionId} unstaked from YieldStrategy with yield`,
         });
 
       default:
