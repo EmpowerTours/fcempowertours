@@ -107,19 +107,26 @@ networks:
               transaction_fields:
                 - hash
 
-      - name: Marketplace
+      # ✅ ItineraryNFT Contract (Deployed Nov 17, 2025)
+      - name: ItineraryNFT
         address:
-          - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"
+          - "0x5B61286AC88688fe8930711fAa5b1155e98daFe8"
         handler: src/EventHandlers.ts
         events:
-          # Itinerary creation
-          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
+          # NFT Minting
+          - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Itinerary purchase
-          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"
+          # Itinerary creation metadata
+          - event: "ItineraryCreated(uint256 indexed tokenId, address indexed creator, string name, string description, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Itinerary purchase/transfer
+          - event: "ItineraryPurchased(uint256 indexed tokenId, address indexed buyer, uint256 price)"
             field_selection:
               transaction_fields:
                 - hash

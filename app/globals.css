@@ -135,3 +135,22 @@ nav button {
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/* Animated Yield Progress Bar */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes flow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
