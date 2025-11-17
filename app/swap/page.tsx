@@ -49,8 +49,9 @@ function SwapContent() {
     writeError,
   } = useSwap();
 
-  const { data: toursBalance } = useGetToursBalance(address);
-  const { data: wmonBalance } = useGetWMONBalance(address);
+  const effectiveAddress = (address || walletAddress) as `0x${string}` | undefined;
+  const { data: toursBalance } = useGetToursBalance(effectiveAddress);
+  const { data: wmonBalance } = useGetWMONBalance(effectiveAddress);
   const { data: reserves } = useGetReserves();
   const { data: price } = useGetPrice();
 
@@ -223,7 +224,7 @@ function SwapContent() {
                   Received {swapResult.toursReceived} TOURS
                 </p>
                 <a
-                  href={`https://testnet.monad.xyz/tx/${swapResult.txHash}`}
+                  href={`https://testnet.monadscan.com/tx/${swapResult.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-300 hover:text-blue-200 text-sm underline"
