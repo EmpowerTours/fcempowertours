@@ -15,10 +15,15 @@ export default function CountryCollectorPage() {
   );
 }
 
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+
 function CountryCollectorContent() {
   const { address } = useAccount();
   const [passportTokenId, setPassportTokenId] = useState('');
   const [selectedArtist, setSelectedArtist] = useState<bigint | null>(null);
+  const [userPassport, setUserPassport] = useState<any>(null);
+  const [countryArtists, setCountryArtists] = useState<any[]>([]);
+  const [loadingArtists, setLoadingArtists] = useState(true);
 
   const {
     useGetCurrentChallenge,
@@ -39,6 +44,110 @@ function CountryCollectorContent() {
     challenge?.id || BigInt(0),
     address!
   );
+
+  // Fetch user's passport and country-specific artists
+  useEffect(() => {
+    const fetchCountryArtists = async () => {
+      if (!address) return;
+
+      try {
+        setLoadingArtists(true);
+
+        // First, get user's passport to find their country
+        const passportQuery = `
+          query GetUserPassport($owner: String!) {
+            PassportNFT(where: {owner: {_eq: $owner}}, limit: 1) {
+              tokenId
+              countryCode
+              countryName
+              owner
+            }
+          }
+        `;
+
+        const passportRes = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: passportQuery,
+            variables: { owner: address.toLowerCase() }
+          }),
+        });
+
+        if (passportRes.ok) {
+          const passportData = await passportRes.json();
+          const passport = passportData.data?.PassportNFT?.[0];
+
+          if (passport) {
+            setUserPassport(passport);
+            setPassportTokenId(passport.tokenId);
+
+            // Now fetch artists who have passports from the same country and have minted music
+            const artistsQuery = `
+              query GetCountryArtists($countryCode: String!) {
+                PassportNFT(where: {countryCode: {_eq: $countryCode}}) {
+                  owner
+                  countryCode
+                  countryName
+                }
+              }
+            `;
+
+            const artistsRes = await fetch(ENVIO_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: artistsQuery,
+                variables: { countryCode: passport.countryCode }
+              }),
+            });
+
+            if (artistsRes.ok) {
+              const artistsData = await artistsRes.json();
+              const passportHolders = artistsData.data?.PassportNFT || [];
+
+              // Get unique artist addresses
+              const artistAddresses = [...new Set(passportHolders.map((p: any) => p.owner))];
+
+              // Fetch music NFTs from these artists
+              const musicQuery = `
+                query GetArtistMusic($artists: [String!]!) {
+                  MusicNFT(where: {artist: {_in: $artists}}) {
+                    tokenId
+                    name
+                    artist
+                    imageUrl
+                    previewAudioUrl
+                    owner
+                  }
+                }
+              `;
+
+              const musicRes = await fetch(ENVIO_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query: musicQuery,
+                  variables: { artists: artistAddresses }
+                }),
+              });
+
+              if (musicRes.ok) {
+                const musicData = await musicRes.json();
+                setCountryArtists(musicData.data?.MusicNFT || []);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching country artists:', error);
+      } finally {
+        setLoadingArtists(false);
+      }
+    };
+
+    fetchCountryArtists();
+  }, [address]);
 
   const handleCompleteArtist = () => {
     if (challenge && (challenge as any).id && selectedArtist && passportTokenId) {
@@ -133,123 +242,68 @@ function CountryCollectorContent() {
           </div>
         )}
 
-        {/* Current Challenge */}
-        {isChallengeActive ? (
+        {/* Country Artists - Show artists from user's country */}
+        {userPassport ? (
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-white">Weekly Challenge</h2>
+              <h2 className="text-3xl font-bold text-white">
+                🎵 {userPassport.countryName} Artists
+              </h2>
               <div className="bg-green-500/20 border border-green-500/50 px-4 py-2 rounded-lg">
                 <span className="text-green-200 font-semibold">
-                  ⏱️ {daysLeft}d {hoursLeft}h left
+                  {userPassport.countryCode} Passport
                 </span>
               </div>
             </div>
 
-            <div className="bg-black/30 rounded-xl p-6 mb-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-teal-500 rounded-lg flex items-center justify-center text-3xl">
-                  🌍
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-white">{(challenge as any).name}</h3>
-                  <p className="text-teal-200">
-                    Country: {(challenge as any).countryCode}
-                  </p>
-                  <p className="text-green-200 text-sm">
-                    Challenge #{(challenge as any).id.toString()}
-                  </p>
-                </div>
+            {loadingArtists ? (
+              <div className="text-center py-8">
+                <div className="animate-spin text-3xl mb-2">⏳</div>
+                <p className="text-white">Loading artists from {userPassport.countryName}...</p>
               </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                {(challenge as any).artistIds?.map((artistId, idx) => (
+            ) : countryArtists.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {countryArtists.map((nft) => (
                   <div
-                    key={idx}
-                    className="bg-white/5 rounded-lg p-3 text-center"
+                    key={nft.tokenId}
+                    className="bg-white/5 rounded-lg p-4 flex gap-4 hover:bg-white/10 transition-colors"
                   >
-                    <div className="text-white font-bold mb-1">Artist {idx + 1}</div>
-                    <div className="text-teal-200 text-sm">ID: {artistId.toString()}</div>
+                    {nft.imageUrl && (
+                      <img
+                        src={nft.imageUrl}
+                        alt={nft.name}
+                        className="w-24 h-24 rounded-lg object-cover"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <div className="text-white font-bold text-lg">{nft.name || 'Untitled'}</div>
+                      <div className="text-teal-300 text-sm mb-2">by {nft.artist.slice(0, 6)}...{nft.artist.slice(-4)}</div>
+                      <div className="text-green-200 text-xs mb-3">Token #{nft.tokenId}</div>
+                      {nft.previewAudioUrl && (
+                        <audio
+                          controls
+                          className="w-full h-8"
+                          style={{ maxWidth: '100%' }}
+                        >
+                          <source src={nft.previewAudioUrl} type="audio/mpeg" />
+                        </audio>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Progress */}
-            {userProgress && (
-              <div className="bg-blue-500/20 border border-blue-500/50 rounded-xl p-6 mb-6">
-                <h3 className="text-white font-bold mb-4">Your Progress</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-blue-200 text-sm mb-1">Artists Completed</div>
-                    <div className="text-2xl font-bold text-white">
-                      {userProgress.artistsCompleted?.toString() || '0'}/3
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-blue-200 text-sm mb-1">Status</div>
-                    <div className="text-lg font-bold text-white">
-                      {userProgress.isComplete ? '✅ Complete' : '⏳ In Progress'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-blue-200 text-sm mb-1">Rewards Claimed</div>
-                    <div className="text-lg font-bold text-white">
-                      {userProgress.rewardsClaimed ? '✅ Yes' : '❌ No'}
-                    </div>
-                  </div>
-                </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-white text-lg mb-2">No artists from {userPassport.countryName} yet</p>
+                <p className="text-teal-200 text-sm">Be the first to mint music from your country!</p>
               </div>
             )}
 
-            {/* Complete Artist Form */}
-            {!userProgress?.isComplete && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Artist ID</label>
-                    <input
-                      type="number"
-                      value={selectedArtist?.toString() || ''}
-                      onChange={(e) => setSelectedArtist(e.target.value ? BigInt(e.target.value) : null)}
-                      placeholder="Enter artist ID from challenge"
-                      className="w-full bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-white/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Passport NFT ID</label>
-                    <input
-                      type="number"
-                      value={passportTokenId}
-                      onChange={(e) => setPassportTokenId(e.target.value)}
-                      placeholder="Your Passport Token ID"
-                      className="w-full bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-white/50"
-                    />
-                  </div>
-                </div>
-
-                {writeError && (
-                  <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
-                    <p className="text-red-200">❌ Error: {writeError.message}</p>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleCompleteArtist}
-                  disabled={!selectedArtist || !passportTokenId || isPending || isConfirming}
-                  className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-105 disabled:scale-100"
-                >
-                  {isPending || isConfirming
-                    ? 'Completing...'
-                    : 'Complete Artist 🎯'}
-                </button>
-              </div>
-            )}
           </div>
         ) : (
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-12 border border-white/20 text-center">
-            <p className="text-white text-2xl mb-4">😴 No active challenge right now</p>
-            <p className="text-teal-200">Check back next week for a new country challenge!</p>
+            <p className="text-white text-2xl mb-4">🎫 Get a Passport First</p>
+            <p className="text-teal-200">Mint a passport to discover artists from your country!</p>
           </div>
         )}
 
