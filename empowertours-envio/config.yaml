@@ -131,6 +131,12 @@ networks:
               transaction_fields:
                 - hash
 
+          # Passport stamp events (check-ins)
+          - event: "PassportStamped(uint256 indexed passportTokenId, uint256 indexed itineraryId, string locationName, string city, string country, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
       # ✅ V9: YieldStrategy Contract (NFT-gated staking with MON deposits - Two-step unstaking)
       - name: YieldStrategy
         address:

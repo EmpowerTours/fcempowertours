@@ -1,7 +1,19 @@
 import { getCountryByCode, getFlagEmoji } from './countries';
 
-// Generate SVG passport image with country info
-export function generatePassportSVG(countryCode: string, countryName: string, tokenId: number): string {
+export interface PassportStamp {
+  locationName: string;
+  city: string;
+  country: string;
+  stampedAt: number;
+}
+
+// Generate SVG passport image with country info and optional stamps
+export function generatePassportSVG(
+  countryCode: string,
+  countryName: string,
+  tokenId: number,
+  stamps: PassportStamp[] = []
+): string {
   // Get flag from complete database
   const flag = getFlagEmoji(countryCode);
   
@@ -94,9 +106,51 @@ export function generatePassportSVG(countryCode: string, countryName: string, to
   
   <!-- Decorative Line -->
   <line x1="40" y1="430" x2="360" y2="430" stroke="#3b82f6" stroke-width="2" opacity="0.5"/>
+
+  ${generateStampsSection(stamps)}
 </svg>`;
 
   return svg.trim();
+}
+
+// Generate stamps section for passport SVG
+function generateStampsSection(stamps: PassportStamp[]): string {
+  if (stamps.length === 0) return '';
+
+  const maxStampsDisplay = 6;
+  const stampsToShow = stamps.slice(0, maxStampsDisplay);
+
+  let stampsHTML = '';
+
+  stampsToShow.forEach((stamp, index) => {
+    const x = 60 + (index % 3) * 90;
+    const y = 460 + Math.floor(index / 3) * 55;
+    const flagEmoji = getFlagEmoji(stamp.country.substring(0, 2).toUpperCase()) || '';
+    const date = new Date(stamp.stampedAt * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    stampsHTML += `
+    <!-- Stamp ${index + 1} -->
+    <g transform="translate(${x}, ${y})">
+      <circle cx="30" cy="30" r="28" fill="#10b981" opacity="0.2"/>
+      <circle cx="30" cy="30" r="28" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="4,2"/>
+      <text x="30" y="25" font-size="16" text-anchor="middle">${flagEmoji}</text>
+      <text x="30" y="40" font-family="Arial, sans-serif" font-size="7" font-weight="bold" fill="#10b981" text-anchor="middle">
+        ${stamp.city.substring(0, 8)}
+      </text>
+      <text x="30" y="48" font-family="Arial, sans-serif" font-size="6" fill="#6ee7b7" text-anchor="middle">
+        ${date}
+      </text>
+    </g>`;
+  });
+
+  if (stamps.length > maxStampsDisplay) {
+    stampsHTML += `
+    <text x="330" y="550" font-family="Arial, sans-serif" font-size="10" fill="#60a5fa" text-anchor="end">
+      +${stamps.length - maxStampsDisplay} more
+    </text>`;
+  }
+
+  return stampsHTML;
 }
 
 // Convert SVG to base64 data URI (for embedding in JSON)
@@ -109,9 +163,10 @@ export function svgToDataURI(svg: string): string {
 export function generatePassportMetadata(
   countryCode: string,
   countryName: string,
-  tokenId: number
+  tokenId: number,
+  stamps: PassportStamp[] = []
 ): object {
-  const svg = generatePassportSVG(countryCode, countryName, tokenId);
+  const svg = generatePassportSVG(countryCode, countryName, tokenId, stamps);
   const imageDataURI = svgToDataURI(svg);
   const country = getCountryByCode(countryCode);
 

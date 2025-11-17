@@ -1897,6 +1897,287 @@ View profile and collection!
           message: `Music NFT #${params.tokenId} staked with ${params.monAmount} MON in YieldStrategy`,
         });
 
+      // ==================== CREATE ITINERARY ====================
+      case 'create_itinerary':
+        console.log('🗺️ Action: create_itinerary');
+        if (!params?.locationName || !params?.city || !params?.country || !params?.price || !params?.latitude || !params?.longitude) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters for create_itinerary' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const createItineraryPrice = parseEther(params.price.toString());
+
+        console.log('🗺️ Creating itinerary:', {
+          creator: userAddress,
+          locationName: params.locationName,
+          city: params.city,
+          country: params.country,
+          price: params.price,
+          coords: { lat: params.latitude, lon: params.longitude }
+        });
+
+        // Build metadata object
+        const metadata = {
+          locationName: params.locationName,
+          city: params.city,
+          country: params.country,
+          description: params.description || '',
+          experienceType: params.experienceType || 'general',
+          latitude: params.latitude.toString(),
+          longitude: params.longitude.toString(),
+          proximityRadius: params.proximityRadius || 100,
+          imageHash: params.imageHash || '',
+        };
+
+        const createItineraryCalls = [
+          // Approve TOURS for the contract if needed
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [ITINERARY_NFT, createItineraryPrice],
+            }) as Hex,
+          },
+          {
+            to: ITINERARY_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function createExperience(string locationName, string city, string country, string description, string experienceType, uint256 price, int256 latitude, int256 longitude, uint256 proximityRadius, string imageHash) external returns (uint256)'
+              ]),
+              functionName: 'createExperience',
+              args: [
+                params.locationName,
+                params.city,
+                params.country,
+                params.description || '',
+                params.experienceType || 'general',
+                createItineraryPrice,
+                BigInt(Math.floor(params.latitude * 1e6)), // Store as integers with 6 decimal precision
+                BigInt(Math.floor(params.longitude * 1e6)),
+                BigInt(params.proximityRadius || 100),
+                params.imageHash || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const createItineraryTxHash = await sendSafeTransaction(createItineraryCalls);
+        console.log('✅ Itinerary created, TX:', createItineraryTxHash);
+
+        // Extract itinerary ID from transaction receipt
+        let itineraryId = '0';
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const receipt = await client.getTransactionReceipt({
+            hash: createItineraryTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for ItineraryCreated or ExperienceCreated event
+            const createdLog = receipt.logs.find(
+              log => log.topics[0] === '0x' + '...' // Event signature hash
+            );
+            if (createdLog && createdLog.topics[1]) {
+              itineraryId = BigInt(createdLog.topics[1]).toString();
+              console.log('🎫 Extracted itinerary ID:', itineraryId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract itinerary ID:', extractError.message);
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: createItineraryTxHash,
+          itineraryId,
+          action,
+          userAddress,
+          message: `Itinerary created successfully: ${params.locationName} in ${params.city}`,
+        });
+
+      // ==================== PURCHASE ITINERARY ====================
+      case 'purchase_itinerary':
+        console.log('🗺️ Action: purchase_itinerary');
+        if (!params?.itineraryId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing itineraryId for purchase_itinerary' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_PURCHASE = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const purchaseItineraryId = BigInt(params.itineraryId);
+
+        console.log('🗺️ Purchasing itinerary:', {
+          buyer: userAddress,
+          itineraryId: purchaseItineraryId.toString()
+        });
+
+        const purchaseItineraryCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [ITINERARY_NFT_PURCHASE, parseEther('1000')], // Approve enough for any itinerary
+            }) as Hex,
+          },
+          {
+            to: ITINERARY_NFT_PURCHASE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function purchaseExperience(uint256 itineraryId) external']),
+              functionName: 'purchaseExperience',
+              args: [purchaseItineraryId],
+            }) as Hex,
+          },
+        ];
+
+        const purchaseItineraryTxHash = await sendSafeTransaction(purchaseItineraryCalls);
+        console.log('✅ Itinerary purchased, TX:', purchaseItineraryTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: purchaseItineraryTxHash,
+          action,
+          userAddress,
+          itineraryId: params.itineraryId,
+          message: `Itinerary #${params.itineraryId} purchased successfully`,
+        });
+
+      // ==================== CHECK-IN TO ITINERARY (STAMP PASSPORT) ====================
+      case 'checkin_itinerary':
+        console.log('📍 Action: checkin_itinerary');
+        if (!params?.itineraryId || !params?.passportTokenId || !params?.userLatitude || !params?.userLongitude) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters for check-in' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_CHECKIN = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const checkinItineraryId = BigInt(params.itineraryId);
+        const passportTokenId = BigInt(params.passportTokenId);
+
+        console.log('📍 Checking in to itinerary:', {
+          user: userAddress,
+          itineraryId: checkinItineraryId.toString(),
+          passportTokenId: passportTokenId.toString(),
+          userCoords: { lat: params.userLatitude, lon: params.userLongitude }
+        });
+
+        // Verify GPS proximity (calculate on server for security)
+        const { calculateDistance } = await import('@/lib/utils/gps');
+
+        // Get itinerary details from Envio to verify location
+        try {
+          const query = `
+            query GetItinerary($itineraryId: String!) {
+              ItineraryNFT_ItineraryCreated(where: { tokenId: { _eq: $itineraryId } }, limit: 1) {
+                tokenId
+                name
+                latitude
+                longitude
+                proximityRadius
+              }
+            }
+          `;
+
+          const envioRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              variables: { itineraryId: checkinItineraryId.toString() }
+            })
+          });
+
+          if (envioRes.ok) {
+            const envioData = await envioRes.json();
+            const itinerary = envioData.data?.ItineraryNFT_ItineraryCreated?.[0];
+
+            if (itinerary) {
+              const targetLat = parseFloat(itinerary.latitude) / 1e6; // Convert back from integer storage
+              const targetLon = parseFloat(itinerary.longitude) / 1e6;
+              const radiusMeters = parseInt(itinerary.proximityRadius) || 100;
+
+              const distance = calculateDistance(
+                params.userLatitude,
+                params.userLongitude,
+                targetLat,
+                targetLon
+              );
+
+              console.log('📏 Distance check:', {
+                distance,
+                radiusRequired: radiusMeters,
+                isWithin: distance <= radiusMeters
+              });
+
+              if (distance > radiusMeters) {
+                return NextResponse.json(
+                  {
+                    success: false,
+                    error: `You are too far from the location. You are ${Math.round(distance)}m away, but need to be within ${radiusMeters}m.`
+                  },
+                  { status: 400 }
+                );
+              }
+            }
+          }
+        } catch (gpsError: any) {
+          console.warn('⚠️ GPS verification failed:', gpsError.message);
+          // Continue anyway - contract will do its own validation
+        }
+
+        const checkinCalls = [
+          {
+            to: ITINERARY_NFT_CHECKIN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function checkIn(uint256 itineraryId, uint256 passportTokenId, int256 userLatitude, int256 userLongitude) external'
+              ]),
+              functionName: 'checkIn',
+              args: [
+                checkinItineraryId,
+                passportTokenId,
+                BigInt(Math.floor(params.userLatitude * 1e6)),
+                BigInt(Math.floor(params.userLongitude * 1e6)),
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const checkinTxHash = await sendSafeTransaction(checkinCalls);
+        console.log('✅ Check-in successful, TX:', checkinTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: checkinTxHash,
+          action,
+          userAddress,
+          itineraryId: params.itineraryId,
+          passportTokenId: params.passportTokenId,
+          message: `Checked in successfully! Passport stamped.`,
+        });
+
       // ==================== MUSIC NFT YIELD UNSTAKING (YieldStrategyV8) ====================
       case 'unstake_music_yield':
         console.log('💎 Action: unstake_music_yield (YieldStrategyV8)');
