@@ -18,13 +18,6 @@ export function TandaPoolManager() {
     useGetPool,
     useGetPoolMembers,
     useGetPoolStats,
-    createPool,
-    joinPool,
-    claimPayout,
-    isPending,
-    isConfirming,
-    isConfirmed,
-    writeError,
   } = useTandaPool();
 
   // Form state for creating pool
@@ -38,34 +31,144 @@ export function TandaPoolManager() {
   const { data: poolMembers } = useGetPoolMembers(poolId ? BigInt(poolId) : BigInt(0));
   const { data: poolStats } = useGetPoolStats(poolId ? BigInt(poolId) : BigInt(0));
 
-  const handleCreatePool = () => {
-    if (!poolName || !contribution || !maxMembers || !roundDuration) {
-      alert('Please fill all fields');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const handleCreatePool = async () => {
+    if (!effectiveAddress || !poolName || !contribution || !maxMembers || !roundDuration) {
+      setErrorMsg('Please fill all fields and connect wallet');
       return;
     }
 
-    const roundDurationSeconds = BigInt(parseInt(roundDuration) * 24 * 60 * 60);
-    createPool(
-      poolName,
-      parseEther(contribution),
-      BigInt(maxMembers),
-      roundDurationSeconds,
-      selectedPoolType
-    );
+    setIsCreating(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const roundDurationSeconds = parseInt(roundDuration) * 24 * 60 * 60;
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'create_tanda_group',
+          params: {
+            name: poolName,
+            contributionAmount: contribution,
+            frequency: roundDurationSeconds,
+            maxMembers: parseInt(maxMembers),
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create pool');
+      }
+
+      setSuccessMsg(`Pool "${poolName}" created successfully! (Gasless transaction)`);
+      setPoolName('');
+      setContribution('');
+      setMaxMembers('');
+      setRoundDuration('7');
+    } catch (error: any) {
+      console.error('Create pool error:', error);
+      setErrorMsg(error.message || 'Failed to create pool');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleJoinPool = () => {
-    if (!poolId) return;
-    joinPool(BigInt(poolId));
+  const handleJoinPool = async () => {
+    if (!effectiveAddress || !poolId) return;
+
+    setIsJoining(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'join_tanda_group',
+          params: {
+            groupId: poolId,
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to join pool');
+      }
+
+      setSuccessMsg(`Joined pool #${poolId} successfully! (Gasless transaction)`);
+    } catch (error: any) {
+      console.error('Join pool error:', error);
+      setErrorMsg(error.message || 'Failed to join pool');
+    } finally {
+      setIsJoining(false);
+    }
   };
 
-  const handleClaimPayout = () => {
-    if (!poolId) return;
-    claimPayout(BigInt(poolId));
+  const handleClaimPayout = async () => {
+    if (!effectiveAddress || !poolId) return;
+
+    setIsClaiming(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'claim_tanda_payout',
+          params: {
+            groupId: poolId,
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to claim payout');
+      }
+
+      setSuccessMsg(`Payout from pool #${poolId} claimed successfully! (Gasless transaction)`);
+    } catch (error: any) {
+      console.error('Claim payout error:', error);
+      setErrorMsg(error.message || 'Failed to claim payout');
+    } finally {
+      setIsClaiming(false);
+    }
   };
 
   return (
     <div className="space-y-6">
+      {/* Error/Success Messages */}
+      {errorMsg && (
+        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+          <p className="text-red-200">❌ {errorMsg}</p>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4">
+          <p className="text-green-200">✅ {successMsg}</p>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-2 p-1 bg-white/10 rounded-lg">
         <TabButton
@@ -147,20 +250,20 @@ export function TandaPoolManager() {
                 {(pool as any).status === 1 && Number((pool as any).memberCount) < Number((pool as any).maxMembers) && (
                   <button
                     onClick={handleJoinPool}
-                    disabled={isPending || isConfirming}
+                    disabled={isJoining}
                     className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-3 rounded-xl transition-all"
                   >
-                    {isPending || isConfirming ? 'Joining...' : 'Join This Pool'}
+                    {isJoining ? '⏳ Joining (Gasless)...' : '🤝 Join This Pool (FREE)'}
                   </button>
                 )}
 
                 {(pool as any).status === 1 && (
                   <button
                     onClick={handleClaimPayout}
-                    disabled={isPending || isConfirming}
+                    disabled={isClaiming}
                     className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-3 rounded-xl transition-all"
                   >
-                    {isPending || isConfirming ? 'Claiming...' : 'Claim Payout'}
+                    {isClaiming ? '⏳ Claiming (Gasless)...' : '💰 Claim Payout (FREE)'}
                   </button>
                 )}
               </div>
@@ -248,18 +351,12 @@ export function TandaPoolManager() {
               </div>
             </div>
 
-            {writeError && (
-              <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
-                <p className="text-red-200">❌ {writeError.message}</p>
-              </div>
-            )}
-
             <button
               onClick={handleCreatePool}
-              disabled={isPending || isConfirming || !poolName || !contribution || !maxMembers}
+              disabled={isCreating || !poolName || !contribution || !maxMembers}
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 rounded-xl transition-all"
             >
-              {isPending || isConfirming ? 'Creating Pool...' : 'Create Pool'}
+              {isCreating ? '⏳ Creating Pool (Gasless)...' : '➕ Create Pool (FREE)'}
             </button>
           </div>
         </div>
