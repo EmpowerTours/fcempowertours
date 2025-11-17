@@ -61,12 +61,33 @@ function SwapContent() {
 
   // Get quote based on direction (only when valid amount is entered)
   const validInputAmount = inputAmount && parseFloat(inputAmount) > 0 ? inputAmount : '';
-  const { data: quote } = swapDirection === 'tours-to-wmon'
+  const { data: quote, error: quoteError } = swapDirection === 'tours-to-wmon'
     ? useGetToursToWMONQuote(validInputAmount)
     : useGetWMONToToursQuote(validInputAmount);
 
   const outputAmount = quote ? formatEther(quote as bigint) : '0';
   const minOutput = outputAmount && parseFloat(outputAmount) > 0 ? (parseFloat(outputAmount) * (1 - parseFloat(slippage) / 100)).toFixed(6) : '0';
+
+  // Check if pool has liquidity
+  const toursReserve = reserves ? BigInt((reserves as any)[0] || 0) : BigInt(0);
+  const wmonReserve = reserves ? BigInt((reserves as any)[1] || 0) : BigInt(0);
+  const poolHasLiquidity = toursReserve > BigInt(0) && wmonReserve > BigInt(0);
+
+  // Log for debugging
+  useEffect(() => {
+    if (validInputAmount) {
+      console.log('Swap Debug:', {
+        inputAmount: validInputAmount,
+        direction: swapDirection,
+        quote: quote?.toString(),
+        outputAmount,
+        toursReserve: toursReserve.toString(),
+        wmonReserve: wmonReserve.toString(),
+        poolHasLiquidity,
+        quoteError: quoteError?.message
+      });
+    }
+  }, [validInputAmount, quote, swapDirection, toursReserve, wmonReserve, poolHasLiquidity, quoteError]);
 
   const handleSwap = () => {
     if (!inputAmount || parseFloat(inputAmount) <= 0) {
@@ -260,8 +281,27 @@ function SwapContent() {
         {/* AMM Interface (TOURS ⇄ WMON) */}
         {swapType === 'amm' && (
           <>
+            {/* No Liquidity Warning */}
+            {!poolHasLiquidity && (
+              <div className="bg-yellow-500/20 backdrop-blur-lg rounded-2xl p-6 mb-6 border-2 border-yellow-500/50">
+                <div className="flex items-start gap-3">
+                  <div className="text-3xl">⚠️</div>
+                  <div>
+                    <h3 className="text-yellow-200 font-bold text-lg mb-2">AMM Pool Empty</h3>
+                    <p className="text-yellow-100 text-sm mb-3">
+                      The TOURS/WMON pool currently has no liquidity. Swaps will return 0 until liquidity is added.
+                    </p>
+                    <div className="bg-yellow-900/30 rounded-lg p-3 text-xs text-yellow-100">
+                      <strong>Current Reserves:</strong>
+                      <br />TOURS: {formatEther(toursReserve)} | WMON: {formatEther(wmonReserve)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Price Info */}
-            {reserves && (
+            {reserves && poolHasLiquidity && (
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-6 border border-white/20">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
