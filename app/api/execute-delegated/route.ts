@@ -5,7 +5,7 @@ import {
   incrementTransactionCount
 } from '@/lib/delegation-system';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
-import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi } from 'viem';
+import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, formatEther } from 'viem';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -1531,7 +1531,6 @@ View profile and collection!
           );
         }
 
-        const MUSIC_NFT_V5 = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
         const stakeTokenId = BigInt(params.tokenId);
 
         // ✅ Check if NFT is already used as collateral in YieldStrategy (prevent dual staking)
@@ -1601,12 +1600,11 @@ View profile and collection!
           );
         }
 
-        const MUSIC_NFT_V5_UNSTAKE = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
         const unstakeTokenId = BigInt(params.tokenId);
 
         const unstakeMusicCalls = [
           {
-            to: MUSIC_NFT_V5_UNSTAKE,
+            to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function unstakeMusicNFT(uint256 tokenId) external']),
@@ -1639,12 +1637,11 @@ View profile and collection!
           );
         }
 
-        const MUSIC_NFT_V5_BURN = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
         const burnTokenId = BigInt(params.tokenId);
 
         const burnMusicCalls = [
           {
-            to: MUSIC_NFT_V5_BURN,
+            to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function burnMusic(uint256 tokenId) external']),
@@ -1771,7 +1768,7 @@ View profile and collection!
             ]),
             functionName: 'stakingInfo',
             args: [stakeMusicYieldTokenId],
-          });
+          }) as { staker: Address; stakedAt: bigint; lastClaimAt: bigint; isStaked: boolean };
 
           if (stakingInfo.isStaked) {
             return NextResponse.json(
@@ -1789,6 +1786,13 @@ View profile and collection!
         }
 
         // ✅ Check Safe MON balance
+        const { createPublicClient, http } = await import('viem');
+        const { monadTestnet } = await import('@/app/chains');
+        const publicClient = createPublicClient({
+          chain: monadTestnet,
+          transport: http(),
+        });
+
         const safeMusicMonBalance = await publicClient.getBalance({
           address: SAFE_ACCOUNT,
         });
@@ -1826,7 +1830,7 @@ View profile and collection!
         console.log('✅ Music NFT staked in YieldStrategy, TX:', stakeMusicYieldTxHash);
 
         // ✅ Extract position ID from transaction receipt
-        let positionId = '0';
+        let musicYieldPositionId = '0';
         try {
           const receipt = await publicClient.getTransactionReceipt({
             hash: stakeMusicYieldTxHash as Hex,
@@ -1839,8 +1843,8 @@ View profile and collection!
               log => log.topics[0] === '0x' + '...' // Event signature hash
             );
             if (positionLog && positionLog.topics[1]) {
-              positionId = BigInt(positionLog.topics[1]).toString();
-              console.log('🎫 Extracted position ID:', positionId);
+              musicYieldPositionId = BigInt(positionLog.topics[1]).toString();
+              console.log('🎫 Extracted position ID:', musicYieldPositionId);
             }
           }
         } catch (extractError: any) {
@@ -1855,7 +1859,7 @@ View profile and collection!
           userAddress,
           tokenId: params.tokenId,
           monAmount: params.monAmount,
-          positionId,
+          positionId: musicYieldPositionId,
           message: `Music NFT #${params.tokenId} staked with ${params.monAmount} MON in YieldStrategy`,
         });
 
@@ -1870,10 +1874,10 @@ View profile and collection!
         }
 
         const YIELD_STRATEGY_V8_UNSTAKE = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
-        const unstakePositionId = BigInt(params.positionId);
+        const musicYieldUnstakePositionId = BigInt(params.positionId);
 
         console.log('💎 Unstaking position from YieldStrategyV8:', {
-          positionId: unstakePositionId.toString(),
+          positionId: musicYieldUnstakePositionId.toString(),
           yieldStrategy: YIELD_STRATEGY_V8_UNSTAKE,
           user: userAddress
         });
@@ -1893,8 +1897,8 @@ View profile and collection!
               'function getPosition(uint256) external view returns (tuple(address nftAddress, uint256 nftTokenId, address owner, address beneficiary, uint256 depositTime, uint256 monStaked, uint256 monDeployed, uint256 yieldDebt, bool active))'
             ]),
             functionName: 'getPosition',
-            args: [unstakePositionId],
-          });
+            args: [musicYieldUnstakePositionId],
+          }) as { nftAddress: Address; nftTokenId: bigint; owner: Address; beneficiary: Address; depositTime: bigint; monStaked: bigint; monDeployed: bigint; yieldDebt: bigint; active: boolean };
 
           console.log('📋 Position details:', position);
 
@@ -1928,7 +1932,7 @@ View profile and collection!
             data: encodeFunctionData({
               abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
               functionName: 'unstake',
-              args: [unstakePositionId],
+              args: [musicYieldUnstakePositionId],
             }) as Hex,
           },
         ];
