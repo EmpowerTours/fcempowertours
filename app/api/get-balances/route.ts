@@ -4,6 +4,7 @@ import { monadTestnet } from '@/app/chains';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7' as Address;
+const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0xC3852efFa2D1291f4224151f5F1Bc8C72051C5Fd') as Address;
 const BOT_SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address; // ✅ Bot's Safe account
 
 const ERC20_ABI = [
@@ -106,6 +107,27 @@ export async function POST(req: NextRequest) {
     console.log(`✅ TOTAL TOURS balance (user + safe): ${totalToursBalance.toString()} wei = ${toursFormatted} TOURS`);
 
     // =============================================
+    // STEP 2.5: Get WMON balance (ERC-20 wrapped MON)
+    // =============================================
+    console.log(`⏳ Fetching WMON balance from token: ${WMON_ADDRESS}`);
+    let wmonBalance = 0n;
+
+    try {
+      wmonBalance = await publicClient.readContract({
+        address: WMON_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [userAddress],
+      });
+      console.log(`✅ WMON balance: ${wmonBalance.toString()} wei`);
+    } catch (error) {
+      console.error('❌ Error fetching WMON balance:', error);
+    }
+
+    const wmonFormatted = parseFloat(formatEther(wmonBalance)).toFixed(4);
+    console.log(`✅ WMON balance formatted: ${wmonFormatted} WMON`);
+
+    // =============================================
     // STEP 3: Get NFT balances from Envio indexer
     // =============================================
     const query = `
@@ -163,6 +185,7 @@ export async function POST(req: NextRequest) {
       monWallet: monFormattedUser,  // ✅ User's personal wallet MON
       monSafe: monFormattedSafe,     // ✅ Safe's MON (for gasless txs)
       tours: toursFormatted,
+      wmon: wmonFormatted,           // ✅ Wrapped MON balance
       nfts: nftData,
       // ✅ ADDED: Breakdown for debugging
       breakdown: {
@@ -176,6 +199,7 @@ export async function POST(req: NextRequest) {
           safe: parseFloat(formatEther(toursBalanceSafe)).toFixed(2),
           total: toursFormatted,
         },
+        wmon: wmonFormatted,
       },
     };
 

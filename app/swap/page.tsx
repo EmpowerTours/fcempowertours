@@ -30,6 +30,10 @@ function SwapContent() {
   const [swapResult, setSwapResult] = useState<any>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
 
+  // Wrap/Unwrap state
+  const [wrapAmount, setWrapAmount] = useState('');
+  const [unwrapAmount, setUnwrapAmount] = useState('');
+
   const {
     useGetToursBalance,
     useGetWMONBalance,
@@ -415,26 +419,58 @@ function SwapContent() {
                 Wrap your MON into WMON to trade, or unwrap WMON back to MON
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => {
-                    const amount = prompt('Enter amount of MON to wrap:');
-                    if (amount) wrapMON(amount);
-                  }}
-                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-bold py-3 rounded-xl transition-all"
-                >
-                  Wrap MON → WMON
-                </button>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Wrap MON */}
+                <div className="space-y-3">
+                  <label className="text-white font-semibold block">Wrap MON → WMON</label>
+                  <div className="bg-black/30 rounded-xl p-4">
+                    <input
+                      type="number"
+                      value={wrapAmount}
+                      onChange={(e) => setWrapAmount(e.target.value)}
+                      placeholder="0.0"
+                      className="w-full bg-transparent text-white text-xl outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (wrapAmount && parseFloat(wrapAmount) > 0) {
+                        wrapMON(wrapAmount);
+                        setWrapAmount('');
+                      }
+                    }}
+                    disabled={!wrapAmount || parseFloat(wrapAmount) <= 0 || isPending || isConfirming}
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-3 rounded-xl transition-all"
+                  >
+                    {isPending || isConfirming ? 'Wrapping...' : 'Wrap MON'}
+                  </button>
+                </div>
 
-                <button
-                  onClick={() => {
-                    const amount = prompt('Enter amount of WMON to unwrap:');
-                    if (amount) unwrapWMON(amount);
-                  }}
-                  className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-bold py-3 rounded-xl transition-all"
-                >
-                  Unwrap WMON → MON
-                </button>
+                {/* Unwrap WMON */}
+                <div className="space-y-3">
+                  <label className="text-white font-semibold block">Unwrap WMON → MON</label>
+                  <div className="bg-black/30 rounded-xl p-4">
+                    <input
+                      type="number"
+                      value={unwrapAmount}
+                      onChange={(e) => setUnwrapAmount(e.target.value)}
+                      placeholder="0.0"
+                      className="w-full bg-transparent text-white text-xl outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (unwrapAmount && parseFloat(unwrapAmount) > 0) {
+                        unwrapWMON(unwrapAmount);
+                        setUnwrapAmount('');
+                      }
+                    }}
+                    disabled={!unwrapAmount || parseFloat(unwrapAmount) <= 0 || isPending || isConfirming}
+                    className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-3 rounded-xl transition-all"
+                  >
+                    {isPending || isConfirming ? 'Unwrapping...' : 'Unwrap WMON'}
+                  </button>
+                </div>
               </div>
             </div>
 
