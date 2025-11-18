@@ -271,20 +271,20 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) - Optimized padding for better visibility */}
+            {/* Cover Art - Left Side (50%) - Shows complete image */}
             <div
               style={{
                 width: '50%',
                 height: '100%',
-                backgroundColor: '#0f3460',
+                background: 'linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '40px',
+                padding: '60px',
                 boxSizing: 'border-box',
               }}
             >
-              {/* Inner container with cover art filling the space */}
+              {/* Inner container with cover art - shows full image without cropping */}
               <div
                 style={{
                   width: '100%',
@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundImage: `url('${imageUrl}')`,
-                  backgroundSize: 'cover',
+                  backgroundSize: 'contain',
                   backgroundPosition: 'center',
                   backgroundRepeat: 'no-repeat',
                   borderRadius: '16px',

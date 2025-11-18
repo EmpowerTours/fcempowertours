@@ -8,8 +8,6 @@ import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/Pag
 import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
 import PassportStakingModal from '@/app/components/PassportStakingModal';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseAbiItem } from 'viem';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
@@ -99,16 +97,9 @@ export default function ProfilePage() {
   const [refreshMessage, setRefreshMessage] = useState<string>('');
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
-  const [burningNFT, setBurningNFT] = useState<string | null>(null);
-  const [burnError, setBurnError] = useState<string | null>(null);
-  const [burnSuccess, setBurnSuccess] = useState<string | null>(null);
   const [stakingNFT, setStakingNFT] = useState<string | null>(null);
   const [stakingError, setStakingError] = useState<string | null>(null);
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
-
-  // ✅ WAGMI: Hook for burning music NFTs directly with Privy wallet
-  const { writeContract: burnNFT, data: burnHash, error: burnContractError, isPending: isBurnPending } = useWriteContract();
-  const { isLoading: isBurnTxPending, isSuccess: isBurnTxSuccess } = useWaitForTransactionReceipt({ hash: burnHash });
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
   const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
   const [passportStakingModal, setPassportStakingModal] = useState<{ isOpen: boolean; passport: PassportNFT | null }>({
@@ -136,37 +127,6 @@ export default function ProfilePage() {
       loadBalances();
     }
   }, [walletAddress]);
-
-  // ✅ Handle burn transaction errors
-  useEffect(() => {
-    if (burnContractError) {
-      console.error('Burn contract error:', burnContractError);
-      setBurnError(burnContractError.message || 'Failed to initiate burn transaction');
-      setBurningNFT(null);
-    }
-  }, [burnContractError]);
-
-  // ✅ Handle burn transaction submission (when hash is available)
-  useEffect(() => {
-    if (burnHash && !isBurnTxSuccess) {
-      setBurnSuccess(`Transaction submitted! Waiting for confirmation... TX: ${burnHash.slice(0, 10)}...`);
-    }
-  }, [burnHash, isBurnTxSuccess]);
-
-  // ✅ Handle burn transaction completion
-  useEffect(() => {
-    if (isBurnTxSuccess && burnHash) {
-      setBurnSuccess(`Music NFT burned successfully! TX: ${burnHash.slice(0, 10)}...`);
-      setBurningNFT(null);
-
-      // Reload data to update the list
-      loadAllData();
-      loadBalances();
-
-      // Clear success message after 5 seconds
-      setTimeout(() => setBurnSuccess(null), 5000);
-    }
-  }, [isBurnTxSuccess, burnHash]);
 
   const handleAudioError = (id: string, audioUrl: string, error: any) => {
     console.error(`Audio failed to load for ${id}:`, {
@@ -216,42 +176,23 @@ export default function ProfilePage() {
     }));
   };
 
-  const handleBurnMusic = async (tokenId: string | number) => {
+  const handleBurnMusic = async (tokenId: string | number, name?: string) => {
     if (!walletAddress) {
-      setBurnError('Please connect your wallet first');
+      alert('Please connect your wallet first');
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete this music NFT? This action CANNOT be undone!\n\n⚠️ Note: You will pay gas for this transaction.`
-    );
+    // Redirect to dedicated burn page with Privy wallet integration
+    const params = new URLSearchParams({
+      tokenId: tokenId.toString(),
+      from: walletAddress,
+    });
 
-    if (!confirmed) return;
-
-    setBurningNFT(tokenId.toString());
-    setBurnError(null);
-    setBurnSuccess(null);
-
-    try {
-      // ✅ USE WAGMI: Burn NFT directly with Privy wallet (user pays gas)
-      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS! as `0x${string}`;
-
-      console.log('🔥 Initiating burn transaction for token:', tokenId);
-
-      burnNFT({
-        address: MUSIC_NFT_ADDRESS,
-        abi: [parseAbiItem('function burnMusicNFT(uint256 tokenId) external')],
-        functionName: 'burnMusicNFT',
-        args: [BigInt(tokenId)],
-      });
-
-      // ✅ Success/error messages handled by useEffect hooks above
-
-    } catch (error: any) {
-      console.error('❌ Burn error:', error);
-      setBurnError(error.message || 'Failed to burn music NFT');
-      setBurningNFT(null);
+    if (name) {
+      params.append('name', name);
     }
+
+    window.location.href = `/burn-music?${params.toString()}`;
   };
 
   const handleStakeMusic = async (tokenId: string | number) => {
@@ -728,19 +669,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Burn Success Message */}
-          {burnSuccess && (
-            <div className="mb-6 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
-              <p className="text-green-700 font-medium">✅ {burnSuccess}</p>
-            </div>
-          )}
-
-          {/* Burn Error Message */}
-          {burnError && (
-            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium">❌ {burnError}</p>
-            </div>
-          )}
 
           {/* Staking Success Message */}
           {stakingSuccess && (
@@ -1066,7 +994,7 @@ export default function ProfilePage() {
                             ) : (
                               <button
                                 onClick={() => nft.tokenId && handleStakeMusic(nft.tokenId)}
-                                disabled={stakingNFT === nft.tokenId?.toString() || burningNFT === nft.tokenId?.toString()}
+                                disabled={stakingNFT === nft.tokenId?.toString()}
                                 className="w-full px-3 py-3 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation"
                                 style={{ minHeight: '48px' }}
                               >
@@ -1075,13 +1003,13 @@ export default function ProfilePage() {
                             )}
                             {/* Delete Button */}
                             <button
-                              onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId)}
-                              disabled={burningNFT === nft.tokenId?.toString() || nft.isStaked}
+                              onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId, nft.metadata?.name)}
+                              disabled={nft.isStaked}
                               className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation"
                               style={{ minHeight: '48px' }}
                               title={nft.isStaked ? 'Unstake before burning' : ''}
                             >
-                              {burningNFT === nft.tokenId?.toString() ? '🔥 Deleting...' : '🗑️ Delete NFT'}
+                              🗑️ Delete NFT
                             </button>
                           </div>
                         </div>
