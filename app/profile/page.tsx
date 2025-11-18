@@ -105,6 +105,10 @@ export default function ProfilePage() {
   const [stakingNFT, setStakingNFT] = useState<string | null>(null);
   const [stakingError, setStakingError] = useState<string | null>(null);
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
+
+  // ✅ WAGMI: Hook for burning music NFTs directly with Privy wallet
+  const { writeContract: burnNFT, data: burnHash } = useWriteContract();
+  const { isLoading: isBurnTxPending, isSuccess: isBurnTxSuccess } = useWaitForTransactionReceipt({ hash: burnHash });
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
   const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
   const [passportStakingModal, setPassportStakingModal] = useState<{ isOpen: boolean; passport: PassportNFT | null }>({
@@ -132,6 +136,21 @@ export default function ProfilePage() {
       loadBalances();
     }
   }, [walletAddress]);
+
+  // ✅ Handle burn transaction completion
+  useEffect(() => {
+    if (isBurnTxSuccess && burnHash) {
+      setBurnSuccess(`Music NFT burned successfully! TX: ${burnHash.slice(0, 10)}...`);
+      setBurningNFT(null);
+
+      // Reload data to update the list
+      loadAllData();
+      loadBalances();
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setBurnSuccess(null), 5000);
+    }
+  }, [isBurnTxSuccess, burnHash]);
 
   const handleAudioError = (id: string, audioUrl: string, error: any) => {
     console.error(`Audio failed to load for ${id}:`, {
@@ -188,7 +207,7 @@ export default function ProfilePage() {
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete this music NFT? This action CANNOT be undone!`
+      `Are you sure you want to permanently delete this music NFT? This action CANNOT be undone!\n\n⚠️ Note: You will pay gas for this transaction.`
     );
 
     if (!confirmed) return;
@@ -198,45 +217,22 @@ export default function ProfilePage() {
     setBurnSuccess(null);
 
     try {
-      // Use delegation-based gasless burn
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          action: 'burn_music',
-          params: {
-            tokenId: tokenId.toString(),
-          },
-        }),
+      // ✅ USE WAGMI: Burn NFT directly with Privy wallet (user pays gas)
+      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS! as `0x${string}`;
+
+      burnNFT({
+        address: MUSIC_NFT_ADDRESS,
+        abi: [parseAbiItem('function burnMusicNFT(uint256 tokenId) external')],
+        functionName: 'burnMusicNFT',
+        args: [BigInt(tokenId)],
       });
 
-      const data = await response.json();
+      // Transaction initiated successfully
+      setBurnSuccess(`Burn transaction submitted! Waiting for confirmation...`);
 
-      if (!response.ok || !data.success) {
-        // If no permission error, suggest simpler alternatives
-        if (data.error?.includes('No permission')) {
-          setBurnError(`${data.error}\n\nℹ️ Alternative: You can create a delegation at /api/create-delegation or enable direct wallet burns (you pay gas). The migration has been run, but you may need to refresh your delegation.`);
-          setBurningNFT(null);
-          return;
-        }
-        throw new Error(data.error || 'Failed to burn music NFT');
-      }
-
-      setBurnSuccess(`Music NFT #${tokenId} burned! You received 5 TOURS tokens (gasless)!`);
-
-      // Remove from local state
-      setCreatedMusic(prev => prev.filter(nft => nft.tokenId?.toString() !== tokenId.toString()));
-
-      // Reload balances to show new TOURS tokens
-      loadBalances();
-
-      // Clear success message after 5 seconds
-      setTimeout(() => setBurnSuccess(null), 5000);
     } catch (error: any) {
       console.error('Burn error:', error);
       setBurnError(error.message || 'Failed to burn music NFT');
-    } finally {
       setBurningNFT(null);
     }
   };

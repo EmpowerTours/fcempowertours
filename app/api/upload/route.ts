@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
     const description = formData.get('description') as string;
     const fid = formData.get('fid') as string;
     const address = formData.get('address') as string;
-    const isArtOnly = formData.get('isArtOnly') === 'true';
 
     // ✅ Support art-only NFTs: only cover, description, and address are required
     if (!coverFile || !description || !address) {
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
       cover: coverFile instanceof File ? coverFile.name : 'not a file',
       description,
       address,
-      isArtOnly,
     });
 
     // ✅ Ensure cover is a File object
@@ -159,14 +157,12 @@ export async function POST(request: NextRequest) {
     // ✅ FIXED: Proper metadata structure with conditional audio fields
     const metadata: any = {
       name: description,  // ✅ Use the actual song title from user input
-      description: isArtOnly
-        ? `Art NFT by ${address.slice(0, 6)}...${address.slice(-4)}`
-        : `Music NFT by ${address.slice(0, 6)}...${address.slice(-4)}`,
+      description: `Music NFT by ${address.slice(0, 6)}...${address.slice(-4)}`,
       image: `ipfs://${coverCid}`,  // ✅ Cover art for display
       attributes: [
         { trait_type: 'Creator Address', value: address },
         { trait_type: 'Creator FID', value: fid || 'Unknown' },
-        { trait_type: 'Type', value: isArtOnly ? 'Art' : 'Music' },
+        { trait_type: 'Type', value: 'Music' },
       ],
     };
 
@@ -225,7 +221,6 @@ export async function POST(request: NextRequest) {
       tokenURI: `ipfs://${metadataCid}`,
       coverUrl: `https://${PINATA_GATEWAY}/ipfs/${coverCid}`,
       metadataUrl: `https://${PINATA_GATEWAY}/ipfs/${metadataCid}`,
-      isArtOnly,
     };
 
     // ✅ Only include audio URLs if this is a music NFT

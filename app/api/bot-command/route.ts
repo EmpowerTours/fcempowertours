@@ -20,8 +20,8 @@ function extractFidFromRequest(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ EXTRACT: imageUrl, songTitle, tokenURI, nftType from request body
-    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, songTitle: songTitleFromRequest, tokenURI: tokenURIFromRequest, nftType: nftTypeFromRequest } = await req.json();
+    // ✅ EXTRACT: imageUrl, songTitle, tokenURI from request body
+    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, songTitle: songTitleFromRequest, tokenURI: tokenURIFromRequest } = await req.json();
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
@@ -1030,7 +1030,6 @@ Or go to the Music page to upload files.`
               imageUrl: imageUrlFromRequest,  // ✅ PASS: Direct cover image URL from upload
               price: price.toString(),
               fid, // ✅ PASS FID FOR CASTING
-              nftType: nftTypeFromRequest || 'music' // ✅ PASS NFT TYPE (music or art)
             }
           })
         });

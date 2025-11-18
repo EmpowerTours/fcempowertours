@@ -359,25 +359,14 @@ View profile and collection!
             frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}`;
             const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
 
-            // ✅ DIFFERENTIATE CAST MESSAGE: Music vs Art NFTs
-            const isMusic = params.nftType === 'music';
-            const castText = isMusic
-              ? `🎵 New Music Master NFT Minted!
+            // Cast message for music NFT
+            const castText = `🎵 New Music Master NFT Minted!
 
 "${params.songTitle || 'Untitled'}"
 💰 License Price: ${params.price} TOURS
 
 ⚡ Gasless minting powered by @empowertours
-🎶 Purchase license to stream full track
-
-@empowertours`
-              : `🎨 New Art NFT Minted!
-
-"${params.songTitle || 'Untitled'}"
-💰 Price: ${params.price} TOURS
-
-⚡ Gasless minting powered by @empowertours
-🖼️ View & Buy this unique digital art
+🎶 Listen & Buy
 
 @empowertours`;
 

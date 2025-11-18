@@ -32,7 +32,6 @@ export function useBotCommand() {
         imageUrl?: string;  // ✅ ADD: For music minting - direct cover image URL
         songTitle?: string; // ✅ ADD: For music minting - song title
         tokenURI?: string;  // ✅ ADD: For music minting - token metadata URI
-        nftType?: 'music' | 'art'; // ✅ ADD: For differentiating music vs art NFTs in casts
       }
     ): Promise<BotCommandResponse> => {
       setLoading(true);
