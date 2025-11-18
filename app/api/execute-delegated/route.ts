@@ -800,14 +800,14 @@ View profile and collection!
         });
 
         const toursSwapCalls = [
-          // Approve TOURS for AMM pool
+          // Approve TOURS for AMM pool (use max to avoid allowance issues)
           {
             to: TOURS_TOKEN,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [AMM_POOL, toursSwapAmount],
+              args: [AMM_POOL, BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')], // max uint256
             }) as Hex,
           },
           // Swap TOURS for WMON
@@ -858,14 +858,14 @@ View profile and collection!
         });
 
         const wmonSwapCalls = [
-          // Approve WMON for AMM pool
+          // Approve WMON for AMM pool (use max to avoid allowance issues)
           {
             to: WMON_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [AMM_POOL_WMON, wmonSwapAmount],
+              args: [AMM_POOL_WMON, BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')], // max uint256
             }) as Hex,
           },
           // Swap WMON for TOURS

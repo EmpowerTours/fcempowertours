@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
           'mint_passport',
           'mint_music',
           'buy_music',
+          'burn_music',
           'swap_mon_for_tours',
           'buy_itinerary',
           'send_tours',

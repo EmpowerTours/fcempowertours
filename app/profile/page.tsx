@@ -196,12 +196,16 @@ export default function ProfilePage() {
     setBurnSuccess(null);
 
     try {
-      const response = await fetch('/api/burn-music', {
+      // Use delegation-based gasless burn
+      const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: walletAddress,
-          tokenId: tokenId.toString(),
+          action: 'burn_music',
+          params: {
+            tokenId: tokenId.toString(),
+          },
         }),
       });
 
@@ -211,11 +215,13 @@ export default function ProfilePage() {
         throw new Error(data.error || 'Failed to burn music NFT');
       }
 
-      const burnRewardFormatted = data.burnReward ? (Number(data.burnReward) / 1e18).toFixed(2) : '0';
-      setBurnSuccess(`Music NFT #${tokenId} burned! You received ${burnRewardFormatted} TOURS tokens!`);
+      setBurnSuccess(`Music NFT #${tokenId} burned! You received 5 TOURS tokens (gasless)!`);
 
       // Remove from local state
       setCreatedMusic(prev => prev.filter(nft => nft.tokenId?.toString() !== tokenId.toString()));
+
+      // Reload balances to show new TOURS tokens
+      loadBalances();
 
       // Clear success message after 5 seconds
       setTimeout(() => setBurnSuccess(null), 5000);
