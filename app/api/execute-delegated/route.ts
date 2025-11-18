@@ -779,6 +779,207 @@ View profile and collection!
           message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
         });
 
+      // ==================== SWAP TOURS FOR WMON (AMM) ====================
+      case 'swap_tours_for_wmon':
+        console.log('💱 Action: swap_tours_for_wmon (AMM)');
+        if (!params?.toursAmount || !params?.minWMONOut) {
+          return NextResponse.json(
+            { success: false, error: 'Missing toursAmount or minWMONOut for swap_tours_for_wmon' },
+            { status: 400 }
+          );
+        }
+
+        const AMM_POOL = process.env.NEXT_PUBLIC_TOURS_WMON_POOL as Address;
+        const toursSwapAmount = parseEther(params.toursAmount.toString());
+        const minWMONOut = parseEther(params.minWMONOut.toString());
+
+        console.log('💱 Swapping TOURS for WMON:', {
+          toursAmount: params.toursAmount,
+          minWMONOut: params.minWMONOut,
+          ammPool: AMM_POOL,
+        });
+
+        const toursSwapCalls = [
+          // Approve TOURS for AMM pool
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [AMM_POOL, toursSwapAmount],
+            }) as Hex,
+          },
+          // Swap TOURS for WMON
+          {
+            to: AMM_POOL,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function swapToursForWMON(uint256 toursIn, uint256 minWMONOut) external returns (uint256)']),
+              functionName: 'swapToursForWMON',
+              args: [toursSwapAmount, minWMONOut],
+            }) as Hex,
+          },
+        ];
+
+        const toursSwapTxHash = await sendSafeTransaction(toursSwapCalls);
+        console.log('✅ TOURS → WMON swap successful, TX:', toursSwapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: toursSwapTxHash,
+          action,
+          userAddress,
+          toursAmount: params.toursAmount,
+          minWMONOut: params.minWMONOut,
+          message: `Swapped ${params.toursAmount} TOURS for WMON successfully (gasless)`,
+        });
+
+      // ==================== SWAP WMON FOR TOURS (AMM) ====================
+      case 'swap_wmon_for_tours':
+        console.log('💱 Action: swap_wmon_for_tours (AMM)');
+        if (!params?.wmonAmount || !params?.minToursOut) {
+          return NextResponse.json(
+            { success: false, error: 'Missing wmonAmount or minToursOut for swap_wmon_for_tours' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
+        const AMM_POOL_WMON = process.env.NEXT_PUBLIC_TOURS_WMON_POOL as Address;
+        const wmonSwapAmount = parseEther(params.wmonAmount.toString());
+        const minToursOut = parseEther(params.minToursOut.toString());
+
+        console.log('💱 Swapping WMON for TOURS:', {
+          wmonAmount: params.wmonAmount,
+          minToursOut: params.minToursOut,
+          ammPool: AMM_POOL_WMON,
+        });
+
+        const wmonSwapCalls = [
+          // Approve WMON for AMM pool
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [AMM_POOL_WMON, wmonSwapAmount],
+            }) as Hex,
+          },
+          // Swap WMON for TOURS
+          {
+            to: AMM_POOL_WMON,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function swapWMONForTours(uint256 wmonIn, uint256 minToursOut) external returns (uint256)']),
+              functionName: 'swapWMONForTours',
+              args: [wmonSwapAmount, minToursOut],
+            }) as Hex,
+          },
+        ];
+
+        const wmonSwapTxHash = await sendSafeTransaction(wmonSwapCalls);
+        console.log('✅ WMON → TOURS swap successful, TX:', wmonSwapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: wmonSwapTxHash,
+          action,
+          userAddress,
+          wmonAmount: params.wmonAmount,
+          minToursOut: params.minToursOut,
+          message: `Swapped ${params.wmonAmount} WMON for TOURS successfully (gasless)`,
+        });
+
+      // ==================== WRAP MON TO WMON ====================
+      case 'wrap_mon':
+        console.log('🎁 Action: wrap_mon');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for wrap_mon' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS_WRAP = process.env.NEXT_PUBLIC_WMON as Address;
+        const wrapMonAmount = parseEther(params.amount.toString());
+
+        console.log('🎁 Wrapping MON to WMON:', {
+          amount: params.amount,
+          wmonAddress: WMON_ADDRESS_WRAP,
+        });
+
+        const wrapMonCalls = [
+          {
+            to: WMON_ADDRESS_WRAP,
+            value: wrapMonAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        const wrapMonTxHash = await sendSafeTransaction(wrapMonCalls);
+        console.log('✅ MON wrapped to WMON, TX:', wrapMonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: wrapMonTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Wrapped ${params.amount} MON to WMON successfully (gasless)`,
+        });
+
+      // ==================== UNWRAP WMON TO MON ====================
+      case 'unwrap_wmon':
+        console.log('🎁 Action: unwrap_wmon');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for unwrap_wmon' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS_UNWRAP = process.env.NEXT_PUBLIC_WMON as Address;
+        const unwrapWmonAmount = parseEther(params.amount.toString());
+
+        console.log('🎁 Unwrapping WMON to MON:', {
+          amount: params.amount,
+          wmonAddress: WMON_ADDRESS_UNWRAP,
+        });
+
+        const unwrapWmonCalls = [
+          {
+            to: WMON_ADDRESS_UNWRAP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function withdraw(uint256 amount) external']),
+              functionName: 'withdraw',
+              args: [unwrapWmonAmount],
+            }) as Hex,
+          },
+        ];
+
+        const unwrapWmonTxHash = await sendSafeTransaction(unwrapWmonCalls);
+        console.log('✅ WMON unwrapped to MON, TX:', unwrapWmonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unwrapWmonTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Unwrapped ${params.amount} WMON to MON successfully (gasless)`,
+        });
+
       // ==================== APPROVE YIELD STRATEGY (ONE-TIME SETUP) ====================
       case 'approve_yield_strategy':
         console.log('🔓 Action: approve_yield_strategy (one-time max approval)');
@@ -2006,6 +2207,69 @@ View profile and collection!
           action,
           userAddress,
           message: `Itinerary created successfully: ${params.locationName} in ${params.city}`,
+        });
+
+      // ==================== MINT ITINERARY (SIMPLIFIED) ====================
+      case 'mint_itinerary':
+        console.log('🗺️ Action: mint_itinerary');
+        if (!params?.destination || !params?.country) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: destination and country' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_MINT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+
+        // Set sensible defaults
+        const experienceType = 0; // ExperienceType.FOOD = 0
+        const defaultPrice = parseEther('10'); // 10 TOURS default
+        const defaultLat = 0; // Default coords (user can update later)
+        const defaultLon = 0;
+        const defaultRadius = 100; // 100 meters
+
+        console.log('🗺️ Minting itinerary stamp:', {
+          creator: userAddress,
+          destination: params.destination,
+          country: params.country,
+          climbingGrade: params.climbingGrade || 'Not specified',
+        });
+
+        const mintItineraryCalls = [
+          {
+            to: ITINERARY_NFT_MINT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function createExperience(string country, string city, string locationName, string description, uint8 experienceType, int256 latitude, int256 longitude, uint256 proximityRadius, uint256 price, string ipfsImageHash) external returns (uint256)'
+              ]),
+              functionName: 'createExperience',
+              args: [
+                params.country,
+                params.city || params.destination, // Use destination as city if not provided
+                params.destination,
+                params.description || `${params.destination} - ${params.climbingGrade || 'Travel experience'}`,
+                experienceType,
+                BigInt(defaultLat),
+                BigInt(defaultLon),
+                BigInt(defaultRadius),
+                defaultPrice,
+                params.photoUri || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const mintItineraryTxHash = await sendSafeTransaction(mintItineraryCalls);
+        console.log('✅ Itinerary minted, TX:', mintItineraryTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: mintItineraryTxHash,
+          action,
+          userAddress,
+          message: `Itinerary stamp minted successfully: ${params.destination}`,
         });
 
       // ==================== PURCHASE ITINERARY ====================

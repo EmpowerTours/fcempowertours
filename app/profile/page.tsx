@@ -7,6 +7,7 @@ import Link from 'next/link';
 import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/PageTransition';
 import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
+import PassportStakingModal from '@/app/components/PassportStakingModal';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
@@ -37,6 +38,9 @@ interface MusicNFTWithMetadata {
   metadata?: MusicMetadata;
   audioUrl?: string;
   type: 'master' | 'license';
+  isStaked?: boolean;
+  stakedAt?: string;
+  staker?: string;
 }
 
 interface PassportMetadata {
@@ -93,6 +97,18 @@ export default function ProfilePage() {
   const [refreshMessage, setRefreshMessage] = useState<string>('');
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
+  const [burningNFT, setBurningNFT] = useState<string | null>(null);
+  const [burnError, setBurnError] = useState<string | null>(null);
+  const [burnSuccess, setBurnSuccess] = useState<string | null>(null);
+  const [stakingNFT, setStakingNFT] = useState<string | null>(null);
+  const [stakingError, setStakingError] = useState<string | null>(null);
+  const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
+  const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
+  const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
+  const [passportStakingModal, setPassportStakingModal] = useState<{ isOpen: boolean; passport: PassportNFT | null }>({
+    isOpen: false,
+    passport: null,
+  });
   const ITEMS_PER_PAGE = 12;
 
   // IPFS URL Resolver Function
@@ -161,6 +177,185 @@ export default function ProfilePage() {
       ...prev,
       [id]: true
     }));
+  };
+
+  const handleBurnMusic = async (tokenId: string | number) => {
+    if (!walletAddress) {
+      setBurnError('Please connect your wallet first');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete this music NFT? This action CANNOT be undone!`
+    );
+
+    if (!confirmed) return;
+
+    setBurningNFT(tokenId.toString());
+    setBurnError(null);
+    setBurnSuccess(null);
+
+    try {
+      const response = await fetch('/api/burn-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to burn music NFT');
+      }
+
+      const burnRewardFormatted = data.burnReward ? (Number(data.burnReward) / 1e18).toFixed(2) : '0';
+      setBurnSuccess(`Music NFT #${tokenId} burned! You received ${burnRewardFormatted} TOURS tokens!`);
+
+      // Remove from local state
+      setCreatedMusic(prev => prev.filter(nft => nft.tokenId?.toString() !== tokenId.toString()));
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setBurnSuccess(null), 5000);
+    } catch (error: any) {
+      console.error('Burn error:', error);
+      setBurnError(error.message || 'Failed to burn music NFT');
+    } finally {
+      setBurningNFT(null);
+    }
+  };
+
+  const handleStakeMusic = async (tokenId: string | number) => {
+    if (!walletAddress) {
+      setStakingError('Please connect your wallet first');
+      return;
+    }
+
+    setStakingNFT(tokenId.toString());
+    setStakingError(null);
+    setStakingSuccess(null);
+
+    try {
+      const response = await fetch('/api/stake-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to stake music NFT');
+      }
+
+      setStakingSuccess(`Music NFT #${tokenId} has been staked!`);
+
+      // Update staking info locally
+      setStakingInfo(prev => ({
+        ...prev,
+        [tokenId.toString()]: { isStaked: true }
+      }));
+
+      setTimeout(() => setStakingSuccess(null), 5000);
+    } catch (error: any) {
+      console.error('Stake error:', error);
+      setStakingError(error.message || 'Failed to stake music NFT');
+    } finally {
+      setStakingNFT(null);
+    }
+  };
+
+  const handleUnstakeMusic = async (tokenId: string | number) => {
+    if (!walletAddress) {
+      setStakingError('Please connect your wallet first');
+      return;
+    }
+
+    setStakingNFT(tokenId.toString());
+    setStakingError(null);
+    setStakingSuccess(null);
+
+    try {
+      const response = await fetch('/api/unstake-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to unstake music NFT');
+      }
+
+      const rewardsFormatted = data.rewardsClaimed ? (Number(data.rewardsClaimed) / 1e18).toFixed(2) : '0';
+      setStakingSuccess(`Music NFT #${tokenId} unstaked! You received ${rewardsFormatted} TOURS tokens!`);
+
+      // Update staking info locally
+      setStakingInfo(prev => ({
+        ...prev,
+        [tokenId.toString()]: { isStaked: false }
+      }));
+
+      setTimeout(() => setStakingSuccess(null), 5000);
+    } catch (error: any) {
+      console.error('Unstake error:', error);
+      setStakingError(error.message || 'Failed to unstake music NFT');
+    } finally {
+      setStakingNFT(null);
+    }
+  };
+
+  const handleClaimRewards = async (tokenId: string | number) => {
+    if (!walletAddress) {
+      setStakingError('Please connect your wallet first');
+      return;
+    }
+
+    setStakingNFT(tokenId.toString());
+    setStakingError(null);
+    setStakingSuccess(null);
+
+    try {
+      const response = await fetch('/api/claim-rewards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to claim rewards');
+      }
+
+      const rewardsFormatted = data.rewardsClaimed ? (Number(data.rewardsClaimed) / 1e18).toFixed(2) : '0';
+      setStakingSuccess(`Claimed ${rewardsFormatted} TOURS tokens!`);
+
+      // Reset pending rewards for this token
+      setPendingRewards(prev => ({
+        ...prev,
+        [tokenId.toString()]: '0'
+      }));
+
+      setTimeout(() => setStakingSuccess(null), 5000);
+    } catch (error: any) {
+      console.error('Claim error:', error);
+      setStakingError(error.message || 'Failed to claim rewards');
+    } finally {
+      setStakingNFT(null);
+    }
   };
 
   const loadBalances = async () => {
@@ -240,6 +435,9 @@ export default function ProfilePage() {
             metadataFetched
             totalSold
             active
+            isStaked
+            stakedAt
+            staker
           }
           MusicLicense(where: {licensee: {_in: $addresses}}, order_by: {purchasedAt: desc}, limit: 100) {
             id
@@ -503,6 +701,34 @@ export default function ProfilePage() {
             </div>
           )}
 
+          {/* Burn Success Message */}
+          {burnSuccess && (
+            <div className="mb-6 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+              <p className="text-green-700 font-medium">✅ {burnSuccess}</p>
+            </div>
+          )}
+
+          {/* Burn Error Message */}
+          {burnError && (
+            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+              <p className="text-red-700 font-medium">❌ {burnError}</p>
+            </div>
+          )}
+
+          {/* Staking Success Message */}
+          {stakingSuccess && (
+            <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+              <p className="text-blue-700 font-medium">✅ {stakingSuccess}</p>
+            </div>
+          )}
+
+          {/* Staking Error Message */}
+          {stakingError && (
+            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+              <p className="text-red-700 font-medium">❌ {stakingError}</p>
+            </div>
+          )}
+
           {(createdMusic.length > 0 || purchasedMusic.length > 0) && walletAddress && (
             <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
@@ -753,27 +979,80 @@ export default function ProfilePage() {
                             <p className="text-xs text-gray-500">Audio unavailable</p>
                           </div>
                         )}
-                        <div className="flex gap-2">
-                          {nft.txHash && (
-                            <a
-                              href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
-                            >
-                              View TX
-                            </a>
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            {nft.txHash && (
+                              <a
+                                href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
+                              >
+                                View TX
+                              </a>
+                            )}
+                            {nft.tokenURI && (
+                              <a
+                                href={resolveIPFS(nft.tokenURI)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                              >
+                                Metadata
+                              </a>
+                            )}
+                          </div>
+                          {/* Staking Status */}
+                          {nft.isStaked && (
+                            <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-2">
+                              <p className="text-xs text-green-200 text-center font-bold">
+                                📌 Currently Staked
+                              </p>
+                              {nft.stakedAt && (
+                                <p className="text-xs text-green-300 text-center mt-1">
+                                  Since: {new Date(parseInt(nft.stakedAt) * 1000).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
                           )}
-                          {nft.tokenURI && (
-                            <a
-                              href={resolveIPFS(nft.tokenURI)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                          {/* Staking Buttons */}
+                          <div className="space-y-2">
+                            {nft.isStaked ? (
+                              <>
+                                <button
+                                  onClick={() => nft.tokenId && handleClaimRewards(nft.tokenId)}
+                                  disabled={stakingNFT === nft.tokenId?.toString()}
+                                  className="w-full px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                  {stakingNFT === nft.tokenId?.toString() ? '⏳ Claiming...' : '💰 Claim Rewards'}
+                                </button>
+                                <button
+                                  onClick={() => nft.tokenId && handleUnstakeMusic(nft.tokenId)}
+                                  disabled={stakingNFT === nft.tokenId?.toString()}
+                                  className="w-full px-3 py-2 bg-yellow-600 text-white text-xs rounded-lg hover:bg-yellow-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                  {stakingNFT === nft.tokenId?.toString() ? '⏳ Unstaking...' : '📤 Unstake NFT'}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => nft.tokenId && handleStakeMusic(nft.tokenId)}
+                                disabled={stakingNFT === nft.tokenId?.toString() || burningNFT === nft.tokenId?.toString()}
+                                className="w-full px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                              >
+                                {stakingNFT === nft.tokenId?.toString() ? '⏳ Staking...' : '📌 Stake NFT'}
+                              </button>
+                            )}
+                            {/* Delete Button */}
+                            <button
+                              onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId)}
+                              disabled={burningNFT === nft.tokenId?.toString() || nft.isStaked}
+                              className="w-full px-3 py-2 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                              title={nft.isStaked ? 'Unstake before burning' : ''}
                             >
-                              Metadata
-                            </a>
-                          )}
+                              {burningNFT === nft.tokenId?.toString() ? '🔥 Deleting...' : '🗑️ Delete NFT'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1017,6 +1296,13 @@ export default function ProfilePage() {
                               </a>
                             )}
                           </div>
+                          {/* Passport Staking Button */}
+                          <button
+                            onClick={() => setPassportStakingModal({ isOpen: true, passport })}
+                            className="w-full px-3 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white text-xs font-bold rounded-lg hover:from-green-700 hover:to-blue-700 transition-all"
+                          >
+                            💰 Stake MON for Yield
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1146,6 +1432,18 @@ export default function ProfilePage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Passport Staking Modal */}
+      {passportStakingModal.passport && walletAddress && (
+        <PassportStakingModal
+          isOpen={passportStakingModal.isOpen}
+          onClose={() => setPassportStakingModal({ isOpen: false, passport: null })}
+          passportTokenId={passportStakingModal.passport.tokenId}
+          passportCountryCode={passportStakingModal.passport.countryCode}
+          passportCountryName={passportStakingModal.passport.countryName}
+          walletAddress={walletAddress}
+        />
+      )}
     </PageTransition>
   );
 }

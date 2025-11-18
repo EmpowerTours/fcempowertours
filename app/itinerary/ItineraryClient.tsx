@@ -1,17 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { isAddress } from 'viem';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@radix-ui/react-accordion';
 import { toast } from 'sonner';
-import { useAccount, useConnect, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount } from 'wagmi';
 import Image from 'next/image';
-import { monadTestnet } from '../chains';
-import ItineraryNFTABI from '@/lib/abis/ItineraryNFT.json';
 
-const ITINERARY_NFT_ADDRESS = '0x382072Abe7Eb9f72c08b1BDB252FE320F0d00934' as `0x${string}`;
+const ITINERARY_NFT_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_NFT || '0x5B61286AC88688fe8930711fAa5b1155e98daFe8';
 
 async function saveItineraryDraft(data: { 
   destination: string; 
@@ -41,11 +38,11 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
   const [climbingPhoto, setClimbingPhoto] = useState<string | null>(null);
   const [climbingGrade, setClimbingGrade] = useState('');
   const [isMounted, setIsMounted] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
+  const [mintError, setMintError] = useState<string | null>(null);
+  const [mintSuccess, setMintSuccess] = useState<string | null>(null);
 
-  const { address, isConnected, isConnecting, isDisconnected, chainId } = useAccount();
-  const { connect, connectors } = useConnect();
-  const { switchChainAsync } = useSwitchChain();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { address, isConnected } = useAccount();
 
   // Set mounted state
   useEffect(() => {
@@ -64,23 +61,7 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
     }
   }, [isMounted, resolvedSearchParams]);
 
-  // Auto-switch to Monad Testnet
-  useEffect(() => {
-    if (!isMounted || !isConnected || chainId === monadTestnet.id) return;
-    
-    const switchToMonad = async () => {
-      try {
-        await switchChainAsync({ chainId: monadTestnet.id });
-        console.log('Switched to Monad Testnet');
-        toast.success('Switched to Monad Testnet');
-      } catch (error) {
-        console.error('Chain switch failed:', error);
-        toast.error('Failed to switch to Monad Testnet. Please switch manually.');
-      }
-    };
-    
-    switchToMonad();
-  }, [isMounted, isConnected, chainId, switchChainAsync]);
+  // No chain switching needed - delegation handles everything
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -108,57 +89,94 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
 
     if (!destination) {
       toast.error('Please provide a destination');
+      setMintError('Please provide a destination');
       return;
     }
 
     if (!isConnected || !address) {
       toast.error('Please connect your wallet');
+      setMintError('Please connect your wallet');
       return;
     }
 
-    if (!isAddress(address)) {
-      toast.error('Invalid wallet address');
-      return;
-    }
-
-    if (chainId !== monadTestnet.id) {
-      toast.error('Please switch to Monad Testnet (Chain ID 10143)');
-      return;
-    }
+    setIsMinting(true);
+    setMintError(null);
+    setMintSuccess(null);
 
     try {
-      const metadata = { 
-        destination, 
-        country, 
-        climbingGrade: climbingGrade || 'Not specified' 
-      };
-      const photoUri = climbingPhoto || 'ipfs://QmPK4TiGqmFRFuYuEVUecqvVy6gjpkoJquJ2Dm11P5ui9W';
-      
-      console.log('Minting itinerary:', { 
-        address, 
-        contract: ITINERARY_NFT_ADDRESS, 
-        metadata, 
-        photoUri 
+      // Check for delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${address}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('mint_itinerary');
+
+      if (!hasValidDelegation) {
+        setMintSuccess('⏳ Setting up gasless transactions...');
+
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: address,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'mint_itinerary']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+      }
+
+      setMintSuccess('⏳ Minting itinerary stamp (FREE - we pay gas)...');
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address,
+          action: 'mint_itinerary',
+          params: {
+            destination,
+            country,
+            city: destination, // Use destination as city for simplicity
+            climbingGrade: climbingGrade || 'Not specified',
+            photoUri: climbingPhoto || '',
+            description: interests ? `${destination} - ${interests}` : destination,
+          }
+        })
       });
 
-      const hash = await writeContractAsync({
-        address: ITINERARY_NFT_ADDRESS,
-        abi: ItineraryNFTABI,
-        functionName: 'mintItinerary',
-        args: [metadata, photoUri],
-        chainId: monadTestnet.id,
-      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Mint failed');
+      }
 
-      toast.success(`Itinerary minted successfully! Tx: ${hash}`);
-      
-      // Reset form
-      setDestination('');
-      setInterests('');
-      setClimbingPhoto(null);
-      setClimbingGrade('');
+      const { txHash } = await response.json();
+
+      setMintSuccess(`🎉 Successfully minted itinerary stamp! TX: ${txHash.slice(0, 10)}...`);
+      toast.success(`Itinerary minted successfully!`);
+
+      // Reset form after delay
+      setTimeout(() => {
+        setDestination('');
+        setInterests('');
+        setClimbingPhoto(null);
+        setClimbingGrade('');
+        setMintSuccess(null);
+      }, 3000);
     } catch (error: any) {
       console.error('Mint failed:', error);
-      toast.error(`Mint failed: ${error.message || 'Unknown error'}`);
+      const errorMsg = error.message || 'Failed to mint itinerary';
+      setMintError(errorMsg);
+      toast.error(`Mint failed: ${errorMsg}`);
+    } finally {
+      setIsMinting(false);
     }
   };
 
@@ -182,6 +200,19 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
           )}
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Error/Success Messages */}
+          {mintError && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+              <p className="text-red-700 font-medium">❌ {mintError}</p>
+            </div>
+          )}
+
+          {mintSuccess && (
+            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+              <p className="text-green-700 font-medium">✅ {mintSuccess}</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium mb-2">Destination</label>
             <Input
@@ -257,10 +288,13 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
                 <Button
                   onClick={handleMintStamp}
                   className="w-full"
-                  disabled={!climbingGrade || isPending || !isConnected}
+                  disabled={!climbingGrade || isMinting || !isConnected}
                 >
-                  {isPending ? 'Minting...' : 'Mint Climbing Stamp'}
+                  {isMinting ? '⏳ Minting (Gasless)...' : '🚀 Mint Climbing Stamp (FREE)'}
                 </Button>
+                <p className="text-xs text-gray-500 text-center">
+                  ✅ No gas fees! We pay for your transaction via delegation
+                </p>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -274,12 +308,12 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
             >
               Save Draft
             </Button>
-            <Button 
-              onClick={handleMintStamp} 
-              disabled={!destination || isPending || !isConnected}
+            <Button
+              onClick={handleMintStamp}
+              disabled={!destination || isMinting || !isConnected}
               className="flex-1"
             >
-              {isPending ? 'Minting...' : 'Mint Itinerary'}
+              {isMinting ? '⏳ Minting (Gasless)...' : '🚀 Mint Itinerary (FREE)'}
             </Button>
           </div>
 
@@ -289,9 +323,9 @@ export default function ItineraryClient({ resolvedSearchParams }: Props) {
             </p>
           )}
 
-          {isConnected && chainId !== monadTestnet.id && (
-            <p className="text-center text-sm text-orange-600 mt-4">
-              ⚠️ Please switch to Monad Testnet
+          {isConnected && (
+            <p className="text-center text-sm text-green-600 mt-4">
+              ✅ Gasless minting enabled - no network switching required!
             </p>
           )}
         </CardContent>

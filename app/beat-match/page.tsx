@@ -46,7 +46,11 @@ function BeatMatchContent() {
       try {
         const query = `
           query GetMusicNFTs {
-            MusicNFT(limit: 50, order_by: {mintedAt: desc}) {
+            MusicNFT(
+              where: {isBurned: {_eq: false}, isArt: {_eq: false}},
+              limit: 50,
+              order_by: {mintedAt: desc}
+            ) {
               id
               tokenId
               name
@@ -67,6 +71,7 @@ function BeatMatchContent() {
 
         if (response.ok) {
           const result = await response.json();
+          console.log('Beat Match: Loaded', result.data?.MusicNFT?.length || 0, 'music NFTs');
           setMusicNFTs(result.data?.MusicNFT || []);
         }
       } catch (error) {

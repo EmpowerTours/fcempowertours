@@ -112,7 +112,13 @@ function CountryCollectorContent() {
               // Fetch music NFTs from these artists
               const musicQuery = `
                 query GetArtistMusic($artists: [String!]!) {
-                  MusicNFT(where: {artist: {_in: $artists}}) {
+                  MusicNFT(
+                    where: {
+                      artist: {_in: $artists},
+                      isBurned: {_eq: false},
+                      isArt: {_eq: false}
+                    }
+                  ) {
                     tokenId
                     name
                     artist
@@ -134,7 +140,9 @@ function CountryCollectorContent() {
 
               if (musicRes.ok) {
                 const musicData = await musicRes.json();
-                setCountryArtists(musicData.data?.MusicNFT || []);
+                const artists = musicData.data?.MusicNFT || [];
+                console.log(`Country Collector: Loaded ${artists.length} music NFTs from ${passport.countryName}`);
+                setCountryArtists(artists);
               }
             }
           }
