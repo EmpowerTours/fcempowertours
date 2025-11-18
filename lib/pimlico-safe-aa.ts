@@ -52,7 +52,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
     const smartAccountClient = createSmartAccountClient({
       account: safeSmartAccount,
       chain: monadTestnet,
-      bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 60000 }),
+      bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 120000 }), // Increased to 2 minutes for music minting
       pollingInterval: 2000, // 2 seconds (Monad testnet might be slow)
     });
 

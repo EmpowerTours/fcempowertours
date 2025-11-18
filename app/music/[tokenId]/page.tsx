@@ -167,7 +167,7 @@ export default function MusicPage() {
               console.log('✅ Successfully resolved to FID:', displayArtist);
             } else {
               console.log('⚠️ FID resolution failed, showing truncated wallet');
-              displayArtist = `${nft.artist.substring(0, 6)}...${nft.artist.substring(-4)}`;
+              displayArtist = `${nft.artist.substring(0, 6)}...${nft.artist.slice(-4)}`;
             }
           }
 
@@ -258,7 +258,7 @@ export default function MusicPage() {
               console.log('✅ Successfully resolved to FID:', displayArtist);
             } else {
               console.log('⚠️ FID resolution failed, showing truncated wallet');
-              displayArtist = `${artistAddress.substring(0, 6)}...${artistAddress.substring(-4)}`;
+              displayArtist = `${artistAddress.substring(0, 6)}...${artistAddress.slice(-4)}`;
             }
           }
 

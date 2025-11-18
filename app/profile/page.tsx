@@ -8,6 +8,8 @@ import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/Pag
 import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
 import PassportStakingModal from '@/app/components/PassportStakingModal';
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseAbiItem } from 'viem';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
@@ -212,6 +214,12 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        // If no permission error, suggest simpler alternatives
+        if (data.error?.includes('No permission')) {
+          setBurnError(`${data.error}\n\nℹ️ Alternative: You can create a delegation at /api/create-delegation or enable direct wallet burns (you pay gas). The migration has been run, but you may need to refresh your delegation.`);
+          setBurningNFT(null);
+          return;
+        }
         throw new Error(data.error || 'Failed to burn music NFT');
       }
 
