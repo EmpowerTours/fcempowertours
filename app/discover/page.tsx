@@ -36,6 +36,7 @@ interface MusicNFT {
   tokenURI: string;
   mintedAt: string;
   txHash: string;
+  isArt?: boolean;
   metadata?: {
     name?: string;
     image?: string;
@@ -90,6 +91,7 @@ export default function MusicDiscoveryPage() {
             tokenURI
             mintedAt
             txHash
+            isArt
           }
         }
       `;
@@ -292,6 +294,18 @@ export default function MusicDiscoveryPage() {
                         transition={{ duration: 0.3 }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      {/* Art/Music Badge */}
+                      <div className="absolute top-2 right-2">
+                        {music.isArt ? (
+                          <span className="px-3 py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs font-bold rounded-full shadow-lg">
+                            🎨 ART
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-xs font-bold rounded-full shadow-lg">
+                            🎵 MUSIC
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">

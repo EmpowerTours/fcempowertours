@@ -1,7 +1,7 @@
 import {
   MusicLicenseNFT,
   PassportNFT,
-  Marketplace,
+  ItineraryNFT,
   YieldStrategy,
   DemandSignalEngine,
   SmartEventManifest,
@@ -137,6 +137,9 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     context.log.error(`   This NFT will have empty audio URLs!`);
   }
 
+  // ✅ Determine if this is an art-only NFT (no audio)
+  const isArt = !metadata?.previewAudioUrl && !metadata?.fullAudioUrl;
+
   const musicNFT = {
     id: musicNFTId,
     tokenId: tokenId.toString(),
@@ -149,7 +152,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     active: true,
     coverArt: "",
     royaltyPercentage: 10,
-    
+
     // ✅ Store metadata fields (with fallbacks)
     name: metadata?.name || `Music NFT #${tokenId}`,
     description: metadata?.description || "",
@@ -157,6 +160,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     previewAudioUrl: metadata?.previewAudioUrl || "",
     fullAudioUrl: metadata?.fullAudioUrl || "",
     metadataFetched: !!metadata,
+    isArt: isArt,
 
     // ✅ V5: Initialize staking & burning fields
     isStaked: false,
@@ -176,6 +180,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     previewAudioUrl: musicNFT.previewAudioUrl,
     fullAudioUrl: musicNFT.fullAudioUrl,
     metadataFetched: musicNFT.metadataFetched,
+    isArt: musicNFT.isArt,
   });
 
   await context.MusicNFT.set(musicNFT);
@@ -657,8 +662,12 @@ PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
 // ============================================
 // MARKETPLACE/ITINERARY EVENTS
 // ============================================
+// NOTE: These events don't exist in the current ItineraryNFT ABI.
+// The contract only has standard ERC721 events (Transfer, Approval, etc.)
+// Commenting out until the correct contract with these events is deployed.
 
-Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
+/* DISABLED - Events not in ABI
+ItineraryNFT.ItineraryCreated.handler(async ({ event, context }) => {
   const { itineraryId, creator, description, price } = event.params;
 
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
@@ -735,7 +744,7 @@ Marketplace.ItineraryCreated.handler(async ({ event, context }) => {
   context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator}: ${description} for ${price}`);
 });
 
-Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
+ItineraryNFT.ItineraryPurchased.handler(async ({ event, context }) => {
   const { itineraryId, buyer } = event.params;
 
   const purchaseId = `purchase-${event.block.number}-${event.logIndex}`;
@@ -810,6 +819,7 @@ Marketplace.ItineraryPurchased.handler(async ({ event, context }) => {
 
   context.log.info(`🛒 Itinerary #${itineraryId} purchased by ${buyer}`);
 });
+*/ // END DISABLED - ItineraryNFT events
 
 // ============================================
 // YIELD STRATEGY V3 (NFT-GATED STAKING) EVENTS

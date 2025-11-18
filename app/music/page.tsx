@@ -558,7 +558,7 @@ export default function MusicPage() {
                         </div>
                         <input
                           type="file"
-                          accept="audio/*"
+                          accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac,.ogg"
                           onChange={handleFileChange(setPreviewFile)}
                           className="hidden"
                         />
@@ -588,7 +588,7 @@ export default function MusicPage() {
                         </div>
                         <input
                           type="file"
-                          accept="audio/*"
+                          accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac,.ogg"
                           onChange={handleFileChange(setFullFile)}
                           className="hidden"
                         />

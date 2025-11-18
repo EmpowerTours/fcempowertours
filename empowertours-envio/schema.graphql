@@ -20,6 +20,7 @@ type MusicNFT @entity {
   previewAudioUrl: String      # Preview audio (metadata.animation_url resolved)
   fullAudioUrl: String         # Full track (metadata.external_url resolved)
   metadataFetched: Boolean!    # Track if metadata was successfully fetched
+  isArt: Boolean!              # True if no audio URLs present (art-only NFT)
 
   # ✅ V5: Staking & Burning fields
   isStaked: Boolean            # Whether NFT is currently staked
