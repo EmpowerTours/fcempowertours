@@ -210,9 +210,10 @@ export default function MusicPage() {
       return;
     }
 
-    // If user provides one audio file, require both
-    if ((previewFile && !fullFile) || (!previewFile && fullFile)) {
-      setError('If uploading music, please provide both Preview Audio and Full Track');
+    // If user provides preview but no full track, require both
+    // If user provides full track but no preview, auto-trim will create preview
+    if (previewFile && !fullFile) {
+      setError('If providing a preview, please also provide the full track');
       return;
     }
     const priceNum = parseFloat(price);

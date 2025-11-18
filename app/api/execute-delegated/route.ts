@@ -1899,9 +1899,9 @@ View profile and collection!
           message: `Music NFT #${params.tokenId} burned for 5 TOURS reward`,
         });
 
-      // ==================== MUSIC NFT YIELD STAKING (YieldStrategyV8) ====================
+      // ==================== MUSIC NFT YIELD STAKING (YieldStrategyV9) ====================
       case 'stake_music_yield':
-        console.log('💎 Action: stake_music_yield (YieldStrategyV8)');
+        console.log('💎 Action: stake_music_yield (YieldStrategyV9)');
         if (!params?.tokenId || !params?.monAmount) {
           return NextResponse.json(
             { success: false, error: 'Missing tokenId or monAmount for stake_music_yield' },
@@ -1913,7 +1913,7 @@ View profile and collection!
         const stakeMusicYieldTokenId = BigInt(params.tokenId);
         const stakeMusicMonAmount = parseEther(params.monAmount.toString());
 
-        console.log('💎 Staking Music NFT with YieldStrategyV8:', {
+        console.log('💎 Staking Music NFT with YieldStrategyV9:', {
           nftAddress: MUSIC_NFT_V5,
           tokenId: stakeMusicYieldTokenId.toString(),
           beneficiary: userAddress,
@@ -2442,9 +2442,9 @@ View profile and collection!
           message: `Checked in successfully! Passport stamped.`,
         });
 
-      // ==================== MUSIC NFT YIELD UNSTAKING (YieldStrategyV8) ====================
+      // ==================== MUSIC NFT YIELD UNSTAKING (YieldStrategyV9) ====================
       case 'unstake_music_yield':
-        console.log('💎 Action: unstake_music_yield (YieldStrategyV8)');
+        console.log('💎 Action: unstake_music_yield (YieldStrategyV9)');
         if (!params?.positionId) {
           return NextResponse.json(
             { success: false, error: 'Missing positionId for unstake_music_yield' },
@@ -2455,7 +2455,7 @@ View profile and collection!
         const YIELD_STRATEGY_V8_UNSTAKE = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
         const musicYieldUnstakePositionId = BigInt(params.positionId);
 
-        console.log('💎 Unstaking position from YieldStrategyV8:', {
+        console.log('💎 Unstaking position from YieldStrategyV9:', {
           positionId: musicYieldUnstakePositionId.toString(),
           yieldStrategy: YIELD_STRATEGY_V8_UNSTAKE,
           user: userAddress

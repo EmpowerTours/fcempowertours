@@ -27,14 +27,12 @@ export default function ClientNav() {
     { path: '/discover', label: 'Discover', icon: '🎵' },
     { path: '/music', label: 'Music', icon: '🎤' },
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },
-    { path: '/passport-staking', label: 'Staking', icon: '💰' },
     { path: '/beat-match', label: 'Beat Match', icon: '🎯' },
     { path: '/country-collector', label: 'Countries', icon: '🌍' },
     { path: '/tanda', label: 'Tanda', icon: '🤝' },
     { path: '/swap', label: 'Swap', icon: '💱' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/passport', label: 'Mint', icon: '✈️' },
-    { path: '/market', label: 'Market', icon: '🏪' },
   ];
 
   return (

@@ -5,7 +5,7 @@ import { updateDelegationPermissions } from '@/lib/delegation-system';
 /**
  * 🔄 MIGRATION ENDPOINT
  *
- * Adds missing 'approve_yield_strategy' permission to all existing delegations
+ * Adds missing 'burn_music' permission to all existing delegations
  * This is needed because older delegations were created before this permission was added
  *
  * Usage:
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     // }
 
     console.log('🔄 Starting delegation migration...');
-    console.log('   Adding missing approve_yield_strategy permission');
+    console.log('   Adding missing burn_music permission');
 
     const keys = await redis.keys('delegation:*');
     console.log(`   Found ${keys.length} delegation(s)`);
@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
         const delegation = typeof data === 'string' ? JSON.parse(data) : data;
 
         // Check if delegation already has the permission
-        if (delegation.config?.permissions?.includes('approve_yield_strategy')) {
-          console.log(`   ✓ ${delegation.user} already has approve_yield_strategy`);
+        if (delegation.config?.permissions?.includes('burn_music')) {
+          console.log(`   ✓ ${delegation.user} already has burn_music`);
           skippedCount++;
           continue;
         }
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
         // Update the delegation
         const userAddress = delegation.user;
-        const updated = await updateDelegationPermissions(userAddress, ['approve_yield_strategy']);
+        const updated = await updateDelegationPermissions(userAddress, ['burn_music']);
 
         if (updated) {
           console.log(`   ✅ Updated ${userAddress}`);
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
         updated: updatedCount,
         skipped: skippedCount,
         errors: errorCount,
-        message: `Migration complete! Updated ${updatedCount} delegation(s) with approve_yield_strategy permission.`
+        message: `Migration complete! Updated ${updatedCount} delegation(s) with burn_music permission.`
       }
     });
 
