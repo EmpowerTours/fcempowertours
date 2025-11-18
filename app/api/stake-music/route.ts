@@ -31,6 +31,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ✅ VALIDATE ENVIRONMENT VARIABLES
+    if (!PRIVATE_KEY) {
+      console.error('❌ PRIVATE_KEY not configured');
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error: PRIVATE_KEY not set' },
+        { status: 500 }
+      );
+    }
+
+    if (!PIMLICO_API_KEY) {
+      console.error('❌ PIMLICO_API_KEY not configured');
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error: PIMLICO_API_KEY not set' },
+        { status: 500 }
+      );
+    }
+
+    if (!MUSIC_NFT_ADDRESS) {
+      console.error('❌ MUSIC_NFT_ADDRESS not configured');
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error: MUSIC_NFT_ADDRESS not set' },
+        { status: 500 }
+      );
+    }
+
     console.log(`📌 Staking music NFT #${tokenId} for user ${userAddress}`);
 
     // Setup clients

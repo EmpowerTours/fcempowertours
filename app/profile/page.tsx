@@ -1036,14 +1036,16 @@ export default function ProfilePage() {
                                 <button
                                   onClick={() => nft.tokenId && handleClaimRewards(nft.tokenId)}
                                   disabled={stakingNFT === nft.tokenId?.toString()}
-                                  className="w-full px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                  className="w-full px-3 py-3 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation"
+                                  style={{ minHeight: '48px' }}
                                 >
                                   {stakingNFT === nft.tokenId?.toString() ? '⏳ Claiming...' : '💰 Claim Rewards'}
                                 </button>
                                 <button
                                   onClick={() => nft.tokenId && handleUnstakeMusic(nft.tokenId)}
                                   disabled={stakingNFT === nft.tokenId?.toString()}
-                                  className="w-full px-3 py-2 bg-yellow-600 text-white text-xs rounded-lg hover:bg-yellow-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                  className="w-full px-3 py-3 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation"
+                                  style={{ minHeight: '48px' }}
                                 >
                                   {stakingNFT === nft.tokenId?.toString() ? '⏳ Unstaking...' : '📤 Unstake NFT'}
                                 </button>
@@ -1052,7 +1054,8 @@ export default function ProfilePage() {
                               <button
                                 onClick={() => nft.tokenId && handleStakeMusic(nft.tokenId)}
                                 disabled={stakingNFT === nft.tokenId?.toString() || burningNFT === nft.tokenId?.toString()}
-                                className="w-full px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className="w-full px-3 py-3 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation"
+                                style={{ minHeight: '48px' }}
                               >
                                 {stakingNFT === nft.tokenId?.toString() ? '⏳ Staking...' : '📌 Stake NFT'}
                               </button>
@@ -1061,7 +1064,8 @@ export default function ProfilePage() {
                             <button
                               onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId)}
                               disabled={burningNFT === nft.tokenId?.toString() || nft.isStaked}
-                              className="w-full px-3 py-2 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                              className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation"
+                              style={{ minHeight: '48px' }}
                               title={nft.isStaked ? 'Unstake before burning' : ''}
                             >
                               {burningNFT === nft.tokenId?.toString() ? '🔥 Deleting...' : '🗑️ Delete NFT'}

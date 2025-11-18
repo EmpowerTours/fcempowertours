@@ -94,67 +94,44 @@ export default function ArtistProfilePage() {
   const loadArtistInfo = async () => {
     try {
       const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
-      // Strategy 1: by_verification
+
+      // ✅ USE bulk_by_address endpoint (same as music/[tokenId] page)
       try {
-        const response1 = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
-          { headers: { 'api_key': neynarApiKey } }
-        );
-        if (response1.ok) {
-          const data = await response1.json();
-          if (data?.user) {
+        const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
+        const response = await fetch(url, {
+          headers: { 'api_key': neynarApiKey }
+        });
+
+        if (response.ok) {
+          const data: any = await response.json();
+          const users = data[artistAddress.toLowerCase()];
+
+          if (users && users.length > 0) {
+            const user = users[0];
             setArtistInfo({
               address: artistAddress,
-              username: data.user.username,
-              displayName: data.user.display_name || data.user.username,
-              pfpUrl: data.user.pfp_url,
-              fid: data.user.fid,
+              username: user.username,
+              displayName: user.display_name || user.username,
+              pfpUrl: user.pfp_url,
+              fid: user.fid,
             });
+            console.log('✅ Artist info loaded via bulk_by_address:', user.username);
             return;
           }
         }
       } catch (err) {
-        console.warn('by_verification failed:', err);
+        console.warn('❌ bulk_by_address failed:', err);
       }
 
-      // Strategy 2: search
-      try {
-        const response2 = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/search?q=${artistAddress}&limit=1`,
-          { headers: { 'api_key': neynarApiKey } }
-        );
-        if (response2.ok) {
-          const data = await response2.json();
-          const user = data?.result?.users?.[0];
-          if (user) {
-            const hasAddress =
-              user.verified_addresses?.eth_addresses?.some(
-                (a: string) => a.toLowerCase() === artistAddress.toLowerCase()
-              ) || user.custody_address?.toLowerCase() === artistAddress.toLowerCase();
-            if (hasAddress) {
-              setArtistInfo({
-                address: artistAddress,
-                username: user.username,
-                displayName: user.display_name || user.username,
-                pfpUrl: user.pfp_url,
-                fid: user.fid,
-              });
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('search failed:', err);
-      }
-
-      // Fallback
+      // Fallback: truncated address
+      console.log('⚠️ No Farcaster account found, using truncated address');
       setArtistInfo({
         address: artistAddress,
         username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
         displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
       });
     } catch (error) {
-      console.error('Error loading artist info:', error);
+      console.error('❌ Error loading artist info:', error);
       setArtistInfo({
         address: artistAddress,
         username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,

@@ -585,7 +585,8 @@ export default function ItineraryMarketPage() {
               <button
                 onClick={handleCreateExperience}
                 disabled={loading || !walletAddress}
-                className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50"
+                className="w-full py-5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 touch-manipulation"
+                style={{ minHeight: '60px' }}
               >
                 {loading ? 'Creating...' : 'Create Experience (FREE)'}
               </button>
