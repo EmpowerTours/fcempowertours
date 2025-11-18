@@ -107,7 +107,7 @@ export default function ProfilePage() {
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
 
   // ✅ WAGMI: Hook for burning music NFTs directly with Privy wallet
-  const { writeContract: burnNFT, data: burnHash } = useWriteContract();
+  const { writeContract: burnNFT, data: burnHash, error: burnContractError, isPending: isBurnPending } = useWriteContract();
   const { isLoading: isBurnTxPending, isSuccess: isBurnTxSuccess } = useWaitForTransactionReceipt({ hash: burnHash });
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
   const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
@@ -136,6 +136,22 @@ export default function ProfilePage() {
       loadBalances();
     }
   }, [walletAddress]);
+
+  // ✅ Handle burn transaction errors
+  useEffect(() => {
+    if (burnContractError) {
+      console.error('Burn contract error:', burnContractError);
+      setBurnError(burnContractError.message || 'Failed to initiate burn transaction');
+      setBurningNFT(null);
+    }
+  }, [burnContractError]);
+
+  // ✅ Handle burn transaction submission (when hash is available)
+  useEffect(() => {
+    if (burnHash && !isBurnTxSuccess) {
+      setBurnSuccess(`Transaction submitted! Waiting for confirmation... TX: ${burnHash.slice(0, 10)}...`);
+    }
+  }, [burnHash, isBurnTxSuccess]);
 
   // ✅ Handle burn transaction completion
   useEffect(() => {
@@ -220,6 +236,8 @@ export default function ProfilePage() {
       // ✅ USE WAGMI: Burn NFT directly with Privy wallet (user pays gas)
       const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS! as `0x${string}`;
 
+      console.log('🔥 Initiating burn transaction for token:', tokenId);
+
       burnNFT({
         address: MUSIC_NFT_ADDRESS,
         abi: [parseAbiItem('function burnMusicNFT(uint256 tokenId) external')],
@@ -227,11 +245,10 @@ export default function ProfilePage() {
         args: [BigInt(tokenId)],
       });
 
-      // Transaction initiated successfully
-      setBurnSuccess(`Burn transaction submitted! Waiting for confirmation...`);
+      // ✅ Success/error messages handled by useEffect hooks above
 
     } catch (error: any) {
-      console.error('Burn error:', error);
+      console.error('❌ Burn error:', error);
       setBurnError(error.message || 'Failed to burn music NFT');
       setBurningNFT(null);
     }

@@ -271,7 +271,7 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) - ULTRA-SAFE with maximum padding */}
+            {/* Cover Art - Left Side (50%) - Optimized padding for better visibility */}
             <div
               style={{
                 width: '50%',
@@ -280,11 +280,11 @@ export async function GET(request: NextRequest) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0px',
+                padding: '40px',
                 boxSizing: 'border-box',
               }}
             >
-              {/* Inner container with maximum padding to constrain image */}
+              {/* Inner container with cover art filling the space */}
               <div
                 style={{
                   width: '100%',
@@ -292,12 +292,12 @@ export async function GET(request: NextRequest) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '100px',
-                  boxSizing: 'border-box',
                   backgroundImage: `url('${imageUrl}')`,
-                  backgroundSize: 'contain',
+                  backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   backgroundRepeat: 'no-repeat',
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                 }}
               />
             </div>
