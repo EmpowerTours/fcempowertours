@@ -76,15 +76,33 @@ export async function POST(request: NextRequest) {
     });
 
     // Verify ownership
-    const owner = await publicClient.readContract({
-      address: MUSIC_NFT_ADDRESS,
-      abi: musicNFTAbi,
-      functionName: 'ownerOf',
-      args: [BigInt(tokenId)],
-    });
+    let owner: string;
+    try {
+      owner = await publicClient.readContract({
+        address: MUSIC_NFT_ADDRESS,
+        abi: musicNFTAbi,
+        functionName: 'ownerOf',
+        args: [BigInt(tokenId)],
+      }) as string;
 
-    console.log(`📋 Owner of token #${tokenId}:`, owner);
-    console.log(`📋 User address:`, userAddress);
+      console.log(`📋 Owner of token #${tokenId}:`, owner);
+      console.log(`📋 User address:`, userAddress);
+    } catch (ownerError: any) {
+      console.error(`❌ Failed to get owner of token #${tokenId}:`, ownerError);
+
+      // Token likely doesn't exist or was already burned
+      if (ownerError.message?.includes('ERC721')) {
+        return NextResponse.json(
+          { success: false, error: 'This NFT does not exist or has already been burned' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(
+        { success: false, error: `Failed to verify ownership: ${ownerError.message}` },
+        { status: 500 }
+      );
+    }
 
     if (!owner || owner.toLowerCase() !== userAddress.toLowerCase()) {
       return NextResponse.json(
