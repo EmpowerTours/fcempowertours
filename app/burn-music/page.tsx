@@ -4,9 +4,12 @@ import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { monadTestnet } from '../chains';
 import { encodeFunctionData, parseAbi } from 'viem';
+import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
 
-export default function BurnMusicPage() {
-  const { walletAddress, fid, isLoading: contextLoading, sendTransaction, switchChain, sdk } = useFarcasterContext();
+function BurnMusicContent() {
+  const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
+  const { login, authenticated, ready: privyReady } = usePrivy();
+  const { wallets } = useWallets();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -42,54 +45,74 @@ export default function BurnMusicPage() {
         fid
       });
 
-      // Check if delegation exists, if not create it
-      console.log('🔍 Checking delegation status...');
-      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
-      const delegationData = await delegationRes.json();
+      // Use Privy wallet to sign the burn transaction
+      if (!authenticated) {
+        setError('Please connect your wallet first');
+        setLoading(false);
+        return;
+      }
 
-      if (!delegationData.success || !delegationData.delegation?.permissions?.includes('burn_music')) {
-        console.log('⏳ Setting up gasless burn permissions...');
-        setSuccess('⏳ Setting up gasless burn (one-time setup)...');
+      // Find a connected wallet
+      const wallet = wallets.find(w =>
+        w.address.toLowerCase() === walletAddress.toLowerCase()
+      ) || wallets[0];
 
-        const createRes = await fetch('/api/create-delegation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: walletAddress,
-            durationHours: 24,
-            maxTransactions: 100,
-            permissions: ['burn_music', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours']
-          })
+      if (!wallet) {
+        setError('No wallet connected. Please connect a wallet to burn NFTs.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📝 Using wallet:', wallet.address);
+      setSuccess('⏳ Preparing transaction...');
+
+      // Get Ethereum provider from wallet
+      const provider = await wallet.getEthereumProvider();
+
+      // Switch to Monad testnet
+      try {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x' + monadTestnet.id.toString(16) }],
         });
-
-        const createData = await createRes.json();
-        if (!createData.success) {
-          throw new Error('Failed to create delegation: ' + createData.error);
+      } catch (switchError: any) {
+        // Chain not added, try adding it
+        if (switchError.code === 4902) {
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x' + monadTestnet.id.toString(16),
+              chainName: monadTestnet.name,
+              rpcUrls: [monadTestnet.rpcUrls.default.http[0]],
+              nativeCurrency: monadTestnet.nativeCurrency,
+            }],
+          });
         }
       }
 
-      // Use delegation API to burn (gasless)
-      console.log('📝 Burning NFT via delegation (gasless)...');
-      setSuccess('⏳ Burning NFT (FREE - we pay gas)...');
-
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          action: 'burn_music',
-          params: { tokenId },
-        }),
+      // Encode burnMusicNFT call
+      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS!;
+      const burnData = encodeFunctionData({
+        abi: parseAbi(['function burnMusicNFT(uint256 tokenId) external']),
+        functionName: 'burnMusicNFT',
+        args: [BigInt(tokenId)],
       });
 
-      const data = await response.json();
+      setSuccess('⏳ Please sign the transaction in your wallet...');
 
-      if (!data.success) {
-        throw new Error(data.error || 'Burn failed');
-      }
+      // Send transaction
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: wallet.address,
+          to: MUSIC_NFT_ADDRESS,
+          data: burnData,
+          value: '0x0',
+        }],
+      }) as string;
 
-      console.log('✅ Burn transaction sent:', data.txHash);
-      setTxHash(data.txHash);
+      console.log('✅ Burn transaction sent:', txHash);
+      setTxHash(txHash);
       setSuccess(`Music NFT #${tokenId} burned successfully!`);
 
       // Wait then redirect back
@@ -105,7 +128,7 @@ export default function BurnMusicPage() {
     }
   };
 
-  if (contextLoading) {
+  if (contextLoading || !privyReady) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
@@ -113,19 +136,19 @@ export default function BurnMusicPage() {
     );
   }
 
-  if (!walletAddress) {
+  if (!walletAddress && !authenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-purple-500/20">
           <h1 className="text-3xl font-bold text-white mb-4">🔥 Burn Music NFT</h1>
           <p className="text-gray-300 mb-6">
-            Please connect your Farcaster account to burn this music NFT.
+            Please connect your wallet to burn this music NFT.
           </p>
           <button
-            onClick={() => window.location.href = '/profile'}
+            onClick={login}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
           >
-            Go to Profile
+            Connect Wallet
           </button>
         </div>
       </div>
@@ -167,7 +190,7 @@ export default function BurnMusicPage() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. This transaction is FREE (gasless - we pay the gas for you).
+                This action cannot be undone. You'll need to sign the transaction and pay a small gas fee (~0.001 MON).
               </div>
             </div>
           </div>
@@ -227,5 +250,25 @@ export default function BurnMusicPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function BurnMusicPage() {
+  return (
+    <PrivyProvider
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
+      config={{
+        appearance: {
+          theme: 'dark',
+          accentColor: '#9333EA',
+        },
+        embeddedWallets: {
+          createOnLogin: 'users-without-wallets',
+        },
+        loginMethods: ['farcaster', 'wallet'],
+      }}
+    >
+      <BurnMusicContent />
+    </PrivyProvider>
   );
 }
