@@ -1880,8 +1880,8 @@ View profile and collection!
             to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function burnMusic(uint256 tokenId) external']),
-              functionName: 'burnMusic',
+              abi: parseAbi(['function burnMusicNFT(uint256 tokenId) external']),
+              functionName: 'burnMusicNFT',
               args: [burnTokenId],
             }) as Hex,
           },

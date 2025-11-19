@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { monadTestnet } from '../chains';
+import { encodeFunctionData, parseAbi } from 'viem';
 
 export default function BurnMusicPage() {
-  const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
+  const { walletAddress, fid, isLoading: contextLoading, sendTransaction, switchChain } = useFarcasterContext();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -35,32 +36,40 @@ export default function BurnMusicPage() {
       setTxHash('');
       setLoading(true);
 
-      console.log('🔥 Burning NFT from Farcaster wallet:', {
+      console.log('🔥 Burning NFT from user wallet:', {
         wallet: walletAddress,
         tokenId,
         fid
       });
 
-      // Call gasless burn API (Safe account pays gas)
-      const response = await fetch('/api/burn-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          tokenId: tokenId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Burn failed');
+      // Switch to Monad testnet if needed
+      try {
+        await switchChain({ chainId: monadTestnet.id });
+      } catch (switchErr: any) {
+        console.warn('⚠️ Chain switch failed (may already be on correct chain):', switchErr.message);
       }
 
-      const tx = data.txHash;
+      // Encode the burnMusicNFT call
+      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS!;
+      const burnData = encodeFunctionData({
+        abi: parseAbi(['function burnMusicNFT(uint256 tokenId) external']),
+        functionName: 'burnMusicNFT',
+        args: [BigInt(tokenId)],
+      });
+
+      console.log('📝 Sending burn transaction from user wallet...');
+      console.log('   User will sign and pay gas for this transaction');
+
+      // Send transaction directly from user's wallet (user pays gas)
+      const tx = await sendTransaction({
+        to: MUSIC_NFT_ADDRESS,
+        data: burnData,
+        value: '0',
+        chainId: monadTestnet.id,
+      });
 
       console.log('✅ Burn transaction sent:', tx);
-      setTxHash(tx as string);
+      setTxHash(tx.transactionHash || tx);
       setSuccess(`Music NFT #${tokenId} burned successfully!`);
 
       // Wait then redirect back
@@ -138,7 +147,7 @@ export default function BurnMusicPage() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. This transaction is FREE (gasless).
+                This action cannot be undone. You'll need to sign the transaction and pay a small gas fee.
               </div>
             </div>
           </div>
