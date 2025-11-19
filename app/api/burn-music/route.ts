@@ -10,6 +10,7 @@ import { entryPoint07Address } from 'viem/account-abstraction';
 const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY!;
 const PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY! as `0x${string}`;
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS! as `0x${string}`;
+const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT! as `0x${string}`;
 
 const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${PIMLICO_API_KEY}`;
 
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     // Create signer account
     const signer = privateKeyToAccount(PRIVATE_KEY);
 
-    // Create Safe account
+    // Create Safe account - use existing deployed Safe
     const safeAccount = await toSafeSmartAccount({
       client: publicClient,
       owners: [signer],
@@ -96,6 +97,8 @@ export async function POST(request: NextRequest) {
         address: entryPoint07Address,
         version: '0.7',
       },
+      address: SAFE_ACCOUNT, // ✅ Use existing deployed Safe account
+      saltNonce: 0n,
       safe4337ModuleAddress: '0x3Fdb5BC686e861480ef99A6E3FaAe03c0b9F32e2',
       erc7579LaunchpadAddress: '0xEBe001b3D534B9B6E2500FB78E67a1A137f561CE',
     });
