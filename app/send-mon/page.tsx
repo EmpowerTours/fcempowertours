@@ -111,13 +111,33 @@ function SendMonContent() {
       // Get provider from wallet
       const provider = await wallet.getEthereumProvider();
 
-      // Send transaction
+      // Estimate gas for the transaction
+      const gasEstimate = await provider.request({
+        method: 'eth_estimateGas',
+        params: [{
+          from: wallet.address,
+          to: recipient,
+          value: '0x' + amountInWei.toString(16),
+        }],
+      }) as string;
+
+      // Get current gas price
+      const gasPrice = await provider.request({
+        method: 'eth_gasPrice',
+        params: [],
+      }) as string;
+
+      console.log('Gas estimate:', gasEstimate, 'Gas price:', gasPrice);
+
+      // Send transaction with gas parameters
       const hash = await provider.request({
         method: 'eth_sendTransaction',
         params: [{
           from: wallet.address,
           to: recipient,
           value: '0x' + amountInWei.toString(16),
+          gas: gasEstimate,
+          gasPrice: gasPrice,
         }],
       }) as string;
 
