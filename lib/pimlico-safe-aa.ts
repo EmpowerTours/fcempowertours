@@ -423,7 +423,7 @@ export async function sendSafeTransaction(
           details: simErr.details,
         });
 
-        // Extract parameters to provide better error context
+        // Extract parameters to provide better error context for stakeWithDeposit
         if (functionSelector === '0xb438aa31') {
           // stakeWithDeposit
           try {
@@ -432,7 +432,7 @@ export async function sendSafeTransaction(
             const toursAmount = BigInt('0x' + call.data.slice(138, 202));
             const beneficiary = ('0x' + call.data.slice(226, 266)) as Address;
 
-            console.error(`   [Call ${i}] Call details:`, {
+            console.error(`   Call details:`, {
               target: call.to,
               nftAddress,
               nftTokenId: nftTokenId.toString(),
@@ -440,30 +440,15 @@ export async function sendSafeTransaction(
               beneficiary,
             });
 
-            // Check if there's a prior approve call to the same target
-            let hasPriorApprove = false;
-            for (let j = 0; j < i; j++) {
-              const priorSelector = calls[j].data.slice(0, 10);
-              if (priorSelector === '0x095ea7b3') {
-                // This is an approve - check if it's approving the current call's target
-                const approveSpender = '0x' + calls[j].data.slice(34, 74);
-                if (approveSpender.toLowerCase() === call.to.toLowerCase()) {
-                  hasPriorApprove = true;
-                  break;
-                }
-              }
-            }
-
             // Provide specific guidance based on error
             const errMsg = simErr.shortMessage || simErr.message || '';
 
-            // Check for known specific errors first
+            // Check for known specific errors
             if (errMsg.includes('Invalid NFT address') || errMsg.includes('acceptedNFTs')) {
               throw new Error(
                 `NFT at ${nftAddress} is not whitelisted in YieldStrategy (${call.to}).\n` +
                 `Please verify you're using the correct YieldStrategy contract address.\n` +
-                `Current target: ${call.to}\n` +
-                `Expected V4 contract: 0xe3d8E4358aD401F857100aB05747Ed91e78D6913`
+                `Current target: ${call.to}`
               );
             } else if (errMsg.includes('Beneficiary must own NFT') || errMsg.includes('ownerOf')) {
               throw new Error(
@@ -482,24 +467,15 @@ export async function sendSafeTransaction(
                 `Please execute: NFT.approve(${call.to}, ${nftTokenId}) from the beneficiary's wallet.\n` +
                 `Or use: NFT.setApprovalForAll(${call.to}, true) to approve all NFTs at once.`
               );
-            } else if (errMsg.includes('ERC20') || errMsg.includes('transferFrom') || errMsg.includes('insufficient allowance')) {
-              // This is expected - approve hasn't happened yet
-              console.log(`   [Call ${i}] ⚠️ ERC20 allowance error is expected (approve executes in same batch)`);
-              continue;
-            } else if (hasPriorApprove && (errMsg.includes('execution reverted') || errMsg.includes('unknown reason'))) {
-              // Generic revert with a prior approve - likely an allowance issue
-              console.log(`   [Call ${i}] ⚠️ Generic revert is expected (approve from Call ${i-1} executes in same batch)`);
-              console.log(`   [Call ${i}] This simulation failure is normal - the actual UserOperation will succeed`);
-              continue;
             }
           } catch (extractErr) {
-            // If we can't extract params, just continue
+            // If we can't extract params, fall through to generic error
           }
         }
 
         // Generic error - throw with the original message
         throw new Error(
-          `Simulation failed for call ${i} to ${call.to}:\n` +
+          `Simulation failed for call to ${call.to}:\n` +
           `${simErr.shortMessage || simErr.message}\n\n` +
           `This indicates a real configuration issue. Common causes:\n` +
           `1. Wrong contract address configured\n` +
@@ -509,9 +485,8 @@ export async function sendSafeTransaction(
         );
       }
     }
-  }
 
-    // ✅ CRITICAL: Detect approve + spend patterns
+  // ✅ CRITICAL: Detect approve + spend patterns
     // The bundler's gas estimation CANNOT handle this pattern because:
     // - approve() in simulation doesn't actually set allowance
     // - subsequent spend call fails in simulation

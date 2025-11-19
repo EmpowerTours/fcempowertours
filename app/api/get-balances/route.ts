@@ -108,24 +108,39 @@ export async function POST(req: NextRequest) {
 
     // =============================================
     // STEP 2.5: Get WMON balance (ERC-20 wrapped MON)
+    // ✅ CRITICAL FIX: Check BOTH user wallet AND bot Safe
     // =============================================
     console.log(`⏳ Fetching WMON balance from token: ${WMON_ADDRESS}`);
-    let wmonBalance = 0n;
+    let wmonBalanceUser = 0n;
+    let wmonBalanceSafe = 0n;
 
     try {
-      wmonBalance = await publicClient.readContract({
+      // User's WMON balance
+      wmonBalanceUser = await publicClient.readContract({
         address: WMON_ADDRESS,
         abi: ERC20_ABI,
         functionName: 'balanceOf',
         args: [userAddress],
-      });
-      console.log(`✅ WMON balance: ${wmonBalance.toString()} wei`);
+      }) as bigint;
+      console.log(`✅ User WMON balance (raw): ${wmonBalanceUser.toString()}`);
+
+      // Bot Safe's WMON balance (where delegated transactions send tokens)
+      if (BOT_SAFE_ACCOUNT) {
+        wmonBalanceSafe = await publicClient.readContract({
+          address: WMON_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args: [BOT_SAFE_ACCOUNT],
+        }) as bigint;
+        console.log(`✅ Safe WMON balance (raw): ${wmonBalanceSafe.toString()}`);
+      }
     } catch (error) {
       console.error('❌ Error fetching WMON balance:', error);
     }
 
+    const wmonBalance = wmonBalanceUser + wmonBalanceSafe;
     const wmonFormatted = parseFloat(formatEther(wmonBalance)).toFixed(4);
-    console.log(`✅ WMON balance formatted: ${wmonFormatted} WMON`);
+    console.log(`✅ WMON balance formatted: ${wmonFormatted} WMON (User: ${formatEther(wmonBalanceUser)}, Safe: ${formatEther(wmonBalanceSafe)})`);
 
     // =============================================
     // STEP 3: Get NFT balances from Envio indexer
