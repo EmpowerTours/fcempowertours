@@ -1,17 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { monadTestnet } from '../chains';
-import { parseAbiItem } from 'viem';
 
-function BurnMusicContent() {
-  const { login, authenticated, user, ready } = usePrivy();
-  const { wallets } = useWallets();
+export default function BurnMusicPage() {
+  const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
-  const [preferredWallet, setPreferredWallet] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [txHash, setTxHash] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Get URL parameters on mount
   useEffect(() => {
@@ -19,67 +20,14 @@ function BurnMusicContent() {
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('tokenId');
       const name = urlParams.get('name');
-      const fromAddress = urlParams.get('from')?.toLowerCase();
 
       if (token) setTokenId(token);
       if (name) setTokenName(decodeURIComponent(name));
-      if (fromAddress) setPreferredWallet(fromAddress);
     }
   }, []);
 
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [txHash, setTxHash] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [selectedWallet, setSelectedWallet] = useState<any>(null);
-
-  // Auto-select wallet based on URL parameter or show selection
-  useEffect(() => {
-    if (wallets.length > 0) {
-      if (preferredWallet) {
-        const matchingWallet = wallets.find(w => w.address.toLowerCase() === preferredWallet);
-        if (matchingWallet) {
-          setSelectedWallet(matchingWallet);
-          console.log('✅ Auto-selected wallet from URL:', matchingWallet.address);
-        } else {
-          setSelectedWallet(wallets[0]);
-          console.warn('⚠️ Preferred wallet not found, using first wallet');
-        }
-      } else {
-        const privyWallet = wallets.find(w => w.walletClientType === 'privy');
-        const nonMetaMaskWallet = wallets.find(w =>
-          w.walletClientType !== 'metamask' && w.walletClientType !== 'injected'
-        );
-
-        if (privyWallet) {
-          setSelectedWallet(privyWallet);
-          console.log('✅ Auto-selected Privy embedded wallet:', privyWallet.address);
-        } else if (nonMetaMaskWallet) {
-          setSelectedWallet(nonMetaMaskWallet);
-          console.log('✅ Auto-selected non-MetaMask wallet:', nonMetaMaskWallet.address);
-        } else {
-          setSelectedWallet(wallets[0]);
-          console.log('⚠️ Using first available wallet:', wallets[0].address);
-        }
-      }
-    }
-  }, [wallets, preferredWallet]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('🔐 Privy state:', {
-      ready,
-      authenticated,
-      user: user?.id,
-      walletsCount: wallets.length,
-      walletAddresses: wallets.map(w => w.address),
-      preferredWallet,
-      selectedWallet: selectedWallet?.address
-    });
-  }, [ready, authenticated, user, wallets, preferredWallet, selectedWallet]);
-
   const handleBurn = async () => {
-    if (!tokenId || !selectedWallet) return;
+    if (!tokenId || !walletAddress) return;
 
     try {
       setError('');
@@ -87,48 +35,35 @@ function BurnMusicContent() {
       setTxHash('');
       setLoading(true);
 
-      const wallet = selectedWallet;
-
-      console.log('🔥 Burning NFT with wallet:', {
-        address: wallet.address,
-        type: wallet.walletClientType,
-        chainId: wallet.chainId,
-        tokenId
+      console.log('🔥 Burning NFT from Farcaster wallet:', {
+        wallet: walletAddress,
+        tokenId,
+        fid
       });
 
-      // Switch to Monad if needed
-      if (wallet.chainId !== `eip155:${monadTestnet.id}`) {
-        console.log(`🔄 Switching wallet to Monad Testnet (chain ${monadTestnet.id})...`);
-        await wallet.switchChain(monadTestnet.id);
+      // Call gasless burn API (Safe account pays gas)
+      const response = await fetch('/api/burn-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          tokenId: tokenId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Burn failed');
       }
 
-      // Get EIP1193 provider
-      const provider = await wallet.getEthereumProvider();
-
-      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS! as `0x${string}`;
-
-      // Encode burn function call
-      const burnData = parseAbiItem('function burnMusicNFT(uint256 tokenId) external');
-      const data = `0x${burnData.name}${BigInt(tokenId).toString(16).padStart(64, '0')}`;
-
-      console.log('📝 Sending burn transaction...');
-
-      // Send transaction via provider
-      const tx = await provider.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: wallet.address,
-          to: MUSIC_NFT_ADDRESS,
-          data: `0x46dd2b43${BigInt(tokenId).toString(16).padStart(64, '0')}`, // burnMusicNFT selector
-          value: '0x0',
-        }],
-      });
+      const tx = data.txHash;
 
       console.log('✅ Burn transaction sent:', tx);
       setTxHash(tx as string);
-      setSuccess(`Music NFT #${tokenId} burn transaction submitted! TX: ${(tx as string).slice(0, 10)}...`);
+      setSuccess(`Music NFT #${tokenId} burned successfully!`);
 
-      // Wait a moment then redirect back
+      // Wait then redirect back
       setTimeout(() => {
         window.location.href = '/profile?tab=music';
       }, 3000);
@@ -141,7 +76,7 @@ function BurnMusicContent() {
     }
   };
 
-  if (!ready) {
+  if (contextLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
@@ -149,19 +84,19 @@ function BurnMusicContent() {
     );
   }
 
-  if (!authenticated) {
+  if (!walletAddress) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-purple-500/20">
           <h1 className="text-3xl font-bold text-white mb-4">🔥 Burn Music NFT</h1>
           <p className="text-gray-300 mb-6">
-            Please connect your wallet to burn this music NFT.
+            Please connect your Farcaster account to burn this music NFT.
           </p>
           <button
-            onClick={login}
+            onClick={() => window.location.href = '/profile'}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
           >
-            Connect Wallet
+            Go to Profile
           </button>
         </div>
       </div>
@@ -185,28 +120,16 @@ function BurnMusicContent() {
           )}
         </div>
 
-        {/* Wallet Selection */}
-        {wallets.length > 1 && (
-          <div className="mb-6">
-            <label className="text-sm font-medium text-gray-300 mb-2 block">
-              Select Wallet
-            </label>
-            <select
-              value={selectedWallet?.address || ''}
-              onChange={(e) => {
-                const wallet = wallets.find(w => w.address === e.target.value);
-                setSelectedWallet(wallet);
-              }}
-              className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-purple-500/20 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              {wallets.map((wallet) => (
-                <option key={wallet.address} value={wallet.address}>
-                  {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)} ({wallet.walletClientType})
-                </option>
-              ))}
-            </select>
+        {/* Wallet Info */}
+        <div className="mb-6 p-4 bg-slate-700/50 rounded-lg">
+          <div className="text-sm text-gray-400 mb-1">Your Wallet</div>
+          <div className="text-sm font-mono text-white">
+            {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
           </div>
-        )}
+          {fid && (
+            <div className="text-xs text-gray-400 mt-1">FID: {fid}</div>
+          )}
+        </div>
 
         {/* Warning */}
         <div className="mb-6 p-4 bg-red-900/30 border border-red-500/30 rounded-lg">
@@ -215,7 +138,7 @@ function BurnMusicContent() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. You will pay gas for this transaction.
+                This action cannot be undone. This transaction is FREE (gasless).
               </div>
             </div>
           </div>
@@ -250,7 +173,7 @@ function BurnMusicContent() {
         {/* Burn Button */}
         <button
           onClick={handleBurn}
-          disabled={loading || !tokenId || !selectedWallet}
+          disabled={loading || !tokenId || !walletAddress}
           className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {loading ? (
@@ -275,24 +198,5 @@ function BurnMusicContent() {
         </button>
       </div>
     </div>
-  );
-}
-
-export default function BurnMusicPage() {
-  return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-      config={{
-        loginMethods: ['farcaster', 'wallet'],
-        appearance: {
-          theme: 'dark',
-          accentColor: '#8b5cf6',
-        },
-        defaultChain: monadTestnet,
-        supportedChains: [monadTestnet],
-      }}
-    >
-      <BurnMusicContent />
-    </PrivyProvider>
   );
 }
