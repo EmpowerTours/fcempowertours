@@ -14,7 +14,7 @@ const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS! as `0x${str
 const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${PIMLICO_API_KEY}`;
 
 const musicNFTAbi = parseAbi([
-  'function burnMusic(uint256 tokenId) external',
+  'function burnMusicNFT(uint256 tokenId) external',
   'function ownerOf(uint256 tokenId) external view returns (address)',
   'function burnRewardAmount() external view returns (uint256)',
 ]);
@@ -83,9 +83,12 @@ export async function POST(request: NextRequest) {
       args: [BigInt(tokenId)],
     });
 
-    if (owner.toLowerCase() !== userAddress.toLowerCase()) {
+    console.log(`📋 Owner of token #${tokenId}:`, owner);
+    console.log(`📋 User address:`, userAddress);
+
+    if (!owner || owner.toLowerCase() !== userAddress.toLowerCase()) {
       return NextResponse.json(
-        { success: false, error: 'You do not own this music NFT' },
+        { success: false, error: `You do not own this music NFT. Owner: ${owner}, User: ${userAddress}` },
         { status: 403 }
       );
     }
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
     // Encode burn call
     const burnData = encodeFunctionData({
       abi: musicNFTAbi,
-      functionName: 'burnMusic',
+      functionName: 'burnMusicNFT',
       args: [BigInt(tokenId)],
     });
 
