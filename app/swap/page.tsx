@@ -376,7 +376,7 @@ function SwapContent() {
         )}
 
         {/* Balance Cards */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-4 mb-8">
           <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 backdrop-blur-lg border border-yellow-500/30 rounded-xl p-5">
             <p className="text-yellow-200 text-xs font-medium mb-2">MON Balance</p>
             <p className="text-3xl font-bold text-yellow-100">{balances.mon}</p>
@@ -384,6 +384,10 @@ function SwapContent() {
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-lg border border-green-500/30 rounded-xl p-5">
             <p className="text-green-200 text-xs font-medium mb-2">TOURS Balance</p>
             <p className="text-3xl font-bold text-green-100">{balances.tours}</p>
+          </div>
+          <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-lg border border-blue-500/30 rounded-xl p-5">
+            <p className="text-blue-200 text-xs font-medium mb-2">WMON Balance</p>
+            <p className="text-3xl font-bold text-blue-100">{formatEther(wmonBalance || BigInt(0))}</p>
           </div>
         </div>
 
@@ -766,30 +770,41 @@ function SwapContent() {
               </p>
             </div>
 
-            {/* How it Works */}
+            {/* Complete Trading Flow */}
             <div className="mt-8 bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10">
-              <h2 className="text-2xl font-bold text-white mb-6">How It Works</h2>
-              <div className="grid md:grid-cols-3 gap-6 text-center">
-                <div>
-                  <div className="text-4xl mb-3">💱</div>
-                  <h3 className="text-white font-semibold mb-2">1. Choose Direction</h3>
-                  <p className="text-purple-200 text-sm">
-                    Swap TOURS for WMON or vice versa
-                  </p>
+              <h2 className="text-2xl font-bold text-white mb-6">💡 Complete Trading Flow</h2>
+
+              {/* All Available Operations */}
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-lg p-4">
+                  <h3 className="text-blue-200 font-bold mb-2">🔄 Wrap/Unwrap</h3>
+                  <ul className="text-sm text-blue-100 space-y-1">
+                    <li>✅ MON → WMON (Wrap)</li>
+                    <li>✅ WMON → MON (Unwrap)</li>
+                  </ul>
                 </div>
-                <div>
-                  <div className="text-4xl mb-3">⚡</div>
-                  <h3 className="text-white font-semibold mb-2">2. Instant Swap</h3>
-                  <p className="text-purple-200 text-sm">
-                    Automated market maker provides instant liquidity
-                  </p>
+                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg p-4">
+                  <h3 className="text-purple-200 font-bold mb-2">💱 AMM Swaps</h3>
+                  <ul className="text-sm text-purple-100 space-y-1">
+                    <li>✅ TOURS → WMON</li>
+                    <li>✅ WMON → TOURS</li>
+                  </ul>
                 </div>
-                <div>
-                  <div className="text-4xl mb-3">💰</div>
-                  <h3 className="text-white font-semibold mb-2">3. Unwrap MON</h3>
-                  <p className="text-purple-200 text-sm">
-                    Convert WMON back to native MON anytime
-                  </p>
+              </div>
+
+              {/* Complete Flow Examples */}
+              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-5">
+                <h3 className="text-green-200 font-bold mb-3">🎯 Example Flows:</h3>
+                <div className="space-y-3 text-sm text-green-100">
+                  <div>
+                    <strong>TOURS → MON:</strong> TOURS → WMON (AMM) → MON (Unwrap)
+                  </div>
+                  <div>
+                    <strong>MON → TOURS:</strong> MON → WMON (Wrap) → TOURS (AMM)
+                  </div>
+                  <div className="pt-2 border-t border-green-500/30 text-xs">
+                    💡 All transactions are <strong>gasless</strong> - we pay for your gas fees!
+                  </div>
                 </div>
               </div>
             </div>

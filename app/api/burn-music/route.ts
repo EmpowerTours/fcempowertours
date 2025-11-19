@@ -173,10 +173,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Initial gas limits for estimation (required for deployment scenarios)
+    // ✅ Increased preVerificationGas significantly based on actual requirement (1183893)
     const initialGasLimits = {
       callGasLimit: 500_000n,
       verificationGasLimit: 500_000n,
-      preVerificationGas: 100_000n,
+      preVerificationGas: 1_200_000n, // Increased from 100k to 1.2M
     };
 
     // Estimate gas
@@ -205,7 +206,7 @@ export async function POST(request: NextRequest) {
       estimatedGas = {
         callGasLimit: 1_000_000n,
         verificationGasLimit: 1_000_000n,
-        preVerificationGas: 200_000n,
+        preVerificationGas: 1_500_000n, // Increased from 200k to 1.5M
       };
       console.log('⚠️ Using fallback gas limits');
     }
