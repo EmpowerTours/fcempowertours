@@ -265,7 +265,9 @@ export default function BurnMusicPage() {
           accentColor: '#9333EA',
         },
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
         loginMethods: ['farcaster', 'wallet'],
       }}
