@@ -14,17 +14,6 @@ export default function BurnMusicPage() {
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showOpenExternalButton, setShowOpenExternalButton] = useState(false);
-
-  const openExternally = () => {
-    const externalUrl = `${process.env.NEXT_PUBLIC_URL || window.location.origin}/burn-music?tokenId=${tokenId}&name=${encodeURIComponent(tokenName)}`;
-
-    if (sdk?.actions?.openUrl) {
-      sdk.actions.openUrl({ url: externalUrl });
-    } else {
-      window.open(externalUrl, '_blank');
-    }
-  };
 
   // Get URL parameters on mount
   useEffect(() => {
@@ -53,82 +42,60 @@ export default function BurnMusicPage() {
         fid
       });
 
-      // Farcaster frames don't support arbitrary contract calls
-      // We need to open the burn page externally or use an alternative method
-      const isInFarcasterFrame = typeof window !== 'undefined' && window.parent !== window;
+      // Check if delegation exists, if not create it
+      console.log('🔍 Checking delegation status...');
+      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
+      const delegationData = await delegationRes.json();
 
-      if (isInFarcasterFrame) {
-        setError(
-          'Farcaster frames cannot perform this action. ' +
-          'Please open this page in your browser to burn the NFT.'
-        );
-        setShowOpenExternalButton(true);
-        return;
-      }
+      if (!delegationData.success || !delegationData.delegation?.permissions?.includes('burn_music')) {
+        console.log('⏳ Setting up gasless burn permissions...');
+        setSuccess('⏳ Setting up gasless burn (one-time setup)...');
 
-      // Not in frame - try to send transaction
-      // Encode the burnMusicNFT call
-      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS!;
-      const burnData = encodeFunctionData({
-        abi: parseAbi(['function burnMusicNFT(uint256 tokenId) external']),
-        functionName: 'burnMusicNFT',
-        args: [BigInt(tokenId)],
-      });
-
-      console.log('📝 Sending burn transaction from user wallet...');
-
-      // Try with window.ethereum (MetaMask, etc.)
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        const provider = (window as any).ethereum;
-
-        // Request accounts
-        await provider.request({ method: 'eth_requestAccounts' });
-
-        // Switch to Monad testnet
-        try {
-          await provider.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x' + monadTestnet.id.toString(16) }],
-          });
-        } catch (switchError: any) {
-          // Chain not added, try adding it
-          if (switchError.code === 4902) {
-            await provider.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: '0x' + monadTestnet.id.toString(16),
-                chainName: monadTestnet.name,
-                rpcUrls: [monadTestnet.rpcUrls.default.http[0]],
-                nativeCurrency: monadTestnet.nativeCurrency,
-              }],
-            });
-          }
-        }
-
-        // Send transaction
-        const txHash = await provider.request({
-          method: 'eth_sendTransaction',
-          params: [{
-            from: walletAddress,
-            to: MUSIC_NFT_ADDRESS,
-            data: burnData,
-            value: '0x0',
-          }],
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['burn_music', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours']
+          })
         });
 
-        console.log('✅ Burn transaction sent:', txHash);
-        setTxHash(txHash);
-        setSuccess(`Music NFT #${tokenId} burned successfully!`);
-
-        // Wait then redirect back
-        setTimeout(() => {
-          window.location.href = '/profile?tab=music';
-        }, 3000);
-      } else {
-        setError(
-          'No wallet found. Please install MetaMask or another Web3 wallet to burn NFTs.'
-        );
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
       }
+
+      // Use delegation API to burn (gasless)
+      console.log('📝 Burning NFT via delegation (gasless)...');
+      setSuccess('⏳ Burning NFT (FREE - we pay gas)...');
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'burn_music',
+          params: { tokenId },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Burn failed');
+      }
+
+      console.log('✅ Burn transaction sent:', data.txHash);
+      setTxHash(data.txHash);
+      setSuccess(`Music NFT #${tokenId} burned successfully!`);
+
+      // Wait then redirect back
+      setTimeout(() => {
+        window.location.href = '/profile?tab=music';
+      }, 3000);
 
     } catch (err: any) {
       console.error('❌ Burn error:', err);
@@ -200,7 +167,7 @@ export default function BurnMusicPage() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. You'll need to sign the transaction and pay a small gas fee.
+                This action cannot be undone. This transaction is FREE (gasless - we pay the gas for you).
               </div>
             </div>
           </div>
@@ -211,16 +178,6 @@ export default function BurnMusicPage() {
           <div className="mb-4 p-4 bg-red-900/50 border border-red-500/50 rounded-lg text-red-200">
             {error}
           </div>
-        )}
-
-        {/* Open Externally Button */}
-        {showOpenExternalButton && (
-          <button
-            onClick={openExternally}
-            className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-          >
-            🌐 Open in Browser
-          </button>
         )}
 
         {/* Success */}

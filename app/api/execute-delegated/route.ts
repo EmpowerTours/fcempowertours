@@ -1875,7 +1875,18 @@ View profile and collection!
 
         const burnTokenId = BigInt(params.tokenId);
 
+        // Step 1: Transfer NFT from user to Safe (so Safe can burn it)
+        // Step 2: Burn NFT from Safe
         const burnMusicCalls = [
+          {
+            to: MUSIC_NFT_V5,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transferFrom(address from, address to, uint256 tokenId) external']),
+              functionName: 'transferFrom',
+              args: [userAddress as Address, SAFE_ACCOUNT, burnTokenId],
+            }) as Hex,
+          },
           {
             to: MUSIC_NFT_V5,
             value: 0n,
