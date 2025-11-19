@@ -6,7 +6,7 @@ import { monadTestnet } from '../chains';
 import { encodeFunctionData, parseAbi } from 'viem';
 
 export default function BurnMusicPage() {
-  const { walletAddress, fid, isLoading: contextLoading, sendTransaction, switchChain } = useFarcasterContext();
+  const { walletAddress, fid, isLoading: contextLoading, sendTransaction, switchChain, sdk } = useFarcasterContext();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -14,6 +14,17 @@ export default function BurnMusicPage() {
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showOpenExternalButton, setShowOpenExternalButton] = useState(false);
+
+  const openExternally = () => {
+    const externalUrl = `${process.env.NEXT_PUBLIC_URL || window.location.origin}/burn-music?tokenId=${tokenId}&name=${encodeURIComponent(tokenName)}`;
+
+    if (sdk?.actions?.openUrl) {
+      sdk.actions.openUrl({ url: externalUrl });
+    } else {
+      window.open(externalUrl, '_blank');
+    }
+  };
 
   // Get URL parameters on mount
   useEffect(() => {
@@ -30,25 +41,32 @@ export default function BurnMusicPage() {
   const handleBurn = async () => {
     if (!tokenId || !walletAddress) return;
 
-    try {
-      setError('');
-      setSuccess('');
-      setTxHash('');
-      setLoading(true);
+    setError('');
+    setSuccess('');
+    setTxHash('');
+    setLoading(true);
 
-      console.log('🔥 Burning NFT from user wallet:', {
+    try {
+      console.log('🔥 Attempting to burn NFT:', {
         wallet: walletAddress,
         tokenId,
         fid
       });
 
-      // Switch to Monad testnet if needed
-      try {
-        await switchChain({ chainId: monadTestnet.id });
-      } catch (switchErr: any) {
-        console.warn('⚠️ Chain switch failed (may already be on correct chain):', switchErr.message);
+      // Farcaster frames don't support arbitrary contract calls
+      // We need to open the burn page externally or use an alternative method
+      const isInFarcasterFrame = typeof window !== 'undefined' && window.parent !== window;
+
+      if (isInFarcasterFrame) {
+        setError(
+          'Farcaster frames cannot perform this action. ' +
+          'Please open this page in your browser to burn the NFT.'
+        );
+        setShowOpenExternalButton(true);
+        return;
       }
 
+      // Not in frame - try to send transaction
       // Encode the burnMusicNFT call
       const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS!;
       const burnData = encodeFunctionData({
@@ -58,24 +76,59 @@ export default function BurnMusicPage() {
       });
 
       console.log('📝 Sending burn transaction from user wallet...');
-      console.log('   User will sign and pay gas for this transaction');
 
-      // Send transaction directly from user's wallet (user pays gas)
-      const tx = await sendTransaction({
-        to: MUSIC_NFT_ADDRESS,
-        data: burnData,
-        value: '0x0',
-        chainId: monadTestnet.id,
-      });
+      // Try with window.ethereum (MetaMask, etc.)
+      if (typeof window !== 'undefined' && (window as any).ethereum) {
+        const provider = (window as any).ethereum;
 
-      console.log('✅ Burn transaction sent:', tx);
-      setTxHash(tx.transactionHash || tx);
-      setSuccess(`Music NFT #${tokenId} burned successfully!`);
+        // Request accounts
+        await provider.request({ method: 'eth_requestAccounts' });
 
-      // Wait then redirect back
-      setTimeout(() => {
-        window.location.href = '/profile?tab=music';
-      }, 3000);
+        // Switch to Monad testnet
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x' + monadTestnet.id.toString(16) }],
+          });
+        } catch (switchError: any) {
+          // Chain not added, try adding it
+          if (switchError.code === 4902) {
+            await provider.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: '0x' + monadTestnet.id.toString(16),
+                chainName: monadTestnet.name,
+                rpcUrls: [monadTestnet.rpcUrls.default.http[0]],
+                nativeCurrency: monadTestnet.nativeCurrency,
+              }],
+            });
+          }
+        }
+
+        // Send transaction
+        const txHash = await provider.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: walletAddress,
+            to: MUSIC_NFT_ADDRESS,
+            data: burnData,
+            value: '0x0',
+          }],
+        });
+
+        console.log('✅ Burn transaction sent:', txHash);
+        setTxHash(txHash);
+        setSuccess(`Music NFT #${tokenId} burned successfully!`);
+
+        // Wait then redirect back
+        setTimeout(() => {
+          window.location.href = '/profile?tab=music';
+        }, 3000);
+      } else {
+        setError(
+          'No wallet found. Please install MetaMask or another Web3 wallet to burn NFTs.'
+        );
+      }
 
     } catch (err: any) {
       console.error('❌ Burn error:', err);
@@ -158,6 +211,16 @@ export default function BurnMusicPage() {
           <div className="mb-4 p-4 bg-red-900/50 border border-red-500/50 rounded-lg text-red-200">
             {error}
           </div>
+        )}
+
+        {/* Open Externally Button */}
+        {showOpenExternalButton && (
+          <button
+            onClick={openExternally}
+            className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            🌐 Open in Browser
+          </button>
         )}
 
         {/* Success */}
