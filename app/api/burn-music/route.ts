@@ -8,8 +8,8 @@ import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { entryPoint07Address } from 'viem/account-abstraction';
 
 const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY!;
-const PRIVATE_KEY = process.env.PRIVATE_KEY! as `0x${string}`;
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_NFT_ADDRESS! as `0x${string}`;
+const PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY! as `0x${string}`;
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS! as `0x${string}`;
 
 const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${PIMLICO_API_KEY}`;
 
