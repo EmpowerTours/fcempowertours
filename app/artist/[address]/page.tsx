@@ -125,10 +125,11 @@ export default function ArtistProfilePage() {
 
       // Fallback: truncated address
       console.log('⚠️ No Farcaster account found, using truncated address');
+      const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
       setArtistInfo({
         address: artistAddress,
-        username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
-        displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
+        username: truncated,
+        displayName: `Artist @${truncated}`,
       });
     } catch (error) {
       console.error('❌ Error loading artist info:', error);

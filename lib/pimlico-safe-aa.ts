@@ -393,22 +393,20 @@ export async function sendSafeTransaction(
     console.log('   Max fee per gas:', maxFeePerGas.toString(), 'wei');
     console.log('   Max priority fee:', maxPriorityFeePerGas.toString(), 'wei');
 
-    // ✅ ENHANCED: Simulate each call individually to catch configuration errors early
-    // This helps identify issues like wrong contract addresses, missing whitelists, etc.
-    console.log('🔍 Simulating each call individually to catch errors early...');
-    for (let i = 0; i < calls.length; i++) {
-      const call = calls[i];
+    // Skip individual call simulation for batched transactions
+    // Batched calls (like approve + swap) must execute together, simulating them individually fails
+    // The precondition validation above already checks balances and basic requirements
+    if (calls.length > 1) {
+      console.log('✅ Batch transaction detected - skipping individual call simulation');
+      console.log('   Batched calls will be validated as a whole during execution');
+    } else {
+      // For single calls, we can still do a quick simulation
+      console.log('🔍 Simulating single call to catch errors early...');
+      const call = calls[0];
       const functionSelector = call.data.slice(0, 10);
 
-      console.log(`   [Call ${i}] Simulating: ${call.to} (selector: ${functionSelector})`);
+      console.log(`   Simulating: ${call.to} (selector: ${functionSelector})`);
 
-      // Skip approve calls - they need to be executed in the same transaction as the spend
-      if (functionSelector === '0x095ea7b3') {
-        console.log(`   [Call ${i}] Type: ERC20 approve - skipping simulation (executes in batch)`);
-        continue;
-      }
-
-      // Simulate all other calls to catch real configuration issues
       try {
         await publicClient.call({
           account: SAFE_ACCOUNT,
@@ -417,9 +415,9 @@ export async function sendSafeTransaction(
           value: call.value,
         });
 
-        console.log(`   [Call ${i}] ✅ Simulation passed`);
+        console.log(`   ✅ Simulation passed`);
       } catch (simErr: any) {
-        console.error(`   [Call ${i}] ❌ Simulation failed:`, {
+        console.error(`   ❌ Simulation failed:`, {
           message: simErr.message,
           shortMessage: simErr.shortMessage,
           details: simErr.details,
@@ -511,7 +509,7 @@ export async function sendSafeTransaction(
         );
       }
     }
-    console.log('✅ All call simulations passed\n');
+  }
 
     // ✅ CRITICAL: Detect approve + spend patterns
     // The bundler's gas estimation CANNOT handle this pattern because:
