@@ -100,8 +100,13 @@ function BurnMusicContent() {
 
       setSuccess('⏳ Please sign the transaction in your wallet...');
 
-      // Send transaction
-      const txHash = await provider.request({
+      console.log('📝 Requesting transaction signature...');
+      console.log('   From:', wallet.address);
+      console.log('   To:', MUSIC_NFT_ADDRESS);
+      console.log('   Data:', burnData);
+
+      // Send transaction with timeout
+      const txPromise = provider.request({
         method: 'eth_sendTransaction',
         params: [{
           from: wallet.address,
@@ -109,7 +114,14 @@ function BurnMusicContent() {
           data: burnData,
           value: '0x0',
         }],
-      }) as string;
+      });
+
+      // Add 60 second timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Transaction signing timed out after 60 seconds. Please try again.')), 60000)
+      );
+
+      const txHash = await Promise.race([txPromise, timeoutPromise]) as string;
 
       console.log('✅ Burn transaction sent:', txHash);
       setTxHash(txHash);
