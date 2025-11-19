@@ -64,7 +64,7 @@ export default function BurnMusicPage() {
       const tx = await sendTransaction({
         to: MUSIC_NFT_ADDRESS,
         data: burnData,
-        value: '0',
+        value: '0x0',
         chainId: monadTestnet.id,
       });
 

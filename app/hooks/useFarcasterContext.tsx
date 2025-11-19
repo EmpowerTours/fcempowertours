@@ -205,7 +205,41 @@ export function useFarcasterContext() {
 
   const sendTransaction = async (params: any) => {
     if (!sdk) throw new Error('SDK not loaded');
-    return await sdk.actions.sendTransaction(params);
+
+    // Farcaster frames use eth_sendTransaction via the provider
+    // The SDK provides an ethereum-compatible provider through the context
+    try {
+      // Use the ethereum provider request method
+      const provider = (sdk as any).ethereum || (window as any).ethereum;
+
+      if (!provider) {
+        throw new Error('No Ethereum provider available in Farcaster context');
+      }
+
+      console.log('📤 Sending transaction via Farcaster provider:', params);
+
+      // Format parameters for eth_sendTransaction
+      const txParams = {
+        from: custodyAddress || context?.user?.custody_address,
+        to: params.to,
+        data: params.data,
+        value: params.value || '0x0',
+        chainId: params.chainId ? '0x' + params.chainId.toString(16) : undefined,
+      };
+
+      console.log('📝 Transaction params:', txParams);
+
+      const hash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [txParams],
+      });
+
+      console.log('✅ Transaction hash:', hash);
+      return { transactionHash: hash };
+    } catch (error: any) {
+      console.error('❌ Send transaction error:', error);
+      throw new Error(`Transaction failed: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const switchChain = async (params: { chainId: number }) => {
