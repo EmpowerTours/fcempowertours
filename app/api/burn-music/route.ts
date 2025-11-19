@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
     const signer = privateKeyToAccount(PRIVATE_KEY);
 
     // Create Safe account - use existing deployed Safe
+    // ✅ Don't include safe4337ModuleAddress or erc7579LaunchpadAddress - those are only for deployment
     const safeAccount = await toSafeSmartAccount({
       client: publicClient,
       owners: [signer],
@@ -97,23 +98,16 @@ export async function POST(request: NextRequest) {
         address: entryPoint07Address,
         version: '0.7',
       },
-      address: SAFE_ACCOUNT, // ✅ Use existing deployed Safe account
+      address: SAFE_ACCOUNT, // Use existing deployed Safe account
       saltNonce: 0n,
-      safe4337ModuleAddress: '0x3Fdb5BC686e861480ef99A6E3FaAe03c0b9F32e2',
-      erc7579LaunchpadAddress: '0xEBe001b3D534B9B6E2500FB78E67a1A137f561CE',
     });
 
+    // Create smart account client (no paymaster config - let it use default behavior)
     const smartAccountClient = createSmartAccountClient({
       account: safeAccount,
       chain: monadTestnet,
-      bundlerTransport: http(pimlicoUrl),
-      paymaster: pimlicoClient,
-      userOperation: {
-        estimateFeesPerGas: async () => {
-          const gasPrices = await pimlicoClient.getUserOperationGasPrice();
-          return gasPrices.fast;
-        },
-      },
+      bundlerTransport: http(pimlicoUrl, { timeout: 120000 }),
+      pollingInterval: 2000,
     });
 
     // Verify ownership
