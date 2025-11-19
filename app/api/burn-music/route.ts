@@ -1,56 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, encodeFunctionData, parseAbi } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { createPublicClient, http, encodeFunctionData, parseAbi, Address, Hex } from 'viem';
 import { monadTestnet } from '@/app/chains';
-import { createSmartAccountClient } from 'permissionless';
-import { toSafeSmartAccount } from 'permissionless/accounts';
-import { createPimlicoClient } from 'permissionless/clients/pimlico';
-import { entryPoint07Address } from 'viem/account-abstraction';
+import { sendSafeTransaction, publicClient } from '@/lib/pimlico-safe-aa';
 
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY!;
-const PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY! as `0x${string}`;
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS! as `0x${string}`;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT! as `0x${string}`;
-
-const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${PIMLICO_API_KEY}`;
-
-// Helper to fetch Pimlico gas prices
-async function getPimlicoGasPrices(): Promise<{
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
-}> {
-  try {
-    const response = await fetch(pimlicoUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'pimlico_getUserOperationGasPrice',
-        params: [],
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Pimlico API returned ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(`Pimlico error: ${data.error.message}`);
-    }
-
-    const { fast } = data.result;
-    return {
-      maxFeePerGas: BigInt(fast.maxFeePerGas),
-      maxPriorityFeePerGas: BigInt(fast.maxPriorityFeePerGas),
-    };
-  } catch (error: any) {
-    console.error('❌ Failed to fetch Pimlico gas prices:', error.message);
-    throw error;
-  }
-}
 
 const musicNFTAbi = parseAbi([
   'function burnMusicNFT(uint256 tokenId) external',
@@ -70,45 +24,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔥 Burning music NFT #${tokenId} for user ${userAddress}`);
-
-    // Setup clients
-    const publicClient = createPublicClient({
-      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
-      chain: monadTestnet,
-    });
-
-    const pimlicoClient = createPimlicoClient({
-      transport: http(pimlicoUrl),
-      entryPoint: {
-        address: entryPoint07Address,
-        version: '0.7',
-      },
-    });
-
-    // Create signer account
-    const signer = privateKeyToAccount(PRIVATE_KEY);
-
-    // Create Safe account - use existing deployed Safe
-    // ✅ Don't include safe4337ModuleAddress or erc7579LaunchpadAddress - those are only for deployment
-    const safeAccount = await toSafeSmartAccount({
-      client: publicClient,
-      owners: [signer],
-      version: '1.4.1',
-      entryPoint: {
-        address: entryPoint07Address,
-        version: '0.7',
-      },
-      address: SAFE_ACCOUNT, // Use existing deployed Safe account
-      saltNonce: 0n,
-    });
-
-    // Create smart account client (no paymaster config - let it use default behavior)
-    const smartAccountClient = createSmartAccountClient({
-      account: safeAccount,
-      chain: monadTestnet,
-      bundlerTransport: http(pimlicoUrl, { timeout: 120000 }),
-      pollingInterval: 2000,
-    });
 
     // Verify ownership
     let owner: string;
@@ -164,89 +79,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 Sending burn transaction for token #${tokenId}...`);
 
-    // Get gas prices from Pimlico
-    const { maxFeePerGas, maxPriorityFeePerGas } = await getPimlicoGasPrices();
-
-    console.log('⛽ Gas prices:', {
-      maxFeePerGas: maxFeePerGas.toString(),
-      maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
-    });
-
-    // Initial gas limits for estimation (required for deployment scenarios)
-    // ✅ Increased preVerificationGas significantly based on actual requirement (1183893)
-    const initialGasLimits = {
-      callGasLimit: 500_000n,
-      verificationGasLimit: 500_000n,
-      preVerificationGas: 1_200_000n, // Increased from 100k to 1.2M
-    };
-
-    // Estimate gas
-    let estimatedGas;
-    try {
-      console.log('🔍 Estimating gas...');
-      estimatedGas = await smartAccountClient.estimateUserOperationGas({
-        account: smartAccountClient.account!,
-        calls: [{
-          to: MUSIC_NFT_ADDRESS,
-          data: burnData,
-          value: BigInt(0),
-        }],
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        ...initialGasLimits,
-      });
-      console.log('✅ Gas estimated:', {
-        callGasLimit: estimatedGas.callGasLimit.toString(),
-        verificationGasLimit: estimatedGas.verificationGasLimit.toString(),
-        preVerificationGas: estimatedGas.preVerificationGas.toString(),
-      });
-    } catch (gasErr: any) {
-      console.error('❌ Gas estimation failed:', gasErr.message);
-      // Use higher fallback gas limits
-      estimatedGas = {
-        callGasLimit: 1_000_000n,
-        verificationGasLimit: 1_000_000n,
-        preVerificationGas: 1_500_000n, // Increased from 200k to 1.5M
-      };
-      console.log('⚠️ Using fallback gas limits');
-    }
-
-    // Add 20% buffer for safety
-    const gasWithBuffer = {
-      callGasLimit: (estimatedGas.callGasLimit * 120n) / 100n,
-      verificationGasLimit: (estimatedGas.verificationGasLimit * 120n) / 100n,
-      preVerificationGas: (estimatedGas.preVerificationGas * 120n) / 100n,
-    };
-
-    console.log('🚀 Final gas limits with 20% buffer:', {
-      callGasLimit: gasWithBuffer.callGasLimit.toString(),
-      verificationGasLimit: gasWithBuffer.verificationGasLimit.toString(),
-      preVerificationGas: gasWithBuffer.preVerificationGas.toString(),
-    });
-
-    // Send user operation with explicit gas limits
-    const userOpHash = await smartAccountClient.sendUserOperation({
-      account: smartAccountClient.account!,
-      calls: [{
+    // Use the sendSafeTransaction helper which includes:
+    // - UserOperation success validation (detects silent failures)
+    // - Proper gas estimation and buffers
+    // - All error handling and validations
+    const txHash = await sendSafeTransaction([
+      {
         to: MUSIC_NFT_ADDRESS,
-        data: burnData,
         value: BigInt(0),
-      }],
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-      ...gasWithBuffer,
-    });
+        data: burnData as Hex,
+      },
+    ]);
 
-    console.log('✅ UserOperation submitted:', userOpHash);
-
-    // Wait for the transaction to be mined
-    console.log('⏳ Waiting for transaction to be mined...');
-    const receipt = await smartAccountClient.waitForUserOperationReceipt({
-      hash: userOpHash,
-      timeout: 300_000, // 5 minutes
-    });
-
-    const txHash = receipt.receipt.transactionHash;
     console.log(`✅ Music NFT #${tokenId} burned! TX: ${txHash}`);
 
     return NextResponse.json({

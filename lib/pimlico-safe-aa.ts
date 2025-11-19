@@ -657,14 +657,19 @@ export async function sendSafeTransaction(
       }
     }
 
-    // ✅ Use estimated gas values (with 20% buffer for safety)
+    // ✅ Use estimated gas values with buffer for safety
+    // Approve + spend patterns need 50% buffer due to bundler estimation issues
+    // Single operations can use 20% buffer
+    const bufferPercent = hasApproveSpendPattern ? 150n : 120n;
+    const bufferLabel = hasApproveSpendPattern ? '50%' : '20%';
+
     const gasWithBuffer = {
-      callGasLimit: (estimatedGas.callGasLimit * 120n) / 100n,
-      verificationGasLimit: (estimatedGas.verificationGasLimit * 120n) / 100n,
-      preVerificationGas: (estimatedGas.preVerificationGas * 120n) / 100n,
+      callGasLimit: (estimatedGas.callGasLimit * bufferPercent) / 100n,
+      verificationGasLimit: (estimatedGas.verificationGasLimit * bufferPercent) / 100n,
+      preVerificationGas: (estimatedGas.preVerificationGas * bufferPercent) / 100n,
     };
 
-    console.log('🚀 Using gas estimates with 20% buffer:');
+    console.log(`🚀 Using gas estimates with ${bufferLabel} buffer:${hasApproveSpendPattern ? ' (approve+spend pattern detected)' : ''}`);
     console.log('   callGasLimit:', gasWithBuffer.callGasLimit.toString());
     console.log('   verificationGasLimit:', gasWithBuffer.verificationGasLimit.toString());
     console.log('   preVerificationGas:', gasWithBuffer.preVerificationGas.toString());
@@ -696,6 +701,56 @@ export async function sendSafeTransaction(
       console.log('✅ Transaction mined:', txHash);
       console.log('   Gas used:', receipt.receipt.gasUsed.toString());
       console.log('   Block:', receipt.receipt.blockNumber.toString());
+
+      // ✅ CRITICAL: Check if UserOperation actually succeeded (ERC-4337 silent failure detection)
+      // The transaction can have status = 1 (success) but the UserOperation's internal calls can fail
+      // We must check the 'success' field in the UserOperationEvent emitted by the EntryPoint
+      console.log('🔍 Validating UserOperation success...');
+
+      // UserOperationEvent signature: UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)
+      const userOpEventTopic = '0x49628fd1471006c1482da88028e9ce4dbb080b815c9b0344d39e5a8e6ec1419f'; // keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)")
+
+      const userOpEvent = receipt.receipt.logs.find(
+        (log: any) => log.topics[0]?.toLowerCase() === userOpEventTopic.toLowerCase()
+      );
+
+      if (!userOpEvent) {
+        console.warn('⚠️  Could not find UserOperationEvent in receipt logs');
+        console.warn('   Proceeding with caution - unable to verify internal call success');
+      } else {
+        // Parse the success flag from the event data
+        // Event structure: topics[0] = event signature, topics[1] = userOpHash, topics[2] = sender, topics[3] = paymaster
+        // data contains: nonce, success, actualGasCost, actualGasUsed (each 32 bytes)
+        const eventData = userOpEvent.data;
+
+        // success is the second field in data (after nonce), at bytes 32-64
+        const successHex = eventData.slice(66, 130); // Skip '0x' and first 32 bytes (nonce)
+        const success = BigInt('0x' + successHex) === 1n;
+
+        console.log('   UserOperation success flag:', success);
+        console.log('   Success hex:', successHex);
+
+        if (!success) {
+          console.error('❌ UserOperation FAILED - ERC-4337 silent failure detected!');
+          console.error('   Transaction hash:', txHash);
+          console.error('   UserOp hash:', userOpHash);
+          console.error('   The blockchain transaction succeeded (status=1) but the internal calls failed (success=0)');
+          console.error('   This typically happens when:');
+          console.error('   1. Token approvals were insufficient');
+          console.error('   2. Token balances were too low for the operation');
+          console.error('   3. Contract preconditions were not met');
+          console.error('   4. Gas limits were too low for complex operations');
+
+          throw new Error(
+            `UserOperation failed: Internal calls did not execute successfully. ` +
+            `Transaction ${txHash} succeeded on-chain but did not perform the intended action. ` +
+            `This is likely due to insufficient token balance, missing approvals, or contract preconditions not being met. ` +
+            `No tokens were transferred or state changes occurred.`
+          );
+        }
+
+        console.log('✅ UserOperation success validated - internal calls executed successfully');
+      }
 
       return txHash;
     } catch (timeoutErr: any) {

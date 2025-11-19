@@ -120,11 +120,13 @@ function SwapContent() {
   const [ammSwapping, setAmmSwapping] = useState(false);
   const [ammSwapError, setAmmSwapError] = useState<string | null>(null);
   const [ammSwapSuccess, setAmmSwapSuccess] = useState<string | null>(null);
+  const [ammSwapTxHash, setAmmSwapTxHash] = useState<string | null>(null);
 
   // Wrap/Unwrap state for delegation
   const [wrapUnwrapLoading, setWrapUnwrapLoading] = useState(false);
   const [wrapUnwrapError, setWrapUnwrapError] = useState<string | null>(null);
   const [wrapUnwrapSuccess, setWrapUnwrapSuccess] = useState<string | null>(null);
+  const [wrapUnwrapTxHash, setWrapUnwrapTxHash] = useState<string | null>(null);
 
   const handleSwap = async () => {
     if (!inputAmount || parseFloat(inputAmount) <= 0) {
@@ -140,6 +142,7 @@ function SwapContent() {
     setAmmSwapping(true);
     setAmmSwapError(null);
     setAmmSwapSuccess(null);
+    setAmmSwapTxHash(null);
 
     try {
       // Check for delegation with swap permissions
@@ -197,6 +200,7 @@ function SwapContent() {
       const { txHash } = await response.json();
 
       setAmmSwapSuccess(`🎉 Successfully swapped ${inputAmount} ${swapDirection === 'tours-to-wmon' ? 'TOURS → WMON' : 'WMON → TOURS'}!`);
+      setAmmSwapTxHash(txHash);
       setInputAmount('');
 
       // Refresh balances after delay
@@ -230,6 +234,7 @@ function SwapContent() {
     setWrapUnwrapLoading(true);
     setWrapUnwrapError(null);
     setWrapUnwrapSuccess(null);
+    setWrapUnwrapTxHash(null);
 
     try {
       // Check for delegation
@@ -282,6 +287,7 @@ function SwapContent() {
       const { txHash } = await response.json();
 
       setWrapUnwrapSuccess(`🎉 Successfully ${action === 'wrap_mon' ? 'wrapped MON to WMON' : 'unwrapped WMON to MON'}!`);
+      setWrapUnwrapTxHash(txHash);
 
       if (action === 'wrap_mon') {
         setWrapAmount('');
@@ -682,6 +688,18 @@ function SwapContent() {
           {ammSwapSuccess && (
             <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-4">
               <p className="text-green-200">{ammSwapSuccess}</p>
+              {ammSwapTxHash && (
+                <div className="mt-2 text-xs">
+                  <a
+                    href={`https://testnet.monadscan.com/tx/${ammSwapTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-green-300 hover:text-green-100 underline"
+                  >
+                    View on Monadscan →
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -719,6 +737,18 @@ function SwapContent() {
               {wrapUnwrapSuccess && (
                 <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-4">
                   <p className="text-green-200">{wrapUnwrapSuccess}</p>
+                  {wrapUnwrapTxHash && (
+                    <div className="mt-2 text-xs">
+                      <a
+                        href={`https://testnet.monadscan.com/tx/${wrapUnwrapTxHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-300 hover:text-green-100 underline"
+                      >
+                        View on Monadscan →
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
 
