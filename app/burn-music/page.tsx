@@ -173,15 +173,17 @@ function BurnMusicContent() {
         </div>
 
         {/* Wallet Info */}
-        <div className="mb-6 p-4 bg-slate-700/50 rounded-lg">
-          <div className="text-sm text-gray-400 mb-1">Your Wallet</div>
-          <div className="text-sm font-mono text-white">
-            {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+        {walletAddress && (
+          <div className="mb-6 p-4 bg-slate-700/50 rounded-lg">
+            <div className="text-sm text-gray-400 mb-1">Your Wallet</div>
+            <div className="text-sm font-mono text-white">
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </div>
+            {fid && (
+              <div className="text-xs text-gray-400 mt-1">FID: {fid}</div>
+            )}
           </div>
-          {fid && (
-            <div className="text-xs text-gray-400 mt-1">FID: {fid}</div>
-          )}
-        </div>
+        )}
 
         {/* Warning */}
         <div className="mb-6 p-4 bg-red-900/30 border border-red-500/30 rounded-lg">
