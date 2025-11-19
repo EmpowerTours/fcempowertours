@@ -128,15 +128,17 @@ export default function ArtistProfilePage() {
       const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
       setArtistInfo({
         address: artistAddress,
-        username: truncated,
-        displayName: `Artist @${truncated}`,
+        // ✅ FIX: Don't set username for non-Farcaster accounts to avoid duplication
+        // The UI will show displayName only when username is undefined
+        displayName: `Artist ${truncated}`,
       });
     } catch (error) {
       console.error('❌ Error loading artist info:', error);
+      const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
       setArtistInfo({
         address: artistAddress,
-        username: `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
-        displayName: `Artist ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`,
+        // ✅ FIX: Don't set username for non-Farcaster accounts to avoid duplication
+        displayName: `Artist ${truncated}`,
       });
     }
   };

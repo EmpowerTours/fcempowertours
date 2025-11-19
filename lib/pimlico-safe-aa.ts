@@ -244,22 +244,37 @@ export async function sendSafeTransaction(
         console.log(`   [Call ${i}] Spender: ${spender}`);
         console.log(`   [Call ${i}] Amount: ${amount.toString()}`);
 
-        // Check if Safe has enough token balance
-        try {
-          const tokenAddress = call.to;
-          const balance = await publicClient.readContract({
-            address: tokenAddress,
-            abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
-            functionName: 'balanceOf',
-            args: [SAFE_ACCOUNT],
-          });
-          console.log(`   [Call ${i}] Safe's token balance: ${balance.toString()}`);
+        // ✅ FIX: For approve operations, we should NOT check if balance >= approval amount
+        // Approve doesn't transfer tokens, it just grants permission
+        // The actual balance check should happen on the spend operation (next call in batch)
+        // Only check balance if this is NOT a max approval (max approval = unlimited permission)
+        const MAX_UINT256 = 2n ** 256n - 1n;
+        const isMaxApproval = amount >= MAX_UINT256 - 1000n; // Allow small margin for different max values
 
-          if (balance < amount) {
-            throw new Error(`Insufficient token balance. Safe has ${balance}, needs ${amount}`);
+        if (isMaxApproval) {
+          console.log(`   [Call ${i}] ℹ️  Max approval detected - skipping balance check`);
+          console.log(`   [Call ${i}] Note: Actual spend amount will be validated in the next call`);
+        } else {
+          // For non-max approvals, check if Safe has enough tokens
+          try {
+            const tokenAddress = call.to;
+            const balance = await publicClient.readContract({
+              address: tokenAddress,
+              abi: parseAbi(['function balanceOf(address) external view returns (uint256)']),
+              functionName: 'balanceOf',
+              args: [SAFE_ACCOUNT],
+            });
+            console.log(`   [Call ${i}] Safe's token balance: ${balance.toString()}`);
+
+            if (balance < amount) {
+              console.warn(`   [Call ${i}] ⚠️  Approving ${amount} but Safe only has ${balance}`);
+              console.warn(`   [Call ${i}] This is OK for approve operations, but may fail on actual spend`);
+            } else {
+              console.log(`   [Call ${i}] ✅ Safe has sufficient balance for approval amount`);
+            }
+          } catch (balanceErr: any) {
+            console.error(`   [Call ${i}] ⚠️  Balance check failed:`, balanceErr.message);
           }
-        } catch (balanceErr: any) {
-          console.error(`   [Call ${i}] ⚠️  Balance check failed:`, balanceErr.message);
         }
       } else if (functionSelector === '0xb438aa31') {
         // stakeWithDeposit(address nftAddress, uint256 nftTokenId, uint256 toursAmount, address beneficiary)
