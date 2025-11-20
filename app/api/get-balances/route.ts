@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
           id
           address
           musicNFTCount
+          artNFTCount
           passportNFTCount
           totalNFTs
         }
@@ -158,12 +159,13 @@ export async function POST(req: NextRequest) {
     `;
 
     console.log('⏳ Fetching NFT balances from indexer...');
-    let nftData = { 
+    let nftData = {
       id: userAddress,
       address: userAddress,
-      musicNFTCount: 0, 
-      passportNFTCount: 0, 
-      totalNFTs: 0 
+      musicNFTCount: 0,
+      artNFTCount: 0,
+      passportNFTCount: 0,
+      totalNFTs: 0
     };
     
     try {
