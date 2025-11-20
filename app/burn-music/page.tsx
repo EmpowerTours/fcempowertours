@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { monadTestnet } from '../chains';
-import { encodeFunctionData, parseAbi } from 'viem';
+import { useBotCommand } from '@/app/hooks/useBotCommand';
 
 export default function BurnMusicPage() {
-  const { walletAddress, fid, isLoading: contextLoading, sendTransaction } = useFarcasterContext();
+  const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
+  const { executeCommand, isExecuting } = useBotCommand();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -39,46 +39,24 @@ export default function BurnMusicPage() {
     setLoading(true);
 
     try {
-      console.log('🔥 Attempting to burn NFT with Farcaster wallet:', {
+      console.log('🔥 Attempting to burn NFT via gasless delegation:', {
         wallet: walletAddress,
         tokenId,
         fid
       });
 
-      // Encode burnNFT call (correct function name from EmpowerToursNFTv6)
-      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS!;
-      const burnData = encodeFunctionData({
-        abi: parseAbi(['function burnNFT(uint256 tokenId) external']),
-        functionName: 'burnNFT',
-        args: [BigInt(tokenId)],
-      });
+      setSuccess('⏳ Processing burn via gasless delegation...');
 
-      setSuccess('⏳ Please approve the transaction in your Farcaster wallet...');
+      // Use gasless bot command system
+      const result = await executeCommand(`burn music ${tokenId}`);
 
-      console.log('📝 Sending transaction via Farcaster SDK...');
-      console.log('   To:', MUSIC_NFT_ADDRESS);
-      console.log('   TokenID:', tokenId);
+      console.log('✅ Burn result:', result);
 
-      // Use Farcaster SDK sendTransaction
-      const result = await sendTransaction({
-        to: MUSIC_NFT_ADDRESS,
-        data: burnData,
-        value: '0x0',
-        chainId: monadTestnet.id,
-      });
-
-      console.log('✅ Transaction result:', result);
-
-      // Extract hash from result
-      const hash = result?.transactionHash || result?.hash || (typeof result === 'string' ? result : null);
-
-      if (!hash) {
-        throw new Error('No transaction hash returned');
+      if (result?.txHash) {
+        setTxHash(result.txHash);
       }
 
-      console.log('✅ Transaction hash:', hash);
-      setTxHash(hash);
-      setSuccess(`Music NFT #${tokenId} burned successfully!`);
+      setSuccess(`🔥 Music NFT #${tokenId} burned successfully!`);
 
       // Wait then redirect back
       setTimeout(() => {
@@ -151,7 +129,7 @@ export default function BurnMusicPage() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. You'll need to sign the transaction and pay a small gas fee (~0.001 MON).
+                This action cannot be undone. Burning is gasless and powered by delegation.
               </div>
             </div>
           </div>
@@ -186,17 +164,17 @@ export default function BurnMusicPage() {
         {/* Burn Button */}
         <button
           onClick={handleBurn}
-          disabled={loading || !tokenId || !walletAddress}
+          disabled={loading || isExecuting || !tokenId || !walletAddress}
           className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          {loading ? (
+          {(loading || isExecuting) ? (
             <>
               <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
               Burning...
             </>
           ) : (
             <>
-              🔥 Burn NFT
+              🔥 Burn NFT (Gasless)
             </>
           )}
         </button>
@@ -204,7 +182,7 @@ export default function BurnMusicPage() {
         {/* Cancel */}
         <button
           onClick={() => window.location.href = '/profile?tab=music'}
-          disabled={loading}
+          disabled={loading || isExecuting}
           className="w-full mt-3 bg-slate-700 hover:bg-slate-600 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
         >
           Cancel
