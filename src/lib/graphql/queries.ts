@@ -16,6 +16,7 @@ export const GET_USER_STATS = `
       id
       address
       musicNFTCount
+      artNFTCount
       passportNFTCount
       itinerariesCreated
       itinerariesPurchased

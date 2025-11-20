@@ -5,8 +5,9 @@ import { updateDelegationPermissions } from '@/lib/delegation-system';
 /**
  * 🔄 MIGRATION ENDPOINT
  *
- * Adds missing 'burn_music' permission to all existing delegations
- * This is needed because older delegations were created before this permission was added
+ * Adds missing permissions to all existing delegations:
+ * - stake_music / unstake_music (internal staking)
+ * - stake_music_yield / unstake_music_yield (YieldStrategy staking)
  *
  * Usage:
  * POST /api/migrate-delegations
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     // }
 
     console.log('🔄 Starting delegation migration...');
-    console.log('   Adding missing burn_music permission');
+    console.log('   Adding missing staking permissions');
 
     const keys = await redis.keys('delegation:*');
     console.log(`   Found ${keys.length} delegation(s)`);
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
     let updatedCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
+
+    // Permissions to add
+    const newPermissions = ['stake_music', 'unstake_music', 'stake_music_yield', 'unstake_music_yield'];
 
     for (const key of keys) {
       try {
@@ -47,9 +51,13 @@ export async function POST(req: NextRequest) {
 
         const delegation = typeof data === 'string' ? JSON.parse(data) : data;
 
-        // Check if delegation already has the permission
-        if (delegation.config?.permissions?.includes('burn_music')) {
-          console.log(`   ✓ ${delegation.user} already has burn_music`);
+        // Check if delegation already has all permissions
+        const hasAllPermissions = newPermissions.every(perm =>
+          delegation.config?.permissions?.includes(perm)
+        );
+
+        if (hasAllPermissions) {
+          console.log(`   ✓ ${delegation.user} already has all staking permissions`);
           skippedCount++;
           continue;
         }
@@ -61,12 +69,17 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // Find which permissions are missing
+        const missingPermissions = newPermissions.filter(perm =>
+          !delegation.config?.permissions?.includes(perm)
+        );
+
         // Update the delegation
         const userAddress = delegation.user;
-        const updated = await updateDelegationPermissions(userAddress, ['burn_music']);
+        const updated = await updateDelegationPermissions(userAddress, missingPermissions);
 
         if (updated) {
-          console.log(`   ✅ Updated ${userAddress}`);
+          console.log(`   ✅ Updated ${userAddress} with: ${missingPermissions.join(', ')}`);
           updatedCount++;
         } else {
           console.log(`   ❌ Failed to update ${userAddress}`);
@@ -90,7 +103,8 @@ export async function POST(req: NextRequest) {
         updated: updatedCount,
         skipped: skippedCount,
         errors: errorCount,
-        message: `Migration complete! Updated ${updatedCount} delegation(s) with burn_music permission.`
+        permissions: newPermissions,
+        message: `Migration complete! Updated ${updatedCount} delegation(s) with staking permissions.`
       }
     });
 

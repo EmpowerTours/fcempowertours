@@ -194,7 +194,8 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
   if (userStats) {
     await context.UserStats.set({
       ...userStats,
-      musicNFTCount: userStats.musicNFTCount + 1,
+      musicNFTCount: isArt ? userStats.musicNFTCount : userStats.musicNFTCount + 1,
+      artNFTCount: isArt ? userStats.artNFTCount + 1 : userStats.artNFTCount,
       totalNFTs: userStats.totalNFTs + 1,
       lastActive: new Date(event.block.timestamp * 1000),
     });
@@ -202,7 +203,8 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     await context.UserStats.set({
       id: userId,
       address: artist.toLowerCase(),
-      musicNFTCount: 1,
+      musicNFTCount: isArt ? 0 : 1,
+      artNFTCount: isArt ? 1 : 0,
       passportNFTCount: 0,
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
@@ -305,6 +307,7 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
       id: buyerId,
       address: buyer.toLowerCase(),
       musicNFTCount: 0,
+      artNFTCount: 0,
       passportNFTCount: 0,
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
@@ -514,6 +517,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       id: userId,
       address: owner.toLowerCase(),
       musicNFTCount: 0,
+      artNFTCount: 0,
       passportNFTCount: 1,
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
@@ -703,6 +707,7 @@ ItineraryNFT.ItineraryCreated.handler(async ({ event, context }) => {
       id: userId,
       address: creator.toLowerCase(),
       musicNFTCount: 0,
+      artNFTCount: 0,
       passportNFTCount: 0,
       itinerariesCreated: 1,
       itinerariesPurchased: 0,
@@ -779,6 +784,7 @@ ItineraryNFT.ItineraryPurchased.handler(async ({ event, context }) => {
       id: userId,
       address: buyer.toLowerCase(),
       musicNFTCount: 0,
+      artNFTCount: 0,
       passportNFTCount: 0,
       itinerariesCreated: 0,
       itinerariesPurchased: 1,

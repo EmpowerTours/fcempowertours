@@ -307,7 +307,8 @@ type PaymentRecord @entity {
 type UserStats @entity {
   id: ID!
   address: String!
-  musicNFTCount: Int!          # Music created by user
+  musicNFTCount: Int!          # Music NFTs created by user (isArt: false)
+  artNFTCount: Int!            # Art NFTs created by user (isArt: true)
   passportNFTCount: Int!
   itinerariesCreated: Int!
   itinerariesPurchased: Int!
