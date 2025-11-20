@@ -25,7 +25,7 @@ export default function ClientNav() {
 
   const navItems = [
     { path: '/discover', label: 'Discover', icon: '🎵' },
-    { path: '/music', label: 'Music', icon: '🎤' },
+    { path: '/nft', label: 'Create', icon: '➕' },
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },
     { path: '/beat-match', label: 'Beat Match', icon: '🎯' },
     { path: '/country-collector', label: 'Countries', icon: '🌍' },
