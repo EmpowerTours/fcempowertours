@@ -9,6 +9,7 @@
     "codegen": "envio codegen",
     "dev": "envio dev",
     "start": "envio start",
+    "restart": "envio start --restart",
     "test": "pnpm mocha"
   },
   "devDependencies": {
