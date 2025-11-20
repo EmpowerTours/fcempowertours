@@ -203,10 +203,10 @@ function SwapContent() {
       setAmmSwapTxHash(txHash);
       setInputAmount('');
 
-      // Refresh balances after delay
+      // Refresh balances after delay (longer delay for blockchain to update)
       setTimeout(() => {
         window.location.reload();
-      }, 3000);
+      }, 5000);
     } catch (err: any) {
       console.error('AMM Swap error:', err);
       setAmmSwapError(err.message || 'Failed to swap');
@@ -295,10 +295,10 @@ function SwapContent() {
         setUnwrapAmount('');
       }
 
-      // Refresh balances after delay
+      // Refresh balances after delay (longer delay for blockchain to update)
       setTimeout(() => {
         window.location.reload();
-      }, 3000);
+      }, 5000);
     } catch (err: any) {
       console.error('Wrap/Unwrap error:', err);
       setWrapUnwrapError(err.message || 'Failed to wrap/unwrap');

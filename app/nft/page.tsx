@@ -25,12 +25,12 @@ export default function MusicPage() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [songTitle, setSongTitle] = useState(''); // ✅ FIXED: Use songTitle instead of description
+  const [title, setTitle] = useState(''); // NFT title (works for both music and art)
   const [price, setPrice] = useState('0.01');
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ tokenId: number; txHash: string; songTitle: string; price: string } | null>(null);
+  const [success, setSuccess] = useState<{ tokenId: number; txHash: string; title: string; price: string } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [nftType, setNftType] = useState<'music' | 'art'>('music');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -202,10 +202,10 @@ export default function MusicPage() {
     const isArtOnly = !previewFile && !fullFile;
     const isMusicNFT = previewFile || fullFile;
 
-    if (!coverFile || !songTitle) {
+    if (!coverFile || !title) {
       const missing = [];
       if (!coverFile) missing.push('Cover Art');
-      if (!songTitle) missing.push('Title');
+      if (!title) missing.push('Title');
       setError(`Please fill required fields: ${missing.join(', ')}`);
       return;
     }
@@ -249,7 +249,7 @@ export default function MusicPage() {
         formData.append('fullAudio', fullFile);
       }
       formData.append('cover', coverFile);
-      formData.append('description', songTitle);
+      formData.append('description', title);
       formData.append('address', walletAddress);
       formData.append('fid', farcasterFid?.toString() || '0');
       formData.append('isArtOnly', isArtOnly.toString()); // Flag for backend
@@ -271,7 +271,7 @@ export default function MusicPage() {
       console.log('📤 Upload successful:', {
         tokenURI,
         coverUrl,
-        songTitle,
+        title,
       });
 
       setUploading(false);
@@ -279,14 +279,14 @@ export default function MusicPage() {
 
       // ✅ FIXED: Pass both tokenURI and coverUrl through the bot command
       // The bot will extract these and pass to execute-delegated
-      const command = `mint_music ${songTitle.slice(0, 50)} ${tokenURI} ${price}`;
+      const command = `mint_music ${title.slice(0, 50)} ${tokenURI} ${price}`;
 
       console.log('🎵 Executing mint command with cover URL:', coverUrl);
 
       // ✅ USE useBotCommand HOOK - it will handle the delegation + execution
       const mintData = await executeCommand(command, {
         imageUrl: coverUrl,  // ✅ PASS DIRECT COVER IMAGE URL AS CONTEXT
-        songTitle,
+        title,
         tokenURI,
       });
 
@@ -298,11 +298,11 @@ export default function MusicPage() {
       const tokenId = mintData.tokenId ? parseInt(String(mintData.tokenId)) : Math.floor(Math.random() * 10000);
       const txHash = mintData.txHash || '';
 
-      setSuccess({ tokenId, txHash, songTitle, price });
+      setSuccess({ tokenId, txHash, title, price });
       setPreviewFile(null);
       setFullFile(null);
       setCoverFile(null);
-      setSongTitle('');
+      setTitle('');
       setPrice('0.01');
     } catch (err: any) {
       console.error('❌ Error:', err);
@@ -429,7 +429,7 @@ export default function MusicPage() {
                   <strong>Token ID:</strong> #{success.tokenId}
                 </p>
                 <p className="text-green-700">
-                  <strong>Song:</strong> {success.songTitle || 'Untitled'}
+                  <strong>Song:</strong> {success.title || 'Untitled'}
                 </p>
                 <p className="text-green-700">
                   <strong>Price:</strong> {success.price} TOURS per license {/* ✅ FIXED: Say TOURS */}
@@ -697,13 +697,13 @@ export default function MusicPage() {
                   </label>
                   <input
                     type="text"
-                    value={songTitle}
-                    onChange={(e) => setSongTitle(e.target.value)}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     placeholder={nftType === 'music' ? 'e.g., Money Making Machine - Electronic Mix' : 'e.g., Sunset Over Mountains'}
                     maxLength={200}
                     className="w-full px-6 py-4 text-lg border-2 border-purple-300 rounded-xl focus:ring-4 focus:ring-purple-500 focus:border-transparent"
                   />
-                  <p className="text-sm text-gray-600 mt-2">{songTitle.length}/200 characters</p>
+                  <p className="text-sm text-gray-600 mt-2">{title.length}/200 characters</p>
                 </div>
 
                 <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200">
@@ -744,7 +744,7 @@ export default function MusicPage() {
 
                 <button
                   onClick={() => setCurrentStep(4)}
-                  disabled={!songTitle || !price}
+                  disabled={!title || !price}
                   className="w-full px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg"
                 >
                   Review & Mint →
@@ -779,7 +779,7 @@ export default function MusicPage() {
                       <div className="text-sm font-bold text-purple-600 mb-2">
                         {nftType === 'music' ? '🎵 MUSIC NFT' : '🎨 ART NFT'}
                       </div>
-                      <h3 className="text-3xl font-bold text-gray-900 mb-4">{songTitle || 'Untitled'}</h3>
+                      <h3 className="text-3xl font-bold text-gray-900 mb-4">{title || 'Untitled'}</h3>
                       <div className="space-y-2 text-gray-700">
                         <p><strong>Type:</strong> {nftType === 'music' ? 'Music NFT' : 'Art NFT'}</p>
                         <p><strong>Price:</strong> {price} TOURS per license</p>

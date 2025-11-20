@@ -86,7 +86,7 @@ export default function ProfilePage() {
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
-  const [balances, setBalances] = useState({ mon: '0', tours: '0' });
+  const [balances, setBalances] = useState({ mon: '0', tours: '0', wmon: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [musicPage, setMusicPage] = useState(1);
@@ -713,7 +713,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-4 mb-8">
             <motion.div
               className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm"
               initial={{ opacity: 0, x: -20 }}
@@ -747,6 +747,35 @@ export default function ProfilePage() {
                   transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
                 >
                   💰
+                </motion.div>
+              </div>
+            </motion.div>
+            <motion.div
+              className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border-2 border-blue-200 shadow-sm"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55 }}
+              whileHover={{ scale: 1.03, y: -5 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-600 mb-1 font-medium">WMON Balance</p>
+                  <motion.p
+                    className="text-2xl font-bold text-blue-700"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.75, type: 'spring', stiffness: 200 }}
+                  >
+                    {balances.wmon}
+                  </motion.p>
+                  <p className="text-xs text-gray-500 mt-1">Wrapped MON</p>
+                </div>
+                <motion.div
+                  className="text-3xl"
+                  animate={{ rotate: [0, 360] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                >
+                  🔷
                 </motion.div>
               </div>
             </motion.div>
