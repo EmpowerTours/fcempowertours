@@ -6,7 +6,7 @@ import { useBotCommand } from '@/app/hooks/useBotCommand';
 
 export default function BurnMusicPage() {
   const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
-  const { executeCommand, isExecuting } = useBotCommand();
+  const { executeCommand, loading: isExecuting } = useBotCommand();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
