@@ -45,11 +45,11 @@ export default function BurnMusicPage() {
         fid
       });
 
-      // Encode burnMusic call
+      // Encode burnNFT call (correct function name from EmpowerToursNFTv6)
       const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS!;
       const burnData = encodeFunctionData({
-        abi: parseAbi(['function burnMusic(uint256 tokenId) external']),
-        functionName: 'burnMusic',
+        abi: parseAbi(['function burnNFT(uint256 tokenId) external']),
+        functionName: 'burnNFT',
         args: [BigInt(tokenId)],
       });
 

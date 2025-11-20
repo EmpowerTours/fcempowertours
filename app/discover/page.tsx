@@ -203,11 +203,11 @@ export default function MusicDiscoveryPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            🎵 Discover Music
+            ✨ Discover NFTs
           </motion.h1>
           <FadeIn delay={0.3}>
             <p className="text-gray-600 text-center mb-6">
-              Browse all music NFTs minted on EmpowerTours
+              Browse all music & art NFTs minted on EmpowerTours
             </p>
           </FadeIn>
 
@@ -324,7 +324,7 @@ export default function MusicDiscoveryPage() {
                             ease: 'easeInOut'
                           }}
                         >
-                          🎵
+                          {music.isArt ? '🎨' : '🎵'}
                         </motion.span>
                       )}
                     </div>

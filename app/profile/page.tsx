@@ -206,12 +206,16 @@ export default function ProfilePage() {
     setStakingSuccess(null);
 
     try {
-      const response = await fetch('/api/stake-music', {
+      // Use delegation system for gasless staking
+      const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: walletAddress,
-          tokenId: tokenId.toString(),
+          action: 'stake_music',
+          params: {
+            tokenId: tokenId.toString(),
+          },
         }),
       });
 
@@ -223,11 +227,8 @@ export default function ProfilePage() {
 
       setStakingSuccess(`Music NFT #${tokenId} has been staked!`);
 
-      // Update staking info locally
-      setStakingInfo(prev => ({
-        ...prev,
-        [tokenId.toString()]: { isStaked: true }
-      }));
+      // Reload data to refresh staking status
+      await loadAllData();
 
       setTimeout(() => setStakingSuccess(null), 5000);
     } catch (error: any) {
@@ -249,12 +250,16 @@ export default function ProfilePage() {
     setStakingSuccess(null);
 
     try {
-      const response = await fetch('/api/unstake-music', {
+      // Use delegation system for gasless unstaking
+      const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: walletAddress,
-          tokenId: tokenId.toString(),
+          action: 'unstake_music',
+          params: {
+            tokenId: tokenId.toString(),
+          },
         }),
       });
 
@@ -264,14 +269,11 @@ export default function ProfilePage() {
         throw new Error(data.error || 'Failed to unstake music NFT');
       }
 
-      const rewardsFormatted = data.rewardsClaimed ? (Number(data.rewardsClaimed) / 1e18).toFixed(2) : '0';
-      setStakingSuccess(`Music NFT #${tokenId} unstaked! You received ${rewardsFormatted} TOURS tokens!`);
+      setStakingSuccess(`Music NFT #${tokenId} unstaked and rewards claimed!`);
 
-      // Update staking info locally
-      setStakingInfo(prev => ({
-        ...prev,
-        [tokenId.toString()]: { isStaked: false }
-      }));
+      // Reload data to refresh staking status and balance
+      await loadAllData();
+      await loadBalances();
 
       setTimeout(() => setStakingSuccess(null), 5000);
     } catch (error: any) {
@@ -283,47 +285,9 @@ export default function ProfilePage() {
   };
 
   const handleClaimRewards = async (tokenId: string | number) => {
-    if (!walletAddress) {
-      setStakingError('Please connect your wallet first');
-      return;
-    }
-
-    setStakingNFT(tokenId.toString());
-    setStakingError(null);
-    setStakingSuccess(null);
-
-    try {
-      const response = await fetch('/api/claim-rewards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          tokenId: tokenId.toString(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to claim rewards');
-      }
-
-      const rewardsFormatted = data.rewardsClaimed ? (Number(data.rewardsClaimed) / 1e18).toFixed(2) : '0';
-      setStakingSuccess(`Claimed ${rewardsFormatted} TOURS tokens!`);
-
-      // Reset pending rewards for this token
-      setPendingRewards(prev => ({
-        ...prev,
-        [tokenId.toString()]: '0'
-      }));
-
-      setTimeout(() => setStakingSuccess(null), 5000);
-    } catch (error: any) {
-      console.error('Claim error:', error);
-      setStakingError(error.message || 'Failed to claim rewards');
-    } finally {
-      setStakingNFT(null);
-    }
+    // Rewards are automatically claimed when you unstake
+    setStakingError('Rewards are automatically claimed when you unstake your NFT. Use "Unstake NFT" to withdraw your stake and claim rewards.');
+    setTimeout(() => setStakingError(null), 5000);
   };
 
   const loadBalances = async () => {
