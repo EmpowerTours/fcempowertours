@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract EmpowerToursNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
+contract EmpowerToursNFTv6 is ERC721URIStorage, Ownable, ReentrancyGuard {
     uint256 private _masterTokenCounter;
     uint256 private _licenseTokenCounter = 1000000;
 

@@ -388,7 +388,7 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // MUSIC NFT V5: STAKING & BURNING EVENTS
 // ============================================
 
-MusicLicenseNFT.MusicStaked.handler(async ({ event, context }) => {
+MusicLicenseNFT.NFTStaked.handler(async ({ event, context }) => {
   const { tokenId, staker, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -405,7 +405,7 @@ MusicLicenseNFT.MusicStaked.handler(async ({ event, context }) => {
   }
 });
 
-MusicLicenseNFT.MusicUnstaked.handler(async ({ event, context }) => {
+MusicLicenseNFT.NFTUnstaked.handler(async ({ event, context }) => {
   const { tokenId, staker, rewardsClaimed, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -428,7 +428,7 @@ MusicLicenseNFT.RewardsClaimed.handler(async ({ event, context }) => {
   context.log.info(`💰 Music NFT #${tokenId} rewards claimed by ${staker}: ${amount} TOURS`);
 });
 
-MusicLicenseNFT.MusicBurned.handler(async ({ event, context }) => {
+MusicLicenseNFT.NFTBurned.handler(async ({ event, context }) => {
   const { tokenId, burner, rewardReceived, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
