@@ -120,15 +120,15 @@ function BurnMusicContent() {
         args: [BigInt(tokenId)],
       });
 
-      setSuccess('⏳ Please sign the transaction in your wallet...');
+      setSuccess('⏳ Please approve the transaction in your wallet...');
 
       console.log('📝 Sending transaction...');
       console.log('   From:', wallet.address);
       console.log('   To:', MUSIC_NFT_ADDRESS);
       console.log('   TokenID:', tokenId);
 
-      // Send transaction
-      const txResponse = await provider.request({
+      // Send transaction with extended timeout
+      const txPromise = provider.request({
         method: 'eth_sendTransaction',
         params: [{
           from: wallet.address,
@@ -137,6 +137,16 @@ function BurnMusicContent() {
           value: '0x0',
         }],
       });
+
+      console.log('⏳ Waiting for transaction approval...');
+      setSuccess('⏳ Waiting for confirmation...');
+
+      // Wait up to 2 minutes for the transaction
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Transaction timed out. Please try again.')), 120000)
+      );
+
+      const txResponse = await Promise.race([txPromise, timeoutPromise]);
 
       console.log('✅ Transaction response received:', txResponse);
       console.log('   Response type:', typeof txResponse);
