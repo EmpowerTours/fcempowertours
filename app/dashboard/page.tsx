@@ -54,6 +54,7 @@ export default function DashboardPage() {
             price
             totalSold
             active
+            isArt
             mintedAt
             txHash
           }
@@ -243,7 +244,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Activity Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
 
             {/* Recent Passports */}
             <div>
@@ -304,34 +305,99 @@ export default function DashboardPage() {
             <div>
               <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 🎵 Recent Music NFTs
-                <span className="text-sm font-normal text-gray-500">({recentMusic.length})</span>
+                <span className="text-sm font-normal text-gray-500">({recentMusic.filter((m: any) => !m.isArt).length})</span>
               </h4>
               {loading && recentMusic.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
                   <p className="text-gray-600">Loading...</p>
                 </div>
-              ) : recentMusic.length === 0 ? (
+              ) : recentMusic.filter((m: any) => !m.isArt).length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600">No music NFTs yet</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {recentMusic.map((item, idx) => (
+                  {recentMusic.filter((m: any) => !m.isArt).map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg hover:border-purple-400 transition-all animate-slide-in"
+                      style={{ animationDelay: `${idx * 0.05}s` }}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="text-3xl">🎵</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-purple-900">
+                            Music NFT #{item.tokenId}
+                          </p>
+                          {item.artist && (
+                            <p className="text-xs text-purple-700 mt-1">
+                              🎤 {item.artist.slice(0, 20)}...
+                            </p>
+                          )}
+                          {item.totalSold !== undefined && (
+                            <p className="text-xs text-purple-700">
+                              📊 {item.totalSold} sold
+                            </p>
+                          )}
+                          {item.price && (
+                            <p className="text-xs text-orange-600 font-semibold">
+                              💰 {(Number(item.price) / 1e18).toFixed(2)} TOURS
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(item.mintedAt).toLocaleString()}
+                          </p>
+                        </div>
+                        {item.txHash && (
+                          <a
+                            href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-all"
+                          >
+                            TX →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Art NFTs */}
+            <div>
+              <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                🎨 Recent Art NFTs
+                <span className="text-sm font-normal text-gray-500">({recentMusic.filter((m: any) => m.isArt).length})</span>
+              </h4>
+              {loading && recentMusic.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin text-3xl mb-2">⏳</div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              ) : recentMusic.filter((m: any) => m.isArt).length === 0 ? (
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-600">No art NFTs yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {recentMusic.filter((m: any) => m.isArt).map((item, idx) => (
                     <div
                       key={item.id || idx}
                       className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg hover:border-blue-400 transition-all animate-slide-in"
                       style={{ animationDelay: `${idx * 0.05}s` }}
                     >
                       <div className="flex items-start gap-4">
-                        <div className="text-3xl">🎵</div>
+                        <div className="text-3xl">🎨</div>
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-blue-900">
-                            Music NFT #{item.tokenId}
+                            Art NFT #{item.tokenId}
                           </p>
                           {item.artist && (
                             <p className="text-xs text-blue-700 mt-1">
-                              🎤 {item.artist.slice(0, 20)}...
+                              🎨 {item.artist.slice(0, 20)}...
                             </p>
                           )}
                           {item.totalSold !== undefined && (
