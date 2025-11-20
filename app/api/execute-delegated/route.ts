@@ -352,22 +352,29 @@ View profile and collection!
           console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
         }
 
-        // ✅ POST CAST WITH FRAME - SIMPLIFIED: ONLY tokenId (OG route queries Envio for metadata)
+        // ✅ POST CAST WITH FRAME - Link to artist profile
         let frameUrl = '';
         if (params?.fid) {
           try {
-            // ✅ SIMPLIFIED: Just pass tokenId, OG route will fetch metadata from Envio
-            frameUrl = `${APP_URL}/api/frames/music/${extractedTokenId}`;
-            const miniAppUrl = `${APP_URL}/music/${extractedTokenId}`;
+            // ✅ Determine if it's music or art (0 = MUSIC, 1 = ART)
+            const isArt = params.is_art === true || params.is_art === 1 || params.is_art === '1';
 
-            // Cast message for music NFT
-            const castText = `🎵 New Music Master NFT Minted!
+            // ✅ Link to artist profile instead of individual NFT
+            const artistProfileUrl = `${APP_URL}/artist/${userAddress}`;
+            frameUrl = artistProfileUrl;
 
-"${params.songTitle || 'Untitled'}"
+            // ✅ Conditional cast message based on NFT type
+            const nftTypeEmoji = isArt ? '🎨' : '🎵';
+            const nftTypeText = isArt ? 'Art NFT' : 'Music NFT';
+            const actionText = isArt ? 'View Gallery' : 'Listen & Buy';
+
+            const castText = `${nftTypeEmoji} New ${nftTypeText} Minted!
+
+"${params.songTitle || params.title || 'Untitled'}"
 💰 License Price: ${params.price} TOURS
 
 ⚡ Gasless minting powered by @empowertours
-🎶 Listen & Buy
+👀 ${actionText}
 
 @empowertours`;
 

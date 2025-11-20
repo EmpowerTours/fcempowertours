@@ -288,6 +288,7 @@ export default function MusicPage() {
         imageUrl: coverUrl,  // ✅ PASS DIRECT COVER IMAGE URL AS CONTEXT
         title,
         tokenURI,
+        is_art: nftType === 'art', // ✅ Pass NFT type for conditional cast posting
       });
 
       if (!mintData.success) {

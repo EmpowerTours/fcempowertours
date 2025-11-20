@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
           'mint_music',
           'buy_music',
           'burn_music',
+          'stake_music',  // ✅ ADD: Internal staking for TOURS rewards
+          'unstake_music', // ✅ ADD: Internal unstaking for TOURS rewards
           'swap_mon_for_tours',
           'buy_itinerary',
           'send_tours',
@@ -57,6 +59,8 @@ export async function POST(req: NextRequest) {
           'approve_yield_strategy', // One-time setup for staking
           'stake_tours',
           'unstake_tours',
+          'stake_music_yield',   // YieldStrategy staking with MON
+          'unstake_music_yield', // YieldStrategy unstaking
           'claim_rewards',
           'create_tanda_group',
           'join_tanda_group',
