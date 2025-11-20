@@ -71,11 +71,11 @@ export async function POST(request: NextRequest) {
 
     console.log(`💰 Burn reward: ${burnReward} TOURS tokens`);
 
-    // Encode burn call
+    // Encode burn call using burnNFTFor (Safe account burning on behalf of owner)
     const burnData = encodeFunctionData({
       abi: musicNFTAbi,
-      functionName: 'burnMusicNFT',
-      args: [BigInt(tokenId)],
+      functionName: 'burnNFTFor',
+      args: [userAddress as Address, BigInt(tokenId)],
     });
 
     console.log(`📝 Sending burn transaction for token #${tokenId}...`);

@@ -14,7 +14,7 @@ const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS! as `0x${string}`;
 const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${PIMLICO_API_KEY}`;
 
 const musicNFTAbi = parseAbi([
-  'function stakeMusicNFT(uint256 tokenId) external',
+  'function stakeNFT(uint256 tokenId) external',
   'function ownerOf(uint256 tokenId) external view returns (address)',
   'function stakingInfo(uint256 tokenId) external view returns (address staker, uint256 stakedAt, uint256 lastClaimAt, bool isStaked)',
   'function stakingRewardRate() external view returns (uint256)',
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     // Encode stake call
     const stakeData = encodeFunctionData({
       abi: musicNFTAbi,
-      functionName: 'stakeMusicNFT',
+      functionName: 'stakeNFT',
       args: [BigInt(tokenId)],
     });
 
