@@ -4,12 +4,9 @@ import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { monadTestnet } from '../chains';
 import { encodeFunctionData, parseAbi } from 'viem';
-import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
 
-function BurnMusicContent() {
-  const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
-  const { login, authenticated, ready: privyReady } = usePrivy();
-  const { wallets } = useWallets();
+export default function BurnMusicPage() {
+  const { walletAddress, fid, isLoading: contextLoading, sendTransaction } = useFarcasterContext();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -31,7 +28,10 @@ function BurnMusicContent() {
   }, []);
 
   const handleBurn = async () => {
-    if (!tokenId || !walletAddress) return;
+    if (!tokenId || !walletAddress || !fid) {
+      setError('Missing required information');
+      return;
+    }
 
     setError('');
     setSuccess('');
@@ -39,78 +39,11 @@ function BurnMusicContent() {
     setLoading(true);
 
     try {
-      console.log('🔥 Attempting to burn NFT:', {
+      console.log('🔥 Attempting to burn NFT with Farcaster wallet:', {
         wallet: walletAddress,
         tokenId,
-        fid,
-        authenticated,
-        privyReady,
-        walletsCount: wallets.length
+        fid
       });
-
-      // If not authenticated, try to login first
-      if (!authenticated) {
-        console.log('⚠️ Not authenticated, attempting login...');
-        setSuccess('⏳ Connecting wallet...');
-        try {
-          await login();
-          console.log('✅ Login initiated, waiting for wallet connection...');
-          // Wait a bit for wallet to be available
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (loginErr) {
-          console.error('❌ Login failed:', loginErr);
-          setError('Please connect your wallet to continue');
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Find a connected wallet (re-check after potential login)
-      const currentWallets = wallets.length > 0 ? wallets : [];
-      console.log('📝 Available wallets:', currentWallets.length, currentWallets.map(w => w.address));
-
-      const wallet = currentWallets.find(w =>
-        w.address.toLowerCase() === walletAddress.toLowerCase()
-      ) || currentWallets[0];
-
-      if (!wallet) {
-        console.error('❌ No wallet found. walletAddress:', walletAddress, 'available wallets:', currentWallets.length);
-        setError('No wallet connected. Please connect a wallet to burn NFTs.');
-        setLoading(false);
-        return;
-      }
-
-      console.log('📝 Using wallet:', wallet.address);
-      console.log('📝 Wallet type:', wallet.walletClientType);
-      setSuccess('⏳ Preparing transaction...');
-
-      // Get Ethereum provider from wallet
-      const provider = await wallet.getEthereumProvider();
-      console.log('✅ Provider obtained');
-
-      // Switch to Monad testnet
-      try {
-        await provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x' + monadTestnet.id.toString(16) }],
-        });
-        console.log('✅ Switched to Monad testnet');
-      } catch (switchError: any) {
-        // Chain not added, try adding it
-        if (switchError.code === 4902) {
-          console.log('⚙️ Adding Monad testnet...');
-          await provider.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: '0x' + monadTestnet.id.toString(16),
-              chainName: monadTestnet.name,
-              rpcUrls: [monadTestnet.rpcUrls.default.http[0]],
-              nativeCurrency: monadTestnet.nativeCurrency,
-            }],
-          });
-          console.log('✅ Monad testnet added');
-        }
-      }
 
       // Encode burnMusicNFT call
       const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS!;
@@ -120,52 +53,30 @@ function BurnMusicContent() {
         args: [BigInt(tokenId)],
       });
 
-      setSuccess('⏳ Please approve the transaction in your wallet...');
+      setSuccess('⏳ Please approve the transaction in your Farcaster wallet...');
 
-      console.log('📝 Sending transaction...');
-      console.log('   From:', wallet.address);
+      console.log('📝 Sending transaction via Farcaster SDK...');
       console.log('   To:', MUSIC_NFT_ADDRESS);
       console.log('   TokenID:', tokenId);
 
-      // Send transaction with extended timeout
-      const txPromise = provider.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: wallet.address,
-          to: MUSIC_NFT_ADDRESS,
-          data: burnData,
-          value: '0x0',
-        }],
+      // Use Farcaster SDK sendTransaction
+      const result = await sendTransaction({
+        to: MUSIC_NFT_ADDRESS,
+        data: burnData,
+        value: '0x0',
+        chainId: monadTestnet.id,
       });
 
-      console.log('⏳ Waiting for transaction approval...');
-      setSuccess('⏳ Waiting for confirmation...');
+      console.log('✅ Transaction result:', result);
 
-      // Wait up to 2 minutes for the transaction
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Transaction timed out. Please try again.')), 120000)
-      );
-
-      const txResponse = await Promise.race([txPromise, timeoutPromise]);
-
-      console.log('✅ Transaction response received:', txResponse);
-      console.log('   Response type:', typeof txResponse);
-      console.log('   Response value:', JSON.stringify(txResponse));
-
-      // Handle different response formats
-      let hash;
-      if (typeof txResponse === 'string') {
-        hash = txResponse;
-      } else if (txResponse && typeof txResponse === 'object') {
-        hash = (txResponse as any).hash || (txResponse as any).transactionHash || (txResponse as any).tx;
-      }
-
-      console.log('✅ Extracted hash:', hash);
+      // Extract hash from result
+      const hash = result?.transactionHash || result?.hash || (typeof result === 'string' ? result : null);
 
       if (!hash) {
-        throw new Error('No transaction hash returned from wallet');
+        throw new Error('No transaction hash returned');
       }
 
+      console.log('✅ Transaction hash:', hash);
       setTxHash(hash);
       setSuccess(`Music NFT #${tokenId} burned successfully!`);
 
@@ -176,18 +87,13 @@ function BurnMusicContent() {
 
     } catch (err: any) {
       console.error('❌ Burn error:', err);
-      console.error('❌ Error details:', {
-        message: err.message,
-        code: err.code,
-        data: err.data
-      });
       setError(err.message || 'Failed to burn NFT');
     } finally {
       setLoading(false);
     }
   };
 
-  if (contextLoading || !privyReady) {
+  if (contextLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
@@ -195,20 +101,14 @@ function BurnMusicContent() {
     );
   }
 
-  if (!walletAddress && !authenticated) {
+  if (!walletAddress || !fid) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-purple-500/20">
           <h1 className="text-3xl font-bold text-white mb-4">🔥 Burn Music NFT</h1>
           <p className="text-gray-300 mb-6">
-            Please connect your wallet to burn this music NFT.
+            Please open this page in the Farcaster app to burn your music NFT.
           </p>
-          <button
-            onClick={login}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-          >
-            Connect Wallet
-          </button>
         </div>
       </div>
     );
@@ -311,27 +211,5 @@ function BurnMusicContent() {
         </button>
       </div>
     </div>
-  );
-}
-
-export default function BurnMusicPage() {
-  return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
-      config={{
-        appearance: {
-          theme: 'dark',
-          accentColor: '#9333EA',
-        },
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'users-without-wallets',
-          },
-        },
-        loginMethods: ['farcaster', 'wallet'],
-      }}
-    >
-      <BurnMusicContent />
-    </PrivyProvider>
   );
 }
