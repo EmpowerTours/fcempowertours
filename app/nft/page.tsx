@@ -15,8 +15,8 @@ const styles = `
   }
 `;
 
-// ✅ Uses env var which should be updated
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS || '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5';
+// ✅ EmpowerToursNFTv5 with Music + Art support
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS || '0xb7c3565C2a00F29947219875AaE067c6cC36331a';
 
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();

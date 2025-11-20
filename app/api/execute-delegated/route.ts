@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
-    const MUSIC_NFT_V5 = '0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5' as Address;
+    const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 

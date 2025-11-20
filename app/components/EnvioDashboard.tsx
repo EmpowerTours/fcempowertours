@@ -223,7 +223,7 @@ export default function EnvioDashboard() {
             <p className="text-gray-500 text-lg mb-4">No activity yet</p>
             <p className="text-gray-400 text-sm mb-6">Be the first to mint or create!</p>
             <div className="flex flex-wrap gap-3 justify-center">
-              <Link href="/music">
+              <Link href="/nft">
                 <a className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
                   🎵 Mint Music
                 </a>

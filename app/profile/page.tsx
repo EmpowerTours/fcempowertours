@@ -827,10 +827,10 @@ export default function ProfilePage() {
               Get Passport
             </Link>
             <Link
-              href="/music"
+              href="/nft"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center text-sm font-medium transition-all"
             >
-              Mint Music
+              Mint NFT
             </Link>
             <Link
               href="/market"

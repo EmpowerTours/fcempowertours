@@ -7,7 +7,7 @@ networks:
     contracts:
       - name: MusicLicenseNFT
         address:
-          - "0xEF5d0A0a01112D1d4e0C1A609405F4a359Ef77F5"  # ✅ V5: Staking + Burning
+          - "0xb7c3565C2a00F29947219875AaE067c6cC36331a"  # ✅ V5: EmpowerToursNFTv5 - Music + Art NFTs with Staking + Burning
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting
@@ -47,12 +47,12 @@ networks:
                 - hash
 
           # ✅ V5: Staking events
-          - event: "MusicStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp)"
+          - event: "NFTStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "MusicUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp)"
+          - event: "NFTUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
@@ -63,7 +63,7 @@ networks:
                 - hash
 
           # ✅ V5: Burning events
-          - event: "MusicBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp)"
+          - event: "NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash

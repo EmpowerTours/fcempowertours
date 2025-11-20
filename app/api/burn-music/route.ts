@@ -3,11 +3,12 @@ import { createPublicClient, http, encodeFunctionData, parseAbi, Address, Hex } 
 import { monadTestnet } from '@/app/chains';
 import { sendSafeTransaction, publicClient } from '@/lib/pimlico-safe-aa';
 
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS! as `0x${string}`;
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS! as `0x${string}`;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT! as `0x${string}`;
 
 const musicNFTAbi = parseAbi([
-  'function burnMusicNFT(uint256 tokenId) external',
+  'function burnNFT(uint256 tokenId) external',
+  'function burnNFTFor(address owner, uint256 tokenId) external',
   'function ownerOf(uint256 tokenId) external view returns (address)',
   'function burnRewardAmount() external view returns (uint256)',
 ]);

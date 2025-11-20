@@ -2,11 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../contracts/MusicLicenseNFTv5.sol";
+import "../src/EmpowerToursNFTv5.sol";
 
-contract DeployMusicV5 is Script {
+contract DeployEmpowerToursNFTV5 is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         // Constructor arguments
         address treasury = 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20; // Safe account
@@ -14,13 +14,13 @@ contract DeployMusicV5 is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        MusicLicenseNFTv5 musicNFT = new MusicLicenseNFTv5(
+        EmpowerToursNFTv5 nft = new EmpowerToursNFTv5(
             treasury,
             toursToken
         );
 
         vm.stopBroadcast();
 
-        console.log("MusicLicenseNFT V5 deployed to:", address(musicNFT));
+        console.log("EmpowerToursNFT V5 deployed to:", address(nft));
     }
 }

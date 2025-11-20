@@ -6,11 +6,16 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
+contract EmpowerToursNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
     uint256 private _masterTokenCounter;
     uint256 private _licenseTokenCounter = 1000000;
 
     IERC20 public toursToken;
+
+    // ============================================
+    // NFT Type Support
+    // ============================================
+    enum NFTType { MUSIC, ART }
 
     struct MasterToken {
         address artist;
@@ -18,6 +23,7 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
         uint256 price;
         uint256 totalSold;
         bool active;
+        NFTType nftType;
     }
 
     struct License {
@@ -70,16 +76,16 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
     event RoyaltyPaid(uint256 indexed masterTokenId, address indexed artist, uint256 amount);
 
     // ✅ NEW: Staking Events
-    event MusicStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp);
-    event MusicUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp);
+    event NFTStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp);
+    event NFTUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp);
     event RewardsClaimed(uint256 indexed tokenId, address indexed staker, uint256 amount, uint256 timestamp);
 
     // ✅ NEW: Burning Events
-    event MusicBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp);
+    event NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp);
     event BurnRewardUpdated(uint256 newReward, uint256 timestamp);
     event RewardRateUpdated(uint256 newRate, uint256 timestamp);
 
-    constructor(address _treasury, address _toursToken) ERC721("EmpowerTours Music", "ETMUSIC") Ownable(msg.sender) {
+    constructor(address _treasury, address _toursToken) ERC721("EmpowerTours NFT", "ETNFT") Ownable(msg.sender) {
         require(_treasury != address(0), "Invalid treasury");
         require(_toursToken != address(0), "Invalid TOURS token");
         treasury = _treasury;
@@ -93,10 +99,11 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
     function mintMaster(
         address artist,
         string memory tokenURI,
-        string memory songTitle,
-        uint256 price
+        string memory title,
+        uint256 price,
+        NFTType nftType
     ) external returns (uint256) {
-        require(!artistSongs[artist][songTitle], "Song already minted");
+        require(!artistSongs[artist][title], "NFT already minted");
 
         _masterTokenCounter++;
         uint256 masterTokenId = _masterTokenCounter;
@@ -109,10 +116,11 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
             tokenURI: tokenURI,
             price: price,
             totalSold: 0,
-            active: true
+            active: true,
+            nftType: nftType
         });
 
-        artistSongs[artist][songTitle] = true;
+        artistSongs[artist][title] = true;
 
         emit MasterMinted(masterTokenId, artist, tokenURI, price);
         return masterTokenId;
@@ -244,10 +252,10 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
     // ============================================
 
     /**
-     * @notice Stake a music NFT to earn TOURS rewards
+     * @notice Stake an NFT to earn TOURS rewards
      * @param tokenId The token to stake (can be master or license)
      */
-    function stakeMusicNFT(uint256 tokenId) external nonReentrant {
+    function stakeNFT(uint256 tokenId) external nonReentrant {
         require(ownerOf(tokenId) == msg.sender, "Not token owner");
         require(!stakingInfo[tokenId].isStaked, "Already staked");
 
@@ -263,14 +271,14 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
 
         totalStaked++;
 
-        emit MusicStaked(tokenId, msg.sender, block.timestamp);
+        emit NFTStaked(tokenId, msg.sender, block.timestamp);
     }
 
     /**
-     * @notice Unstake a music NFT and claim rewards
+     * @notice Unstake an NFT and claim rewards
      * @param tokenId The token to unstake
      */
-    function unstakeMusicNFT(uint256 tokenId) external nonReentrant {
+    function unstakeNFT(uint256 tokenId) external nonReentrant {
         StakingInfo storage info = stakingInfo[tokenId];
         require(info.isStaked, "Not staked");
         require(info.staker == msg.sender, "Not staker");
@@ -298,7 +306,7 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
         delete stakingInfo[tokenId];
         totalStaked--;
 
-        emit MusicUnstaked(tokenId, msg.sender, rewards, block.timestamp);
+        emit NFTUnstaked(tokenId, msg.sender, rewards, block.timestamp);
     }
 
     /**
@@ -346,10 +354,10 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
     // ============================================
 
     /**
-     * @notice Burn a music NFT to receive TOURS reward
+     * @notice Burn an NFT to receive TOURS reward
      * @param tokenId The token to burn (master or license)
      */
-    function burnMusic(uint256 tokenId) external nonReentrant {
+    function burnNFT(uint256 tokenId) external nonReentrant {
         require(ownerOf(tokenId) == msg.sender, "Not token owner");
         require(!stakingInfo[tokenId].isStaked, "Cannot burn staked NFT");
 
@@ -371,7 +379,88 @@ contract MusicLicenseNFTv5 is ERC721URIStorage, Ownable, ReentrancyGuard {
             require(toursToken.transfer(msg.sender, burnRewardAmount), "Reward transfer failed");
         }
 
-        emit MusicBurned(tokenId, msg.sender, burnRewardAmount, block.timestamp);
+        emit NFTBurned(tokenId, msg.sender, burnRewardAmount, block.timestamp);
+    }
+
+    /**
+     * @notice Burn an NFT on behalf of the owner (requires approval)
+     * @param owner The owner of the NFT
+     * @param tokenId The token to burn (master or license)
+     */
+    function burnNFTFor(address owner, uint256 tokenId) external nonReentrant {
+        require(ownerOf(tokenId) == owner, "Incorrect owner");
+        require(!stakingInfo[tokenId].isStaked, "Cannot burn staked NFT");
+
+        // Check authorization
+        require(
+            msg.sender == owner ||
+            isApprovedForAll(owner, msg.sender) ||
+            getApproved(tokenId) == msg.sender,
+            "Not authorized to burn"
+        );
+
+        // If it's a license, mark as inactive
+        if (licenses[tokenId].active) {
+            licenses[tokenId].active = false;
+        }
+
+        // Burn the token
+        _burn(tokenId);
+
+        // Clear staking info if any
+        delete stakingInfo[tokenId];
+
+        totalBurned++;
+
+        // Reward the owner (not the caller)
+        if (burnRewardAmount > 0) {
+            require(toursToken.transfer(owner, burnRewardAmount), "Reward transfer failed");
+        }
+
+        emit NFTBurned(tokenId, owner, burnRewardAmount, block.timestamp);
+    }
+
+    // ============================================
+    // ✅ NEW: NFT Type Query Functions
+    // ============================================
+
+    /**
+     * @notice Get all master tokens of a specific type
+     * @param nftType The type to filter by (MUSIC or ART)
+     * @return Array of token IDs matching the type
+     */
+    function getMastersByType(NFTType nftType) external view returns (uint256[] memory) {
+        uint256 count = 0;
+
+        // First pass: count matching tokens
+        for (uint256 i = 1; i <= _masterTokenCounter; i++) {
+            if (masterTokens[i].artist != address(0) && masterTokens[i].nftType == nftType) {
+                count++;
+            }
+        }
+
+        // Second pass: populate array
+        uint256[] memory result = new uint256[](count);
+        uint256 index = 0;
+
+        for (uint256 i = 1; i <= _masterTokenCounter; i++) {
+            if (masterTokens[i].artist != address(0) && masterTokens[i].nftType == nftType) {
+                result[index] = i;
+                index++;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * @notice Get the NFT type of a master token
+     * @param tokenId The master token ID
+     * @return The NFT type (MUSIC or ART)
+     */
+    function getMasterType(uint256 tokenId) external view returns (NFTType) {
+        require(masterTokens[tokenId].artist != address(0), "Master doesn't exist");
+        return masterTokens[tokenId].nftType;
     }
 
     // ============================================

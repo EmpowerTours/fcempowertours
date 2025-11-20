@@ -57,10 +57,10 @@ const walletClient = createWalletClient({
 });
 
 const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA' as `0x${string}`;
-const MUSIC_NFT_ADDRESS = process.env.MUSICNFT_ADDRESS! as `0x${string}`;
-const PASSPORT_NFT_ADDRESS = (process.env.NEXT_PUBLIC_PASSPORT || '0x54e935c5f1ec987bb87f36fc046cf13fb393acc8') as `0x${string}`; // NEW PassportNFTv2
+const MUSIC_NEXT_PUBLIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS! as `0x${string}`;
+const PASSPORT_NEXT_PUBLIC_NFT_ADDRESS = (process.env.NEXT_PUBLIC_PASSPORT || '0x54e935c5f1ec987bb87f36fc046cf13fb393acc8') as `0x${string}`; // NEW PassportNFTv2
 const ITINERARY_MARKET_ADDRESS = '0x48a4B5b9F97682a4723eBFd0086C47C70B96478C' as `0x${string}`;
-const ITINERARY_NFT_ADDRESS = '0x382072Abe7Eb9f72c08b1BDB252FE320F0d00934' as `0x${string}`;
+const ITINERARY_NEXT_PUBLIC_NFT_ADDRESS = '0x382072Abe7Eb9f72c08b1BDB252FE320F0d00934' as `0x${string}`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -179,11 +179,11 @@ async function mintNFT(type: 'music' | 'passport', fid: number, extra?: { countr
   switch (type) {
     case 'music':
       abi = MusicNFTABI;
-      address = MUSIC_NFT_ADDRESS;
+      address = MUSIC_NEXT_PUBLIC_NFT_ADDRESS;
       break;
     case 'passport':
       abi = PassportNFTABI;
-      address = PASSPORT_NFT_ADDRESS;
+      address = PASSPORT_NEXT_PUBLIC_NFT_ADDRESS;
       args.push(extra?.countryCode, extra?.countryName);
       break;
   }
@@ -231,7 +231,7 @@ async function mintItineraryAfterPurchase(id: number, fid: number, purchaseTxHas
     const tokenUri = `ipfs://itinerary-${id}`;
     
     const hash = await walletClient.writeContract({
-      address: ITINERARY_NFT_ADDRESS,
+      address: ITINERARY_NEXT_PUBLIC_NFT_ADDRESS,
       abi: ItineraryNFTABI,
       functionName: 'mintItinerary',
       args: [userAddress, metadata, tokenUri],

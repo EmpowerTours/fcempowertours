@@ -45,11 +45,11 @@ export default function BurnMusicPage() {
         fid
       });
 
-      // Encode burnMusicNFT call
-      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_MUSICNFT_ADDRESS!;
+      // Encode burnMusic call
+      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS!;
       const burnData = encodeFunctionData({
-        abi: parseAbi(['function burnMusicNFT(uint256 tokenId) external']),
-        functionName: 'burnMusicNFT',
+        abi: parseAbi(['function burnMusic(uint256 tokenId) external']),
+        functionName: 'burnMusic',
         args: [BigInt(tokenId)],
       });
 

@@ -51,7 +51,7 @@ export default function HomeClient() {
               </a>
 
               <a
-                href="/music"
+                href="/nft"
                 className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-bold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all transform hover:scale-105 shadow-lg shadow-blue-500/50"
               >
                 🎵 Mint Music
