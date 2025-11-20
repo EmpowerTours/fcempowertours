@@ -44,22 +44,37 @@ function BurnMusicContent() {
         tokenId,
         fid,
         authenticated,
+        privyReady,
         walletsCount: wallets.length
       });
 
-      // Use Privy wallet to sign the burn transaction
+      // If not authenticated, try to login first
       if (!authenticated) {
-        setError('Please connect your wallet first');
-        setLoading(false);
-        return;
+        console.log('⚠️ Not authenticated, attempting login...');
+        setSuccess('⏳ Connecting wallet...');
+        try {
+          await login();
+          console.log('✅ Login initiated, waiting for wallet connection...');
+          // Wait a bit for wallet to be available
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (loginErr) {
+          console.error('❌ Login failed:', loginErr);
+          setError('Please connect your wallet to continue');
+          setLoading(false);
+          return;
+        }
       }
 
-      // Find a connected wallet
-      const wallet = wallets.find(w =>
+      // Find a connected wallet (re-check after potential login)
+      const currentWallets = wallets.length > 0 ? wallets : [];
+      console.log('📝 Available wallets:', currentWallets.length, currentWallets.map(w => w.address));
+
+      const wallet = currentWallets.find(w =>
         w.address.toLowerCase() === walletAddress.toLowerCase()
-      ) || wallets[0];
+      ) || currentWallets[0];
 
       if (!wallet) {
+        console.error('❌ No wallet found. walletAddress:', walletAddress, 'available wallets:', currentWallets.length);
         setError('No wallet connected. Please connect a wallet to burn NFTs.');
         setLoading(false);
         return;
