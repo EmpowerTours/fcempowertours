@@ -42,7 +42,9 @@ function BurnMusicContent() {
       console.log('🔥 Attempting to burn NFT:', {
         wallet: walletAddress,
         tokenId,
-        fid
+        fid,
+        authenticated,
+        walletsCount: wallets.length
       });
 
       // Use Privy wallet to sign the burn transaction
@@ -64,10 +66,12 @@ function BurnMusicContent() {
       }
 
       console.log('📝 Using wallet:', wallet.address);
+      console.log('📝 Wallet type:', wallet.walletClientType);
       setSuccess('⏳ Preparing transaction...');
 
       // Get Ethereum provider from wallet
       const provider = await wallet.getEthereumProvider();
+      console.log('✅ Provider obtained');
 
       // Switch to Monad testnet
       try {
@@ -75,9 +79,11 @@ function BurnMusicContent() {
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: '0x' + monadTestnet.id.toString(16) }],
         });
+        console.log('✅ Switched to Monad testnet');
       } catch (switchError: any) {
         // Chain not added, try adding it
         if (switchError.code === 4902) {
+          console.log('⚙️ Adding Monad testnet...');
           await provider.request({
             method: 'wallet_addEthereumChain',
             params: [{
@@ -87,6 +93,7 @@ function BurnMusicContent() {
               nativeCurrency: monadTestnet.nativeCurrency,
             }],
           });
+          console.log('✅ Monad testnet added');
         }
       }
 
@@ -100,13 +107,13 @@ function BurnMusicContent() {
 
       setSuccess('⏳ Please sign the transaction in your wallet...');
 
-      console.log('📝 Requesting transaction signature...');
+      console.log('📝 Sending transaction...');
       console.log('   From:', wallet.address);
       console.log('   To:', MUSIC_NFT_ADDRESS);
-      console.log('   Data:', burnData);
+      console.log('   TokenID:', tokenId);
 
-      // Send transaction with timeout
-      const txPromise = provider.request({
+      // Send transaction
+      const txResponse = await provider.request({
         method: 'eth_sendTransaction',
         params: [{
           from: wallet.address,
@@ -116,15 +123,25 @@ function BurnMusicContent() {
         }],
       });
 
-      // Add 60 second timeout
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Transaction signing timed out after 60 seconds. Please try again.')), 60000)
-      );
+      console.log('✅ Transaction response received:', txResponse);
+      console.log('   Response type:', typeof txResponse);
+      console.log('   Response value:', JSON.stringify(txResponse));
 
-      const txHash = await Promise.race([txPromise, timeoutPromise]) as string;
+      // Handle different response formats
+      let hash;
+      if (typeof txResponse === 'string') {
+        hash = txResponse;
+      } else if (txResponse && typeof txResponse === 'object') {
+        hash = (txResponse as any).hash || (txResponse as any).transactionHash || (txResponse as any).tx;
+      }
 
-      console.log('✅ Burn transaction sent:', txHash);
-      setTxHash(txHash);
+      console.log('✅ Extracted hash:', hash);
+
+      if (!hash) {
+        throw new Error('No transaction hash returned from wallet');
+      }
+
+      setTxHash(hash);
       setSuccess(`Music NFT #${tokenId} burned successfully!`);
 
       // Wait then redirect back
@@ -134,6 +151,11 @@ function BurnMusicContent() {
 
     } catch (err: any) {
       console.error('❌ Burn error:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        code: err.code,
+        data: err.data
+      });
       setError(err.message || 'Failed to burn NFT');
     } finally {
       setLoading(false);
