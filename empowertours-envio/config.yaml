@@ -7,11 +7,11 @@ networks:
     contracts:
       - name: MusicLicenseNFT
         address:
-          - "0xb7c3565C2a00F29947219875AaE067c6cC36331a"  # ✅ V5: EmpowerToursNFTv5 - Music + Art NFTs with Staking + Burning
+          - "0x5053ef43F5682E0a24882c2f8e25056D66e5D0f9"  # ✅ V6: EmpowerToursNFTv6 - Music + Art NFTs with fixed MasterMinted event
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting
-          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price)"
+          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price, uint8 nftType)"
             field_selection:
               transaction_fields:
                 - hash

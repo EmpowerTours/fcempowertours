@@ -119,14 +119,18 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
 // ============================================
 
 MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
-  const { tokenId, artist, tokenURI, price } = event.params;
+  const { tokenId, artist, tokenURI, price, nftType } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+
+  // ✅ V6: Use nftType from event (0 = Music, 1 = Art)
+  const isArt = nftType === 1;
 
   context.log.info(`🎵 Processing MasterMinted event for tokenId ${tokenId}`);
   context.log.info(`   Artist: ${artist}`);
   context.log.info(`   TokenURI: ${tokenURI}`);
   context.log.info(`   Price: ${price.toString()}`);
+  context.log.info(`   NFT Type: ${isArt ? 'Art' : 'Music'} (${nftType})`);
 
   // ✅ Fetch metadata during indexing
   const metadata = await fetchMetadata(tokenURI, context);
@@ -136,9 +140,6 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
     context.log.error(`   TokenURI: ${tokenURI}`);
     context.log.error(`   This NFT will have empty audio URLs!`);
   }
-
-  // ✅ Determine if this is an art-only NFT (no audio)
-  const isArt = !metadata?.previewAudioUrl && !metadata?.fullAudioUrl;
 
   const musicNFT = {
     id: musicNFTId,
