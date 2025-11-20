@@ -29,6 +29,7 @@ interface MusicNFT {
   previewAudioUrl: string;
   fullAudioUrl: string;
   metadataFetched: boolean;
+  isArt: boolean; // ✅ ADD: Art vs Music flag
 }
 
 interface ArtistMusic {
@@ -38,6 +39,7 @@ interface ArtistMusic {
   txHash: string;
   metadata?: MusicMetadata;
   price?: string;
+  isArt: boolean; // ✅ ADD: Art vs Music flag
 }
 
 interface ArtistInfo {
@@ -167,6 +169,7 @@ export default function ArtistProfilePage() {
             previewAudioUrl
             fullAudioUrl
             metadataFetched
+            isArt
           }
         }
       `;
@@ -191,6 +194,7 @@ export default function ArtistProfilePage() {
           animation_url: resolveIPFS(nft.previewAudioUrl),
         },
         price: (Number(nft.price) / 1e18).toFixed(6),
+        isArt: nft.isArt || false, // ✅ ADD: Include isArt flag
       }));
 
       console.log('Loaded music with resolved URLs', artistMusicMapped);
@@ -310,11 +314,8 @@ export default function ArtistProfilePage() {
             )}
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {artistInfo?.displayName || 'Loading...'}
+                {artistInfo?.username ? `@${artistInfo.username}` : (artistInfo?.displayName || 'Loading...')}
               </h1>
-              {artistInfo?.username && (
-                <p className="text-gray-600 text-lg mb-2">@{artistInfo.username}</p>
-              )}
               <p className="text-gray-600 font-mono text-sm">
                 {artistAddress.slice(0, 10)}...{artistAddress.slice(-8)}
               </p>
@@ -364,19 +365,13 @@ export default function ArtistProfilePage() {
         </div>
 
         {/* Music Catalog */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            🎵 Music Catalog
-          </h2>
-          {artistMusic.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl">
-              <div className="text-6xl mb-4">🎵</div>
-              <p className="text-gray-600 text-lg">No music available yet</p>
-              <p className="text-gray-500 text-sm mt-2">This artist hasn't minted any music NFTs</p>
-            </div>
-          ) : (
+        {artistMusic.filter(m => !m.isArt).length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              🎵 Music Catalog
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {artistMusic.map((music) => (
+              {artistMusic.filter(m => !m.isArt).map((music) => (
                 <div
                   key={music.tokenId}
                   className="bg-white border-2 border-gray-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-lg"
@@ -502,8 +497,102 @@ export default function ArtistProfilePage() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Art Catalog */}
+        {artistMusic.filter(m => m.isArt).length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              🎨 Art Catalog
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {artistMusic.filter(m => m.isArt).map((art) => (
+                <div
+                  key={art.tokenId}
+                  className="bg-white border-2 border-gray-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-lg"
+                >
+                  {art.metadata?.image ? (
+                    <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                      <img
+                        src={art.metadata.image}
+                        alt={art.metadata.name || `Art #${art.tokenId}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-cyan-200 flex items-center justify-center rounded-t-xl">
+                      <span className="text-7xl">🎨</span>
+                    </div>
+                  )}
+                  <div className="p-5 space-y-3">
+                    <div>
+                      <p className="font-bold text-gray-900 text-lg truncate">
+                        {art.metadata?.name || `Art #${art.tokenId}`}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Minted {new Date(art.mintedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 text-center">
+                      <p className="text-xs text-gray-500">🎨 Visual Art NFT</p>
+                    </div>
+                    <div className="pt-3 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-xs text-gray-600">License Price</p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            {art.price || '0.01'} TOURS
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-600">+10% Royalties</p>
+                          <p className="text-xs text-gray-500">to artist</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleBuyLicense(art)}
+                        disabled={
+                          buying === art.tokenId ||
+                          !walletAddress ||
+                          walletAddress.toLowerCase() === artistAddress.toLowerCase() ||
+                          commandLoading
+                        }
+                        className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 touch-manipulation"
+                        style={{ minHeight: '56px' }}
+                      >
+                        {buying === art.tokenId || commandLoading
+                          ? '⏳ Processing...'
+                          : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
+                          ? '✓ Your Own Art'
+                          : `💳 Buy License (${art.price || '0.01'} TOURS)`}
+                      </button>
+                      {art.txHash && (
+                        <a
+                          href={`https://testnet.monadscan.com/tx/${art.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-center text-xs text-gray-500 hover:text-blue-600 mt-2"
+                        >
+                          View TX →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No NFTs Message */}
+        {artistMusic.length === 0 && (
+          <div className="text-center py-16 bg-white rounded-2xl">
+            <div className="text-6xl mb-4">🎨🎵</div>
+            <p className="text-gray-600 text-lg">No NFTs available yet</p>
+            <p className="text-gray-500 text-sm mt-2">This artist hasn't minted any NFTs</p>
+          </div>
+        )}
 
         {/* How It Works */}
         <div className="mt-12 p-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border-2 border-purple-200">
