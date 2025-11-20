@@ -124,7 +124,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
 
   // ✅ V6: Use nftType from event (0 = Music, 1 = Art)
-  const isArt = nftType === 1;
+  const isArt = nftType === BigInt(1);
 
   context.log.info(`🎵 Processing MasterMinted event for tokenId ${tokenId}`);
   context.log.info(`   Artist: ${artist}`);
