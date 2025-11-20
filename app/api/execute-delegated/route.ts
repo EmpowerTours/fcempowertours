@@ -306,14 +306,15 @@ View profile and collection!
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
-                'function mintMaster(address artist, string tokenURI, string songTitle, uint256 price) external returns (uint256)'
+                'function mintMaster(address artist, string tokenURI, string title, uint256 price, uint8 nftType) external returns (uint256)'
               ]),
               functionName: 'mintMaster',
               args: [
                 userAddress as Address,
                 params.tokenURI,
-                params.songTitle || 'Untitled',
+                params.songTitle || params.title || 'Untitled',
                 musicPrice,
+                0, // ✅ NFTType.MUSIC = 0
               ],
             }) as Hex,
           },
