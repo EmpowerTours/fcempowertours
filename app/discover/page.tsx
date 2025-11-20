@@ -331,10 +331,10 @@ export default function MusicDiscoveryPage() {
                   )}
 
                   <div className="p-4 space-y-3">
-                    {/* Song Title */}
+                    {/* NFT Title */}
                     <div>
                       <p className="font-bold text-gray-900 text-lg truncate">
-                        {music.metadata?.name || `Track #${music.tokenId}`}
+                        {music.metadata?.name || `${music.isArt ? 'Art' : 'Track'} #${music.tokenId}`}
                       </p>
                       <p className="text-sm text-gray-600">
                         {new Date(music.mintedAt).toLocaleDateString()}
@@ -345,7 +345,11 @@ export default function MusicDiscoveryPage() {
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Link
                         href={`/artist/${music.artist}`}
-                        className="block p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all"
+                        className={`block p-3 rounded-lg transition-all ${
+                          music.isArt
+                            ? 'bg-blue-50 hover:bg-blue-100'
+                            : 'bg-purple-50 hover:bg-purple-100'
+                        }`}
                       >
                         <div className="flex items-center gap-2">
                           {artistInfo?.pfpUrl ? (
@@ -356,8 +360,10 @@ export default function MusicDiscoveryPage() {
                               whileHover={{ scale: 1.1, rotate: 5 }}
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-purple-300 flex items-center justify-center text-xs font-bold text-white">
-                              🎵
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                              music.isArt ? 'bg-blue-400' : 'bg-purple-300'
+                            }`}>
+                              {music.isArt ? '🎨' : '🎵'}
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
