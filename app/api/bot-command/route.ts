@@ -20,8 +20,8 @@ function extractFidFromRequest(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ EXTRACT: imageUrl, songTitle, tokenURI from request body
-    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, songTitle: songTitleFromRequest, tokenURI: tokenURIFromRequest } = await req.json();
+    // ✅ EXTRACT: imageUrl, title, tokenURI from request body
+    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest } = await req.json();
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);

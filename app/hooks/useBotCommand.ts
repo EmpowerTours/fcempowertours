@@ -30,7 +30,7 @@ export function useBotCommand() {
         location?: { latitude: number; longitude: number };
         fid?: number | string;
         imageUrl?: string;  // ✅ ADD: For music minting - direct cover image URL
-        songTitle?: string; // ✅ ADD: For music minting - song title
+        title?: string; // ✅ NFT title (works for both music and art)
         tokenURI?: string;  // ✅ ADD: For music minting - token metadata URI
       }
     ): Promise<BotCommandResponse> => {
@@ -95,7 +95,7 @@ export function useBotCommand() {
             location: options?.location,
             fid: options?.fid || fid,
             imageUrl: options?.imageUrl,  // ✅ PASS: Direct cover image URL from upload
-            songTitle: options?.songTitle, // ✅ PASS: Song title
+            title: options?.title, // ✅ PASS: NFT title (works for both music and art)
             tokenURI: options?.tokenURI,   // ✅ PASS: Token metadata URI
           }),
         });
