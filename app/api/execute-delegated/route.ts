@@ -378,10 +378,9 @@ View profile and collection!
 
 @empowertours`;
 
-            console.log('📢 Posting music cast with frame...');
-            console.log('🎬 Frame URL length:', frameUrl.length, 'bytes (Neynar limit: 256)');
-            console.log('🎬 Frame URL:', frameUrl);
-            console.log('🎬 Mini App URL:', miniAppUrl);
+            console.log('📢 Posting NFT cast with artist profile link...');
+            console.log('🎬 Artist Profile URL:', frameUrl);
+            console.log('🎬 NFT Type:', isArt ? 'Art' : 'Music');
             console.log('🎬 Bot Signer UUID:', process.env.BOT_SIGNER_UUID ? 'set' : 'NOT SET');
             console.log('🎬 Neynar API Key:', process.env.NEXT_PUBLIC_NEYNAR_API_KEY ? 'set' : 'NOT SET');
 
