@@ -360,6 +360,7 @@ View profile and collection!
 
         // ✅ POST CAST WITH FRAME - Link to artist profile
         let frameUrl = '';
+        let ogImageUrl = '';
         if (params?.fid) {
           try {
             // ✅ Determine if it's music or art (0 = MUSIC, 1 = ART)
@@ -368,7 +369,7 @@ View profile and collection!
             // ✅ OG image route based on NFT type with direct image URL
             const ogRoute = isArt ? 'art' : 'music';
             // Pass imageUrl and other data directly to avoid Envio indexing delay
-            const ogImageUrl = params.imageUrl
+            ogImageUrl = params.imageUrl
               ? `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}&imageUrl=${encodeURIComponent(params.imageUrl)}&title=${encodeURIComponent(songTitle)}&artist=${encodeURIComponent(userAddress)}&price=${encodeURIComponent(params.price)}`
               : `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
 
