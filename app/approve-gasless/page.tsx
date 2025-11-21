@@ -1,35 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useWriteContract, useWaitForTransactionReceipt, useConnect, useAccount } from 'wagmi';
-import { parseAbi } from 'viem';
+import { encodeFunctionData, parseAbi } from 'viem';
+import { monadTestnet } from '@/app/chains';
 
 const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as `0x${string}`;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as `0x${string}`;
 
 export default function ApproveGaslessPage() {
-  const { walletAddress } = useFarcasterContext();
+  const { walletAddress, sendTransaction, loading: farcasterLoading } = useFarcasterContext();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  const { connect, connectors } = useConnect();
-  const { isConnected } = useAccount();
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
-
-  // Auto-connect injected wallet on mount
-  useEffect(() => {
-    if (!isConnected && walletAddress) {
-      const injectedConnector = connectors.find(c => c.id === 'injected');
-      if (injectedConnector) {
-        console.log('🔗 Auto-connecting injected wallet...');
-        connect({ connector: injectedConnector });
-      }
-    }
-  }, [isConnected, walletAddress, connectors, connect]);
+  const [txHash, setTxHash] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleApprove = async () => {
     if (!walletAddress) {
@@ -37,39 +21,69 @@ export default function ApproveGaslessPage() {
       return;
     }
 
-    if (!isConnected) {
-      setError('Please wait for wallet to connect...');
-      return;
-    }
-
     setError('');
     setSuccess('');
+    setTxHash('');
+    setLoading(true);
 
     try {
-      console.log('📝 Calling writeContract for approval...');
-      writeContract({
-        address: MUSIC_NFT_V5,
+      console.log('📝 Encoding setApprovalForAll call...');
+
+      // Encode the function call
+      const data = encodeFunctionData({
         abi: parseAbi(['function setApprovalForAll(address operator, bool approved) external']),
         functionName: 'setApprovalForAll',
         args: [SAFE_ACCOUNT, true],
       });
+
+      console.log('📤 Sending approval transaction via Farcaster SDK...');
+      const result = await sendTransaction({
+        to: MUSIC_NFT_V5,
+        data,
+        value: '0x0',
+        chainId: monadTestnet.id,
+      });
+
+      const hash = result?.transactionHash || result;
+      console.log('✅ Approval transaction sent:', hash);
+      setTxHash(hash);
+      setSuccess('Approval successful! You can now burn NFTs gaslessly.');
     } catch (err: any) {
-      console.error('Approval error:', err);
+      console.error('❌ Approval error:', err);
       setError(err.message || 'Failed to approve');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (isConfirmed) {
+  // Show success screen after approval
+  if (txHash && success) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-green-500/20">
           <h1 className="text-3xl font-bold text-white mb-4">✅ Approved!</h1>
-          <p className="text-gray-300 mb-6">
+          <p className="text-gray-300 mb-4">
             You can now burn NFTs gaslessly using the bot command:
           </p>
-          <div className="bg-slate-700/50 p-4 rounded-lg mb-6">
+          <div className="bg-slate-700/50 p-4 rounded-lg mb-4">
             <code className="text-green-400">burn music [tokenId]</code>
           </div>
+
+          {txHash && (
+            <div className="mb-6 p-3 bg-slate-700/50 rounded-lg">
+              <p className="text-xs text-gray-400 mb-1">Transaction Hash:</p>
+              <p className="text-xs text-blue-300 font-mono break-all mb-2">{txHash}</p>
+              <a
+                href={`https://testnet.monadscan.com/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 text-xs underline"
+              >
+                View on Monadscan →
+              </a>
+            </div>
+          )}
+
           <button
             onClick={() => window.location.href = '/profile?tab=music'}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
@@ -96,8 +110,8 @@ export default function ApproveGaslessPage() {
         {walletAddress && (
           <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
             <div className="text-xs text-gray-300 space-y-1">
-              <p>Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</p>
-              <p>Wagmi Connected: {isConnected ? '✅ Yes' : '⏳ Connecting...'}</p>
+              <p>Your Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</p>
+              <p>Status: ✅ Connected via Farcaster</p>
             </div>
           </div>
         )}
@@ -116,17 +130,13 @@ export default function ApproveGaslessPage() {
 
         <button
           onClick={handleApprove}
-          disabled={isPending || isConfirming || !walletAddress || !isConnected}
+          disabled={loading || !walletAddress || farcasterLoading}
           className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          {isPending || isConfirming ? (
+          {loading ? (
             <>
               <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-              {isPending ? 'Approving...' : 'Confirming...'}
-            </>
-          ) : !isConnected ? (
-            <>
-              ⏳ Connecting Wallet...
+              Sending Approval...
             </>
           ) : (
             <>
@@ -136,7 +146,7 @@ export default function ApproveGaslessPage() {
         </button>
 
         <p className="text-xs text-gray-400 mt-4 text-center">
-          You'll need to sign this transaction with your wallet.
+          You'll sign this transaction with your Farcaster wallet.
         </p>
       </div>
     </div>
