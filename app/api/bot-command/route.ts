@@ -1270,6 +1270,54 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
       }
     }
 
+    // ==================== APPROVE GASLESS COMMAND ====================
+    if (lowerCommand.includes('approve gasless') || lowerCommand.includes('enable gasless')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+
+      console.log('[BOT] Approve gasless - setting approval for Safe account');
+
+      try {
+        const result = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'approve_gasless',
+            userAddress,
+          }),
+        });
+
+        const data = await result.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Approval failed');
+        }
+
+        return NextResponse.json({
+          success: true,
+          txHash: data.txHash,
+          action: 'transaction',
+          message: `✅ Gasless system approved!
+🎯 You can now burn NFTs gaslessly
+⛽ This was a one-time setup (FREE)
+TX: ${data.txHash?.slice(0, 10)}...
+
+View: https://testnet.monadscan.com/tx/${data.txHash}`
+        });
+
+      } catch (error: any) {
+        console.error('[BOT] Approve gasless error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Approval failed: ${error.message}`
+        });
+      }
+    }
+
     // ==================== BURN MUSIC COMMAND ====================
     if (lowerCommand.includes('burn music') || lowerCommand.includes('burn song')) {
       if (!userAddress) {

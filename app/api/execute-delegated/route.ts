@@ -1895,6 +1895,34 @@ View profile and collection!
           message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
         });
 
+      // ==================== APPROVE GASLESS ====================
+      case 'approve_gasless':
+        console.log('✅ Action: approve_gasless');
+
+        const approveGaslessCalls = [
+          {
+            to: MUSIC_NFT_V5,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function setApprovalForAll(address operator, bool approved) external']),
+              functionName: 'setApprovalForAll',
+              args: [SAFE_ADDRESS as Address, true],
+            }) as Hex,
+          },
+        ];
+
+        const approveGaslessTxHash = await sendSafeTransaction(approveGaslessCalls);
+        console.log('✅ Gasless approved, TX:', approveGaslessTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: approveGaslessTxHash,
+          action,
+          userAddress,
+          message: 'Gasless system approved for NFT management',
+        });
+
       // ==================== MUSIC NFT V5: BURNING ====================
       case 'burn_music':
         console.log('🔥 Action: burn_music');
@@ -1907,7 +1935,37 @@ View profile and collection!
 
         const burnTokenId = BigInt(params.tokenId);
 
-        // Use burnNFTFor - Safe burns on behalf of owner
+        // Check if Safe is approved to manage user's NFTs
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const checkClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const isApproved = await checkClient.readContract({
+            address: MUSIC_NFT_V5 as Address,
+            abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
+            functionName: 'isApprovedForAll',
+            args: [userAddress as Address, SAFE_ADDRESS as Address],
+          });
+
+          if (!isApproved) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Please approve the gasless system first. Send this command: "approve gasless"`,
+                requiresApproval: true,
+              },
+              { status: 400 }
+            );
+          }
+        } catch (err: any) {
+          console.warn('⚠️ Could not check NFT approval:', err.message);
+        }
+
+        // Burn the NFT
         const burnMusicCalls = [
           {
             to: MUSIC_NFT_V5,
