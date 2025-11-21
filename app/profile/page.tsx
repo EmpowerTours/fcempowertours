@@ -540,7 +540,6 @@ export default function ProfilePage() {
         };
       });
       setPurchasedMusic(purchasedMusicWithType);
-      setMusicNFTs([...allCreatedNFTs, ...purchasedMusicWithType]);
       setPurchasedItineraries(purchases);
     } catch (error: any) {
       setError(error.message || 'Failed to load data');

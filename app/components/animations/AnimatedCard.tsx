@@ -51,12 +51,14 @@ export function AnimatedStatCard({
   value: number;
   label: string;
   delay?: number;
-  color?: 'purple' | 'blue' | 'pink';
+  color?: 'purple' | 'blue' | 'pink' | 'yellow' | 'teal';
 }) {
   const colors = {
     purple: 'bg-purple-50 text-purple-600',
     blue: 'bg-blue-50 text-blue-600',
-    pink: 'bg-pink-50 text-pink-600'
+    pink: 'bg-pink-50 text-pink-600',
+    yellow: 'bg-amber-50 text-amber-600',
+    teal: 'bg-teal-50 text-teal-600'
   };
 
   return (
