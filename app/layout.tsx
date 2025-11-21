@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: 'EmpowerTours - DigitalPassport',
   description: 'Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.',
+  other: { buildId: '2025-01-20' },
   keywords: ['travel', 'music', 'nfts', 'farcaster', 'monad', 'blockchain', 'web3'],
   authors: [{ name: 'EmpowerTours Team' }],
   creator: 'EmpowerTours',
