@@ -1906,7 +1906,7 @@ View profile and collection!
             data: encodeFunctionData({
               abi: parseAbi(['function setApprovalForAll(address operator, bool approved) external']),
               functionName: 'setApprovalForAll',
-              args: [SAFE_ADDRESS as Address, true],
+              args: [SAFE_ACCOUNT as Address, true],
             }) as Hex,
           },
         ];
@@ -1948,7 +1948,7 @@ View profile and collection!
             address: MUSIC_NFT_V5 as Address,
             abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
             functionName: 'isApprovedForAll',
-            args: [userAddress as Address, SAFE_ADDRESS as Address],
+            args: [userAddress as Address, SAFE_ACCOUNT as Address],
           });
 
           if (!isApproved) {
