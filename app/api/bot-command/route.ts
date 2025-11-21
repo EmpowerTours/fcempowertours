@@ -1358,7 +1358,7 @@ View: https://testnet.monadscan.com/tx/${data.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'approve_gasless']
             })
           });
           const createData = await createRes.json();
