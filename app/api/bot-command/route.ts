@@ -985,11 +985,12 @@ Or go to the Music page to upload files.`
           });
         }
 
-        console.log(`[BOT] Minting music with CASE-PRESERVED CID:`, {
-          songTitle,
+        console.log(`[BOT] Minting ${is_art ? 'ART' : 'MUSIC'} NFT with CASE-PRESERVED CID:`, {
+          title: songTitle,
           tokenURI,
           price,
-          imageUrl: imageUrlFromRequest,  // ✅ LOG: Direct cover image URL
+          imageUrl: imageUrlFromRequest,
+          isArt: is_art,
         });
 
         if (price <= 0 || price > 10) {

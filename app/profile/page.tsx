@@ -41,6 +41,7 @@ interface MusicNFTWithMetadata {
   isStaked?: boolean;
   stakedAt?: string;
   staker?: string;
+  isArt?: boolean;
 }
 
 interface PassportMetadata {
@@ -84,6 +85,7 @@ export default function ProfilePage() {
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [musicNFTs, setMusicNFTs] = useState<MusicNFTWithMetadata[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
+  const [createdArt, setCreatedArt] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [balances, setBalances] = useState({ mon: '0', tours: '0', wmon: '0' });
@@ -91,6 +93,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [musicPage, setMusicPage] = useState(1);
   const [createdMusicPage, setCreatedMusicPage] = useState(1);
+  const [createdArtPage, setCreatedArtPage] = useState(1);
   const [purchasedMusicPage, setPurchasedMusicPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
@@ -370,6 +373,7 @@ export default function ProfilePage() {
             isStaked
             stakedAt
             staker
+            isArt
           }
           MusicLicense(where: {licensee: {_in: $addresses}}, order_by: {purchasedAt: desc}, limit: 100) {
             id
@@ -421,8 +425,8 @@ export default function ProfilePage() {
       );
       setPassportNFTs(passports);
 
-      // Created Music with IPFS resolution
-      const createdMusicWithType: MusicNFTWithMetadata[] = createdMusicNFTs.map((nft: any) => ({
+      // Created NFTs with IPFS resolution - separate Music from Art
+      const allCreatedNFTs: MusicNFTWithMetadata[] = createdMusicNFTs.map((nft: any) => ({
         ...nft,
         type: 'master' as const,
         metadata: {
@@ -432,8 +436,14 @@ export default function ProfilePage() {
         },
         audioUrl: resolveIPFS(nft.previewAudioUrl),
         price: (Number(nft.price) / 1e18).toFixed(6),
+        isArt: nft.isArt,
       }));
-      setCreatedMusic(createdMusicWithType);
+
+      // Separate music and art NFTs
+      const musicOnly = allCreatedNFTs.filter(nft => !nft.isArt);
+      const artOnly = allCreatedNFTs.filter(nft => nft.isArt);
+      setCreatedMusic(musicOnly);
+      setCreatedArt(artOnly);
 
       // Fetch master token details for purchased licenses
       const masterTokenIds = purchasedLicenses.map((l: any) => l.masterTokenId).filter((id: any) => id);
@@ -504,6 +514,10 @@ export default function ProfilePage() {
     (createdMusicPage - 1) * ITEMS_PER_PAGE,
     createdMusicPage * ITEMS_PER_PAGE
   );
+  const paginatedCreatedArt = createdArt.slice(
+    (createdArtPage - 1) * ITEMS_PER_PAGE,
+    createdArtPage * ITEMS_PER_PAGE
+  );
   const paginatedPurchasedMusic = purchasedMusic.slice(
     (purchasedMusicPage - 1) * ITEMS_PER_PAGE,
     purchasedMusicPage * ITEMS_PER_PAGE
@@ -513,6 +527,7 @@ export default function ProfilePage() {
     passportPage * ITEMS_PER_PAGE
   );
   const totalCreatedMusicPages = Math.ceil(createdMusic.length / ITEMS_PER_PAGE);
+  const totalCreatedArtPages = Math.ceil(createdArt.length / ITEMS_PER_PAGE);
   const totalPurchasedMusicPages = Math.ceil(purchasedMusic.length / ITEMS_PER_PAGE);
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
 
@@ -648,7 +663,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {(createdMusic.length > 0 || purchasedMusic.length > 0) && walletAddress && (
+          {(createdMusic.length > 0 || createdArt.length > 0 || purchasedMusic.length > 0) && walletAddress && (
             <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -774,7 +789,7 @@ export default function ProfilePage() {
             </motion.div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-5 gap-4 mb-8">
             <AnimatedStatCard
               value={passportNFTs.length}
               label="Passports"
@@ -783,9 +798,15 @@ export default function ProfilePage() {
             />
             <AnimatedStatCard
               value={createdMusic.length}
-              label="Created"
+              label="Music"
               color="blue"
               delay={1.0}
+            />
+            <AnimatedStatCard
+              value={createdArt.length}
+              label="Art"
+              color="yellow"
+              delay={1.05}
             />
             <AnimatedStatCard
               value={purchasedMusic.length}
@@ -1026,6 +1047,108 @@ export default function ProfilePage() {
                       onClick={() => setCreatedMusicPage(p => Math.min(totalCreatedMusicPages, p + 1))}
                       disabled={createdMusicPage === totalCreatedMusicPages}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Created Art */}
+            {createdArt.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">🎨 Art I Created</h2>
+                  <span className="text-sm text-gray-500">
+                    {createdArt.length} total | Page {createdArtPage} of {totalCreatedArtPages || 1}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {paginatedCreatedArt.map((nft) => (
+                    <div
+                      key={nft.id}
+                      className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl hover:border-amber-400 transition-all shadow-sm hover:shadow-md"
+                    >
+                      {nft.metadata?.image ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                          <img
+                            src={nft.metadata.image}
+                            alt={nft.metadata.name || `Art NFT #${nft.tokenId}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-square bg-gradient-to-br from-amber-200 to-orange-200 flex items-center justify-center rounded-t-xl">
+                          <span className="text-6xl">🎨</span>
+                        </div>
+                      )}
+                      <div className="p-4 space-y-3">
+                        <div className="text-center">
+                          <p className="font-mono text-sm font-bold text-amber-900">
+                            {nft.metadata?.name || `Art NFT #${nft.tokenId}`}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {nft.mintedAt ? new Date(nft.mintedAt).toLocaleDateString() : 'Recently minted'}
+                          </p>
+                          {nft.price && (
+                            <p className="text-xs text-green-600 font-bold mt-1">
+                              {nft.price} TOURS
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            {nft.txHash && (
+                              <a
+                                href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-all text-center"
+                              >
+                                View TX
+                              </a>
+                            )}
+                            {nft.tokenURI && (
+                              <a
+                                href={resolveIPFS(nft.tokenURI)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700 transition-all text-center"
+                              >
+                                Metadata
+                              </a>
+                            )}
+                          </div>
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId, nft.metadata?.name)}
+                            className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
+                            style={{ minHeight: '48px' }}
+                          >
+                            🗑️ Delete NFT
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {totalCreatedArtPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-6">
+                    <button
+                      onClick={() => setCreatedArtPage(p => Math.max(1, p - 1))}
+                      disabled={createdArtPage === 1}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                      {createdArtPage} / {totalCreatedArtPages}
+                    </span>
+                    <button
+                      onClick={() => setCreatedArtPage(p => Math.min(totalCreatedArtPages, p + 1))}
+                      disabled={createdArtPage === totalCreatedArtPages}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
                     >
                       Next →
                     </button>

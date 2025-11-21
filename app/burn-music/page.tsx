@@ -2,9 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { encodeFunctionData, parseAbi } from 'viem';
-
-const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as `0x${string}`;
 
 export default function BurnMusicPage() {
   const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
@@ -40,44 +37,37 @@ export default function BurnMusicPage() {
     setLoading(true);
 
     try {
-      const ethereum = (window as any).ethereum;
-      if (!ethereum) {
-        throw new Error('No Ethereum provider found');
-      }
-
-      console.log('🔥 Burning NFT with user wallet:', {
+      console.log('🔥 Burning NFT via delegated burn:', {
         wallet: walletAddress,
         tokenId
       });
 
-      // Encode burn call
-      const data = encodeFunctionData({
-        abi: parseAbi(['function burn(uint256 tokenId) external']),
-        functionName: 'burn',
-        args: [BigInt(tokenId)],
+      // Use delegated burning via Safe account (gasless)
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'burn_nft',
+          params: {
+            tokenId: tokenId,
+          },
+        }),
       });
 
-      // Request accounts
-      await ethereum.request({ method: 'eth_requestAccounts' });
+      const data = await response.json();
 
-      // Send transaction
-      const hash = await ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: walletAddress,
-          to: MUSIC_NFT_V5,
-          data,
-          value: '0x0',
-        }],
-      });
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to burn NFT');
+      }
 
-      console.log('✅ Burn transaction sent:', hash);
-      setTxHash(hash);
-      setSuccess(`🔥 NFT #${tokenId} burned successfully!`);
+      console.log('✅ Burn transaction sent:', data.txHash);
+      setTxHash(data.txHash);
+      setSuccess(`🔥 NFT #${tokenId} burned successfully! You received 5 TOURS.`);
 
       // Wait then redirect back
       setTimeout(() => {
-        window.location.href = '/profile?tab=music';
+        window.location.href = '/profile';
       }, 3000);
 
     } catch (err: any) {
@@ -139,6 +129,19 @@ export default function BurnMusicPage() {
           </div>
         )}
 
+        {/* Info about gasless burn */}
+        <div className="mb-6 p-4 bg-green-900/30 border border-green-500/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">⛽</span>
+            <div>
+              <div className="font-semibold text-green-300 mb-1">Gasless Transaction</div>
+              <div className="text-sm text-green-200">
+                This burn is FREE! We pay the gas fees on your behalf using delegated burning.
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Warning */}
         <div className="mb-6 p-4 bg-red-900/30 border border-red-500/30 rounded-lg">
           <div className="flex items-start gap-3">
@@ -146,7 +149,7 @@ export default function BurnMusicPage() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. You'll pay a small gas fee to burn your NFT and receive 5 TOURS as a reward.
+                This action cannot be undone. Your NFT will be permanently burned and you'll receive 5 TOURS as a reward.
               </div>
             </div>
           </div>
@@ -191,14 +194,14 @@ export default function BurnMusicPage() {
             </>
           ) : (
             <>
-              🔥 Burn NFT & Get 5 TOURS
+              🔥 Burn NFT & Get 5 TOURS (FREE)
             </>
           )}
         </button>
 
         {/* Cancel */}
         <button
-          onClick={() => window.location.href = '/profile?tab=music'}
+          onClick={() => window.location.href = '/profile'}
           disabled={loading}
           className="w-full mt-3 bg-slate-700 hover:bg-slate-600 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
         >

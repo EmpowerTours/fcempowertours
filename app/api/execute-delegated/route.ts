@@ -2569,6 +2569,51 @@ View profile and collection!
           message: `Music NFT position #${params.positionId} unstaked from YieldStrategy with yield`,
         });
 
+      // ==================== BURN NFT (DELEGATED) ====================
+      case 'burn_nft': {
+        console.log('🔥 Action: burn_nft (delegated burning)');
+
+        const { tokenId } = params;
+        if (!tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId' },
+            { status: 400 }
+          );
+        }
+
+        console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
+
+        // Use burnNFTForDelegated function (requires Safe to be authorized burner)
+        const burnCalldata = encodeFunctionData({
+          abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
+          functionName: 'burnNFTForDelegated',
+          args: [userAddress as Address, BigInt(tokenId)],
+        });
+
+        const burnTx = await sendSafeTransaction([
+          {
+            to: EMPOWER_TOURS_NFT,
+            data: burnCalldata,
+            value: BigInt(0),
+          }
+        ]);
+
+        if (!burnTx.success) {
+          throw new Error(burnTx.error || 'Burn transaction failed');
+        }
+
+        await incrementTransactionCount(userAddress);
+        console.log('🔥 NFT burned successfully:', burnTx.txHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: burnTx.txHash,
+          userAddress,
+          tokenId,
+          message: `NFT #${tokenId} burned successfully! 5 TOURS reward sent to owner.`,
+        });
+      }
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
