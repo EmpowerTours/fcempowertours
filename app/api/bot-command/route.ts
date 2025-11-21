@@ -1426,9 +1426,16 @@ View: https://testnet.monadscan.com/tx/${burnData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Burn NFT error:', error);
+
+        // Check if it's an authorization error
+        const isAuthError = error.message?.toLowerCase().includes('not authorized') ||
+                           error.message?.toLowerCase().includes('approval');
+
         return NextResponse.json({
           success: false,
-          message: `Burn failed: ${error.message}`
+          message: isAuthError
+            ? `❌ NFT burn failed - approval needed\n\n🔧 First run: "approve gasless"\n⏱️ Then wait 10 seconds and try burning again\n\nNote: Blockchain state needs time to update after approval.`
+            : `Burn failed: ${error.message}`
         });
       }
     }

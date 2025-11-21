@@ -1935,37 +1935,7 @@ View profile and collection!
 
         const burnTokenId = BigInt(params.tokenId);
 
-        // Check if Safe is approved to manage user's NFTs
-        try {
-          const { createPublicClient, http } = await import('viem');
-          const { monadTestnet } = await import('@/app/chains');
-          const checkClient = createPublicClient({
-            chain: monadTestnet,
-            transport: http(),
-          });
-
-          const isApproved = await checkClient.readContract({
-            address: MUSIC_NFT_V5 as Address,
-            abi: parseAbi(['function isApprovedForAll(address owner, address operator) external view returns (bool)']),
-            functionName: 'isApprovedForAll',
-            args: [userAddress as Address, SAFE_ACCOUNT as Address],
-          });
-
-          if (!isApproved) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Please approve the gasless system first. Send this command: "approve gasless"`,
-                requiresApproval: true,
-              },
-              { status: 400 }
-            );
-          }
-        } catch (err: any) {
-          console.warn('⚠️ Could not check NFT approval:', err.message);
-        }
-
-        // Burn the NFT
+        // Burn the NFT (contract will check authorization)
         const burnMusicCalls = [
           {
             to: MUSIC_NFT_V5,
