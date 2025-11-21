@@ -9,11 +9,10 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   experimental: {
-    optimizePackageImports: ['@privy-io/react-auth', '@tanstack/react-query'],
+    optimizePackageImports: ['@tanstack/react-query'],
   },
   serverExternalPackages: [
     'undici',
-    '@privy-io/server-auth',
     '@farcaster/miniapp-sdk',
     'ethers',
   ],
