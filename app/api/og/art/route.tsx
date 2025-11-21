@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
     const directArtist = searchParams.get('artist');
     const directPrice = searchParams.get('price');
 
-    console.log('🎨 OG Request for music NFT:', { tokenId, hasDirectImage: !!directImageUrl });
+    console.log('🎨 OG Request for art NFT:', { tokenId, hasDirectImage: !!directImageUrl });
 
     let musicData: any = null;
 
@@ -339,12 +339,12 @@ export async function GET(request: NextRequest) {
                 color: 'white',
               }}
             >
-              {/* Music Icon */}
+              {/* Art Icon */}
               <div style={{ fontSize: 60, marginBottom: 20, display: 'flex' }}>
-                🎵
+                🎨
               </div>
 
-              {/* Song Title */}
+              {/* Art Title */}
               <div
                 style={{
                   fontSize: 48,
@@ -376,15 +376,15 @@ export async function GET(request: NextRequest) {
               <div
                 style={{
                   fontSize: 24,
-                  background: 'rgba(124, 58, 237, 0.3)',
+                  background: 'rgba(236, 72, 153, 0.3)',
                   padding: '10px 24px',
                   borderRadius: '20px',
-                  border: '2px solid rgba(124, 58, 237, 0.5)',
+                  border: '2px solid rgba(236, 72, 153, 0.5)',
                   marginBottom: 30,
                   display: 'flex',
                 }}
               >
-                Token #{musicData.tokenId}
+                🎨 Art NFT #{musicData.tokenId}
               </div>
 
               {/* Price */}
@@ -408,7 +408,7 @@ export async function GET(request: NextRequest) {
                   display: 'flex',
                 }}
               >
-                🎧 License on EmpowerTours
+                🖼️ View on EmpowerTours
               </div>
             </div>
           </div>
@@ -437,7 +437,7 @@ export async function GET(request: NextRequest) {
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          <div style={{ fontSize: 120, marginBottom: 30, display: 'flex' }}>🎵</div>
+          <div style={{ fontSize: 120, marginBottom: 30, display: 'flex' }}>🎨</div>
 
           <div
             style={{
@@ -448,7 +448,7 @@ export async function GET(request: NextRequest) {
               display: 'flex',
             }}
           >
-            EmpowerTours Music
+            EmpowerTours Art
           </div>
 
           <div
@@ -460,7 +460,7 @@ export async function GET(request: NextRequest) {
               display: 'flex',
             }}
           >
-            Mint & License Music NFTs on Monad
+            Mint & License Art NFTs on Monad
           </div>
 
           <div

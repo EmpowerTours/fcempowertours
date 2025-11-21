@@ -217,7 +217,7 @@ export default function MusicDiscoveryPage() {
               <div className="relative">
                 <motion.input
                   type="text"
-                  placeholder="🔍 Search by artist name, address, or song title..."
+                  placeholder="🔍 Search by artist name, address, or NFT title..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-lg transition-all"
@@ -237,18 +237,24 @@ export default function MusicDiscoveryPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-2 text-center">
-                💡 Tip: Search by @username, wallet address, or song title
+                💡 Tip: Search by @username, wallet address, or NFT title
               </p>
             </div>
           </FadeIn>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-4 gap-4 mb-8">
             <AnimatedStatCard
-              value={allMusic.length}
-              label="Total Tracks"
+              value={allMusic.filter((m) => !m.isArt).length}
+              label="Music Tracks"
               color="purple"
               delay={0.5}
+            />
+            <AnimatedStatCard
+              value={allMusic.filter((m) => m.isArt).length}
+              label="Art NFTs"
+              color="pink"
+              delay={0.55}
             />
             <AnimatedStatCard
               value={[...new Set(allMusic.map((m) => m.artist.toLowerCase()))].length}
@@ -259,8 +265,8 @@ export default function MusicDiscoveryPage() {
             <AnimatedStatCard
               value={filteredMusic.length}
               label="Search Results"
-              color="pink"
-              delay={0.7}
+              color="green"
+              delay={0.65}
             />
           </div>
         </SlideIn>

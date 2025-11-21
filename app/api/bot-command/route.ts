@@ -1270,6 +1270,87 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
       }
     }
 
+    // ==================== BURN MUSIC COMMAND ====================
+    if (lowerCommand.includes('burn music') || lowerCommand.includes('burn song')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+      try {
+        const tokenIdMatch = lowerCommand.match(/burn (?:music|song) (\d+)/);
+        if (!tokenIdMatch) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid format. Use: "burn music <tokenId>"'
+          });
+        }
+
+        const tokenId = tokenIdMatch[1];
+
+        console.log('[BOT] Burning Music NFT:', {
+          tokenId,
+          userAddress
+        });
+
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        if (!delegationData.success || !delegationData.delegation) {
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+        }
+
+        const burnRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'burn_music',
+            params: {
+              tokenId
+            }
+          })
+        });
+        const burnData = await burnRes.json();
+        if (!burnData.success) {
+          throw new Error(burnData.error || 'Burn failed');
+        }
+
+        console.log('[BOT] Music NFT burned:', burnData.txHash);
+        return NextResponse.json({
+          success: true,
+          txHash: burnData.txHash,
+          action: 'transaction',
+          message: `Music NFT #${tokenId} Burned! (FREE)
+🔥 NFT destroyed successfully
+💰 You received 5 TOURS as burn reward
+⛽ Gasless - we paid the gas!
+TX: ${burnData.txHash?.slice(0, 10)}...
+
+View: https://testnet.monadscan.com/tx/${burnData.txHash}`
+        });
+      } catch (error: any) {
+        console.error('[BOT] Burn music error:', error);
+        return NextResponse.json({
+          success: false,
+          message: `Burn failed: ${error.message}`
+        });
+      }
+    }
+
     // ==================== NAVIGATION COMMANDS ====================
     const navCommands: Record<string, string> = {
       'go to passport': '/passport',

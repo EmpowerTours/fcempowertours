@@ -439,11 +439,28 @@ MusicLicenseNFT.NFTBurned.handler(async ({ event, context }) => {
   const musicNFT = await context.MusicNFT.get(musicNFTId);
 
   if (musicNFT) {
+    // Mark NFT as burned
     await context.MusicNFT.set({
       ...musicNFT,
       isBurned: true,
       burnedAt: timestamp,
     });
+
+    // Update user stats - decrement NFT counts
+    const userId = musicNFT.owner.toLowerCase();
+    let userStats = await context.UserStats.get(userId);
+
+    if (userStats) {
+      await context.UserStats.set({
+        ...userStats,
+        musicNFTCount: musicNFT.isArt ? userStats.musicNFTCount : Math.max(0, userStats.musicNFTCount - 1),
+        artNFTCount: musicNFT.isArt ? Math.max(0, userStats.artNFTCount - 1) : userStats.artNFTCount,
+        totalNFTs: Math.max(0, userStats.totalNFTs - 1),
+        lastActive: new Date(event.block.timestamp * 1000),
+      });
+      context.log.info(`📊 Updated UserStats for ${userId} - ${musicNFT.isArt ? 'Art' : 'Music'} NFT count decremented`);
+    }
+
     context.log.info(`🔥 Music NFT #${tokenId} burned by ${burner}, reward: ${rewardReceived} TOURS`);
   }
 });

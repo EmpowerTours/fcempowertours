@@ -248,17 +248,22 @@ View profile and collection!
 
       // ==================== MINT MUSIC (WITH CAST + FRAME) ====================
       case 'mint_music':
-        console.log('🎵 Action: mint_music');
+        // ✅ Determine if it's Art or Music NFT
+        const isArtNFT = params.is_art === true || params.is_art === 1 || params.is_art === '1';
+        const nftTypeValue = isArtNFT ? 1 : 0; // 0 = MUSIC, 1 = ART
+        const nftTypeName = isArtNFT ? 'Art' : 'Music';
+
+        console.log(`${isArtNFT ? '🎨' : '🎵'} Action: mint_${isArtNFT ? 'art' : 'music'} (nftType: ${nftTypeValue})`);
         if (!params?.tokenURI || !params?.price) {
           return NextResponse.json(
-            { success: false, error: 'Missing tokenURI or price for music mint' },
+            { success: false, error: `Missing tokenURI or price for ${nftTypeName.toLowerCase()} mint` },
             { status: 400 }
           );
         }
 
-        // ✅ CHECK IF SONG ALREADY EXISTS
-        const songTitle = params.songTitle || 'Untitled';
-        console.log('🔍 Checking if song already exists:', { artist: userAddress, songTitle });
+        // ✅ CHECK IF SONG/ART ALREADY EXISTS
+        const songTitle = params.songTitle || params.title || 'Untitled';
+        console.log('🔍 Checking if NFT already exists:', { artist: userAddress, title: songTitle, isArt: isArtNFT });
 
         try {
           const { createPublicClient, http } = await import('viem');
@@ -276,27 +281,28 @@ View profile and collection!
           });
 
           if (songExists) {
-            console.log('❌ Song already minted:', songTitle);
+            console.log(`❌ ${nftTypeName} NFT already minted:`, songTitle);
             return NextResponse.json(
               {
                 success: false,
-                error: `Song "${songTitle}" has already been minted by this artist. Please use a different song title.`
+                error: `"${songTitle}" has already been minted by this artist. Please use a different title.`
               },
               { status: 400 }
             );
           }
-          console.log('✅ Song title available');
+          console.log('✅ NFT title available');
         } catch (checkError: any) {
-          console.warn('⚠️ Could not verify song existence, proceeding with mint:', checkError.message);
+          console.warn('⚠️ Could not verify NFT existence, proceeding with mint:', checkError.message);
           // Continue with mint if check fails (backwards compatible)
         }
 
         const musicPrice = parseEther(params.price.toString());
-        console.log('🎵 Minting music NFT:', {
+        console.log(`${isArtNFT ? '🎨' : '🎵'} Minting ${nftTypeName} NFT:`, {
           artist: userAddress,
           price: params.price,
           tokenURI: params.tokenURI,
-          songTitle: params.songTitle,
+          title: songTitle,
+          nftType: `${nftTypeValue} (${nftTypeName})`,
           imageUrl: params.imageUrl ? 'provided' : 'none'
         });
 
@@ -312,17 +318,17 @@ View profile and collection!
               args: [
                 userAddress as Address,
                 params.tokenURI,
-                params.songTitle || params.title || 'Untitled',
+                songTitle,
                 musicPrice,
-                0, // ✅ NFTType.MUSIC = 0
+                nftTypeValue, // ✅ 0 = MUSIC, 1 = ART
               ],
             }) as Hex,
           },
         ];
 
-        console.log('💳 Executing music mint transaction...');
+        console.log(`💳 Executing ${nftTypeName} NFT mint transaction...`);
         const musicTxHash = await sendSafeTransaction(musicCalls);
-        console.log('✅ Music mint successful, TX:', musicTxHash);
+        console.log(`✅ ${nftTypeName} NFT mint successful, TX:`, musicTxHash);
 
         // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
         let extractedTokenId = '0';
@@ -359,7 +365,14 @@ View profile and collection!
             // ✅ Determine if it's music or art (0 = MUSIC, 1 = ART)
             const isArt = params.is_art === true || params.is_art === 1 || params.is_art === '1';
 
-            // ✅ Link to artist profile instead of individual NFT
+            // ✅ OG image route based on NFT type with direct image URL
+            const ogRoute = isArt ? 'art' : 'music';
+            // Pass imageUrl and other data directly to avoid Envio indexing delay
+            const ogImageUrl = params.imageUrl
+              ? `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}&imageUrl=${encodeURIComponent(params.imageUrl)}&title=${encodeURIComponent(songTitle)}&artist=${encodeURIComponent(userAddress)}&price=${encodeURIComponent(params.price)}`
+              : `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
+
+            // ✅ Link to artist profile within mini app
             const artistProfileUrl = `${APP_URL}/artist/${userAddress}`;
             frameUrl = artistProfileUrl;
 
@@ -372,6 +385,8 @@ View profile and collection!
 
 "${params.songTitle || params.title || 'Untitled'}"
 💰 License Price: ${params.price} TOURS
+
+🔗 Transaction: https://testnet.monadscan.com/tx/${musicTxHash}
 
 ⚡ Gasless minting powered by @empowertours
 👀 ${actionText}
@@ -393,25 +408,31 @@ View profile and collection!
             const castResult = await client.publishCast({
               signerUuid: process.env.BOT_SIGNER_UUID || '',
               text: castText,
-              embeds: [{ url: frameUrl }]
+              embeds: [
+                { url: ogImageUrl },  // OG preview image
+                { url: frameUrl }     // Clickable link to artist profile
+              ]
             });
 
-            console.log('✅ Music cast posted with frame:', {
+            console.log(`✅ ${nftTypeName} NFT cast posted:`, {
               hash: castResult.cast?.hash,
-              songTitle: params.songTitle,
+              title: songTitle,
               tokenId: extractedTokenId,
+              ogImageUrl,
               frameUrl
             });
           } catch (castError: any) {
-            console.error('❌ Music cast posting FAILED:', {
+            console.error(`❌ ${nftTypeName} NFT cast posting FAILED:`, {
               errorMessage: castError.message,
               httpStatus: castError.response?.status,
               statusText: castError.response?.statusText,
               responseData: castError.response?.data,
               responseText: castError.response?.text,
               tokenId: extractedTokenId,
-              songTitle: params.songTitle,
-              frameUrlLength: frameUrl?.length,
+              title: songTitle,
+              isArt: isArtNFT,
+              ogImageUrl,
+              frameUrl,
             });
             // Don't fail the transaction if cast fails
           }
@@ -424,9 +445,12 @@ View profile and collection!
           tokenId: extractedTokenId,
           action,
           userAddress,
-          songTitle: params.songTitle || 'Untitled',
+          songTitle: songTitle,
+          title: songTitle,
+          isArt: isArtNFT,
+          nftType: nftTypeValue,
           price: params.price,
-          message: `Music NFT minted successfully: ${params.songTitle || 'Untitled'} at ${params.price} TOURS (Token #${extractedTokenId})`,
+          message: `${nftTypeName} NFT minted successfully: "${songTitle}" at ${params.price} TOURS (Token #${extractedTokenId})`,
         });
 
       // ==================== BUY MUSIC (WITH CAST + FRAME) - FIXED ====================
@@ -1882,25 +1906,15 @@ View profile and collection!
 
         const burnTokenId = BigInt(params.tokenId);
 
-        // Step 1: Transfer NFT from user to Safe (so Safe can burn it)
-        // Step 2: Burn NFT from Safe
+        // Use burnNFTFor - Safe burns on behalf of owner
         const burnMusicCalls = [
           {
             to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function transferFrom(address from, address to, uint256 tokenId) external']),
-              functionName: 'transferFrom',
-              args: [userAddress as Address, SAFE_ACCOUNT, burnTokenId],
-            }) as Hex,
-          },
-          {
-            to: MUSIC_NFT_V5,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function burnMusicNFT(uint256 tokenId) external']),
-              functionName: 'burnMusicNFT',
-              args: [burnTokenId],
+              abi: parseAbi(['function burnNFTFor(address owner, uint256 tokenId) external']),
+              functionName: 'burnNFTFor',
+              args: [userAddress as Address, burnTokenId],
             }) as Hex,
           },
         ];
