@@ -83,10 +83,10 @@ async function fetchPassportCountryCode(tokenURI: string): Promise<string | null
 export default function ProfilePage() {
   const { user, walletAddress, isMobile, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
-  const [musicNFTs, setMusicNFTs] = useState<MusicNFTWithMetadata[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [createdArt, setCreatedArt] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>([]);
+  const [purchasedArt, setPurchasedArt] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [balances, setBalances] = useState({ mon: '0', tours: '0', wmon: '0' });
   const [loading, setLoading] = useState(false);
@@ -95,6 +95,7 @@ export default function ProfilePage() {
   const [createdMusicPage, setCreatedMusicPage] = useState(1);
   const [createdArtPage, setCreatedArtPage] = useState(1);
   const [purchasedMusicPage, setPurchasedMusicPage] = useState(1);
+  const [purchasedArtPage, setPurchasedArtPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
   const [refreshMessage, setRefreshMessage] = useState<string>('');
@@ -355,10 +356,11 @@ export default function ProfilePage() {
             mintedAt
             txHash
           }
-          MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
+          CreatedNFT: MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             artist
+            owner
             tokenURI
             mintedAt
             txHash
@@ -373,6 +375,24 @@ export default function ProfilePage() {
             isStaked
             stakedAt
             staker
+            isArt
+          }
+          OwnedNFT: MusicNFT(where: {owner: {_in: $addresses}, artist: {_nin: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
+            id
+            tokenId
+            artist
+            owner
+            tokenURI
+            mintedAt
+            txHash
+            price
+            name
+            imageUrl
+            previewAudioUrl
+            fullAudioUrl
+            metadataFetched
+            totalSold
+            active
             isArt
           }
           MusicLicense(where: {licensee: {_in: $addresses}}, order_by: {purchasedAt: desc}, limit: 100) {
@@ -412,7 +432,8 @@ export default function ProfilePage() {
       if (result.errors) throw new Error(result.errors[0]?.message || 'GraphQL query failed');
 
       let passports: PassportNFT[] = result.data?.PassportNFT || [];
-      const createdMusicNFTs = result.data?.MusicNFT || [];
+      const createdNFTs = result.data?.CreatedNFT || [];
+      const ownedNFTs = result.data?.OwnedNFT || [];
       const purchasedLicenses = result.data?.MusicLicense || [];
       const purchases = result.data?.ItineraryPurchase || [];
 
@@ -426,7 +447,7 @@ export default function ProfilePage() {
       setPassportNFTs(passports);
 
       // Created NFTs with IPFS resolution - separate Music from Art
-      const allCreatedNFTs: MusicNFTWithMetadata[] = createdMusicNFTs.map((nft: any) => ({
+      const allCreatedNFTs: MusicNFTWithMetadata[] = createdNFTs.map((nft: any) => ({
         ...nft,
         type: 'master' as const,
         metadata: {
@@ -439,11 +460,29 @@ export default function ProfilePage() {
         isArt: nft.isArt,
       }));
 
-      // Separate music and art NFTs
-      const musicOnly = allCreatedNFTs.filter(nft => !nft.isArt);
-      const artOnly = allCreatedNFTs.filter(nft => nft.isArt);
-      setCreatedMusic(musicOnly);
-      setCreatedArt(artOnly);
+      // Separate created music and art NFTs
+      const createdMusicOnly = allCreatedNFTs.filter(nft => !nft.isArt);
+      const createdArtOnly = allCreatedNFTs.filter(nft => nft.isArt);
+      setCreatedMusic(createdMusicOnly);
+      setCreatedArt(createdArtOnly);
+
+      // Process owned NFTs (purchased - user owns but didn't create)
+      const allOwnedNFTs: MusicNFTWithMetadata[] = ownedNFTs.map((nft: any) => ({
+        ...nft,
+        type: 'master' as const,
+        metadata: {
+          name: nft.name,
+          image: resolveIPFS(nft.imageUrl),
+          animation_url: resolveIPFS(nft.previewAudioUrl),
+        },
+        audioUrl: resolveIPFS(nft.previewAudioUrl),
+        price: (Number(nft.price) / 1e18).toFixed(6),
+        isArt: nft.isArt,
+      }));
+
+      // Set purchased art (owned art NFTs that user didn't create)
+      const purchasedArtOnly = allOwnedNFTs.filter(nft => nft.isArt);
+      setPurchasedArt(purchasedArtOnly);
 
       // Fetch master token details for purchased licenses
       const masterTokenIds = purchasedLicenses.map((l: any) => l.masterTokenId).filter((id: any) => id);
@@ -501,7 +540,7 @@ export default function ProfilePage() {
         };
       });
       setPurchasedMusic(purchasedMusicWithType);
-      setMusicNFTs([...createdMusicWithType, ...purchasedMusicWithType]);
+      setMusicNFTs([...allCreatedNFTs, ...purchasedMusicWithType]);
       setPurchasedItineraries(purchases);
     } catch (error: any) {
       setError(error.message || 'Failed to load data');
@@ -529,6 +568,11 @@ export default function ProfilePage() {
   const totalCreatedMusicPages = Math.ceil(createdMusic.length / ITEMS_PER_PAGE);
   const totalCreatedArtPages = Math.ceil(createdArt.length / ITEMS_PER_PAGE);
   const totalPurchasedMusicPages = Math.ceil(purchasedMusic.length / ITEMS_PER_PAGE);
+  const totalPurchasedArtPages = Math.ceil(purchasedArt.length / ITEMS_PER_PAGE);
+  const paginatedPurchasedArt = purchasedArt.slice(
+    (purchasedArtPage - 1) * ITEMS_PER_PAGE,
+    purchasedArtPage * ITEMS_PER_PAGE
+  );
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
 
   const copyArtistLink = () => {
@@ -1297,6 +1341,98 @@ export default function ProfilePage() {
                       onClick={() => setPurchasedMusicPage(p => Math.min(totalPurchasedMusicPages, p + 1))}
                       disabled={purchasedMusicPage === totalPurchasedMusicPages}
                       className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Purchased Art */}
+            {purchasedArt.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">🖼️ Art I Purchased</h2>
+                  <span className="text-sm text-gray-500">
+                    {purchasedArt.length} total | Page {purchasedArtPage} of {totalPurchasedArtPages || 1}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {paginatedPurchasedArt.map((nft) => (
+                    <div
+                      key={nft.id}
+                      className="bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-xl hover:border-teal-400 transition-all shadow-sm hover:shadow-md"
+                    >
+                      {nft.metadata?.image ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                          <img
+                            src={nft.metadata.image}
+                            alt={nft.metadata.name || `Art NFT #${nft.tokenId}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-square bg-gradient-to-br from-teal-200 to-cyan-200 flex items-center justify-center rounded-t-xl">
+                          <span className="text-6xl">🖼️</span>
+                        </div>
+                      )}
+                      <div className="p-4 space-y-3">
+                        <div className="text-center">
+                          <p className="font-mono text-sm font-bold text-teal-900">
+                            {nft.metadata?.name || `Art NFT #${nft.tokenId}`}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            by {nft.artist?.slice(0, 6)}...{nft.artist?.slice(-4)}
+                          </p>
+                          {nft.price && (
+                            <p className="text-xs text-green-600 font-bold mt-1">
+                              {nft.price} TOURS
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {nft.txHash && (
+                            <a
+                              href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 px-3 py-2 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-all text-center"
+                            >
+                              View TX
+                            </a>
+                          )}
+                          {nft.tokenURI && (
+                            <a
+                              href={resolveIPFS(nft.tokenURI)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 px-3 py-2 bg-cyan-600 text-white text-xs rounded-lg hover:bg-cyan-700 transition-all text-center"
+                            >
+                              Metadata
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {totalPurchasedArtPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-6">
+                    <button
+                      onClick={() => setPurchasedArtPage(p => Math.max(1, p - 1))}
+                      disabled={purchasedArtPage === 1}
+                      className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="px-4 py-2 bg-gray-100 rounded-lg">
+                      {purchasedArtPage} / {totalPurchasedArtPages}
+                    </span>
+                    <button
+                      onClick={() => setPurchasedArtPage(p => Math.min(totalPurchasedArtPages, p + 1))}
+                      disabled={purchasedArtPage === totalPurchasedArtPages}
+                      className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
                     >
                       Next →
                     </button>
