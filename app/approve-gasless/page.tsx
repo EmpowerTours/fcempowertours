@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useWriteContract, useWaitForTransactionReceipt, useConnect, useAccount } from 'wagmi';
 import { parseAbi } from 'viem';
 
 const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as `0x${string}`;
@@ -13,10 +13,23 @@ export default function ApproveGaslessPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const { connect, connectors } = useConnect();
+  const { isConnected } = useAccount();
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
+
+  // Auto-connect injected wallet on mount
+  useEffect(() => {
+    if (!isConnected && walletAddress) {
+      const injectedConnector = connectors.find(c => c.id === 'injected');
+      if (injectedConnector) {
+        console.log('🔗 Auto-connecting injected wallet...');
+        connect({ connector: injectedConnector });
+      }
+    }
+  }, [isConnected, walletAddress, connectors, connect]);
 
   const handleApprove = async () => {
     if (!walletAddress) {
@@ -24,10 +37,16 @@ export default function ApproveGaslessPage() {
       return;
     }
 
+    if (!isConnected) {
+      setError('Please wait for wallet to connect...');
+      return;
+    }
+
     setError('');
     setSuccess('');
 
     try {
+      console.log('📝 Calling writeContract for approval...');
       writeContract({
         address: MUSIC_NFT_V5,
         abi: parseAbi(['function setApprovalForAll(address operator, bool approved) external']),
@@ -74,6 +93,15 @@ export default function ApproveGaslessPage() {
           </div>
         </div>
 
+        {walletAddress && (
+          <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+            <div className="text-xs text-gray-300 space-y-1">
+              <p>Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</p>
+              <p>Wagmi Connected: {isConnected ? '✅ Yes' : '⏳ Connecting...'}</p>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 p-4 bg-red-900/50 border border-red-500/50 rounded-lg text-red-200">
             {error}
@@ -88,13 +116,17 @@ export default function ApproveGaslessPage() {
 
         <button
           onClick={handleApprove}
-          disabled={isPending || isConfirming || !walletAddress}
+          disabled={isPending || isConfirming || !walletAddress || !isConnected}
           className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {isPending || isConfirming ? (
             <>
               <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
               {isPending ? 'Approving...' : 'Confirming...'}
+            </>
+          ) : !isConnected ? (
+            <>
+              ⏳ Connecting Wallet...
             </>
           ) : (
             <>
