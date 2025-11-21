@@ -1272,77 +1272,20 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
 
     // ==================== APPROVE GASLESS COMMAND ====================
     if (lowerCommand.includes('approve gasless') || lowerCommand.includes('enable gasless')) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
-        });
-      }
+      console.log('[BOT] Directing user to approve gasless page');
 
-      console.log('[BOT] Approve gasless - setting approval for Safe account');
+      return NextResponse.json({
+        success: true,
+        action: 'open_url',
+        url: `${APP_URL}/approve-gasless`,
+        message: `🔓 Approve Gasless Burning
 
-      try {
-        // Check if delegation has approve_gasless permission
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        const hasApprovePermission = delegationData.success &&
-                                     delegationData.delegation &&
-                                     Array.isArray(delegationData.delegation.permissions) &&
-                                     delegationData.delegation.permissions.includes('approve_gasless');
+To enable gasless NFT burning, you need to approve the system once with your wallet.
 
-        if (!hasApprovePermission) {
-          console.warn('[BOT] Delegation missing approve_gasless permission - creating new delegation...');
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'approve_gasless']
-            })
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
-          }
-          console.log('[BOT] Delegation created with approve_gasless permission');
-        }
+Tap below to open the approval page and sign the transaction.
 
-        const result = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'approve_gasless',
-            userAddress,
-          }),
-        });
-
-        const data = await result.json();
-
-        if (!data.success) {
-          throw new Error(data.error || 'Approval failed');
-        }
-
-        return NextResponse.json({
-          success: true,
-          txHash: data.txHash,
-          action: 'transaction',
-          message: `✅ Gasless system approved!
-🎯 You can now burn NFTs gaslessly
-⛽ This was a one-time setup (FREE)
-TX: ${data.txHash?.slice(0, 10)}...
-
-View: https://testnet.monadscan.com/tx/${data.txHash}`
-        });
-
-      } catch (error: any) {
-        console.error('[BOT] Approve gasless error:', error);
-        return NextResponse.json({
-          success: false,
-          message: `Approval failed: ${error.message}`
-        });
-      }
+This is a one-time setup - after this, you can burn NFTs without paying gas!`
+      });
     }
 
     // ==================== BURN MUSIC COMMAND ====================
