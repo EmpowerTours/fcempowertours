@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "next build",
+    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "node scripts/start-server.js",
     "start:legacy": "PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
