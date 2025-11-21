@@ -5,9 +5,9 @@ import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export type BotCommandResponse = {
   success: boolean;
-  action?: 'info' | 'navigate' | 'transaction' | 'buy_music' | 'redirect';
+  action?: 'info' | 'navigate' | 'transaction' | 'buy_music' | 'redirect' | 'open_url';
   path?: string;
-  url?: string; // For redirect action
+  url?: string; // For redirect/open_url action
   message?: string;
   txHash?: string;
   tokenId?: string | number;

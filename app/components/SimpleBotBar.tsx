@@ -153,6 +153,24 @@ export default function SimpleBotBar() {
             setCommand('');
             setResponse('');
           }, 1500);
+        } else if (data.action === 'open_url' && data.url) {
+          // ✅ Handle open_url action (e.g., for approve gasless page)
+          // Extract path from full URL if it's our app URL
+          let urlPath = data.url;
+          if (data.url.startsWith('http')) {
+            try {
+              const urlObj = new URL(data.url);
+              urlPath = urlObj.pathname + urlObj.search; // Get /path?params
+            } catch (e) {
+              console.error('Failed to parse open_url URL:', e);
+            }
+          }
+          console.log('🔗 Opening URL:', urlPath);
+          setTimeout(() => {
+            router.push(urlPath);  // Navigate inside mini-app
+            setCommand('');
+            setResponse('');
+          }, 1000);
         } else if (data.action === 'transaction') {
           setTimeout(() => {
             setCommand('');
