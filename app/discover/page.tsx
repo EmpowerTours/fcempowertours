@@ -259,13 +259,13 @@ export default function MusicDiscoveryPage() {
             <AnimatedStatCard
               value={[...new Set(allMusic.map((m) => m.artist.toLowerCase()))].length}
               label="Artists"
-              color="blue"
+              color="purple"
               delay={0.6}
             />
             <AnimatedStatCard
               value={filteredMusic.length}
               label="Search Results"
-              color="green"
+              color="blue"
               delay={0.65}
             />
           </div>
