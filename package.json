@@ -27,8 +27,6 @@
     "@google/generative-ai": "^0.24.1",
     "@metamask/delegation-toolkit": "^0.13.0",
     "@neynar/nodejs-sdk": "^3.34.0",
-    "@privy-io/react-auth": "^3.3.0",
-    "@privy-io/server-auth": "1.32.5",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
