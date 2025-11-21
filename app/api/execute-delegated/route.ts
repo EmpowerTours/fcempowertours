@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT as Address;
-    const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
+    const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address; // v7: Music + Art NFTs with delegated burning
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
 
@@ -274,7 +274,7 @@ View profile and collection!
           });
 
           const songExists = await checkClient.readContract({
-            address: MUSIC_NFT_V5 as Address,
+            address: EMPOWER_TOURS_NFT as Address,
             abi: parseAbi(['function hasSong(address artist, string songTitle) external view returns (bool)']),
             functionName: 'hasSong',
             args: [userAddress as Address, songTitle],
@@ -308,7 +308,7 @@ View profile and collection!
 
         const musicCalls = [
           {
-            to: MUSIC_NFT_V5,
+            to: EMPOWER_TOURS_NFT,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
@@ -475,11 +475,11 @@ View profile and collection!
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [MUSIC_NFT_V5, parseEther('1000')],
+              args: [EMPOWER_TOURS_NFT, parseEther('1000')],
             }) as Hex,
           },
           {
-            to: MUSIC_NFT_V5,
+            to: EMPOWER_TOURS_NFT,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
@@ -1815,7 +1815,7 @@ View profile and collection!
             address: YIELD_STRATEGY_CHECK,
             abi: parseAbi(['function nftCollateralUsed(address,uint256) external view returns (bool)']),
             functionName: 'nftCollateralUsed',
-            args: [MUSIC_NFT_V5, stakeTokenId],
+            args: [EMPOWER_TOURS_NFT, stakeTokenId],
           });
 
           if (isCollateral) {
@@ -1835,7 +1835,7 @@ View profile and collection!
 
         const stakeMusicCalls = [
           {
-            to: MUSIC_NFT_V5,
+            to: EMPOWER_TOURS_NFT,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function stakeMusicNFT(uint256 tokenId) external']),
@@ -1872,7 +1872,7 @@ View profile and collection!
 
         const unstakeMusicCalls = [
           {
-            to: MUSIC_NFT_V5,
+            to: EMPOWER_TOURS_NFT,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function unstakeMusicNFT(uint256 tokenId) external']),
@@ -1895,9 +1895,9 @@ View profile and collection!
           message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
         });
 
-      // ==================== MUSIC NFT V5: BURNING ====================
+      // ==================== MUSIC NFT V7: DELEGATED BURNING ====================
       case 'burn_music':
-        console.log('🔥 Action: burn_music');
+        console.log('🔥 Action: burn_music (v7 delegated)');
         if (!params?.tokenId) {
           return NextResponse.json(
             { success: false, error: 'Missing tokenId for burn_music' },
@@ -1907,37 +1907,26 @@ View profile and collection!
 
         const burnTokenId = BigInt(params.tokenId);
 
-        console.log('🔄 Step 1: Transfer NFT from user to Safe');
-        console.log('🔄 Step 2: Burn NFT from Safe');
+        console.log('🔥 Burning NFT with delegated burner (Safe Account)');
+        console.log('  - Owner:', userAddress);
+        console.log('  - Token ID:', burnTokenId.toString());
 
-        // Two-step burn process:
-        // 1. Transfer NFT from user to Safe Account (via delegated call)
-        // 2. Burn NFT (Safe is now the owner)
+        // v7 uses burnNFTForDelegated - Safe Account is authorized burner
+        // NFT stays with user, Safe just has permission to burn it
         const burnMusicCalls = [
-          // Step 1: Transfer NFT from user to Safe
           {
-            to: MUSIC_NFT_V5,
+            to: EMPOWER_TOURS_NFT,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function safeTransferFrom(address from, address to, uint256 tokenId) external']),
-              functionName: 'safeTransferFrom',
-              args: [userAddress as Address, SAFE_ACCOUNT as Address, burnTokenId],
-            }) as Hex,
-          },
-          // Step 2: Burn the NFT (Safe is now owner)
-          {
-            to: MUSIC_NFT_V5,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function burn(uint256 tokenId) external']),
-              functionName: 'burn',
-              args: [burnTokenId],
+              abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
+              functionName: 'burnNFTForDelegated',
+              args: [userAddress as Address, burnTokenId],
             }) as Hex,
           },
         ];
 
         const burnMusicTxHash = await sendSafeTransaction(burnMusicCalls);
-        console.log('✅ Music NFT transferred and burned, TX:', burnMusicTxHash);
+        console.log('✅ Music NFT burned via delegated burner, TX:', burnMusicTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -1964,7 +1953,7 @@ View profile and collection!
         const stakeMusicMonAmount = parseEther(params.monAmount.toString());
 
         console.log('💎 Staking Music NFT with YieldStrategyV9:', {
-          nftAddress: MUSIC_NFT_V5,
+          nftAddress: EMPOWER_TOURS_NFT,
           tokenId: stakeMusicYieldTokenId.toString(),
           beneficiary: userAddress,
           monAmount: params.monAmount,
@@ -1984,7 +1973,7 @@ View profile and collection!
             address: YIELD_STRATEGY_V8,
             abi: parseAbi(['function acceptedNFTs(address) external view returns (bool)']),
             functionName: 'acceptedNFTs',
-            args: [MUSIC_NFT_V5],
+            args: [EMPOWER_TOURS_NFT],
           });
 
           if (!isWhitelisted) {
@@ -2011,7 +2000,7 @@ View profile and collection!
           });
 
           const nftOwner = await nftClient.readContract({
-            address: MUSIC_NFT_V5,
+            address: EMPOWER_TOURS_NFT,
             abi: parseAbi(['function ownerOf(uint256) external view returns (address)']),
             functionName: 'ownerOf',
             args: [stakeMusicYieldTokenId],
@@ -2047,7 +2036,7 @@ View profile and collection!
           });
 
           const stakingInfo = await stakingClient.readContract({
-            address: MUSIC_NFT_V5,
+            address: EMPOWER_TOURS_NFT,
             abi: parseAbi([
               'function stakingInfo(uint256) external view returns (tuple(address staker, uint256 stakedAt, uint256 lastClaimAt, bool isStaked))'
             ]),
@@ -2105,7 +2094,7 @@ View profile and collection!
                 'function stakeWithDeposit(address nftAddress, uint256 nftTokenId, address beneficiary) external payable returns (uint256)'
               ]),
               functionName: 'stakeWithDeposit',
-              args: [MUSIC_NFT_V5, stakeMusicYieldTokenId, userAddress as Address],
+              args: [EMPOWER_TOURS_NFT, stakeMusicYieldTokenId, userAddress as Address],
             }) as Hex,
           },
         ];

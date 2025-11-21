@@ -1,19 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { encodeFunctionData, parseAbi } from 'viem';
-import { monadTestnet } from '@/app/chains';
 
 const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as `0x${string}`;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as `0x${string}`;
 
 export default function ApproveGaslessPage() {
-  const { walletAddress, sendTransaction, loading: farcasterLoading } = useFarcasterContext();
+  const { walletAddress, loading: farcasterLoading } = useFarcasterContext();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hasEthereum, setHasEthereum] = useState(false);
+
+  useEffect(() => {
+    // Check if window.ethereum is available
+    setHasEthereum(typeof window !== 'undefined' && !!(window as any).ethereum);
+  }, []);
 
   const handleApprove = async () => {
     if (!walletAddress) {
@@ -27,6 +32,13 @@ export default function ApproveGaslessPage() {
     setLoading(true);
 
     try {
+      // Use window.ethereum provider directly
+      const ethereum = (window as any).ethereum;
+
+      if (!ethereum) {
+        throw new Error('No Ethereum provider found. Please install a wallet like MetaMask.');
+      }
+
       console.log('📝 Encoding setApprovalForAll call...');
 
       // Encode the function call
@@ -36,15 +48,22 @@ export default function ApproveGaslessPage() {
         args: [SAFE_ACCOUNT, true],
       });
 
-      console.log('📤 Sending approval transaction via Farcaster SDK...');
-      const result = await sendTransaction({
-        to: MUSIC_NFT_V5,
-        data,
-        value: '0x0',
-        chainId: monadTestnet.id,
+      console.log('📤 Sending approval transaction via window.ethereum...');
+
+      // Request accounts if needed
+      await ethereum.request({ method: 'eth_requestAccounts' });
+
+      // Send transaction
+      const hash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: walletAddress,
+          to: MUSIC_NFT_V5,
+          data,
+          value: '0x0',
+        }],
       });
 
-      const hash = result?.transactionHash || result;
       console.log('✅ Approval transaction sent:', hash);
       setTxHash(hash);
       setSuccess('Approval successful! You can now burn NFTs gaslessly.');

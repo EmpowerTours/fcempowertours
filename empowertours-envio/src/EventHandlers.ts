@@ -1,5 +1,5 @@
 import {
-  MusicLicenseNFT,
+  EmpowerToursNFT,
   PassportNFT,
   ItineraryNFT,
   YieldStrategy,
@@ -118,7 +118,7 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
 // MUSIC LICENSE NFT EVENTS
 // ============================================
 
-MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
+EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
   const { tokenId, artist, tokenURI, price, nftType } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -248,7 +248,7 @@ MusicLicenseNFT.MasterMinted.handler(async ({ event, context }) => {
 });
 
 // ✅ Handle LicensePurchased event with createdAt field
-MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
+EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
   const { licenseId, masterTokenId, buyer, expiry } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
@@ -354,7 +354,7 @@ MusicLicenseNFT.LicensePurchased.handler(async ({ event, context }) => {
 });
 
 // ✅ Handle LicenseExpired event
-MusicLicenseNFT.LicenseExpired.handler(async ({ event, context }) => {
+EmpowerToursNFT.LicenseExpired.handler(async ({ event, context }) => {
   const { licenseId } = event.params;
 
   const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
@@ -369,7 +369,7 @@ MusicLicenseNFT.LicenseExpired.handler(async ({ event, context }) => {
   }
 });
 
-MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
+EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   if (from === "0x0000000000000000000000000000000000000000") {
@@ -392,7 +392,7 @@ MusicLicenseNFT.Transfer.handler(async ({ event, context }) => {
 // MUSIC NFT V5: STAKING & BURNING EVENTS
 // ============================================
 
-MusicLicenseNFT.NFTStaked.handler(async ({ event, context }) => {
+EmpowerToursNFT.NFTStaked.handler(async ({ event, context }) => {
   const { tokenId, staker, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -409,7 +409,7 @@ MusicLicenseNFT.NFTStaked.handler(async ({ event, context }) => {
   }
 });
 
-MusicLicenseNFT.NFTUnstaked.handler(async ({ event, context }) => {
+EmpowerToursNFT.NFTUnstaked.handler(async ({ event, context }) => {
   const { tokenId, staker, rewardsClaimed, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -426,13 +426,13 @@ MusicLicenseNFT.NFTUnstaked.handler(async ({ event, context }) => {
   }
 });
 
-MusicLicenseNFT.RewardsClaimed.handler(async ({ event, context }) => {
+EmpowerToursNFT.RewardsClaimed.handler(async ({ event, context }) => {
   const { tokenId, staker, amount, timestamp } = event.params;
 
   context.log.info(`💰 Music NFT #${tokenId} rewards claimed by ${staker}: ${amount} TOURS`);
 });
 
-MusicLicenseNFT.NFTBurned.handler(async ({ event, context }) => {
+EmpowerToursNFT.NFTBurned.handler(async ({ event, context }) => {
   const { tokenId, burner, rewardReceived, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -465,13 +465,13 @@ MusicLicenseNFT.NFTBurned.handler(async ({ event, context }) => {
   }
 });
 
-MusicLicenseNFT.BurnRewardUpdated.handler(async ({ event, context }) => {
+EmpowerToursNFT.BurnRewardUpdated.handler(async ({ event, context }) => {
   const { newReward, timestamp } = event.params;
 
   context.log.info(`🔥 Burn reward updated to ${newReward} TOURS at ${timestamp}`);
 });
 
-MusicLicenseNFT.RewardRateUpdated.handler(async ({ event, context }) => {
+EmpowerToursNFT.RewardRateUpdated.handler(async ({ event, context }) => {
   const { newRate, timestamp } = event.params;
 
   context.log.info(`💰 Staking reward rate updated to ${newRate} TOURS/day at ${timestamp}`);

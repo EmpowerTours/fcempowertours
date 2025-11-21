@@ -5,9 +5,9 @@ networks:
   - id: 10143
     start_block: 50000000  # ✅ Updated to recent block for faster indexing
     contracts:
-      - name: MusicLicenseNFT
+      - name: EmpowerToursNFT
         address:
-          - "0x5053ef43F5682E0a24882c2f8e25056D66e5D0f9"  # ✅ V6: EmpowerToursNFTv6 - Music + Art NFTs with fixed MasterMinted event
+          - "0xAD403897CD7d465445aF0BD4fe40f18698655D4e"  # ✅ V7: EmpowerToursNFTv7 - Music + Art NFTs with delegated burning (Nov 21, 2025)
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting

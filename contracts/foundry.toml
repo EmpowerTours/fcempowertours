@@ -11,4 +11,4 @@ via_ir = true
 monad_testnet = "https://testnet-rpc.monad.xyz"
 
 [etherscan]
-monad_testnet = { key = "${MONAD_SCAN_API_KEY}", url = "https://testnet-scan.monad.xyz/api" }
+monad_testnet = { key = "${MONAD_SCAN_API_KEY}", url = "https://testnet.monadscan.com/api" }
