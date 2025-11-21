@@ -1282,6 +1282,33 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
       console.log('[BOT] Approve gasless - setting approval for Safe account');
 
       try {
+        // Check if delegation has approve_gasless permission
+        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+        const delegationData = await delegationRes.json();
+        const hasApprovePermission = delegationData.success &&
+                                     delegationData.delegation &&
+                                     Array.isArray(delegationData.delegation.permissions) &&
+                                     delegationData.delegation.permissions.includes('approve_gasless');
+
+        if (!hasApprovePermission) {
+          console.warn('[BOT] Delegation missing approve_gasless permission - creating new delegation...');
+          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              durationHours: 24,
+              maxTransactions: 100,
+              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'approve_gasless']
+            })
+          });
+          const createData = await createRes.json();
+          if (!createData.success) {
+            throw new Error('Failed to create delegation: ' + createData.error);
+          }
+          console.log('[BOT] Delegation created with approve_gasless permission');
+        }
+
         const result = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
