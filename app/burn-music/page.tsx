@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useBotCommand } from '@/app/hooks/useBotCommand';
+import { encodeFunctionData, parseAbi } from 'viem';
+
+const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as `0x${string}`;
 
 export default function BurnMusicPage() {
   const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
-  const { executeCommand, loading: isExecuting } = useBotCommand();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -28,7 +29,7 @@ export default function BurnMusicPage() {
   }, []);
 
   const handleBurn = async () => {
-    if (!tokenId || !walletAddress || !fid) {
+    if (!tokenId || !walletAddress) {
       setError('Missing required information');
       return;
     }
@@ -39,23 +40,39 @@ export default function BurnMusicPage() {
     setLoading(true);
 
     try {
-      console.log('🔥 Attempting to burn NFT via gasless delegation:', {
-        wallet: walletAddress,
-        tokenId,
-        fid
-      });
-
-      setSuccess('⏳ Processing burn via gasless delegation...');
-
-      // Use gasless bot command system
-      const result = await executeCommand(`burn music ${tokenId}`);
-
-      console.log('✅ Burn result:', result);
-
-      if (result?.txHash) {
-        setTxHash(result.txHash);
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) {
+        throw new Error('No Ethereum provider found');
       }
 
+      console.log('🔥 Burning NFT with user wallet:', {
+        wallet: walletAddress,
+        tokenId
+      });
+
+      // Encode burn call
+      const data = encodeFunctionData({
+        abi: parseAbi(['function burn(uint256 tokenId) external']),
+        functionName: 'burn',
+        args: [BigInt(tokenId)],
+      });
+
+      // Request accounts
+      await ethereum.request({ method: 'eth_requestAccounts' });
+
+      // Send transaction
+      const hash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: walletAddress,
+          to: MUSIC_NFT_V5,
+          data,
+          value: '0x0',
+        }],
+      });
+
+      console.log('✅ Burn transaction sent:', hash);
+      setTxHash(hash);
       setSuccess(`🔥 NFT #${tokenId} burned successfully!`);
 
       // Wait then redirect back
@@ -129,7 +146,7 @@ export default function BurnMusicPage() {
             <div>
               <div className="font-semibold text-red-300 mb-1">Permanent Action</div>
               <div className="text-sm text-red-200">
-                This action cannot be undone. Burning is gasless and powered by delegation.
+                This action cannot be undone. You'll pay a small gas fee to burn your NFT and receive 5 TOURS as a reward.
               </div>
             </div>
           </div>
@@ -164,17 +181,17 @@ export default function BurnMusicPage() {
         {/* Burn Button */}
         <button
           onClick={handleBurn}
-          disabled={loading || isExecuting || !tokenId || !walletAddress}
+          disabled={loading || !tokenId || !walletAddress}
           className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          {(loading || isExecuting) ? (
+          {loading ? (
             <>
               <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
               Burning...
             </>
           ) : (
             <>
-              🔥 Burn NFT (Gasless)
+              🔥 Burn NFT & Get 5 TOURS
             </>
           )}
         </button>
@@ -182,7 +199,7 @@ export default function BurnMusicPage() {
         {/* Cancel */}
         <button
           onClick={() => window.location.href = '/profile?tab=music'}
-          disabled={loading || isExecuting}
+          disabled={loading}
           className="w-full mt-3 bg-slate-700 hover:bg-slate-600 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
         >
           Cancel
