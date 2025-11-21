@@ -1895,34 +1895,6 @@ View profile and collection!
           message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
         });
 
-      // ==================== APPROVE GASLESS ====================
-      case 'approve_gasless':
-        console.log('✅ Action: approve_gasless');
-
-        const approveGaslessCalls = [
-          {
-            to: MUSIC_NFT_V5,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function setApprovalForAll(address operator, bool approved) external']),
-              functionName: 'setApprovalForAll',
-              args: [SAFE_ACCOUNT as Address, true],
-            }) as Hex,
-          },
-        ];
-
-        const approveGaslessTxHash = await sendSafeTransaction(approveGaslessCalls);
-        console.log('✅ Gasless approved, TX:', approveGaslessTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: approveGaslessTxHash,
-          action,
-          userAddress,
-          message: 'Gasless system approved for NFT management',
-        });
-
       // ==================== MUSIC NFT V5: BURNING ====================
       case 'burn_music':
         console.log('🔥 Action: burn_music');
@@ -1935,21 +1907,37 @@ View profile and collection!
 
         const burnTokenId = BigInt(params.tokenId);
 
-        // Burn the NFT (contract will check authorization)
+        console.log('🔄 Step 1: Transfer NFT from user to Safe');
+        console.log('🔄 Step 2: Burn NFT from Safe');
+
+        // Two-step burn process:
+        // 1. Transfer NFT from user to Safe Account (via delegated call)
+        // 2. Burn NFT (Safe is now the owner)
         const burnMusicCalls = [
+          // Step 1: Transfer NFT from user to Safe
           {
             to: MUSIC_NFT_V5,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function burnNFTFor(address owner, uint256 tokenId) external']),
-              functionName: 'burnNFTFor',
-              args: [userAddress as Address, burnTokenId],
+              abi: parseAbi(['function safeTransferFrom(address from, address to, uint256 tokenId) external']),
+              functionName: 'safeTransferFrom',
+              args: [userAddress as Address, SAFE_ACCOUNT as Address, burnTokenId],
+            }) as Hex,
+          },
+          // Step 2: Burn the NFT (Safe is now owner)
+          {
+            to: MUSIC_NFT_V5,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function burn(uint256 tokenId) external']),
+              functionName: 'burn',
+              args: [burnTokenId],
             }) as Hex,
           },
         ];
 
         const burnMusicTxHash = await sendSafeTransaction(burnMusicCalls);
-        console.log('✅ Music NFT burned, TX:', burnMusicTxHash);
+        console.log('✅ Music NFT transferred and burned, TX:', burnMusicTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({

@@ -1270,24 +1270,6 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
       }
     }
 
-    // ==================== APPROVE GASLESS COMMAND ====================
-    if (lowerCommand.includes('approve gasless') || lowerCommand.includes('enable gasless')) {
-      console.log('[BOT] Directing user to approve gasless page');
-
-      return NextResponse.json({
-        success: true,
-        action: 'open_url',
-        url: `${APP_URL}/approve-gasless`,
-        message: `🔓 Approve Gasless Burning
-
-To enable gasless NFT burning, you need to approve the system once with your wallet.
-
-Tap below to open the approval page and sign the transaction.
-
-This is a one-time setup - after this, you can burn NFTs without paying gas!`
-      });
-    }
-
     // ==================== BURN MUSIC COMMAND ====================
     if (lowerCommand.includes('burn music') || lowerCommand.includes('burn song')) {
       if (!userAddress) {
@@ -1328,7 +1310,7 @@ This is a one-time setup - after this, you can burn NFTs without paying gas!`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'approve_gasless']
+              permissions: ['burn_music', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -1376,9 +1358,7 @@ View: https://testnet.monadscan.com/tx/${burnData.txHash}`
 
         return NextResponse.json({
           success: false,
-          message: isAuthError
-            ? `❌ NFT burn failed - approval needed\n\n🔧 First run: "approve gasless"\n⏱️ Then wait 10 seconds and try burning again\n\nNote: Blockchain state needs time to update after approval.`
-            : `Burn failed: ${error.message}`
+          message: `Burn failed: ${error.message}`
         });
       }
     }
