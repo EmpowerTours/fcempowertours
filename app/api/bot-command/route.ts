@@ -1289,14 +1289,20 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
 
         const tokenId = tokenIdMatch[1];
 
-        console.log('[BOT] Burning Music NFT:', {
+        console.log('[BOT] Burning NFT:', {
           tokenId,
           userAddress
         });
 
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
-        if (!delegationData.success || !delegationData.delegation) {
+        const hasValidDelegation = delegationData.success &&
+                                  delegationData.delegation &&
+                                  Array.isArray(delegationData.delegation.permissions) &&
+                                  delegationData.delegation.permissions.includes('burn_music');
+
+        if (!hasValidDelegation) {
+          console.warn('[BOT] No delegation with burn_music permission - creating one...');
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1311,6 +1317,7 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
           if (!createData.success) {
             throw new Error('Failed to create delegation: ' + createData.error);
           }
+          console.log('[BOT] Delegation created with burn_music permission');
         }
 
         const burnRes = await fetch(`${APP_URL}/api/execute-delegated`, {
@@ -1329,12 +1336,12 @@ View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
           throw new Error(burnData.error || 'Burn failed');
         }
 
-        console.log('[BOT] Music NFT burned:', burnData.txHash);
+        console.log('[BOT] NFT burned:', burnData.txHash);
         return NextResponse.json({
           success: true,
           txHash: burnData.txHash,
           action: 'transaction',
-          message: `Music NFT #${tokenId} Burned! (FREE)
+          message: `NFT #${tokenId} Burned! (FREE)
 🔥 NFT destroyed successfully
 💰 You received 5 TOURS as burn reward
 ⛽ Gasless - we paid the gas!
@@ -1343,7 +1350,7 @@ TX: ${burnData.txHash?.slice(0, 10)}...
 View: https://testnet.monadscan.com/tx/${burnData.txHash}`
         });
       } catch (error: any) {
-        console.error('[BOT] Burn music error:', error);
+        console.error('[BOT] Burn NFT error:', error);
         return NextResponse.json({
           success: false,
           message: `Burn failed: ${error.message}`

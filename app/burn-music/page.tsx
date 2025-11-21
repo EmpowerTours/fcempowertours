@@ -56,7 +56,7 @@ export default function BurnMusicPage() {
         setTxHash(result.txHash);
       }
 
-      setSuccess(`🔥 Music NFT #${tokenId} burned successfully!`);
+      setSuccess(`🔥 NFT #${tokenId} burned successfully!`);
 
       // Wait then redirect back
       setTimeout(() => {
@@ -83,9 +83,9 @@ export default function BurnMusicPage() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-purple-500/20">
-          <h1 className="text-3xl font-bold text-white mb-4">🔥 Burn Music NFT</h1>
+          <h1 className="text-3xl font-bold text-white mb-4">🔥 Burn NFT</h1>
           <p className="text-gray-300 mb-6">
-            Please open this page in the Farcaster app to burn your music NFT.
+            Please open this page in the Farcaster app to burn your NFT.
           </p>
         </div>
       </div>
@@ -95,7 +95,7 @@ export default function BurnMusicPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-purple-500/20">
-        <h1 className="text-3xl font-bold text-white mb-6">🔥 Burn Music NFT</h1>
+        <h1 className="text-3xl font-bold text-white mb-6">🔥 Burn NFT</h1>
 
         {/* Token Info */}
         <div className="mb-6 p-4 bg-slate-700/50 rounded-lg">
