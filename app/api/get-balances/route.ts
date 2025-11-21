@@ -167,31 +167,55 @@ export async function POST(req: NextRequest) {
       passportNFTCount: 0,
       totalNFTs: 0
     };
-    
-    try {
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          variables: { address: userAddress }
-        }),
-      });
 
-      if (response.ok) {
-        const result = await response.json();
-        const stats = result.data?.UserStats?.[0];
-        if (stats) {
-          nftData = stats;
-          console.log(`✅ NFT data retrieved:`, nftData);
+    // Retry logic with timeout for intermittent failures
+    const maxRetries = 3;
+    const timeoutMs = 5000;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        const response = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            variables: { address: userAddress }
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const result = await response.json();
+          const stats = result.data?.UserStats?.[0];
+          if (stats) {
+            nftData = stats;
+            console.log(`✅ NFT data retrieved (attempt ${attempt}):`, nftData);
+            break; // Success, exit retry loop
+          } else {
+            console.warn(`⚠️ No NFT stats found for user (attempt ${attempt})`);
+            break; // No data but response OK, don't retry
+          }
         } else {
-          console.warn('⚠️ No NFT stats found for user');
+          console.warn(`⚠️ Indexer returned ${response.status} (attempt ${attempt}/${maxRetries})`);
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 500 * attempt)); // Backoff
+          }
         }
-      } else {
-        console.warn('⚠️ Failed to fetch NFT balances from indexer');
+      } catch (error: any) {
+        const isTimeout = error.name === 'AbortError';
+        console.error(`❌ Error fetching NFT data (attempt ${attempt}/${maxRetries}): ${isTimeout ? 'TIMEOUT' : error.message}`);
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 500 * attempt)); // Backoff
+        }
       }
-    } catch (error) {
-      console.error('❌ Error fetching NFT data:', error);
     }
 
     // =============================================
