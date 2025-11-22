@@ -393,32 +393,22 @@ export default function ArtistProfilePage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Artist Header */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-          <div className="flex items-center gap-6 mb-6">
-            {artistInfo?.pfpUrl ? (
-              <img
-                src={artistInfo.pfpUrl}
-                alt={artistInfo.username || 'Artist'}
-                className="w-24 h-24 rounded-full border-2 border-purple-300 shadow-lg object-cover"
-              />
-            ) : (
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
-                {artistAddress?.slice(2, 4).toUpperCase() || '??'}
-              </div>
-            )}
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {artistInfo?.username ? `@${artistInfo.username}` : (artistInfo?.displayName || 'Loading...')}
-              </h1>
-              <p className="text-gray-600 font-mono text-sm">
-                {artistAddress.slice(0, 10)}...{artistAddress.slice(-8)}
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+          <div className="mb-4">
+            <p className="text-gray-500 text-sm mb-1">Artist</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {artistInfo?.username ? `@${artistInfo.username}` : `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`}
+            </h1>
+            {artistInfo?.username && (
+              <p className="text-gray-500 font-mono text-xs mt-1">
+                {artistAddress.slice(0, 6)}...{artistAddress.slice(-4)}
               </p>
-              <div className="flex gap-3 mt-4">
-                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                  {artistMusic.length} {artistMusic.length === 1 ? 'NFT' : 'NFTs'} Live on Monad
-                </span>
-              </div>
-            </div>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+              {artistMusic.length} {artistMusic.length === 1 ? 'NFT' : 'NFTs'} Live on Monad
+            </span>
           </div>
           {isMobile && !walletAddress && (
             <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
