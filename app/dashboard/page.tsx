@@ -47,20 +47,9 @@ export default function DashboardPage() {
             totalMusicLicensesPurchased
             lastUpdated
           }
-          MusicNFT_aggregate(where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
-            aggregate {
-              count
-            }
-          }
-          ArtNFT_aggregate: MusicNFT_aggregate(where: {isBurned: {_eq: false}, isArt: {_eq: true}}) {
-            aggregate {
-              count
-            }
-          }
-          TotalNFT_aggregate: MusicNFT_aggregate(where: {isBurned: {_eq: false}}) {
-            aggregate {
-              count
-            }
+          AllNFTs: MusicNFT(limit: 1000, where: {isBurned: {_eq: false}}) {
+            id
+            isArt
           }
           MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
             id
@@ -145,16 +134,17 @@ export default function DashboardPage() {
       }
 
       const globalStats = result.data?.GlobalStats?.[0];
+      const allNFTs = result.data?.AllNFTs || [];
       const music = result.data?.MusicNFT || [];
       const art = result.data?.ArtNFT || [];
       const passports = result.data?.PassportNFT || [];
       const purchases = result.data?.MusicLicense || [];
       const itineraries = result.data?.Itinerary || [];
 
-      // Get aggregate counts from database
-      const totalMusicCount = result.data?.MusicNFT_aggregate?.aggregate?.count || 0;
-      const totalArtCount = result.data?.ArtNFT_aggregate?.aggregate?.count || 0;
-      const totalNFTCount = result.data?.TotalNFT_aggregate?.aggregate?.count || 0;
+      // Count from fetched data (non-burned only)
+      const totalNFTCount = allNFTs.length;
+      const totalMusicCount = allNFTs.filter((n: any) => !n.isArt).length;
+      const totalArtCount = allNFTs.filter((n: any) => n.isArt).length;
 
       if (globalStats) {
         setStats({
