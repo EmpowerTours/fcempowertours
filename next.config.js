@@ -1,6 +1,3 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -10,8 +7,8 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   output: 'standalone',
-  reactStrictMode: true,
-  transpilePackages: ['three', '@react-three/fiber', '@react-three/drei', 'scheduler'],
+  reactStrictMode: false, // Disable strict mode to avoid double rendering issues with Three.js
+  transpilePackages: ['three', '@react-three/fiber', '@react-three/drei'],
   experimental: {
     optimizePackageImports: ['@tanstack/react-query'],
   },
@@ -71,13 +68,6 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
-      };
-      // Ensure React is resolved from a single location to fix ReactCurrentBatchConfig error
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'react': require.resolve('react'),
-        'react-dom': require.resolve('react-dom'),
-        'scheduler': require.resolve('scheduler'),
       };
     }
     config.resolve.fallback = {
