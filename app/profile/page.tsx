@@ -1509,10 +1509,13 @@ export default function ProfilePage() {
                           {/* Passport Staking Button */}
                           <button
                             onClick={() => {
+                              console.log('[Staking] Button clicked, walletAddress:', walletAddress);
+                              console.log('[Staking] Passport:', passport);
                               if (!walletAddress) {
                                 setError('Wallet not connected. Please open this app in Warpcast to stake MON.');
                                 return;
                               }
+                              console.log('[Staking] Opening modal...');
                               setPassportStakingModal({ isOpen: true, passport });
                             }}
                             className={`w-full px-3 py-2 text-white text-xs font-bold rounded-lg transition-all ${
@@ -1654,9 +1657,9 @@ export default function ProfilePage() {
       </div>
 
       {/* Passport Staking Modal */}
-      {passportStakingModal.passport && walletAddress && (
+      {passportStakingModal.isOpen && passportStakingModal.passport && walletAddress && (
         <PassportStakingModal
-          isOpen={passportStakingModal.isOpen}
+          isOpen={true}
           onClose={() => setPassportStakingModal({ isOpen: false, passport: null })}
           passportTokenId={passportStakingModal.passport.tokenId}
           passportCountryCode={passportStakingModal.passport.countryCode}
