@@ -125,22 +125,19 @@ export default function ArtistProfilePage() {
         console.warn('❌ bulk_by_address failed:', err);
       }
 
-      // Fallback: truncated address
+      // Fallback: truncated address (no "Artist" prefix - redundant on artist page)
       console.log('⚠️ No Farcaster account found, using truncated address');
       const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
       setArtistInfo({
         address: artistAddress,
-        // ✅ FIX: Don't set username for non-Farcaster accounts to avoid duplication
-        // The UI will show displayName only when username is undefined
-        displayName: `Artist ${truncated}`,
+        displayName: truncated,
       });
     } catch (error) {
       console.error('❌ Error loading artist info:', error);
       const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
       setArtistInfo({
         address: artistAddress,
-        // ✅ FIX: Don't set username for non-Farcaster accounts to avoid duplication
-        displayName: `Artist ${truncated}`,
+        displayName: truncated,
       });
     }
   };
@@ -321,10 +318,7 @@ export default function ArtistProfilePage() {
               </p>
               <div className="flex gap-3 mt-4">
                 <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                  {artistMusic.length} {artistMusic.length === 1 ? 'NFT' : 'NFTs'}
-                </span>
-                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                  Live on Monad
+                  {artistMusic.length} {artistMusic.length === 1 ? 'NFT' : 'NFTs'} Live on Monad
                 </span>
               </div>
             </div>
