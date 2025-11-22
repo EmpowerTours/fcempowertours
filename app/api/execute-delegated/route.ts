@@ -2590,7 +2590,7 @@ View profile and collection!
           args: [userAddress as Address, BigInt(tokenId)],
         });
 
-        const burnTx = await sendSafeTransaction([
+        const txHash = await sendSafeTransaction([
           {
             to: EMPOWER_TOURS_NFT,
             data: burnCalldata,
@@ -2598,16 +2598,12 @@ View profile and collection!
           }
         ]);
 
-        if (!burnTx.success) {
-          throw new Error(burnTx.error || 'Burn transaction failed');
-        }
-
         await incrementTransactionCount(userAddress);
-        console.log('🔥 NFT burned successfully:', burnTx.txHash);
+        console.log('🔥 NFT burned successfully:', txHash);
 
         return NextResponse.json({
           success: true,
-          txHash: burnTx.txHash,
+          txHash,
           userAddress,
           tokenId,
           message: `NFT #${tokenId} burned successfully! 5 TOURS reward sent to owner.`,

@@ -5,7 +5,9 @@ import { useState, useEffect } from 'react';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 interface Stats {
+  totalNFTs: number;
   totalMusicNFTs: number;
+  totalArtNFTs: number;
   totalPassports: number;
   totalItineraries: number;
   totalUsers: number;
@@ -17,6 +19,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentPassports, setRecentPassports] = useState<any[]>([]);
   const [recentMusic, setRecentMusic] = useState<any[]>([]);
+  const [recentArt, setRecentArt] = useState<any[]>([]);
   const [recentMusicPurchases, setRecentMusicPurchases] = useState<any[]>([]);
   const [recentItineraries, setRecentItineraries] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +47,22 @@ export default function DashboardPage() {
             totalMusicLicensesPurchased
             lastUpdated
           }
-          MusicNFT(limit: 10, order_by: {mintedAt: desc}) {
+          MusicNFT_aggregate(where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
+            aggregate {
+              count
+            }
+          }
+          ArtNFT_aggregate: MusicNFT_aggregate(where: {isBurned: {_eq: false}, isArt: {_eq: true}}) {
+            aggregate {
+              count
+            }
+          }
+          TotalNFT_aggregate: MusicNFT_aggregate(where: {isBurned: {_eq: false}}) {
+            aggregate {
+              count
+            }
+          }
+          MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
             id
             tokenId
             owner
@@ -55,6 +73,22 @@ export default function DashboardPage() {
             totalSold
             active
             isArt
+            isBurned
+            mintedAt
+            txHash
+          }
+          ArtNFT: MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: true}}) {
+            id
+            tokenId
+            owner
+            artist
+            tokenURI
+            royaltyPercentage
+            price
+            totalSold
+            active
+            isArt
+            isBurned
             mintedAt
             txHash
           }
@@ -112,18 +146,30 @@ export default function DashboardPage() {
 
       const globalStats = result.data?.GlobalStats?.[0];
       const music = result.data?.MusicNFT || [];
+      const art = result.data?.ArtNFT || [];
       const passports = result.data?.PassportNFT || [];
       const purchases = result.data?.MusicLicense || [];
       const itineraries = result.data?.Itinerary || [];
 
+      // Get aggregate counts from database
+      const totalMusicCount = result.data?.MusicNFT_aggregate?.aggregate?.count || 0;
+      const totalArtCount = result.data?.ArtNFT_aggregate?.aggregate?.count || 0;
+      const totalNFTCount = result.data?.TotalNFT_aggregate?.aggregate?.count || 0;
+
       if (globalStats) {
-        setStats(globalStats);
+        setStats({
+          ...globalStats,
+          totalNFTs: totalNFTCount,
+          totalMusicNFTs: totalMusicCount,
+          totalArtNFTs: totalArtCount,
+        });
         setPulse(true);
         setTimeout(() => setPulse(false), 500);
         setUpdateCount(prev => prev + 1);
       }
 
       setRecentMusic(music);
+      setRecentArt(art);
       setRecentPassports(passports);
       setRecentMusicPurchases(purchases);
       setRecentItineraries(itineraries);
@@ -192,40 +238,54 @@ export default function DashboardPage() {
 
         {/* Stats Grid */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            <StatCard
+              icon="📦"
+              label="Total NFTs"
+              value={stats.totalNFTs}
+              gradient="from-slate-600 to-slate-700"
+              pulse={pulse}
+            />
             <StatCard
               icon="🎵"
               label="Music NFTs"
               value={stats.totalMusicNFTs}
-              gradient="from-blue-500 to-blue-600"
+              gradient="from-purple-500 to-purple-600"
+              pulse={pulse}
+            />
+            <StatCard
+              icon="🎨"
+              label="Art NFTs"
+              value={stats.totalArtNFTs}
+              gradient="from-blue-500 to-cyan-600"
               pulse={pulse}
             />
             <StatCard
               icon="🎫"
               label="Passports"
               value={stats.totalPassports}
-              gradient="from-purple-500 to-purple-600"
+              gradient="from-pink-500 to-rose-600"
               pulse={pulse}
             />
             <StatCard
               icon="🎧"
               label="Purchases"
               value={stats.totalMusicLicensesPurchased}
-              gradient="from-orange-500 to-orange-600"
+              gradient="from-orange-500 to-amber-600"
               pulse={pulse}
             />
             <StatCard
               icon="🗺️"
               label="Itineraries"
               value={stats.totalItineraries}
-              gradient="from-green-500 to-green-600"
+              gradient="from-green-500 to-emerald-600"
               pulse={pulse}
             />
             <StatCard
               icon="👥"
               label="Active Users"
               value={stats.totalUsers}
-              gradient="from-pink-500 to-pink-600"
+              gradient="from-indigo-500 to-violet-600"
               pulse={pulse}
             />
           </div>
@@ -286,7 +346,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-all"
@@ -305,20 +365,20 @@ export default function DashboardPage() {
             <div>
               <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 🎵 Recent Music NFTs
-                <span className="text-sm font-normal text-gray-500">({recentMusic.filter((m: any) => !m.isArt).length})</span>
+                <span className="text-sm font-normal text-gray-500">({recentMusic.length})</span>
               </h4>
               {loading && recentMusic.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
                   <p className="text-gray-600">Loading...</p>
                 </div>
-              ) : recentMusic.filter((m: any) => !m.isArt).length === 0 ? (
+              ) : recentMusic.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600">No music NFTs yet</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {recentMusic.filter((m: any) => !m.isArt).map((item, idx) => (
+                  {recentMusic.map((item, idx) => (
                     <div
                       key={item.id || idx}
                       className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg hover:border-purple-400 transition-all animate-slide-in"
@@ -351,7 +411,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-all"
@@ -370,20 +430,20 @@ export default function DashboardPage() {
             <div>
               <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 🎨 Recent Art NFTs
-                <span className="text-sm font-normal text-gray-500">({recentMusic.filter((m: any) => m.isArt).length})</span>
+                <span className="text-sm font-normal text-gray-500">({recentArt.length})</span>
               </h4>
-              {loading && recentMusic.length === 0 ? (
+              {loading && recentArt.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
                   <p className="text-gray-600">Loading...</p>
                 </div>
-              ) : recentMusic.filter((m: any) => m.isArt).length === 0 ? (
+              ) : recentArt.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600">No art NFTs yet</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {recentMusic.filter((m: any) => m.isArt).map((item, idx) => (
+                  {recentArt.map((item, idx) => (
                     <div
                       key={item.id || idx}
                       className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg hover:border-blue-400 transition-all animate-slide-in"
@@ -416,7 +476,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-all"
@@ -484,7 +544,7 @@ export default function DashboardPage() {
                           </div>
                           {item.txHash && (
                             <a
-                              href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                              href={`https://testnet.monadscan.com/tx/${item.txHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition-all"
@@ -541,7 +601,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadexplorer.com/tx/${item.txHash}`}
+                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-all"
