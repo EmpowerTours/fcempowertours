@@ -144,21 +144,21 @@ export async function POST(req: NextRequest) {
 
     // =============================================
     // STEP 3: Get NFT balances from Envio indexer
+    // ✅ FIXED: Query actual NFTs and filter out burned ones
     // =============================================
     const query = `
-      query GetUserBalances($address: String!) {
-        UserStats(where: {address: {_eq: $address}}) {
+      query GetUserNFTs($address: String!) {
+        MusicNFT(where: {owner: {_eq: $address}, isBurned: {_eq: false}}) {
           id
-          address
-          musicNFTCount
-          artNFTCount
-          passportNFTCount
-          totalNFTs
+          isArt
+        }
+        PassportNFT(where: {owner: {_eq: $address}}) {
+          id
         }
       }
     `;
 
-    console.log('⏳ Fetching NFT balances from indexer...');
+    console.log('⏳ Fetching NFT balances from indexer (excluding burned)...');
     let nftData = {
       id: userAddress,
       address: userAddress,
@@ -194,15 +194,24 @@ export async function POST(req: NextRequest) {
 
         if (response.ok) {
           const result = await response.json();
-          const stats = result.data?.UserStats?.[0];
-          if (stats) {
-            nftData = stats;
-            console.log(`✅ NFT data retrieved (attempt ${attempt}):`, nftData);
-            break; // Success, exit retry loop
-          } else {
-            console.warn(`⚠️ No NFT stats found for user (attempt ${attempt})`);
-            break; // No data but response OK, don't retry
-          }
+          const musicNFTs = result.data?.MusicNFT || [];
+          const passportNFTs = result.data?.PassportNFT || [];
+
+          // Count music vs art NFTs (both are in MusicNFT table)
+          const musicCount = musicNFTs.filter((nft: any) => !nft.isArt).length;
+          const artCount = musicNFTs.filter((nft: any) => nft.isArt).length;
+          const passportCount = passportNFTs.length;
+
+          nftData = {
+            id: userAddress,
+            address: userAddress,
+            musicNFTCount: musicCount,
+            artNFTCount: artCount,
+            passportNFTCount: passportCount,
+            totalNFTs: musicCount + artCount + passportCount
+          };
+          console.log(`✅ NFT data retrieved (attempt ${attempt}):`, nftData);
+          break; // Success, exit retry loop
         } else {
           console.warn(`⚠️ Indexer returned ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
