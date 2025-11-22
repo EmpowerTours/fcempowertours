@@ -393,7 +393,7 @@ function SwapContent() {
           </div>
           <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-lg border border-blue-500/30 rounded-xl p-5">
             <p className="text-blue-200 text-xs font-medium mb-2">WMON Balance</p>
-            <p className="text-3xl font-bold text-blue-100">{formatEther(wmonBalance || BigInt(0))}</p>
+            <p className="text-3xl font-bold text-blue-100">{balances.wmon || '0'}</p>
           </div>
         </div>
 
@@ -594,8 +594,8 @@ function SwapContent() {
               <label className="text-white font-semibold">From</label>
               <div className="text-purple-200 text-sm">
                 Balance: {swapDirection === 'tours-to-wmon'
-                  ? formatEther(toursBalance || BigInt(0))
-                  : formatEther(wmonBalance || BigInt(0))}
+                  ? (balances.tours || '0')
+                  : (balances.wmon || '0')}
               </div>
             </div>
             <div className="bg-black/30 rounded-xl p-4 flex items-center gap-4">
@@ -632,8 +632,8 @@ function SwapContent() {
               <label className="text-white font-semibold">To (estimated)</label>
               <div className="text-purple-200 text-sm">
                 Balance: {swapDirection === 'tours-to-wmon'
-                  ? formatEther(wmonBalance || BigInt(0))
-                  : formatEther(toursBalance || BigInt(0))}
+                  ? (balances.wmon || '0')
+                  : (balances.tours || '0')}
               </div>
             </div>
             <div className="bg-black/30 rounded-xl p-4 flex items-center gap-4">
