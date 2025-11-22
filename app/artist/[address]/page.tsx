@@ -96,17 +96,22 @@ export default function ArtistProfilePage() {
   const loadArtistInfo = async () => {
     try {
       const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+      console.log('[Artist] Loading info for address:', artistAddress);
 
       // ✅ USE bulk_by_address endpoint (same as music/[tokenId] page)
       try {
         const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
+        console.log('[Artist] Fetching from Neynar:', url);
         const response = await fetch(url, {
           headers: { 'api_key': neynarApiKey }
         });
 
+        console.log('[Artist] Neynar response status:', response.status);
         if (response.ok) {
           const data: any = await response.json();
+          console.log('[Artist] Neynar data:', JSON.stringify(data, null, 2));
           const users = data[artistAddress.toLowerCase()];
+          console.log('[Artist] Users found for address:', users);
 
           if (users && users.length > 0) {
             const user = users[0];
@@ -119,7 +124,11 @@ export default function ArtistProfilePage() {
             });
             console.log('✅ Artist info loaded via bulk_by_address:', user.username);
             return;
+          } else {
+            console.warn('[Artist] No users found in Neynar response for address');
           }
+        } else {
+          console.warn('[Artist] Neynar response not OK:', response.status);
         }
       } catch (err) {
         console.warn('❌ bulk_by_address failed:', err);
@@ -306,7 +315,7 @@ export default function ArtistProfilePage() {
               />
             ) : (
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
-                🎵
+                {artistAddress?.slice(2, 4).toUpperCase() || '??'}
               </div>
             )}
             <div className="flex-1">
