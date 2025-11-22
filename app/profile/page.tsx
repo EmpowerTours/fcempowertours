@@ -1518,7 +1518,7 @@ export default function ProfilePage() {
                               console.log('[Staking] Opening modal...');
                               setPassportStakingModal({ isOpen: true, passport });
                             }}
-                            className={`w-full px-3 py-2 text-white text-xs font-bold rounded-lg transition-all ${
+                            className={`w-full px-3 py-3 text-white text-sm font-bold rounded-lg transition-all touch-manipulation ${
                               walletAddress
                                 ? 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700'
                                 : 'bg-gray-400 cursor-not-allowed'

@@ -119,12 +119,14 @@ export default function PassportStakingModal({
   }, [isOpen, walletAddress, passportTokenId]);
 
   const handleStake = async () => {
+    console.log('[Staking Modal] handleStake called with amount:', stakeAmount);
     const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) {
       setError('Please enter a valid amount');
       return;
     }
 
+    console.log('[Staking Modal] Amount valid:', amount, 'walletAddress:', walletAddress);
     setIsStaking(true);
     setError('');
     setSuccess('');
