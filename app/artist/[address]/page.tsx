@@ -91,19 +91,35 @@ export default function ArtistProfilePage() {
       setArtistInfo(null);
       setArtistMusic([]);
     }
-  }, [artistAddress]);
+    // Re-run when Farcaster context loads (user/walletAddress)
+  }, [artistAddress, user, walletAddress]);
 
   const loadArtistInfo = async () => {
     try {
       const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
       console.log('[Artist] Loading info for address:', artistAddress);
 
+      // ✅ FIRST: Check if this is the current user's own profile
+      // If so, use the Farcaster context directly (most reliable)
+      if (walletAddress && artistAddress.toLowerCase() === walletAddress.toLowerCase() && user) {
+        console.log('[Artist] This is the current user - using Farcaster context');
+        setArtistInfo({
+          address: artistAddress,
+          username: user.username,
+          displayName: user.displayName || user.username,
+          pfpUrl: user.pfpUrl,
+          fid: user.fid,
+        });
+        console.log('✅ Artist info loaded from Farcaster context:', user.username);
+        return;
+      }
+
       // ✅ USE bulk_by_address endpoint (same as music/[tokenId] page)
       try {
         const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
         console.log('[Artist] Fetching from Neynar:', url);
         const response = await fetch(url, {
-          headers: { 'api_key': neynarApiKey }
+          headers: { 'x-api-key': neynarApiKey }
         });
 
         console.log('[Artist] Neynar response status:', response.status);
@@ -139,7 +155,7 @@ export default function ArtistProfilePage() {
         const custodyUrl = `https://api.neynar.com/v2/farcaster/user/custody-address/?custody_address=${artistAddress}`;
         console.log('[Artist] Trying custody-address endpoint:', custodyUrl);
         const custodyResponse = await fetch(custodyUrl, {
-          headers: { 'api_key': neynarApiKey }
+          headers: { 'x-api-key': neynarApiKey }
         });
 
         if (custodyResponse.ok) {
