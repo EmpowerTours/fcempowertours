@@ -111,14 +111,18 @@ export default function ArtistProfilePage() {
       // If so, use the Farcaster context directly (most reliable)
       if (walletAddress && artistAddress.toLowerCase() === walletAddress.toLowerCase() && user) {
         console.log('[Artist] This is the current user - using Farcaster context');
+        // Handle both camelCase and snake_case property names from SDK/Neynar
+        const pfp = user.pfpUrl || user.pfp_url || (user as any).pfp;
+        const displayName = user.displayName || user.display_name || user.username;
+        console.log('[Artist] User data:', { username: user.username, pfp, displayName });
         setArtistInfo({
           address: artistAddress,
           username: user.username,
-          displayName: user.displayName || user.username,
-          pfpUrl: user.pfpUrl,
+          displayName: displayName,
+          pfpUrl: pfp,
           fid: user.fid,
         });
-        console.log('✅ Artist info loaded from Farcaster context:', user.username);
+        console.log('✅ Artist info loaded from Farcaster context:', user.username, 'pfp:', pfp);
         return;
       }
 

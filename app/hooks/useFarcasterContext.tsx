@@ -122,13 +122,18 @@ export function useFarcasterContext() {
                 setCustodyAddress(address);
                 setWalletConnected(true);
 
-                // Update context with the real address
+                // Update context with the real address AND profile data from Neynar
                 setContext(prev =>
                   prev ? {
                     ...prev,
                     user: {
                       ...prev.user,
-                      custody_address: address
+                      custody_address: address,
+                      // ✅ Add pfpUrl and displayName from Neynar
+                      pfpUrl: userData.pfp_url || prev.user?.pfpUrl,
+                      pfp_url: userData.pfp_url || prev.user?.pfp_url,
+                      displayName: userData.display_name || prev.user?.displayName,
+                      display_name: userData.display_name || prev.user?.display_name,
                     }
                   } : null
                 );

@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     const { tokenId } = await params;
-    const miniAppUrl = `${APP_URL}/music/${tokenId}`;
+    const miniAppUrl = `${APP_URL}/nft/${tokenId}`;
     
     // ✅ SIMPLIFIED: Only pass tokenId to OG endpoint
     // OG endpoint will query Envio to fetch metadata + cover art
