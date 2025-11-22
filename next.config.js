@@ -8,7 +8,7 @@ const nextConfig = {
   },
   output: 'standalone',
   reactStrictMode: true,
-  transpilePackages: ['three', '@react-three/fiber', '@react-three/drei'],
+  transpilePackages: ['three', '@react-three/fiber', '@react-three/drei', 'scheduler'],
   experimental: {
     optimizePackageImports: ['@tanstack/react-query'],
   },
