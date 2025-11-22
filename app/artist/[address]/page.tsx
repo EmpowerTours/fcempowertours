@@ -321,7 +321,7 @@ export default function ArtistProfilePage() {
               </p>
               <div className="flex gap-3 mt-4">
                 <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                  {artistMusic.length} Tracks
+                  {artistMusic.length} {artistMusic.length === 1 ? 'NFT' : 'NFTs'}
                 </span>
                 <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
                   Live on Monad
