@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { encodeFunctionData, parseAbi } from 'viem';
 
-const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as `0x${string}`;
+const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_NFT_ADDRESS as `0x${string}`;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as `0x${string}`;
 
 export default function ApproveGaslessPage() {

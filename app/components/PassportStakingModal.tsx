@@ -29,7 +29,7 @@ interface StakingPosition {
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const YIELD_STRATEGY = process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x37aC86916Ae673bDFCc9c712057092E57b270f5f';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
-const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT || '';
+const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT_V2 || process.env.NEXT_PUBLIC_PASSPORT || '';
 
 const YIELD_STRATEGY_ABI = [
   'function getUserPositions(address user) external view returns (uint256[])',

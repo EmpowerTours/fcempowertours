@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Address } from 'viem';
 
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
-const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_MUSIC_NFT as Address;
+const MUSIC_NFT_V5 = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
 
 /**
  * Returns the contract call data for approving Safe to manage NFTs

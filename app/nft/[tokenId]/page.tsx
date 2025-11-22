@@ -197,7 +197,7 @@ export default function MusicPage() {
       });
 
       const MUSIC_NFT_ADDRESS =
-        (process.env.NEXT_PUBLIC_MUSIC_NFT as Address) ||
+        (process.env.NEXT_PUBLIC_NFT_ADDRESS as Address) ||
         ('0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address);
 
       const uriData = await client.readContract({
