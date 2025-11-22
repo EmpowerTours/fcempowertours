@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
           'mint_music',
           'buy_music',
           'burn_music',
+          'burn_nft',     // Delegated NFT burning (v7)
           'stake_music',  // ✅ ADD: Internal staking for TOURS rewards
           'unstake_music', // ✅ ADD: Internal unstaking for TOURS rewards
           'swap_mon_for_tours',
