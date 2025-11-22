@@ -10,12 +10,17 @@ function ErrorBoundary({ children }: { children: React.ReactNode }) {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    const errorHandler = (error: Error, errorInfo: any) => {
-      console.error('ErrorBoundary caught:', error, errorInfo);
+    const errorHandler = (event: ErrorEvent) => {
+      // Ignore Farcaster context errors in development (expected outside Warpcast)
+      if (event.message?.includes('Farcaster') || event.message?.includes('context')) {
+        console.warn('Farcaster context not available (expected outside Warpcast)');
+        return;
+      }
+      console.error('ErrorBoundary caught:', event.message);
       setHasError(true);
     };
-    window.addEventListener('error', errorHandler as any);
-    return () => window.removeEventListener('error', errorHandler as any);
+    window.addEventListener('error', errorHandler);
+    return () => window.removeEventListener('error', errorHandler);
   }, []);
 
   if (hasError) {

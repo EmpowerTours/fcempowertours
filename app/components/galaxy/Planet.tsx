@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere, Html, Ring } from '@react-three/drei';
+import { Sphere, Ring, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { Project } from '@/lib/galaxy/projects';
 
@@ -97,39 +97,29 @@ export function Planet({ project, onClick, isSelected, completedTasks = 0 }: Pla
         </Sphere>
       )}
 
-      {/* Label */}
+      {/* Label - using 3D Text instead of Html */}
       {hovered && (
-        <Html
-          position={[0, project.size * 0.7 + 0.5, 0]}
-          center
-          style={{
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              background: 'rgba(0, 0, 0, 0.8)',
-              color: 'white',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              whiteSpace: 'nowrap',
-              border: `2px solid ${project.color}`,
-              boxShadow: `0 0 10px ${project.color}`,
-            }}
+        <group position={[0, project.size * 0.7 + 0.3, 0]}>
+          <Text
+            fontSize={0.2}
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.02}
+            outlineColor={project.color}
           >
-            <div>{project.name}</div>
-            <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '2px' }}>
-              {completedTasks}/{totalTasks} tasks
-            </div>
-            {project.isEmpowerTours && (
-              <div style={{ fontSize: '10px', color: '#22c55e', marginTop: '2px' }}>
-                Open In-App
-              </div>
-            )}
-          </div>
-        </Html>
+            {project.name}
+          </Text>
+          <Text
+            position={[0, -0.25, 0]}
+            fontSize={0.12}
+            color="#a0a0a0"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {completedTasks}/{totalTasks} tasks
+          </Text>
+        </group>
       )}
     </group>
   );

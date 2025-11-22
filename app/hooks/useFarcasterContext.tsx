@@ -75,7 +75,12 @@ export function useFarcasterContext() {
         }
 
         if (!ctx || !ctx.user) {
-          throw new Error('Failed to load Farcaster context');
+          // Not in Farcaster environment - this is expected in development
+          console.warn('⚠️ Not in Farcaster environment (expected outside Warpcast)');
+          if (isMounted) {
+            setLoading(false);
+          }
+          return;
         }
 
         if (!isMounted) return;
