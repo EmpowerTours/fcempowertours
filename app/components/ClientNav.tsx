@@ -24,7 +24,7 @@ export default function ClientNav() {
   };
 
   const navItems = [
-    { path: '/', label: 'Galaxy', icon: '🌌' },
+    { path: '/', label: 'Home', icon: '🏠' },
     { path: '/discover', label: 'Discover', icon: '🎵' },
     { path: '/nft', label: 'Create', icon: '➕' },
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },

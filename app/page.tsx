@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { GalaxyWrapper } from '@/app/components/galaxy/GalaxyWrapper';
+import HomeClient from './home-client';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -21,11 +21,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 
   return {
-    title: 'Monad Galaxy - EmpowerTours',
-    description: 'Explore the Monad ecosystem galaxy and earn TOURS tokens by completing engagement tasks!',
+    title: 'EmpowerTours - DigitalPassport',
+    description: 'Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.',
     openGraph: {
-      title: 'Monad Galaxy - EmpowerTours',
-      description: 'Explore the Monad ecosystem galaxy and earn TOURS tokens!',
+      title: 'EmpowerTours - DigitalPassport',
+      description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
       images: [`${APP_URL}/images/og-image.png`],
     },
     other: {
@@ -35,6 +35,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Page() {
-  // Show the Monad Galaxy as the landing page after splash screen
-  return <GalaxyWrapper />;
+  return <HomeClient />;
 }
