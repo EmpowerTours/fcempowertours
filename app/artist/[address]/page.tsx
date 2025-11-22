@@ -134,7 +134,35 @@ export default function ArtistProfilePage() {
         console.warn('❌ bulk_by_address failed:', err);
       }
 
-      // Fallback: truncated address (no "Artist" prefix - redundant on artist page)
+      // Fallback 2: Try custody-address endpoint
+      try {
+        const custodyUrl = `https://api.neynar.com/v2/farcaster/user/custody-address/?custody_address=${artistAddress}`;
+        console.log('[Artist] Trying custody-address endpoint:', custodyUrl);
+        const custodyResponse = await fetch(custodyUrl, {
+          headers: { 'api_key': neynarApiKey }
+        });
+
+        if (custodyResponse.ok) {
+          const custodyData = await custodyResponse.json();
+          console.log('[Artist] Custody address data:', custodyData);
+          if (custodyData.user) {
+            const user = custodyData.user;
+            setArtistInfo({
+              address: artistAddress,
+              username: user.username,
+              displayName: user.display_name || user.username,
+              pfpUrl: user.pfp_url,
+              fid: user.fid,
+            });
+            console.log('✅ Artist info loaded via custody-address:', user.username);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('❌ custody-address failed:', err);
+      }
+
+      // Fallback 3: truncated address (no "Artist" prefix - redundant on artist page)
       console.log('⚠️ No Farcaster account found, using truncated address');
       const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
       setArtistInfo({
