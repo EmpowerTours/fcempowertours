@@ -6,17 +6,13 @@ import { createPublicClient, http, Address, Hex, parseAbi, parseEther } from 'vi
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
+import { env } from '@/lib/env';
 
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY!;
-const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
-const ENTRYPOINT_ADDRESS = process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS as Address;
-const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
+const PIMLICO_API_KEY = env.PIMLICO_API_KEY;
+const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
+const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
+const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
 const SAFE_OWNER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
-
-if (!PIMLICO_BUNDLER_URL) throw new Error('NEXT_PUBLIC_PIMLICO_BUNDLER_URL missing');
-if (!ENTRYPOINT_ADDRESS) throw new Error('NEXT_PUBLIC_ENTRYPOINT_ADDRESS missing');
-if (!SAFE_ACCOUNT) throw new Error('NEXT_PUBLIC_SAFE_ACCOUNT missing');
-if (!SAFE_OWNER_PRIVATE_KEY) throw new Error('SAFE_OWNER_PRIVATE_KEY missing');
 
 console.log('🔐 Initializing Safe AA Client (EntryPoint v0.7)');
 console.log('   EntryPoint:', ENTRYPOINT_ADDRESS);
@@ -26,7 +22,7 @@ console.log('   Bundler:', PIMLICO_BUNDLER_URL);
 // Public client for Monad
 export const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
+  transport: http(env.MONAD_RPC),
 });
 
 // Safe owner account (signs UserOps)

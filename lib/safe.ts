@@ -1,13 +1,14 @@
 import { createPublicClient, createWalletClient, http, Address, encodeFunctionData, parseEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { monadTestnet } from '@/app/chains';
+import { env } from '@/lib/env';
 
-const PIMLICO_BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
-const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
+const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
+const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
 
 export const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
+  transport: http(env.MONAD_RPC),
 });
 
 // Check Safe account balance

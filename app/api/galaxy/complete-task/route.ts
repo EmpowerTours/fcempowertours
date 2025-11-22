@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { encodeFunctionData, parseUnits, Address } from 'viem';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { getProjectById, TOURS_REWARD_PER_TASK } from '@/lib/galaxy/projects';
+import { env } from '@/lib/env';
 
 // Redis for storing completed tasks (optional - for persistence across devices)
 import { Redis } from '@upstash/redis';
@@ -11,8 +12,8 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
 });
 
-const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
+const TOURS_TOKEN = env.TOURS_TOKEN as Address;
+const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
 
 // ERC20 transfer ABI
 const ERC20_ABI = [
