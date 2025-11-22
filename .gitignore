@@ -146,3 +146,10 @@ vite.config.ts.timestamp-*
 cache/
 out/
 broadcast/
+
+# Contracts build artifacts
+contracts/node_modules/
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+empowertours-envio/node_modules/
