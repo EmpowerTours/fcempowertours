@@ -9,7 +9,7 @@ export default function ClientNav() {
   const router = useRouter();
   const { user, walletAddress, isLoading, error, requestWallet } = useFarcasterContext();
   const farcasterUsername = user?.username;
-  const [activeTab, setActiveTab] = useState('/discover');
+  const [activeTab, setActiveTab] = useState('/');
 
   // Auto-request wallet when user loads
   useEffect(() => {
@@ -24,6 +24,7 @@ export default function ClientNav() {
   };
 
   const navItems = [
+    { path: '/', label: 'Galaxy', icon: '🌌' },
     { path: '/discover', label: 'Discover', icon: '🎵' },
     { path: '/nft', label: 'Create', icon: '➕' },
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },

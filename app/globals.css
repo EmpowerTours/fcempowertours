@@ -173,3 +173,50 @@ nav button {
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.8), 0 0 30px rgba(59, 130, 246, 0.5);
   }
 }
+
+/* Galaxy Scene Styles - Override default backgrounds */
+.galaxy-container,
+.galaxy-container * {
+  background-color: transparent !important;
+}
+
+.galaxy-container canvas {
+  display: block;
+}
+
+/* Galaxy overlay elements */
+.galaxy-overlay {
+  background: transparent !important;
+}
+
+.galaxy-panel {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+}
+
+/* Star animation */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+/* Planet hover glow */
+@keyframes planet-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 20px currentColor);
+  }
+}
+
+.animate-planet-glow {
+  animation: planet-glow 2s ease-in-out infinite;
+}
