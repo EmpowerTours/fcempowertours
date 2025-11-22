@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import HomeClient from './home-client';
+import MusicDiscoveryPage from './discover/page';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
@@ -35,5 +35,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Page() {
-  return <HomeClient />;
+  return <MusicDiscoveryPage />;
 }

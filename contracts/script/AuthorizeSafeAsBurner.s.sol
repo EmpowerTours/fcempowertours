@@ -10,7 +10,7 @@ contract AuthorizeSafeAsBurner is Script {
 
         // Addresses
         address nftV7 = 0xAD403897CD7d465445aF0BD4fe40f18698655D4e;
-        address safeAccount = 0x37302543aeF0b06202adcb06Db36daB05F8237E9;
+        address safeAccount = 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20;
 
         vm.startBroadcast(deployerPrivateKey);
 
