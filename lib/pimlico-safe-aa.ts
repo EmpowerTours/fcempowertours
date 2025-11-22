@@ -12,12 +12,6 @@ const PIMLICO_API_KEY = env.PIMLICO_API_KEY;
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
 const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
-const SAFE_OWNER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
-
-console.log('🔐 Initializing Safe AA Client (EntryPoint v0.7)');
-console.log('   EntryPoint:', ENTRYPOINT_ADDRESS);
-console.log('   Safe Account:', SAFE_ACCOUNT);
-console.log('   Bundler:', PIMLICO_BUNDLER_URL);
 
 // Public client for Monad
 export const publicClient = createPublicClient({
@@ -25,14 +19,30 @@ export const publicClient = createPublicClient({
   transport: http(env.MONAD_RPC),
 });
 
-// Safe owner account (signs UserOps)
-const safeOwnerAccount = privateKeyToAccount(SAFE_OWNER_PRIVATE_KEY);
-console.log('✅ Safe owner account:', safeOwnerAccount.address);
+// Lazy initialization for Safe owner account (only when actually needed at runtime)
+let _safeOwnerAccount: ReturnType<typeof privateKeyToAccount> | null = null;
+
+function getSafeOwnerAccount() {
+  if (!_safeOwnerAccount) {
+    const SAFE_OWNER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
+    if (!SAFE_OWNER_PRIVATE_KEY) {
+      throw new Error('SAFE_OWNER_PRIVATE_KEY is not set');
+    }
+    console.log('🔐 Initializing Safe AA Client (EntryPoint v0.7)');
+    console.log('   EntryPoint:', ENTRYPOINT_ADDRESS);
+    console.log('   Safe Account:', SAFE_ACCOUNT);
+    console.log('   Bundler:', PIMLICO_BUNDLER_URL);
+    _safeOwnerAccount = privateKeyToAccount(SAFE_OWNER_PRIVATE_KEY);
+    console.log('✅ Safe owner account:', _safeOwnerAccount.address);
+  }
+  return _safeOwnerAccount;
+}
 
 // Create Smart Account Client for Safe + AA
 export async function createSafeSmartAccountClient(): Promise<SmartAccountClient> {
   console.log('📝 Creating Smart Account Client for Safe...');
   try {
+    const safeOwnerAccount = getSafeOwnerAccount();
     const safeSmartAccount = await toSafeSmartAccount({
       client: publicClient,
       owners: [safeOwnerAccount],
