@@ -43,7 +43,7 @@ function GalaxyFallback() {
           {monadProjects.slice(0, 20).map((project) => (
             <a
               key={project.id}
-              href={project.url}
+              href={project.website || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 rounded-xl border border-purple-500/30 hover:border-purple-500 transition-all"
