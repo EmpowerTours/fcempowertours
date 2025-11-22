@@ -1,3 +1,6 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -68,6 +71,13 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
+      };
+      // Ensure React is resolved from a single location to fix ReactCurrentBatchConfig error
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'react': require.resolve('react'),
+        'react-dom': require.resolve('react-dom'),
+        'scheduler': require.resolve('scheduler'),
       };
     }
     config.resolve.fallback = {
