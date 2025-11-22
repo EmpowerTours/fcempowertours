@@ -1508,10 +1508,20 @@ export default function ProfilePage() {
                           </div>
                           {/* Passport Staking Button */}
                           <button
-                            onClick={() => setPassportStakingModal({ isOpen: true, passport })}
-                            className="w-full px-3 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white text-xs font-bold rounded-lg hover:from-green-700 hover:to-blue-700 transition-all"
+                            onClick={() => {
+                              if (!walletAddress) {
+                                setError('Wallet not connected. Please open this app in Warpcast to stake MON.');
+                                return;
+                              }
+                              setPassportStakingModal({ isOpen: true, passport });
+                            }}
+                            className={`w-full px-3 py-2 text-white text-xs font-bold rounded-lg transition-all ${
+                              walletAddress
+                                ? 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700'
+                                : 'bg-gray-400 cursor-not-allowed'
+                            }`}
                           >
-                            💰 Stake MON for Yield
+                            {walletAddress ? '💰 Stake MON for Yield' : '🔒 Connect Wallet to Stake'}
                           </button>
                         </div>
                       </div>

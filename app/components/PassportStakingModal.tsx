@@ -24,6 +24,7 @@ interface StakingPosition {
   estimatedAPY?: number;
   daysStaked?: number;
   active: boolean;
+  oracleSource?: 'switchboard' | 'fallback';
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -100,6 +101,7 @@ export default function PassportStakingModal({
             estimatedAPY: projection.estimatedAPY,
             daysStaked: Math.floor((Date.now() / 1000 - Number(pos.depositTime)) / 86400),
             active: pos.state === 0,
+            oracleSource: (projection as any).oracleSource || 'fallback',
           });
         }
 
@@ -421,8 +423,14 @@ export default function PassportStakingModal({
                       </div>
                       {/* Real-time update indicator */}
                       <div className="flex items-center justify-center mt-2 gap-1">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <p className="text-xs text-gray-500 italic">Updates every 30s via Switchboard Oracle</p>
+                        <div className={`w-2 h-2 rounded-full animate-pulse ${
+                          pos.oracleSource === 'switchboard' ? 'bg-green-500' : 'bg-yellow-500'
+                        }`}></div>
+                        <p className="text-xs text-gray-500 italic">
+                          {pos.oracleSource === 'switchboard'
+                            ? 'Live APY via Switchboard Oracle'
+                            : 'Estimated APY (Oracle connecting...)'}
+                        </p>
                       </div>
                     </div>
 
