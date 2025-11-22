@@ -49,9 +49,15 @@ function GalaxyFallback() {
               className="p-4 rounded-xl border border-purple-500/30 hover:border-purple-500 transition-all"
               style={{ background: 'rgba(131, 110, 249, 0.1)' }}
             >
-              <div className="text-2xl mb-2">{project.icon}</div>
+              <div className="text-2xl mb-2">
+                {project.logo ? (
+                  <img src={project.logo} alt={project.name} className="w-8 h-8 rounded" />
+                ) : (
+                  <span>🌐</span>
+                )}
+              </div>
               <h3 className="text-white font-semibold text-sm">{project.name}</h3>
-              <p className="text-gray-400 text-xs mt-1">{project.category}</p>
+              <p className="text-gray-400 text-xs mt-1 capitalize">{project.category}</p>
             </a>
           ))}
         </div>
