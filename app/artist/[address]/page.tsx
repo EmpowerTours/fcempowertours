@@ -83,18 +83,26 @@ export default function ArtistProfilePage() {
   };
 
   useEffect(() => {
+    // Use AbortController to cancel stale requests when dependencies change
+    const abortController = new AbortController();
+
     if (artistAddress && isAddress(artistAddress)) {
       loadArtistProfile();
-      loadArtistInfo();
+      loadArtistInfo(abortController.signal);
     } else {
       console.error('Invalid artist address:', artistAddress);
       setArtistInfo(null);
       setArtistMusic([]);
     }
+
+    // Cleanup: abort pending requests when effect re-runs
+    return () => {
+      abortController.abort();
+    };
     // Re-run when Farcaster context loads (user/walletAddress)
   }, [artistAddress, user, walletAddress]);
 
-  const loadArtistInfo = async () => {
+  const loadArtistInfo = async (signal?: AbortSignal) => {
     try {
       const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
       console.log('[Artist] Loading info for address:', artistAddress);
@@ -119,8 +127,15 @@ export default function ArtistProfilePage() {
         const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
         console.log('[Artist] Fetching from Neynar:', url);
         const response = await fetch(url, {
-          headers: { 'x-api-key': neynarApiKey }
+          headers: { 'x-api-key': neynarApiKey },
+          signal, // Pass abort signal
         });
+
+        // Check if aborted before processing
+        if (signal?.aborted) {
+          console.log('[Artist] Request aborted, skipping state update');
+          return;
+        }
 
         console.log('[Artist] Neynar response status:', response.status);
         if (response.ok) {
@@ -131,14 +146,16 @@ export default function ArtistProfilePage() {
 
           if (users && users.length > 0) {
             const user = users[0];
-            setArtistInfo({
-              address: artistAddress,
-              username: user.username,
-              displayName: user.display_name || user.username,
-              pfpUrl: user.pfp_url,
-              fid: user.fid,
-            });
-            console.log('✅ Artist info loaded via bulk_by_address:', user.username);
+            if (!signal?.aborted) {
+              setArtistInfo({
+                address: artistAddress,
+                username: user.username,
+                displayName: user.display_name || user.username,
+                pfpUrl: user.pfp_url,
+                fid: user.fid,
+              });
+              console.log('✅ Artist info loaded via bulk_by_address:', user.username);
+            }
             return;
           } else {
             console.warn('[Artist] No users found in Neynar response for address');
@@ -146,37 +163,57 @@ export default function ArtistProfilePage() {
         } else {
           console.warn('[Artist] Neynar response not OK:', response.status);
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('[Artist] bulk_by_address aborted');
+          return;
+        }
         console.warn('❌ bulk_by_address failed:', err);
       }
+
+      // Check abort before continuing to fallbacks
+      if (signal?.aborted) return;
 
       // Fallback 2: Try custody-address endpoint
       try {
         const custodyUrl = `https://api.neynar.com/v2/farcaster/user/custody-address/?custody_address=${artistAddress}`;
         console.log('[Artist] Trying custody-address endpoint:', custodyUrl);
         const custodyResponse = await fetch(custodyUrl, {
-          headers: { 'x-api-key': neynarApiKey }
+          headers: { 'x-api-key': neynarApiKey },
+          signal, // Pass abort signal
         });
+
+        // Check if aborted
+        if (signal?.aborted) return;
 
         if (custodyResponse.ok) {
           const custodyData = await custodyResponse.json();
           console.log('[Artist] Custody address data:', custodyData);
           if (custodyData.user) {
             const user = custodyData.user;
-            setArtistInfo({
-              address: artistAddress,
-              username: user.username,
-              displayName: user.display_name || user.username,
-              pfpUrl: user.pfp_url,
-              fid: user.fid,
-            });
-            console.log('✅ Artist info loaded via custody-address:', user.username);
+            if (!signal?.aborted) {
+              setArtistInfo({
+                address: artistAddress,
+                username: user.username,
+                displayName: user.display_name || user.username,
+                pfpUrl: user.pfp_url,
+                fid: user.fid,
+              });
+              console.log('✅ Artist info loaded via custody-address:', user.username);
+            }
             return;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('[Artist] custody-address aborted');
+          return;
+        }
         console.warn('❌ custody-address failed:', err);
       }
+
+      // Check abort before fallback
+      if (signal?.aborted) return;
 
       // Fallback 3: truncated address (no "Artist" prefix - redundant on artist page)
       console.log('⚠️ No Farcaster account found, using truncated address');
@@ -185,13 +222,16 @@ export default function ArtistProfilePage() {
         address: artistAddress,
         displayName: truncated,
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error('❌ Error loading artist info:', error);
-      const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
-      setArtistInfo({
-        address: artistAddress,
-        displayName: truncated,
-      });
+      if (!signal?.aborted) {
+        const truncated = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
+        setArtistInfo({
+          address: artistAddress,
+          displayName: truncated,
+        });
+      }
     }
   };
 
