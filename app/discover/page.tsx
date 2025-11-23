@@ -170,14 +170,16 @@ export default function MusicDiscoveryPage() {
           );
           if (response.ok) {
             const data = await response.json();
-            if (data && data.fid) {
+            // Neynar returns user data nested inside 'user' object
+            const user = data?.user;
+            if (user && user.fid) {
               setArtistInfoCache((prev) => ({
                 ...prev,
                 [artistAddress]: {
-                  username: data.username,
-                  displayName: data.display_name || data.username,
-                  pfpUrl: data.pfp_url,
-                  fid: data.fid,
+                  username: user.username,
+                  displayName: user.display_name || user.username,
+                  pfpUrl: user.pfp_url,
+                  fid: user.fid,
                 },
               }));
             }
