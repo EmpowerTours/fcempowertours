@@ -109,18 +109,20 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
       const weiAmount = parseEther(LOTTERY_CONFIG.ACCESS_FEE_ETH.toString()).toString();
 
       if (sdk?.actions?.sendToken) {
+        // CAIP-19 format for native ETH on Base: eip155:8453/slip44:60
+        const nativeEthToken = 'eip155:8453/slip44:60';
+
         console.log('Using Farcaster SDK sendToken:', {
+          token: nativeEthToken,
           to: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
           amount: weiAmount,
-          chainId: LOTTERY_CONFIG.BASE_CHAIN_ID,
         });
 
-        // sendToken sends native ETH when no token address specified
+        // sendToken with CAIP-19 token identifier for native ETH
         const result = await sdk.actions.sendToken({
-          token: 'eth', // Native ETH
+          token: nativeEthToken, // Native ETH on Base in CAIP-19 format
           amount: weiAmount, // Amount in wei
           recipientAddress: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
-          chain: 'eip155:8453', // Base mainnet in CAIP-2 format
         });
 
         console.log('sendToken result:', result);
