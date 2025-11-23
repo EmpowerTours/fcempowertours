@@ -19,9 +19,16 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
   const touchStartY = useRef<number | null>(null);
   const touchStartTime = useRef<number | null>(null);
 
-  // Define page order
+  // Define page order - only use routes that actually exist
   const getPageOrder = () => {
-    const basePages = ['/discover', '/music', '/dashboard', '/passport', '/market'];
+    // ✅ FIXED: Only use routes that exist
+    // /discover = Music Discovery page
+    // /nft = Create NFT page
+    // /dashboard = User Dashboard
+    // /passport = Passport Minting
+    // /swap = Token Swap
+    // /staking = DeFi Staking
+    const basePages = ['/discover', '/nft', '/dashboard', '/passport', '/swap', '/staking'];
     if (user) {
       return [...basePages, '/profile'];
     }

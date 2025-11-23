@@ -78,16 +78,27 @@ export async function POST(req: NextRequest) {
     const key = `delegation:${userAddress.toLowerCase()}`;
     const ttl = durationHours * 3600; // Convert to seconds
 
+    const delegationJson = JSON.stringify(delegation);
+    console.log(`📝 Storing delegation to Redis: key=${key}, ttl=${ttl}s, size=${delegationJson.length} bytes`);
+
     await redis.setex(
       key,
       ttl,
-      JSON.stringify(delegation)
+      delegationJson
     );
 
-    console.log('✅ Delegation created and stored in Redis');
+    // ✅ VERIFY: Immediately read back to confirm storage
+    const verification = await redis.get(key);
+    if (!verification) {
+      console.error('❌ CRITICAL: Delegation was NOT stored in Redis!');
+      throw new Error('Failed to store delegation in Redis');
+    }
+
+    console.log('✅ Delegation created and VERIFIED in Redis');
     console.log('   Key:', key);
     console.log('   TTL:', ttl, 'seconds');
     console.log('   Permissions:', delegation.config.permissions);
+    console.log('   Verified:', !!verification);
 
     return NextResponse.json({
       success: true,

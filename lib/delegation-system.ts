@@ -79,27 +79,36 @@ export async function createDelegation(
  */
 export async function getDelegation(userAddress: string): Promise<Delegation | null> {
   try {
-    const key = `delegation:${userAddress.toLowerCase()}`;
+    const normalizedAddress = userAddress.toLowerCase();
+    const key = `delegation:${normalizedAddress}`;
+    console.log(`🔍 Looking up delegation key: ${key}`);
+
     const data = await redis.get(key);
 
     if (!data) {
-      console.log('⚠️ No delegation found for:', userAddress);
+      console.log('⚠️ No delegation found in Redis for:', normalizedAddress);
       return null;
     }
+
+    console.log('📦 Raw delegation data type:', typeof data);
 
     const delegation = parseDelegationData(data);
 
     if (!delegation) {
-      console.warn('⚠️ Failed to parse delegation for:', userAddress);
+      console.warn('⚠️ Failed to parse delegation for:', normalizedAddress);
       return null;
     }
 
-    if (delegation.expiresAt < Date.now()) {
+    const now = Date.now();
+    const timeLeft = delegation.expiresAt - now;
+
+    if (timeLeft <= 0) {
       await redis.del(key);
-      console.log(`⚠️ Delegation expired for ${userAddress}`);
+      console.log(`⚠️ Delegation expired for ${normalizedAddress} (expired ${Math.abs(timeLeft)}ms ago)`);
       return null;
     }
 
+    console.log(`✅ Valid delegation found for ${normalizedAddress}, expires in ${Math.floor(timeLeft / 1000 / 60)} minutes`);
     return delegation;
   } catch (error) {
     console.error('❌ Error getting delegation:', error);

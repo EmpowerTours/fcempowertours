@@ -34,10 +34,34 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
-    const delegation = await getDelegation(userAddress);
+
+    // ✅ RETRY MECHANISM: Handle potential Redis eventual consistency
+    let delegation = null;
+    let retries = 3;
+
+    while (retries > 0 && !delegation) {
+      delegation = await getDelegation(userAddress);
+
+      if (delegation) {
+        console.log('✅ Delegation found:', {
+          user: delegation.user,
+          expires: new Date(delegation.expiresAt).toISOString(),
+          permissions: delegation.config.permissions.length,
+          transactionsExecuted: delegation.transactionsExecuted
+        });
+      } else {
+        retries--;
+        if (retries > 0) {
+          console.log(`⏳ Delegation not found, retrying in 500ms... (${retries} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    }
+
     if (!delegation || delegation.expiresAt < Date.now()) {
+      console.error('❌ No valid delegation found after retries for:', userAddress);
       return NextResponse.json(
-        { success: false, error: 'No active delegation' },
+        { success: false, error: 'No active delegation. Please try again or refresh the page to create a new delegation.' },
         { status: 403 }
       );
     }
