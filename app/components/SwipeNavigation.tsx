@@ -22,13 +22,13 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
   // Define page order - only use routes that actually exist
   const getPageOrder = () => {
     // ✅ FIXED: Only use routes that exist
-    // /discover = Music Discovery page
+    // / = Home (same as discover)
     // /nft = Create NFT page
     // /dashboard = User Dashboard
     // /passport = Passport Minting
     // /swap = Token Swap
     // /staking = DeFi Staking
-    const basePages = ['/discover', '/nft', '/dashboard', '/passport', '/swap', '/staking'];
+    const basePages = ['/', '/nft', '/dashboard', '/passport', '/swap', '/staking'];
     if (user) {
       return [...basePages, '/profile'];
     }
