@@ -83,10 +83,10 @@ export async function GET(
           <meta property="fc:frame:image" content="${ogImageUrl}">
           <meta property="fc:frame:image:aspect_ratio" content="1.91:1">
           <meta property="fc:frame:button:1" content="👤 View Profile">
-          <meta property="fc:frame:button:1:action" content="link">
+          <meta property="fc:frame:button:1:action" content="launch_frame">
           <meta property="fc:frame:button:1:target" content="${miniAppUrl}">
           <meta property="fc:frame:button:2" content="🗺️ Collect More">
-          <meta property="fc:frame:button:2:action" content="link">
+          <meta property="fc:frame:button:2:action" content="launch_frame">
           <meta property="fc:frame:button:2:target" content="${APP_URL}/passport">
           <title>Travel Passport #${tokenId} - EmpowerTours</title>
         </head>

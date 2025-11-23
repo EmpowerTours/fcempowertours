@@ -994,9 +994,10 @@ View profile and collection!
           message: `Wrapped ${params.amount} MON to WMON successfully (gasless)`,
         });
 
-      // ==================== UNWRAP WMON TO MON ====================
+      // ==================== UNWRAP WMON TO MON (via Helper) ====================
+      // Uses WMONUnwrapHelper to bypass 2300 gas limit issue with Safe accounts
       case 'unwrap_wmon':
-        console.log('🎁 Action: unwrap_wmon');
+        console.log('🎁 Action: unwrap_wmon (using WMONUnwrapHelper)');
         if (!params?.amount) {
           return NextResponse.json(
             { success: false, error: 'Missing amount for unwrap_wmon' },
@@ -1005,27 +1006,42 @@ View profile and collection!
         }
 
         const WMON_ADDRESS_UNWRAP = process.env.NEXT_PUBLIC_WMON as Address;
+        const WMON_UNWRAP_HELPER = (process.env.NEXT_PUBLIC_WMON_UNWRAP_HELPER || '0x70580F77d7602f9A03fD34F17f3cC395BbCe6938') as Address;
         const unwrapWmonAmount = parseEther(params.amount.toString());
 
-        console.log('🎁 Unwrapping WMON to MON:', {
+        console.log('🎁 Unwrapping WMON to MON via Helper:', {
           amount: params.amount,
           wmonAddress: WMON_ADDRESS_UNWRAP,
+          helperAddress: WMON_UNWRAP_HELPER,
+          safeAddress: SAFE_ACCOUNT,
         });
 
+        // Two-step process:
+        // 1. Approve helper to spend WMON
+        // 2. Call helper.unwrapTo(amount, Safe) - helper receives MON via transfer(), forwards to Safe via call()
         const unwrapWmonCalls = [
           {
             to: WMON_ADDRESS_UNWRAP,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function withdraw(uint256 amount) external']),
-              functionName: 'withdraw',
-              args: [unwrapWmonAmount],
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [WMON_UNWRAP_HELPER, unwrapWmonAmount],
+            }) as Hex,
+          },
+          {
+            to: WMON_UNWRAP_HELPER,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unwrapTo(uint256 amount, address recipient) external']),
+              functionName: 'unwrapTo',
+              args: [unwrapWmonAmount, SAFE_ACCOUNT],
             }) as Hex,
           },
         ];
 
         const unwrapWmonTxHash = await sendSafeTransaction(unwrapWmonCalls);
-        console.log('✅ WMON unwrapped to MON, TX:', unwrapWmonTxHash);
+        console.log('✅ WMON unwrapped to MON via helper, TX:', unwrapWmonTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -1034,7 +1050,97 @@ View profile and collection!
           action,
           userAddress,
           amount: params.amount,
-          message: `Unwrapped ${params.amount} WMON to MON successfully (gasless)`,
+          message: `Unwrapped ${params.amount} WMON to MON successfully (gasless via helper)`,
+        });
+
+      // ==================== WITHDRAW TO USER (Safe → User Wallet) ====================
+      case 'withdraw_to_user':
+        console.log('💸 Action: withdraw_to_user (Safe → User Wallet)');
+        if (!params?.token || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing token or amount for withdraw_to_user' },
+            { status: 400 }
+          );
+        }
+
+        const withdrawAmount = parseEther(params.amount.toString());
+
+        // Support common token shortcuts
+        let withdrawTokenAddress: Address;
+        const tokenParam = params.token.toLowerCase();
+
+        if (tokenParam === 'tours') {
+          withdrawTokenAddress = TOURS_TOKEN;
+        } else if (tokenParam === 'wmon') {
+          withdrawTokenAddress = process.env.NEXT_PUBLIC_WMON as Address;
+        } else if (tokenParam === 'mon') {
+          // Native MON transfer (no ERC-20, just send value)
+          console.log('💸 Withdrawing native MON to user:', {
+            amount: params.amount,
+            recipient: userAddress,
+          });
+
+          const withdrawMonCalls = [
+            {
+              to: userAddress,
+              value: withdrawAmount,
+              data: '0x' as Hex, // Empty calldata for native transfer
+            },
+          ];
+
+          const withdrawMonTxHash = await sendSafeTransaction(withdrawMonCalls);
+          console.log('✅ MON withdrawn to user, TX:', withdrawMonTxHash);
+
+          await incrementTransactionCount(userAddress);
+          return NextResponse.json({
+            success: true,
+            txHash: withdrawMonTxHash,
+            action,
+            userAddress,
+            token: 'MON',
+            amount: params.amount,
+            message: `Withdrew ${params.amount} MON to your wallet successfully`,
+          });
+        } else if (tokenParam.startsWith('0x')) {
+          // Direct address provided
+          withdrawTokenAddress = tokenParam as Address;
+        } else {
+          return NextResponse.json(
+            { success: false, error: `Unknown token: ${params.token}. Use 'tours', 'wmon', 'mon', or a token address.` },
+            { status: 400 }
+          );
+        }
+
+        console.log('💸 Withdrawing ERC-20 to user:', {
+          token: withdrawTokenAddress,
+          amount: params.amount,
+          recipient: userAddress,
+        });
+
+        const withdrawTokenCalls = [
+          {
+            to: withdrawTokenAddress,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [userAddress, withdrawAmount],
+            }) as Hex,
+          },
+        ];
+
+        const withdrawTokenTxHash = await sendSafeTransaction(withdrawTokenCalls);
+        console.log('✅ Token withdrawn to user, TX:', withdrawTokenTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: withdrawTokenTxHash,
+          action,
+          userAddress,
+          token: params.token,
+          amount: params.amount,
+          message: `Withdrew ${params.amount} ${params.token.toUpperCase()} to your wallet successfully`,
         });
 
       // ==================== APPROVE YIELD STRATEGY (ONE-TIME SETUP) ====================

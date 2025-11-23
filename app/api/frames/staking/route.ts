@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       },
       {
         label: 'View Stats',
-        action: 'link',
+        action: 'launch_frame',
         target: `${APP_URL}/staking`,
       },
       {

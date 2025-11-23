@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
 
     // ==================== PASSPORT CAST ====================
     if (type === 'passport') {
-      const castUrl = `${APP_URL}/passport?tokenId=${tokenId}`;
+      // Use frame URL that links to owner's profile in mini-app
+      const frameUrl = `${APP_URL}/api/frames/passport/${tokenId}`;
       castText = `🎫 New EmpowerTours Passport Minted!
 
 ${countryCode} ${countryName}
@@ -56,13 +57,14 @@ View: https://testnet.monadscan.com/tx/${txHash}
 
 @empowertours`;
 
-      embeds = [{ url: castUrl }];
+      embeds = [{ url: frameUrl }];
       console.log('📢 Passport cast text:', castText);
     }
 
-    // ==================== MUSIC MINT CAST ====================
+    // ==================== MUSIC MINT CAST (Artist) ====================
     else if (type === 'music_mint') {
-      const musicUrl = `${APP_URL}/music?tokenId=${tokenId}`;
+      // Link to artist's profile page (they minted it)
+      const artistProfileUrl = `${APP_URL}/profile?fid=${fid}`;
       castText = `🎵 New Music Master NFT Minted!
 
 "${songTitle || 'Untitled'}" - Token #${tokenId}
@@ -75,12 +77,14 @@ View: https://testnet.monadscan.com/tx/${txHash}
 
 @empowertours`;
 
-      embeds = [{ url: musicUrl }];
+      embeds = [{ url: artistProfileUrl }];
       console.log('📢 Music mint cast text:', castText);
     }
 
-    // ==================== MUSIC PURCHASE CAST ====================
+    // ==================== MUSIC PURCHASE CAST (Buyer) ====================
     else if (type === 'music_purchase') {
+      // Link to buyer's profile page (they purchased it)
+      const buyerProfileUrl = `${APP_URL}/profile?fid=${fid}`;
       castText = `🎶 Just Purchased a Music License on @empowertours!
 
 Now I can stream "${songTitle || 'Untitled'}" 🎵
@@ -91,12 +95,14 @@ Gasless - they paid the gas! 🚀
 
 @empowertours`;
 
+      embeds = [{ url: buyerProfileUrl }];
       console.log('📢 Music purchase cast text:', castText);
     }
 
     // ==================== STAKING CAST ====================
     else if (type === 'stake_tours') {
-      const stakingUrl = `${APP_URL}/passport-staking`;
+      // Use frame URL so clicking opens mini-app in Warpcast, not browser
+      const stakingUrl = `${APP_URL}/api/frames/staking`;
 
       // Try to get username from FID
       let username = '';

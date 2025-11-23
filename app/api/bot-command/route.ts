@@ -993,10 +993,10 @@ Or go to the Music page to upload files.`
           isArt: is_art,
         });
 
-        if (price <= 0 || price > 10) {
+        if (price <= 0 || price > 1000) {
           return NextResponse.json({
             success: false,
-            message: 'Invalid price. Use: 0.001 - 10 TOURS'
+            message: 'Invalid price. Use: 0.001 - 1000 TOURS'
           });
         }
 
