@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { parseEther, formatEther } from 'viem';
+import { parseEther } from 'viem';
 
 // Configuration - matches lib/lottery.ts
 const LOTTERY_CONFIG = {
@@ -28,7 +28,7 @@ interface PoolStatus {
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
-  const { walletAddress, user, sendTransaction, sdk, isLoading: contextLoading } = useFarcasterContext();
+  const { walletAddress, user, sdk, isLoading: contextLoading } = useFarcasterContext();
 
   const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
   const [poolStatus, setPoolStatus] = useState<PoolStatus | null>(null);
@@ -89,7 +89,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     }
   }, [walletAddress, contextLoading, checkAccess, fetchPoolStatus]);
 
-  // Handle payment
+  // Handle payment using Farcaster SDK sendToken
   const handlePayment = async () => {
     if (!walletAddress || !user?.fid) {
       setError('Wallet not connected');
@@ -101,88 +101,94 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     setSuccess('');
 
     try {
-      // Step 1: Request chain switch to Base
-      console.log('Switching to Base chain...');
-      setSuccess('Switching to Base network...');
+      // Use Farcaster SDK sendToken for ETH transfer on Base
+      console.log('Initiating ETH payment via Farcaster SDK...');
+      setSuccess('Please confirm the payment in Warpcast...');
 
-      try {
-        if (sdk?.actions?.switchChain) {
-          await sdk.actions.switchChain({ chainId: LOTTERY_CONFIG.BASE_CHAIN_ID });
+      // Convert ETH amount to wei string for sendToken
+      const weiAmount = parseEther(LOTTERY_CONFIG.ACCESS_FEE_ETH.toString()).toString();
+
+      if (sdk?.actions?.sendToken) {
+        console.log('Using Farcaster SDK sendToken:', {
+          to: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
+          amount: weiAmount,
+          chainId: LOTTERY_CONFIG.BASE_CHAIN_ID,
+        });
+
+        // sendToken sends native ETH when no token address specified
+        const result = await sdk.actions.sendToken({
+          token: 'eth', // Native ETH
+          amount: weiAmount, // Amount in wei
+          recipientAddress: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
+          chain: 'eip155:8453', // Base mainnet in CAIP-2 format
+        });
+
+        console.log('sendToken result:', result);
+
+        // Result may contain transaction hash or success indicator
+        const hash = result?.transactionHash || result?.hash || result?.txHash;
+
+        if (!hash && !result?.success) {
+          // User may have cancelled or it failed
+          throw new Error('Transaction was cancelled or failed');
         }
-      } catch (switchErr: any) {
-        // Chain switch may fail if already on Base or not supported
-        console.warn('Chain switch result:', switchErr);
-      }
 
-      // Step 2: Send ETH to bot wallet
-      console.log('Sending payment...');
-      setSuccess('Please confirm the payment in your wallet...');
+        // If we got a hash, use it; otherwise generate a reference
+        const txRef = hash || `lottery-${Date.now()}-${user.fid}`;
+        setTxHash(hash || null);
 
-      const value = parseEther(LOTTERY_CONFIG.ACCESS_FEE_ETH.toString());
-      const valueHex = '0x' + value.toString(16);
+        if (hash) {
+          setSuccess('Payment sent! Verifying on blockchain...');
+        } else {
+          setSuccess('Payment initiated! Recording entry...');
+        }
 
-      let txResult: any;
-
-      // Try Farcaster SDK first
-      if (sdk?.actions?.sendTransaction) {
-        console.log('Using Farcaster SDK sendTransaction');
-        txResult = await sdk.actions.sendTransaction({
-          to: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
-          value: valueHex,
-          chainId: LOTTERY_CONFIG.BASE_CHAIN_ID,
+        // Step 3: Record payment on backend
+        console.log('Recording payment...');
+        const recordResponse = await fetch('/api/lottery/pay-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            fid: user.fid,
+            username: user.username,
+            txHash: txRef,
+            amountETH: LOTTERY_CONFIG.ACCESS_FEE_ETH,
+          }),
         });
-      } else if (sendTransaction) {
-        console.log('Using context sendTransaction');
-        txResult = await sendTransaction({
-          to: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
-          value: valueHex,
-          chainId: LOTTERY_CONFIG.BASE_CHAIN_ID,
-        });
+
+        const recordData = await recordResponse.json();
+
+        if (!recordData.success) {
+          throw new Error(recordData.error || 'Failed to record payment');
+        }
+
+        setSuccess('Access granted! You are entered in today\'s lottery!');
+
+        // Refresh status after short delay
+        setTimeout(() => {
+          checkAccess();
+          fetchPoolStatus();
+        }, 2000);
+
       } else {
-        throw new Error('No transaction method available');
+        // Fallback: show instructions to pay manually
+        const availableMethods = sdk?.actions ? Object.keys(sdk.actions).join(', ') : 'none';
+        throw new Error(
+          `Farcaster sendToken not available. Available SDK methods: ${availableMethods}. ` +
+          `Please send ${LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH on Base to ${LOTTERY_CONFIG.BOT_WALLET_ADDRESS} and contact support.`
+        );
       }
-
-      const hash = txResult?.transactionHash || txResult?.hash || txResult;
-      console.log('Transaction result:', txResult);
-
-      if (!hash) {
-        throw new Error('No transaction hash received');
-      }
-
-      setTxHash(hash);
-      setSuccess('Payment sent! Verifying...');
-
-      // Step 3: Record payment on backend
-      console.log('Recording payment...');
-      const recordResponse = await fetch('/api/lottery/pay-access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          fid: user.fid,
-          username: user.username,
-          txHash: hash,
-          amountETH: LOTTERY_CONFIG.ACCESS_FEE_ETH,
-        }),
-      });
-
-      const recordData = await recordResponse.json();
-
-      if (!recordData.success) {
-        throw new Error(recordData.error || 'Failed to record payment');
-      }
-
-      setSuccess('Access granted! You are entered in today\'s lottery!');
-
-      // Refresh status after short delay
-      setTimeout(() => {
-        checkAccess();
-        fetchPoolStatus();
-      }, 2000);
 
     } catch (err: any) {
       console.error('Payment error:', err);
-      setError(err.message || 'Payment failed. Please try again.');
+
+      // Check if user cancelled
+      if (err.message?.includes('cancelled') || err.message?.includes('rejected') || err.message?.includes('denied')) {
+        setError('Payment was cancelled. Please try again when ready.');
+      } else {
+        setError(err.message || 'Payment failed. Please try again.');
+      }
     } finally {
       setIsPaying(false);
     }
