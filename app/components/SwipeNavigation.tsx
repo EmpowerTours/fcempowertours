@@ -11,13 +11,16 @@ interface SwipeNavigationProps {
 
 export default function SwipeNavigation({ children }: SwipeNavigationProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const rawPathname = usePathname();
   const { user } = useFarcasterContext();
   const [swipeProgress, setSwipeProgress] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchStartTime = useRef<number | null>(null);
+
+  // Normalize pathname - treat /discover as / (they show same content)
+  const pathname = rawPathname === '/discover' ? '/' : rawPathname;
 
   // Define page order - only use routes that actually exist
   const getPageOrder = () => {

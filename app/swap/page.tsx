@@ -386,10 +386,36 @@ function SwapContent() {
           <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 backdrop-blur-lg border border-yellow-500/30 rounded-xl p-5">
             <p className="text-yellow-200 text-xs font-medium mb-2">MON Balance</p>
             <p className="text-3xl font-bold text-yellow-100">{balances.mon}</p>
+            {/* Wallet/Safe breakdown */}
+            {(balances as any).monWallet && (
+              <div className="mt-2 pt-2 border-t border-yellow-500/30 text-xs">
+                <div className="flex justify-between text-yellow-200">
+                  <span>Wallet:</span>
+                  <span className="font-mono">{(balances as any).monWallet}</span>
+                </div>
+                <div className="flex justify-between text-yellow-200">
+                  <span>Safe:</span>
+                  <span className="font-mono">{(balances as any).monSafe}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-lg border border-green-500/30 rounded-xl p-5">
             <p className="text-green-200 text-xs font-medium mb-2">TOURS Balance</p>
             <p className="text-3xl font-bold text-green-100">{balances.tours}</p>
+            {/* Wallet/Safe breakdown for TOURS */}
+            {(balances as any).breakdown?.tours && (
+              <div className="mt-2 pt-2 border-t border-green-500/30 text-xs">
+                <div className="flex justify-between text-green-200">
+                  <span>Wallet:</span>
+                  <span className="font-mono">{(balances as any).breakdown.tours.user}</span>
+                </div>
+                <div className="flex justify-between text-green-200">
+                  <span>Safe:</span>
+                  <span className="font-mono">{(balances as any).breakdown.tours.safe}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-lg border border-blue-500/30 rounded-xl p-5">
             <p className="text-blue-200 text-xs font-medium mb-2">WMON Balance</p>
