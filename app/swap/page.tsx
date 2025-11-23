@@ -420,6 +420,19 @@ function SwapContent() {
           <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-lg border border-blue-500/30 rounded-xl p-5">
             <p className="text-blue-200 text-xs font-medium mb-2">WMON Balance</p>
             <p className="text-3xl font-bold text-blue-100">{balances.wmon || '0'}</p>
+            {/* Wallet/Safe breakdown for WMON */}
+            {(balances as any).wmonWallet && (
+              <div className="mt-2 pt-2 border-t border-blue-500/30 text-xs">
+                <div className="flex justify-between text-blue-200">
+                  <span>Wallet:</span>
+                  <span className="font-mono">{(balances as any).wmonWallet}</span>
+                </div>
+                <div className="flex justify-between text-blue-200">
+                  <span>Safe:</span>
+                  <span className="font-mono">{(balances as any).wmonSafe}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

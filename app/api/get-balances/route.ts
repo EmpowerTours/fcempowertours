@@ -230,12 +230,17 @@ export async function POST(req: NextRequest) {
     // =============================================
     // STEP 4: Return aggregated balances with breakdown
     // =============================================
+    const wmonFormattedUser = parseFloat(formatEther(wmonBalanceUser)).toFixed(4);
+    const wmonFormattedSafe = parseFloat(formatEther(wmonBalanceSafe)).toFixed(4);
+
     const finalResponse = {
       mon: monFormatted,
       monWallet: monFormattedUser,  // ✅ User's personal wallet MON
       monSafe: monFormattedSafe,     // ✅ Safe's MON (for gasless txs)
       tours: toursFormatted,
       wmon: wmonFormatted,           // ✅ Wrapped MON balance
+      wmonWallet: wmonFormattedUser, // ✅ User's WMON
+      wmonSafe: wmonFormattedSafe,   // ✅ Safe's WMON
       nfts: nftData,
       // ✅ ADDED: Breakdown for debugging
       breakdown: {
@@ -249,7 +254,11 @@ export async function POST(req: NextRequest) {
           safe: parseFloat(formatEther(toursBalanceSafe)).toFixed(2),
           total: toursFormatted,
         },
-        wmon: wmonFormatted,
+        wmon: {
+          user: wmonFormattedUser,
+          safe: wmonFormattedSafe,
+          total: wmonFormatted,
+        },
       },
     };
 
