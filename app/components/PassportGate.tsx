@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import PassportRequirement from './PassportRequirement';
-import DailyAccessGate from './DailyAccessGate';
+// TEMPORARILY DISABLED: DailyAccessGate - Farcaster sendToken doesn't work for direct payments
+// import DailyAccessGate from './DailyAccessGate';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { usePassportNFT } from '@/src/hooks/usePassportNFT';
 import { Address } from 'viem';
@@ -55,15 +56,14 @@ export default function PassportGate({ children }: PassportGateProps) {
 
   // 🔒 CRITICAL: Don't render children until passport requirement is met
   // This prevents users from navigating the site in the background
-  // After passport check, also check for daily access fee payment
+  // TEMPORARILY DISABLED: DailyAccessGate - Farcaster sendToken doesn't work for direct payments
+  // TODO: Re-enable lottery once we have a working payment solution (possibly on Monad)
   return (
     <>
       {showGate ? (
         <PassportRequirement onPassportMinted={handlePassportMinted} />
       ) : (
-        <DailyAccessGate>
-          {children}
-        </DailyAccessGate>
+        children
       )}
     </>
   );
