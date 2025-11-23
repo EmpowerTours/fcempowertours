@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { parseEther } from 'viem';
 
 // Configuration - matches lib/lottery.ts
 const LOTTERY_CONFIG = {
@@ -28,15 +27,15 @@ interface PoolStatus {
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
-  const { walletAddress, user, sdk, isLoading: contextLoading } = useFarcasterContext();
+  const { walletAddress, user, isLoading: contextLoading } = useFarcasterContext();
 
   const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
   const [poolStatus, setPoolStatus] = useState<PoolStatus | null>(null);
   const [isChecking, setIsChecking] = useState(true);
-  const [isPaying, setIsPaying] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [txHash, setTxHash] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Check access status
   const checkAccess = useCallback(async () => {
@@ -89,124 +88,69 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     }
   }, [walletAddress, contextLoading, checkAccess, fetchPoolStatus]);
 
-  // Handle payment using Farcaster SDK sendToken
-  const handlePayment = async () => {
+  // Copy address to clipboard
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(LOTTERY_CONFIG.BOT_WALLET_ADDRESS);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = LOTTERY_CONFIG.BOT_WALLET_ADDRESS;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Verify payment on-chain
+  const handleVerifyPayment = async () => {
     if (!walletAddress || !user?.fid) {
       setError('Wallet not connected');
       return;
     }
 
-    setIsPaying(true);
+    setIsVerifying(true);
     setError('');
     setSuccess('');
 
     try {
-      // Use Farcaster SDK sendToken for ETH transfer on Base
-      console.log('Initiating ETH payment via Farcaster SDK...');
-      setSuccess('Please confirm the payment in Warpcast...');
+      console.log('Verifying payment on-chain...');
+      setSuccess('Checking Base blockchain for your payment...');
 
-      // Convert ETH amount to wei string for sendToken
-      const weiAmount = parseEther(LOTTERY_CONFIG.ACCESS_FEE_ETH.toString()).toString();
+      const response = await fetch('/api/lottery/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          fid: user.fid,
+          username: user.username,
+        }),
+      });
 
-      if (sdk?.actions?.sendToken) {
-        // CAIP-19 format for native ETH on Base: eip155:8453/slip44:60
-        const nativeEthToken = 'eip155:8453/slip44:60';
+      const data = await response.json();
 
-        console.log('Using Farcaster SDK sendToken:', {
-          token: nativeEthToken,
-          to: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
-          amount: weiAmount,
-        });
+      if (data.success) {
+        setSuccess(`Payment verified! ${data.message}`);
 
-        // sendToken with CAIP-19 token identifier for native ETH
-        const result = await sdk.actions.sendToken({
-          token: nativeEthToken, // Native ETH on Base in CAIP-19 format
-          amount: weiAmount, // Amount in wei
-          recipientAddress: LOTTERY_CONFIG.BOT_WALLET_ADDRESS,
-        });
-
-        console.log('sendToken result:', result);
-
-        // Result may contain transaction hash or success indicator
-        const hash = result?.transactionHash || result?.hash || result?.txHash;
-
-        if (!hash && !result?.success) {
-          // User may have cancelled or it failed
-          throw new Error('Transaction was cancelled or failed');
-        }
-
-        // If we got a hash, use it; otherwise generate a reference
-        const txRef = hash || `lottery-${Date.now()}-${user.fid}`;
-        setTxHash(hash || null);
-
-        if (hash) {
-          setSuccess('Payment sent! Verifying on blockchain...');
-        } else {
-          setSuccess('Payment initiated! Recording entry...');
-        }
-
-        // Step 3: Record payment on backend
-        console.log('Recording payment...');
-        const recordResponse = await fetch('/api/lottery/pay-access', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: walletAddress,
-            fid: user.fid,
-            username: user.username,
-            txHash: txRef,
-            amountETH: LOTTERY_CONFIG.ACCESS_FEE_ETH,
-          }),
-        });
-
-        const recordData = await recordResponse.json();
-
-        if (!recordData.success) {
-          throw new Error(recordData.error || 'Failed to record payment');
-        }
-
-        setSuccess('Access granted! You are entered in today\'s lottery!');
-
-        // Refresh status after short delay
+        // Refresh access status
         setTimeout(() => {
           checkAccess();
           fetchPoolStatus();
-        }, 2000);
-
+        }, 1500);
       } else {
-        // Fallback: show instructions to pay manually
-        const availableMethods = sdk?.actions ? Object.keys(sdk.actions).join(', ') : 'none';
-        throw new Error(
-          `Farcaster sendToken not available. Available SDK methods: ${availableMethods}. ` +
-          `Please send ${LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH on Base to ${LOTTERY_CONFIG.BOT_WALLET_ADDRESS} and contact support.`
-        );
+        setError(data.error || 'No payment found. Please send ETH and try again.');
       }
-
     } catch (err: any) {
-      console.error('Payment error:', err);
-
-      // Check if user cancelled
-      if (err.message?.includes('cancelled') || err.message?.includes('rejected') || err.message?.includes('denied')) {
-        setError('Payment was cancelled. Please try again when ready.');
-      } else {
-        setError(err.message || 'Payment failed. Please try again.');
-      }
+      console.error('Verification error:', err);
+      setError(err.message || 'Verification failed. Please try again.');
     } finally {
-      setIsPaying(false);
+      setIsVerifying(false);
     }
-  };
-
-  // Format time remaining
-  const formatTimeRemaining = (expiresAt: number) => {
-    const now = Date.now();
-    const remaining = expiresAt - now;
-
-    if (remaining <= 0) return 'Expired';
-
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-
-    return `${hours}h ${minutes}m`;
   };
 
   // Show loading while checking
@@ -226,7 +170,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     return <>{children}</>;
   }
 
-  // Show payment gate
+  // Show payment gate with manual payment instructions
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-amber-900 via-orange-900 to-red-900 flex items-center justify-center z-[9999] p-4 overflow-y-auto">
       <div className="w-full max-w-md my-8">
@@ -275,11 +219,50 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
             </div>
           </div>
 
+          {/* Payment Instructions */}
+          <div className="bg-blue-500/20 rounded-xl p-4 mb-6 border border-blue-400/30">
+            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+              📋 Payment Instructions
+            </h3>
+
+            <div className="space-y-3">
+              <div className="text-sm text-white/80">
+                <span className="text-blue-400 font-bold">1.</span> Send exactly <span className="text-green-400 font-bold">{LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH</span> on <span className="text-blue-400 font-bold">Base</span> to:
+              </div>
+
+              {/* Payment Address */}
+              <div
+                onClick={copyAddress}
+                className="bg-black/30 rounded-lg p-3 cursor-pointer hover:bg-black/40 transition-colors border border-white/10"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <code className="text-yellow-300 text-xs sm:text-sm break-all font-mono">
+                    {LOTTERY_CONFIG.BOT_WALLET_ADDRESS}
+                  </code>
+                  <button className="text-white/60 hover:text-white shrink-0">
+                    {copied ? '✅' : '📋'}
+                  </button>
+                </div>
+                <p className="text-white/50 text-xs mt-1">
+                  {copied ? 'Copied!' : 'Tap to copy address'}
+                </p>
+              </div>
+
+              <div className="text-sm text-white/80">
+                <span className="text-blue-400 font-bold">2.</span> Use any wallet (Coinbase, MetaMask, Rainbow, etc.)
+              </div>
+
+              <div className="text-sm text-white/80">
+                <span className="text-blue-400 font-bold">3.</span> After sending, click "Verify Payment" below
+              </div>
+            </div>
+          </div>
+
           {/* Today's Pool Info */}
           {poolStatus && (
             <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-4 mb-6 border border-green-500/30">
               <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
-                <span>Today's Lottery Pool</span>
+                🏆 Today's Lottery Pool
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -301,26 +284,6 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
             </div>
           )}
 
-          {/* How it Works */}
-          <div className="space-y-2 mb-6">
-            <div className="flex items-start gap-3 text-sm">
-              <span className="text-lg">1.</span>
-              <p className="text-white/80">Pay {LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH on Base</p>
-            </div>
-            <div className="flex items-start gap-3 text-sm">
-              <span className="text-lg">2.</span>
-              <p className="text-white/80">Get 24-hour access to EmpowerTours</p>
-            </div>
-            <div className="flex items-start gap-3 text-sm">
-              <span className="text-lg">3.</span>
-              <p className="text-white/80">50% of your fee enters today's lottery</p>
-            </div>
-            <div className="flex items-start gap-3 text-sm">
-              <span className="text-lg">4.</span>
-              <p className="text-white/80">Random winner announced daily!</p>
-            </div>
-          </div>
-
           {/* Error Message */}
           {error && (
             <div className="mb-4 bg-red-500/20 border border-red-400/50 rounded-xl p-3">
@@ -332,39 +295,33 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
           {success && (
             <div className="mb-4 bg-green-500/20 border border-green-400/50 rounded-xl p-3">
               <p className="text-green-100 text-sm">{success}</p>
-              {txHash && (
-                <a
-                  href={`https://basescan.org/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-300 text-xs underline mt-1 block"
-                >
-                  View on BaseScan
-                </a>
-              )}
             </div>
           )}
 
-          {/* Pay Button */}
+          {/* Verify Payment Button */}
           <button
-            onClick={handlePayment}
-            disabled={isPaying || !walletAddress}
-            className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg"
+            onClick={handleVerifyPayment}
+            disabled={isVerifying || !walletAddress}
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg"
           >
-            {isPaying ? (
+            {isVerifying ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin">⏳</span>
-                Processing...
+                <span className="animate-spin">🔍</span>
+                Verifying on Base...
               </span>
             ) : (
-              <span>Pay {LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH & Enter Lottery</span>
+              <span>✅ Verify My Payment</span>
             )}
           </button>
+
+          <p className="text-white/50 text-xs text-center mt-2">
+            We'll check the blockchain for your payment
+          </p>
 
           {/* Wallet Info */}
           {walletAddress && (
             <p className="text-white/40 text-xs text-center mt-4">
-              Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              Your wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
             </p>
           )}
 

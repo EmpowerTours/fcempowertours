@@ -525,6 +525,7 @@ View profile and collection!
             let songTitle = params.songTitle || 'Track';
             let songPrice = '0';  // ✅ Default to 0 not ?
             let songArtist = 'Unknown Artist';  // ✅ Better default
+            let isArtNFT = false;  // ✅ Track if this is an Art NFT
 
             console.log('🔍 Fetching music metadata from Envio for token:', tokenId.toString());
 
@@ -536,6 +537,7 @@ View profile and collection!
                     name
                     price
                     artist
+                    isArt
                   }
                 }
               `;
@@ -562,6 +564,7 @@ View profile and collection!
 
                 if (musicNFT) {
                   songTitle = musicNFT.name || 'Track';
+                  isArtNFT = musicNFT.isArt === true;  // ✅ Check if it's an Art NFT
 
                   // ✅ Convert price from wei (inline to ensure it works)
                   if (musicNFT.price) {
@@ -622,15 +625,24 @@ View profile and collection!
               console.error('❌ Stack:', envioErr.stack);
             }
 
-            const frameUrl = `${APP_URL}/api/frames/music/${tokenId.toString()}`;
-            const castText = `💎 Music License Purchased!
+            // ✅ Conditional frame URL and cast text based on NFT type
+            const frameRoute = isArtNFT ? 'art' : 'music';
+            const frameUrl = `${APP_URL}/api/frames/${frameRoute}/${tokenId.toString()}`;
+
+            const nftEmoji = isArtNFT ? '🎨' : '🎵';
+            const nftType = isArtNFT ? 'Art NFT' : 'Music License';
+            const enjoyText = isArtNFT ? '🖼️ Enjoy your NFT!' : '🎧 Enjoy streaming!';
+
+            const castText = `${nftEmoji} ${nftType} Purchased!
 
 "${songTitle}" #${tokenId}
 🎤 ${songArtist}
 💰 ${songPrice} TOURS
 
 ⚡ Gasless transaction powered by @empowertours
-🎧 Enjoy streaming!
+${enjoyText}
+
+🔗 TX: https://testnet.monadscan.com/tx/${buyTxHash}
 
 @empowertours`;
 
@@ -675,7 +687,7 @@ View profile and collection!
           action,
           userAddress,
           tokenId: tokenId.toString(),
-          message: `Music license purchased for ${userAddress}`,
+          message: `NFT purchased for ${userAddress}`,
         });
 
       // ==================== SEND TOURS ====================
