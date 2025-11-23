@@ -480,9 +480,8 @@ export default function ProfilePage() {
         isArt: nft.isArt,
       }));
 
-      // Set purchased art (owned art NFTs that user didn't create)
+      // Get owned art NFTs (user didn't create) - will combine with art licenses later
       const purchasedArtOnly = allOwnedNFTs.filter(nft => nft.isArt);
-      setPurchasedArt(purchasedArtOnly);
 
       // Fetch master token details for purchased licenses
       const masterTokenIds = purchasedLicenses.map((l: any) => l.masterTokenId).filter((id: any) => id);
@@ -499,6 +498,7 @@ export default function ProfilePage() {
               previewAudioUrl
               fullAudioUrl
               price
+              isArt
             }
           }
         `;
@@ -523,8 +523,8 @@ export default function ProfilePage() {
         }
       }
 
-      // Purchased Music with IPFS resolution
-      const purchasedMusicWithType: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => {
+      // Purchased licenses with IPFS resolution - separate music and art
+      const allPurchasedLicenses: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => {
         const masterToken = masterTokensMap.get(String(license.masterTokenId));
         return {
           ...license,
@@ -537,9 +537,18 @@ export default function ProfilePage() {
           audioUrl: resolveIPFS(masterToken?.fullAudioUrl || ''),
           artist: masterToken?.artist,
           price: masterToken ? (Number(masterToken.price) / 1e18).toFixed(6) : undefined,
+          isArt: masterToken?.isArt || false,
         };
       });
-      setPurchasedMusic(purchasedMusicWithType);
+
+      // Separate music and art licenses
+      const purchasedMusicLicenses = allPurchasedLicenses.filter(l => !l.isArt);
+      const purchasedArtLicenses = allPurchasedLicenses.filter(l => l.isArt);
+
+      setPurchasedMusic(purchasedMusicLicenses);
+
+      // Combine art from owned NFTs AND art licenses
+      setPurchasedArt([...purchasedArtOnly, ...purchasedArtLicenses]);
       setPurchasedItineraries(purchases);
     } catch (error: any) {
       setError(error.message || 'Failed to load data');
