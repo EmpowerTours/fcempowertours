@@ -5,11 +5,43 @@ import {
   incrementTransactionCount
 } from '@/lib/delegation-system';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance } from '@/lib/user-safe';
+import { USE_USER_SAFES } from '@/lib/safe-mode';
 import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, formatEther } from 'viem';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
+
+// ✅ Helper: Execute transaction through appropriate Safe (user-funded or platform)
+async function executeTransaction(
+  calls: Array<{ to: Address; value: bigint; data: Hex }>,
+  userAddress: Address,
+  requiredValue: bigint = 0n
+): Promise<string> {
+  if (USE_USER_SAFES) {
+    // User-funded Safe mode
+    const userSafeAddress = await getUserSafeAddress(userAddress);
+    console.log(`🏠 Using USER Safe: ${userSafeAddress}`);
+
+    // Check if user Safe has sufficient balance
+    const balanceCheck = await checkUserSafeBalance(userAddress, requiredValue);
+    if (!balanceCheck.hasSufficientBalance) {
+      throw new Error(
+        `Insufficient balance in your Safe wallet (${balanceCheck.currentBalance} MON). ` +
+        `Required: ${balanceCheck.requiredBalance} MON. ` +
+        `Please fund your Safe at ${userSafeAddress} with at least ${balanceCheck.shortfall} more MON.`
+      );
+    }
+
+    const result = await sendUserSafeTransaction(userAddress, calls);
+    return result.txHash;
+  } else {
+    // Platform-funded Safe mode (original behavior)
+    console.log(`🏢 Using PLATFORM Safe: ${SAFE_ACCOUNT}`);
+    return sendSafeTransaction(calls);
+  }
+}
 
 // ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
 function convertPriceFromWei(price: string | number | bigint): string {
@@ -212,7 +244,7 @@ export async function POST(req: NextRequest) {
         ];
 
         console.log('💳 Executing batched mint transaction (Safe pays, NFT goes to user)...');
-        const mintTxHash = await sendSafeTransaction(mintCalls);
+        const mintTxHash = await executeTransaction(mintCalls, userAddress as Address);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
         // ✅ POST CAST WITH MINIAPP LINK (to minter's profile, not frame)
@@ -351,7 +383,7 @@ View profile and collection!
         ];
 
         console.log(`💳 Executing ${nftTypeName} NFT mint transaction...`);
-        const musicTxHash = await sendSafeTransaction(musicCalls);
+        const musicTxHash = await executeTransaction(musicCalls, userAddress as Address);
         console.log(`✅ ${nftTypeName} NFT mint successful, TX:`, musicTxHash);
 
         // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
@@ -516,7 +548,7 @@ View profile and collection!
         ];
 
         console.log('💳 Executing batched music purchase transaction...');
-        const buyTxHash = await sendSafeTransaction(buyCalls);
+        const buyTxHash = await executeTransaction(buyCalls, userAddress as Address);
         console.log('✅ Music purchase successful, TX:', buyTxHash);
 
         // ✅ POST CAST WITH FRAME - FETCH MUSIC DATA FROM ENVIO (IMPROVED)
@@ -723,7 +755,7 @@ ${enjoyText}
         ];
 
         console.log('💳 Executing TOURS transfer transaction...');
-        const sendTxHash = await sendSafeTransaction(sendCalls);
+        const sendTxHash = await executeTransaction(sendCalls, userAddress as Address);
         console.log('✅ TOURS sent successfully, TX:', sendTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -802,7 +834,7 @@ ${enjoyText}
         ];
 
         console.log('💳 Executing MON transfer transaction...');
-        const sendMonTxHash = await sendSafeTransaction(sendMonCalls);
+        const sendMonTxHash = await executeTransaction(sendMonCalls, userAddress as Address);
         console.log('✅ MON sent successfully, TX:', sendMonTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -835,7 +867,7 @@ ${enjoyText}
         ];
 
         console.log('💳 Executing swap transaction...');
-        const swapTxHash = await sendSafeTransaction(swapCalls);
+        const swapTxHash = await executeTransaction(swapCalls, userAddress as Address);
         console.log('✅ Swap successful, TX:', swapTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -925,7 +957,7 @@ ${enjoyText}
           },
         ];
 
-        const toursSwapTxHash = await sendSafeTransaction(toursSwapCalls);
+        const toursSwapTxHash = await executeTransaction(toursSwapCalls, userAddress as Address);
         console.log('✅ TOURS → WMON swap successful, TX:', toursSwapTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1017,7 +1049,7 @@ ${enjoyText}
           },
         ];
 
-        const wmonSwapTxHash = await sendSafeTransaction(wmonSwapCalls);
+        const wmonSwapTxHash = await executeTransaction(wmonSwapCalls, userAddress as Address);
         console.log('✅ WMON → TOURS swap successful, TX:', wmonSwapTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1092,7 +1124,7 @@ ${enjoyText}
           },
         ];
 
-        const wrapMonTxHash = await sendSafeTransaction(wrapMonCalls);
+        const wrapMonTxHash = await executeTransaction(wrapMonCalls, userAddress as Address);
         console.log('✅ MON wrapped to WMON, TX:', wrapMonTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1185,7 +1217,7 @@ ${enjoyText}
           },
         ];
 
-        const unwrapWmonTxHash = await sendSafeTransaction(unwrapWmonCalls);
+        const unwrapWmonTxHash = await executeTransaction(unwrapWmonCalls, userAddress as Address);
         console.log('✅ WMON unwrapped to MON via helper, TX:', unwrapWmonTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1233,7 +1265,7 @@ ${enjoyText}
             },
           ];
 
-          const withdrawMonTxHash = await sendSafeTransaction(withdrawMonCalls);
+          const withdrawMonTxHash = await executeTransaction(withdrawMonCalls, userAddress as Address);
           console.log('✅ MON withdrawn to user, TX:', withdrawMonTxHash);
 
           await incrementTransactionCount(userAddress);
@@ -1274,7 +1306,7 @@ ${enjoyText}
           },
         ];
 
-        const withdrawTokenTxHash = await sendSafeTransaction(withdrawTokenCalls);
+        const withdrawTokenTxHash = await executeTransaction(withdrawTokenCalls, userAddress as Address);
         console.log('✅ Token withdrawn to user, TX:', withdrawTokenTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1309,7 +1341,7 @@ ${enjoyText}
 
         console.log('💳 Executing max approval for YieldStrategy...');
         console.log('   Amount: max uint256 (unlimited)');
-        const approveTxHash = await sendSafeTransaction(approveCalls);
+        const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
         console.log('✅ Approval successful, TX:', approveTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1616,7 +1648,7 @@ ${enjoyText}
           },
         ];
 
-        const stakeTxHash = await sendSafeTransaction(stakeCalls);
+        const stakeTxHash = await executeTransaction(stakeCalls, userAddress as Address);
         console.log('✅ Stake successful, TX:', stakeTxHash);
 
         // ✅ NOTE: YieldStrategy's stakeWithDeposit returns a position ID
@@ -1777,7 +1809,7 @@ ${enjoyText}
           },
         ];
 
-        const unstakeTxHash = await sendSafeTransaction(unstakeCalls);
+        const unstakeTxHash = await executeTransaction(unstakeCalls, userAddress as Address);
         console.log('✅ Unstake successful, TX:', unstakeTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1828,7 +1860,7 @@ ${enjoyText}
           },
         ];
 
-        const createTandaTxHash = await sendSafeTransaction(createTandaCalls);
+        const createTandaTxHash = await executeTransaction(createTandaCalls, userAddress as Address);
         console.log('✅ Tanda group created, TX:', createTandaTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1862,7 +1894,7 @@ ${enjoyText}
           },
         ];
 
-        const joinTandaTxHash = await sendSafeTransaction(joinTandaCalls);
+        const joinTandaTxHash = await executeTransaction(joinTandaCalls, userAddress as Address);
         console.log('✅ Joined Tanda group, TX:', joinTandaTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1897,7 +1929,7 @@ ${enjoyText}
           },
         ];
 
-        const contributeTxHash = await sendSafeTransaction(contributeCalls);
+        const contributeTxHash = await executeTransaction(contributeCalls, userAddress as Address);
         console.log('✅ Contributed to Tanda, TX:', contributeTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1932,7 +1964,7 @@ ${enjoyText}
           },
         ];
 
-        const claimTandaTxHash = await sendSafeTransaction(claimTandaCalls);
+        const claimTandaTxHash = await executeTransaction(claimTandaCalls, userAddress as Address);
         console.log('✅ Tanda payout claimed, TX:', claimTandaTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -1967,7 +1999,7 @@ ${enjoyText}
           },
         ];
 
-        const ticketTxHash = await sendSafeTransaction(ticketCalls);
+        const ticketTxHash = await executeTransaction(ticketCalls, userAddress as Address);
         console.log('✅ Event ticket purchased, TX:', ticketTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2015,7 +2047,7 @@ ${enjoyText}
           },
         ];
 
-        const demandTxHash = await sendSafeTransaction(demandCalls);
+        const demandTxHash = await executeTransaction(demandCalls, userAddress as Address);
         console.log('✅ Demand signal submitted, TX:', demandTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2051,7 +2083,7 @@ ${enjoyText}
           },
         ];
 
-        const withdrawDemandTxHash = await sendSafeTransaction(withdrawDemandCalls);
+        const withdrawDemandTxHash = await executeTransaction(withdrawDemandCalls, userAddress as Address);
         console.log('✅ Demand signal withdrawn, TX:', withdrawDemandTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2120,7 +2152,7 @@ ${enjoyText}
           },
         ];
 
-        const stakeMusicTxHash = await sendSafeTransaction(stakeMusicCalls);
+        const stakeMusicTxHash = await executeTransaction(stakeMusicCalls, userAddress as Address);
         console.log('✅ Music NFT staked, TX:', stakeMusicTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2157,7 +2189,7 @@ ${enjoyText}
           },
         ];
 
-        const unstakeMusicTxHash = await sendSafeTransaction(unstakeMusicCalls);
+        const unstakeMusicTxHash = await executeTransaction(unstakeMusicCalls, userAddress as Address);
         console.log('✅ Music NFT unstaked, TX:', unstakeMusicTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2200,7 +2232,7 @@ ${enjoyText}
           },
         ];
 
-        const burnMusicTxHash = await sendSafeTransaction(burnMusicCalls);
+        const burnMusicTxHash = await executeTransaction(burnMusicCalls, userAddress as Address);
         console.log('✅ Music NFT burned via delegated burner, TX:', burnMusicTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2375,7 +2407,7 @@ ${enjoyText}
         ];
 
         console.log('💳 Executing Music NFT yield stake transaction...');
-        const stakeMusicYieldTxHash = await sendSafeTransaction(stakeMusicYieldCalls);
+        const stakeMusicYieldTxHash = await executeTransaction(stakeMusicYieldCalls, userAddress as Address);
         console.log('✅ Music NFT staked in YieldStrategy, TX:', stakeMusicYieldTxHash);
 
         // ✅ Extract position ID from transaction receipt
@@ -2482,7 +2514,7 @@ ${enjoyText}
           },
         ];
 
-        const createItineraryTxHash = await sendSafeTransaction(createItineraryCalls);
+        const createItineraryTxHash = await executeTransaction(createItineraryCalls, userAddress as Address);
         console.log('✅ Itinerary created, TX:', createItineraryTxHash);
 
         // Extract itinerary ID from transaction receipt
@@ -2574,7 +2606,7 @@ ${enjoyText}
           },
         ];
 
-        const mintItineraryTxHash = await sendSafeTransaction(mintItineraryCalls);
+        const mintItineraryTxHash = await executeTransaction(mintItineraryCalls, userAddress as Address);
         console.log('✅ Itinerary minted, TX:', mintItineraryTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2625,7 +2657,7 @@ ${enjoyText}
           },
         ];
 
-        const purchaseItineraryTxHash = await sendSafeTransaction(purchaseItineraryCalls);
+        const purchaseItineraryTxHash = await executeTransaction(purchaseItineraryCalls, userAddress as Address);
         console.log('✅ Itinerary purchased, TX:', purchaseItineraryTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2742,7 +2774,7 @@ ${enjoyText}
           },
         ];
 
-        const checkinTxHash = await sendSafeTransaction(checkinCalls);
+        const checkinTxHash = await executeTransaction(checkinCalls, userAddress as Address);
         console.log('✅ Check-in successful, TX:', checkinTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2831,7 +2863,7 @@ ${enjoyText}
         ];
 
         console.log('💳 Executing Music NFT yield unstake transaction...');
-        const unstakeMusicYieldTxHash = await sendSafeTransaction(unstakeMusicYieldCalls);
+        const unstakeMusicYieldTxHash = await executeTransaction(unstakeMusicYieldCalls, userAddress as Address);
         console.log('✅ Music NFT position unstaked, TX:', unstakeMusicYieldTxHash);
 
         await incrementTransactionCount(userAddress);
@@ -2865,13 +2897,13 @@ ${enjoyText}
           args: [userAddress as Address, BigInt(tokenId)],
         });
 
-        const txHash = await sendSafeTransaction([
+        const txHash = await executeTransaction([
           {
             to: EMPOWER_TOURS_NFT,
             data: burnCalldata,
             value: BigInt(0),
           }
-        ]);
+        ], userAddress as Address);
 
         await incrementTransactionCount(userAddress);
         console.log('🔥 NFT burned successfully:', txHash);

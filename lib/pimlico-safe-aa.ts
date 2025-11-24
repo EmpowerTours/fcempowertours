@@ -781,7 +781,21 @@ export async function sendSafeTransaction(
 
         if (receiptData.result) {
           const txHash = receiptData.result.receipt.transactionHash;
+          const success = receiptData.result.success;
+
           console.log('✅ Transaction was actually mined:', txHash);
+          console.log('   UserOperation success:', success);
+
+          // ✅ CRITICAL: Check if UserOperation succeeded even in manual receipt check
+          if (success === false) {
+            console.error('❌ UserOperation FAILED (manual check) - ERC-4337 silent failure detected!');
+            throw new Error(
+              `UserOperation failed: Internal calls did not execute successfully. ` +
+              `Transaction ${txHash} succeeded on-chain but did not perform the intended action. ` +
+              `This is likely due to insufficient token balance, missing approvals, or contract preconditions not being met.`
+            );
+          }
+
           return txHash;
         }
       } catch (manualErr) {
