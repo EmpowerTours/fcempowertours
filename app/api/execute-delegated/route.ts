@@ -868,6 +868,40 @@ ${enjoyText}
           ammPool: AMM_POOL,
         });
 
+        // ✅ Check Safe has enough TOURS before swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeToursBalance = await client.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [SAFE_ACCOUNT],
+          }) as bigint;
+
+          console.log('💰 Safe TOURS balance:', safeToursBalance.toString());
+          console.log('   Requested swap amount:', toursSwapAmount.toString());
+
+          if (safeToursBalance < toursSwapAmount) {
+            const currentTOURS = (Number(safeToursBalance) / 1e18).toFixed(4);
+            const requestedTOURS = (Number(toursSwapAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient TOURS in Safe. Safe has ${currentTOURS} TOURS, but you're trying to swap ${requestedTOURS} TOURS. Your TOURS may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe TOURS balance:', balanceErr.message);
+        }
+
         const toursSwapCalls = [
           // Approve TOURS for AMM pool (use max to avoid allowance issues)
           {
@@ -926,6 +960,40 @@ ${enjoyText}
           ammPool: AMM_POOL_WMON,
         });
 
+        // ✅ Check Safe has enough WMON before swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeWmonBalance = await client.readContract({
+            address: WMON_ADDRESS,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [SAFE_ACCOUNT],
+          }) as bigint;
+
+          console.log('💰 Safe WMON balance:', safeWmonBalance.toString());
+          console.log('   Requested swap amount:', wmonSwapAmount.toString());
+
+          if (safeWmonBalance < wmonSwapAmount) {
+            const currentWMON = (Number(safeWmonBalance) / 1e18).toFixed(4);
+            const requestedWMON = (Number(wmonSwapAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient WMON in Safe. Safe has ${currentWMON} WMON, but you're trying to swap ${requestedWMON} WMON. Your WMON may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe WMON balance:', balanceErr.message);
+        }
+
         const wmonSwapCalls = [
           // Approve WMON for AMM pool (use max to avoid allowance issues)
           {
@@ -981,6 +1049,37 @@ ${enjoyText}
           wmonAddress: WMON_ADDRESS_WRAP,
         });
 
+        // ✅ Check Safe has enough MON before wrap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeMonBalance = await client.getBalance({
+            address: SAFE_ACCOUNT as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalance.toString());
+          console.log('   Requested wrap amount:', wrapMonAmount.toString());
+
+          if (safeMonBalance < wrapMonAmount) {
+            const currentMON = (Number(safeMonBalance) / 1e18).toFixed(4);
+            const requestedMON = (Number(wrapMonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but you're trying to wrap ${requestedMON} MON. Your MON may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
+        }
+
         const wrapMonCalls = [
           {
             to: WMON_ADDRESS_WRAP,
@@ -1028,7 +1127,41 @@ ${enjoyText}
           safeAddress: SAFE_ACCOUNT,
         });
 
-        // Two-step process:
+        // ✅ Check Safe has enough WMON before unwrap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeWmonBalanceUnwrap = await client.readContract({
+            address: WMON_ADDRESS_UNWRAP,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [SAFE_ACCOUNT],
+          }) as bigint;
+
+          console.log('💰 Safe WMON balance:', safeWmonBalanceUnwrap.toString());
+          console.log('   Requested unwrap amount:', unwrapWmonAmount.toString());
+
+          if (safeWmonBalanceUnwrap < unwrapWmonAmount) {
+            const currentWMON = (Number(safeWmonBalanceUnwrap) / 1e18).toFixed(4);
+            const requestedWMON = (Number(unwrapWmonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient WMON in Safe. Safe has ${currentWMON} WMON, but you're trying to unwrap ${requestedWMON} WMON. Your WMON may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe WMON balance:', balanceErr.message);
+        }
+
+        // Two-step process (batched in single Safe transaction):
         // 1. Approve helper to spend WMON
         // 2. Call helper.unwrapTo(amount, Safe) - helper receives MON via transfer(), forwards to Safe via call()
         const unwrapWmonCalls = [

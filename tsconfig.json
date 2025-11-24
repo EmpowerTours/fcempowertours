@@ -38,6 +38,7 @@
     "node_modules",
     "empowertours-envio",
     "contracts",
-    "scripts"
+    "scripts",
+    "discord-bot"
   ]
 }
