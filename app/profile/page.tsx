@@ -8,6 +8,7 @@ import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/Pag
 import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
 import PassportStakingModal from '@/app/components/PassportStakingModal';
+import UserSafeWidget from '@/app/components/UserSafeWidget';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
@@ -839,6 +840,11 @@ export default function ProfilePage() {
                 </motion.div>
               </div>
             </motion.div>
+          </div>
+
+          {/* User Safe Wallet Widget */}
+          <div className="mb-8">
+            <UserSafeWidget />
           </div>
 
           <div className="grid grid-cols-5 gap-4 mb-8">
