@@ -7,7 +7,7 @@ import { monadTestnet } from '@/app/chains';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useBotCommand } from '@/app/hooks/useBotCommand';
 
-interface MusicData {
+interface NFTData {
   tokenId: string;
   name: string;
   artist: string;
@@ -16,6 +16,7 @@ interface MusicData {
   imageUrl: string;
   audioUrl: string;
   createdAt: string;
+  isArt: boolean;  // true = Art NFT, false = Music NFT
 }
 
 const PINATA_GATEWAY = 'harlequin-used-hare-224.mypinata.cloud';
@@ -80,13 +81,13 @@ async function resolveFidFromWallet(walletAddress: string): Promise<string | nul
   return null;
 }
 
-export default function MusicPage() {
+export default function NFTPage() {
   const params = useParams();
   const tokenId = params.tokenId as string;
   const { walletAddress, isMobile, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: commandLoading } = useBotCommand();
 
-  const [musicData, setMusicData] = useState<MusicData | null>(null);
+  const [nftData, setNftData] = useState<NFTData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -121,6 +122,7 @@ export default function MusicPage() {
             fullAudioUrl
             previewAudioUrl
             mintedAt
+            isArt
           }
         }
       `;
@@ -171,7 +173,7 @@ export default function MusicPage() {
             }
           }
 
-          setMusicData({
+          setNftData({
             tokenId: nft.tokenId,
             name: nft.name,
             artist: displayArtist,
@@ -180,6 +182,7 @@ export default function MusicPage() {
             imageUrl: nft.imageUrl || '',
             audioUrl: nft.fullAudioUrl || nft.previewAudioUrl || '',
             createdAt: nft.mintedAt,
+            isArt: nft.isArt === true,
           });
           return;
         } else {
@@ -262,7 +265,7 @@ export default function MusicPage() {
             }
           }
 
-          setMusicData({
+          setNftData({
             tokenId,
             name: metadata.name || 'Untitled',
             artist: displayArtist,
@@ -271,12 +274,13 @@ export default function MusicPage() {
             imageUrl: metadata.image || '',
             audioUrl: audioHttpUrl,
             createdAt: new Date().toISOString(),
+            isArt: metadata.isArt === true || metadata.nftType === 1,
           });
           return;
         }
       }
 
-      setError('Music NFT not found on chain or indexer');
+      setError('NFT not found on chain or indexer');
     } catch (err: any) {
       console.error('Error fetching music data:', err);
       setError(err.message || 'Failed to load music data');
@@ -309,8 +313,8 @@ export default function MusicPage() {
       return;
     }
 
-    if (walletAddress.toLowerCase() === musicData?.artistAddress.toLowerCase()) {
-      alert('You cannot buy your own music!');
+    if (walletAddress.toLowerCase() === nftData?.artistAddress.toLowerCase()) {
+      alert(nftData?.isArt ? 'You cannot buy your own art!' : 'You cannot buy your own music!');
       return;
     }
 
@@ -320,8 +324,8 @@ export default function MusicPage() {
 
     try {
       console.log('💎 Starting purchase for token:', tokenId);
-      console.log('🎵 Song:', musicData?.name);
-      console.log('💰 Price:', musicData?.price, 'TOURS');
+      console.log('🎵 Song:', nftData?.name);
+      console.log('💰 Price:', nftData?.price, 'TOURS');
 
       const command = `buy_music ${tokenId}`;
       console.log('🤖 Executing command:', command);
@@ -336,7 +340,7 @@ export default function MusicPage() {
 
       if (result?.success === true) {
         setPurchaseStatus('success');
-        setPurchaseMessage(`🎉 License purchased!\n\n"${musicData?.name}"\n💰 ${musicData?.price} TOURS\n\nEnjoy your music!`);
+        setPurchaseMessage(`🎉 License purchased!\n\n"${nftData?.name}"\n💰 ${nftData?.price} TOURS\n\nEnjoy your music!`);
         console.log('✅ Purchase successful - alert should show');
 
         // Show success message for 5 seconds
@@ -381,12 +385,12 @@ export default function MusicPage() {
     );
   }
 
-  if (error || !musicData) {
+  if (error || !nftData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">❌</div>
-          <p className="text-red-400 text-xl mb-2">{error || 'Music NFT not found'}</p>
+          <p className="text-red-400 text-xl mb-2">{error || 'NFT not found'}</p>
           <p className="text-gray-400 mb-6">Token ID: {tokenId}</p>
           <p className="text-gray-500 text-sm">Try again in a few moments if this is a newly minted token</p>
           <button
@@ -400,8 +404,9 @@ export default function MusicPage() {
     );
   }
 
-  const imageUrl = getImageUrl(musicData.imageUrl);
-  const priceNum = parseFloat(musicData.price);
+  const imageUrl = getImageUrl(nftData.imageUrl);
+  const priceNum = parseFloat(nftData.price);
+  const isArt = nftData.isArt === true;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-8">
@@ -409,10 +414,10 @@ export default function MusicPage() {
       <div className="border-b border-purple-500/20 bg-slate-900/50 backdrop-blur sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 py-4">
           <div className="flex items-center gap-2">
-            <div className="text-3xl">🎵</div>
+            <div className="text-3xl">{isArt ? '🎨' : '🎵'}</div>
             <h1 className="text-2xl font-bold text-white">EmpowerTours</h1>
           </div>
-          <p className="text-gray-400 text-xs mt-1">Stream Music NFTs on Monad</p>
+          <p className="text-gray-400 text-xs mt-1">{isArt ? 'Art NFTs on Monad' : 'Stream Music NFTs on Monad'}</p>
         </div>
       </div>
 
@@ -424,96 +429,98 @@ export default function MusicPage() {
             <div className="w-full max-w-xs aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-purple-500/30 flex items-center justify-center bg-gray-900">
               <img
                 src={imageUrl}
-                alt={musicData.name}
+                alt={nftData.name}
                 className="w-full h-full object-contain"
               />
             </div>
           ) : (
             <div className="w-full max-w-xs aspect-square bg-gradient-to-br from-purple-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl">
-              <div className="text-9xl">🎵</div>
+              <div className="text-9xl">{isArt ? '🎨' : '🎵'}</div>
             </div>
           )}
         </div>
 
-        {/* Song Info */}
+        {/* NFT Info */}
         <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-2xl p-6 space-y-4">
           {/* Title */}
           <div>
-            <p className="text-gray-400 text-sm mb-1">SONG TITLE</p>
-            <h2 className="text-4xl font-bold text-white leading-tight">{musicData.name}</h2>
+            <p className="text-gray-400 text-sm mb-1">{isArt ? 'ARTWORK TITLE' : 'SONG TITLE'}</p>
+            <h2 className="text-4xl font-bold text-white leading-tight">{nftData.name}</h2>
           </div>
 
           {/* Artist - FIXED: Shows @username or truncated wallet */}
           <div>
             <p className="text-gray-400 text-sm mb-1">ARTIST</p>
-            <p className="text-xl text-gray-300 font-mono break-all">{musicData.artist}</p>
+            <p className="text-xl text-gray-300 font-mono break-all">{nftData.artist}</p>
           </div>
 
           {/* Token ID */}
           <div>
             <p className="text-gray-400 text-sm mb-1">TOKEN ID</p>
-            <p className="text-lg text-purple-400 font-bold">#{musicData.tokenId}</p>
+            <p className="text-lg text-purple-400 font-bold">#{nftData.tokenId}</p>
           </div>
         </div>
 
-        {/* Audio Player */}
-        {musicData.audioUrl ? (
-          <div className="bg-gradient-to-r from-purple-600/10 to-blue-600/10 border border-purple-500/30 rounded-2xl p-6 space-y-4">
-            <div className="space-y-2">
-              <audio
-                id="player"
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                onError={(e) => {
-                  console.error('Audio error:', e);
-                  setAudioError('Failed to load audio');
-                }}
-                onLoadStart={() => setAudioLoading(true)}
-                onCanPlay={() => setAudioLoading(false)}
-                className="w-full"
-                controls
-                crossOrigin="anonymous"
-              >
-                <source src={musicData.audioUrl} type="audio/mpeg" />
-                <source src={musicData.audioUrl} type="audio/mp3" />
-                <source src={musicData.audioUrl} type="audio/wav" />
-                Your browser does not support audio playback.
-              </audio>
+        {/* Audio Player - Only show for Music NFTs */}
+        {!isArt && (
+          nftData.audioUrl ? (
+            <div className="bg-gradient-to-r from-purple-600/10 to-blue-600/10 border border-purple-500/30 rounded-2xl p-6 space-y-4">
+              <div className="space-y-2">
+                <audio
+                  id="player"
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                  onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                  onError={(e) => {
+                    console.error('Audio error:', e);
+                    setAudioError('Failed to load audio');
+                  }}
+                  onLoadStart={() => setAudioLoading(true)}
+                  onCanPlay={() => setAudioLoading(false)}
+                  className="w-full"
+                  controls
+                  crossOrigin="anonymous"
+                >
+                  <source src={nftData.audioUrl} type="audio/mpeg" />
+                  <source src={nftData.audioUrl} type="audio/mp3" />
+                  <source src={nftData.audioUrl} type="audio/wav" />
+                  Your browser does not support audio playback.
+                </audio>
 
-              {/* Progress Bar */}
-              {!audioError && (
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <span>{formatTime(currentTime)}</span>
-                  <div className="flex-1 bg-gray-700 rounded-full h-1">
-                    <div
-                      className="bg-gradient-to-r from-purple-500 to-blue-500 h-1 rounded-full transition-all"
-                      style={{ width: `${(currentTime / duration) * 100 || 0}%` }}
-                    />
+                {/* Progress Bar */}
+                {!audioError && (
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <span>{formatTime(currentTime)}</span>
+                    <div className="flex-1 bg-gray-700 rounded-full h-1">
+                      <div
+                        className="bg-gradient-to-r from-purple-500 to-blue-500 h-1 rounded-full transition-all"
+                        style={{ width: `${(currentTime / duration) * 100 || 0}%` }}
+                      />
+                    </div>
+                    <span>{formatTime(duration)}</span>
                   </div>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              )}
-
-              {/* Status */}
-              <div className="text-center text-sm">
-                {audioLoading ? (
-                  <p className="text-yellow-400">⏳ Loading audio...</p>
-                ) : audioError ? (
-                  <p className="text-red-400">❌ {audioError}</p>
-                ) : isPlaying ? (
-                  <p className="text-green-400">▶️ Now Playing</p>
-                ) : (
-                  <p className="text-gray-400">⏸️ Paused</p>
                 )}
+
+                {/* Status */}
+                <div className="text-center text-sm">
+                  {audioLoading ? (
+                    <p className="text-yellow-400">⏳ Loading audio...</p>
+                  ) : audioError ? (
+                    <p className="text-red-400">❌ {audioError}</p>
+                  ) : isPlaying ? (
+                    <p className="text-green-400">▶️ Now Playing</p>
+                  ) : (
+                    <p className="text-gray-400">⏸️ Paused</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-2xl p-6 text-center">
-            <p className="text-yellow-400">🎧 Audio not available yet</p>
-          </div>
+          ) : (
+            <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-2xl p-6 text-center">
+              <p className="text-yellow-400">🎧 Audio not available yet</p>
+            </div>
+          )
         )}
 
         {/* Price & Purchase */}
@@ -525,7 +532,7 @@ export default function MusicPage() {
               <p className="text-2xl text-cyan-400 font-semibold">TOURS</p>
             </div>
             <p className="text-gray-500 text-xs mt-2">
-              Own the license to stream this track forever
+              {isArt ? 'Own this digital artwork' : 'Own the license to stream this track forever'}
             </p>
           </div>
 
@@ -556,9 +563,9 @@ export default function MusicPage() {
                 🔗 Connect Wallet
               </button>
             </div>
-          ) : walletAddress.toLowerCase() === musicData.artistAddress.toLowerCase() ? (
+          ) : walletAddress.toLowerCase() === nftData.artistAddress.toLowerCase() ? (
             <div className="p-4 bg-gray-700/50 border border-gray-600 rounded-xl text-center">
-              <p className="text-gray-300">✓ This is your music</p>
+              <p className="text-gray-300">✓ This is your {isArt ? 'artwork' : 'music'}</p>
             </div>
           ) : (
             <button
@@ -569,7 +576,7 @@ export default function MusicPage() {
               {buying || commandLoading || purchaseStatus === 'loading' ? (
                 <>⏳ Processing...</>
               ) : (
-                <>💎 Purchase License</>
+                <>{isArt ? '🎨 Purchase Artwork' : '💎 Purchase License'}</>
               )}
             </button>
           )}
