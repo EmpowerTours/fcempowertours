@@ -183,22 +183,30 @@ export async function POST(req: NextRequest) {
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const mintSafeAddress = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           // ✅ CRITICAL: Check Safe's MON balance for MINT PRICE (0.01 MON) + gas
           const monBalance = await client.getBalance({
-            address: SAFE_ACCOUNT,
+            address: mintSafeAddress,
           });
 
-          console.log('⛽ Safe MON balance:', monBalance.toString());
+          console.log('⛽ Safe MON balance:', monBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
 
           // Need 0.01 MON for mint + ~0.001 MON for gas = 0.011 MON minimum
           const MIN_MON_REQUIRED = parseEther('0.011');
           if (monBalance < MIN_MON_REQUIRED) {
             const currentMon = Number(monBalance) / 1e18;
             const requiredMon = Number(MIN_MON_REQUIRED) / 1e18;
+            const errorMsg = USE_USER_SAFES
+              ? `Insufficient MON in your Safe wallet. You need ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only have ${currentMon.toFixed(4)} MON. Please send MON to your Safe: ${mintSafeAddress}`
+              : `Insufficient MON in Safe account. The Safe needs ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`;
             return NextResponse.json(
               {
                 success: false,
-                error: `Insufficient MON in Safe account. The Safe needs ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`
+                error: errorMsg
               },
               { status: 400 }
             );
@@ -798,11 +806,16 @@ ${enjoyText}
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const safeToCheckMon = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           const safeBalance = await client.getBalance({
-            address: SAFE_ACCOUNT as Address,
+            address: safeToCheckMon as Address,
           });
 
-          console.log('💰 Safe MON balance:', safeBalance.toString());
+          console.log('💰 Safe MON balance:', safeBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
           console.log('   Requested send amount:', sendMonAmount.toString());
 
           if (safeBalance < sendMonAmount) {
@@ -909,14 +922,19 @@ ${enjoyText}
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const safeToCheck = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           const safeToursBalance = await client.readContract({
             address: TOURS_TOKEN,
             abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
             functionName: 'balanceOf',
-            args: [SAFE_ACCOUNT],
+            args: [safeToCheck],
           }) as bigint;
 
-          console.log('💰 Safe TOURS balance:', safeToursBalance.toString());
+          console.log('💰 Safe TOURS balance:', safeToursBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
           console.log('   Requested swap amount:', toursSwapAmount.toString());
 
           if (safeToursBalance < toursSwapAmount) {
@@ -1001,14 +1019,19 @@ ${enjoyText}
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const safeToCheckWmon = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           const safeWmonBalance = await client.readContract({
             address: WMON_ADDRESS,
             abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
             functionName: 'balanceOf',
-            args: [SAFE_ACCOUNT],
+            args: [safeToCheckWmon],
           }) as bigint;
 
-          console.log('💰 Safe WMON balance:', safeWmonBalance.toString());
+          console.log('💰 Safe WMON balance:', safeWmonBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
           console.log('   Requested swap amount:', wmonSwapAmount.toString());
 
           if (safeWmonBalance < wmonSwapAmount) {
@@ -1090,11 +1113,16 @@ ${enjoyText}
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const safeToCheckWrap = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           const safeMonBalance = await client.getBalance({
-            address: SAFE_ACCOUNT as Address,
+            address: safeToCheckWrap as Address,
           });
 
-          console.log('💰 Safe MON balance:', safeMonBalance.toString());
+          console.log('💰 Safe MON balance:', safeMonBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
           console.log('   Requested wrap amount:', wrapMonAmount.toString());
 
           if (safeMonBalance < wrapMonAmount) {
@@ -1152,11 +1180,17 @@ ${enjoyText}
         const WMON_UNWRAP_HELPER = (process.env.NEXT_PUBLIC_WMON_UNWRAP_HELPER || '0x70580F77d7602f9A03fD34F17f3cC395BbCe6938') as Address;
         const unwrapWmonAmount = parseEther(params.amount.toString());
 
+        // Determine the correct recipient Safe address
+        const unwrapRecipientSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
         console.log('🎁 Unwrapping WMON to MON via Helper:', {
           amount: params.amount,
           wmonAddress: WMON_ADDRESS_UNWRAP,
           helperAddress: WMON_UNWRAP_HELPER,
-          safeAddress: SAFE_ACCOUNT,
+          safeAddress: unwrapRecipientSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
         });
 
         // ✅ Check Safe has enough WMON before unwrap
@@ -1168,14 +1202,19 @@ ${enjoyText}
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const safeToCheckUnwrap = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           const safeWmonBalanceUnwrap = await client.readContract({
             address: WMON_ADDRESS_UNWRAP,
             abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
             functionName: 'balanceOf',
-            args: [SAFE_ACCOUNT],
+            args: [safeToCheckUnwrap],
           }) as bigint;
 
-          console.log('💰 Safe WMON balance:', safeWmonBalanceUnwrap.toString());
+          console.log('💰 Safe WMON balance:', safeWmonBalanceUnwrap.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
           console.log('   Requested unwrap amount:', unwrapWmonAmount.toString());
 
           if (safeWmonBalanceUnwrap < unwrapWmonAmount) {
@@ -1212,7 +1251,7 @@ ${enjoyText}
             data: encodeFunctionData({
               abi: parseAbi(['function unwrapTo(uint256 amount, address recipient) external']),
               functionName: 'unwrapTo',
-              args: [unwrapWmonAmount, SAFE_ACCOUNT],
+              args: [unwrapWmonAmount, unwrapRecipientSafe],
             }) as Hex,
           },
         ];
@@ -1375,11 +1414,16 @@ ${enjoyText}
             transport: http(),
           });
 
+          // Use correct Safe address based on mode
+          const safeToCheckStake = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
           const monBalance = await client.getBalance({
-            address: SAFE_ACCOUNT as Address,
+            address: safeToCheckStake as Address,
           });
 
-          console.log('💰 Safe MON balance:', monBalance.toString());
+          console.log('💰 Safe MON balance:', monBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
 
           if (monBalance < stakeAmount) {
             const currentMon = Number(monBalance) / 1e18;
@@ -1533,12 +1577,18 @@ ${enjoyText}
         // 1. Safe calls stakeWithDeposit with MON sent as msg.value
         // 2. User receives MON + yield on unstake
         // No TOURS approval needed - MON is native currency
+        // Determine the correct Safe address for staking
+        const stakeFromSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
         console.log('💎 Preparing stakeWithDeposit with beneficiary (V6 - MON deposits):', {
           nftAddress: PASSPORT_NFT,
           nftTokenId: nftTokenId,
           monAmount: stakeAmount.toString(),
           beneficiary: userAddress,
-          safe: SAFE_ACCOUNT
+          safe: stakeFromSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe'
         });
 
         // ✅ V6: Check MON balance and NFT ownership
@@ -1570,9 +1620,9 @@ ${enjoyText}
           console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
 
           // ✅ V6: Check MON balance (native currency) + reserve for gas
-          console.log('🔍 Checking Safe MON balance...');
+          console.log('🔍 Checking Safe MON balance...', USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
           const safeMonBalance = await client.getBalance({
-            address: SAFE_ACCOUNT as Address,
+            address: stakeFromSafe as Address,
           });
           console.log('   Safe MON balance:', safeMonBalance.toString());
           console.log('   Required for stake:', stakeAmount.toString());
@@ -2374,11 +2424,16 @@ ${enjoyText}
           transport: http(),
         });
 
+        // Use correct Safe address based on mode
+        const musicStakeSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
         const safeMusicMonBalance = await publicClient.getBalance({
-          address: SAFE_ACCOUNT,
+          address: musicStakeSafe,
         });
 
-        console.log('💰 Safe MON balance:', formatEther(safeMusicMonBalance), 'MON');
+        console.log('💰 Safe MON balance:', formatEther(safeMusicMonBalance), 'MON', USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
         console.log('📊 Required MON:', params.monAmount, 'MON');
 
         if (safeMusicMonBalance < stakeMusicMonAmount) {

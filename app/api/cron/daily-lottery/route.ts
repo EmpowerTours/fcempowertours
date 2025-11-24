@@ -4,6 +4,7 @@ import {
   getDateKey,
   getTodayKey,
   getLotteryPool,
+  LOTTERY_CONFIG,
 } from '@/lib/lottery';
 
 /**
@@ -22,6 +23,15 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    // Check if lottery is enabled
+    if (!LOTTERY_CONFIG.ENABLED) {
+      return NextResponse.json({
+        success: false,
+        error: 'Lottery feature is currently disabled',
+        skipped: true,
+      });
+    }
+
     // Verify cron secret (for Vercel) or admin key
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;

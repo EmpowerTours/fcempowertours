@@ -3,6 +3,7 @@ import { randomBytes, createHash } from 'crypto';
 
 // Configuration
 export const LOTTERY_CONFIG = {
+  ENABLED: false,                   // ⚠️ DISABLED - Neynar wallet transfer API doesn't exist
   ACCESS_FEE_ETH: 0.001,          // 0.001 ETH to access
   TREASURY_SHARE: 0.5,             // 50% to treasury
   LOTTERY_SHARE: 0.5,              // 50% to lottery pool

@@ -10,6 +10,15 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    // Check if lottery is enabled
+    if (!LOTTERY_CONFIG.ENABLED) {
+      return NextResponse.json({
+        success: true,
+        enabled: false,
+        message: 'Lottery feature is currently disabled',
+      });
+    }
+
     const { searchParams } = new URL(req.url);
     const day = searchParams.get('day') || getTodayKey();
 

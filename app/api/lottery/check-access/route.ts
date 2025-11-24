@@ -3,6 +3,16 @@ import { checkUserAccess, getTodayPool, LOTTERY_CONFIG } from '@/lib/lottery';
 
 export async function GET(req: NextRequest) {
   try {
+    // Check if lottery is enabled
+    if (!LOTTERY_CONFIG.ENABLED) {
+      return NextResponse.json({
+        success: true,
+        enabled: false,
+        hasAccess: true, // Grant access when lottery is disabled (no paywall)
+        message: 'Lottery feature is currently disabled - access granted',
+      });
+    }
+
     const { searchParams } = new URL(req.url);
     const userAddress = searchParams.get('address');
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { recordAccessPayment } from '@/lib/lottery';
+import { recordAccessPayment, LOTTERY_CONFIG } from '@/lib/lottery';
 
 // Configuration
 const BOT_WALLET = '0x2d5dd9aa1dc42949d203d1946d599ba47f0b6d1c';
@@ -8,6 +8,14 @@ const PAYMENT_WINDOW_MINUTES = 60; // Look back 60 minutes for payments
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if lottery is enabled
+    if (!LOTTERY_CONFIG.ENABLED) {
+      return NextResponse.json(
+        { success: false, error: 'Lottery feature is currently disabled' },
+        { status: 503 }
+      );
+    }
+
     const { userAddress, fid, username } = await req.json();
 
     if (!userAddress) {

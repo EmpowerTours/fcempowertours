@@ -8,6 +8,14 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if lottery is enabled
+    if (!LOTTERY_CONFIG.ENABLED) {
+      return NextResponse.json(
+        { success: false, error: 'Lottery feature is currently disabled' },
+        { status: 503 }
+      );
+    }
+
     const { userAddress, txHash, fid, username } = await req.json();
 
     if (!userAddress) {

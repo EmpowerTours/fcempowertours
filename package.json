@@ -9,10 +9,10 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "NODE_OPTIONS='--no-deprecation' next dev -H 0.0.0.0",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "node scripts/start-server.js",
-    "start:legacy": "PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
+    "start": "NODE_OPTIONS='--no-deprecation' node scripts/start-server.js",
+    "start:legacy": "NODE_OPTIONS='--no-deprecation' PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "check-deployer": "npx tsx scripts/check-deployer.ts",
     "check-safe": "npx tsx scripts/check-safe-balance.ts",
