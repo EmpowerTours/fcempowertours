@@ -520,7 +520,6 @@ View profile and collection!
 
       // ==================== BUY MUSIC (WITH CAST + FRAME) - FIXED ====================
       case 'buy_music':
-        console.log('🎵 Action: buy_music (batched approve + purchaseLicenseFor)');
         if (!params?.tokenId) {
           return NextResponse.json(
             { success: false, error: 'Missing tokenId for buy_music' },
@@ -529,8 +528,119 @@ View profile and collection!
         }
 
         const tokenId = BigInt(params.tokenId);
-        console.log('🎵 Token:', tokenId.toString());
-        console.log('👤 Licensee:', userAddress);
+
+        // ✅ Check if it's an art NFT first for proper logging
+        let isPurchaseArtNFT = false;
+        try {
+          const typeCheckQuery = `
+            query CheckPurchaseNFTType($tokenId: String!) {
+              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                tokenId
+                isArt
+              }
+            }
+          `;
+
+          const typeCheckRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: typeCheckQuery,
+              variables: { tokenId: tokenId.toString() }
+            })
+          });
+
+          if (typeCheckRes.ok) {
+            const typeCheckData = await typeCheckRes.json();
+            const nft = typeCheckData.data?.MusicNFT?.[0];
+            if (nft) {
+              isPurchaseArtNFT = nft.isArt === true;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check purchase NFT type, assuming music');
+        }
+
+        const purchaseNFTType = isPurchaseArtNFT ? 'Art NFT' : 'Music License';
+        const purchaseEmoji = isPurchaseArtNFT ? '🎨' : '🎵';
+        console.log(`${purchaseEmoji} Action: buy_${isPurchaseArtNFT ? 'art' : 'music'} (batched approve + purchaseLicenseFor)`);
+        console.log(`${purchaseEmoji} Token:`, tokenId.toString());
+        console.log(`👤 Buyer:`, userAddress);
+        console.log(`📦 Type:`, purchaseNFTType);
+
+        // ✅ Check Safe has enough TOURS before purchase
+        try {
+          // First, get the NFT price from Envio
+          const priceQuery = `
+            query GetNFTPrice($tokenId: String!) {
+              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                tokenId
+                price
+              }
+            }
+          `;
+
+          const priceRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: priceQuery,
+              variables: { tokenId: tokenId.toString() }
+            })
+          });
+
+          if (priceRes.ok) {
+            const priceData = await priceRes.json();
+            const nft = priceData.data?.MusicNFT?.[0];
+
+            if (nft?.price) {
+              const nftPrice = BigInt(nft.price);
+              console.log('💰 NFT Price from Envio:', nftPrice.toString(), 'wei');
+
+              // Now check Safe's TOURS balance
+              const { createPublicClient, http } = await import('viem');
+              const { monadTestnet } = await import('@/app/chains');
+              const client = createPublicClient({
+                chain: monadTestnet,
+                transport: http(),
+              });
+
+              // Use correct Safe address based on mode
+              const safeToCheck = USE_USER_SAFES
+                ? await getUserSafeAddress(userAddress as Address)
+                : SAFE_ACCOUNT;
+
+              const safeToursBalance = await client.readContract({
+                address: TOURS_TOKEN,
+                abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+                functionName: 'balanceOf',
+                args: [safeToCheck],
+              }) as bigint;
+
+              console.log('💰 Safe TOURS balance:', safeToursBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+              console.log('   Required for NFT purchase:', nftPrice.toString());
+
+              if (safeToursBalance < nftPrice) {
+                const currentTOURS = (Number(safeToursBalance) / 1e18).toFixed(4);
+                const requiredTOURS = (Number(nftPrice) / 1e18).toFixed(4);
+                const shortfall = (Number(nftPrice - safeToursBalance) / 1e18).toFixed(4);
+
+                return NextResponse.json(
+                  {
+                    success: false,
+                    error: `Insufficient TOURS in Safe. Safe has ${currentTOURS} TOURS, but this ${purchaseNFTType} costs ${requiredTOURS} TOURS. You need ${shortfall} more TOURS. ${USE_USER_SAFES ? `Please fund your Safe at ${safeToCheck} with TOURS tokens.` : 'Your TOURS may be in your wallet, not the Safe.'}`
+                  },
+                  { status: 400 }
+                );
+              }
+
+              console.log('✅ Sufficient TOURS balance confirmed');
+            }
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe TOURS balance:', balanceErr.message);
+          // Continue with purchase - balance check is a nice-to-have, not critical
+        }
 
         const buyCalls = [
           {
@@ -566,8 +676,44 @@ View profile and collection!
             let songPrice = '0';  // ✅ Default to 0 not ?
             let songArtist = 'Unknown Artist';  // ✅ Better default
             let isArtNFT = false;  // ✅ Track if this is an Art NFT
+            let buyerUsername = '';  // ✅ Track buyer's Farcaster username
 
             console.log('🔍 Fetching music metadata from Envio for token:', tokenId.toString());
+
+            // ✅ Try to resolve buyer's Farcaster username first
+            try {
+              console.log('👤 Resolving buyer Farcaster username for:', userAddress);
+              const buyerNeynarRes = await fetch(
+                `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`,
+                {
+                  headers: {
+                    'api_key': process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+                  }
+                }
+              );
+
+              if (buyerNeynarRes.ok) {
+                const buyerNeynarData: any = await buyerNeynarRes.json();
+                console.log('👤 Buyer Neynar response:', JSON.stringify(buyerNeynarData).substring(0, 300));
+
+                // Handle bulk_by_address response format
+                const buyerData = buyerNeynarData[userAddress.toLowerCase()];
+                if (buyerData && buyerData.length > 0 && buyerData[0].username) {
+                  buyerUsername = `@${buyerData[0].username}`;
+                  console.log('✅ Resolved buyer username:', buyerUsername);
+                } else {
+                  // Fallback to shortened address
+                  buyerUsername = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+                  console.log('⚠️ Could not resolve buyer username, using address');
+                }
+              } else {
+                buyerUsername = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+                console.log('⚠️ Buyer Neynar API failed, using address');
+              }
+            } catch (buyerErr) {
+              console.warn('⚠️ Buyer FID lookup failed:', buyerErr);
+              buyerUsername = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+            }
 
             try {
               const query = `
@@ -619,15 +765,16 @@ View profile and collection!
                     }
                   }
 
-                  // ✅ Get artist and try FID lookup
+                  // ✅ Get artist and try FID lookup with correct endpoint
                   if (musicNFT.artist) {
                     songArtist = musicNFT.artist;
 
                     // Try to resolve to FID if it's a wallet
                     if (musicNFT.artist.startsWith('0x')) {
                       try {
-                        const neynarRes = await fetch(
-                          `https://api.neynar.com/v2/farcaster/user/by_verification?address=${musicNFT.artist}`,
+                        console.log('🔍 Resolving artist Farcaster username for:', musicNFT.artist);
+                        const artistNeynarRes = await fetch(
+                          `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${musicNFT.artist}`,
                           {
                             headers: {
                               'api_key': process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
@@ -635,23 +782,29 @@ View profile and collection!
                           }
                         );
 
-                        if (neynarRes.ok) {
-                          const neynarData: any = await neynarRes.json();
-                          if (neynarData.users && neynarData.users.length > 0) {
-                            const username = neynarData.users[0].username;
-                            if (username) {
-                              songArtist = `@${username}`;
-                              console.log('✅ Resolved FID:', username);
-                            }
+                        if (artistNeynarRes.ok) {
+                          const artistNeynarData: any = await artistNeynarRes.json();
+                          console.log('🎤 Artist Neynar response:', JSON.stringify(artistNeynarData).substring(0, 300));
+
+                          // Handle bulk_by_address response format
+                          const artistData = artistNeynarData[musicNFT.artist.toLowerCase()];
+                          if (artistData && artistData.length > 0 && artistData[0].username) {
+                            songArtist = `@${artistData[0].username}`;
+                            console.log('✅ Resolved artist username:', songArtist);
+                          } else {
+                            // Keep the wallet address if resolution fails
+                            console.log('⚠️ Could not resolve artist username, keeping address');
                           }
+                        } else {
+                          console.warn('⚠️ Artist Neynar API failed, status:', artistNeynarRes.status);
                         }
                       } catch (fidErr) {
-                        console.warn('⚠️ FID lookup failed:', fidErr);
+                        console.warn('⚠️ Artist FID lookup failed:', fidErr);
                       }
                     }
                   }
 
-                  console.log('✅ Music data resolved:', { songTitle, songPrice, songArtist });
+                  console.log('✅ Music data resolved:', { songTitle, songPrice, songArtist, buyerUsername });
                 } else {
                   console.warn('⚠️ MusicNFT array empty or not found');
                 }
@@ -677,6 +830,7 @@ View profile and collection!
 
 "${songTitle}" #${tokenId}
 🎤 ${songArtist}
+🛍️ Buyer: ${buyerUsername}
 💰 ${songPrice} TOURS
 
 ⚡ Gasless transaction powered by @empowertours
@@ -707,6 +861,7 @@ ${enjoyText}
               songTitle,
               songPrice,
               songArtist,
+              buyerUsername,
               frameUrl
             });
           } catch (castError: any) {
@@ -867,6 +1022,33 @@ ${enjoyText}
         const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1');
         console.log('💱 Swapping:', monAmount.toString(), 'wei MON');
 
+        // ✅ Check TOURS balance BEFORE swap
+        let toursBalanceBefore = 0n;
+        let toursBalanceAfter = 0n;
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const swapClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const swapSafeToCheck = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          toursBalanceBefore = await swapClient.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [swapSafeToCheck],
+          }) as bigint;
+
+          console.log('💰 TOURS balance BEFORE swap:', (Number(toursBalanceBefore) / 1e18).toFixed(6), 'TOURS', USE_USER_SAFES ? `(User Safe: ${swapSafeToCheck})` : '(Platform Safe)');
+        } catch (err: any) {
+          console.warn('⚠️ Could not check TOURS balance before swap:', err.message);
+        }
+
         const swapCalls = [
           {
             to: TOKEN_SWAP,
@@ -883,6 +1065,33 @@ ${enjoyText}
         const swapTxHash = await executeTransaction(swapCalls, userAddress as Address);
         console.log('✅ Swap successful, TX:', swapTxHash);
 
+        // ✅ Check TOURS balance AFTER swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const swapClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const swapSafeToCheck = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          toursBalanceAfter = await swapClient.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [swapSafeToCheck],
+          }) as bigint;
+
+          const toursReceived = toursBalanceAfter - toursBalanceBefore;
+          console.log('💰 TOURS balance AFTER swap:', (Number(toursBalanceAfter) / 1e18).toFixed(6), 'TOURS', USE_USER_SAFES ? `(User Safe: ${swapSafeToCheck})` : '(Platform Safe)');
+          console.log('✅ TOURS received from swap:', (Number(toursReceived) / 1e18).toFixed(6), 'TOURS');
+        } catch (err: any) {
+          console.warn('⚠️ Could not check TOURS balance after swap:', err.message);
+        }
+
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
@@ -890,6 +1099,9 @@ ${enjoyText}
           action,
           userAddress,
           monAmount: monAmount.toString(),
+          toursBalanceBefore: toursBalanceBefore.toString(),
+          toursBalanceAfter: toursBalanceAfter.toString(),
+          toursReceived: (toursBalanceAfter - toursBalanceBefore).toString(),
           message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
         });
 

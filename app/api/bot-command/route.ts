@@ -146,7 +146,6 @@ Address: ${userAddress.slice(0, 10)}...`
 
     // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION + CAST) ====================
     if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song')) {
-      console.log('Action: buy_music');
       if (!userAddress) {
         return NextResponse.json({
           success: false,
@@ -158,16 +157,17 @@ Address: ${userAddress.slice(0, 10)}...`
       const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
       let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
       let songTitle = null;
+      let isArtNFT = false;
 
       // ✅ If no tokenId, try to match song name
       if (!tokenId) {
         const songNameMatch = originalCommand.match(/buy song (.+)/i);
         if (songNameMatch) {
           const searchSongName = songNameMatch[1].trim();
-          console.log(`[BOT] Searching for song: "${searchSongName}"`);
+          console.log(`[BOT] Searching for NFT: "${searchSongName}"`);
 
           try {
-            // ✅ CORRECTED: Query MusicNFT (singular) with correct field names
+            // ✅ CORRECTED: Query MusicNFT (singular) with correct field names including isArt
             const searchQuery = `
               query SearchMusicByName($name: String!) {
                 MusicNFT(
@@ -179,6 +179,7 @@ Address: ${userAddress.slice(0, 10)}...`
                   name
                   price
                   artist
+                  isArt
                 }
               }
             `;
@@ -198,25 +199,26 @@ Address: ${userAddress.slice(0, 10)}...`
 
             const searchData = await searchRes.json();
             console.log('[BOT] Envio search response:', searchData);
-            
+
             // ✅ CORRECTED: Direct array access, not nested in items
             const musicNFT = searchData.data?.MusicNFT?.[0];
 
             if (!musicNFT) {
               return NextResponse.json({
                 success: false,
-                message: `Song "${searchSongName}" not found. Try: "buy music <tokenId>" or browse on /discover`
+                message: `NFT "${searchSongName}" not found. Try: "buy music <tokenId>" or browse on /discover`
               });
             }
 
             tokenId = parseInt(musicNFT.tokenId);
-            songTitle = musicNFT.name;  // ✅ Use "name" not "songTitle"
-            console.log(`[BOT] Found song "${songTitle}" with tokenId: ${tokenId}`);
+            songTitle = musicNFT.name;
+            isArtNFT = musicNFT.isArt === true;  // ✅ Check if it's art
+            console.log(`[BOT] Found "${songTitle}" with tokenId: ${tokenId} (isArt: ${isArtNFT})`);
           } catch (searchErr: any) {
-            console.error('[BOT] Song search error:', searchErr);
+            console.error('[BOT] NFT search error:', searchErr);
             return NextResponse.json({
               success: false,
-              message: `Failed to search for song: ${searchErr.message}`
+              message: `Failed to search for NFT: ${searchErr.message}`
             });
           }
         }
@@ -230,7 +232,42 @@ Address: ${userAddress.slice(0, 10)}...`
       }
 
       try {
-        console.log(`[BOT] Buying music license for token ${tokenId}`);
+        // ✅ Query Envio to check if it's an art NFT before logging
+        if (!isArtNFT) {  // Only query if we haven't already checked
+          try {
+            const checkQuery = `
+              query CheckNFTType($tokenId: String!) {
+                MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                  tokenId
+                  isArt
+                }
+              }
+            `;
+
+            const checkRes = await fetch(ENVIO_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: checkQuery,
+                variables: { tokenId: tokenId.toString() }
+              })
+            });
+
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              const nft = checkData.data?.MusicNFT?.[0];
+              if (nft) {
+                isArtNFT = nft.isArt === true;
+              }
+            }
+          } catch (err) {
+            console.warn('Could not check NFT type, assuming music');
+          }
+        }
+
+        const nftType = isArtNFT ? 'Art NFT' : 'Music License';
+        console.log(`Action: buy_${isArtNFT ? 'art' : 'music'}`);
+        console.log(`[BOT] Buying ${nftType} for token ${tokenId}`);
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
         const hasValidDelegation = delegationData.success &&
