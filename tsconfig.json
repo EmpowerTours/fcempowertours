@@ -39,6 +39,8 @@
     "empowertours-envio",
     "contracts",
     "scripts",
-    "discord-bot"
+    "discord-bot",
+    "mon-rescue-service",
+    "monad-trading-bot"
   ]
 }

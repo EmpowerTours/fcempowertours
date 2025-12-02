@@ -67,13 +67,13 @@ function generateMonadMirrorSVG(clarity: number, tier: string, address: string):
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { address: string } }
+  { params }: { params: Promise<{ address: string }> }
 ) {
   try {
+    const { address } = await params;
     const { searchParams } = new URL(req.url);
     const clarity = parseFloat(searchParams.get('clarity') || '50');
     const tier = searchParams.get('tier') || 'Bare Monad';
-    const address = params.address;
 
     // Check if requesting SVG or JSON metadata
     const format = searchParams.get('format');

@@ -3440,6 +3440,83 @@ ${enjoyText}
           message: `Entered lottery with ${params.amount} shMON successfully (gasless)`,
         });
 
+      // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
+      case 'create_experience':
+        console.log('📍 Action: create_experience');
+
+        const ITINERARY_ADDRESS = (process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x5B61286AC88688fe8930711fAa5b1155e98daFe8') as Address;
+
+        // Validate required params
+        if (!params?.locationName || !params?.city || !params?.country) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required fields: locationName, city, country' },
+            { status: 400 }
+          );
+        }
+
+        const expCountry = params.country as string;
+        const expCity = params.city as string;
+        const expLocationName = params.locationName as string;
+        const expDescription = (params.description as string) || `${expLocationName} in ${expCity}, ${expCountry}`;
+        const expType = Number(params.experienceType || 0);
+        const expLatitude = BigInt(params.latitude || 0);
+        const expLongitude = BigInt(params.longitude || 0);
+        const expProximityRadius = BigInt(params.proximityRadius || 100);
+        const expPrice = parseEther((params.price || '10').toString()); // Price in TOURS
+        const expIpfsHash = (params.ipfsImageHash as string) || '';
+
+        console.log('📍 Creating experience:', {
+          locationName: expLocationName,
+          city: expCity,
+          country: expCountry,
+          experienceType: expType,
+          latitude: expLatitude.toString(),
+          longitude: expLongitude.toString(),
+          price: formatEther(expPrice),
+          ipfsHash: expIpfsHash,
+        });
+
+        // Build create experience call
+        const createExperienceCalls = [
+          {
+            to: ITINERARY_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function createExperience(string memory country, string memory city, string memory locationName, string memory description, uint8 experienceType, int256 latitude, int256 longitude, uint256 proximityRadius, uint256 price, string memory ipfsImageHash) external returns (uint256)'
+              ]),
+              functionName: 'createExperience',
+              args: [
+                expCountry,
+                expCity,
+                expLocationName,
+                expDescription,
+                expType,
+                expLatitude,
+                expLongitude,
+                expProximityRadius,
+                expPrice,
+                expIpfsHash
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const createExperienceTxHash = await executeTransaction(createExperienceCalls, userAddress as Address);
+        console.log('✅ Created experience, TX:', createExperienceTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: createExperienceTxHash,
+          action,
+          userAddress,
+          locationName: expLocationName,
+          city: expCity,
+          country: expCountry,
+          message: `Experience "${expLocationName}" created successfully (gasless)`,
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
