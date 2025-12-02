@@ -1,0 +1,37 @@
+{
+  "name": "fcempowertours-discord-bot",
+  "version": "1.0.0",
+  "description": "FC Empower Tours Discord Bot with $TOURS token integration on Monad",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "deploy-commands": "ts-node src/deploy-commands.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "tours",
+    "monad",
+    "farcaster",
+    "blockchain"
+  ],
+  "author": "FC Empower Tours",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "ioredis": "^5.3.2",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

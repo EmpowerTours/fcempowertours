@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     // =============================================
     // STEP 1: Get MON balance (native currency)
-    // ✅ Check BOTH user wallet AND bot Safe separately
+    // ✅ Only check user wallet (hiding old bot Safe for now)
     // =============================================
     console.log('⏳ Fetching MON balance from user wallet...');
     let monBalanceUser = 0n;
@@ -48,33 +48,18 @@ export async function POST(req: NextRequest) {
       console.error('❌ Error fetching user MON balance:', error);
     }
 
-    // Check bot Safe account MON balance separately
-    let monBalanceSafe = 0n;
-    if (BOT_SAFE_ACCOUNT) {
-      try {
-        monBalanceSafe = await publicClient.getBalance({
-          address: BOT_SAFE_ACCOUNT
-        });
-        console.log(`✅ Safe MON balance: ${monBalanceSafe.toString()} wei`);
-      } catch (error) {
-        console.error('❌ Error fetching Safe MON balance:', error);
-      }
-    }
-
-    // Format separately for display
+    // Format for display
     const monFormattedUser = parseFloat(formatEther(monBalanceUser)).toFixed(4);
-    const monFormattedSafe = parseFloat(formatEther(monBalanceSafe)).toFixed(4);
-    const totalMonBalance = monBalanceUser + monBalanceSafe;
-    const monFormatted = parseFloat(formatEther(totalMonBalance)).toFixed(4);
-    console.log(`✅ MON balances - User: ${monFormattedUser}, Safe: ${monFormattedSafe}, Total: ${monFormatted}`);
+    const monFormattedSafe = '0.0000'; // Hidden - old delegation system
+    const monFormatted = monFormattedUser; // Only show wallet balance
+    console.log(`✅ MON balance - User wallet: ${monFormattedUser}`);
 
     // =============================================
     // STEP 2: Get TOURS balance (ERC-20 token)
-    // ✅ CRITICAL FIX: Check BOTH user wallet AND bot Safe
+    // ✅ Only check user wallet (hiding old bot Safe for now)
     // =============================================
     console.log(`⏳ Fetching TOURS balance from token: ${TOURS_TOKEN_ADDRESS}`);
     let toursBalanceUser = 0n;
-    let toursBalanceSafe = 0n;
 
     try {
       // User's TOURS balance
@@ -85,34 +70,20 @@ export async function POST(req: NextRequest) {
         args: [userAddress],
       }) as bigint;
       console.log(`✅ User TOURS balance (raw): ${toursBalanceUser.toString()}`);
-
-      // Bot Safe's TOURS balance (where delegated transactions send tokens)
-      if (BOT_SAFE_ACCOUNT) {
-        toursBalanceSafe = await publicClient.readContract({
-          address: TOURS_TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'balanceOf',
-          args: [BOT_SAFE_ACCOUNT],
-        }) as bigint;
-        console.log(`✅ Safe TOURS balance (raw): ${toursBalanceSafe.toString()}`);
-      }
     } catch (error) {
       console.error('❌ Error fetching TOURS balance:', error);
     }
 
-    // ✅ CRITICAL: Total TOURS = user wallet + safe
-    // This reflects BOTH direct holdings AND delegated holdings
-    const totalToursBalance = toursBalanceUser + toursBalanceSafe;
-    const toursFormatted = parseFloat(formatEther(totalToursBalance)).toFixed(2);
-    console.log(`✅ TOTAL TOURS balance (user + safe): ${totalToursBalance.toString()} wei = ${toursFormatted} TOURS`);
+    // Only show wallet balance (hiding old Safe)
+    const toursFormatted = parseFloat(formatEther(toursBalanceUser)).toFixed(2);
+    console.log(`✅ TOURS balance (user wallet): ${toursBalanceUser.toString()} wei = ${toursFormatted} TOURS`);
 
     // =============================================
     // STEP 2.5: Get WMON balance (ERC-20 wrapped MON)
-    // ✅ CRITICAL FIX: Check BOTH user wallet AND bot Safe
+    // ✅ Only check user wallet (hiding old bot Safe for now)
     // =============================================
     console.log(`⏳ Fetching WMON balance from token: ${WMON_ADDRESS}`);
     let wmonBalanceUser = 0n;
-    let wmonBalanceSafe = 0n;
 
     try {
       // User's WMON balance
@@ -123,24 +94,13 @@ export async function POST(req: NextRequest) {
         args: [userAddress],
       }) as bigint;
       console.log(`✅ User WMON balance (raw): ${wmonBalanceUser.toString()}`);
-
-      // Bot Safe's WMON balance (where delegated transactions send tokens)
-      if (BOT_SAFE_ACCOUNT) {
-        wmonBalanceSafe = await publicClient.readContract({
-          address: WMON_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'balanceOf',
-          args: [BOT_SAFE_ACCOUNT],
-        }) as bigint;
-        console.log(`✅ Safe WMON balance (raw): ${wmonBalanceSafe.toString()}`);
-      }
     } catch (error) {
       console.error('❌ Error fetching WMON balance:', error);
     }
 
-    const wmonBalance = wmonBalanceUser + wmonBalanceSafe;
-    const wmonFormatted = parseFloat(formatEther(wmonBalance)).toFixed(4);
-    console.log(`✅ WMON balance formatted: ${wmonFormatted} WMON (User: ${formatEther(wmonBalanceUser)}, Safe: ${formatEther(wmonBalanceSafe)})`);
+    const wmonFormatted = parseFloat(formatEther(wmonBalanceUser)).toFixed(4);
+    const wmonFormattedSafe = '0.0000'; // Hidden - old delegation system
+    console.log(`✅ WMON balance formatted: ${wmonFormatted} WMON (user wallet only)`);
 
     // =============================================
     // STEP 3: Get NFT balances from Envio indexer
@@ -231,32 +191,31 @@ export async function POST(req: NextRequest) {
     // STEP 4: Return aggregated balances with breakdown
     // =============================================
     const wmonFormattedUser = parseFloat(formatEther(wmonBalanceUser)).toFixed(4);
-    const wmonFormattedSafe = parseFloat(formatEther(wmonBalanceSafe)).toFixed(4);
 
     const finalResponse = {
       mon: monFormatted,
       monWallet: monFormattedUser,  // ✅ User's personal wallet MON
-      monSafe: monFormattedSafe,     // ✅ Safe's MON (for gasless txs)
+      monSafe: monFormattedSafe,     // Hidden (old bot Safe)
       tours: toursFormatted,
       wmon: wmonFormatted,           // ✅ Wrapped MON balance
       wmonWallet: wmonFormattedUser, // ✅ User's WMON
-      wmonSafe: wmonFormattedSafe,   // ✅ Safe's WMON
+      wmonSafe: wmonFormattedSafe,   // Hidden (old bot Safe)
       nfts: nftData,
       // ✅ ADDED: Breakdown for debugging
       breakdown: {
         mon: {
           user: monFormattedUser,
-          safe: monFormattedSafe,
+          safe: '0.0000', // Hidden
           total: monFormatted,
         },
         tours: {
           user: parseFloat(formatEther(toursBalanceUser)).toFixed(2),
-          safe: parseFloat(formatEther(toursBalanceSafe)).toFixed(2),
+          safe: '0.00', // Hidden
           total: toursFormatted,
         },
         wmon: {
           user: wmonFormattedUser,
-          safe: wmonFormattedSafe,
+          safe: '0.0000', // Hidden
           total: wmonFormatted,
         },
       },

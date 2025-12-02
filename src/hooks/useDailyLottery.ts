@@ -1,8 +1,8 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 
-// DailyPassLotterySecure contract on Monad testnet
-const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xf0ADd68cC2145B7b97a41f280E079db8A49eB0fD') as `0x${string}`;
+// DailyPassLotterySecure contract on Monad testnet (redeployed Dec 2, 2025)
+const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as `0x${string}`;
 const SHMON_ADDRESS = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as `0x${string}`;
 
 // DailyPassLotterySecure ABI

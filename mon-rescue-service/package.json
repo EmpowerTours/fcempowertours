@@ -1,0 +1,12 @@
+{
+  "name": "mon-rescue-service",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx ts-node index.ts"
+  },
+  "dependencies": {
+    "viem": "^2.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  }
+}

@@ -18,6 +18,7 @@ const config: HardhatUserConfig = {
         enabled: true,
         runs: 200,
       },
+      viaIR: true, // Enable IR-based compilation to fix stack too deep
     },
   },
   networks: {
