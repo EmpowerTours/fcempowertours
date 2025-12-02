@@ -45,6 +45,8 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [isEntering, setIsEntering] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [entryComplete, setEntryComplete] = useState(false);
 
   // Format time remaining
   const formatTimeRemaining = (seconds: bigint | undefined) => {
@@ -112,14 +114,29 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
         throw new Error(errorData.error || 'Entry failed');
       }
 
-      const { txHash } = await response.json();
-      setSuccess(`You're in the lottery! TX: ${txHash.slice(0, 10)}...`);
+      const { txHash: hash } = await response.json();
+      setTxHash(hash);
+      setSuccess(`You're in! Confirming on-chain...`);
 
-      // Refresh entry status
-      setTimeout(() => {
-        refetchHasEntered();
-        refetchRound();
-      }, 3000);
+      // Poll for entry confirmation
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        const result = await refetchHasEntered();
+        if (result.data === true) {
+          clearInterval(pollInterval);
+          setEntryComplete(true);
+          setSuccess('Entry confirmed! Entering app...');
+          // Brief delay to show confirmation message
+          setTimeout(() => {
+            refetchRound();
+          }, 1000);
+        } else if (attempts >= 15) {
+          clearInterval(pollInterval);
+          setSuccess('Entry submitted! Click below to continue.');
+          setEntryComplete(true);
+        }
+      }, 2000);
     } catch (err: any) {
       console.error('Entry error:', err);
       setError(err.message || 'Failed to enter lottery');
@@ -185,13 +202,28 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
         throw new Error(errorData.error || 'Entry failed');
       }
 
-      const { txHash } = await response.json();
-      setSuccess(`You're in the lottery! TX: ${txHash.slice(0, 10)}...`);
+      const { txHash: hash } = await response.json();
+      setTxHash(hash);
+      setSuccess(`You're in! Confirming on-chain...`);
 
-      setTimeout(() => {
-        refetchHasEntered();
-        refetchRound();
-      }, 3000);
+      // Poll for entry confirmation
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        const result = await refetchHasEntered();
+        if (result.data === true) {
+          clearInterval(pollInterval);
+          setEntryComplete(true);
+          setSuccess('Entry confirmed! Entering app...');
+          setTimeout(() => {
+            refetchRound();
+          }, 1000);
+        } else if (attempts >= 15) {
+          clearInterval(pollInterval);
+          setSuccess('Entry submitted! Click below to continue.');
+          setEntryComplete(true);
+        }
+      }, 2000);
     } catch (err: any) {
       console.error('Entry error:', err);
       setError(err.message || 'Failed to enter lottery');
@@ -315,8 +347,26 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
           {/* Success Message */}
           {success && (
-            <div className="mb-4 bg-green-500/20 border border-green-400/50 rounded-xl p-3">
-              <p className="text-green-100 text-sm">{success}</p>
+            <div className="mb-4 bg-green-500/20 border border-green-400/50 rounded-xl p-4">
+              <p className="text-green-100 text-sm mb-2">{success}</p>
+              {txHash && (
+                <a
+                  href={`https://testnet.monadscan.com/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 text-xs hover:text-cyan-300 underline break-all"
+                >
+                  View TX: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+                </a>
+              )}
+              {entryComplete && (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition-all"
+                >
+                  Continue to App
+                </button>
+              )}
             </div>
           )}
 
