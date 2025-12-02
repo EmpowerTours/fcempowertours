@@ -1,39 +1,40 @@
 import assert from "assert";
 import pkg from "generated";
 const { TestHelpers } = pkg;
-const { MockDb, MusicLicenseNFT, Addresses } = TestHelpers;
+const { MockDb, EmpowerToursNFT, Addresses } = TestHelpers;
 
-describe("Music NFT Minting", () => {
-  it("Should mint a Music NFT and create entity", async () => {
+describe("EmpowerTours NFT Minting", () => {
+  it("Should mint an EmpowerTours NFT and create entity", async () => {
     // Instantiate a mock DB
     const mockDb = MockDb.createMockDb();
 
     // Get mock addresses from helpers
     const artistAddress = Addresses.mockAddresses[0];
 
-    // Create a mock MasterMinted event (NOT MusicMinted)
-    const mockMasterMinted = MusicLicenseNFT.MasterMinted.createMockEvent({
+    // Create a mock MasterMinted event
+    const mockMasterMinted = EmpowerToursNFT.MasterMinted.createMockEvent({
       tokenId: 1n,
       artist: artistAddress,
       tokenURI: "ipfs://QmTest123",
       price: 1000000000000000000n,
+      nftType: 0n, // 0 = Music, 1 = Art
     });
 
     // Process the mockEvent
-    const mockDbAfterMint = await MusicLicenseNFT.MasterMinted.processEvent({
+    const mockDbAfterMint = await EmpowerToursNFT.MasterMinted.processEvent({
       event: mockMasterMinted,
       mockDb,
     });
 
-    // Get the minted Music NFT
-    const musicNFTId = `music-${mockMasterMinted.chainId}-1`;
-    const mintedNFT = mockDbAfterMint.entities.MusicNFT.get(musicNFTId);
+    // Get the minted NFT
+    const nftId = `music-${mockMasterMinted.chainId}-1`;
+    const mintedNFT = mockDbAfterMint.entities.MusicNFT.get(nftId);
 
     // Assert the NFT was created
     assert.notEqual(
       mintedNFT,
       undefined,
-      "Music NFT should have been created",
+      "EmpowerTours NFT should have been created",
     );
 
     // Assert the NFT properties
@@ -63,7 +64,7 @@ describe("Music NFT Minting", () => {
   });
 });
 
-describe("Music NFT Transfer", () => {
+describe("EmpowerTours NFT Transfer", () => {
   it("Should update owner on transfer", async () => {
     // Instantiate a mock DB
     const mockDbEmpty = MockDb.createMockDb();
@@ -73,19 +74,19 @@ describe("Music NFT Transfer", () => {
     const buyerAddress = Addresses.mockAddresses[1];
 
     // Create a mock Transfer event first to get the chainId
-    const mockTransfer = MusicLicenseNFT.Transfer.createMockEvent({
+    const mockTransfer = EmpowerToursNFT.Transfer.createMockEvent({
       from: artistAddress,
       to: buyerAddress,
       tokenId: 1n,
     });
 
     // Use the correct ID format that matches the handler
-    const musicNFTId = `music-${mockTransfer.chainId}-1`;
-    
-    const mockMusicNFT = {
-      id: musicNFTId,
+    const nftId = `music-${mockTransfer.chainId}-1`;
+
+    const mockNFT = {
+      id: nftId,
       tokenId: "1",
-      contract: "0xaD849874B0111131A30D7D2185Cc1519A83dd3D0",
+      contract: "0xAD403897CD7d465445aF0BD4fe40f18698655D4e",
       artist: artistAddress.toLowerCase(),
       owner: artistAddress.toLowerCase(),
       tokenURI: "ipfs://QmTest123",
@@ -94,7 +95,7 @@ describe("Music NFT Transfer", () => {
       totalSold: 0,
       active: true,
       royaltyPercentage: 10,
-      name: "Test Music NFT",
+      name: "Test EmpowerTours NFT",
       description: "Test description",
       imageUrl: "",
       previewAudioUrl: "",
@@ -112,16 +113,16 @@ describe("Music NFT Transfer", () => {
     };
 
     // Set initial state
-    const mockDb = mockDbEmpty.entities.MusicNFT.set(mockMusicNFT);
+    const mockDb = mockDbEmpty.entities.MusicNFT.set(mockNFT);
 
     // Process the transfer
-    const mockDbAfterTransfer = await MusicLicenseNFT.Transfer.processEvent({
+    const mockDbAfterTransfer = await EmpowerToursNFT.Transfer.processEvent({
       event: mockTransfer,
       mockDb,
     });
 
     // Get the NFT after transfer
-    const transferredNFT = mockDbAfterTransfer.entities.MusicNFT.get(musicNFTId);
+    const transferredNFT = mockDbAfterTransfer.entities.MusicNFT.get(nftId);
 
     // Assert owner was updated
     assert.equal(

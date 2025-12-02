@@ -240,6 +240,9 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
       totalTicketsSold: 0,
       totalTandaGroups: 0,
       totalDemandSignals: 0,
+      totalLotteryRounds: 0,
+      totalLotteryEntries: 0,
+      totalLotteryPrizePool: BigInt(0),
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -344,6 +347,9 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
       totalTicketsSold: 0,
       totalTandaGroups: 0,
       totalDemandSignals: 0,
+      totalLotteryRounds: 0,
+      totalLotteryEntries: 0,
+      totalLotteryPrizePool: BigInt(0),
       totalUsers: 1,
       lastUpdated: timestamp,
     });
@@ -570,6 +576,9 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       totalTicketsSold: 0,
       totalTandaGroups: 0,
       totalDemandSignals: 0,
+      totalLotteryRounds: 0,
+      totalLotteryEntries: 0,
+      totalLotteryPrizePool: BigInt(0),
       totalUsers: 1,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
