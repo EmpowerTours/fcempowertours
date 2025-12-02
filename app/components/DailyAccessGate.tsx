@@ -37,6 +37,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [grantAccess, setGrantAccess] = useState(false); // Force grant access when "Already entered"
 
   // Live countdown
   const [countdown, setCountdown] = useState<string>('--:--:--');
@@ -128,7 +129,17 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
     } catch (err: any) {
       console.error('Entry error:', err);
-      setError(err.message || 'Failed to enter lottery');
+      const errMsg = err.message || 'Failed to enter lottery';
+
+      // Check for "Already entered" error - grant access if so
+      if (errMsg.includes('Already entered') || errMsg.includes('416c726561647920656e7465726564')) {
+        console.log('User already entered - granting access');
+        setGrantAccess(true);
+        setIsEntering(false);
+        return;
+      }
+
+      setError(errMsg);
       setIsEntering(false);
     }
   };
@@ -201,7 +212,17 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
     } catch (err: any) {
       console.error('Entry error:', err);
-      setError(err.message || 'Failed to enter lottery');
+      const errMsg = err.message || 'Failed to enter lottery';
+
+      // Check for "Already entered" error - grant access if so
+      if (errMsg.includes('Already entered') || errMsg.includes('416c726561647920656e7465726564')) {
+        console.log('User already entered - granting access');
+        setGrantAccess(true);
+        setIsEntering(false);
+        return;
+      }
+
+      setError(errMsg);
       setIsEntering(false);
     }
   };
@@ -218,8 +239,8 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     );
   }
 
-  // User has already entered today - show children (grant access)
-  if (hasEntered) {
+  // User has already entered today OR got "Already entered" error - show children (grant access)
+  if (hasEntered || grantAccess) {
     return <>{children}</>;
   }
 
@@ -228,11 +249,11 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     ? Number(formatEther(currentRound.prizePoolMon + currentRound.prizePoolShMon)).toFixed(4)
     : '0';
 
-  // Show lottery gate - CENTERED
+  // Show lottery gate - FULL SCREEN CENTERED
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 z-[9999] overflow-y-auto">
-      <div className="min-h-full flex items-center justify-center p-4 py-8">
-        <div className="w-full max-w-md">
+    <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 z-[9999] overflow-auto">
+      <div className="min-h-screen w-full flex items-center justify-center p-4 py-8">
+        <div className="w-full max-w-md mx-auto">
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
 
             {/* Header */}

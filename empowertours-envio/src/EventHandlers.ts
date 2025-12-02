@@ -7,6 +7,7 @@ import {
   SmartEventManifest,
   TandaYieldGroup,
   CreditScoreCalculator,
+  DailyPassLottery,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -1430,4 +1431,224 @@ CreditScoreCalculator.PaymentRecorded.handler(async ({ event, context }) => {
   }
 
   context.log.info(`💳 Payment recorded for ${user}: ${amount.toString()} TOURS (${onTime ? 'on time' : 'late'})`);
+});
+
+// ============================================
+// DAILY PASS LOTTERY EVENTS
+// ============================================
+
+DailyPassLottery.RoundStarted.handler(async ({ event, context }) => {
+  const { roundId, startTime, endTime } = event.params;
+
+  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
+
+  const lotteryRound = {
+    id: lotteryRoundId,
+    roundId: roundId.toString(),
+    startTime: startTime,
+    endTime: endTime,
+    prizePoolMon: BigInt(0),
+    prizePoolShMon: BigInt(0),
+    participantCount: 0,
+    status: "Active",
+    winner: undefined,
+    winnerIndex: undefined,
+    monPrize: undefined,
+    shMonPrize: undefined,
+    randomHash: undefined,
+    finalizedAt: undefined,
+    announcedOnFarcaster: false,
+    announcementCastHash: undefined,
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.LotteryRound.set(lotteryRound);
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalLotteryRounds: (globalStats.totalLotteryRounds || 0) + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🎰 Lottery Round #${roundId} started - ends at ${new Date(Number(endTime) * 1000).toISOString()}`);
+});
+
+DailyPassLottery.DailyPassPurchased.handler(async ({ event, context }) => {
+  const { roundId, holder, entryIndex, paidWithShMon, amount } = event.params;
+
+  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
+  const lotteryEntryId = `entry-${event.chainId}-${roundId.toString()}-${entryIndex.toString()}`;
+  const userId = holder.toLowerCase();
+
+  // Create lottery entry
+  const lotteryEntry = {
+    id: lotteryEntryId,
+    round_id: lotteryRoundId,
+    roundId: roundId.toString(),
+    holder: userId,
+    entryIndex: Number(entryIndex),
+    paidWithShMon: paidWithShMon,
+    amount: amount,
+    enteredAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.LotteryEntry.set(lotteryEntry);
+
+  // Update lottery round
+  const lotteryRound = await context.LotteryRound.get(lotteryRoundId);
+  if (lotteryRound) {
+    await context.LotteryRound.set({
+      ...lotteryRound,
+      prizePoolMon: paidWithShMon ? lotteryRound.prizePoolMon : lotteryRound.prizePoolMon + amount,
+      prizePoolShMon: paidWithShMon ? lotteryRound.prizePoolShMon + amount : lotteryRound.prizePoolShMon,
+      participantCount: lotteryRound.participantCount + 1,
+    });
+  }
+
+  // Update user lottery stats
+  let userLotteryStats = await context.UserLotteryStats.get(userId);
+  if (userLotteryStats) {
+    await context.UserLotteryStats.set({
+      ...userLotteryStats,
+      totalEntriesMon: paidWithShMon ? userLotteryStats.totalEntriesMon : userLotteryStats.totalEntriesMon + 1,
+      totalEntriesShMon: paidWithShMon ? userLotteryStats.totalEntriesShMon + 1 : userLotteryStats.totalEntriesShMon,
+      totalSpentMon: paidWithShMon ? userLotteryStats.totalSpentMon : userLotteryStats.totalSpentMon + amount,
+      totalSpentShMon: paidWithShMon ? userLotteryStats.totalSpentShMon + amount : userLotteryStats.totalSpentShMon,
+      lastEntryAt: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.UserLotteryStats.set({
+      id: userId,
+      user: userId,
+      totalEntriesMon: paidWithShMon ? 0 : 1,
+      totalEntriesShMon: paidWithShMon ? 1 : 0,
+      totalSpentMon: paidWithShMon ? BigInt(0) : amount,
+      totalSpentShMon: paidWithShMon ? amount : BigInt(0),
+      wins: 0,
+      totalWonMon: BigInt(0),
+      totalWonShMon: BigInt(0),
+      lastEntryAt: new Date(event.block.timestamp * 1000),
+      lastWinAt: undefined,
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalLotteryEntries: (globalStats.totalLotteryEntries || 0) + 1,
+      totalLotteryPrizePool: (globalStats.totalLotteryPrizePool || BigInt(0)) + amount,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🎫 Lottery entry #${entryIndex} for round ${roundId} - ${holder} paid ${amount.toString()} ${paidWithShMon ? 'shMON' : 'MON'}`);
+});
+
+DailyPassLottery.RandomnessCommitted.handler(async ({ event, context }) => {
+  const { roundId, commitBlock, commitHash, caller, reward } = event.params;
+
+  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
+
+  // Update lottery round
+  const lotteryRound = await context.LotteryRound.get(lotteryRoundId);
+  if (lotteryRound) {
+    await context.LotteryRound.set({
+      ...lotteryRound,
+      status: "RevealPending",
+    });
+  }
+
+  context.log.info(`🔐 Randomness committed for round ${roundId} at block ${commitBlock} by ${caller} (reward: ${reward.toString()})`);
+});
+
+DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
+  const { roundId, winner, winnerIndex, monPrize, shMonPrize, randomHash } = event.params;
+
+  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
+  const winnerHistoryId = `winner-${event.chainId}-${roundId.toString()}`;
+  const userId = winner.toLowerCase();
+
+  // Update lottery round
+  const lotteryRound = await context.LotteryRound.get(lotteryRoundId);
+  if (lotteryRound) {
+    await context.LotteryRound.set({
+      ...lotteryRound,
+      status: "Finalized",
+      winner: userId,
+      winnerIndex: Number(winnerIndex),
+      monPrize: monPrize,
+      shMonPrize: shMonPrize,
+      randomHash: randomHash,
+      finalizedAt: new Date(event.block.timestamp * 1000),
+    });
+
+    // Create winner history entry
+    const winnerHistory = {
+      id: winnerHistoryId,
+      roundId: roundId.toString(),
+      winner: userId,
+      winnerFid: undefined,
+      winnerUsername: undefined,
+      monPrize: monPrize,
+      shMonPrize: shMonPrize,
+      totalPrize: monPrize + shMonPrize,
+      participantCount: lotteryRound.participantCount,
+      randomHash: randomHash,
+      claimed: false,
+      claimedAt: undefined,
+      finalizedAt: new Date(event.block.timestamp * 1000),
+      blockNumber: BigInt(event.block.number),
+      txHash: event.transaction.hash,
+    };
+
+    await context.LotteryWinnerHistory.set(winnerHistory);
+  }
+
+  // Update user lottery stats
+  let userLotteryStats = await context.UserLotteryStats.get(userId);
+  if (userLotteryStats) {
+    await context.UserLotteryStats.set({
+      ...userLotteryStats,
+      wins: userLotteryStats.wins + 1,
+      totalWonMon: userLotteryStats.totalWonMon + monPrize,
+      totalWonShMon: userLotteryStats.totalWonShMon + shMonPrize,
+      lastWinAt: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🏆 WINNER for Round #${roundId}: ${winner} - Prize: ${monPrize.toString()} MON + ${shMonPrize.toString()} shMON`);
+});
+
+DailyPassLottery.PrizeClaimed.handler(async ({ event, context }) => {
+  const { roundId, winner, monAmount, shMonAmount } = event.params;
+
+  const winnerHistoryId = `winner-${event.chainId}-${roundId.toString()}`;
+
+  // Update winner history
+  const winnerHistory = await context.LotteryWinnerHistory.get(winnerHistoryId);
+  if (winnerHistory) {
+    await context.LotteryWinnerHistory.set({
+      ...winnerHistory,
+      claimed: true,
+      claimedAt: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`💰 Prize claimed for Round #${roundId} by ${winner}: ${monAmount.toString()} MON + ${shMonAmount.toString()} shMON`);
+});
+
+DailyPassLottery.EscrowExpired.handler(async ({ event, context }) => {
+  const { roundId } = event.params;
+
+  context.log.info(`⏰ Escrow expired for Round #${roundId} - unclaimed prize returned to platform`);
 });

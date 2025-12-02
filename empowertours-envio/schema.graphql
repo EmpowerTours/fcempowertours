@@ -332,6 +332,78 @@ type GlobalStats @entity {
   totalTicketsSold: Int!                  # ✅ NEW
   totalTandaGroups: Int!                  # ✅ NEW
   totalDemandSignals: Int!                # ✅ NEW
+  totalLotteryRounds: Int!                # ✅ NEW: Lottery
+  totalLotteryEntries: Int!               # ✅ NEW: Lottery
+  totalLotteryPrizePool: BigInt!          # ✅ NEW: Lottery
   totalUsers: Int!
   lastUpdated: Timestamp!
+}
+
+# ✅ NEW: DailyPassLottery Entities
+type LotteryRound @entity {
+  id: ID!                                 # round-{chainId}-{roundId}
+  roundId: String!
+  startTime: BigInt!
+  endTime: BigInt!
+  prizePoolMon: BigInt!
+  prizePoolShMon: BigInt!
+  participantCount: Int!
+  status: String!                         # Active, CommitPending, RevealPending, Finalized
+  winner: String
+  winnerIndex: Int
+  monPrize: BigInt
+  shMonPrize: BigInt
+  randomHash: String
+  finalizedAt: Timestamp
+  announcedOnFarcaster: Boolean!
+  announcementCastHash: String
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  entries: [LotteryEntry!]! @derivedFrom(field: "round")
+}
+
+type LotteryEntry @entity {
+  id: ID!                                 # entry-{chainId}-{roundId}-{entryIndex}
+  round: LotteryRound!
+  roundId: String!
+  holder: String!
+  entryIndex: Int!
+  paidWithShMon: Boolean!
+  amount: BigInt!
+  enteredAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type LotteryWinnerHistory @entity {
+  id: ID!                                 # winner-{chainId}-{roundId}
+  roundId: String!
+  winner: String!
+  winnerFid: Int
+  winnerUsername: String
+  monPrize: BigInt!
+  shMonPrize: BigInt!
+  totalPrize: BigInt!
+  participantCount: Int!
+  randomHash: String!
+  claimed: Boolean!
+  claimedAt: Timestamp
+  finalizedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UserLotteryStats @entity {
+  id: ID!                                 # user address
+  user: String!
+  totalEntriesMon: Int!
+  totalEntriesShMon: Int!
+  totalSpentMon: BigInt!
+  totalSpentShMon: BigInt!
+  wins: Int!
+  totalWonMon: BigInt!
+  totalWonShMon: BigInt!
+  lastEntryAt: Timestamp
+  lastWinAt: Timestamp
 }

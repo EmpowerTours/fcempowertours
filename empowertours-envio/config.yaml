@@ -236,4 +236,46 @@ networks:
               transaction_fields:
                 - hash
 
+      # ✅ NEW: DailyPassLotterySecure Contract (Added Dec 2, 2025)
+      - name: DailyPassLottery
+        address:
+          - "0xBb1622A454Db65F985e07ecae0be333b6513714e"
+        handler: src/EventHandlers.ts
+        events:
+          # Daily pass purchase (MON or shMON)
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed holder, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Randomness committed (round ended, commit phase)
+          - event: "RandomnessCommitted(uint256 indexed roundId, uint256 commitBlock, bytes32 commitHash, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner revealed (final randomness)
+          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, bytes32 randomHash)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Prize claimed from escrow
+          - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 monAmount, uint256 shMonAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Escrow expired (unclaimed prize returned to platform)
+          - event: "EscrowExpired(uint256 indexed roundId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # New round started
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false
