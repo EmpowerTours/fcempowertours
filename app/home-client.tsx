@@ -33,6 +33,9 @@ export default function HomeClient() {
               <div className="px-6 py-3 bg-white/10 backdrop-blur-sm rounded-full border border-blue-400/50">
                 🎵 Music NFTs
               </div>
+              <div className="px-6 py-3 bg-white/10 backdrop-blur-sm rounded-full border border-yellow-400/50">
+                👁️ Monad Sync
+              </div>
               <div className="px-6 py-3 bg-white/10 backdrop-blur-sm rounded-full border border-pink-400/50">
                 ⚡ Gasless Minting
               </div>
@@ -43,6 +46,13 @@ export default function HomeClient() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <a
+                href="/monad-sync"
+                className="px-8 py-4 bg-gradient-to-r from-yellow-600 via-orange-600 to-red-600 text-white rounded-lg font-bold text-lg hover:from-yellow-700 hover:via-orange-700 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg shadow-orange-500/50"
+              >
+                👁️ Sync Your Monad
+              </a>
+
               <a
                 href="/passport"
                 className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg shadow-purple-500/50"
@@ -107,6 +117,7 @@ export default function HomeClient() {
             Built with ❤️ for Monad & Farcaster
           </p>
           <div className="flex justify-center gap-6 text-sm text-purple-400">
+            <a href="/monad-sync" className="hover:text-yellow-300">👁️ Monad Sync</a>
             <a href="/profile" className="hover:text-purple-300">Profile</a>
             <a href="/market" className="hover:text-purple-300">Market</a>
             <a href="/dashboard" className="hover:text-purple-300">Dashboard</a>

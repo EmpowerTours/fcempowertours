@@ -3184,6 +3184,262 @@ ${enjoyText}
         });
       }
 
+      // ==================== SHMON DEPOSIT (Liquid Staking) ====================
+      case 'shmon_deposit':
+        console.log('💎 Action: shmon_deposit (MON → shMON liquid staking)');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for shmon_deposit' },
+            { status: 400 }
+          );
+        }
+
+        const SHMON_ADDRESS = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as Address;
+        const shmonDepositAmount = parseEther(params.amount.toString());
+
+        // Determine the correct Safe address for receiver
+        const shmonReceiverSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('💎 Depositing MON to get shMON:', {
+          amount: params.amount,
+          shmonAddress: SHMON_ADDRESS,
+          receiverSafe: shmonReceiverSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+        });
+
+        // ✅ Check Safe has enough MON before deposit
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeToCheckShmon = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeMonBalanceShmon = await client.getBalance({
+            address: safeToCheckShmon as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalanceShmon.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested deposit amount:', shmonDepositAmount.toString());
+
+          if (safeMonBalanceShmon < shmonDepositAmount) {
+            const currentMON = (Number(safeMonBalanceShmon) / 1e18).toFixed(4);
+            const requestedMON = (Number(shmonDepositAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but you're trying to stake ${requestedMON} MON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
+        }
+
+        // shMON deposit function: deposit(uint96 minShares, address receiver) payable
+        const shmonDepositCalls = [
+          {
+            to: SHMON_ADDRESS,
+            value: shmonDepositAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit(uint96 minShares, address receiver) external payable returns (uint96)']),
+              functionName: 'deposit',
+              args: [BigInt(0), shmonReceiverSafe as Address], // minShares = 0 (no slippage protection for simplicity)
+            }) as Hex,
+          },
+        ];
+
+        const shmonDepositTxHash = await executeTransaction(shmonDepositCalls, userAddress as Address);
+        console.log('✅ MON deposited to shMON, TX:', shmonDepositTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: shmonDepositTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Staked ${params.amount} MON to receive shMON successfully (gasless)`,
+        });
+
+      // ==================== LOTTERY ENTER WITH MON ====================
+      case 'lottery_enter_mon':
+        console.log('🎰 Action: lottery_enter_mon');
+
+        const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xf0ADd68cC2145B7b97a41f280E079db8A49eB0fD') as Address;
+        const lotteryEntryFee = parseEther('1'); // 1 MON entry fee
+
+        // Determine the correct Safe address
+        const lotterySafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('🎰 Entering lottery with MON:', {
+          entryFee: '1 MON',
+          lotteryAddress: LOTTERY_ADDRESS,
+          safeAddress: lotterySafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+        });
+
+        // Check Safe has enough MON
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeMonBalanceLottery = await client.getBalance({
+            address: lotterySafe as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalanceLottery.toString());
+
+          if (safeMonBalanceLottery < lotteryEntryFee) {
+            const currentMON = (Number(safeMonBalanceLottery) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but lottery entry requires 1 MON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
+        }
+
+        // Lottery enterWithMon function: enterWithMon() payable
+        const lotteryEnterMonCalls = [
+          {
+            to: LOTTERY_ADDRESS,
+            value: lotteryEntryFee,
+            data: encodeFunctionData({
+              abi: parseAbi(['function enterWithMon() external payable returns (uint256)']),
+              functionName: 'enterWithMon',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        const lotteryEnterMonTxHash = await executeTransaction(lotteryEnterMonCalls, userAddress as Address);
+        console.log('✅ Entered lottery with MON, TX:', lotteryEnterMonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: lotteryEnterMonTxHash,
+          action,
+          userAddress,
+          message: `Entered lottery with 1 MON successfully (gasless)`,
+        });
+
+      // ==================== LOTTERY ENTER WITH SHMON ====================
+      case 'lottery_enter_shmon':
+        console.log('🎰 Action: lottery_enter_shmon');
+
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for lottery_enter_shmon' },
+            { status: 400 }
+          );
+        }
+
+        const LOTTERY_ADDRESS_SHMON = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xf0ADd68cC2145B7b97a41f280E079db8A49eB0fD') as Address;
+        const SHMON_ADDRESS_LOTTERY = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as Address;
+        const lotteryShMonAmount = parseEther(params.amount.toString());
+
+        // Determine the correct Safe address
+        const lotteryShMonSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('🎰 Entering lottery with shMON:', {
+          amount: params.amount,
+          lotteryAddress: LOTTERY_ADDRESS_SHMON,
+          shmonAddress: SHMON_ADDRESS_LOTTERY,
+          safeAddress: lotteryShMonSafe,
+        });
+
+        // Check Safe has enough shMON and approval
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeShMonBalance = await client.readContract({
+            address: SHMON_ADDRESS_LOTTERY,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [lotteryShMonSafe],
+          }) as bigint;
+
+          console.log('💰 Safe shMON balance:', safeShMonBalance.toString());
+
+          if (safeShMonBalance < lotteryShMonAmount) {
+            const currentShMON = (Number(safeShMonBalance) / 1e18).toFixed(4);
+            const requiredShMON = (Number(lotteryShMonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient shMON in Safe. Safe has ${currentShMON} shMON, but lottery entry requires ${requiredShMON} shMON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe shMON balance:', balanceErr.message);
+        }
+
+        // First approve shMON, then enter lottery
+        const lotteryEnterShMonCalls = [
+          // Approve shMON to lottery contract
+          {
+            to: SHMON_ADDRESS_LOTTERY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [LOTTERY_ADDRESS_SHMON, lotteryShMonAmount],
+            }) as Hex,
+          },
+          // Enter lottery with shMON
+          {
+            to: LOTTERY_ADDRESS_SHMON,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function enterWithShMon(uint256 shMonAmount) external returns (uint256)']),
+              functionName: 'enterWithShMon',
+              args: [lotteryShMonAmount],
+            }) as Hex,
+          },
+        ];
+
+        const lotteryEnterShMonTxHash = await executeTransaction(lotteryEnterShMonCalls, userAddress as Address);
+        console.log('✅ Entered lottery with shMON, TX:', lotteryEnterShMonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: lotteryEnterShMonTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Entered lottery with ${params.amount} shMON successfully (gasless)`,
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },

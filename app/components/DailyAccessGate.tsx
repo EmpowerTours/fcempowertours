@@ -2,287 +2,309 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-
-// Configuration - matches lib/lottery.ts
-const LOTTERY_CONFIG = {
-  ACCESS_FEE_ETH: 0.001,
-  BOT_WALLET_ADDRESS: '0x2d5dd9aa1dc42949d203d1946d599ba47f0b6d1c',
-  BASE_CHAIN_ID: 8453, // Base mainnet
-};
+import { useDailyLottery, useShMon } from '@/src/hooks';
+import { formatEther, parseEther } from 'viem';
+import { useAccount } from 'wagmi';
 
 interface DailyAccessGateProps {
   children: React.ReactNode;
 }
 
-interface AccessStatus {
-  hasAccess: boolean;
-  expiresAt?: number;
-}
-
-interface PoolStatus {
-  day: string;
-  totalPool: number;
-  participantCount: number;
-  status: string;
+// Round status enum matching contract
+enum RoundStatus {
+  Active = 0,
+  Committed = 1,
+  Revealed = 2,
+  Completed = 3
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const { walletAddress, user, isLoading: contextLoading } = useFarcasterContext();
+  const { address: wagmiAddress } = useAccount();
+  const effectiveAddress = (walletAddress || wagmiAddress) as `0x${string}` | undefined;
 
-  const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
-  const [poolStatus, setPoolStatus] = useState<PoolStatus | null>(null);
-  const [isChecking, setIsChecking] = useState(true);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const {
+    useGetCurrentRound,
+    useGetTimeRemaining,
+    useHasEnteredToday,
+    useGetShMonEntryFee,
+    LOTTERY_ADDRESS
+  } = useDailyLottery();
+
+  const { useGetShMonBalance } = useShMon();
+
+  // Contract data hooks
+  const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
+  const { data: timeRemaining } = useGetTimeRemaining();
+  const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered } = useHasEnteredToday(effectiveAddress);
+  const { data: shMonEntryFee } = useGetShMonEntryFee();
+  const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
+
+  // Local state
+  const [entryMethod, setEntryMethod] = useState<'mon' | 'shmon'>('mon');
+  const [isEntering, setIsEntering] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [copied, setCopied] = useState(false);
 
-  // Check access status
-  const checkAccess = useCallback(async () => {
-    if (!walletAddress) return;
-
-    try {
-      const response = await fetch(`/api/lottery/check-access?address=${walletAddress}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setAccessStatus({
-          hasAccess: data.hasAccess,
-          expiresAt: data.expiresAt,
-        });
-      } else {
-        setAccessStatus({ hasAccess: false });
-      }
-    } catch (err) {
-      console.error('Error checking access:', err);
-      setAccessStatus({ hasAccess: false });
-    }
-  }, [walletAddress]);
-
-  // Fetch lottery pool status
-  const fetchPoolStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/lottery/status');
-      const data = await response.json();
-
-      if (data.success && data.todayPool) {
-        setPoolStatus(data.todayPool);
-      }
-    } catch (err) {
-      console.error('Error fetching pool status:', err);
-    }
-  }, []);
-
-  // Initial checks
-  useEffect(() => {
-    const runChecks = async () => {
-      setIsChecking(true);
-      await Promise.all([checkAccess(), fetchPoolStatus()]);
-      setIsChecking(false);
-    };
-
-    if (walletAddress && !contextLoading) {
-      runChecks();
-    } else if (!contextLoading) {
-      setIsChecking(false);
-    }
-  }, [walletAddress, contextLoading, checkAccess, fetchPoolStatus]);
-
-  // Copy address to clipboard
-  const copyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(LOTTERY_CONFIG.BOT_WALLET_ADDRESS);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = LOTTERY_CONFIG.BOT_WALLET_ADDRESS;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  // Format time remaining
+  const formatTimeRemaining = (seconds: bigint | undefined) => {
+    if (!seconds) return '--:--:--';
+    const hrs = Math.floor(Number(seconds) / 3600);
+    const mins = Math.floor((Number(seconds) % 3600) / 60);
+    const secs = Number(seconds) % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Verify payment on-chain
-  const handleVerifyPayment = async () => {
-    if (!walletAddress || !user?.fid) {
+  // Handle lottery entry with MON
+  const handleEnterWithMon = async () => {
+    if (!effectiveAddress) {
       setError('Wallet not connected');
       return;
     }
 
-    setIsVerifying(true);
+    setIsEntering(true);
     setError('');
     setSuccess('');
 
     try {
-      console.log('Verifying payment on-chain...');
-      setSuccess('Checking Base blockchain for your payment...');
+      // Check delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
+      const delegationData = await delegationRes.json();
 
-      const response = await fetch('/api/lottery/verify-payment', {
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('lottery_enter_mon');
+
+      if (!hasValidDelegation) {
+        setSuccess('Setting up gasless transactions...');
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: effectiveAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours', 'wrap_mon', 'unwrap_wmon', 'shmon_deposit', 'lottery_enter_mon', 'lottery_enter_shmon']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+      }
+
+      setSuccess('Entering lottery with 1 MON (FREE gas)...');
+
+      const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userAddress: walletAddress,
-          fid: user.fid,
-          username: user.username,
-        }),
+          userAddress: effectiveAddress,
+          action: 'lottery_enter_mon',
+          params: {}
+        })
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess(`Payment verified! ${data.message}`);
-
-        // Refresh access status
-        setTimeout(() => {
-          checkAccess();
-          fetchPoolStatus();
-        }, 1500);
-      } else {
-        setError(data.error || 'No payment found. Please send ETH and try again.');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Entry failed');
       }
+
+      const { txHash } = await response.json();
+      setSuccess(`You're in the lottery! TX: ${txHash.slice(0, 10)}...`);
+
+      // Refresh entry status
+      setTimeout(() => {
+        refetchHasEntered();
+        refetchRound();
+      }, 3000);
     } catch (err: any) {
-      console.error('Verification error:', err);
-      setError(err.message || 'Verification failed. Please try again.');
+      console.error('Entry error:', err);
+      setError(err.message || 'Failed to enter lottery');
     } finally {
-      setIsVerifying(false);
+      setIsEntering(false);
+    }
+  };
+
+  // Handle lottery entry with shMON
+  const handleEnterWithShMon = async () => {
+    if (!effectiveAddress || !shMonEntryFee) {
+      setError('Wallet not connected or fee not loaded');
+      return;
+    }
+
+    setIsEntering(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Check delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('lottery_enter_shmon');
+
+      if (!hasValidDelegation) {
+        setSuccess('Setting up gasless transactions...');
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: effectiveAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours', 'wrap_mon', 'unwrap_wmon', 'shmon_deposit', 'lottery_enter_mon', 'lottery_enter_shmon']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+      }
+
+      setSuccess(`Entering lottery with shMON (FREE gas)...`);
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'lottery_enter_shmon',
+          params: { amount: formatEther(shMonEntryFee) }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Entry failed');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`You're in the lottery! TX: ${txHash.slice(0, 10)}...`);
+
+      setTimeout(() => {
+        refetchHasEntered();
+        refetchRound();
+      }, 3000);
+    } catch (err: any) {
+      console.error('Entry error:', err);
+      setError(err.message || 'Failed to enter lottery');
+    } finally {
+      setIsEntering(false);
     }
   };
 
   // Show loading while checking
-  if (isChecking || contextLoading) {
+  if (roundLoading || entryLoading || contextLoading) {
     return (
       <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
         <div className="text-center">
           <div className="animate-spin text-6xl mb-4">🎰</div>
-          <p className="text-white text-lg">Checking access status...</p>
+          <p className="text-white text-lg">Checking lottery status on Monad...</p>
         </div>
       </div>
     );
   }
 
-  // User has valid access - show children
-  if (accessStatus?.hasAccess) {
+  // User has already entered today - show children (grant access)
+  if (hasEntered) {
     return <>{children}</>;
   }
 
-  // Show payment gate with manual payment instructions
+  // Calculate total prize pool
+  const totalPrizePool = currentRound
+    ? Number(formatEther(currentRound.prizePoolMon + currentRound.prizePoolShMon)).toFixed(4)
+    : '0';
+
+  // Show lottery gate
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-amber-900 via-orange-900 to-red-900 flex items-center justify-center z-[9999] p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 flex items-center justify-center z-[9999] p-4 overflow-y-auto">
       <div className="w-full max-w-md my-8">
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
 
           {/* Header */}
           <div className="text-center mb-6">
             <div className="text-6xl mb-3">🎰</div>
-            <h1 className="text-3xl font-bold text-white mb-2">Daily Access Pass</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Daily Pass Lottery</h1>
             <p className="text-white/80 text-sm">
-              Pay once, access all day, win ETH!
+              Enter once, access all day, win the pot!
             </p>
           </div>
 
-          {/* Price Card */}
-          <div className="bg-white/10 rounded-2xl p-4 mb-6 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-white/70 text-sm">Daily Access Fee</p>
-                <p className="text-3xl font-bold text-white">
-                  {LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH
-                </p>
-                <p className="text-white/60 text-xs">on Base network</p>
-              </div>
-              <div className="text-5xl">
-                <img
-                  src="https://raw.githubusercontent.com/base-org/brand-kit/main/logo/symbol/Base_Symbol_Blue.svg"
-                  alt="Base"
-                  className="w-14 h-14"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
+          {/* Current Round Info */}
+          <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl p-4 mb-6 border border-purple-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-white/70 text-sm">Round #{currentRound?.roundId?.toString() || '0'}</span>
+              <span className="text-cyan-400 font-mono text-sm">
+                {formatTimeRemaining(timeRemaining as bigint | undefined)}
+              </span>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-white/5 rounded-lg p-3">
-                <p className="text-white/60 text-xs">Your Share</p>
-                <p className="text-green-400 font-semibold">50% to Lottery</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-3">
-                <p className="text-white/60 text-xs">Access Duration</p>
-                <p className="text-blue-400 font-semibold">24 Hours</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Instructions */}
-          <div className="bg-blue-500/20 rounded-xl p-4 mb-6 border border-blue-400/30">
-            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-              📋 Payment Instructions
-            </h3>
-
-            <div className="space-y-3">
-              <div className="text-sm text-white/80">
-                <span className="text-blue-400 font-bold">1.</span> Send exactly <span className="text-green-400 font-bold">{LOTTERY_CONFIG.ACCESS_FEE_ETH} ETH</span> on <span className="text-blue-400 font-bold">Base</span> to:
-              </div>
-
-              {/* Payment Address */}
-              <div
-                onClick={copyAddress}
-                className="bg-black/30 rounded-lg p-3 cursor-pointer hover:bg-black/40 transition-colors border border-white/10"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <code className="text-yellow-300 text-xs sm:text-sm break-all font-mono">
-                    {LOTTERY_CONFIG.BOT_WALLET_ADDRESS}
-                  </code>
-                  <button className="text-white/60 hover:text-white shrink-0">
-                    {copied ? '✅' : '📋'}
-                  </button>
-                </div>
-                <p className="text-white/50 text-xs mt-1">
-                  {copied ? 'Copied!' : 'Tap to copy address'}
-                </p>
-              </div>
-
-              <div className="text-sm text-white/80">
-                <span className="text-blue-400 font-bold">2.</span> Use any wallet (Coinbase, MetaMask, Rainbow, etc.)
-              </div>
-
-              <div className="text-sm text-white/80">
-                <span className="text-blue-400 font-bold">3.</span> After sending, click "Verify Payment" below
-              </div>
-            </div>
-          </div>
-
-          {/* Today's Pool Info */}
-          {poolStatus && (
-            <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-4 mb-6 border border-green-500/30">
-              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
-                🏆 Today's Lottery Pool
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-white/60 text-xs">Current Pool</p>
-                  <p className="text-xl font-bold text-green-400">
-                    {poolStatus.totalPool.toFixed(6)} ETH
-                  </p>
-                </div>
-                <div>
-                  <p className="text-white/60 text-xs">Participants</p>
-                  <p className="text-xl font-bold text-white">
-                    {poolStatus.participantCount}
-                  </p>
-                </div>
-              </div>
-              <p className="text-white/60 text-xs mt-2">
-                Winner drawn daily at midnight UTC
+            <div className="text-center">
+              <p className="text-white/60 text-xs mb-1">Current Prize Pool</p>
+              <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                {totalPrizePool} MON
+              </p>
+              <p className="text-white/50 text-xs mt-1">
+                {currentRound?.participantCount?.toString() || '0'} participants
               </p>
             </div>
-          )}
+          </div>
+
+          {/* Entry Options */}
+          <div className="bg-white/10 rounded-2xl p-4 mb-6 border border-white/10">
+            <h3 className="text-white font-semibold mb-3 text-center">Choose Entry Method</h3>
+
+            {/* Entry Method Toggle */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setEntryMethod('mon')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+                  entryMethod === 'mon'
+                    ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+              >
+                <div className="text-lg mb-1">💜</div>
+                <div>1 MON</div>
+              </button>
+              <button
+                onClick={() => setEntryMethod('shmon')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+                  entryMethod === 'shmon'
+                    ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+              >
+                <div className="text-lg mb-1">💎</div>
+                <div>shMON</div>
+              </button>
+            </div>
+
+            {/* Entry Fee Details */}
+            <div className="bg-black/20 rounded-xl p-3 text-center">
+              {entryMethod === 'mon' ? (
+                <>
+                  <p className="text-white text-lg font-bold">1 MON</p>
+                  <p className="text-white/50 text-xs">90% to prize pool, 10% to platform</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-white text-lg font-bold">
+                    ~{shMonEntryFee ? Number(formatEther(shMonEntryFee)).toFixed(4) : '...'} shMON
+                  </p>
+                  <p className="text-white/50 text-xs">
+                    Your balance: {shMonBalance ? Number(formatEther(shMonBalance)).toFixed(4) : '0'} shMON
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
 
           {/* Error Message */}
           {error && (
@@ -298,40 +320,63 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
             </div>
           )}
 
-          {/* Verify Payment Button */}
+          {/* Enter Button */}
           <button
-            onClick={handleVerifyPayment}
-            disabled={isVerifying || !walletAddress}
-            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg"
+            onClick={entryMethod === 'mon' ? handleEnterWithMon : handleEnterWithShMon}
+            disabled={isEntering || !effectiveAddress}
+            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg shadow-purple-500/30"
           >
-            {isVerifying ? (
+            {isEntering ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin">🔍</span>
-                Verifying on Base...
+                <span className="animate-spin">🎰</span>
+                Entering Lottery...
               </span>
             ) : (
-              <span>✅ Verify My Payment</span>
+              <span>🚀 Enter Lottery (FREE Gas)</span>
             )}
           </button>
 
           <p className="text-white/50 text-xs text-center mt-2">
-            We'll check the blockchain for your payment
+            Gasless transaction - we pay the network fees!
           </p>
 
+          {/* How It Works */}
+          <div className="mt-6 pt-4 border-t border-white/10">
+            <h4 className="text-white/80 text-sm font-semibold mb-3 text-center">How It Works</h4>
+            <div className="space-y-2 text-xs text-white/60">
+              <div className="flex items-start gap-2">
+                <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">1</span>
+                <p>Enter today's lottery with MON or shMON</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">2</span>
+                <p>Get full access to EmpowerTours for 24 hours</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">3</span>
+                <p>Random winner drawn at round end</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">4</span>
+                <p>Winner claims entire prize pool!</p>
+              </div>
+            </div>
+          </div>
+
           {/* Wallet Info */}
-          {walletAddress && (
+          {effectiveAddress && (
             <p className="text-white/40 text-xs text-center mt-4">
-              Your wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              Your wallet: {effectiveAddress.slice(0, 6)}...{effectiveAddress.slice(-4)}
             </p>
           )}
 
-          {/* Previous Winners Link */}
+          {/* Full Lottery Page Link */}
           <div className="text-center mt-4">
             <a
               href="/lottery"
-              className="text-white/60 text-sm hover:text-white/90 underline"
+              className="text-purple-400 text-sm hover:text-purple-300 underline"
             >
-              View Previous Winners
+              View Full Lottery Dashboard
             </a>
           </div>
         </div>

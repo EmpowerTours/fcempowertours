@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSwap } from '@/src/hooks';
+import { useSwap, useShMon } from '@/src/hooks';
 import { useAccount } from 'wagmi';
 import { formatEther } from 'viem';
 import PassportGate from '@/app/components/PassportGate';
@@ -19,7 +19,7 @@ export default function SwapPage() {
 function SwapContent() {
   const { address } = useAccount();
   const { walletAddress } = useFarcasterContext();
-  const [swapType, setSwapType] = useState<'token-swap' | 'amm'>('token-swap');
+  const [swapType, setSwapType] = useState<'token-swap' | 'amm' | 'shmon'>('token-swap');
   const [swapDirection, setSwapDirection] = useState<'tours-to-wmon' | 'wmon-to-tours'>('tours-to-wmon');
   const [inputAmount, setInputAmount] = useState('');
   const [slippage, setSlippage] = useState('0.5'); // 0.5% default slippage
@@ -127,6 +127,27 @@ function SwapContent() {
   const [wrapUnwrapError, setWrapUnwrapError] = useState<string | null>(null);
   const [wrapUnwrapSuccess, setWrapUnwrapSuccess] = useState<string | null>(null);
   const [wrapUnwrapTxHash, setWrapUnwrapTxHash] = useState<string | null>(null);
+
+  // shMON state
+  const [shMonAmount, setShMonAmount] = useState('');
+  const [shMonLoading, setShMonLoading] = useState(false);
+  const [shMonError, setShMonError] = useState<string | null>(null);
+  const [shMonSuccess, setShMonSuccess] = useState<string | null>(null);
+  const [shMonTxHash, setShMonTxHash] = useState<string | null>(null);
+
+  // shMON hook
+  const {
+    useGetShMonBalance,
+    useConvertToShares,
+    useConvertToAssets,
+    useGetTotalAssets,
+    SHMON_ADDRESS,
+  } = useShMon();
+
+  // shMON data
+  const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
+  const { data: shMonSharesPreview } = useConvertToShares(shMonAmount);
+  const { data: totalStakedAssets } = useGetTotalAssets();
 
   const handleSwap = async () => {
     if (!inputAmount || parseFloat(inputAmount) <= 0) {
@@ -360,6 +381,88 @@ function SwapContent() {
     }
   };
 
+  // Handle shMON deposit (MON → shMON)
+  const handleShMonDeposit = async () => {
+    if (!shMonAmount || parseFloat(shMonAmount) <= 0) {
+      setShMonError('Please enter a valid amount');
+      return;
+    }
+
+    if (!effectiveAddress) {
+      setShMonError('Wallet not connected');
+      return;
+    }
+
+    setShMonLoading(true);
+    setShMonError(null);
+    setShMonSuccess(null);
+    setShMonTxHash(null);
+
+    try {
+      // Check for delegation with shmon_deposit permission
+      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('shmon_deposit');
+
+      if (!hasValidDelegation) {
+        setShMonSuccess('⏳ Setting up gasless transactions...');
+
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: effectiveAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours', 'wrap_mon', 'unwrap_wmon', 'shmon_deposit']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+      }
+
+      setShMonSuccess(`⏳ Staking ${shMonAmount} MON for shMON (FREE - we pay gas)...`);
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'shmon_deposit',
+          params: { amount: shMonAmount }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Deposit failed');
+      }
+
+      const { txHash } = await response.json();
+
+      setShMonSuccess(`🎉 Successfully staked ${shMonAmount} MON for shMON!`);
+      setShMonTxHash(txHash);
+      setShMonAmount('');
+
+      // Refresh balances after delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
+    } catch (err: any) {
+      console.error('shMON deposit error:', err);
+      setShMonError(err.message || 'Failed to deposit');
+    } finally {
+      setShMonLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 py-12 px-4">
       <div className="max-w-2xl mx-auto">
@@ -457,6 +560,16 @@ function SwapContent() {
             }`}
           >
             TOURS ⇄ WMON (AMM)
+          </button>
+          <button
+            onClick={() => setSwapType('shmon')}
+            className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
+              swapType === 'shmon'
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white'
+                : 'text-purple-200 hover:bg-white/10'
+            }`}
+          >
+            MON → shMON (Stake)
           </button>
         </div>
 
@@ -878,6 +991,140 @@ function SwapContent() {
               </div>
             </div>
           </>
+        )}
+
+        {/* shMON Staking Interface (MON → shMON) */}
+        {swapType === 'shmon' && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">🏦 Liquid Staking (shMONAD)</h2>
+              <p className="text-purple-200 text-sm">
+                Stake MON to earn yield with shMON. Gasless - we pay gas fees!
+              </p>
+            </div>
+
+            {/* shMON Stats */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-4">
+                <p className="text-cyan-200 text-xs font-medium mb-1">Your shMON Balance</p>
+                <p className="text-2xl font-bold text-cyan-100">
+                  {shMonBalance ? parseFloat(formatEther(shMonBalance as bigint)).toFixed(4) : '0'}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/30 rounded-xl p-4">
+                <p className="text-blue-200 text-xs font-medium mb-1">Total Staked (All Users)</p>
+                <p className="text-2xl font-bold text-blue-100">
+                  {totalStakedAssets ? parseFloat(formatEther(totalStakedAssets as bigint)).toFixed(2) : '0'} MON
+                </p>
+              </div>
+            </div>
+
+            {/* Input */}
+            <div className="mb-4">
+              <div className="flex justify-between mb-2">
+                <label className="text-white font-semibold">MON Amount to Stake</label>
+                <div className="text-purple-200 text-sm">Available: {balances.mon} MON</div>
+              </div>
+              <div className="bg-black/30 rounded-xl p-4 flex items-center gap-4">
+                <input
+                  type="number"
+                  value={shMonAmount}
+                  onChange={(e) => setShMonAmount(e.target.value)}
+                  placeholder="0.0"
+                  step="0.1"
+                  className="flex-1 bg-transparent text-white text-2xl outline-none"
+                />
+                <div className="bg-cyan-600 px-4 py-2 rounded-lg">
+                  <span className="text-white font-bold">MON</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Amount Buttons */}
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {['0.5', '1', '5', '10'].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => setShMonAmount(amt)}
+                  disabled={shMonLoading}
+                  className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 text-sm font-medium transition-all disabled:opacity-50"
+                >
+                  {amt}
+                </button>
+              ))}
+            </div>
+
+            {/* Preview */}
+            {shMonSharesPreview && parseFloat(shMonAmount) > 0 && (
+              <div className="mb-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4">
+                <p className="text-cyan-200 text-sm">
+                  You will receive approximately:{' '}
+                  <span className="font-bold text-cyan-100">
+                    {parseFloat(formatEther(shMonSharesPreview as bigint)).toFixed(6)} shMON
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {shMonError && (
+              <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+                <p className="text-red-200">❌ {shMonError}</p>
+              </div>
+            )}
+
+            {/* Success Display */}
+            {shMonSuccess && (
+              <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-4">
+                <p className="text-green-200">{shMonSuccess}</p>
+                {shMonTxHash && (
+                  <div className="mt-2 text-xs">
+                    <a
+                      href={`https://testnet.monadscan.com/tx/${shMonTxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-300 hover:text-green-100 underline"
+                    >
+                      View on Monadscan →
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Stake Button */}
+            <button
+              onClick={handleShMonDeposit}
+              disabled={shMonLoading || !shMonAmount || parseFloat(shMonAmount) <= 0}
+              className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-105 disabled:scale-100"
+            >
+              {shMonLoading ? '⏳ Staking (Gasless)...' : `🚀 Stake MON for shMON (FREE)`}
+            </button>
+
+            {/* Info Section */}
+            <div className="mt-6 bg-blue-500/10 border border-blue-500/30 rounded-lg p-5">
+              <h3 className="font-bold text-white mb-3 text-lg">💡 About shMON (Liquid Staking):</h3>
+              <ul className="text-sm text-blue-100 space-y-2">
+                <li>✅ <strong>Earn Yield:</strong> Your staked MON earns staking rewards</li>
+                <li>✅ <strong>Stay Liquid:</strong> shMON is a tradeable token representing your stake</li>
+                <li>✅ <strong>Gasless:</strong> We pay all transaction fees for you</li>
+                <li>🎟️ <strong>Daily Lottery:</strong> Use shMON to enter the daily lottery!</li>
+              </ul>
+            </div>
+
+            {/* Contract Info */}
+            <div className="mt-4 text-xs text-purple-300 text-center">
+              shMON Contract:{' '}
+              <a
+                href={`https://testnet.monadscan.com/address/${SHMON_ADDRESS}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-300 hover:text-cyan-100 underline font-mono"
+              >
+                {SHMON_ADDRESS?.slice(0, 10)}...{SHMON_ADDRESS?.slice(-8)}
+              </a>
+            </div>
+          </div>
         )}
       </div>
     </div>
