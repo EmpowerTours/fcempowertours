@@ -3274,7 +3274,7 @@ ${enjoyText}
       case 'lottery_enter_mon':
         console.log('🎰 Action: lottery_enter_mon');
 
-        const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xf0ADd68cC2145B7b97a41f280E079db8A49eB0fD') as Address;
+        const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xBb1622A454Db65F985e07ecae0be333b6513714e') as Address;
         const lotteryEntryFee = parseEther('1'); // 1 MON entry fee
 
         // Determine the correct Safe address
@@ -3354,7 +3354,7 @@ ${enjoyText}
           );
         }
 
-        const LOTTERY_ADDRESS_SHMON = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xf0ADd68cC2145B7b97a41f280E079db8A49eB0fD') as Address;
+        const LOTTERY_ADDRESS_SHMON = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0xBb1622A454Db65F985e07ecae0be333b6513714e') as Address;
         const SHMON_ADDRESS_LOTTERY = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as Address;
         const lotteryShMonAmount = parseEther(params.amount.toString());
 

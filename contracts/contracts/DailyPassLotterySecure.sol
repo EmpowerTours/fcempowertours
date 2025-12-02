@@ -382,7 +382,9 @@ contract DailyPassLotterySecure is Ownable, ReentrancyGuard {
      */
     function _lazyFinalizePreviousRounds() internal {
         // Check last few rounds for pending finalization
-        for (uint256 i = currentRoundId; i > 0 && i > currentRoundId - 3; i--) {
+        // Prevent underflow: calculate min round safely
+        uint256 minRound = currentRoundId > 3 ? currentRoundId - 3 : 0;
+        for (uint256 i = currentRoundId; i > minRound; i--) {
             DailyRound storage round = rounds[i];
 
             // Skip if no participants or already finalized
