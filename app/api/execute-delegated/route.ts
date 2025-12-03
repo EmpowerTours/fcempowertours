@@ -3055,6 +3055,54 @@ ${enjoyText}
           message: `Checked in successfully! Passport stamped.`,
         });
 
+      // ==================== ITINERARY BURN (ItineraryNFTv2) ====================
+      case 'burn_itinerary': {
+        console.log('🔥 Action: burn_itinerary (ItineraryNFTv2)');
+
+        const { tokenId } = params;
+        if (!tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for burn_itinerary' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_V2 = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const burnItineraryTokenId = BigInt(tokenId);
+
+        console.log('🔥 Burning Itinerary NFT via delegated burner:', {
+          owner: userAddress,
+          tokenId: burnItineraryTokenId.toString(),
+          contract: ITINERARY_NFT_V2,
+        });
+
+        // Use burnItineraryForDelegated function from ItineraryNFTv2
+        const burnItineraryCalls = [
+          {
+            to: ITINERARY_NFT_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function burnItineraryForDelegated(address owner, uint256 tokenId) external']),
+              functionName: 'burnItineraryForDelegated',
+              args: [userAddress as Address, burnItineraryTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const burnItineraryTxHash = await executeTransaction(burnItineraryCalls, userAddress as Address);
+        console.log('✅ Itinerary NFT burned via delegated burner, TX:', burnItineraryTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: burnItineraryTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Itinerary #${params.tokenId} burned successfully`,
+        });
+      }
+
       // ==================== MUSIC NFT YIELD UNSTAKING (YieldStrategyV9) ====================
       case 'unstake_music_yield':
         console.log('💎 Action: unstake_music_yield (YieldStrategyV9)');
