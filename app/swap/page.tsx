@@ -135,6 +135,14 @@ function SwapContent() {
   const [shMonSuccess, setShMonSuccess] = useState<string | null>(null);
   const [shMonTxHash, setShMonTxHash] = useState<string | null>(null);
 
+  // Move TOURS to Safe state
+  const [depositInfo, setDepositInfo] = useState<any>(null);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
+  const [depositTxHash, setDepositTxHash] = useState<string | null>(null);
+  const [showDepositSection, setShowDepositSection] = useState(false);
+
   // shMON hook
   const {
     useGetShMonBalance,
@@ -460,6 +468,60 @@ function SwapContent() {
       setShMonError(err.message || 'Failed to deposit');
     } finally {
       setShMonLoading(false);
+    }
+  };
+
+  // Check deposit status for TOURS to Safe
+  const checkDepositStatus = async () => {
+    if (!effectiveAddress) return;
+
+    try {
+      const res = await fetch(`/api/deposit-tours-to-safe?address=${effectiveAddress}`);
+      const data = await res.json();
+      setDepositInfo(data);
+      setShowDepositSection(true);
+    } catch (err: any) {
+      setDepositError(err.message || 'Failed to check deposit status');
+    }
+  };
+
+  // Execute deposit of TOURS from wallet to Safe
+  const handleDepositToSafe = async () => {
+    if (!effectiveAddress || !depositInfo?.canTransfer) return;
+
+    setDepositLoading(true);
+    setDepositError(null);
+    setDepositSuccess(null);
+    setDepositTxHash(null);
+
+    try {
+      setDepositSuccess('⏳ Transferring TOURS to your Safe...');
+
+      const res = await fetch('/api/deposit-tours-to-safe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userAddress: effectiveAddress }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Deposit failed');
+      }
+
+      setDepositSuccess(`🎉 Successfully moved ${data.amountTransferred} TOURS to your Safe!`);
+      setDepositTxHash(data.txHash);
+
+      // Refresh balances and deposit info
+      setTimeout(() => {
+        checkDepositStatus();
+        window.location.reload();
+      }, 3000);
+    } catch (err: any) {
+      console.error('Deposit to Safe error:', err);
+      setDepositError(err.message || 'Failed to deposit');
+    } finally {
+      setDepositLoading(false);
     }
   };
 
@@ -1126,6 +1188,109 @@ function SwapContent() {
             </div>
           </div>
         )}
+
+        {/* Move TOURS to Safe Section - Always visible */}
+        <div className="mt-8 bg-gradient-to-br from-orange-500/10 to-amber-500/10 backdrop-blur-lg rounded-2xl p-6 border border-orange-500/30">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-white">📦 Move TOURS to Safe</h3>
+              <p className="text-orange-200 text-sm mt-1">
+                Transfer TOURS from your wallet to your Safe for gasless AMM swaps
+              </p>
+            </div>
+            <button
+              onClick={checkDepositStatus}
+              className="px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/50 rounded-lg text-orange-200 text-sm font-medium transition-all"
+            >
+              Check Status
+            </button>
+          </div>
+
+          {/* Deposit Info Display */}
+          {showDepositSection && depositInfo && (
+            <div className="space-y-4">
+              {/* Balance Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-black/20 rounded-lg p-4">
+                  <p className="text-orange-200 text-xs mb-1">TOURS in Wallet</p>
+                  <p className="text-2xl font-bold text-white">{depositInfo.walletBalance}</p>
+                </div>
+                <div className="bg-black/20 rounded-lg p-4">
+                  <p className="text-orange-200 text-xs mb-1">TOURS in Safe</p>
+                  <p className="text-2xl font-bold text-white">{depositInfo.safeBalance}</p>
+                </div>
+              </div>
+
+              {/* Safe Address */}
+              <div className="bg-black/20 rounded-lg p-3">
+                <p className="text-orange-200 text-xs mb-1">Your Safe Address</p>
+                <p className="text-sm font-mono text-white break-all">{depositInfo.safeAddress}</p>
+              </div>
+
+              {/* Status & Actions */}
+              {parseFloat(depositInfo.walletBalance) > 0 ? (
+                <div className="space-y-3">
+                  {!depositInfo.hasAllowance ? (
+                    <div className="bg-yellow-500/20 border border-yellow-500/40 rounded-lg p-4">
+                      <p className="text-yellow-200 text-sm font-medium mb-2">⚠️ Approval Required</p>
+                      <p className="text-yellow-100 text-xs mb-3">
+                        Before transferring, you need to approve the deployer to move your TOURS.
+                        Call <code className="bg-black/30 px-1 rounded">approve({depositInfo.deployerAddress}, amount)</code> on the TOURS contract from your wallet.
+                      </p>
+                      <p className="text-yellow-100 text-xs">
+                        TOURS Contract: <code className="bg-black/30 px-1 rounded">{depositInfo.toursTokenAddress}</code>
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleDepositToSafe}
+                      disabled={depositLoading || !depositInfo.canTransfer}
+                      className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-lg"
+                    >
+                      {depositLoading ? '⏳ Transferring...' : `📦 Move ${depositInfo.walletBalance} TOURS to Safe`}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-4 text-center">
+                  <p className="text-green-200">✅ No TOURS in wallet - all tokens are in your Safe!</p>
+                </div>
+              )}
+
+              {/* Success/Error Messages */}
+              {depositSuccess && (
+                <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4">
+                  <p className="text-green-200">{depositSuccess}</p>
+                  {depositTxHash && (
+                    <a
+                      href={`https://testnet.monadscan.com/tx/${depositTxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-300 hover:text-green-100 text-sm underline mt-2 block"
+                    >
+                      View Transaction →
+                    </a>
+                  )}
+                </div>
+              )}
+              {depositError && (
+                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+                  <p className="text-red-200">{depositError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Collapsed Info */}
+          {!showDepositSection && (
+            <div className="text-orange-200 text-sm">
+              <p>Click "Check Status" to see your TOURS balances and move tokens to your Safe.</p>
+              <p className="mt-2 text-orange-300 text-xs">
+                💡 Your Safe is used for gasless transactions. TOURS in your Safe can be used for AMM swaps without paying gas!
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -3292,31 +3292,87 @@ ${enjoyText}
           console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
         }
 
-        // shMON deposit function: deposit(uint96 minShares, address receiver) payable
+        // ========== shMON deposit - Updated for FastLane shMonad contract ==========
+        // The shMON contract uses a two-step process:
+        // 1. depositToZeroYieldTranche(uint256 assets, address receiver) payable - deposits MON
+        // 2. convertZeroYieldTrancheToShares(uint256 assets, address receiver) - converts to shMON shares
+        //
+        // We'll do both in one transaction batch for a complete deposit
+
+        console.log('💎 Using shMonad deposit functions...');
+
         const shmonDepositCalls = [
+          // Step 1: Deposit MON to zero-yield tranche
           {
             to: SHMON_ADDRESS,
             value: shmonDepositAmount,
             data: encodeFunctionData({
-              abi: parseAbi(['function deposit(uint96 minShares, address receiver) external payable returns (uint96)']),
-              functionName: 'deposit',
-              args: [BigInt(0), shmonReceiverSafe as Address], // minShares = 0 (no slippage protection for simplicity)
+              abi: parseAbi(['function depositToZeroYieldTranche(uint256 assets, address receiver) external payable']),
+              functionName: 'depositToZeroYieldTranche',
+              args: [shmonDepositAmount, shmonReceiverSafe as Address],
+            }) as Hex,
+          },
+          // Step 2: Convert zero-yield balance to shMON shares
+          {
+            to: SHMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function convertZeroYieldTrancheToShares(uint256 assets, address receiver) external returns (uint256)']),
+              functionName: 'convertZeroYieldTrancheToShares',
+              args: [shmonDepositAmount, shmonReceiverSafe as Address],
             }) as Hex,
           },
         ];
 
-        const shmonDepositTxHash = await executeTransaction(shmonDepositCalls, userAddress as Address);
-        console.log('✅ MON deposited to shMON, TX:', shmonDepositTxHash);
+        try {
+          const shmonDepositTxHash = await executeTransaction(shmonDepositCalls, userAddress as Address);
+          console.log('✅ MON deposited to shMON, TX:', shmonDepositTxHash);
 
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: shmonDepositTxHash,
-          action,
-          userAddress,
-          amount: params.amount,
-          message: `Staked ${params.amount} MON to receive shMON successfully (gasless)`,
-        });
+          await incrementTransactionCount(userAddress);
+          return NextResponse.json({
+            success: true,
+            txHash: shmonDepositTxHash,
+            action,
+            userAddress,
+            amount: params.amount,
+            receiverSafe: shmonReceiverSafe,
+            message: `Staked ${params.amount} MON to receive shMON successfully (gasless)`,
+          });
+        } catch (shmonErr: any) {
+          console.error('❌ shMON deposit failed:', shmonErr);
+
+          // Decode revert reason if available
+          let decodedReason = 'Unknown error';
+          const errMsg = shmonErr.message || '';
+
+          // Try to extract hex reason
+          const hexMatch = errMsg.match(/0x[0-9a-fA-F]+/);
+          if (hexMatch) {
+            try {
+              const hexData = hexMatch[0];
+              // Check for Error(string) selector (0x08c379a0)
+              if (hexData.startsWith('0x08c379a0')) {
+                const { decodeAbiParameters } = await import('viem');
+                const decoded = decodeAbiParameters(
+                  [{ type: 'string', name: 'reason' }],
+                  `0x${hexData.slice(10)}` as `0x${string}`
+                );
+                decodedReason = decoded[0] as string;
+              }
+            } catch (decodeErr) {
+              console.warn('Could not decode error reason');
+            }
+          }
+
+          return NextResponse.json({
+            success: false,
+            error: `shMON deposit failed: ${decodedReason}`,
+            details: errMsg.substring(0, 500),
+            shmonAddress: SHMON_ADDRESS,
+            receiverSafe: shmonReceiverSafe,
+            hint: 'The shMON contract may have restrictions. Check if the contract is paused or if there are deposit limits.',
+          }, { status: 500 });
+        }
 
       // ==================== LOTTERY ENTER WITH MON ====================
       case 'lottery_enter_mon':

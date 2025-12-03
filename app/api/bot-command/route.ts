@@ -56,6 +56,7 @@ Basic Transactions (Gasless):
 - "send <amount> tours to @user" - Send TOURS
 - "send <amount> mon to 0x..." - Send MON
 - "buy music <tokenId>" - Buy music license
+- "buy art <tokenId>" - Buy art NFT
 - "check balance" - Check balances
 DeFi Actions (Gasless):
 - "stake 10" - Stake TOURS (yield + credit boost)
@@ -144,8 +145,9 @@ Address: ${userAddress.slice(0, 10)}...`
       }
     }
 
-    // ==================== BUY MUSIC COMMAND (GASLESS VIA DELEGATION + CAST) ====================
-    if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song')) {
+    // ==================== BUY NFT COMMAND (GASLESS VIA DELEGATION + CAST) ====================
+    // Supports: buy music, buy song, buy art
+    if (lowerCommand.includes('buy music') || lowerCommand.includes('buy song') || lowerCommand.includes('buy art')) {
       if (!userAddress) {
         return NextResponse.json({
           success: false,
@@ -153,11 +155,11 @@ Address: ${userAddress.slice(0, 10)}...`
         });
       }
 
-      // Try to match tokenId first (e.g., "buy music 1")
-      const tokenIdMatch = lowerCommand.match(/buy (?:music|song) (\d+)/);
+      // Try to match tokenId first (e.g., "buy music 1", "buy art 4")
+      const tokenIdMatch = lowerCommand.match(/buy (?:music|song|art) (\d+)/);
       let tokenId = tokenIdMatch ? parseInt(tokenIdMatch[1]) : null;
       let songTitle = null;
-      let isArtNFT = false;
+      let isArtNFT = lowerCommand.includes('buy art'); // Pre-set if command explicitly says "buy art"
 
       // ✅ If no tokenId, try to match song name
       if (!tokenId) {
@@ -227,7 +229,7 @@ Address: ${userAddress.slice(0, 10)}...`
       if (!tokenId) {
         return NextResponse.json({
           success: false,
-          message: 'Invalid format. Use: "buy music <tokenId>" or "buy song <Song Name>"'
+          message: 'Invalid format. Use: "buy music <tokenId>", "buy art <tokenId>", or "buy song <Song Name>"'
         });
       }
 
