@@ -15,12 +15,6 @@ const EXPERIENCE_TYPES = [
   { id: 'shopping', emoji: '🛍️', name: 'Shopping', color: 'from-pink-500 to-rose-500' },
 ];
 
-const SAMPLE_EXPERIENCES = [
-  { id: '1', name: 'Tacos El Pastor', city: 'Mexico City', country: 'Mexico', type: 'food', emoji: '🌮', price: '5', rating: 4.8, reviews: 23 },
-  { id: '2', name: 'Eiffel Tower', city: 'Paris', country: 'France', type: 'attraction', emoji: '🗼', price: '15', rating: 4.9, reviews: 156 },
-  { id: '3', name: 'Shibuya Crossing', city: 'Tokyo', country: 'Japan', type: 'cultural', emoji: '🚶', price: '0', rating: 4.7, reviews: 89 },
-  { id: '4', name: 'Central Park', city: 'New York', country: 'USA', type: 'nature', emoji: '🌳', price: '0', rating: 4.6, reviews: 234 },
-];
 
 interface Experience {
   id: string;
@@ -30,8 +24,6 @@ interface Experience {
   type: string;
   emoji: string;
   price: string;
-  rating: number;
-  reviews: number;
   creator?: string;
   imageHash?: string;
 }
@@ -41,8 +33,8 @@ export default function ItineraryMarketPage() {
 
   const [activeTab, setActiveTab] = useState<'explore' | 'nearby' | 'saved'>('explore');
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [experiences, setExperiences] = useState<Experience[]>(SAMPLE_EXPERIENCES);
-  const [loading, setLoading] = useState(false);
+  const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedExperience, setSelectedExperience] = useState<Experience | null>(null);
 
   // Load from indexer
@@ -75,7 +67,7 @@ export default function ItineraryMarketPage() {
       const items = data.data?.ItineraryNFT_ItineraryCreated || [];
 
       if (items.length > 0) {
-        const mapped = items.map((item: any, i: number) => ({
+        const mapped = items.map((item: any) => ({
           id: item.tokenId,
           name: item.name || `Experience #${item.tokenId}`,
           city: 'Unknown',
@@ -83,11 +75,9 @@ export default function ItineraryMarketPage() {
           type: 'general',
           emoji: '📍',
           price: (Number(item.price) / 1e18).toFixed(0),
-          rating: 4.5 + Math.random() * 0.5,
-          reviews: Math.floor(Math.random() * 50),
           creator: item.creator,
         }));
-        setExperiences([...mapped, ...SAMPLE_EXPERIENCES]);
+        setExperiences(mapped);
       }
     } catch (err) {
       console.error('Failed to load:', err);
@@ -128,17 +118,10 @@ export default function ItineraryMarketPage() {
                 <h2 className="text-2xl font-bold text-white">{selectedExperience.name}</h2>
                 <p className="text-white/60">{selectedExperience.city}, {selectedExperience.country}</p>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-yellow-400">
-                  <span>⭐</span>
-                  <span className="font-bold">{selectedExperience.rating.toFixed(1)}</span>
-                </div>
-                <p className="text-white/50 text-xs">{selectedExperience.reviews} reviews</p>
-              </div>
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-2 gap-3 mb-6">
               <div className="bg-white/5 rounded-xl p-3 text-center">
                 <p className="text-2xl">{selectedExperience.emoji}</p>
                 <p className="text-white/60 text-xs capitalize">{selectedExperience.type}</p>
@@ -147,19 +130,12 @@ export default function ItineraryMarketPage() {
                 <p className="text-xl font-bold text-green-400">{selectedExperience.price}</p>
                 <p className="text-white/60 text-xs">TOURS</p>
               </div>
-              <div className="bg-white/5 rounded-xl p-3 text-center">
-                <p className="text-xl">📍</p>
-                <p className="text-white/60 text-xs">Check-in</p>
-              </div>
             </div>
 
             {/* Actions */}
             <div className="space-y-3">
               <button className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-4 rounded-xl text-lg active:scale-95 transition-transform">
                 🎫 Purchase Guide ({selectedExperience.price} TOURS)
-              </button>
-              <button className="w-full bg-white/10 text-white font-bold py-4 rounded-xl border border-white/20 active:scale-95 transition-transform">
-                💾 Save for Later
               </button>
             </div>
 
@@ -278,14 +254,6 @@ export default function ItineraryMarketPage() {
                   <div className="flex-1 min-w-0">
                     <h3 className="text-white font-bold truncate">{exp.name}</h3>
                     <p className="text-white/50 text-sm">{exp.city}, {exp.country}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-yellow-400 text-xs flex items-center gap-1">
-                        ⭐ {exp.rating.toFixed(1)}
-                      </span>
-                      <span className="text-white/40 text-xs">
-                        {exp.reviews} reviews
-                      </span>
-                    </div>
                   </div>
 
                   {/* Price */}

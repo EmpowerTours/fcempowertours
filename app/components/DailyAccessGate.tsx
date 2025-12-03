@@ -26,10 +26,41 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   const { useGetShMonBalance } = useShMon();
 
+  // Safe address state (for delegation-based lottery entry)
+  const [safeAddress, setSafeAddress] = useState<`0x${string}` | undefined>(undefined);
+  const [safeLoading, setSafeLoading] = useState(true);
+
+  // Fetch user's Safe address
+  useEffect(() => {
+    const fetchSafeAddress = async () => {
+      if (!effectiveAddress) {
+        setSafeLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/user-safe?address=${effectiveAddress}`);
+        const data = await res.json();
+        if (data.success && data.safeAddress) {
+          setSafeAddress(data.safeAddress as `0x${string}`);
+        }
+      } catch (err) {
+        console.error('Failed to fetch safe address:', err);
+      } finally {
+        setSafeLoading(false);
+      }
+    };
+    fetchSafeAddress();
+  }, [effectiveAddress]);
+
   // Contract data hooks
   const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
   const { data: timeRemaining } = useGetTimeRemaining();
-  const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
+  // Check BOTH wallet and Safe address for lottery entry
+  const { data: hasEnteredWallet, isLoading: entryLoadingWallet, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
+  const { data: hasEnteredSafe, isLoading: entryLoadingSafe } = useHasEnteredToday(safeAddress);
+  // User has entered if EITHER wallet or Safe has entered
+  const hasEntered = hasEnteredWallet || hasEnteredSafe;
+  const entryLoading = entryLoadingWallet || (safeAddress ? entryLoadingSafe : false);
   const { data: shMonEntryFee } = useGetShMonEntryFee();
   const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
 
@@ -247,7 +278,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   };
 
   // Show loading while checking
-  if (roundLoading || entryLoading || contextLoading) {
+  if (roundLoading || entryLoading || contextLoading || safeLoading) {
     return (
       <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
         <div className="text-center">
@@ -330,7 +361,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
                       {totalPrizePool} MON
                     </p>
-                    <p className="text-orange-300 text-sm font-bold mt-2 bg-orange-500/30 rounded-lg py-1.5 px-4 inline-block border border-orange-400/50">
+                    <p style={{ color: '#fdba74', backgroundColor: 'rgba(249, 115, 22, 0.3)', borderColor: 'rgba(251, 146, 60, 0.5)' }} className="text-sm font-bold mt-2 rounded-lg py-1.5 px-4 inline-block border">
                       👥 {currentRound?.participantCount?.toString() || '0'} participants
                     </p>
                   </div>

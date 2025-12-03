@@ -29,7 +29,6 @@ export default function ClientNav() {
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },
     { path: '/beat-match', label: 'Beat Match', icon: '🎯' },
     { path: '/country-collector', label: 'Countries', icon: '🌍' },
-    { path: '/tanda', label: 'Tanda', icon: '🤝' },
     { path: '/swap', label: 'Swap', icon: '💱' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/passport', label: 'Mint', icon: '✈️' },
