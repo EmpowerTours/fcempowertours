@@ -1239,18 +1239,32 @@ function SwapContent() {
               {/* Status & Actions */}
               {parseFloat(depositInfo.walletBalance) > 0 ? (
                 <div className="space-y-3">
-                  <button
-                    onClick={handleDirectTransferToSafe}
-                    disabled={isTransferPending || isTransferConfirming}
-                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-lg"
-                  >
-                    {isTransferPending ? '⏳ Confirm in wallet...' :
-                     isTransferConfirming ? '⏳ Confirming...' :
-                     `📦 Move ${depositInfo.walletBalance} TOURS to Safe`}
-                  </button>
-                  <p className="text-orange-200 text-xs text-center">
-                    One click - sign in your wallet to transfer
-                  </p>
+                  {/* Only show transfer button if wagmi wallet is connected */}
+                  {address ? (
+                    <>
+                      <button
+                        onClick={handleDirectTransferToSafe}
+                        disabled={isTransferPending || isTransferConfirming}
+                        className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-lg"
+                      >
+                        {isTransferPending ? '⏳ Confirm in wallet...' :
+                         isTransferConfirming ? '⏳ Confirming...' :
+                         `📦 Move ${depositInfo.walletBalance} TOURS to Safe`}
+                      </button>
+                      <p className="text-orange-200 text-xs text-center">
+                        One click - sign in your wallet to transfer
+                      </p>
+                    </>
+                  ) : (
+                    <div className="bg-blue-500/20 border border-blue-500/40 rounded-lg p-4 text-center">
+                      <p className="text-blue-200 text-sm mb-2">
+                        💡 Swapping MON → TOURS automatically sends TOURS to your Safe!
+                      </p>
+                      <p className="text-blue-300 text-xs">
+                        Use the Token Swap above to get TOURS directly in your Safe.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-4 text-center">
