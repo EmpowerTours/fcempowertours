@@ -34,7 +34,7 @@ export default function ItineraryMarketPage() {
   const { address: wagmiAddress } = useAccount();
   const effectiveAddress = walletAddress || wagmiAddress;
 
-  const [activeTab, setActiveTab] = useState<'explore' | 'nearby' | 'saved'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'nearby'>('explore');
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +59,9 @@ export default function ItineraryMarketPage() {
             name
             description
             price
+            city
+            country
+            experienceType
           }
         }
       `;
@@ -73,16 +76,29 @@ export default function ItineraryMarketPage() {
       const items = data.data?.ItineraryNFT_ItineraryCreated || [];
 
       if (items.length > 0) {
-        const mapped = items.map((item: any) => ({
-          id: item.tokenId,
-          name: item.name || `Experience #${item.tokenId}`,
-          city: 'Unknown',
-          country: 'Unknown',
-          type: 'general',
-          emoji: '📍',
-          price: (Number(item.price) / 1e18).toFixed(0),
-          creator: item.creator,
-        }));
+        const mapped = items.map((item: any) => {
+          // Map experience type to emoji
+          const typeMap: Record<string, { emoji: string; type: string }> = {
+            food: { emoji: '🍽️', type: 'food' },
+            attraction: { emoji: '🏛️', type: 'attraction' },
+            cultural: { emoji: '🎭', type: 'cultural' },
+            nature: { emoji: '🌿', type: 'nature' },
+            entertainment: { emoji: '🎪', type: 'entertainment' },
+            shopping: { emoji: '🛍️', type: 'shopping' },
+          };
+          const typeInfo = typeMap[item.experienceType?.toLowerCase()] || { emoji: '📍', type: 'general' };
+
+          return {
+            id: item.tokenId,
+            name: item.name || `Experience #${item.tokenId}`,
+            city: item.city || 'Unknown',
+            country: item.country || 'Unknown',
+            type: typeInfo.type,
+            emoji: typeInfo.emoji,
+            price: (Number(item.price) / 1e18).toFixed(0),
+            creator: item.creator,
+          };
+        });
         setExperiences(mapped);
       }
     } catch (err) {
@@ -264,7 +280,7 @@ export default function ItineraryMarketPage() {
 
         {/* Tabs */}
         <div className="flex gap-2">
-          {(['explore', 'nearby', 'saved'] as const).map((tab) => (
+          {(['explore', 'nearby'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -276,7 +292,6 @@ export default function ItineraryMarketPage() {
             >
               {tab === 'explore' && '🌍 '}
               {tab === 'nearby' && '📍 '}
-              {tab === 'saved' && '💾 '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}

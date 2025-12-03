@@ -42,6 +42,36 @@ export default function BurnMusicPage() {
         tokenId
       });
 
+      // First ensure we have a valid delegation with burn_nft permission
+      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('burn_nft');
+
+      if (!hasValidDelegation) {
+        console.log('🔐 Creating delegation with burn_nft permission...');
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            // Empty array uses default permissions which includes burn_nft
+            permissions: []
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation for burning');
+        }
+        console.log('✅ Delegation created with burn_nft permission');
+      }
+
       // Use delegated burning via Safe account (gasless)
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
