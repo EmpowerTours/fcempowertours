@@ -251,12 +251,20 @@ export default function ItineraryPage() {
             >
               View on MonadScan
             </a>
-            <button
-              onClick={resetForm}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl"
-            >
-              Create Another
-            </button>
+            <div className="flex flex-col gap-3">
+              <Link
+                href="/itinerary-market"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold py-3 px-6 rounded-xl"
+              >
+                🗺️ View Experience Market
+              </Link>
+              <button
+                onClick={resetForm}
+                className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl border border-white/20"
+              >
+                Create Another
+              </button>
+            </div>
           </div>
         )}
 
