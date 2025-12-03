@@ -329,8 +329,8 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
                       {totalPrizePool} MON
                     </p>
-                    <p className="text-white/50 text-xs mt-1">
-                      {currentRound?.participantCount?.toString() || '0'} participants
+                    <p className="text-yellow-400 text-sm font-semibold mt-1">
+                      👥 {currentRound?.participantCount?.toString() || '0'} participants
                     </p>
                   </div>
                 </div>
