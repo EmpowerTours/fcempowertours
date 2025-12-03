@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useDailyLottery, useShMon } from '@/src/hooks';
 import { formatEther } from 'viem';
@@ -11,6 +12,7 @@ interface DailyAccessGateProps {
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
+  const router = useRouter();
   const { walletAddress, user, isLoading: contextLoading } = useFarcasterContext();
   const { address: wagmiAddress } = useAccount();
   const effectiveAddress = (walletAddress || wagmiAddress) as `0x${string}` | undefined;
@@ -41,6 +43,23 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   // Live countdown
   const [countdown, setCountdown] = useState<string>('--:--:--');
+
+  // Auto-redirect after successful entry
+  useEffect(() => {
+    if (txHash) {
+      const timer = setTimeout(() => {
+        router.push('/discover');
+      }, 2500); // Redirect after 2.5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [txHash, router]);
+
+  // Auto-redirect when grantAccess is set (Already entered case)
+  useEffect(() => {
+    if (grantAccess) {
+      router.push('/discover');
+    }
+  }, [grantAccess, router]);
 
   // Update countdown every second
   useEffect(() => {
@@ -271,7 +290,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                 <div className="text-center mb-4">
                   <div className="text-5xl mb-2">🎉</div>
                   <h2 className="text-xl font-bold text-white">You're In!</h2>
-                  <p className="text-green-300 text-sm">Entry successful</p>
+                  <p className="text-green-300 text-sm">Entry successful - redirecting...</p>
                 </div>
 
                 <a
@@ -283,12 +302,14 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                   View TX: {txHash.slice(0, 10)}...{txHash.slice(-6)}
                 </a>
 
-                <button
-                  onClick={() => window.location.reload()}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg text-lg"
-                >
-                  🚀 Enter EmpowerTours
-                </button>
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => router.push('/discover')}
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-5 px-12 rounded-2xl transition-all shadow-lg shadow-green-500/30 text-xl"
+                  >
+                    🚀 Enter EmpowerTours
+                  </button>
+                </div>
               </div>
             )}
 
