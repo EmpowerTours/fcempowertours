@@ -49,12 +49,68 @@ export default function MusicPage() {
     { number: 4, title: 'Review & Mint', icon: '🚀' },
   ];
 
+  // Resize image using canvas for optimal upload size
+  const resizeImage = async (file: File, maxWidth: number = 1200, maxHeight: number = 1200, quality: number = 0.85): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+
+        // Calculate new dimensions maintaining aspect ratio
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to blob
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob'));
+              return;
+            }
+            const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+            console.log(`🖼️ Image resized: ${(file.size / 1024).toFixed(0)}KB → ${(resizedFile.size / 1024).toFixed(0)}KB (${width}x${height})`);
+            resolve(resizedFile);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleFileChange =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
-        const file = e.target.files[0];
+        let file = e.target.files[0];
         console.log('📎 File selected:', file?.name, 'Size:', (file?.size / 1024).toFixed(0) + 'KB');
+
+        // Resize cover images automatically (max 1200x1200, 85% quality)
+        if (setter === setCoverFile && file.type.startsWith('image/')) {
+          try {
+            file = await resizeImage(file, 1200, 1200, 0.85);
+          } catch (err) {
+            console.warn('Failed to resize image, using original:', err);
+          }
+        }
+
         setter(file);
 
         // If it's the full track, load it for trimming

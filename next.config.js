@@ -11,6 +11,9 @@ const nextConfig = {
   transpilePackages: ['three', '@react-three/fiber', '@react-three/drei'],
   experimental: {
     optimizePackageImports: ['@tanstack/react-query'],
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
   serverExternalPackages: [
     'undici',

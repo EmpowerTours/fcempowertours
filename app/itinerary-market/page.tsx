@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useAccount } from 'wagmi';
 import Link from 'next/link';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/5e18e81/v1/graphql';
@@ -30,12 +31,17 @@ interface Experience {
 
 export default function ItineraryMarketPage() {
   const { walletAddress } = useFarcasterContext();
+  const { address: wagmiAddress } = useAccount();
+  const effectiveAddress = walletAddress || wagmiAddress;
 
   const [activeTab, setActiveTab] = useState<'explore' | 'nearby' | 'saved'>('explore');
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedExperience, setSelectedExperience] = useState<Experience | null>(null);
+  const [purchasing, setPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
 
   // Load from indexer
   useEffect(() => {
@@ -86,6 +92,75 @@ export default function ItineraryMarketPage() {
     }
   };
 
+  // Purchase an experience
+  const handlePurchase = async (experience: Experience) => {
+    if (!effectiveAddress) {
+      setPurchaseError('Please connect your wallet');
+      return;
+    }
+
+    setPurchasing(true);
+    setPurchaseError(null);
+    setPurchaseSuccess(null);
+
+    try {
+      // First ensure we have a valid delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('purchase_experience');
+
+      if (!hasValidDelegation) {
+        // Create delegation with purchase permission
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: effectiveAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'create_experience', 'purchase_experience', 'stamp_passport']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation');
+        }
+      }
+
+      // Execute purchase (use existing purchase_itinerary action)
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'purchase_itinerary',
+          params: {
+            itineraryId: experience.id,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to purchase');
+      }
+
+      const result = await response.json();
+      setPurchaseSuccess(`Purchased "${experience.name}"! TX: ${result.txHash?.slice(0, 10)}...`);
+
+    } catch (err: any) {
+      console.error('Purchase error:', err);
+      setPurchaseError(err.message || 'Purchase failed');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   const filteredExperiences = selectedType
     ? experiences.filter(e => e.type === selectedType)
     : experiences;
@@ -132,11 +207,30 @@ export default function ItineraryMarketPage() {
               </div>
             </div>
 
+            {/* Error/Success Messages */}
+            {purchaseError && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-3 mb-3">
+                <p className="text-red-400 text-sm">{purchaseError}</p>
+              </div>
+            )}
+            {purchaseSuccess && (
+              <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-3 mb-3">
+                <p className="text-green-400 text-sm">{purchaseSuccess}</p>
+              </div>
+            )}
+
             {/* Actions */}
             <div className="space-y-3">
-              <button className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-4 rounded-xl text-lg active:scale-95 transition-transform">
-                🎫 Purchase Guide ({selectedExperience.price} TOURS)
+              <button
+                onClick={() => handlePurchase(selectedExperience)}
+                disabled={purchasing || !effectiveAddress}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-4 rounded-xl text-lg active:scale-95 transition-transform disabled:active:scale-100"
+              >
+                {purchasing ? '⏳ Purchasing...' : `🎫 Purchase Guide (${selectedExperience.price} TOURS)`}
               </button>
+              {!effectiveAddress && (
+                <p className="text-yellow-400 text-xs text-center">Connect wallet to purchase</p>
+              )}
             </div>
 
             {/* Creator */}
