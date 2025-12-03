@@ -3369,33 +3369,19 @@ ${enjoyText}
           console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
         }
 
-        // ========== shMON deposit - Updated for FastLane shMonad contract ==========
-        // The shMON contract uses a two-step process:
-        // 1. depositToZeroYieldTranche(uint256 assets, address receiver) payable - deposits MON
-        // 2. convertZeroYieldTrancheToShares(uint256 assets, address receiver) - converts to shMON shares
-        //
-        // We'll do both in one transaction batch for a complete deposit
+        // ========== shMON deposit - Standard ERC4626 deposit ==========
+        // The shMON contract uses standard ERC4626 deposit:
+        // deposit(uint256 assets, address receiver) payable - deposits MON and receives shMON
 
-        console.log('💎 Using shMonad deposit functions...');
+        console.log('💎 Using shMON deposit function...');
 
         const shmonDepositCalls = [
-          // Step 1: Deposit MON to zero-yield tranche
           {
             to: SHMON_ADDRESS,
             value: shmonDepositAmount,
             data: encodeFunctionData({
-              abi: parseAbi(['function depositToZeroYieldTranche(uint256 assets, address receiver) external payable']),
-              functionName: 'depositToZeroYieldTranche',
-              args: [shmonDepositAmount, shmonReceiverSafe as Address],
-            }) as Hex,
-          },
-          // Step 2: Convert zero-yield balance to shMON shares
-          {
-            to: SHMON_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function convertZeroYieldTrancheToShares(uint256 assets, address receiver) external returns (uint256)']),
-              functionName: 'convertZeroYieldTrancheToShares',
+              abi: parseAbi(['function deposit(uint256 assets, address receiver) external payable returns (uint256)']),
+              functionName: 'deposit',
               args: [shmonDepositAmount, shmonReceiverSafe as Address],
             }) as Hex,
           },
