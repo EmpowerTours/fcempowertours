@@ -2938,36 +2938,44 @@ ${enjoyText}
         });
 
       // ==================== CHECK-IN TO ITINERARY (STAMP PASSPORT) ====================
+      // Now auto-finds the correct passport based on experience country!
       case 'checkin_itinerary':
         console.log('📍 Action: checkin_itinerary');
-        if (!params?.itineraryId || !params?.passportTokenId || !params?.userLatitude || !params?.userLongitude) {
+        if (!params?.itineraryId || !params?.userLatitude || !params?.userLongitude) {
           return NextResponse.json(
-            { success: false, error: 'Missing required parameters for check-in' },
+            { success: false, error: 'Missing required parameters: itineraryId, userLatitude, userLongitude' },
             { status: 400 }
           );
         }
 
+        const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_ADDRESS as Address;
         const ITINERARY_NFT_CHECKIN = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
         const checkinItineraryId = BigInt(params.itineraryId);
-        const passportTokenId = BigInt(params.passportTokenId);
 
         console.log('📍 Checking in to itinerary:', {
           user: userAddress,
           itineraryId: checkinItineraryId.toString(),
-          passportTokenId: passportTokenId.toString(),
           userCoords: { lat: params.userLatitude, lon: params.userLongitude }
         });
 
         // Verify GPS proximity (calculate on server for security)
         const { calculateDistance } = await import('@/lib/utils/gps');
+        const { getCountryByName } = await import('@/lib/passport/countries');
 
-        // Get itinerary details from Envio to verify location
+        // Get itinerary details from Envio (including country for passport matching)
+        let experienceCountry = '';
+        let experienceCity = '';
+        let experienceName = '';
+        let gpsVerified = false;
+
         try {
           const query = `
             query GetItinerary($itineraryId: String!) {
               ItineraryNFT_ItineraryCreated(where: { tokenId: { _eq: $itineraryId } }, limit: 1) {
                 tokenId
                 name
+                city
+                country
                 latitude
                 longitude
                 proximityRadius
@@ -2989,7 +2997,11 @@ ${enjoyText}
             const itinerary = envioData.data?.ItineraryNFT_ItineraryCreated?.[0];
 
             if (itinerary) {
-              const targetLat = parseFloat(itinerary.latitude) / 1e6; // Convert back from integer storage
+              experienceCountry = itinerary.country || '';
+              experienceCity = itinerary.city || '';
+              experienceName = itinerary.name || '';
+
+              const targetLat = parseFloat(itinerary.latitude) / 1e6;
               const targetLon = parseFloat(itinerary.longitude) / 1e6;
               const radiusMeters = parseInt(itinerary.proximityRadius) || 100;
 
@@ -3006,7 +3018,9 @@ ${enjoyText}
                 isWithin: distance <= radiusMeters
               });
 
-              if (distance > radiusMeters) {
+              if (distance <= radiusMeters) {
+                gpsVerified = true;
+              } else if (!params.manualVerification) {
                 return NextResponse.json(
                   {
                     success: false,
@@ -3018,31 +3032,89 @@ ${enjoyText}
             }
           }
         } catch (gpsError: any) {
-          console.warn('⚠️ GPS verification failed:', gpsError.message);
-          // Continue anyway - contract will do its own validation
+          console.warn('⚠️ GPS/Envio lookup failed:', gpsError.message);
         }
 
+        // Convert country name to code
+        const countryData = getCountryByName(experienceCountry);
+        if (!countryData) {
+          return NextResponse.json(
+            { success: false, error: `Unknown country: ${experienceCountry}. Cannot find matching passport.` },
+            { status: 400 }
+          );
+        }
+
+        console.log('🌍 Experience country:', { name: experienceCountry, code: countryData.code });
+
+        // Look up user's passport for this country
+        let passportTokenId: bigint;
+        if (params.passportTokenId) {
+          // User explicitly specified a passport
+          passportTokenId = BigInt(params.passportTokenId);
+        } else {
+          // Auto-find passport by country
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const publicClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const passportLookupCalls = encodeFunctionData({
+            abi: parseAbi(['function userPassports(address, string) view returns (uint256)']),
+            functionName: 'userPassports',
+            args: [userAddress as Address, countryData.code],
+          });
+
+          try {
+            const passportResult = await publicClient.call({
+              to: PASSPORT_NFT_ADDRESS,
+              data: passportLookupCalls,
+            });
+
+            passportTokenId = passportResult.data ? BigInt(passportResult.data) : 0n;
+          } catch (lookupErr: any) {
+            console.error('Failed to lookup passport:', lookupErr);
+            passportTokenId = 0n;
+          }
+
+          if (passportTokenId === 0n) {
+            return NextResponse.json({
+              success: false,
+              error: `You don't have a ${experienceCountry} passport! Mint a ${experienceCountry} passport first to collect stamps there.`,
+              countryRequired: experienceCountry,
+              countryCode: countryData.code,
+              hint: 'Visit the passport page to mint a passport for this country.',
+            }, { status: 400 });
+          }
+        }
+
+        console.log('🛂 Found passport:', { passportTokenId: passportTokenId.toString(), country: countryData.code });
+
+        // Call PassportNFTv3's addItineraryStamp (stamps go directly to passport)
         const checkinCalls = [
           {
-            to: ITINERARY_NFT_CHECKIN,
+            to: PASSPORT_NFT_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
-                'function checkIn(uint256 itineraryId, uint256 passportTokenId, int256 userLatitude, int256 userLongitude) external'
+                'function addItineraryStamp(uint256 tokenId, uint256 itineraryId, string memory locationName, string memory city, string memory country, bool gpsVerified) external'
               ]),
-              functionName: 'checkIn',
+              functionName: 'addItineraryStamp',
               args: [
-                checkinItineraryId,
                 passportTokenId,
-                BigInt(Math.floor(params.userLatitude * 1e6)),
-                BigInt(Math.floor(params.userLongitude * 1e6)),
+                checkinItineraryId,
+                experienceName,
+                experienceCity,
+                experienceCountry,
+                gpsVerified,
               ],
             }) as Hex,
           },
         ];
 
         const checkinTxHash = await executeTransaction(checkinCalls, userAddress as Address);
-        console.log('✅ Check-in successful, TX:', checkinTxHash);
+        console.log('✅ Passport stamped!', { txHash: checkinTxHash, passport: passportTokenId.toString(), country: experienceCountry });
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -3051,8 +3123,13 @@ ${enjoyText}
           action,
           userAddress,
           itineraryId: params.itineraryId,
-          passportTokenId: params.passportTokenId,
-          message: `Checked in successfully! Passport stamped.`,
+          passportTokenId: passportTokenId.toString(),
+          country: experienceCountry,
+          countryCode: countryData.code,
+          city: experienceCity,
+          locationName: experienceName,
+          gpsVerified,
+          message: `🎫 Stamp collected! Your ${experienceCountry} passport now has a stamp from ${experienceCity}.`,
         });
 
       // ==================== ITINERARY BURN (ItineraryNFTv2) ====================
