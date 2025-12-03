@@ -29,7 +29,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // Contract data hooks
   const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
   const { data: timeRemaining } = useGetTimeRemaining();
-  const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered } = useHasEnteredToday(effectiveAddress);
+  const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
   const { data: shMonEntryFee } = useGetShMonEntryFee();
   const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
 
@@ -258,8 +258,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     );
   }
 
-  // User has already entered today OR got "Already entered" error - show children (grant access)
-  if (hasEntered || grantAccess) {
+  // User has already entered today OR got "Already entered" error OR contract read error - grant access
+  // If contract read fails, we don't want to block users - grant access and let them use the app
+  if (hasEntered || grantAccess || hasEnteredError) {
     return <>{children}</>;
   }
 
@@ -329,7 +330,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
                       {totalPrizePool} MON
                     </p>
-                    <p className="text-yellow-400 text-sm font-semibold mt-1">
+                    <p className="text-orange-300 text-sm font-bold mt-2 bg-orange-500/30 rounded-lg py-1.5 px-4 inline-block border border-orange-400/50">
                       👥 {currentRound?.participantCount?.toString() || '0'} participants
                     </p>
                   </div>
