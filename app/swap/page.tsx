@@ -3,10 +3,21 @@
 
 import { useState, useEffect } from 'react';
 import { useSwap, useShMon } from '@/src/hooks';
-import { useAccount } from 'wagmi';
-import { formatEther } from 'viem';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { formatEther, parseEther } from 'viem';
 import PassportGate from '@/app/components/PassportGate';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+
+const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const ERC20_ABI = [
+  {
+    inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }],
+    name: 'transfer',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const;
 
 export default function SwapPage() {
   return (
@@ -137,11 +148,13 @@ function SwapContent() {
 
   // Move TOURS to Safe state
   const [depositInfo, setDepositInfo] = useState<any>(null);
-  const [depositLoading, setDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
   const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
-  const [depositTxHash, setDepositTxHash] = useState<string | null>(null);
   const [showDepositSection, setShowDepositSection] = useState(false);
+
+  // Wagmi hook for direct wallet transfer
+  const { writeContract, data: transferHash, isPending: isTransferPending, error: transferError } = useWriteContract();
+  const { isLoading: isTransferConfirming, isSuccess: isTransferSuccess } = useWaitForTransactionReceipt({ hash: transferHash });
 
   // shMON hook
   const {
@@ -480,50 +493,46 @@ function SwapContent() {
       const data = await res.json();
       setDepositInfo(data);
       setShowDepositSection(true);
+      setDepositError(null);
     } catch (err: any) {
       setDepositError(err.message || 'Failed to check deposit status');
     }
   };
 
-  // Execute deposit of TOURS from wallet to Safe
-  const handleDepositToSafe = async () => {
-    if (!effectiveAddress || !depositInfo?.canTransfer) return;
+  // Direct wallet transfer - user signs one transaction, no approval needed!
+  const handleDirectTransferToSafe = () => {
+    if (!depositInfo?.safeAddress || !depositInfo?.walletBalance || parseFloat(depositInfo.walletBalance) <= 0) return;
 
-    setDepositLoading(true);
     setDepositError(null);
     setDepositSuccess(null);
-    setDepositTxHash(null);
 
-    try {
-      setDepositSuccess('⏳ Transferring TOURS to your Safe...');
+    const amount = parseEther(depositInfo.walletBalance);
 
-      const res = await fetch('/api/deposit-tours-to-safe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userAddress: effectiveAddress }),
-      });
+    writeContract({
+      address: TOURS_TOKEN_ADDRESS as `0x${string}`,
+      abi: ERC20_ABI,
+      functionName: 'transfer',
+      args: [depositInfo.safeAddress as `0x${string}`, amount],
+    });
+  };
 
-      const data = await res.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Deposit failed');
-      }
-
-      setDepositSuccess(`🎉 Successfully moved ${data.amountTransferred} TOURS to your Safe!`);
-      setDepositTxHash(data.txHash);
-
-      // Refresh balances and deposit info
+  // Handle transfer success
+  useEffect(() => {
+    if (isTransferSuccess && transferHash) {
+      setDepositSuccess(`🎉 Successfully moved TOURS to your Safe!`);
+      // Refresh after a delay
       setTimeout(() => {
         checkDepositStatus();
-        window.location.reload();
       }, 3000);
-    } catch (err: any) {
-      console.error('Deposit to Safe error:', err);
-      setDepositError(err.message || 'Failed to deposit');
-    } finally {
-      setDepositLoading(false);
     }
-  };
+  }, [isTransferSuccess, transferHash]);
+
+  // Handle transfer error
+  useEffect(() => {
+    if (transferError) {
+      setDepositError(transferError.message || 'Transfer failed');
+    }
+  }, [transferError]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 py-12 px-4">
@@ -1230,26 +1239,18 @@ function SwapContent() {
               {/* Status & Actions */}
               {parseFloat(depositInfo.walletBalance) > 0 ? (
                 <div className="space-y-3">
-                  {!depositInfo.hasAllowance ? (
-                    <div className="bg-yellow-500/20 border border-yellow-500/40 rounded-lg p-4">
-                      <p className="text-yellow-200 text-sm font-medium mb-2">⚠️ Approval Required</p>
-                      <p className="text-yellow-100 text-xs mb-3">
-                        Before transferring, you need to approve the deployer to move your TOURS.
-                        Call <code className="bg-black/30 px-1 rounded">approve({depositInfo.deployerAddress}, amount)</code> on the TOURS contract from your wallet.
-                      </p>
-                      <p className="text-yellow-100 text-xs">
-                        TOURS Contract: <code className="bg-black/30 px-1 rounded">{depositInfo.toursTokenAddress}</code>
-                      </p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleDepositToSafe}
-                      disabled={depositLoading || !depositInfo.canTransfer}
-                      className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-lg"
-                    >
-                      {depositLoading ? '⏳ Transferring...' : `📦 Move ${depositInfo.walletBalance} TOURS to Safe`}
-                    </button>
-                  )}
+                  <button
+                    onClick={handleDirectTransferToSafe}
+                    disabled={isTransferPending || isTransferConfirming}
+                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-lg"
+                  >
+                    {isTransferPending ? '⏳ Confirm in wallet...' :
+                     isTransferConfirming ? '⏳ Confirming...' :
+                     `📦 Move ${depositInfo.walletBalance} TOURS to Safe`}
+                  </button>
+                  <p className="text-orange-200 text-xs text-center">
+                    One click - sign in your wallet to transfer
+                  </p>
                 </div>
               ) : (
                 <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-4 text-center">
@@ -1258,12 +1259,12 @@ function SwapContent() {
               )}
 
               {/* Success/Error Messages */}
-              {depositSuccess && (
+              {(depositSuccess || isTransferSuccess) && (
                 <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4">
-                  <p className="text-green-200">{depositSuccess}</p>
-                  {depositTxHash && (
+                  <p className="text-green-200">{depositSuccess || '🎉 Transfer successful!'}</p>
+                  {transferHash && (
                     <a
-                      href={`https://testnet.monadscan.com/tx/${depositTxHash}`}
+                      href={`https://testnet.monadscan.com/tx/${transferHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-green-300 hover:text-green-100 text-sm underline mt-2 block"
