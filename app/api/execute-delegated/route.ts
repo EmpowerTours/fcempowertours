@@ -3282,14 +3282,30 @@ ${enjoyText}
 
         console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
 
-        // Use burnNFTForDelegated function (requires Safe to be authorized burner)
+        // Get User Safe address for approval
+        const userSafeAddress = await getUserSafeAddress(userAddress as Address);
+
+        // Step 1: Approve User Safe to burn the NFT (if not already approved)
+        const approveCalldata = encodeFunctionData({
+          abi: parseAbi(['function approve(address to, uint256 tokenId) external']),
+          functionName: 'approve',
+          args: [userSafeAddress, BigInt(tokenId)],
+        });
+
+        // Step 2: Burn using burnNFTFor (uses ERC721 approval)
         const burnCalldata = encodeFunctionData({
-          abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
-          functionName: 'burnNFTForDelegated',
+          abi: parseAbi(['function burnNFTFor(address owner, uint256 tokenId) external']),
+          functionName: 'burnNFTFor',
           args: [userAddress as Address, BigInt(tokenId)],
         });
 
+        // Execute both operations in a single batch
         const txHash = await executeTransaction([
+          {
+            to: EMPOWER_TOURS_NFT,
+            data: approveCalldata,
+            value: BigInt(0),
+          },
           {
             to: EMPOWER_TOURS_NFT,
             data: burnCalldata,

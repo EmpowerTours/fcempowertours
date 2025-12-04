@@ -103,6 +103,20 @@ export async function POST(req: NextRequest) {
     
     // Step 1: Execute swap (TOURS goes to deployer)
     console.log('⚡ Step 1: Executing swap (deployer receives TOURS)...');
+
+    // Try to estimate gas first to catch issues early
+    try {
+      const gasEstimate = await contract.swap.estimateGas({ value: monValue });
+      console.log(`⛽ Estimated gas: ${gasEstimate.toString()}`);
+    } catch (estimateError: any) {
+      console.error('❌ Gas estimation failed:', estimateError);
+      throw new Error(
+        `Swap contract is not available or has insufficient liquidity. ` +
+        `The TokenSwap contract may be paused or needs to be funded with TOURS tokens. ` +
+        `Please contact support.`
+      );
+    }
+
     const tx = await contract.swap({ value: monValue });
     console.log('📤 Swap TX sent:', tx.hash);
 

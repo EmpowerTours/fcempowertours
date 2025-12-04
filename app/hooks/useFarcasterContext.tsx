@@ -224,6 +224,26 @@ export function useFarcasterContext() {
       console.log('🔍 SDK.ethereum:', (sdk as any).ethereum);
       console.log('🔍 window.ethereum:', (window as any).ethereum);
 
+      // ✅ NEW: Check if this is a native MON transfer and use sendToken
+      if (!params.data && params.value && params.to && sdk.actions?.sendToken) {
+        console.log('📤 Using sdk.actions.sendToken for native MON transfer');
+
+        // Convert value to number if it's a hex string
+        let amount = params.value;
+        if (typeof amount === 'string' && amount.startsWith('0x')) {
+          amount = parseInt(amount, 16);
+        }
+
+        const result = await sdk.actions.sendToken({
+          address: params.to,
+          amount: amount.toString(),
+          chainId: params.chainId || 41454, // Monad testnet
+        });
+
+        console.log('✅ sendToken result:', result);
+        return { transactionHash: result };
+      }
+
       // Check if SDK has wallet.sendTransaction (Farcaster Wallet SDK pattern)
       if ((sdk as any).wallet?.sendTransaction) {
         console.log('📤 Using sdk.wallet.sendTransaction');
