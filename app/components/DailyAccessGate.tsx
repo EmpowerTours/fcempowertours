@@ -289,10 +289,38 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     );
   }
 
-  // User has already entered today OR got "Already entered" error OR contract read error - grant access
-  // If contract read fails, we don't want to block users - grant access and let them use the app
-  if (hasEntered || grantAccess || hasEnteredError) {
+  // ❌ REMOVED hasEnteredError BYPASS - Security Fix
+  // Users must have ACTUALLY entered or received explicit "Already entered" confirmation
+  // Contract errors should NOT grant automatic access
+  if (hasEntered || grantAccess) {
     return <>{children}</>;
+  }
+
+  // Show error state if contract read fails - DO NOT grant access
+  if (hasEnteredError) {
+    return (
+      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-red-500/50 shadow-2xl p-8 max-w-md mx-4 text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-white mb-4">Connection Error</h2>
+          <p className="text-white/80 mb-6">
+            Unable to verify lottery status. Please check your connection and try again.
+          </p>
+          <button
+            onClick={() => {
+              refetchHasEntered();
+              refetchRound();
+            }}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
+          >
+            🔄 Retry
+          </button>
+          <p className="text-white/50 text-xs mt-4">
+            Error checking lottery contract
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Calculate total prize pool
