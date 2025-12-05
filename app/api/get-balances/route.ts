@@ -48,11 +48,25 @@ export async function POST(req: NextRequest) {
       console.error('❌ Error fetching user MON balance:', error);
     }
 
+    // Get Platform Safe balance (for delegation transparency)
+    console.log('⏳ Fetching Platform Safe balance...');
+    let platformSafeBalance = 0n;
+    try {
+      if (BOT_SAFE_ACCOUNT) {
+        platformSafeBalance = await publicClient.getBalance({
+          address: BOT_SAFE_ACCOUNT
+        });
+        console.log(`✅ Platform Safe MON balance: ${platformSafeBalance.toString()} wei`);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching Platform Safe balance:', error);
+    }
+
     // Format for display
     const monFormattedUser = parseFloat(formatEther(monBalanceUser)).toFixed(4);
-    const monFormattedSafe = '0.0000'; // Hidden - old delegation system
-    const monFormatted = monFormattedUser; // Only show wallet balance
-    console.log(`✅ MON balance - User wallet: ${monFormattedUser}`);
+    const monFormattedSafe = parseFloat(formatEther(platformSafeBalance)).toFixed(4); // Platform Safe (delegation account)
+    const monFormatted = monFormattedUser; // Show wallet balance in main field
+    console.log(`✅ MON balance - User wallet: ${monFormattedUser}, Platform Safe: ${monFormattedSafe}`);
 
     // =============================================
     // STEP 2: Get TOURS balance (ERC-20 token)
@@ -195,7 +209,7 @@ export async function POST(req: NextRequest) {
     const finalResponse = {
       mon: monFormatted,
       monWallet: monFormattedUser,  // ✅ User's personal wallet MON
-      monSafe: monFormattedSafe,     // Hidden (old bot Safe)
+      monSafe: monFormattedSafe,     // ✅ Platform Safe (delegation account)
       tours: toursFormatted,
       wmon: wmonFormatted,           // ✅ Wrapped MON balance
       wmonWallet: wmonFormattedUser, // ✅ User's WMON
@@ -205,7 +219,7 @@ export async function POST(req: NextRequest) {
       breakdown: {
         mon: {
           user: monFormattedUser,
-          safe: '0.0000', // Hidden
+          safe: monFormattedSafe, // Platform Safe for delegation
           total: monFormatted,
         },
         tours: {

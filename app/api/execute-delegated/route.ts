@@ -3696,9 +3696,7 @@ ${enjoyText}
           );
         }
 
-        const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
-        const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-
+        // TOKEN_SWAP and TOURS_TOKEN already declared at top level
         if (!TOKEN_SWAP || !TOURS_TOKEN) {
           return NextResponse.json(
             { success: false, error: 'Swap contract not configured' },
@@ -3838,6 +3836,93 @@ ${enjoyText}
             details: swapErr.shortMessage || swapErr.message,
           }, { status: 500 });
         }
+
+      // ==================== MUSIC BEAT MATCH (V2) ====================
+      case 'beat_match_submit_guess':
+        console.log('🎵 Action: beat_match_submit_guess');
+
+        if (!params?.challengeId || !params?.songTitle) {
+          return NextResponse.json(
+            { success: false, error: 'Missing challenge params' },
+            { status: 400 }
+          );
+        }
+
+        const MUSIC_BEAT_MATCH_V2 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
+
+        const beatMatchCalls = [
+          {
+            to: MUSIC_BEAT_MATCH_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function submitGuessFor(address beneficiary, uint256 challengeId, uint256 guessedArtistId, string guessedSongTitle, string guessedUsername) external'
+              ]),
+              functionName: 'submitGuessFor',
+              args: [
+                userAddress as Address,              // beneficiary
+                BigInt(params.challengeId),
+                BigInt(params.artistId || 0),
+                params.songTitle,
+                params.username || ''                // Farcaster username guess
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const beatMatchTxHash = await executeTransaction(beatMatchCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: beatMatchTxHash,
+          action,
+          userAddress,
+          message: 'Guess submitted successfully!',
+        });
+
+      // ==================== COUNTRY COLLECTOR (V2) ====================
+      case 'country_collector_complete':
+        console.log('🌍 Action: country_collector_complete');
+
+        if (!params?.weekId || !params?.artistIndex || !params?.artistId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing parameters' },
+            { status: 400 }
+          );
+        }
+
+        const COUNTRY_COLLECTOR_V2 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V2 as Address;
+
+        const collectorCalls = [
+          {
+            to: COUNTRY_COLLECTOR_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function completeArtistFor(address beneficiary, uint256 weekId, uint256 artistIndex, uint256 artistId) external'
+              ]),
+              functionName: 'completeArtistFor',
+              args: [
+                userAddress as Address,              // beneficiary
+                BigInt(params.weekId),
+                BigInt(params.artistIndex),
+                BigInt(params.artistId)
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const collectorTxHash = await executeTransaction(collectorCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: collectorTxHash,
+          action,
+          userAddress,
+          message: 'Artist completed!',
+        });
 
       default:
         return NextResponse.json(

@@ -1,0 +1,28 @@
+{
+  "name": "empower-tours-keeper-bot",
+  "version": "1.0.0",
+  "description": "Automated keeper bot for Music Beat Match and Country Collector games",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "manual-trigger": "tsx scripts/manual-trigger.ts",
+    "check-health": "tsx scripts/check-health.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.54",
+    "node-cron": "^3.0.3",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "@pinata/sdk": "^2.1.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2"
+  }
+}

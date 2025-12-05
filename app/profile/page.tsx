@@ -89,6 +89,7 @@ export default function ProfilePage() {
   const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedArt, setPurchasedArt] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
+  const [createdExperiences, setCreatedExperiences] = useState<any[]>([]);
   const [balances, setBalances] = useState({ mon: '0', tours: '0', wmon: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -421,6 +422,17 @@ export default function ProfilePage() {
               createdAt
             }
           }
+          ItineraryNFT_ItineraryCreated(where: {creator: {_in: $addresses}}, order_by: {block_timestamp: desc}, limit: 50) {
+            tokenId
+            creator
+            name
+            description
+            price
+            city
+            country
+            experienceType
+            block_timestamp
+          }
         }
       `;
       const response = await fetch(ENVIO_ENDPOINT, {
@@ -437,6 +449,7 @@ export default function ProfilePage() {
       const ownedNFTs = result.data?.OwnedNFT || [];
       const purchasedLicenses = result.data?.MusicLicense || [];
       const purchases = result.data?.ItineraryPurchase || [];
+      const createdExps = result.data?.ItineraryNFT_ItineraryCreated || [];
 
       passports = await Promise.all(
         passports.map(async (passport) => {
@@ -551,6 +564,7 @@ export default function ProfilePage() {
       // Combine art from owned NFTs AND art licenses
       setPurchasedArt([...purchasedArtOnly, ...purchasedArtLicenses]);
       setPurchasedItineraries(purchases);
+      setCreatedExperiences(createdExps);
     } catch (error: any) {
       setError(error.message || 'Failed to load data');
     } finally {
@@ -847,7 +861,7 @@ export default function ProfilePage() {
             <UserSafeWidget />
           </div>
 
-          <div className="grid grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-6 gap-4 mb-8">
             <AnimatedStatCard
               value={passportNFTs.length}
               label="Passports"
@@ -875,6 +889,23 @@ export default function ProfilePage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 1.15, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={{ scale: 1.05 }}
+              className="bg-emerald-50 text-emerald-600 rounded-lg p-4 text-center cursor-default"
+            >
+              <motion.p
+                className="text-3xl font-bold"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 1.35, type: 'spring', stiffness: 200 }}
+              >
+                {createdExperiences.length}
+              </motion.p>
+              <p className="text-sm text-gray-600 mt-1">Experiences</p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
               whileHover={{ scale: 1.05 }}
               className="bg-green-50 text-green-600 rounded-lg p-4 text-center cursor-default"
@@ -887,7 +918,7 @@ export default function ProfilePage() {
               >
                 {purchasedItineraries.length}
               </motion.p>
-              <p className="text-sm text-gray-600 mt-1">Itineraries</p>
+              <p className="text-sm text-gray-600 mt-1">Purchased</p>
             </motion.div>
           </div>
 
@@ -1570,10 +1601,69 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Itineraries */}
+            {/* Created Experiences */}
+            {createdExperiences.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">🌍 Experiences I Created</h2>
+                  <span className="text-sm text-gray-500">
+                    {createdExperiences.length} total
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {createdExperiences.map((exp: any) => {
+                    const typeEmojiMap: Record<string, string> = {
+                      '0': '🍽️', '1': '🏛️', '2': '🎭', '3': '🌿', '4': '🎪', '5': '🏨', '6': '🛍️', '7': '🚂', '8': '📍',
+                      'food': '🍽️', 'attraction': '🏛️', 'cultural': '🎭', 'nature': '🌿', 'entertainment': '🎪', 'shopping': '🛍️'
+                    };
+                    const emoji = typeEmojiMap[exp.experienceType?.toString()] || '📍';
+
+                    return (
+                      <div
+                        key={exp.tokenId}
+                        className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-xl p-4 hover:border-emerald-400 transition-all"
+                      >
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="text-3xl">{emoji}</div>
+                          <div className="flex-1">
+                            <h3 className="font-bold text-gray-900">
+                              {exp.name || `Experience #${exp.tokenId}`}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {exp.city}, {exp.country}
+                            </p>
+                          </div>
+                        </div>
+                        {exp.description && (
+                          <p className="text-sm text-gray-700 mb-2 line-clamp-2">
+                            {exp.description}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-green-600">
+                            {(Number(exp.price) / 1e18).toFixed(0)} TOURS
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            NFT #{exp.tokenId}
+                          </span>
+                        </div>
+                        <Link
+                          href="/itinerary-market"
+                          className="mt-3 block w-full text-center px-4 py-2 bg-emerald-600 text-white text-xs rounded-lg hover:bg-emerald-700 transition-all"
+                        >
+                          View in Marketplace
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Purchased Itineraries */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">🗺️ My Purchased Itineraries</h2>
+                <h2 className="text-xl font-bold text-gray-900">🗺️ Purchased Itineraries</h2>
                 <span className="text-sm text-gray-500">
                   {purchasedItineraries.length} total
                 </span>
@@ -1582,7 +1672,7 @@ export default function ProfilePage() {
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
                   <p className="text-gray-600 mb-3">No itineraries purchased yet</p>
                   <Link
-                    href="/market"
+                    href="/itinerary-market"
                     className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
                   >
                     Browse Marketplace →

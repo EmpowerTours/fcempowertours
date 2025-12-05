@@ -20,20 +20,18 @@ export default function BeatMatchPage() {
 function BeatMatchContent() {
   const { address } = useAccount();
   const [selectedArtist, setSelectedArtist] = useState<bigint | null>(null);
+  const [guessUsername, setGuessUsername] = useState('');
   const [guessReason, setGuessReason] = useState('');
   const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
   const [musicNFTs, setMusicNFTs] = useState([]);
   const [loadingMusic, setLoadingMusic] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const {
     useGetCurrentChallenge,
     useGetPlayerStats,
     useHasPlayed,
-    submitGuess,
-    isPending,
-    isConfirming,
-    isConfirmed,
-    writeError,
   } = useMusicBeatMatch();
 
   const { data: challenge, isLoading: challengeLoading } = useGetCurrentChallenge();
@@ -84,18 +82,86 @@ function BeatMatchContent() {
     fetchMusicNFTs();
   }, []);
 
-  useEffect(() => {
-    if (isConfirmed) {
+  const handleSubmitGuess = async () => {
+    if (!selectedArtist && !guessUsername.trim()) {
+      setSubmitError('Please provide either artist ID or @username');
+      return;
+    }
+    if (!guessReason.trim()) {
+      setSubmitError('Please provide your reasoning');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      // Check/create delegation
+      const delegationRes = await fetch(`/api/delegation-status?address=${address}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('beat_match_submit_guess');
+
+      if (!hasValidDelegation) {
+        console.log('Creating delegation with game permissions...');
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: address,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: [
+              'mint_passport', 'mint_music', 'swap_mon_for_tours',
+              'beat_match_submit_guess',
+              'country_collector_complete'
+            ]
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation');
+        }
+      }
+
+      // Submit guess via delegation
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address,
+          action: 'beat_match_submit_guess',
+          params: {
+            challengeId: (challenge as any).id.toString(),
+            artistId: selectedArtist?.toString() || '0',
+            songTitle: guessReason,
+            username: guessUsername || ''
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit guess');
+      }
+
+      const result = await response.json();
       setShowSubmitSuccess(true);
       setSelectedArtist(null);
+      setGuessUsername('');
       setGuessReason('');
       setTimeout(() => setShowSubmitSuccess(false), 5000);
-    }
-  }, [isConfirmed]);
+      console.log('Guess submitted!', result.txHash);
 
-  const handleSubmitGuess = () => {
-    if (challenge && (challenge as any).id && selectedArtist && guessReason.trim()) {
-      submitGuess((challenge as any).id, selectedArtist, guessReason);
+    } catch (err: any) {
+      setSubmitError(err.message || 'Submission failed');
+      console.error('Error submitting guess:', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -230,15 +296,28 @@ function BeatMatchContent() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-white font-semibold mb-2">Select Artist ID</label>
-                  <input
-                    type="number"
-                    value={selectedArtist?.toString() || ''}
-                    onChange={(e) => setSelectedArtist(e.target.value ? BigInt(e.target.value) : null)}
-                    placeholder="Enter artist ID"
-                    className="w-full bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-white font-semibold mb-2">Artist ID (Optional)</label>
+                    <input
+                      type="number"
+                      value={selectedArtist?.toString() || ''}
+                      onChange={(e) => setSelectedArtist(e.target.value ? BigInt(e.target.value) : null)}
+                      placeholder="Enter artist ID"
+                      className="w-full bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-semibold mb-2">OR @username (Optional)</label>
+                    <input
+                      type="text"
+                      value={guessUsername}
+                      onChange={(e) => setGuessUsername(e.target.value)}
+                      placeholder="@artist"
+                      className="w-full bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -252,10 +331,10 @@ function BeatMatchContent() {
                   />
                 </div>
 
-                {writeError && (
+                {submitError && (
                   <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
                     <p className="text-red-200">
-                      ❌ Error: {writeError.message}
+                      ❌ Error: {submitError}
                     </p>
                   </div>
                 )}
@@ -270,10 +349,10 @@ function BeatMatchContent() {
 
                 <button
                   onClick={handleSubmitGuess}
-                  disabled={!selectedArtist || !guessReason.trim() || isPending || isConfirming}
+                  disabled={(!selectedArtist && !guessUsername.trim()) || !guessReason.trim() || isSubmitting}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
                 >
-                  {isPending || isConfirming
+                  {isSubmitting
                     ? 'Submitting...'
                     : 'Submit Your Guess 🎯'}
                 </button>
