@@ -361,7 +361,7 @@ function SwapContent() {
     ? `1 TOURS = ${parseFloat(currentPrice).toFixed(6)} WMON`
     : `1 WMON = ${(1 / parseFloat(currentPrice)).toFixed(2)} TOURS`;
 
-  // TokenSwap (MON to TOURS) handler
+  // TokenSwap (MON to TOURS) handler - now uses delegation!
   const handleTokenSwap = async () => {
     if (!monAmount || parseFloat(monAmount) <= 0) {
       setSwapError('Please enter a valid amount');
@@ -373,18 +373,56 @@ function SwapContent() {
       return;
     }
 
+    if (!effectiveAddress) {
+      setSwapError('Wallet not connected');
+      return;
+    }
+
     setIsSwapping(true);
     setSwapError(null);
     setSwapResult(null);
 
     try {
-      const response = await fetch('/api/execute-swap', {
+      // Check for delegation with swap_mon_for_tours permission
+      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
+      const delegationData = await delegationRes.json();
+
+      const hasValidDelegation = delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes('swap_mon_for_tours');
+
+      if (!hasValidDelegation) {
+        setSwapResult({ message: '⏳ Setting up gasless transactions...' });
+
+        const createRes = await fetch('/api/create-delegation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: effectiveAddress,
+            durationHours: 24,
+            maxTransactions: 100,
+            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours', 'wrap_mon', 'unwrap_wmon', 'shmon_deposit']
+          })
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          throw new Error('Failed to create delegation: ' + createData.error);
+        }
+      }
+
+      setSwapResult({ message: `⏳ Swapping ${monAmount} MON for TOURS (FREE - we pay gas)...` });
+
+      // Use delegated swap
+      const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userAddress: walletAddress || address,
-          amount: monAmount,
-        }),
+          userAddress: effectiveAddress,
+          action: 'swap_mon_for_tours',
+          params: { amount: monAmount }
+        })
       });
 
       const data = await response.json();
@@ -393,8 +431,18 @@ function SwapContent() {
         throw new Error(data.error || 'Swap failed');
       }
 
-      setSwapResult(data);
+      setSwapResult({
+        success: true,
+        txHash: data.txHash,
+        toursReceived: data.toursReceived,
+        message: `🎉 Successfully swapped ${monAmount} MON for ${data.toursReceived} TOURS!`
+      });
       setMonAmount('');
+
+      // Refresh balances after delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
     } catch (error: any) {
       setSwapError(error.message || 'Swap failed');
     } finally {

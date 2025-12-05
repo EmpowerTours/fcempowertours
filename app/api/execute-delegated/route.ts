@@ -3685,6 +3685,160 @@ ${enjoyText}
           message: `Experience "${expLocationName}" created successfully (gasless)`,
         });
 
+      // ==================== SWAP MON FOR TOURS ====================
+      case 'swap_mon_for_tours':
+        console.log('💱 Action: swap_mon_for_tours');
+
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for swap' },
+            { status: 400 }
+          );
+        }
+
+        const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
+        const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+
+        if (!TOKEN_SWAP || !TOURS_TOKEN) {
+          return NextResponse.json(
+            { success: false, error: 'Swap contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        const swapAmount = parseFloat(params.amount.toString());
+        if (isNaN(swapAmount) || swapAmount <= 0 || swapAmount > 10) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid swap amount. Must be between 0.01 and 10 MON' },
+            { status: 400 }
+          );
+        }
+
+        const swapMonValue = parseEther(swapAmount.toString());
+
+        // Determine the correct Safe address
+        const swapSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('💱 Executing swap:', {
+          amount: swapAmount,
+          tokenSwap: TOKEN_SWAP,
+          toursToken: TOURS_TOKEN,
+          safeAddress: swapSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+        });
+
+        // Check Safe has enough MON for swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeMonBalanceSwap = await client.getBalance({
+            address: swapSafe as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalanceSwap.toString());
+
+          if (safeMonBalanceSwap < swapMonValue) {
+            const currentMON = (Number(safeMonBalanceSwap) / 1e18).toFixed(4);
+            const requiredMON = swapAmount.toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but swap requires ${requiredMON} MON.`
+              },
+              { status: 400 }
+            );
+          }
+
+          // Get exchange rate to calculate expected TOURS
+          const exchangeRate = await client.readContract({
+            address: TOKEN_SWAP,
+            abi: parseAbi(['function exchangeRate() external view returns (uint256)']),
+            functionName: 'exchangeRate',
+          }) as bigint;
+
+          const expectedTours = (swapMonValue * exchangeRate) / parseEther('1');
+          console.log('📊 Exchange rate:', formatEther(exchangeRate), 'TOURS per MON');
+          console.log('📊 Expected TOURS:', formatEther(expectedTours));
+
+          // Check swap contract has enough TOURS
+          const swapContractToursBalance = await client.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [TOKEN_SWAP],
+          }) as bigint;
+
+          console.log('💰 Swap contract TOURS balance:', formatEther(swapContractToursBalance));
+
+          if (swapContractToursBalance < expectedTours) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Swap contract has insufficient TOURS tokens. Please contact support.`,
+                details: `Contract has ${formatEther(swapContractToursBalance)} TOURS, but swap requires ${formatEther(expectedTours)} TOURS`
+              },
+              { status: 500 }
+            );
+          }
+
+          // IMPORTANT: Batched calls for atomic swap
+          // 1. Platform Safe calls TokenSwap.swap() with MON -> receives TOURS
+          // 2. Platform Safe transfers TOURS to user
+          const swapCalls = [
+            // Call 1: Execute swap (Platform Safe receives TOURS)
+            {
+              to: TOKEN_SWAP,
+              value: swapMonValue,
+              data: encodeFunctionData({
+                abi: parseAbi(['function swap() external payable']),
+                functionName: 'swap',
+                args: [],
+              }) as Hex,
+            },
+            // Call 2: Transfer TOURS from Platform Safe to user
+            {
+              to: TOURS_TOKEN,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+                functionName: 'transfer',
+                args: [userAddress as Address, expectedTours],
+              }) as Hex,
+            },
+          ];
+
+          console.log('⚡ Executing batched swap calls...');
+          const swapTxHash = await executeTransaction(swapCalls, userAddress as Address, swapMonValue);
+          console.log('✅ Swap executed, TX:', swapTxHash);
+
+          await incrementTransactionCount(userAddress);
+          return NextResponse.json({
+            success: true,
+            txHash: swapTxHash,
+            action,
+            userAddress,
+            monSpent: swapAmount,
+            toursReceived: formatEther(expectedTours),
+            exchangeRate: formatEther(exchangeRate),
+            message: `Swapped ${swapAmount} MON for ${formatEther(expectedTours)} TOURS successfully (gasless)`,
+          });
+
+        } catch (swapErr: any) {
+          console.error('❌ Swap failed:', swapErr);
+          return NextResponse.json({
+            success: false,
+            error: `Swap failed: ${swapErr.message || 'Unknown error'}`,
+            details: swapErr.shortMessage || swapErr.message,
+          }, { status: 500 });
+        }
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
