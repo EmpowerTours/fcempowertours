@@ -4,7 +4,7 @@ import { monadTestnet } from '../app/chains';
 
 const NFT_ADDRESS = (process.env.NEXT_PUBLIC_NFT_ADDRESS || '0xAD403897CD7d465445aF0BD4fe40f18698655D4e') as Address;
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY;
-const BOT_SIGNER_ADDRESS = (process.env.NEXT_PUBLIC_BOT_SIGNER_ADDRESS || '0x37302543aeF0b06202adcb06Db36daB05F8237E9') as Address;
+const PLATFORM_SAFE = (process.env.NEXT_PUBLIC_SAFE_ACCOUNT || '0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20') as Address;
 
 if (!DEPLOYER_KEY) {
   console.error('❌ DEPLOYER_PRIVATE_KEY not set');
@@ -57,12 +57,12 @@ async function authorizeBurner(burnerAddress: Address) {
 }
 
 async function main() {
-  console.log('🔥 Authorizing Bot Signer as NFT Burner');
+  console.log('🔥 Authorizing Platform Safe as NFT Burner');
   console.log(`NFT Contract: ${NFT_ADDRESS}`);
   console.log(`Deployer: ${account.address}`);
-  console.log(`Bot Signer: ${BOT_SIGNER_ADDRESS}`);
+  console.log(`Platform Safe: ${PLATFORM_SAFE}`);
 
-  await authorizeBurner(BOT_SIGNER_ADDRESS);
+  await authorizeBurner(PLATFORM_SAFE);
 }
 
 main()
