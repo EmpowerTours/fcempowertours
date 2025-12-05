@@ -2,9 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { monadTestnet } from '@/app/chains';
+import { encodeFunctionData, parseAbi } from 'viem';
+
+const NFT_ADDRESS = (process.env.NEXT_PUBLIC_NFT_ADDRESS || '0xAD403897CD7d465445aF0BD4fe40f18698655D4e') as `0x${string}`;
+
+const nftAbi = parseAbi([
+  'function burnNFT(uint256 tokenId) external',
+  'function ownerOf(uint256 tokenId) external view returns (address)',
+]);
 
 export default function BurnMusicPage() {
-  const { walletAddress, fid, isLoading: contextLoading } = useFarcasterContext();
+  const { walletAddress, fid, isLoading: contextLoading, sendTransaction } = useFarcasterContext();
 
   const [tokenId, setTokenId] = useState('');
   const [tokenName, setTokenName] = useState('');
@@ -26,8 +35,8 @@ export default function BurnMusicPage() {
   }, []);
 
   const handleBurn = async () => {
-    if (!tokenId || !walletAddress) {
-      setError('Missing required information');
+    if (!tokenId || !walletAddress || !sendTransaction) {
+      setError('Missing required information or wallet not connected');
       return;
     }
 
@@ -37,63 +46,33 @@ export default function BurnMusicPage() {
     setLoading(true);
 
     try {
-      console.log('🔥 Burning NFT via delegated burn:', {
+      console.log('🔥 Burning NFT directly from Farcaster wallet:', {
         wallet: walletAddress,
-        tokenId
+        tokenId,
+        nftContract: NFT_ADDRESS
       });
 
-      // First ensure we have a valid delegation with burn_nft permission
-      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
-      const delegationData = await delegationRes.json();
-
-      const hasValidDelegation = delegationData.success &&
-        delegationData.delegation &&
-        Array.isArray(delegationData.delegation.permissions) &&
-        delegationData.delegation.permissions.includes('burn_nft');
-
-      if (!hasValidDelegation) {
-        console.log('🔐 Creating delegation with burn_nft permission...');
-        const createRes = await fetch('/api/create-delegation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: walletAddress,
-            durationHours: 24,
-            maxTransactions: 100,
-            // Empty array uses default permissions which includes burn_nft
-            permissions: []
-          })
-        });
-
-        const createData = await createRes.json();
-        if (!createData.success) {
-          throw new Error('Failed to create delegation for burning');
-        }
-        console.log('✅ Delegation created with burn_nft permission');
-      }
-
-      // Use delegated burning via Safe account (gasless)
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          action: 'burn_nft',
-          params: {
-            tokenId: tokenId,
-          },
-        }),
+      // Encode the burnNFT function call
+      const burnData = encodeFunctionData({
+        abi: nftAbi,
+        functionName: 'burnNFT',
+        args: [BigInt(tokenId)],
       });
 
-      const data = await response.json();
+      console.log('📝 Encoded burn data:', burnData);
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to burn NFT');
-      }
+      // Send transaction using Farcaster SDK
+      const result = await sendTransaction({
+        to: NFT_ADDRESS,
+        data: burnData,
+        chainId: monadTestnet.id,
+      });
 
-      console.log('✅ Burn transaction sent:', data.txHash);
-      setTxHash(data.txHash);
-      setSuccess(`🔥 NFT #${tokenId} burned successfully! You received 5 TOURS.`);
+      const hash = result?.transactionHash || result;
+      console.log('✅ Burn transaction sent:', hash);
+
+      setTxHash(hash);
+      setSuccess(`🔥 NFT #${tokenId} burned successfully! You'll receive 5 TOURS.`);
 
       // Wait then redirect back
       setTimeout(() => {
@@ -102,7 +81,7 @@ export default function BurnMusicPage() {
 
     } catch (err: any) {
       console.error('❌ Burn error:', err);
-      setError(err.message || 'Failed to burn NFT');
+      setError(err.message || 'Failed to burn NFT. Make sure you own this NFT.');
     } finally {
       setLoading(false);
     }
@@ -159,14 +138,14 @@ export default function BurnMusicPage() {
           </div>
         )}
 
-        {/* Info about gasless burn */}
+        {/* Info about burn reward */}
         <div className="mb-6 p-4 bg-green-900/30 border border-green-500/30 rounded-lg">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">⛽</span>
+            <span className="text-2xl">💰</span>
             <div>
-              <div className="font-semibold text-green-300 mb-1">Gasless Transaction</div>
+              <div className="font-semibold text-green-300 mb-1">Burn Reward</div>
               <div className="text-sm text-green-200">
-                This burn is FREE! We pay the gas fees on your behalf using delegated burning.
+                You'll receive 5 TOURS tokens as a reward for burning this NFT. Small gas fee required (~$0.01).
               </div>
             </div>
           </div>
@@ -224,7 +203,7 @@ export default function BurnMusicPage() {
             </>
           ) : (
             <>
-              🔥 Burn NFT & Get 5 TOURS (FREE)
+              🔥 Burn NFT & Get 5 TOURS
             </>
           )}
         </button>
