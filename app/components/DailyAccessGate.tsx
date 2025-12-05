@@ -71,6 +71,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [statusMessage, setStatusMessage] = useState('');
   const [txHash, setTxHash] = useState<string | null>(null);
   const [grantAccess, setGrantAccess] = useState(false); // Force grant access when "Already entered"
+  const [grantedRoundId, setGrantedRoundId] = useState<bigint | null>(null); // Track which round access was granted for
 
   // Live countdown
   const [countdown, setCountdown] = useState<string>('--:--:--');
@@ -91,6 +92,18 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
       router.push('/discover');
     }
   }, [grantAccess, router]);
+
+  // 🔒 SECURITY: Reset grantAccess if round changes (prevents 24hr bypass)
+  useEffect(() => {
+    if (grantedRoundId !== null && currentRound?.roundId !== undefined && currentRound.roundId !== grantedRoundId) {
+      console.log('🔄 Round changed - resetting access grant', {
+        grantedRound: grantedRoundId.toString(),
+        currentRound: currentRound.roundId.toString()
+      });
+      setGrantAccess(false);
+      setGrantedRoundId(null);
+    }
+  }, [currentRound?.roundId, grantedRoundId]);
 
   // Update countdown every second
   useEffect(() => {
@@ -183,8 +196,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
       // Check for "Already entered" error - grant access if so
       if (errMsg.includes('Already entered') || errMsg.includes('416c726561647920656e7465726564')) {
-        console.log('User already entered - granting access');
+        console.log('User already entered in current round - granting access');
         setGrantAccess(true);
+        setGrantedRoundId(currentRound?.roundId || null);
         setIsEntering(false);
         return;
       }
@@ -266,8 +280,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
       // Check for "Already entered" error - grant access if so
       if (errMsg.includes('Already entered') || errMsg.includes('416c726561647920656e7465726564')) {
-        console.log('User already entered - granting access');
+        console.log('User already entered in current round - granting access');
         setGrantAccess(true);
+        setGrantedRoundId(currentRound?.roundId || null);
         setIsEntering(false);
         return;
       }
@@ -292,7 +307,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // ❌ REMOVED hasEnteredError BYPASS - Security Fix
   // Users must have ACTUALLY entered or received explicit "Already entered" confirmation
   // Contract errors should NOT grant automatic access
-  if (hasEntered || grantAccess) {
+  // 🔒 CRITICAL: Only grant access if user entered THIS round (prevents 24hr bypass)
+  const currentRoundMatches = grantedRoundId !== null && currentRound?.roundId === grantedRoundId;
+  if (hasEntered || (grantAccess && currentRoundMatches)) {
     return <>{children}</>;
   }
 
