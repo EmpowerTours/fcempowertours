@@ -3485,15 +3485,16 @@ ${enjoyText}
           console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
         }
 
-        // Lottery enterWithMon function: enterWithMon() payable
+        // Lottery enterWithMonFor function: enterWithMonFor(address beneficiary) payable
+        // Platform Safe enters on behalf of the user (delegation)
         const lotteryEnterMonCalls = [
           {
             to: LOTTERY_ADDRESS,
             value: lotteryEntryFee,
             data: encodeFunctionData({
-              abi: parseAbi(['function enterWithMon() external payable returns (uint256)']),
-              functionName: 'enterWithMon',
-              args: [],
+              abi: parseAbi(['function enterWithMonFor(address beneficiary) external payable returns (uint256)']),
+              functionName: 'enterWithMonFor',
+              args: [userAddress as Address], // The user is the beneficiary
             }) as Hex,
           },
         ];

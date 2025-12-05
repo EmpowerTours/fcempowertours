@@ -236,10 +236,10 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ NEW: DailyPassLotterySecure Contract (Redeployed Dec 2, 2025 with correct platformWallet)
+      # ✅ DailyPassLotteryV2 Contract (Redeployed Dec 4, 2025 - Delegation support + dual fees)
       - name: DailyPassLottery
         address:
-          - "0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE"
+          - "0x7d237b3f18C110dE61DE95037C8bdBDb9C863164"
         handler: src/EventHandlers.ts
         events:
           # Daily pass purchase (MON or shMON)
