@@ -26,41 +26,12 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   const { useGetShMonBalance } = useShMon();
 
-  // Safe address state (for delegation-based lottery entry)
-  const [safeAddress, setSafeAddress] = useState<`0x${string}` | undefined>(undefined);
-  const [safeLoading, setSafeLoading] = useState(true);
-
-  // Fetch user's Safe address
-  useEffect(() => {
-    const fetchSafeAddress = async () => {
-      if (!effectiveAddress) {
-        setSafeLoading(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/user-safe?address=${effectiveAddress}`);
-        const data = await res.json();
-        if (data.success && data.safeAddress) {
-          setSafeAddress(data.safeAddress as `0x${string}`);
-        }
-      } catch (err) {
-        console.error('Failed to fetch safe address:', err);
-      } finally {
-        setSafeLoading(false);
-      }
-    };
-    fetchSafeAddress();
-  }, [effectiveAddress]);
-
   // Contract data hooks
   const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
   const { data: timeRemaining } = useGetTimeRemaining();
-  // Check BOTH wallet and Safe address for lottery entry
-  const { data: hasEnteredWallet, isLoading: entryLoadingWallet, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
-  const { data: hasEnteredSafe, isLoading: entryLoadingSafe } = useHasEnteredToday(safeAddress);
-  // User has entered if EITHER wallet or Safe has entered
-  const hasEntered = hasEnteredWallet || hasEnteredSafe;
-  const entryLoading = entryLoadingWallet || (safeAddress ? entryLoadingSafe : false);
+  // 🔒 SIMPLIFIED: Only check user's wallet address for lottery entry
+  // Safe wallet integration was causing bypass issues
+  const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
   const { data: shMonEntryFee } = useGetShMonEntryFee();
   const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
 
@@ -292,8 +263,22 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     }
   };
 
+  // Debug logging
+  useEffect(() => {
+    if (!roundLoading && !entryLoading && !contextLoading) {
+      console.log('🎰 Lottery Gate Status:', {
+        effectiveAddress,
+        hasEntered,
+        grantAccess,
+        grantedRoundId: grantedRoundId?.toString(),
+        currentRoundId: currentRound?.roundId?.toString(),
+        shouldShowGate: !hasEntered && !(grantAccess && grantedRoundId !== null && currentRound?.roundId === grantedRoundId)
+      });
+    }
+  }, [roundLoading, entryLoading, contextLoading, hasEntered, grantAccess, grantedRoundId, currentRound?.roundId, effectiveAddress]);
+
   // Show loading while checking
-  if (roundLoading || entryLoading || contextLoading || safeLoading) {
+  if (roundLoading || entryLoading || contextLoading) {
     return (
       <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
         <div className="text-center">
