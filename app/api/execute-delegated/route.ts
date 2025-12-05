@@ -3268,17 +3268,45 @@ ${enjoyText}
           message: `Music NFT position #${params.positionId} unstaked from YieldStrategy with yield`,
         });
 
-      // ==================== BURN NFT (DELEGATED) - DISABLED ====================
+      // ==================== BURN NFT (DELEGATED) ====================
       case 'burn_nft': {
-        console.log('🔥 Action: burn_nft (delegated burning) - DISABLED');
+        console.log('🔥 Action: burn_nft (delegated burning)');
+
+        const { tokenId } = params;
+        if (!tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId' },
+            { status: 400 }
+          );
+        }
+
+        console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
+
+        // Use burnNFTForDelegated function (platform Safe is authorized burner)
+        const burnCalldata = encodeFunctionData({
+          abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
+          functionName: 'burnNFTForDelegated',
+          args: [userAddress as Address, BigInt(tokenId)],
+        });
+
+        const txHash = await executeTransaction([
+          {
+            to: EMPOWER_TOURS_NFT,
+            data: burnCalldata as Hex,
+            value: BigInt(0),
+          }
+        ], userAddress as Address);
+
+        await incrementTransactionCount(userAddress);
+        console.log('🔥 NFT burned successfully:', txHash);
 
         return NextResponse.json({
-          success: false,
-          error: 'NFT burning via Safe is temporarily disabled. To burn an NFT:\n' +
-                 '1. Transfer the NFT to your Safe address first\n' +
-                 '2. Then use the burn function from your profile\n\n' +
-                 'Alternatively, burn directly from your wallet (you pay gas fees)',
-        }, { status: 400 });
+          success: true,
+          txHash,
+          userAddress,
+          tokenId,
+          message: `NFT #${tokenId} burned successfully! 5 TOURS reward sent to owner.`,
+        });
       }
 
       // ==================== SHMON DEPOSIT (Liquid Staking) ====================
