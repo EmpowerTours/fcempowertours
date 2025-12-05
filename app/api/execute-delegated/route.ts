@@ -3268,61 +3268,17 @@ ${enjoyText}
           message: `Music NFT position #${params.positionId} unstaked from YieldStrategy with yield`,
         });
 
-      // ==================== BURN NFT (DELEGATED) ====================
+      // ==================== BURN NFT (DELEGATED) - DISABLED ====================
       case 'burn_nft': {
-        console.log('🔥 Action: burn_nft (delegated burning)');
-
-        const { tokenId } = params;
-        if (!tokenId) {
-          return NextResponse.json(
-            { success: false, error: 'Missing tokenId' },
-            { status: 400 }
-          );
-        }
-
-        console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
-
-        // Get User Safe address for approval
-        const userSafeAddress = await getUserSafeAddress(userAddress as Address);
-
-        // Step 1: Approve User Safe to burn the NFT (if not already approved)
-        const approveCalldata = encodeFunctionData({
-          abi: parseAbi(['function approve(address to, uint256 tokenId) external']),
-          functionName: 'approve',
-          args: [userSafeAddress, BigInt(tokenId)],
-        });
-
-        // Step 2: Burn using burnNFTFor (uses ERC721 approval)
-        const burnCalldata = encodeFunctionData({
-          abi: parseAbi(['function burnNFTFor(address owner, uint256 tokenId) external']),
-          functionName: 'burnNFTFor',
-          args: [userAddress as Address, BigInt(tokenId)],
-        });
-
-        // Execute both operations in a single batch
-        const txHash = await executeTransaction([
-          {
-            to: EMPOWER_TOURS_NFT,
-            data: approveCalldata,
-            value: BigInt(0),
-          },
-          {
-            to: EMPOWER_TOURS_NFT,
-            data: burnCalldata,
-            value: BigInt(0),
-          }
-        ], userAddress as Address);
-
-        await incrementTransactionCount(userAddress);
-        console.log('🔥 NFT burned successfully:', txHash);
+        console.log('🔥 Action: burn_nft (delegated burning) - DISABLED');
 
         return NextResponse.json({
-          success: true,
-          txHash,
-          userAddress,
-          tokenId,
-          message: `NFT #${tokenId} burned successfully! 5 TOURS reward sent to owner.`,
-        });
+          success: false,
+          error: 'NFT burning via Safe is temporarily disabled. To burn an NFT:\n' +
+                 '1. Transfer the NFT to your Safe address first\n' +
+                 '2. Then use the burn function from your profile\n\n' +
+                 'Alternatively, burn directly from your wallet (you pay gas fees)',
+        }, { status: 400 });
       }
 
       // ==================== SHMON DEPOSIT (Liquid Staking) ====================

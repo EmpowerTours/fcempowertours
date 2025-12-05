@@ -157,12 +157,35 @@ export default function SendMonPage() {
         </div>
 
         <>
-          <div className="bg-black/20 rounded-xl p-4">
-            <p className="text-gray-400 text-xs">Sending from Safe Wallet</p>
-            <p className="text-white font-mono text-sm break-all">
-              {safeWalletAddress}
+          <div className="bg-yellow-500/20 border border-yellow-500 rounded-xl p-4 mb-4">
+            <p className="text-yellow-200 font-semibold mb-2">⚠️ Manual Transfer Required</p>
+            <p className="text-yellow-100 text-xs">
+              Monad Testnet is not in Farcaster's token list yet. To send MON to your Safe:
             </p>
+            <ol className="text-yellow-100 text-xs mt-2 ml-4 list-decimal space-y-1">
+              <li>Copy your Safe address below</li>
+              <li>Use MetaMask or another wallet</li>
+              <li>Send MON to your Safe address</li>
+            </ol>
+          </div>
+
+          <div className="bg-black/20 rounded-xl p-4">
+            <p className="text-gray-400 text-xs">Your Safe Wallet Address</p>
             <div className="flex items-center gap-2 mt-1">
+              <p className="text-white font-mono text-sm break-all flex-1">
+                {safeWalletAddress}
+              </p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(safeWalletAddress);
+                  alert('Safe address copied!');
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs"
+              >
+                Copy
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
               <p className="text-gray-500 text-xs">
                 Type: Safe Account Abstraction Wallet
               </p>
