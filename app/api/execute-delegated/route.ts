@@ -68,55 +68,63 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
+    // Public actions that don't require delegation (anyone can call to earn rewards)
+    const publicActions = ['lottery_commit', 'lottery_reveal', 'lottery_claim', 'concierge_custom', 'concierge_food', 'concierge_ride'];
+    const requiresDelegation = !publicActions.includes(action);
 
-    // ✅ RETRY MECHANISM: Handle potential Redis eventual consistency
-    let delegation = null;
-    let retries = 3;
+    if (requiresDelegation) {
+      console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
 
-    while (retries > 0 && !delegation) {
-      delegation = await getDelegation(userAddress);
+      // ✅ RETRY MECHANISM: Handle potential Redis eventual consistency
+      let delegation = null;
+      let retries = 3;
 
-      if (delegation) {
-        console.log('✅ Delegation found:', {
-          user: delegation.user,
-          expires: new Date(delegation.expiresAt).toISOString(),
-          permissions: delegation.config.permissions.length,
-          transactionsExecuted: delegation.transactionsExecuted
-        });
-      } else {
-        retries--;
-        if (retries > 0) {
-          console.log(`⏳ Delegation not found, retrying in 500ms... (${retries} retries left)`);
-          await new Promise(resolve => setTimeout(resolve, 500));
+      while (retries > 0 && !delegation) {
+        delegation = await getDelegation(userAddress);
+
+        if (delegation) {
+          console.log('✅ Delegation found:', {
+            user: delegation.user,
+            expires: new Date(delegation.expiresAt).toISOString(),
+            permissions: delegation.config.permissions.length,
+            transactionsExecuted: delegation.transactionsExecuted
+          });
+        } else {
+          retries--;
+          if (retries > 0) {
+            console.log(`⏳ Delegation not found, retrying in 500ms... (${retries} retries left)`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
         }
       }
-    }
 
-    if (!delegation || delegation.expiresAt < Date.now()) {
-      console.error('❌ No valid delegation found after retries for:', userAddress);
-      return NextResponse.json(
-        { success: false, error: 'No active delegation. Please try again or refresh the page to create a new delegation.' },
-        { status: 403 }
-      );
-    }
+      if (!delegation || delegation.expiresAt < Date.now()) {
+        console.error('❌ No valid delegation found after retries for:', userAddress);
+        return NextResponse.json(
+          { success: false, error: 'No active delegation. Please try again or refresh the page to create a new delegation.' },
+          { status: 403 }
+        );
+      }
 
-    if (!(await hasPermission(userAddress, action))) {
-      return NextResponse.json(
-        { success: false, error: `No permission for ${action}` },
-        { status: 403 }
-      );
-    }
+      if (!(await hasPermission(userAddress, action))) {
+        return NextResponse.json(
+          { success: false, error: `No permission for ${action}` },
+          { status: 403 }
+        );
+      }
 
-    if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
-      return NextResponse.json(
-        { success: false, error: 'Transaction limit reached' },
-        { status: 403 }
-      );
-    }
+      if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
+        return NextResponse.json(
+          { success: false, error: 'Transaction limit reached' },
+          { status: 403 }
+        );
+      }
 
-    console.log('✅ Delegation valid, transactions left:',
-      delegation.config.maxTransactions - delegation.transactionsExecuted);
+      console.log('✅ Delegation valid, transactions left:',
+        delegation.config.maxTransactions - delegation.transactionsExecuted);
+    } else {
+      console.log('🌐 [PUBLIC ACTION] Bypassing delegation check for:', action);
+    }
 
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = (process.env.NEXT_PUBLIC_PASSPORT_NFT_V2 || process.env.NEXT_PUBLIC_PASSPORT) as Address;
@@ -3643,7 +3651,7 @@ ${enjoyText}
         const commitTxHash = await executeTransaction(commitCalls, userAddress as Address);
         console.log('✅ Committed randomness for round', params.roundId, 'TX:', commitTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: commitTxHash,
@@ -3685,7 +3693,7 @@ ${enjoyText}
         const revealTxHash = await executeTransaction(revealCalls, userAddress as Address);
         console.log('✅ Revealed winner for round', params.roundId, 'TX:', revealTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: revealTxHash,
@@ -3727,7 +3735,7 @@ ${enjoyText}
         const claimTxHash = await executeTransaction(claimCalls, userAddress as Address);
         console.log('✅ Claimed prize for round', params.roundId, 'TX:', claimTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: claimTxHash,
@@ -3768,7 +3776,7 @@ ${enjoyText}
         const customServiceTxHash = await executeTransaction(customServiceCalls, userAddress as Address);
         console.log('✅ Created custom service request for', userAddress, 'TX:', customServiceTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: customServiceTxHash,
@@ -3809,7 +3817,7 @@ ${enjoyText}
         const foodOrderTxHash = await executeTransaction(foodOrderCalls, userAddress as Address);
         console.log('✅ Created food order for', userAddress, 'TX:', foodOrderTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: foodOrderTxHash,
@@ -3849,7 +3857,7 @@ ${enjoyText}
         const rideRequestTxHash = await executeTransaction(rideRequestCalls, userAddress as Address);
         console.log('✅ Created ride request for', userAddress, 'TX:', rideRequestTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: rideRequestTxHash,
