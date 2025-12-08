@@ -1,6 +1,7 @@
 import {
   EmpowerToursNFT,
   PassportNFT,
+  ExperienceNFT,
   YieldStrategy,
   DemandSignalEngine,
   SmartEventManifest,
@@ -694,6 +695,197 @@ PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
 // MARKETPLACE/ITINERARY EVENTS
 // ============================================
 // NOTE: ItineraryNFT/ExperienceNFT events are handled by ExperienceNFT contract
+
+// ============================================
+// EXPERIENCE NFT EVENTS (GPS-gated travel experiences)
+// ============================================
+
+ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
+  const { experienceId, creator, title, city, country, price } = event.params;
+
+  const experienceEntityId = `experience-${event.chainId}-${experienceId.toString()}`;
+  const userId = creator.toLowerCase();
+
+  // Create experience entity
+  const experience = {
+    id: experienceEntityId,
+    experienceId: experienceId.toString(),
+    creator: userId,
+    title: title,
+    city: city,
+    country: country,
+    price: price,
+    active: true,
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.Experience.set(experience);
+
+  // Update user stats
+  let userStats = await context.UserStats.get(userId);
+  const isNewUser = !userStats;
+
+  if (userStats) {
+    await context.UserStats.set({
+      ...userStats,
+      itinerariesCreated: userStats.itinerariesCreated + 1,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.UserStats.set({
+      id: userId,
+      address: creator.toLowerCase(),
+      musicNFTCount: 0,
+      artNFTCount: 0,
+      passportNFTCount: 0,
+      itinerariesCreated: 1,
+      itinerariesPurchased: 0,
+      totalNFTs: 0,
+      licensesOwned: 0,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalItineraries: globalStats.totalItineraries + 1,
+      totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🗺️ Experience #${experienceId} created: "${title}" in ${city}, ${country} by ${creator}`);
+});
+
+ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
+  const { experienceId, buyer, price } = event.params;
+
+  const experienceEntityId = `experience-${event.chainId}-${experienceId.toString()}`;
+  const purchaseId = `experience-purchase-${event.block.number}-${event.logIndex}`;
+  const userId = buyer.toLowerCase();
+
+  // Create purchase entity
+  const purchase = {
+    id: purchaseId,
+    experience_id: experienceEntityId,
+    experienceId: experienceId.toString(),
+    buyer: userId,
+    price: price,
+    purchasedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.ExperiencePurchase.set(purchase);
+
+  // Update user stats
+  let userStats = await context.UserStats.get(userId);
+  const isNewUser = !userStats;
+
+  if (userStats) {
+    await context.UserStats.set({
+      ...userStats,
+      itinerariesPurchased: userStats.itinerariesPurchased + 1,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.UserStats.set({
+      id: userId,
+      address: buyer.toLowerCase(),
+      musicNFTCount: 0,
+      artNFTCount: 0,
+      passportNFTCount: 0,
+      itinerariesCreated: 0,
+      itinerariesPurchased: 1,
+      totalNFTs: 0,
+      licensesOwned: 0,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
+      lastActive: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.GlobalStats.get("global");
+  if (globalStats) {
+    await context.GlobalStats.set({
+      ...globalStats,
+      totalItineraryPurchases: globalStats.totalItineraryPurchases + 1,
+      totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🛒 Experience #${experienceId} purchased by ${buyer} for ${price.toString()}`);
+});
+
+ExperienceNFT.ExperienceCompleted.handler(async ({ event, context }) => {
+  const { experienceId, user, photoProofHash, rewardAmount } = event.params;
+
+  const experienceEntityId = `experience-${event.chainId}-${experienceId.toString()}`;
+  const completionId = `experience-completion-${event.block.number}-${event.logIndex}`;
+  const userId = user.toLowerCase();
+
+  // Create completion entity
+  const completion = {
+    id: completionId,
+    experience_id: experienceEntityId,
+    experienceId: experienceId.toString(),
+    user: userId,
+    photoProofHash: photoProofHash,
+    rewardAmount: rewardAmount,
+    completedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.ExperienceCompletion.set(completion);
+
+  context.log.info(`✅ Experience #${experienceId} completed by ${user} - Reward: ${rewardAmount.toString()} TOURS`);
+});
+
+ExperienceNFT.TransportationRequested.handler(async ({ event, context }) => {
+  const { experienceId, user, fromLat, fromLon, toLat, toLon } = event.params;
+
+  const transportRequestId = `transport-request-${event.block.number}-${event.logIndex}`;
+  const userId = user.toLowerCase();
+
+  // Create transportation request entity
+  const transportRequest = {
+    id: transportRequestId,
+    experienceId: experienceId.toString(),
+    user: userId,
+    fromLat: fromLat,
+    fromLon: fromLon,
+    toLat: toLat,
+    toLon: toLon,
+    requestedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.TransportationRequest.set(transportRequest);
+
+  context.log.info(`🚗 Transportation requested for Experience #${experienceId} by ${user}`);
+});
+
+ExperienceNFT.Transfer.handler(async ({ event, context }) => {
+  const { from, to, tokenId } = event.params;
+
+  // Skip minting events (handled by ExperienceCreated)
+  if (from === "0x0000000000000000000000000000000000000000") {
+    return;
+  }
+
+  context.log.info(`🔄 ExperienceNFT #${tokenId} transferred from ${from} to ${to}`);
+});
 
 // ============================================
 // YIELD STRATEGY V3 (NFT-GATED STAKING) EVENTS
