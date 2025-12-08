@@ -422,7 +422,7 @@ export default function ProfilePage() {
               createdAt
             }
           }
-          ItineraryNFT_ItineraryCreated(where: {creator: {_in: $addresses}}, order_by: {block_timestamp: desc}, limit: 50) {
+          ExperienceNFT_ExperienceCreated(where: {creator: {_in: $addresses}}, order_by: {block_timestamp: desc}, limit: 50) {
             tokenId
             creator
             name
@@ -449,7 +449,7 @@ export default function ProfilePage() {
       const ownedNFTs = result.data?.OwnedNFT || [];
       const purchasedLicenses = result.data?.MusicLicense || [];
       const purchases = result.data?.ItineraryPurchase || [];
-      const createdExps = result.data?.ItineraryNFT_ItineraryCreated || [];
+      const createdExps = result.data?.ExperienceNFT_ExperienceCreated || [];
 
       passports = await Promise.all(
         passports.map(async (passport) => {

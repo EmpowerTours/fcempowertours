@@ -2971,7 +2971,7 @@ ${enjoyText}
         try {
           const query = `
             query GetItinerary($itineraryId: String!) {
-              ItineraryNFT_ItineraryCreated(where: { tokenId: { _eq: $itineraryId } }, limit: 1) {
+              ExperienceNFT_ExperienceCreated(where: { tokenId: { _eq: $itineraryId } }, limit: 1) {
                 tokenId
                 name
                 city
@@ -2994,7 +2994,7 @@ ${enjoyText}
 
           if (envioRes.ok) {
             const envioData = await envioRes.json();
-            const itinerary = envioData.data?.ItineraryNFT_ItineraryCreated?.[0];
+            const itinerary = envioData.data?.ExperienceNFT_ExperienceCreated?.[0];
 
             if (itinerary) {
               experienceCountry = itinerary.country || '';

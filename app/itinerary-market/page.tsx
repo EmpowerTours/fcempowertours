@@ -53,15 +53,13 @@ export default function ItineraryMarketPage() {
     try {
       const query = `
         query GetExperiences {
-          ItineraryNFT_ItineraryCreated(order_by: {block_timestamp: desc}, limit: 20) {
-            tokenId
+          ExperienceNFT_ExperienceCreated(order_by: {block_timestamp: desc}, limit: 20) {
+            experienceId
             creator
-            name
-            description
-            price
+            title
             city
             country
-            experienceType
+            price
           }
         }
       `;
@@ -73,28 +71,21 @@ export default function ItineraryMarketPage() {
       });
 
       const data = await res.json();
-      const items = data.data?.ItineraryNFT_ItineraryCreated || [];
+      const items = data.data?.ExperienceNFT_ExperienceCreated || [];
 
       if (items.length > 0) {
         const mapped = items.map((item: any) => {
-          // Map experience type to emoji
-          const typeMap: Record<string, { emoji: string; type: string }> = {
-            food: { emoji: '🍽️', type: 'food' },
-            attraction: { emoji: '🏛️', type: 'attraction' },
-            cultural: { emoji: '🎭', type: 'cultural' },
-            nature: { emoji: '🌿', type: 'nature' },
-            entertainment: { emoji: '🎪', type: 'entertainment' },
-            shopping: { emoji: '🛍️', type: 'shopping' },
-          };
-          const typeInfo = typeMap[item.experienceType?.toLowerCase()] || { emoji: '📍', type: 'general' };
+          // Default to general emoji since we don't have experienceType from the event
+          const emoji = '📍';
+          const type = 'general';
 
           return {
-            id: item.tokenId,
-            name: item.name || `Experience #${item.tokenId}`,
+            id: item.experienceId,
+            name: item.title || `Experience #${item.experienceId}`,
             city: item.city || 'Unknown',
             country: item.country || 'Unknown',
-            type: typeInfo.type,
-            emoji: typeInfo.emoji,
+            type,
+            emoji,
             price: (Number(item.price) / 1e18).toFixed(0),
             creator: item.creator,
           };

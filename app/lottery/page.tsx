@@ -449,21 +449,21 @@ export default function LotteryPage() {
         {/* How it Works */}
         <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
           <h2 className="text-lg font-bold text-white mb-4">How It Works</h2>
-          <div className="space-y-3 text-sm text-white/70">
+          <div className="space-y-4 text-sm text-white/70">
             <div className="flex items-start gap-3">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold">1</span>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">1</span>
               <p>Enter with 1 MON or equivalent shMON (one entry per day)</p>
             </div>
             <div className="flex items-start gap-3">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold">2</span>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">2</span>
               <p>90% goes to prize pool, 5% gas fund, 5% platform treasury</p>
             </div>
             <div className="flex items-start gap-3">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold">3</span>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>
               <p>At round end, anyone can trigger commit/reveal for 0.01 MON reward</p>
             </div>
             <div className="flex items-start gap-3">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold">4</span>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">4</span>
               <p>Winner claims prize from escrow (48hr window)</p>
             </div>
           </div>
