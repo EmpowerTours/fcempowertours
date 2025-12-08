@@ -16,6 +16,8 @@ import ItineraryNFTABI from '../abis/ItineraryNFT.json';
 import MusicBeatMatchABI from '../abis/MusicBeatMatch.json';
 import CountryCollectorABI from '../abis/CountryCollector.json';
 import TandaPoolABI from '../abis/TandaPool.json';
+import PersonalAssistantV1ABI from '../abis/PersonalAssistantV1.json';
+import ServiceMarketplaceABI from '../abis/ServiceMarketplace.json';
 
 // Monad Testnet Configuration
 export const MONAD_TESTNET_CHAIN_ID = 10143;
@@ -78,11 +80,11 @@ export const CONTRACTS = {
   },
   PersonalAssistantV1: {
     address: '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4' as Address,
-    abi: [] as any, // TODO: Add PersonalAssistantV1 ABI
+    abi: PersonalAssistantV1ABI,
   },
   ServiceMarketplace: {
     address: '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4' as Address,
-    abi: [] as any, // TODO: Add ServiceMarketplace ABI
+    abi: ServiceMarketplaceABI,
   },
   TandaPool: {
     address: '0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B' as Address,

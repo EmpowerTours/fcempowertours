@@ -1,7 +1,6 @@
 import {
   EmpowerToursNFT,
   PassportNFT,
-  ItineraryNFT,
   YieldStrategy,
   DemandSignalEngine,
   SmartEventManifest,
