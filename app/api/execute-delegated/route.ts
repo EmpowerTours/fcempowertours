@@ -13,6 +13,9 @@ const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-productio
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
+// Type definition for Safe transaction calls
+type Call = { to: Address; value: bigint; data: Hex };
+
 // ✅ Helper: Execute transaction through appropriate Safe (user-funded or platform)
 async function executeTransaction(
   calls: Array<{ to: Address; value: bigint; data: Hex }>,
@@ -3738,12 +3741,8 @@ ${enjoyText}
       case 'concierge_custom':
         console.log('🛎️ Action: concierge_custom');
 
-        const PERSONAL_ASSISTANT_ADDRESS = (process.env.NEXT_PUBLIC_PERSONAL_ASSISTANT_ADDRESS || '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4') as Address;
-
-        // NOTE: PersonalAssistantV1 contract does NOT have a "createServiceRequestFor" function
-        // This means the service request will be created with Platform Safe as msg.sender
-        // TODO: Contract needs to be updated with createServiceRequestFor(address beneficiary, ...)
-        // for proper delegated transaction support where beneficiary receives the service
+        // Use PersonalAssistantV2 with delegation support
+        const PERSONAL_ASSISTANT_V2_ADDRESS = (process.env.NEXT_PUBLIC_PERSONAL_ASSISTANT_V2 || '0xDFB9Bec42E250E2ec159376b39B6e5233928D73D') as Address;
 
         if (!params?.serviceType || !params?.details) {
           return NextResponse.json(
@@ -3756,18 +3755,18 @@ ${enjoyText}
 
         const customServiceCalls: Call[] = [
           {
-            to: PERSONAL_ASSISTANT_ADDRESS,
+            to: PERSONAL_ASSISTANT_V2_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function createServiceRequest(string serviceType, string details, uint256 suggestedPrice) external returns (uint256)']),
-              functionName: 'createServiceRequest',
-              args: [params.serviceType as string, params.details as string, suggestedPrice],
+              abi: parseAbi(['function createServiceRequestFor(address beneficiary, string serviceType, string details, uint256 suggestedPrice) external returns (uint256)']),
+              functionName: 'createServiceRequestFor',
+              args: [userAddress as Address, params.serviceType as string, params.details as string, suggestedPrice],
             }) as Hex,
           },
         ];
 
         const customServiceTxHash = await executeTransaction(customServiceCalls, userAddress as Address);
-        console.log('⚠️ Created custom service request (will be attributed to Platform Safe, not user), TX:', customServiceTxHash);
+        console.log('✅ Created custom service request for', userAddress, 'TX:', customServiceTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({

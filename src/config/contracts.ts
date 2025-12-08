@@ -17,6 +17,7 @@ import MusicBeatMatchABI from '../abis/MusicBeatMatch.json';
 import CountryCollectorABI from '../abis/CountryCollector.json';
 import TandaPoolABI from '../abis/TandaPool.json';
 import PersonalAssistantV1ABI from '../abis/PersonalAssistantV1.json';
+import PersonalAssistantV2ABI from '../abis/PersonalAssistantV2.json';
 import ServiceMarketplaceABI from '../abis/ServiceMarketplace.json';
 
 // Monad Testnet Configuration
@@ -82,6 +83,10 @@ export const CONTRACTS = {
     address: '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4' as Address,
     abi: PersonalAssistantV1ABI,
   },
+  PersonalAssistantV2: {
+    address: '0xDFB9Bec42E250E2ec159376b39B6e5233928D73D' as Address,
+    abi: PersonalAssistantV2ABI,
+  },
   ServiceMarketplace: {
     address: '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4' as Address,
     abi: ServiceMarketplaceABI,
@@ -117,6 +122,7 @@ export const musicBeatMatchConfig = CONTRACTS.MusicBeatMatchV2;
 export const countryCollectorConfig = CONTRACTS.CountryCollectorV2;
 export const experienceNFTConfig = CONTRACTS.ExperienceNFT;
 export const personalAssistantConfig = CONTRACTS.PersonalAssistantV1;
+export const personalAssistantV2Config = CONTRACTS.PersonalAssistantV2;
 export const serviceMarketplaceConfig = CONTRACTS.ServiceMarketplace;
 export const tandaPoolConfig = CONTRACTS.TandaPool;
 
@@ -137,6 +143,7 @@ export const VERIFICATION_STATUS = {
   CountryCollectorV2: '✅ 0xC7FfA579f66f6A3142b3e27427b04124F4b3cd61 (Dec 8, 2025)',
   ExperienceNFT: '✅ 0xDcBBA5460a6043656331aB0399F68C52f76463D3 (Dec 8, 2025)',
   PersonalAssistantV1: '✅ 0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4 (Dec 8, 2025)',
+  PersonalAssistantV2: '✅ 0xDFB9Bec42E250E2ec159376b39B6e5233928D73D (Dec 8, 2025)',
   ServiceMarketplace: '✅ 0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4 (Dec 8, 2025)',
   TandaPool: '✅ 0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B',
 } as const;
