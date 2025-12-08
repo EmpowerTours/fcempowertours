@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { Address, parseEther, formatEther } from 'viem';
 import { useRouter } from 'next/navigation';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { personalAssistantConfig, serviceMarketplaceConfig } from '@/src/config/contracts';
 
 type ServiceType = 'food' | 'ride' | 'custom';
@@ -31,7 +32,9 @@ interface ServiceRequest {
 
 export default function ConciergePage() {
   const router = useRouter();
-  const { address } = useAccount();
+  const { walletAddress, user } = useFarcasterContext();
+  const { address: wagmiAddress } = useAccount();
+  const effectiveAddress = (walletAddress || wagmiAddress) as `0x${string}` | undefined;
 
   const [activeTab, setActiveTab] = useState<'browse' | 'request' | 'my-services'>('browse');
   const [selectedAssistant, setSelectedAssistant] = useState<string>('');
@@ -61,7 +64,7 @@ export default function ConciergePage() {
   const { isSuccess: requestSuccess } = useWaitForTransactionReceipt({ hash: requestHash });
 
   const handleRequestCustomService = async () => {
-    if (!address || !selectedAssistant || !serviceDescription || !serviceLocation) {
+    if (!effectiveAddress || !selectedAssistant || !serviceDescription || !serviceLocation) {
       alert('Please fill in all fields');
       return;
     }
@@ -133,12 +136,14 @@ export default function ConciergePage() {
     setActiveTab('my-services');
   }
 
-  if (!address) {
+  if (!effectiveAddress) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white flex items-center justify-center p-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-4">Personal Concierge Services</h1>
-          <p className="text-gray-400 mb-6">Please connect your wallet to access concierge services</p>
+          <p className="text-gray-400 mb-6">
+            {user ? 'Loading wallet...' : 'Please open in Farcaster to access concierge services'}
+          </p>
         </div>
       </div>
     );
