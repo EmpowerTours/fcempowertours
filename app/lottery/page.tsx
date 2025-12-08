@@ -43,6 +43,7 @@ export default function LotteryPage() {
     isPending,
     isConfirming,
     isConfirmed,
+    writeError,
     hash,
     LOTTERY_ADDRESS,
     SHMON_ADDRESS
@@ -89,6 +90,28 @@ export default function LotteryPage() {
       refreshData();
     }
   }, [isConfirmed, refetchRound, refetchStats, refetchHasEntered]);
+
+  // Handle transaction errors
+  useEffect(() => {
+    if (writeError) {
+      setError(writeError.message || 'Transaction failed');
+      setActionLoading(false);
+    }
+  }, [writeError]);
+
+  // Timeout for stuck transactions (2 minutes)
+  useEffect(() => {
+    if (isPending || isConfirming) {
+      const timeout = setTimeout(() => {
+        if (isPending || isConfirming) {
+          setError('Transaction timeout - please try again or check Monad explorer');
+          setActionLoading(false);
+        }
+      }, 120000); // 2 minutes
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isPending, isConfirming]);
 
   // Format time remaining
   const formatTimeRemaining = (seconds: bigint | undefined) => {
@@ -457,6 +480,16 @@ export default function LotteryPage() {
         {success && (
           <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-6">
             <p className="text-green-400 text-sm">{success}</p>
+            {hash && (
+              <a
+                href={`https://testnet.monadscan.com/tx/${hash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-green-300 hover:text-green-100 underline mt-2 block"
+              >
+                View on Monad Explorer →
+              </a>
+            )}
           </div>
         )}
 
@@ -470,7 +503,7 @@ export default function LotteryPage() {
             </div>
             <div className="flex items-start gap-3">
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">2</span>
-              <p>90% goes to prize pool, 5% gas fund, 5% platform treasury</p>
+              <p><span className="inline-block w-1"></span>90% goes to prize pool, 5% gas fund, 5% platform treasury</p>
             </div>
             <div className="flex items-start gap-3">
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>

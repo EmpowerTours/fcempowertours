@@ -133,7 +133,7 @@ async function createBeatMatchChallengeWithGemini() {
   console.log(`Found ${musicNFTs.length} music NFTs`);
 
   // Use Gemini to pick the best one for today's challenge
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
   const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
 
@@ -152,14 +152,29 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
   const result = await model.generateContent(prompt);
   const responseText = result.response.text().trim();
 
-  // Clean up response if it has markdown code blocks
-  const cleanedResponse = responseText
+  // Clean up response - extract JSON from anywhere in the response
+  let cleanedResponse = responseText
     .replace(/```json\n/g, '')
     .replace(/```\n/g, '')
     .replace(/```/g, '')
     .trim();
 
-  const selection = JSON.parse(cleanedResponse);
+  // Try to extract JSON object if there's extra text (non-greedy match)
+  const jsonMatch = cleanedResponse.match(/\{[\s\S]*?\}/);
+  if (jsonMatch) {
+    cleanedResponse = jsonMatch[0];
+  }
+
+  console.log('🤖 Gemini response:', cleanedResponse);
+
+  let selection;
+  try {
+    selection = JSON.parse(cleanedResponse);
+  } catch (parseError) {
+    console.error('Failed to parse Gemini response:', cleanedResponse);
+    throw new Error(`Invalid Gemini response: ${cleanedResponse.substring(0, 100)}`);
+  }
+
   const selectedMusic = musicNFTs[selection.index];
 
   console.log(`✅ Gemini selected: "${selectedMusic.name}" (Token #${selectedMusic.tokenId})`);
@@ -252,7 +267,7 @@ async function createCollectorChallengeWithGemini() {
   console.log(`Found ${countries.length} countries with enough artists`);
 
   // Use Gemini to pick the best country
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
   const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
 
@@ -270,13 +285,30 @@ Respond ONLY with valid JSON in this exact format (no markdown):
 
   const result = await model.generateContent(prompt);
   const responseText = result.response.text().trim();
-  const cleanedResponse = responseText
+
+  // Clean up response - extract JSON from anywhere in the response
+  let cleanedResponse = responseText
     .replace(/```json\n/g, '')
     .replace(/```\n/g, '')
     .replace(/```/g, '')
     .trim();
 
-  const selection = JSON.parse(cleanedResponse);
+  // Try to extract JSON object if there's extra text (non-greedy match)
+  const jsonMatch = cleanedResponse.match(/\{[\s\S]*?\}/);
+  if (jsonMatch) {
+    cleanedResponse = jsonMatch[0];
+  }
+
+  console.log('🤖 Gemini response:', cleanedResponse);
+
+  let selection;
+  try {
+    selection = JSON.parse(cleanedResponse);
+  } catch (parseError) {
+    console.error('Failed to parse Gemini response:', cleanedResponse);
+    throw new Error(`Invalid Gemini response: ${cleanedResponse.substring(0, 100)}`);
+  }
+
   const selectedCountry = countries[selection.index];
 
   console.log(`✅ Gemini selected: ${selectedCountry.name} (${selectedCountry.code})`);
