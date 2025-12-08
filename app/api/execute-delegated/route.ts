@@ -3740,6 +3740,11 @@ ${enjoyText}
 
         const PERSONAL_ASSISTANT_ADDRESS = (process.env.NEXT_PUBLIC_PERSONAL_ASSISTANT_ADDRESS || '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4') as Address;
 
+        // NOTE: PersonalAssistantV1 contract does NOT have a "createServiceRequestFor" function
+        // This means the service request will be created with Platform Safe as msg.sender
+        // TODO: Contract needs to be updated with createServiceRequestFor(address beneficiary, ...)
+        // for proper delegated transaction support where beneficiary receives the service
+
         if (!params?.serviceType || !params?.details) {
           return NextResponse.json(
             { success: false, error: 'Missing serviceType or details for concierge_custom' },
@@ -3762,7 +3767,7 @@ ${enjoyText}
         ];
 
         const customServiceTxHash = await executeTransaction(customServiceCalls, userAddress as Address);
-        console.log('✅ Created custom service request, TX:', customServiceTxHash);
+        console.log('⚠️ Created custom service request (will be attributed to Platform Safe, not user), TX:', customServiceTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -3795,15 +3800,15 @@ ${enjoyText}
             to: SERVICE_MARKETPLACE_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function createFoodOrder(address provider, uint256[] menuItemIds, uint256[] quantities, string deliveryAddress, uint256 deliveryFee) external returns (uint256)']),
-              functionName: 'createFoodOrder',
-              args: [params.provider as Address, menuItemIds, quantities, params.deliveryAddress as string, deliveryFee],
+              abi: parseAbi(['function createFoodOrderFor(address beneficiary, address provider, uint256[] menuItemIds, uint256[] quantities, string deliveryAddress, uint256 deliveryFee) external returns (uint256)']),
+              functionName: 'createFoodOrderFor',
+              args: [userAddress as Address, params.provider as Address, menuItemIds, quantities, params.deliveryAddress as string, deliveryFee],
             }) as Hex,
           },
         ];
 
         const foodOrderTxHash = await executeTransaction(foodOrderCalls, userAddress as Address);
-        console.log('✅ Created food order, TX:', foodOrderTxHash);
+        console.log('✅ Created food order for', userAddress, 'TX:', foodOrderTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -3834,15 +3839,15 @@ ${enjoyText}
             to: SERVICE_MARKETPLACE_RIDE_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function createRideRequest(string pickupLocation, string destination, uint256 agreedPrice) external returns (uint256)']),
-              functionName: 'createRideRequest',
-              args: [params.pickupLocation as string, params.destination as string, agreedPrice],
+              abi: parseAbi(['function createRideRequestFor(address beneficiary, string pickupLocation, string destination, uint256 agreedPrice) external returns (uint256)']),
+              functionName: 'createRideRequestFor',
+              args: [userAddress as Address, params.pickupLocation as string, params.destination as string, agreedPrice],
             }) as Hex,
           },
         ];
 
         const rideRequestTxHash = await executeTransaction(rideRequestCalls, userAddress as Address);
-        console.log('✅ Created ride request, TX:', rideRequestTxHash);
+        console.log('✅ Created ride request for', userAddress, 'TX:', rideRequestTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
