@@ -456,7 +456,7 @@ export default function LotteryPage() {
             </div>
             <div className="flex items-start gap-3">
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold">2</span>
-              <p>90% goes to prize pool, 10% to platform</p>
+              <p>90% goes to prize pool, 5% gas fund, 5% platform treasury</p>
             </div>
             <div className="flex items-start gap-3">
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold">3</span>

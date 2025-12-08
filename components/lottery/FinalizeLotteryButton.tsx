@@ -74,11 +74,11 @@ export default function FinalizeLotteryButton() {
   const [canRevealRound, setCanRevealRound] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  const { writeContract: commit, data: commitHash } = useWriteContract();
-  const { writeContract: reveal, data: revealHash } = useWriteContract();
+  const { writeContract: commit, data: commitHash, isPending: isCommitPending } = useWriteContract();
+  const { writeContract: reveal, data: revealHash, isPending: isRevealPending } = useWriteContract();
 
-  const { isSuccess: commitSuccess } = useWaitForTransactionReceipt({ hash: commitHash });
-  const { isSuccess: revealSuccess } = useWaitForTransactionReceipt({ hash: revealHash });
+  const { isSuccess: commitSuccess, isLoading: commitLoading } = useWaitForTransactionReceipt({ hash: commitHash });
+  const { isSuccess: revealSuccess, isLoading: revealLoading } = useWaitForTransactionReceipt({ hash: revealHash });
 
   // Check for pending rounds
   const checkPendingRounds = async () => {
@@ -191,20 +191,20 @@ export default function FinalizeLotteryButton() {
             {canCommitRound && (
               <button
                 onClick={handleCommit}
-                disabled={checking}
+                disabled={checking || isCommitPending || commitLoading}
                 className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50"
               >
-                {checking ? 'Checking...' : '1️⃣ Commit Randomness (+0.01 MON)'}
+                {isCommitPending || commitLoading ? '⏳ Processing...' : checking ? 'Checking...' : '1️⃣ Commit Randomness (+0.01 MON)'}
               </button>
             )}
 
             {canRevealRound && (
               <button
                 onClick={handleReveal}
-                disabled={checking}
+                disabled={checking || isRevealPending || revealLoading}
                 className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50"
               >
-                {checking ? 'Checking...' : '2️⃣ Reveal Winner (+0.01 MON)'}
+                {isRevealPending || revealLoading ? '⏳ Processing...' : checking ? 'Checking...' : '2️⃣ Reveal Winner (+0.01 MON)'}
               </button>
             )}
           </div>
