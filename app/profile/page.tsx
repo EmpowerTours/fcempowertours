@@ -422,16 +422,14 @@ export default function ProfilePage() {
               createdAt
             }
           }
-          ExperienceNFT_ExperienceCreated(where: {creator: {_in: $addresses}}, order_by: {block_timestamp: desc}, limit: 50) {
-            tokenId
+          Experience(where: {creator: {_in: $addresses}}, order_by: {createdAt: desc}, limit: 50) {
+            experienceId
             creator
-            name
-            description
-            price
+            title
             city
             country
-            experienceType
-            block_timestamp
+            price
+            createdAt
           }
         }
       `;

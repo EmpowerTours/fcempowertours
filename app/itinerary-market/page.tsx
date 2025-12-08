@@ -53,7 +53,7 @@ export default function ItineraryMarketPage() {
     try {
       const query = `
         query GetExperiences {
-          ExperienceNFT_ExperienceCreated(order_by: {block_timestamp: desc}, limit: 20) {
+          Experience(order_by: {createdAt: desc}, limit: 20) {
             experienceId
             creator
             title
@@ -71,7 +71,7 @@ export default function ItineraryMarketPage() {
       });
 
       const data = await res.json();
-      const items = data.data?.ExperienceNFT_ExperienceCreated || [];
+      const items = data.data?.Experience || [];
 
       if (items.length > 0) {
         const mapped = items.map((item: any) => {
