@@ -64,6 +64,12 @@ type PassportNFT @entity {
   stampCount: Int!             # ✅ Number of venue stamps
   verifiedStampCount: Int!     # ✅ Number of verified stamps
   creditScore: Int!            # ✅ Calculated credit score
+
+  # ✅ V4: Location Verification
+  verified: Boolean!           # Is location verified?
+  verificationProof: String    # IPFS hash of verification proof (GPS/photo/attestation)
+  verifiedAt: BigInt           # Timestamp when verified
+
   mintedAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!
@@ -439,7 +445,7 @@ type LotteryWinnerHistory @entity {
   shMonPrize: BigInt!
   totalPrize: BigInt!
   participantCount: Int!
-  randomHash: String!
+  randomHash: String                      # Optional - not included in V2 WinnerRevealed event
   claimed: Boolean!
   claimedAt: Timestamp
   finalizedAt: Timestamp!

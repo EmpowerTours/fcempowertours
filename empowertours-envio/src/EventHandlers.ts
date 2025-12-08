@@ -1521,11 +1521,11 @@ DailyPassLottery.RoundStarted.handler(async ({ event, context }) => {
 });
 
 DailyPassLottery.DailyPassPurchased.handler(async ({ event, context }) => {
-  const { roundId, holder, entryIndex, paidWithShMon, amount } = event.params;
+  const { roundId, beneficiary, payer, entryIndex, paidWithShMon, amount } = event.params;
 
   const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
   const lotteryEntryId = `entry-${event.chainId}-${roundId.toString()}-${entryIndex.toString()}`;
-  const userId = holder.toLowerCase();
+  const userId = beneficiary.toLowerCase();
 
   // Create lottery entry
   const lotteryEntry = {
@@ -1592,7 +1592,7 @@ DailyPassLottery.DailyPassPurchased.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🎫 Lottery entry #${entryIndex} for round ${roundId} - ${holder} paid ${amount.toString()} ${paidWithShMon ? 'shMON' : 'MON'}`);
+  context.log.info(`🎫 Lottery entry #${entryIndex} for round ${roundId} - ${beneficiary} (paid by ${payer}) ${amount.toString()} ${paidWithShMon ? 'shMON' : 'MON'}`);
 });
 
 DailyPassLottery.RandomnessCommitted.handler(async ({ event, context }) => {
@@ -1613,7 +1613,7 @@ DailyPassLottery.RandomnessCommitted.handler(async ({ event, context }) => {
 });
 
 DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
-  const { roundId, winner, winnerIndex, monPrize, shMonPrize, randomHash } = event.params;
+  const { roundId, winner, winnerIndex, monPrize, shMonPrize, caller, reward } = event.params;
 
   const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
   const winnerHistoryId = `winner-${event.chainId}-${roundId.toString()}`;
@@ -1629,7 +1629,7 @@ DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
       winnerIndex: Number(winnerIndex),
       monPrize: monPrize,
       shMonPrize: shMonPrize,
-      randomHash: randomHash,
+      randomHash: undefined, // Not included in new event signature
       finalizedAt: new Date(event.block.timestamp * 1000),
     });
 
@@ -1644,7 +1644,7 @@ DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
       shMonPrize: shMonPrize,
       totalPrize: monPrize + shMonPrize,
       participantCount: lotteryRound.participantCount,
-      randomHash: randomHash,
+      randomHash: undefined, // Not included in new event signature
       claimed: false,
       claimedAt: undefined,
       finalizedAt: new Date(event.block.timestamp * 1000),
@@ -1667,7 +1667,7 @@ DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🏆 WINNER for Round #${roundId}: ${winner} - Prize: ${monPrize.toString()} MON + ${shMonPrize.toString()} shMON`);
+  context.log.info(`🏆 WINNER for Round #${roundId}: ${winner} (revealed by ${caller}, reward: ${reward.toString()}) - Prize: ${monPrize.toString()} MON + ${shMonPrize.toString()} shMON`);
 });
 
 DailyPassLottery.PrizeClaimed.handler(async ({ event, context }) => {

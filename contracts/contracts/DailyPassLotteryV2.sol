@@ -548,31 +548,48 @@ contract DailyPassLotteryV2 is Ownable, ReentrancyGuard {
     }
 
     // ============================================
-    // Escrow & Claims
+    // Escrow & Claims - WITH DELEGATION SUPPORT
     // ============================================
 
     /**
-     * @notice Winner claims prize
+     * @notice Winner claims prize (self-claim)
      */
     function claimPrize(uint256 roundId) external nonReentrant {
+        _claimPrize(msg.sender, roundId);
+    }
+
+    /**
+     * @notice Claim prize for a beneficiary (delegation support)
+     * @param beneficiary The winner's address who will receive the prize
+     * @param roundId The round to claim
+     */
+    function claimPrizeFor(address beneficiary, uint256 roundId) external nonReentrant {
+        require(beneficiary != address(0), "Invalid beneficiary");
+        _claimPrize(beneficiary, roundId);
+    }
+
+    /**
+     * @dev Internal logic for claiming prize
+     */
+    function _claimPrize(address beneficiary, uint256 roundId) internal {
         Escrow storage esc = escrows[roundId];
 
-        require(esc.winner == msg.sender, "Not winner");
+        require(esc.winner == beneficiary, "Not winner");
         require(!esc.claimed, "Already claimed");
         require(block.timestamp <= esc.expiresAt, "Expired");
 
         esc.claimed = true;
 
         if (esc.monAmount > 0) {
-            (bool success, ) = msg.sender.call{value: esc.monAmount}("");
+            (bool success, ) = beneficiary.call{value: esc.monAmount}("");
             require(success, "MON failed");
         }
 
         if (esc.shMonAmount > 0) {
-            IERC20(address(shMonToken)).safeTransfer(msg.sender, esc.shMonAmount);
+            IERC20(address(shMonToken)).safeTransfer(beneficiary, esc.shMonAmount);
         }
 
-        emit PrizeClaimed(roundId, msg.sender, esc.monAmount, esc.shMonAmount);
+        emit PrizeClaimed(roundId, beneficiary, esc.monAmount, esc.shMonAmount);
     }
 
     /**

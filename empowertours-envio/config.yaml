@@ -394,14 +394,14 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ DailyPassLotteryV2 Contract (Redeployed Dec 4, 2025 - Delegation support + dual fees)
+      # ✅ DailyPassLotteryV2 Contract (Redeployed Dec 8, 2025 - Delegation support for claim + dual fees)
       - name: DailyPassLottery
         address:
-          - "0x7d237b3f18C110dE61DE95037C8bdBDb9C863164"
+          - "0x89345c2b05446F278b7e5746814feF368D764403"
         handler: src/EventHandlers.ts
         events:
-          # Daily pass purchase (MON or shMON)
-          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed holder, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
+          # Daily pass purchase (MON or shMON) - with beneficiary and payer
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, address indexed payer, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
             field_selection:
               transaction_fields:
                 - hash
@@ -412,8 +412,8 @@ networks:
               transaction_fields:
                 - hash
 
-          # Winner revealed (final randomness)
-          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, bytes32 randomHash)"
+          # Winner revealed (final randomness) - with caller and reward
+          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, address indexed caller, uint256 reward)"
             field_selection:
               transaction_fields:
                 - hash

@@ -3764,15 +3764,15 @@ ${enjoyText}
             to: LOTTERY_CLAIM_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function claimPrize(uint256 roundId) external']),
-              functionName: 'claimPrize',
-              args: [BigInt(params.roundId)],
+              abi: parseAbi(['function claimPrizeFor(address beneficiary, uint256 roundId) external']),
+              functionName: 'claimPrizeFor',
+              args: [userAddress as Address, BigInt(params.roundId)],
             }) as Hex,
           },
         ];
 
         const claimTxHash = await executeTransaction(claimCalls, userAddress as Address);
-        console.log('✅ Claimed prize for round', params.roundId, 'TX:', claimTxHash);
+        console.log('✅ Claimed prize for round', params.roundId, 'for', userAddress, 'TX:', claimTxHash);
 
         // Public action - no delegation tracking needed
         return NextResponse.json({
