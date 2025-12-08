@@ -3693,14 +3693,43 @@ ${enjoyText}
         const revealTxHash = await executeTransaction(revealCalls, userAddress as Address);
         console.log('✅ Revealed winner for round', params.roundId, 'TX:', revealTxHash);
 
+        // Automatically announce winner on Farcaster after successful reveal
+        let castHash: string | undefined;
+        try {
+          console.log('📢 Auto-announcing winner on Farcaster...');
+
+          // Wait 3 seconds for transaction to be indexed
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Call the announce-winner API internally
+          const announceResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/lottery/announce-winner`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roundId: params.roundId }),
+          });
+
+          if (announceResponse.ok) {
+            const announceData = await announceResponse.json();
+            castHash = announceData.castHash;
+            console.log('✅ Winner announced on Farcaster! Cast hash:', castHash);
+          } else {
+            const errorData = await announceResponse.json();
+            console.warn('⚠️ Failed to announce on Farcaster:', errorData.error);
+          }
+        } catch (announceError: any) {
+          console.warn('⚠️ Farcaster announcement error:', announceError.message);
+          // Don't fail the whole request if announcement fails
+        }
+
         // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: revealTxHash,
+          castHash,
           action,
           userAddress,
           roundId: params.roundId,
-          message: `Revealed winner for round ${params.roundId} (earned 0.01 MON)`,
+          message: `Revealed winner for round ${params.roundId} (earned 0.01 MON)${castHash ? ' - Announced on Farcaster!' : ''}`,
         });
 
       // ==================== LOTTERY CLAIM PRIZE ====================

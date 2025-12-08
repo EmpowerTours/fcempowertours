@@ -266,7 +266,12 @@ export default function LotteryPage() {
 
   // Handle reveal (anyone can call)
   const handleReveal = async () => {
-    if (!currentRound?.roundId || !effectiveAddress) return;
+    console.log('[REVEAL] Button clicked!', { roundId: currentRound?.roundId, effectiveAddress });
+    if (!currentRound?.roundId || !effectiveAddress) {
+      console.error('[REVEAL] Missing required data:', { currentRound, effectiveAddress });
+      setError(`Cannot reveal: ${!effectiveAddress ? 'Wallet not connected' : 'Round ID missing'}`);
+      return;
+    }
     setActionLoading(true);
     setError(null);
     setSuccess(null);
