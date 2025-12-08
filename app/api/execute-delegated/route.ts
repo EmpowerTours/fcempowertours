@@ -69,7 +69,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Public actions that don't require delegation (anyone can call to earn rewards)
-    const publicActions = ['lottery_commit', 'lottery_reveal', 'lottery_claim', 'concierge_custom', 'concierge_food', 'concierge_ride'];
+    // Also includes lottery entry actions for frictionless user experience
+    const publicActions = [
+      'lottery_commit',
+      'lottery_reveal',
+      'lottery_claim',
+      'lottery_enter_mon',
+      'lottery_enter_shmon',
+      'concierge_custom',
+      'concierge_food',
+      'concierge_ride'
+    ];
     const requiresDelegation = !publicActions.includes(action);
 
     if (requiresDelegation) {
@@ -3513,7 +3523,7 @@ ${enjoyText}
         const lotteryEnterMonTxHash = await executeTransaction(lotteryEnterMonCalls, userAddress as Address);
         console.log('✅ Entered lottery with MON, TX:', lotteryEnterMonTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: lotteryEnterMonTxHash,
@@ -3609,7 +3619,7 @@ ${enjoyText}
         const lotteryEnterShMonTxHash = await executeTransaction(lotteryEnterShMonCalls, userAddress as Address);
         console.log('✅ Entered lottery with shMON, TX:', lotteryEnterShMonTxHash);
 
-        await incrementTransactionCount(userAddress);
+        // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
           txHash: lotteryEnterShMonTxHash,
