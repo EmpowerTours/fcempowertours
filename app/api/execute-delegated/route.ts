@@ -3734,6 +3734,125 @@ ${enjoyText}
           message: `Claimed prize for round ${params.roundId}`,
         });
 
+      // ==================== CONCIERGE CUSTOM SERVICE REQUEST ====================
+      case 'concierge_custom':
+        console.log('🛎️ Action: concierge_custom');
+
+        const PERSONAL_ASSISTANT_ADDRESS = (process.env.NEXT_PUBLIC_PERSONAL_ASSISTANT_ADDRESS || '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4') as Address;
+
+        if (!params?.serviceType || !params?.details) {
+          return NextResponse.json(
+            { success: false, error: 'Missing serviceType or details for concierge_custom' },
+            { status: 400 }
+          );
+        }
+
+        const suggestedPrice = parseEther((params.suggestedPrice || '0.1').toString());
+
+        const customServiceCalls: Call[] = [
+          {
+            to: PERSONAL_ASSISTANT_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createServiceRequest(string serviceType, string details, uint256 suggestedPrice) external returns (uint256)']),
+              functionName: 'createServiceRequest',
+              args: [params.serviceType as string, params.details as string, suggestedPrice],
+            }) as Hex,
+          },
+        ];
+
+        const customServiceTxHash = await executeTransaction(customServiceCalls, userAddress as Address);
+        console.log('✅ Created custom service request, TX:', customServiceTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: customServiceTxHash,
+          action,
+          userAddress,
+          message: `Custom service request created`,
+        });
+
+      // ==================== CONCIERGE FOOD ORDER ====================
+      case 'concierge_food':
+        console.log('🍽️ Action: concierge_food');
+
+        const SERVICE_MARKETPLACE_ADDRESS = (process.env.NEXT_PUBLIC_SERVICE_MARKETPLACE_ADDRESS || '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4') as Address;
+
+        if (!params?.provider || !params?.menuItemIds || !params?.deliveryAddress) {
+          return NextResponse.json(
+            { success: false, error: 'Missing provider, menuItemIds, or deliveryAddress for concierge_food' },
+            { status: 400 }
+          );
+        }
+
+        const menuItemIds = Array.isArray(params.menuItemIds) ? params.menuItemIds.map((id: any) => BigInt(id)) : [BigInt(params.menuItemIds)];
+        const quantities = Array.isArray(params.quantities) ? params.quantities.map((q: any) => BigInt(q)) : [BigInt(params.quantities || 1)];
+        const deliveryFee = parseEther((params.deliveryFee || '0.01').toString());
+
+        const foodOrderCalls: Call[] = [
+          {
+            to: SERVICE_MARKETPLACE_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createFoodOrder(address provider, uint256[] menuItemIds, uint256[] quantities, string deliveryAddress, uint256 deliveryFee) external returns (uint256)']),
+              functionName: 'createFoodOrder',
+              args: [params.provider as Address, menuItemIds, quantities, params.deliveryAddress as string, deliveryFee],
+            }) as Hex,
+          },
+        ];
+
+        const foodOrderTxHash = await executeTransaction(foodOrderCalls, userAddress as Address);
+        console.log('✅ Created food order, TX:', foodOrderTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: foodOrderTxHash,
+          action,
+          userAddress,
+          message: `Food order created`,
+        });
+
+      // ==================== CONCIERGE RIDE REQUEST ====================
+      case 'concierge_ride':
+        console.log('🚗 Action: concierge_ride');
+
+        const SERVICE_MARKETPLACE_RIDE_ADDRESS = (process.env.NEXT_PUBLIC_SERVICE_MARKETPLACE_ADDRESS || '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4') as Address;
+
+        if (!params?.pickupLocation || !params?.destination) {
+          return NextResponse.json(
+            { success: false, error: 'Missing pickupLocation or destination for concierge_ride' },
+            { status: 400 }
+          );
+        }
+
+        const agreedPrice = parseEther((params.agreedPrice || '0.1').toString());
+
+        const rideRequestCalls: Call[] = [
+          {
+            to: SERVICE_MARKETPLACE_RIDE_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createRideRequest(string pickupLocation, string destination, uint256 agreedPrice) external returns (uint256)']),
+              functionName: 'createRideRequest',
+              args: [params.pickupLocation as string, params.destination as string, agreedPrice],
+            }) as Hex,
+          },
+        ];
+
+        const rideRequestTxHash = await executeTransaction(rideRequestCalls, userAddress as Address);
+        console.log('✅ Created ride request, TX:', rideRequestTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: rideRequestTxHash,
+          action,
+          userAddress,
+          message: `Ride request created`,
+        });
+
       // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
       case 'create_experience':
         console.log('📍 Action: create_experience');

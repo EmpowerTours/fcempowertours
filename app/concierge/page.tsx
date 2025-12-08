@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
-import { Address, parseEther, formatEther } from 'viem';
+import { useState } from 'react';
+import { useAccount, useReadContract } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { personalAssistantConfig, serviceMarketplaceConfig } from '@/src/config/contracts';
+import { personalAssistantConfig } from '@/src/config/contracts';
 
 type ServiceType = 'food' | 'ride' | 'custom';
 type ServiceStatus = 'pending' | 'quoted' | 'accepted' | 'completed' | 'disputed';
@@ -52,6 +51,9 @@ export default function ConciergePage() {
   // Ride service states
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Read verified assistants count
   const { data: assistantCount } = useReadContract({
@@ -59,82 +61,149 @@ export default function ConciergePage() {
     functionName: 'getVerifiedAssistantCount',
   });
 
-  // Write contract hooks
-  const { writeContract: requestService, data: requestHash } = useWriteContract();
-  const { isSuccess: requestSuccess } = useWaitForTransactionReceipt({ hash: requestHash });
-
   const handleRequestCustomService = async () => {
-    if (!effectiveAddress || !selectedAssistant || !serviceDescription || !serviceLocation) {
-      alert('Please fill in all fields');
+    if (!effectiveAddress || !serviceDescription) {
+      setError('Please fill in all required fields');
       return;
     }
 
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      requestService({
-        ...personalAssistantConfig,
-        functionName: 'createServiceRequest',
-        args: [selectedAssistant as Address, serviceDescription, serviceLocation],
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'concierge_custom',
+          params: {
+            serviceType: 'custom',
+            details: `${serviceDescription}${serviceLocation ? ` at ${serviceLocation}` : ''}`,
+            suggestedPrice: '0.1', // Default suggested price in MON
+          },
+        }),
       });
-    } catch (error) {
-      console.error('Failed to request service:', error);
-      alert('Failed to request service');
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create service request');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`Service request created! TX: ${txHash.slice(0, 10)}...`);
+
+      setTimeout(() => {
+        setServiceDescription('');
+        setServiceLocation('');
+        setActiveTab('my-services');
+        setSuccess(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create service request');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRequestFoodService = async () => {
-    if (!cuisine || !guestCount || !serviceLocation || !preferredDate) {
-      alert('Please fill in all fields');
+    if (!effectiveAddress || !serviceLocation) {
+      setError('Please fill in all required fields');
       return;
     }
 
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      requestService({
-        ...serviceMarketplaceConfig,
-        functionName: 'createFoodOrder',
-        args: [
-          1n, // menuItemId (example)
-          BigInt(guestCount),
-          serviceLocation,
-          preferredDate,
-        ],
+      // For MVP, use platform as provider (first registered assistant)
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'concierge_food',
+          params: {
+            provider: '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4', // Platform address as default provider
+            menuItemIds: [1], // Default menu item
+            quantities: [parseInt(guestCount || '1')],
+            deliveryAddress: `${cuisine} cuisine for ${guestCount} guests at ${serviceLocation}`,
+            deliveryFee: '0.01',
+          },
+        }),
       });
-    } catch (error) {
-      console.error('Failed to request food service:', error);
-      alert('Failed to request food service');
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create food order');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`Food order created! TX: ${txHash.slice(0, 10)}...`);
+
+      setTimeout(() => {
+        setCuisine('');
+        setGuestCount('');
+        setServiceLocation('');
+        setPreferredDate('');
+        setActiveTab('my-services');
+        setSuccess(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create food order');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRequestRideService = async () => {
-    if (!pickupLocation || !dropoffLocation || !preferredDate) {
-      alert('Please fill in all fields');
+    if (!effectiveAddress || !pickupLocation || !dropoffLocation) {
+      setError('Please fill in all required fields');
       return;
     }
 
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      requestService({
-        ...serviceMarketplaceConfig,
-        functionName: 'createRideRequest',
-        args: [
-          0n, 0n, // fromLat, fromLon (example coordinates)
-          0n, 0n, // toLat, toLon
-          pickupLocation,
-          dropoffLocation,
-          BigInt(Date.parse(preferredDate) / 1000),
-        ],
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'concierge_ride',
+          params: {
+            pickupLocation,
+            destination: dropoffLocation,
+            agreedPrice: '0.1', // Default price in MON
+          },
+        }),
       });
-    } catch (error) {
-      console.error('Failed to request ride:', error);
-      alert('Failed to request ride');
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create ride request');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`Ride request created! TX: ${txHash.slice(0, 10)}...`);
+
+      setTimeout(() => {
+        setPickupLocation('');
+        setDropoffLocation('');
+        setPreferredDate('');
+        setActiveTab('my-services');
+        setSuccess(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create ride request');
+    } finally {
+      setLoading(false);
     }
   };
-
-  if (requestSuccess) {
-    alert('Service request created successfully!');
-    setServiceDescription('');
-    setServiceLocation('');
-    setPreferredDate('');
-    setActiveTab('my-services');
-  }
 
   if (!effectiveAddress) {
     return (
@@ -171,6 +240,18 @@ export default function ConciergePage() {
             </button>
           </div>
         </div>
+
+        {/* Success/Error Messages */}
+        {success && (
+          <div className="bg-green-900/20 border border-green-600/30 rounded-xl p-4 mb-6">
+            <p className="text-green-400">{success}</p>
+          </div>
+        )}
+        {error && (
+          <div className="bg-red-900/20 border border-red-600/30 rounded-xl p-4 mb-6">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
@@ -327,9 +408,10 @@ export default function ConciergePage() {
                   </div>
                   <button
                     onClick={handleRequestCustomService}
-                    className="w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-lg font-bold text-lg transition"
+                    disabled={loading}
+                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg transition"
                   >
-                    Request Custom Service
+                    {loading ? 'Creating Request...' : 'Request Custom Service'}
                   </button>
                 </div>
               )}
@@ -383,9 +465,10 @@ export default function ConciergePage() {
                   </div>
                   <button
                     onClick={handleRequestFoodService}
-                    className="w-full bg-orange-600 hover:bg-orange-700 py-4 rounded-lg font-bold text-lg transition"
+                    disabled={loading}
+                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg transition"
                   >
-                    Request Food Delivery
+                    {loading ? 'Creating Order...' : 'Request Food Delivery'}
                   </button>
                 </div>
               )}
@@ -427,9 +510,10 @@ export default function ConciergePage() {
                   </div>
                   <button
                     onClick={handleRequestRideService}
-                    className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-lg font-bold text-lg transition"
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg transition"
                   >
-                    Request Ride
+                    {loading ? 'Creating Request...' : 'Request Ride'}
                   </button>
                 </div>
               )}
