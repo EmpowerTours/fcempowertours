@@ -106,34 +106,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     setTxHash(null);
 
     try {
-      // Check delegation
-      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
-      const delegationData = await delegationRes.json();
-
-      const hasValidDelegation = delegationData.success &&
-        delegationData.delegation &&
-        Array.isArray(delegationData.delegation.permissions) &&
-        delegationData.delegation.permissions.includes('lottery_enter_mon');
-
-      if (!hasValidDelegation) {
-        setStatusMessage('Setting up gasless transactions...');
-        const createRes = await fetch('/api/create-delegation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: effectiveAddress,
-            durationHours: 24,
-            maxTransactions: 100,
-            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours', 'wrap_mon', 'unwrap_wmon', 'shmon_deposit', 'lottery_enter_mon', 'lottery_enter_shmon']
-          })
-        });
-
-        const createData = await createRes.json();
-        if (!createData.success) {
-          throw new Error('Failed to create delegation: ' + createData.error);
-        }
-      }
-
+      // ✅ Lottery entry is now a PUBLIC action - no delegation needed!
       setStatusMessage('Entering lottery with 1 MON...');
 
       const response = await fetch('/api/execute-delegated', {
@@ -192,33 +165,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     setTxHash(null);
 
     try {
-      const delegationRes = await fetch(`/api/delegation-status?address=${effectiveAddress}`);
-      const delegationData = await delegationRes.json();
-
-      const hasValidDelegation = delegationData.success &&
-        delegationData.delegation &&
-        Array.isArray(delegationData.delegation.permissions) &&
-        delegationData.delegation.permissions.includes('lottery_enter_shmon');
-
-      if (!hasValidDelegation) {
-        setStatusMessage('Setting up gasless transactions...');
-        const createRes = await fetch('/api/create-delegation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: effectiveAddress,
-            durationHours: 24,
-            maxTransactions: 100,
-            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'swap_tours_for_wmon', 'swap_wmon_for_tours', 'wrap_mon', 'unwrap_wmon', 'shmon_deposit', 'lottery_enter_mon', 'lottery_enter_shmon']
-          })
-        });
-
-        const createData = await createRes.json();
-        if (!createData.success) {
-          throw new Error('Failed to create delegation: ' + createData.error);
-        }
-      }
-
+      // ✅ Lottery entry is now a PUBLIC action - no delegation needed!
       setStatusMessage('Entering lottery with shMON...');
 
       const response = await fetch('/api/execute-delegated', {
