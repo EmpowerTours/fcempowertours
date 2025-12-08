@@ -98,6 +98,59 @@ type VenueStamp @entity {
   txHash: String!
 }
 
+# ✅ ExperienceNFT Entities (GPS-gated travel experiences)
+type Experience @entity {
+  id: ID!
+  experienceId: String!
+  creator: String!
+  title: String!
+  city: String!
+  country: String!
+  price: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  purchases: [ExperiencePurchase!]! @derivedFrom(field: "experience")
+  completions: [ExperienceCompletion!]! @derivedFrom(field: "experience")
+}
+
+type ExperiencePurchase @entity {
+  id: ID!
+  experience: Experience!
+  experienceId: String!
+  buyer: String!
+  price: BigInt!
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type ExperienceCompletion @entity {
+  id: ID!
+  experience: Experience!
+  experienceId: String!
+  user: String!
+  photoProofHash: String!
+  rewardAmount: BigInt!
+  completedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TransportationRequest @entity {
+  id: ID!
+  experienceId: String!
+  user: String!
+  fromLat: BigInt!
+  fromLon: BigInt!
+  toLat: BigInt!
+  toLon: BigInt!
+  requestedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
 type Itinerary @entity {
   id: ID!
   itineraryId: String!
