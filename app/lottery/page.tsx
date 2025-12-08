@@ -70,11 +70,23 @@ export default function LotteryPage() {
   // Refresh data when transaction confirms
   useEffect(() => {
     if (isConfirmed) {
-      refetchRound();
-      refetchStats();
-      refetchHasEntered();
-      setSuccess('Transaction confirmed!');
-      setActionLoading(false);
+      const refreshData = async () => {
+        await refetchRound();
+        await refetchStats();
+        await refetchHasEntered();
+
+        // Show appropriate success message based on current round state
+        const updatedRound = await refetchRound();
+        if (updatedRound.data?.status === RoundStatus.Revealed && updatedRound.data?.winner) {
+          setSuccess(`🏆 WINNER REVEALED: ${updatedRound.data.winner.slice(0, 10)}...${updatedRound.data.winner.slice(-8)}`);
+        } else if (updatedRound.data?.status === RoundStatus.Committed) {
+          setSuccess('✅ Randomness committed! You earned 0.01 MON. Now anyone can reveal the winner.');
+        } else {
+          setSuccess('Transaction confirmed!');
+        }
+        setActionLoading(false);
+      };
+      refreshData();
     }
   }, [isConfirmed, refetchRound, refetchStats, refetchHasEntered]);
 
@@ -189,13 +201,14 @@ export default function LotteryPage() {
     if (!currentRound?.roundId) return;
     setActionLoading(true);
     setError(null);
+    setSuccess(null);
     try {
-      commitRandomness(currentRound.roundId);
-      setSuccess('Commit transaction sent! You\'ll receive 0.01 MON reward');
+      await commitRandomness(currentRound.roundId);
+      setSuccess('Committing randomness... waiting for confirmation');
     } catch (err: any) {
       setError(err.message || 'Failed to commit');
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
 
   // Handle reveal (anyone can call)
@@ -203,13 +216,14 @@ export default function LotteryPage() {
     if (!currentRound?.roundId) return;
     setActionLoading(true);
     setError(null);
+    setSuccess(null);
     try {
-      revealWinner(currentRound.roundId);
-      setSuccess('Reveal transaction sent! You\'ll receive 0.01 MON reward');
+      await revealWinner(currentRound.roundId);
+      setSuccess('Revealing winner... waiting for confirmation');
     } catch (err: any) {
       setError(err.message || 'Failed to reveal');
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
 
   // Handle claim (winner only)
@@ -394,19 +408,19 @@ export default function LotteryPage() {
               {canCommit && (
                 <button
                   onClick={handleCommit}
-                  disabled={actionLoading}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl"
+                  disabled={actionLoading || isPending || isConfirming}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
                 >
-                  Commit Randomness
+                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎲 Commit Randomness (+0.01 MON)'}
                 </button>
               )}
               {canReveal && (
                 <button
                   onClick={handleReveal}
-                  disabled={actionLoading}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl"
+                  disabled={actionLoading || isPending || isConfirming}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
                 >
-                  Reveal Winner
+                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎰 Reveal Winner (+0.01 MON)'}
                 </button>
               )}
             </div>
