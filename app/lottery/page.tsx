@@ -432,9 +432,12 @@ export default function LotteryPage() {
           </div>
 
           {/* Entry Section */}
-          {currentRound?.status === RoundStatus.Active && !hasEntered && (
+          {((currentRound?.status === RoundStatus.Active && !hasEntered) ||
+            (currentRound?.status === RoundStatus.Completed)) && (
             <div className="border-t border-white/10 pt-4 mt-4">
-              <h3 className="text-white font-semibold mb-3">Enter Today's Lottery</h3>
+              <h3 className="text-white font-semibold mb-3">
+                {currentRound?.status === RoundStatus.Completed ? 'Enter New Round' : 'Enter Today\'s Lottery'}
+              </h3>
 
               {/* Entry Method Toggle */}
               <div className="flex gap-2 mb-4">
@@ -487,7 +490,7 @@ export default function LotteryPage() {
           )}
 
           {/* Already Entered */}
-          {hasEntered && (
+          {hasEntered && currentRound?.status === RoundStatus.Active && (
             <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mt-4">
               <p className="text-green-400 font-semibold text-center">
                 ✅ You're in today's lottery! Good luck!
