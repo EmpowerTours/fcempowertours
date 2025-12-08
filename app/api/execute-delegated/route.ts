@@ -3833,15 +3833,16 @@ ${enjoyText}
         }
 
         const agreedPrice = parseEther((params.agreedPrice || '0.1').toString());
+        const capacity = BigInt(params.capacity || 1); // Default to 1 passenger
 
         const rideRequestCalls: Call[] = [
           {
             to: SERVICE_MARKETPLACE_RIDE_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function createRideRequestFor(address beneficiary, string pickupLocation, string destination, uint256 agreedPrice) external returns (uint256)']),
+              abi: parseAbi(['function createRideRequestFor(address beneficiary, string pickupLocation, string destination, uint256 agreedPrice, uint256 capacity) external returns (uint256)']),
               functionName: 'createRideRequestFor',
-              args: [userAddress as Address, params.pickupLocation as string, params.destination as string, agreedPrice],
+              args: [userAddress as Address, params.pickupLocation as string, params.destination as string, agreedPrice, capacity],
             }) as Hex,
           },
         ];
