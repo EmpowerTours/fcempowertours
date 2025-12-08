@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
  */
 async function getArtistUsername(artistAddress: string): Promise<string> {
   try {
-    const users = await neynar.fetchBulkUsersByEthereumAddress([artistAddress]);
+    const users = await neynar.fetchBulkUsersByEthOrSolAddress({ addresses: [artistAddress] });
     if (users?.users?.length > 0) {
       return users.users[0].username;
     }

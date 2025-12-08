@@ -189,7 +189,7 @@ contract MusicBeatMatchV2 is Ownable, ReentrancyGuard {
         uint256 guessedArtistId,
         string memory guessedSongTitle,
         string memory guessedUsername     // ✨ NEW: Username support!
-    ) external nonReentrant {
+    ) public nonReentrant {
 
         DailyChallenge storage challenge = challenges[challengeId];
         require(challenge.active, "Challenge not active");

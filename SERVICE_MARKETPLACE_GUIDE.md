@@ -8,6 +8,7 @@ Decentralized marketplace for food delivery and ride-sharing services with:
 - ✅ **Delegation support** - Gasless transactions via Platform Safe
 - ✅ **Rating system** - Provider ratings out of 100
 - ✅ **Dispute resolution** - Owner can resolve disputes fairly
+- ✅ **No-show protection** - Drivers/delivery persons compensated for customer no-shows
 - ✅ **Multi-service** - Both food delivery and rides in one contract
 
 ---
@@ -22,6 +23,7 @@ Decentralized marketplace for food delivery and ride-sharing services with:
 3. **Status Tracking**: Granular status updates with location hashes
 4. **Platform Fee**: 5% default fee (adjustable)
 5. **Dispute Management**: 24-hour window for raising disputes
+6. **No-Show Protection**: 40% compensation to providers, 60% refund to customers after 5-minute wait
 
 **Services Supported:**
 - 🍕 **Food Delivery**: Menu creation, ordering, prep tracking, delivery
@@ -353,6 +355,282 @@ resolveFoodDispute(orderId, false, 0);
 
 ---
 
+## 🚫 No-Show Protection
+
+### Overview
+
+Protects delivery persons and drivers from customer no-shows by providing compensation for gas and time spent.
+
+**How It Works:**
+1. Delivery person/driver arrives at customer location
+2. Updates status to `DELIVERED` or `ARRIVED` (arrival timestamp recorded automatically)
+3. If customer doesn't show up within **5 minutes**, provider can claim compensation
+4. Provider submits **photo proof** (IPFS hash) of location or food placement
+5. Contract releases **40% compensation** to provider, **60% refund** to customer
+
+### For Food Delivery
+
+#### Delivery Person Claims No-Show Compensation
+
+```solidity
+// After waiting 5 minutes at customer location
+claimFoodNoShowCompensation(
+  orderId,
+  "ipfs://Qm...photo_proof"  // Photo of location/food left
+)
+```
+
+**Requirements:**
+- Caller must be the assigned delivery person
+- Order status must be `DELIVERED` (arrival recorded)
+- At least 5 minutes must have elapsed since arrival
+- Photo proof (IPFS hash) required
+- Funds not already released
+
+**Payment Breakdown:**
+```
+Example: 100 TOURS order
+
+Delivery Person Compensation: 40 TOURS (40% - gas + time)
+Customer Refund: 60 TOURS (60%)
+```
+
+**Contract Flow:**
+```solidity
+// 1. Delivery person arrives, updates status
+updateFoodStatus(orderId, FoodStatus.DELIVERED, "ipfs://arrival_location");
+// → arrivalTimestamp recorded automatically
+
+// 2. Wait 5 minutes for customer
+
+// 3. Customer doesn't show up, claim compensation
+claimFoodNoShowCompensation(orderId, "ipfs://photo_of_food_left");
+
+// 4. Order marked as NO_SHOW
+// 5. 40 TOURS sent to delivery person
+// 6. 60 TOURS refunded to customer
+```
+
+### For Ride Sharing
+
+#### Driver Claims No-Show Compensation
+
+```solidity
+// After waiting 5 minutes at pickup location
+claimRideNoShowCompensation(
+  requestId,
+  "ipfs://Qm...photo_proof"  // Photo of arrival location
+)
+```
+
+**Requirements:**
+- Caller must be the assigned driver
+- Ride status must be `ARRIVED` (arrival recorded)
+- At least 5 minutes must have elapsed since arrival
+- Photo proof (IPFS hash) required
+- Funds not already released
+
+**Payment Breakdown:**
+```
+Example: 50 TOURS ride
+
+Driver Compensation: 20 TOURS (40% - gas + time)
+Passenger Refund: 30 TOURS (60%)
+```
+
+**Contract Flow:**
+```solidity
+// 1. Driver arrives at pickup, updates status
+updateRideStatus(requestId, RideStatus.ARRIVED, "ipfs://pickup_location");
+// → arrivalTimestamp recorded automatically
+
+// 2. Wait 5 minutes for passenger
+
+// 3. Passenger doesn't show up, claim compensation
+claimRideNoShowCompensation(requestId, "ipfs://photo_of_location");
+
+// 4. Ride marked as NO_SHOW
+// 5. 20 TOURS sent to driver
+// 6. 30 TOURS refunded to passenger
+```
+
+### Photo Proof Guidelines
+
+**What to Include:**
+- **Food Delivery**: Photo showing address/building where food was left
+- **Ride Sharing**: Photo showing pickup location (street sign, building number, etc.)
+- **Timestamp**: Include photo metadata with timestamp (IPFS stores this)
+- **GPS Coordinates**: Embed in IPFS metadata if possible
+
+**Example IPFS Upload:**
+```typescript
+const photoProof = {
+  imageUrl: "data:image/jpeg;base64,...",
+  timestamp: Date.now(),
+  location: {
+    latitude: 40.7128,
+    longitude: -74.0060,
+    accuracy: 10  // meters
+  },
+  notes: "Food left at apartment door as no one answered after 5 minutes"
+};
+
+const proofHash = await uploadToIPFS(photoProof);
+// Returns: "ipfs://Qm..."
+```
+
+### Events
+
+```solidity
+event NoShowCompensationClaimed(
+  ServiceType serviceType,  // FOOD_DELIVERY or RIDE_TRANSPORT
+  uint256 indexed id,        // orderId or requestId
+  address indexed claimer,   // delivery person or driver
+  uint256 compensation,      // Amount paid to claimer
+  string proofHash          // IPFS hash of photo proof
+);
+```
+
+### Delegation API Cases
+
+Add these cases for delegation support:
+
+```typescript
+// ==================== CLAIM FOOD NO-SHOW COMPENSATION ====================
+case 'claim_food_no_show':
+  console.log('🚫 Action: claim_food_no_show');
+
+  if (!params?.orderId || !params?.proofPhotoHash) {
+    return NextResponse.json(
+      { success: false, error: 'Missing parameters' },
+      { status: 400 }
+    );
+  }
+
+  const claimFoodCalls = [
+    {
+      to: SERVICE_MARKETPLACE,
+      value: 0n,
+      data: encodeFunctionData({
+        abi: parseAbi([
+          'function claimFoodNoShowCompensation(uint256 orderId, string proofPhotoHash) external'
+        ]),
+        functionName: 'claimFoodNoShowCompensation',
+        args: [
+          BigInt(params.orderId),
+          params.proofPhotoHash
+        ],
+      }) as Hex,
+    },
+  ];
+
+  const claimFoodTxHash = await executeTransaction(claimFoodCalls, userAddress as Address, 0n);
+  await incrementTransactionCount(userAddress);
+
+  return NextResponse.json({
+    success: true,
+    txHash: claimFoodTxHash,
+    action,
+    userAddress,
+    message: 'No-show compensation claimed!',
+  });
+
+// ==================== CLAIM RIDE NO-SHOW COMPENSATION ====================
+case 'claim_ride_no_show':
+  console.log('🚫 Action: claim_ride_no_show');
+
+  if (!params?.requestId || !params?.proofPhotoHash) {
+    return NextResponse.json(
+      { success: false, error: 'Missing parameters' },
+      { status: 400 }
+    );
+  }
+
+  const claimRideCalls = [
+    {
+      to: SERVICE_MARKETPLACE,
+      value: 0n,
+      data: encodeFunctionData({
+        abi: parseAbi([
+          'function claimRideNoShowCompensation(uint256 requestId, string proofPhotoHash) external'
+        ]),
+        functionName: 'claimRideNoShowCompensation',
+        args: [
+          BigInt(params.requestId),
+          params.proofPhotoHash
+        ],
+      }) as Hex,
+    },
+  ];
+
+  const claimRideTxHash = await executeTransaction(claimRideCalls, userAddress as Address, 0n);
+  await incrementTransactionCount(userAddress);
+
+  return NextResponse.json({
+    success: true,
+    txHash: claimRideTxHash,
+    action,
+    userAddress,
+    message: 'No-show compensation claimed!',
+  });
+```
+
+### Frontend Flow
+
+**Mobile App - Delivery Person/Driver View:**
+
+```typescript
+// After arriving at location
+const arrivalTime = Date.now();
+
+// Update status to DELIVERED/ARRIVED
+await updateStatus(orderId, 'DELIVERED', arrivalLocationHash);
+
+// Start 5-minute timer
+const waitTimer = setTimeout(async () => {
+  // Show "Claim No-Show Compensation" button
+  setShowNoShowButton(true);
+}, 5 * 60 * 1000); // 5 minutes
+
+// If customer shows up before timer, cancel
+const onCustomerArrived = () => {
+  clearTimeout(waitTimer);
+  // Continue with normal delivery confirmation
+};
+
+// If timer expires and customer doesn't show
+const onClaimNoShow = async () => {
+  // 1. Take photo proof
+  const photo = await takePhoto();
+
+  // 2. Upload to IPFS
+  const proofHash = await uploadToIPFS({
+    image: photo,
+    timestamp: Date.now(),
+    location: await getCurrentLocation(),
+    notes: "Customer did not show up after 5 minutes"
+  });
+
+  // 3. Claim compensation via delegation
+  await fetch('/api/execute-delegated', {
+    method: 'POST',
+    body: JSON.stringify({
+      userAddress: deliveryPersonAddress,
+      action: 'claim_food_no_show',
+      params: {
+        orderId,
+        proofPhotoHash: proofHash
+      }
+    })
+  });
+
+  // 4. Show success message with compensation amount
+  showMessage(`Compensation claimed: ${compensationAmount} TOURS`);
+};
+```
+
+---
+
 ## 🔗 Delegation API Integration
 
 Add these cases to `app/api/execute-delegated/route.ts`:
@@ -560,6 +838,7 @@ event RideCompleted(uint256 indexed requestId, address indexed driver, uint256 a
 ```solidity
 event DisputeRaised(ServiceType serviceType, uint256 indexed id, address indexed raiser);
 event RatingSubmitted(address indexed provider, uint256 rating, address indexed rater);
+event NoShowCompensationClaimed(ServiceType serviceType, uint256 indexed id, address indexed claimer, uint256 compensation, string proofHash);
 ```
 
 ---
@@ -600,6 +879,34 @@ event RatingSubmitted(address indexed provider, uint256 rating, address indexed 
 - [ ] Resolve with partial refund
 - [ ] Resolve with no refund
 - [ ] Verify dispute window enforcement (24 hours)
+
+### No-Show Protection Testing
+
+#### Food Delivery No-Show
+- [ ] Delivery person updates status to DELIVERED at customer location
+- [ ] Verify arrivalTimestamp recorded automatically
+- [ ] Attempt to claim compensation before 5 minutes (should fail)
+- [ ] Wait 5 minutes after arrival
+- [ ] Upload photo proof to IPFS
+- [ ] Claim no-show compensation with proof hash
+- [ ] Verify order status changed to NO_SHOW
+- [ ] Verify delivery person received 40% compensation
+- [ ] Verify customer received 60% refund
+- [ ] Verify NoShowCompensationClaimed event emitted
+- [ ] Verify funds fully distributed (no funds stuck in contract)
+
+#### Ride Sharing No-Show
+- [ ] Driver updates status to ARRIVED at pickup location
+- [ ] Verify arrivalTimestamp recorded automatically
+- [ ] Attempt to claim compensation before 5 minutes (should fail)
+- [ ] Wait 5 minutes after arrival
+- [ ] Upload photo proof to IPFS
+- [ ] Claim no-show compensation with proof hash
+- [ ] Verify ride status changed to NO_SHOW
+- [ ] Verify driver received 40% compensation
+- [ ] Verify passenger received 60% refund
+- [ ] Verify NoShowCompensationClaimed event emitted
+- [ ] Verify funds fully distributed (no funds stuck in contract)
 
 ---
 
@@ -648,9 +955,9 @@ echo "🎨 Build frontend components for food & rides"
 ## 🎯 Summary
 
 ### What Was Created:
-1. ✅ **ServiceMarketplace.sol** - Main contract with escrow, tracking, delegation
+1. ✅ **ServiceMarketplace.sol** - Main contract with escrow, tracking, delegation, and no-show protection
 2. ✅ **DeployServiceMarketplace.s.sol** - Foundry deployment script
-3. ✅ **Complete documentation** - This guide
+3. ✅ **Complete documentation** - This guide with no-show protection flow
 
 ### What's Needed Next:
 1. Deploy contract to Monad testnet
@@ -666,5 +973,6 @@ echo "🎨 Build frontend components for food & rides"
 - **Transparent** escrow system
 - **Decentralized** - no single point of control
 - **Gasless** for users via delegation
+- **Fair compensation** - Drivers/delivery persons protected from no-shows
 
 Ready to deploy! 🚀

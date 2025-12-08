@@ -180,7 +180,7 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
         uint256 weekId,
         uint256 artistIndex,
         uint256 artistId
-    ) external nonReentrant {
+    ) public nonReentrant {
 
         WeeklyCountryChallenge storage challenge = weeklyChallenges[weekId];
         require(challenge.active, "Challenge not active");

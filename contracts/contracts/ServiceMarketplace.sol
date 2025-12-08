@@ -5,10 +5,55 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface IPersonalAssistant {
+    function isAssistantVerified(address assistant) external view returns (bool);
+    function getAssistantTier(address assistant) external view returns (uint8);
+    function getPlatformFeeForAssistant(address assistant) external view returns (uint256);
+}
+
 /**
  * @title ServiceMarketplace
- * @notice Decentralized marketplace for food delivery and ride services with escrow
+ * @notice Personal concierge marketplace integrated with verification system
+ * @dev Only verified assistants from PersonalAssistantV1 can register as providers
  * @dev Supports delegation via beneficiary pattern for gasless transactions
+ *
+ * ========================================================================
+ * RECOMMENDED PRICING GUIDELINES (see TOKENOMICS_MODEL.md)
+ * ========================================================================
+ *
+ * PRICING PHILOSOPHY (USD-Denominated, Paid in WMON):
+ * - All prices set in USD value (e.g., $3 delivery fee)
+ * - Paid in WMON at current market rate
+ * - Frontend calculates: WMON_Amount = USD_Price / MON_USD_Price
+ * - Example: $3 delivery fee when MON = $2.50 → Pay 1.2 WMON
+ * - Example: $3 delivery fee when MON = $0.50 → Pay 6 WMON
+ *
+ * SUGGESTED USD PRICING:
+ * Food Delivery Fees (USD):
+ * - Short Range (< 3 miles):    $3 USD
+ * - Medium Range (3-7 miles):   $5 USD
+ * - Long Range (7-15 miles):    $8 USD
+ *
+ * Food Menu Items (USD):
+ * - Fast Food:          $8-15 USD
+ * - Casual Dining:      $15-40 USD
+ * - Fine Dining:        $40-100+ USD
+ *
+ * Ride Sharing (USD):
+ * Vehicle Type       | Base Fare | Per Mile | Per Minute | 3-mile Example
+ * -------------------|-----------|----------|------------|---------------
+ * Motorcycle/Scooter |  $2 USD   | $1 USD   |  $0.20 USD | ~$8-10 USD
+ * Bicycle            |  $1 USD   | $0.75 USD|  $0.15 USD | ~$5-7 USD
+ * Car                |  $3 USD   | $1.5 USD |  $0.30 USD | ~$12-15 USD
+ * SUV/4-Wheeler      |  $4 USD   | $2 USD   |  $0.40 USD | ~$15-18 USD
+ *
+ * PLATFORM ECONOMICS:
+ * - Platform Fee: 2-5% based on verification tier (vs 30% on Uber/DoorDash)
+ * - Assistant Payout: 95-98% (vs 70% on competitors)
+ * - Gasless transactions via delegation (platform pays gas)
+ * - Prices denominated in USD, paid in WMON at market rate
+ *
+ * ========================================================================
  */
 contract ServiceMarketplace is Ownable, ReentrancyGuard {
 
@@ -28,7 +73,8 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         DELIVERED,      // Delivered to customer
         COMPLETED,      // Customer confirmed receipt
         CANCELLED,      // Order cancelled
-        DISPUTED        // Dispute raised
+        DISPUTED,       // Dispute raised
+        NO_SHOW         // Customer no-show, delivery person compensated
     }
 
     enum RideStatus {
@@ -40,7 +86,8 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         ARRIVED,        // Arrived at destination
         COMPLETED,      // Ride completed
         CANCELLED,      // Ride cancelled
-        DISPUTED        // Dispute raised
+        DISPUTED,       // Dispute raised
+        NO_SHOW         // Passenger no-show, driver compensated
     }
 
     // ========================================================================
@@ -61,7 +108,6 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         address providerAddress;
         string businessName;
         string description;
-        address deliveryPerson; // Associated delivery person
         MenuItem[] menu;
         bool isActive;
         uint256 totalOrders;
@@ -71,10 +117,10 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     }
 
     struct Vehicle {
-        string vehicleType;     // Car, Motorcycle, Bicycle
+        string vehicleType;     // Car, Motorcycle, Scooter, Bicycle, Four-Wheeler, etc.
         string model;
         string licensePlate;
-        uint256 capacity;       // Number of passengers
+        uint256 capacity;       // Number of passengers (for rides) / Can deliver food (any type)
         string imageUrl;
     }
 
@@ -93,16 +139,19 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         uint256 orderId;
         address customer;
         address provider;
-        address deliveryPerson;
+        address deliveryDriver;  // Driver who accepts the delivery (assigned when READY)
         uint256[] menuItemIds;
         uint256[] quantities;
-        uint256 totalAmount;
+        uint256 foodPrice;       // Price of food items
+        uint256 deliveryFee;     // Fee for delivery service
+        uint256 totalAmount;     // foodPrice + deliveryFee
         uint256 escrowAmount;
         FoodStatus status;
         string deliveryAddress;
-        string locationHash;    // IPFS hash of current location
+        string locationHash;     // IPFS hash of current location
         uint256 createdAt;
         uint256 completedAt;
+        uint256 arrivalTimestamp; // When delivery driver arrived at customer location
         bool fundsReleased;
     }
 
@@ -120,6 +169,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         uint256 capacity;           // number of passengers
         uint256 createdAt;
         uint256 completedAt;
+        uint256 arrivalTimestamp;   // When driver arrived at destination
         bool fundsReleased;
     }
 
@@ -127,8 +177,9 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     // STATE
     // ========================================================================
 
-    IERC20 public toursToken;
+    IERC20 public wmonToken;
     address public platformSafe;
+    IPersonalAssistant public personalAssistantContract;
 
     mapping(address => FoodProvider) public foodProviders;
     mapping(address => RideProvider) public rideProviders;
@@ -145,7 +196,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     uint256 private _requestIdCounter;
     uint256 private _menuItemIdCounter;
 
-    uint256 public platformFeePercent = 5; // 5% platform fee
+    uint256 public platformFeePercent = 3; // 3% platform fee (much lower than Uber's 30%)
     uint256 public disputeTimeWindow = 24 hours;
 
     // ========================================================================
@@ -157,8 +208,9 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     event MenuItemAdded(address indexed provider, uint256 itemId, string name, uint256 price);
 
     event FoodOrderCreated(uint256 indexed orderId, address indexed customer, address indexed provider, uint256 totalAmount);
+    event DeliveryAccepted(uint256 indexed orderId, address indexed driver);
     event FoodOrderStatusUpdated(uint256 indexed orderId, FoodStatus status, string locationHash);
-    event FoodOrderCompleted(uint256 indexed orderId, address indexed provider, uint256 amount);
+    event FoodOrderCompleted(uint256 indexed orderId, address indexed provider, uint256 providerAmount, address indexed driver, uint256 driverAmount);
 
     event RideRequestCreated(uint256 indexed requestId, address indexed passenger, uint256 agreedPrice);
     event RideRequestAccepted(uint256 indexed requestId, address indexed driver);
@@ -167,19 +219,23 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
 
     event DisputeRaised(ServiceType serviceType, uint256 indexed id, address indexed raiser);
     event RatingSubmitted(address indexed provider, uint256 rating, address indexed rater);
+    event NoShowCompensationClaimed(ServiceType serviceType, uint256 indexed id, address indexed claimer, uint256 compensation, string proofHash);
 
     // ========================================================================
     // CONSTRUCTOR
     // ========================================================================
 
     constructor(
-        address _toursToken,
-        address _platformSafe
+        address _wmonToken,
+        address _platformSafe,
+        address _personalAssistantContract
     ) Ownable(msg.sender) {
-        require(_toursToken != address(0), "Invalid TOURS token");
+        require(_wmonToken != address(0), "Invalid WMON token");
         require(_platformSafe != address(0), "Invalid platform safe");
-        toursToken = IERC20(_toursToken);
+        require(_personalAssistantContract != address(0), "Invalid PersonalAssistant contract");
+        wmonToken = IERC20(_wmonToken);
         platformSafe = _platformSafe;
+        personalAssistantContract = IPersonalAssistant(_personalAssistantContract);
     }
 
     // ========================================================================
@@ -188,18 +244,16 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
 
     function registerFoodProvider(
         string memory businessName,
-        string memory description,
-        address deliveryPerson
+        string memory description
     ) external {
         require(bytes(businessName).length > 0, "Business name required");
-        require(deliveryPerson != address(0), "Delivery person required");
         require(!foodProviders[msg.sender].isActive, "Already registered");
+        require(personalAssistantContract.isAssistantVerified(msg.sender), "Must be verified assistant");
 
         FoodProvider storage provider = foodProviders[msg.sender];
         provider.providerAddress = msg.sender;
         provider.businessName = businessName;
         provider.description = description;
-        provider.deliveryPerson = deliveryPerson;
         provider.isActive = true;
         provider.registeredAt = block.timestamp;
 
@@ -246,6 +300,13 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     // RIDE PROVIDER REGISTRATION
     // ========================================================================
 
+    /**
+     * @dev Register as a driver for rides AND food delivery
+     * @notice Vehicle types: Car, Motorcycle, Scooter, Bicycle, Four-Wheeler, etc.
+     *         Drivers can accept both ride requests and food delivery orders
+     * @param vehicleType Type of vehicle (Car, Motorcycle, Scooter, Bicycle, Four-Wheeler, etc.)
+     * @param capacity Number of passengers for ride sharing (1 for motorcycles, 4+ for cars)
+     */
     function registerRideProvider(
         string memory driverName,
         string memory vehicleType,
@@ -257,6 +318,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         require(bytes(driverName).length > 0, "Driver name required");
         require(capacity > 0 && capacity <= 8, "Invalid capacity");
         require(!rideProviders[msg.sender].isActive, "Already registered");
+        require(personalAssistantContract.isAssistantVerified(msg.sender), "Must be verified assistant");
 
         Vehicle memory vehicle = Vehicle({
             vehicleType: vehicleType,
@@ -285,31 +347,36 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     /**
      * @dev Create food order on behalf of customer (delegation support)
      * @param beneficiary The customer ordering food
+     * @param deliveryFee The fee customer is willing to pay for delivery
      */
     function createFoodOrderFor(
         address beneficiary,
         address provider,
         uint256[] memory menuItemIds,
         uint256[] memory quantities,
-        string memory deliveryAddress
-    ) external nonReentrant returns (uint256) {
+        string memory deliveryAddress,
+        uint256 deliveryFee
+    ) public nonReentrant returns (uint256) {
         require(foodProviders[provider].isActive, "Provider not active");
         require(menuItemIds.length == quantities.length, "Array length mismatch");
         require(menuItemIds.length > 0, "No items");
+        require(deliveryFee > 0, "Delivery fee required");
 
-        uint256 totalAmount = 0;
+        // Calculate food price
+        uint256 foodPrice = 0;
         for (uint256 i = 0; i < menuItemIds.length; i++) {
             require(menuItemIds[i] < foodProviders[provider].menu.length, "Invalid menu item");
             MenuItem memory item = foodProviders[provider].menu[menuItemIds[i]];
             require(item.available, "Item not available");
-            totalAmount += item.price * quantities[i];
+            foodPrice += item.price * quantities[i];
         }
 
+        uint256 totalAmount = foodPrice + deliveryFee;
         uint256 orderId = _orderIdCounter++;
 
-        // Transfer funds to escrow
+        // Transfer total (food + delivery) to escrow
         require(
-            toursToken.transferFrom(beneficiary, address(this), totalAmount),
+            wmonToken.transferFrom(beneficiary, address(this), totalAmount),
             "Transfer failed"
         );
 
@@ -317,9 +384,11 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         order.orderId = orderId;
         order.customer = beneficiary;
         order.provider = provider;
-        order.deliveryPerson = foodProviders[provider].deliveryPerson;
+        order.deliveryDriver = address(0);  // Will be assigned when driver accepts
         order.menuItemIds = menuItemIds;
         order.quantities = quantities;
+        order.foodPrice = foodPrice;
+        order.deliveryFee = deliveryFee;
         order.totalAmount = totalAmount;
         order.escrowAmount = totalAmount;
         order.status = FoodStatus.PENDING;
@@ -340,9 +409,10 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         address provider,
         uint256[] memory menuItemIds,
         uint256[] memory quantities,
-        string memory deliveryAddress
+        string memory deliveryAddress,
+        uint256 deliveryFee
     ) external returns (uint256) {
-        return createFoodOrderFor(msg.sender, provider, menuItemIds, quantities, deliveryAddress);
+        return createFoodOrderFor(msg.sender, provider, menuItemIds, quantities, deliveryAddress, deliveryFee);
     }
 
     /**
@@ -359,6 +429,25 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Driver accepts delivery when food is READY
+     * @notice ANY registered driver can deliver food regardless of vehicle type
+     *         (Car, Motorcycle, Scooter, Bicycle, Four-Wheeler, etc.)
+     * @param orderId The food order ID
+     */
+    function acceptDelivery(uint256 orderId) external {
+        require(rideProviders[msg.sender].isActive, "Not a registered driver");
+        FoodOrder storage order = foodOrders[orderId];
+        require(order.status == FoodStatus.READY, "Food not ready for pickup");
+        require(order.deliveryDriver == address(0), "Delivery already accepted");
+
+        order.deliveryDriver = msg.sender;
+        order.status = FoodStatus.PICKED_UP;
+
+        emit DeliveryAccepted(orderId, msg.sender);
+        emit FoodOrderStatusUpdated(orderId, FoodStatus.PICKED_UP, "");
+    }
+
+    /**
      * @dev Update food preparation status with location
      */
     function updateFoodStatus(
@@ -368,7 +457,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     ) external {
         FoodOrder storage order = foodOrders[orderId];
         require(
-            msg.sender == order.provider || msg.sender == order.deliveryPerson,
+            msg.sender == order.provider || msg.sender == order.deliveryDriver,
             "Not authorized"
         );
         require(order.status < FoodStatus.DELIVERED, "Order finalized");
@@ -376,34 +465,48 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         order.status = newStatus;
         order.locationHash = locationHash;
 
+        // Track when delivery driver arrives at customer location
+        if (newStatus == FoodStatus.DELIVERED) {
+            order.arrivalTimestamp = block.timestamp;
+        }
+
         emit FoodOrderStatusUpdated(orderId, newStatus, locationHash);
     }
 
     /**
-     * @dev Customer confirms food delivery - releases escrow
+     * @dev Customer confirms food delivery - releases escrow (3-way split)
+     * Payment: Restaurant gets foodPrice - platform fee
+     *          Driver gets deliveryFee - platform fee
+     *          Platform gets total platform fee
      */
     function confirmFoodDeliveryFor(
         address beneficiary,
         uint256 orderId,
         uint256 rating
-    ) external nonReentrant {
+    ) public nonReentrant {
         FoodOrder storage order = foodOrders[orderId];
         require(order.customer == beneficiary, "Not the customer");
         require(order.status == FoodStatus.DELIVERED, "Not delivered yet");
         require(!order.fundsReleased, "Already released");
         require(rating <= 100, "Invalid rating");
+        require(order.deliveryDriver != address(0), "No delivery driver assigned");
 
         order.status = FoodStatus.COMPLETED;
         order.completedAt = block.timestamp;
         order.fundsReleased = true;
 
-        // Calculate platform fee
-        uint256 platformFee = (order.escrowAmount * platformFeePercent) / 100;
-        uint256 providerAmount = order.escrowAmount - platformFee;
+        // Calculate platform fee from food and delivery separately
+        uint256 foodPlatformFee = (order.foodPrice * platformFeePercent) / 100;
+        uint256 deliveryPlatformFee = (order.deliveryFee * platformFeePercent) / 100;
+        uint256 totalPlatformFee = foodPlatformFee + deliveryPlatformFee;
 
-        // Release funds
-        require(toursToken.transfer(order.provider, providerAmount), "Provider payment failed");
-        require(toursToken.transfer(platformSafe, platformFee), "Fee transfer failed");
+        uint256 providerAmount = order.foodPrice - foodPlatformFee;
+        uint256 driverAmount = order.deliveryFee - deliveryPlatformFee;
+
+        // Release funds - 3-way split
+        require(wmonToken.transfer(order.provider, providerAmount), "Provider payment failed");
+        require(wmonToken.transfer(order.deliveryDriver, driverAmount), "Driver payment failed");
+        require(wmonToken.transfer(platformSafe, totalPlatformFee), "Platform fee transfer failed");
 
         // Update provider stats
         FoodProvider storage provider = foodProviders[order.provider];
@@ -411,12 +514,54 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         provider.rating = ((provider.rating * provider.ratingCount) + rating) / (provider.ratingCount + 1);
         provider.ratingCount++;
 
-        emit FoodOrderCompleted(orderId, order.provider, providerAmount);
+        // Update driver stats
+        RideProvider storage driver = rideProviders[order.deliveryDriver];
+        driver.totalRides++;  // Deliveries count toward driver stats
+        driver.rating = ((driver.rating * driver.ratingCount) + rating) / (driver.ratingCount + 1);
+        driver.ratingCount++;
+
+        emit FoodOrderCompleted(orderId, order.provider, providerAmount, order.deliveryDriver, driverAmount);
         emit RatingSubmitted(order.provider, rating, beneficiary);
+        emit RatingSubmitted(order.deliveryDriver, rating, beneficiary);
     }
 
     function confirmFoodDelivery(uint256 orderId, uint256 rating) external {
         confirmFoodDeliveryFor(msg.sender, orderId, rating);
+    }
+
+    /**
+     * @dev Delivery driver claims no-show compensation after waiting 5 minutes
+     * @param orderId The food order ID
+     * @param proofPhotoHash IPFS hash of photo proof (location/food placement)
+     */
+    function claimFoodNoShowCompensation(
+        uint256 orderId,
+        string memory proofPhotoHash
+    ) external nonReentrant {
+        FoodOrder storage order = foodOrders[orderId];
+        require(msg.sender == order.deliveryDriver, "Not the delivery driver");
+        require(order.status == FoodStatus.DELIVERED, "Must be at delivery location");
+        require(order.arrivalTimestamp > 0, "Arrival not recorded");
+        require(block.timestamp >= order.arrivalTimestamp + 5 minutes, "Must wait 5 minutes");
+        require(!order.fundsReleased, "Funds already released");
+        require(bytes(proofPhotoHash).length > 0, "Photo proof required");
+
+        // Calculate compensation: 40% to delivery driver for gas/time, 60% refund to customer
+        uint256 compensation = (order.escrowAmount * 40) / 100;
+        uint256 refund = order.escrowAmount - compensation;
+
+        order.status = FoodStatus.NO_SHOW;
+        order.completedAt = block.timestamp;
+        order.fundsReleased = true;
+        order.locationHash = proofPhotoHash; // Store photo proof
+
+        // Pay delivery driver compensation for gas and time
+        require(wmonToken.transfer(order.deliveryDriver, compensation), "Compensation transfer failed");
+
+        // Refund customer
+        require(wmonToken.transfer(order.customer, refund), "Refund transfer failed");
+
+        emit NoShowCompensationClaimed(ServiceType.FOOD_DELIVERY, orderId, msg.sender, compensation, proofPhotoHash);
     }
 
     // ========================================================================
@@ -432,7 +577,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         string memory destination,
         uint256 agreedPrice,
         uint256 capacity
-    ) external nonReentrant returns (uint256) {
+    ) public nonReentrant returns (uint256) {
         require(agreedPrice > 0, "Invalid price");
         require(capacity > 0, "Invalid capacity");
 
@@ -440,7 +585,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
 
         // Transfer funds to escrow
         require(
-            toursToken.transferFrom(beneficiary, address(this), agreedPrice),
+            wmonToken.transferFrom(beneficiary, address(this), agreedPrice),
             "Transfer failed"
         );
 
@@ -473,6 +618,9 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
 
     /**
      * @dev Driver accepts ride request
+     * @notice Motorcycles (capacity 1-2), Cars (capacity 4+), etc.
+     *         Driver's vehicle capacity must match or exceed request capacity
+     * @param estimatedDuration Estimated time to complete ride in minutes
      */
     function acceptRideRequest(uint256 requestId, uint256 estimatedDuration) external {
         require(rideProviders[msg.sender].isActive, "Not registered driver");
@@ -502,6 +650,11 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         request.status = newStatus;
         request.currentLocationHash = locationHash;
 
+        // Track when driver arrives at destination
+        if (newStatus == RideStatus.ARRIVED) {
+            request.arrivalTimestamp = block.timestamp;
+        }
+
         emit RideStatusUpdated(requestId, newStatus, locationHash);
     }
 
@@ -512,7 +665,7 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         address beneficiary,
         uint256 requestId,
         uint256 rating
-    ) external nonReentrant {
+    ) public nonReentrant {
         RideRequest storage request = rideRequests[requestId];
         require(request.passenger == beneficiary, "Not the passenger");
         require(request.status == RideStatus.ARRIVED, "Ride not completed");
@@ -528,8 +681,8 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         uint256 driverAmount = request.escrowAmount - platformFee;
 
         // Release funds
-        require(toursToken.transfer(request.driver, driverAmount), "Driver payment failed");
-        require(toursToken.transfer(platformSafe, platformFee), "Fee transfer failed");
+        require(wmonToken.transfer(request.driver, driverAmount), "Driver payment failed");
+        require(wmonToken.transfer(platformSafe, platformFee), "Fee transfer failed");
 
         // Update driver stats
         RideProvider storage provider = rideProviders[request.driver];
@@ -543,6 +696,41 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
 
     function confirmRideCompletion(uint256 requestId, uint256 rating) external {
         confirmRideCompletionFor(msg.sender, requestId, rating);
+    }
+
+    /**
+     * @dev Driver claims no-show compensation after waiting 5 minutes
+     * @param requestId The ride request ID
+     * @param proofPhotoHash IPFS hash of photo proof (arrival location)
+     */
+    function claimRideNoShowCompensation(
+        uint256 requestId,
+        string memory proofPhotoHash
+    ) external nonReentrant {
+        RideRequest storage request = rideRequests[requestId];
+        require(request.driver == msg.sender, "Not the driver");
+        require(request.status == RideStatus.ARRIVED, "Must be at pickup location");
+        require(request.arrivalTimestamp > 0, "Arrival not recorded");
+        require(block.timestamp >= request.arrivalTimestamp + 5 minutes, "Must wait 5 minutes");
+        require(!request.fundsReleased, "Funds already released");
+        require(bytes(proofPhotoHash).length > 0, "Photo proof required");
+
+        // Calculate compensation: 40% to driver for gas/time, 60% refund to passenger
+        uint256 compensation = (request.escrowAmount * 40) / 100;
+        uint256 refund = request.escrowAmount - compensation;
+
+        request.status = RideStatus.NO_SHOW;
+        request.completedAt = block.timestamp;
+        request.fundsReleased = true;
+        request.currentLocationHash = proofPhotoHash; // Store photo proof
+
+        // Pay driver compensation for gas and time
+        require(wmonToken.transfer(request.driver, compensation), "Compensation transfer failed");
+
+        // Refund passenger
+        require(wmonToken.transfer(request.passenger, refund), "Refund transfer failed");
+
+        emit NoShowCompensationClaimed(ServiceType.RIDE_TRANSPORT, requestId, msg.sender, compensation, proofPhotoHash);
     }
 
     // ========================================================================
@@ -591,13 +779,13 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
             uint256 providerAmount = order.escrowAmount - refundAmount;
 
             if (refundAmount > 0) {
-                require(toursToken.transfer(order.customer, refundAmount), "Refund failed");
+                require(wmonToken.transfer(order.customer, refundAmount), "Refund failed");
             }
             if (providerAmount > 0) {
-                require(toursToken.transfer(order.provider, providerAmount), "Provider payment failed");
+                require(wmonToken.transfer(order.provider, providerAmount), "Provider payment failed");
             }
         } else {
-            require(toursToken.transfer(order.provider, order.escrowAmount), "Provider payment failed");
+            require(wmonToken.transfer(order.provider, order.escrowAmount), "Provider payment failed");
         }
 
         order.status = FoodStatus.COMPLETED;
@@ -621,13 +809,13 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
             uint256 driverAmount = request.escrowAmount - refundAmount;
 
             if (refundAmount > 0) {
-                require(toursToken.transfer(request.passenger, refundAmount), "Refund failed");
+                require(wmonToken.transfer(request.passenger, refundAmount), "Refund failed");
             }
             if (driverAmount > 0) {
-                require(toursToken.transfer(request.driver, driverAmount), "Driver payment failed");
+                require(wmonToken.transfer(request.driver, driverAmount), "Driver payment failed");
             }
         } else {
-            require(toursToken.transfer(request.driver, request.escrowAmount), "Driver payment failed");
+            require(wmonToken.transfer(request.driver, request.escrowAmount), "Driver payment failed");
         }
 
         request.status = RideStatus.COMPLETED;
@@ -642,7 +830,6 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
         address providerAddress,
         string memory businessName,
         string memory description,
-        address deliveryPerson,
         bool isActive,
         uint256 totalOrders,
         uint256 rating,
@@ -653,7 +840,6 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
             p.providerAddress,
             p.businessName,
             p.description,
-            p.deliveryPerson,
             p.isActive,
             p.totalOrders,
             p.rating,
@@ -721,8 +907,8 @@ contract ServiceMarketplace is Ownable, ReentrancyGuard {
     }
 
     function emergencyWithdraw() external onlyOwner {
-        uint256 balance = toursToken.balanceOf(address(this));
-        require(toursToken.transfer(owner(), balance), "Transfer failed");
+        uint256 balance = wmonToken.balanceOf(address(this));
+        require(wmonToken.transfer(owner(), balance), "Transfer failed");
     }
 
     receive() external payable {}

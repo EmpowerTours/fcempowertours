@@ -9,9 +9,18 @@ export const env = {
   MONAD_RPC: process.env.NEXT_PUBLIC_MONAD_RPC || process.env.VITE_MONAD_RPC || 'https://testnet-rpc.monad.xyz',
   CHAIN_ID: process.env.NEXT_PUBLIC_CHAIN_ID || process.env.VITE_CHAIN_ID || '10143',
 
-  // Pimlico (Account Abstraction)
+  // Pimlico (Account Abstraction - Current Bundler)
   PIMLICO_API_KEY: process.env.NEXT_PUBLIC_PIMLICO_API_KEY || process.env.VITE_PIMLICO_API_KEY || '',
   PIMLICO_BUNDLER_URL: process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || process.env.VITE_PIMLICO_BUNDLER_URL || '',
+
+  // FastLane (Monad-Optimized Bundler - Testing Alongside Pimlico)
+  FASTLANE_BUNDLER_URL: process.env.NEXT_PUBLIC_FASTLANE_BUNDLER_URL || process.env.VITE_FASTLANE_BUNDLER_URL || 'https://monad-testnet.4337-shbundler-fra.fastlane-labs.xyz',
+  FASTLANE_ENABLED: process.env.NEXT_PUBLIC_FASTLANE_ENABLED === 'true',
+
+  // shMON Liquid Staking (FastLane) - ✅ DEPLOYED
+  SHMON_ADDRESS: process.env.NEXT_PUBLIC_SHMON_ADDRESS || process.env.VITE_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1',
+
+  // Shared ERC-4337
   ENTRYPOINT_ADDRESS: process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS || process.env.VITE_ENTRYPOINT_ADDRESS || '0x0000000071727De22E5E9d8BAf0edAc6f37da032',
 
   // Safe Account

@@ -29,7 +29,7 @@ import {ExperienceNFT} from "../contracts/ExperienceNFT.sol";
 contract DeployAll is Script {
 
     // Monad Testnet addresses
-    address constant WMON_TOKEN = 0x760AfE86e5de5fa0Ee542fc7B7b713e1c5425701;
+    address constant WMON_TOKEN = 0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701;
     address constant TOURS_TOKEN = 0xa123600c82E69cB311B0e068B06Bfa9F787699B7;
     address constant PLATFORM_SAFE = 0x33fFCcb1802e13a7eead232BCd4706a2269582b0;
 

@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       });
 
       // Skip if finalized or no participants
-      if (round.status === 3 || round.participantCount === 0) {
+      if (round.status === 3 || round.participantCount === 0n) {
         continue;
       }
 
