@@ -221,46 +221,137 @@ export default function LotteryPage() {
 
   // Handle commit (anyone can call)
   const handleCommit = async () => {
-    if (!currentRound?.roundId) return;
+    if (!currentRound?.roundId || !effectiveAddress) return;
     setActionLoading(true);
     setError(null);
     setSuccess(null);
+
     try {
-      await commitRandomness(currentRound.roundId);
-      setSuccess('Committing randomness... waiting for confirmation');
+      // Use delegated API for gasless commit
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'lottery_commit',
+          params: { roundId: currentRound.roundId.toString() }
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to commit randomness');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`Committed randomness! TX: ${txHash.slice(0, 10)}... You earned 0.01 MON!`);
+
+      // Refresh after delay
+      setTimeout(() => {
+        refetchRound();
+      }, 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to commit');
+      // Fallback to direct call if delegated fails
+      try {
+        await commitRandomness(currentRound.roundId);
+        setSuccess('Committing randomness... waiting for confirmation');
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.message || 'Failed to commit');
+      }
+    } finally {
       setActionLoading(false);
     }
   };
 
   // Handle reveal (anyone can call)
   const handleReveal = async () => {
-    if (!currentRound?.roundId) return;
+    if (!currentRound?.roundId || !effectiveAddress) return;
     setActionLoading(true);
     setError(null);
     setSuccess(null);
+
     try {
-      await revealWinner(currentRound.roundId);
-      setSuccess('Revealing winner... waiting for confirmation');
+      // Use delegated API for gasless reveal
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'lottery_reveal',
+          params: { roundId: currentRound.roundId.toString() }
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to reveal winner');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`Winner revealed! TX: ${txHash.slice(0, 10)}... You earned 0.01 MON!`);
+
+      // Refresh after delay
+      setTimeout(() => {
+        refetchRound();
+      }, 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to reveal');
+      // Fallback to direct call if delegated fails
+      try {
+        await revealWinner(currentRound.roundId);
+        setSuccess('Revealing winner... waiting for confirmation');
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.message || 'Failed to reveal');
+      }
+    } finally {
       setActionLoading(false);
     }
   };
 
   // Handle claim (winner only)
   const handleClaim = async () => {
-    if (!currentRound?.roundId) return;
+    if (!currentRound?.roundId || !effectiveAddress) return;
     setActionLoading(true);
     setError(null);
+    setSuccess(null);
+
     try {
-      claimPrize(currentRound.roundId);
-      setSuccess('Claim transaction sent!');
+      // Use delegated API for gasless claim
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'lottery_claim',
+          params: { roundId: currentRound.roundId.toString() }
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to claim prize');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`Prize claimed! TX: ${txHash.slice(0, 10)}...`);
+
+      // Refresh after delay
+      setTimeout(() => {
+        refetchRound();
+      }, 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to claim');
+      // Fallback to direct call if delegated fails
+      try {
+        claimPrize(currentRound.roundId);
+        setSuccess('Claim transaction sent!');
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.message || 'Failed to claim');
+      }
+    } finally {
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
 
   if (roundLoading) {

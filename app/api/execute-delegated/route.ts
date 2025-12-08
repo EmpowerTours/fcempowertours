@@ -3608,6 +3608,132 @@ ${enjoyText}
           message: `Entered lottery with ${params.amount} shMON successfully (gasless)`,
         });
 
+      // ==================== LOTTERY COMMIT RANDOMNESS ====================
+      case 'lottery_commit':
+        console.log('🎲 Action: lottery_commit');
+
+        const LOTTERY_COMMIT_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as Address;
+
+        if (!params?.roundId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing roundId for lottery_commit' },
+            { status: 400 }
+          );
+        }
+
+        const commitSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        const commitCalls: Call[] = [
+          {
+            to: LOTTERY_COMMIT_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function commitRandomness(uint256 roundId) external']),
+              functionName: 'commitRandomness',
+              args: [BigInt(params.roundId)],
+            }) as Hex,
+          },
+        ];
+
+        const commitTxHash = await executeTransaction(commitCalls, userAddress as Address);
+        console.log('✅ Committed randomness for round', params.roundId, 'TX:', commitTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: commitTxHash,
+          action,
+          userAddress,
+          roundId: params.roundId,
+          message: `Committed randomness for round ${params.roundId} (earned 0.01 MON)`,
+        });
+
+      // ==================== LOTTERY REVEAL WINNER ====================
+      case 'lottery_reveal':
+        console.log('🎰 Action: lottery_reveal');
+
+        const LOTTERY_REVEAL_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as Address;
+
+        if (!params?.roundId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing roundId for lottery_reveal' },
+            { status: 400 }
+          );
+        }
+
+        const revealSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        const revealCalls: Call[] = [
+          {
+            to: LOTTERY_REVEAL_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function revealWinner(uint256 roundId) external']),
+              functionName: 'revealWinner',
+              args: [BigInt(params.roundId)],
+            }) as Hex,
+          },
+        ];
+
+        const revealTxHash = await executeTransaction(revealCalls, userAddress as Address);
+        console.log('✅ Revealed winner for round', params.roundId, 'TX:', revealTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: revealTxHash,
+          action,
+          userAddress,
+          roundId: params.roundId,
+          message: `Revealed winner for round ${params.roundId} (earned 0.01 MON)`,
+        });
+
+      // ==================== LOTTERY CLAIM PRIZE ====================
+      case 'lottery_claim':
+        console.log('💰 Action: lottery_claim');
+
+        const LOTTERY_CLAIM_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as Address;
+
+        if (!params?.roundId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing roundId for lottery_claim' },
+            { status: 400 }
+          );
+        }
+
+        const claimSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        const claimCalls: Call[] = [
+          {
+            to: LOTTERY_CLAIM_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claimPrize(uint256 roundId) external']),
+              functionName: 'claimPrize',
+              args: [BigInt(params.roundId)],
+            }) as Hex,
+          },
+        ];
+
+        const claimTxHash = await executeTransaction(claimCalls, userAddress as Address);
+        console.log('✅ Claimed prize for round', params.roundId, 'TX:', claimTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: claimTxHash,
+          action,
+          userAddress,
+          roundId: params.roundId,
+          message: `Claimed prize for round ${params.roundId}`,
+        });
+
       // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
       case 'create_experience':
         console.log('📍 Action: create_experience');
