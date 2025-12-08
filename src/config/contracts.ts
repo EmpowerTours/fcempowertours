@@ -64,13 +64,25 @@ export const CONTRACTS = {
     address: '0x5B61286AC88688fe8930711fAa5b1155e98daFe8' as Address,
     abi: ItineraryNFTABI,
   },
-  MusicBeatMatch: {
-    address: '0xee83AC7E916f4feBDb7297363B47eE370FE2EC87' as Address,
+  MusicBeatMatchV2: {
+    address: '0x913E65B7742Da72972fB821468215E89F085F178' as Address,
     abi: MusicBeatMatchABI,
   },
-  CountryCollector: {
-    address: '0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200' as Address,
+  CountryCollectorV2: {
+    address: '0xC7FfA579f66f6A3142b3e27427b04124F4b3cd61' as Address,
     abi: CountryCollectorABI,
+  },
+  ExperienceNFT: {
+    address: '0xDcBBA5460a6043656331aB0399F68C52f76463D3' as Address,
+    abi: ItineraryNFTABI, // Using same ABI structure for now
+  },
+  PersonalAssistantV1: {
+    address: '0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4' as Address,
+    abi: [] as any, // TODO: Add PersonalAssistantV1 ABI
+  },
+  ServiceMarketplace: {
+    address: '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4' as Address,
+    abi: [] as any, // TODO: Add ServiceMarketplace ABI
   },
   TandaPool: {
     address: '0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B' as Address,
@@ -99,8 +111,11 @@ export const toursTokenConfig = CONTRACTS.ToursToken;
 // Mini-app contract configs
 export const actionBasedDemandSignalConfig = CONTRACTS.ActionBasedDemandSignal;
 export const itineraryNFTConfig = CONTRACTS.ItineraryNFT;
-export const musicBeatMatchConfig = CONTRACTS.MusicBeatMatch;
-export const countryCollectorConfig = CONTRACTS.CountryCollector;
+export const musicBeatMatchConfig = CONTRACTS.MusicBeatMatchV2;
+export const countryCollectorConfig = CONTRACTS.CountryCollectorV2;
+export const experienceNFTConfig = CONTRACTS.ExperienceNFT;
+export const personalAssistantConfig = CONTRACTS.PersonalAssistantV1;
+export const serviceMarketplaceConfig = CONTRACTS.ServiceMarketplace;
 export const tandaPoolConfig = CONTRACTS.TandaPool;
 
 // Verification status (✅ = verified on Monad testnet)
@@ -116,7 +131,10 @@ export const VERIFICATION_STATUS = {
   // Mini-app Contracts
   ActionBasedDemandSignal: '✅ 0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E',
   ItineraryNFT: '✅ 0x5B61286AC88688fe8930711fAa5b1155e98daFe8',
-  MusicBeatMatch: '✅ 0xee83AC7E916f4feBDb7297363B47eE370FE2EC87',
-  CountryCollector: '✅ 0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200',
+  MusicBeatMatchV2: '✅ 0x913E65B7742Da72972fB821468215E89F085F178 (Dec 8, 2025)',
+  CountryCollectorV2: '✅ 0xC7FfA579f66f6A3142b3e27427b04124F4b3cd61 (Dec 8, 2025)',
+  ExperienceNFT: '✅ 0xDcBBA5460a6043656331aB0399F68C52f76463D3 (Dec 8, 2025)',
+  PersonalAssistantV1: '✅ 0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4 (Dec 8, 2025)',
+  ServiceMarketplace: '✅ 0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4 (Dec 8, 2025)',
   TandaPool: '✅ 0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B',
 } as const;
