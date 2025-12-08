@@ -24,6 +24,7 @@ function BeatMatchContent() {
   const [guessReason, setGuessReason] = useState('');
   const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
   const [musicNFTs, setMusicNFTs] = useState([]);
+  const [artistUsernames, setArtistUsernames] = useState<Record<string, string>>({});
   const [loadingMusic, setLoadingMusic] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -81,6 +82,49 @@ function BeatMatchContent() {
 
     fetchMusicNFTs();
   }, []);
+
+  // Fetch Farcaster usernames for all artists
+  useEffect(() => {
+    const fetchUsernames = async () => {
+      if (musicNFTs.length === 0) return;
+
+      try {
+        const uniqueArtists = [...new Set(musicNFTs.map((nft: any) => nft.artist))];
+        const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+
+        const usernameMap: Record<string, string> = {};
+
+        for (const artistAddress of uniqueArtists) {
+          try {
+            const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
+            const response = await fetch(url, {
+              headers: { 'x-api-key': neynarApiKey },
+            });
+
+            if (response.ok) {
+              const data: any = await response.json();
+              const users = data[artistAddress.toLowerCase()];
+              if (users && users.length > 0) {
+                usernameMap[artistAddress] = users[0].username;
+              } else {
+                usernameMap[artistAddress] = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
+              }
+            } else {
+              usernameMap[artistAddress] = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
+            }
+          } catch (error) {
+            usernameMap[artistAddress] = `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
+          }
+        }
+
+        setArtistUsernames(usernameMap);
+      } catch (error) {
+        console.error('Error fetching artist usernames:', error);
+      }
+    };
+
+    fetchUsernames();
+  }, [musicNFTs]);
 
   const handleSubmitGuess = async () => {
     if (!selectedArtist && !guessUsername.trim()) {
@@ -239,7 +283,11 @@ function BeatMatchContent() {
                 <div>
                   <h3 className="text-2xl font-bold text-white">{(challenge as any).songTitle}</h3>
                   <p className="text-blue-200">Challenge #{(challenge as any).id.toString()}</p>
-                  <p className="text-purple-300 text-sm">Artist ID: {(challenge as any).artistId?.toString()}</p>
+                  {(challenge as any).artistUsername ? (
+                    <p className="text-purple-300 text-sm">Guess the artist: @{(challenge as any).artistUsername}</p>
+                  ) : (
+                    <p className="text-purple-300 text-sm">Artist ID: {(challenge as any).artistId?.toString()}</p>
+                  )}
                 </div>
               </div>
 
@@ -262,7 +310,11 @@ function BeatMatchContent() {
                         )}
                         <div className="flex-1">
                           <div className="text-white font-semibold">{nft.name || 'Untitled'}</div>
-                          <div className="text-blue-300 text-sm">by {nft.artist}</div>
+                          <div className="text-blue-300 text-sm">
+                            by {artistUsernames[nft.artist]
+                              ? `@${artistUsernames[nft.artist]}`
+                              : `${nft.artist.slice(0, 6)}...${nft.artist.slice(-4)}`}
+                          </div>
                           <div className="text-purple-300 text-xs">Token ID: {nft.tokenId}</div>
                           {nft.previewAudioUrl && (
                             <audio

@@ -29,6 +29,7 @@ export default function ClientNav() {
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },
     { path: '/beat-match', label: 'Beat Match', icon: '🎯' },
     { path: '/country-collector', label: 'Countries', icon: '🌍' },
+    { path: '/lottery', label: 'Lottery', icon: '🎰' },
     { path: '/swap', label: 'Swap', icon: '💱' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/passport', label: 'Mint', icon: '✈️' },

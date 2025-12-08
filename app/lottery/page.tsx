@@ -5,6 +5,7 @@ import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useDailyLottery, useShMon, LOTTERY_CONTRACT_ADDRESS, SHMON_CONTRACT_ADDRESS } from '@/src/hooks';
 import { formatEther, parseEther } from 'viem';
 import { useAccount } from 'wagmi';
+import FinalizeLotteryButton from '@/components/lottery/FinalizeLotteryButton';
 
 // Round status enum matching contract
 enum RoundStatus {
@@ -251,6 +252,9 @@ export default function LotteryPage() {
             Contract: {LOTTERY_ADDRESS.slice(0, 8)}...{LOTTERY_ADDRESS.slice(-6)}
           </p>
         </div>
+
+        {/* Finalization Button (Auto-checks for pending rounds) */}
+        <FinalizeLotteryButton />
 
         {/* Current Round Card */}
         <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 mb-6">
