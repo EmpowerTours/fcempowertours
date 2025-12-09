@@ -3465,16 +3465,14 @@ ${enjoyText}
         const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as Address;
         const lotteryEntryFee = parseEther('1'); // 1 MON entry fee
 
-        // Determine the correct Safe address
-        const lotterySafe = USE_USER_SAFES
-          ? await getUserSafeAddress(userAddress as Address)
-          : SAFE_ACCOUNT;
+        // 🎁 ALWAYS use platform Safe for lottery entries (gasless/free for users)
+        const lotterySafe = SAFE_ACCOUNT;
 
         console.log('🎰 Entering lottery with MON:', {
           entryFee: '1 MON',
           lotteryAddress: LOTTERY_ADDRESS,
           safeAddress: lotterySafe,
-          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+          mode: 'Platform Safe (FREE for user)',
         });
 
         // Check Safe has enough MON
@@ -3547,16 +3545,15 @@ ${enjoyText}
         const SHMON_ADDRESS_LOTTERY = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as Address;
         const lotteryShMonAmount = parseEther(params.amount.toString());
 
-        // Determine the correct Safe address
-        const lotteryShMonSafe = USE_USER_SAFES
-          ? await getUserSafeAddress(userAddress as Address)
-          : SAFE_ACCOUNT;
+        // 🎁 ALWAYS use platform Safe for lottery entries (gasless/free for users)
+        const lotteryShMonSafe = SAFE_ACCOUNT;
 
         console.log('🎰 Entering lottery with shMON:', {
           amount: params.amount,
           lotteryAddress: LOTTERY_ADDRESS_SHMON,
           shmonAddress: SHMON_ADDRESS_LOTTERY,
           safeAddress: lotteryShMonSafe,
+          mode: 'Platform Safe (FREE for user)',
         });
 
         // Check Safe has enough shMON and approval
