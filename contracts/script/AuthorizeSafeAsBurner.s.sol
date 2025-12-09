@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../src/EmpowerToursNFTv7.sol";
+import "../src/EmpowerToursNFTv8.sol";
 
 contract AuthorizeSafeAsBurner is Script {
     function run() external {
@@ -14,7 +14,7 @@ contract AuthorizeSafeAsBurner is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        EmpowerToursNFTv7 nft = EmpowerToursNFTv7(nftV7);
+        EmpowerToursNFTv8 nft = EmpowerToursNFTv8(nftV7);
         nft.setAuthorizedBurner(safeAccount, true);
 
         console.log("Authorized Safe Account as burner:");
