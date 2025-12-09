@@ -3,15 +3,15 @@ name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries + DeFi
 networks:
   - id: 10143
-    start_block: 50000000  # ✅ Updated to recent block for faster indexing
+    start_block: 41800000  # ✅ Start from beginning to index all passports
     contracts:
-      - name: EmpowerToursNFT
+      - name: MusicLicenseNFT
         address:
-          - "0xAD403897CD7d465445aF0BD4fe40f18698655D4e"  # ✅ V7: EmpowerToursNFTv7 - Music + Art NFTs with delegated burning (Nov 21, 2025)
+          - "0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6"  # ✅ UPDATED: v4 address
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting
-          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price, uint8 nftType)"
+          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price)"
             field_selection:
               transaction_fields:
                 - hash
@@ -46,57 +46,14 @@ networks:
               transaction_fields:
                 - hash
 
-          # ✅ V5: Staking events
-          - event: "NFTStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "NFTUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "RewardsClaimed(uint256 indexed tokenId, address indexed staker, uint256 amount, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          # ✅ V5: Burning events
-          - event: "NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "BurnRewardUpdated(uint256 newReward, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "RewardRateUpdated(uint256 newRate, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
       - name: PassportNFT
         address:
-          - "0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163"  # ✅ PassportNFTv3 with V9 staking + itinerary stamps
+          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"
+          - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ NEW: PassportNFTv2
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data
           - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          # ✅ Passport staking with NFT
-          - event: "PassportStaked(uint256 indexed tokenId, uint256 amount, uint256 positionId)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          # ✅ Venue stamps (event attendance)
-          - event: "VenueStampAdded(uint256 indexed tokenId, string location, string eventType, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
@@ -107,46 +64,27 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ ExperienceNFT Contract (Deployed Dec 8, 2025)
-      - name: ExperienceNFT
+      - name: Marketplace
         address:
-          - "0xDcBBA5460a6043656331aB0399F68C52f76463D3"
+          - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"
         handler: src/EventHandlers.ts
         events:
-          # NFT Minting
-          - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+          # Itinerary creation
+          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Experience creation (GPS-gated travel experiences)
-          - event: "ExperienceCreated(uint256 indexed experienceId, address indexed creator, string title, string city, string country, uint256 price)"
+          # Itinerary purchase
+          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Experience purchase (reveals GPS location)
-          - event: "ExperiencePurchased(uint256 indexed experienceId, address indexed buyer, uint256 price)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          # Experience completion (photo proof + GPS verification)
-          - event: "ExperienceCompleted(uint256 indexed experienceId, address indexed user, string photoProofHash, uint256 rewardAmount)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          # Transportation request (triggers ServiceMarketplace ride booking)
-          - event: "TransportationRequested(uint256 indexed experienceId, address indexed user, int256 fromLat, int256 fromLon, int256 toLat, int256 toLon)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-      # ✅ V9: YieldStrategy Contract (NFT-gated staking with MON deposits - Two-step unstaking)
+      # ✅ V3: YieldStrategy Contract (NFT-gated staking)
       - name: YieldStrategy
         address:
-          - "0x37aC86916Ae673bDFCc9c712057092E57b270f5f"  # V9 deployed - Fixed Kintsu unstaking with cooldown
+          - "0x2804add55b205Ce5930D7807Ad6183D8f3345974"  # V3 deployed with Foundry
         handler: src/EventHandlers.ts
         events:
           - event: "Initialized(address indexed toursToken, address indexed kintsu, address indexed tokenSwap, address dragonRouter, address keeper)"
@@ -157,11 +95,11 @@ networks:
             field_selection:
               transaction_fields:
                 - hash
-          - event: "StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 monAmount, uint256 timestamp)"
+          - event: "StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 toursAmount, uint256 monAmount, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
-          - event: "StakingPositionClosed(uint256 indexed positionId, address indexed user, uint256 monStaked, uint256 yieldShare, uint256 timestamp)"
+          - event: "StakingPositionClosed(uint256 indexed positionId, address indexed beneficiary, uint256 toursRefund, uint256 yieldShare, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
@@ -242,196 +180,85 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ MusicBeatMatchV2 Contract (Deployed Dec 8, 2025 - Daily music challenges with delegation)
-      - name: MusicBeatMatchV2
+      # ✅ NEW: DailyPassLotteryV3 Contract (deployed Dec 9, 2025)
+      - name: DailyPassLotteryV3
         address:
-          - "0x913E65B7742Da72972fB821468215E89F085F178"
+          - "0x006A8520d330af18D69e8E1294E5699Fc9f7Aa2e"
         handler: src/EventHandlers.ts
         events:
-          - event: "ChallengeCreated(uint256 indexed challengeId, uint256 artistId, string artistName, string songTitle, string hint, uint256 rewardTours, uint256 rewardWmon)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed player, uint256 guessedArtistId, string guessedSongTitle, bool correct, uint256 rewardEarned)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "StreakAchieved(address indexed player, uint256 streakDays, uint256 bonusReward)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RewardsDistributed(uint256 indexed challengeId, uint256 totalWinners, uint256 totalRewards)"
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
             field_selection:
               transaction_fields:
                 - hash
 
-      # ✅ CountryCollectorV2 Contract (Deployed Dec 8, 2025 - Weekly country/artist challenges)
-      - name: CountryCollectorV2
-        address:
-          - "0xC7FfA579f66f6A3142b3e27427b04124F4b3cd61"
-        handler: src/EventHandlers.ts
-        events:
-          - event: "ChallengeCreated(uint256 indexed weekId, string countryCode, string countryName, string continent)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "ArtistCompleted(uint256 indexed weekId, address indexed player, uint256 artistIndex, uint256 artistId, string artistName)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "BadgeEarned(address indexed player, uint256 indexed weekId, uint256 artistsCompleted, uint256 rewardEarned)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "GlobalCitizenAchieved(address indexed player, uint256 totalCountries, uint256 bonusReward)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-      # ✅ PersonalAssistantV1 Contract (Deployed Dec 8, 2025 - Verified personal concierge system)
-      - name: PersonalAssistantV1
-        address:
-          - "0xa4c15Eb48EfB739Ea6D4efBF53180cdF86c807f4"
-        handler: src/EventHandlers.ts
-        events:
-          - event: "AssistantRegistered(address indexed assistant, string name, string bio, string[] languages)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "AssistantVerified(address indexed assistant, uint8 newPath)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "AssistantAssigned(address indexed traveler, address indexed assistant)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "ServiceRequestCreated(uint256 indexed requestId, address indexed traveler, address indexed assistant, string serviceType, uint256 estimatedBudget)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "ServiceQuoted(uint256 indexed requestId, uint256 quotedPrice)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "ServiceAccepted(uint256 indexed requestId, uint256 escrowAmount)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "ServiceCompleted(uint256 indexed requestId)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "ServiceConfirmed(uint256 indexed requestId, uint256 rating, uint256 assistantPayout, uint256 platformFee)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "DisputeRaised(uint256 indexed requestId, address indexed raiser)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-      # ✅ ServiceMarketplace Contract (Deployed Dec 8, 2025 - Food delivery & ride sharing)
-      - name: ServiceMarketplace
-        address:
-          - "0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4"
-        handler: src/EventHandlers.ts
-        events:
-          - event: "FoodProviderRegistered(address indexed provider, string businessName)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RideProviderRegistered(address indexed driver, string driverName)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "MenuItemAdded(address indexed provider, uint256 itemId, string name, uint256 price)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "FoodOrderCreated(uint256 indexed orderId, address indexed customer, address indexed provider, uint256 totalAmount)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "DeliveryAccepted(uint256 indexed orderId, address indexed driver)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "FoodOrderStatusUpdated(uint256 indexed orderId, uint8 status, string locationHash)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "FoodOrderCompleted(uint256 indexed orderId, address indexed provider, uint256 providerAmount, address indexed driver, uint256 driverAmount)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RideRequestCreated(uint256 indexed requestId, address indexed passenger, uint256 agreedPrice)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RideRequestAccepted(uint256 indexed requestId, address indexed driver)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RideStatusUpdated(uint256 indexed requestId, uint8 status, string locationHash)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RideCompleted(uint256 indexed requestId, address indexed driver, uint256 amount)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "DisputeRaised(uint8 serviceType, uint256 indexed id, address indexed raiser)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "RatingSubmitted(address indexed provider, uint256 rating, address indexed rater)"
-            field_selection:
-              transaction_fields:
-                - hash
-          - event: "NoShowCompensationClaimed(uint8 serviceType, uint256 indexed id, address indexed claimer, uint256 compensation, string proofHash)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-      # ✅ DailyPassLotteryV2 Contract (Redeployed Dec 8, 2025 - Delegation support for claim + dual fees)
-      - name: DailyPassLottery
-        address:
-          - "0x89345c2b05446F278b7e5746814feF368D764403"
-        handler: src/EventHandlers.ts
-        events:
-          # Daily pass purchase (MON or shMON) - with beneficiary and payer
+          # Entry tracking (supports delegation)
           - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, address indexed payer, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Randomness committed (round ended, commit phase)
+          # Commit-reveal randomness
           - event: "RandomnessCommitted(uint256 indexed roundId, uint256 commitBlock, bytes32 commitHash, address indexed caller, uint256 reward)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Winner revealed (final randomness) - with caller and reward
+          # Winner selection
           - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, address indexed caller, uint256 reward)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Prize claimed from escrow
+          # Prize claims
           - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 monAmount, uint256 shMonAmount)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Escrow expired (unclaimed prize returned to platform)
+          # Escrow expiration
           - event: "EscrowExpired(uint256 indexed roundId)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # New round started
-          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+          # Fee tracking
+          - event: "PlatformSafeFeeCollected(address indexed platformSafe, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PlatformWalletFeeCollected(address indexed platformWallet, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: ExperienceNFT Contract (GPS-revealed travel experiences)
+      - name: ExperienceNFT
+        address:
+          - "0x5B61286AC88688fe8930711fAa5b1155e98daFe8"
+        handler: src/EventHandlers.ts
+        events:
+          # Experience creation
+          - event: "ExperienceCreated(uint256 indexed experienceId, address indexed creator, string title, string city, string country, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Experience purchase
+          - event: "ExperiencePurchased(uint256 indexed experienceId, address indexed buyer, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Experience completion with photo proof
+          - event: "ExperienceCompleted(uint256 indexed experienceId, address indexed user, string photoProofHash, uint256 rewardAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Transportation request hook
+          - event: "TransportationRequested(uint256 indexed experienceId, address indexed user, int256 fromLat, int256 fromLon, int256 toLat, int256 toLon)"
             field_selection:
               transaction_fields:
                 - hash
