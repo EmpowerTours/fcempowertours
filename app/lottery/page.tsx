@@ -382,7 +382,15 @@ export default function LotteryPage() {
           <h1 className="text-3xl font-bold text-white mb-2">Daily Lottery</h1>
           <p className="text-white/70">Win MON every day on Monad!</p>
           <p className="text-purple-300 text-xs mt-1">
-            Contract: {LOTTERY_ADDRESS.slice(0, 8)}...{LOTTERY_ADDRESS.slice(-6)}
+            Contract:{' '}
+            <a
+              href={`https://testnet.monadscan.com/address/${LOTTERY_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-purple-100 underline transition-colors"
+            >
+              {LOTTERY_ADDRESS.slice(0, 8)}...{LOTTERY_ADDRESS.slice(-6)}
+            </a>
           </p>
         </div>
 

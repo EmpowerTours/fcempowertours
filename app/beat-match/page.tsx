@@ -426,7 +426,7 @@ function BeatMatchContent() {
               <div className="text-4xl mb-3">🎵</div>
               <h3 className="text-white font-semibold mb-2">1. Listen</h3>
               <p className="text-blue-200 text-sm">
-                Listen to the mystery track on Spotify
+                Listen to music from NFTs minted on-chain
               </p>
             </div>
             <div className="text-center">
@@ -440,7 +440,7 @@ function BeatMatchContent() {
               <div className="text-4xl mb-3">💰</div>
               <h3 className="text-white font-semibold mb-2">3. Earn</h3>
               <p className="text-blue-200 text-sm">
-                Get rewards if you're correct!
+                Get TOURS rewards if you're correct!
               </p>
             </div>
           </div>
