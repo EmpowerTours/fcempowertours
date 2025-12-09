@@ -10,7 +10,8 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
     uint256 private _masterTokenCounter;
     uint256 private _licenseTokenCounter = 1000000;
 
-    IERC20 public wmonToken;
+    IERC20 public wmonToken;  // For payments (license purchases)
+    IERC20 public toursToken; // For rewards (staking, burning)
 
     // ============================================
     // NFT Type Support
@@ -48,13 +49,13 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
     mapping(uint256 => uint256) public stakedTokenIndex; // tokenId => index in userStakedTokens
 
     uint256 public totalStaked;
-    uint256 public stakingRewardRate = 1 ether; // 1 WMON per day per staked NFT
+    uint256 public stakingRewardRate = 1 ether; // 1 TOURS per day per staked NFT
     uint256 public constant SECONDS_PER_DAY = 86400;
 
     // ============================================
     // ✅ NEW: Burning State
     // ============================================
-    uint256 public burnRewardAmount = 5 ether; // 5 WMON reward for burning
+    uint256 public burnRewardAmount = 5 ether; // 5 TOURS reward for burning
     uint256 public totalBurned;
 
     // ✅ NEW v7: Delegated Burning Support
@@ -88,11 +89,13 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
     event BurnRewardUpdated(uint256 newReward, uint256 timestamp);
     event RewardRateUpdated(uint256 newRate, uint256 timestamp);
 
-    constructor(address _treasury, address _wmonToken) ERC721("EmpowerTours NFT", "ETNFT") Ownable(msg.sender) {
+    constructor(address _treasury, address _wmonToken, address _toursToken) ERC721("EmpowerTours NFT", "ETNFT") Ownable(msg.sender) {
         require(_treasury != address(0), "Invalid treasury");
         require(_wmonToken != address(0), "Invalid WMON token");
+        require(_toursToken != address(0), "Invalid TOURS token");
         treasury = _treasury;
         wmonToken = IERC20(_wmonToken);
+        toursToken = IERC20(_toursToken);
     }
 
     // ============================================
@@ -255,7 +258,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
     // ============================================
 
     /**
-     * @notice Stake an NFT to earn WMON rewards
+     * @notice Stake an NFT to earn TOURS rewards
      * @param tokenId The token to stake (can be master or license)
      */
     function stakeNFT(uint256 tokenId) external nonReentrant {
@@ -289,7 +292,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
         // Calculate and pay rewards
         uint256 rewards = calculatePendingRewards(tokenId);
         if (rewards > 0) {
-            require(wmonToken.transfer(msg.sender, rewards), "Reward transfer failed");
+            require(toursToken.transfer(msg.sender, rewards), "Reward transfer failed");
         }
 
         // Remove from user's staked tokens array
@@ -325,7 +328,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
         require(rewards > 0, "No rewards to claim");
 
         info.lastClaimAt = block.timestamp;
-        require(wmonToken.transfer(msg.sender, rewards), "Reward transfer failed");
+        require(toursToken.transfer(msg.sender, rewards), "Reward transfer failed");
 
         emit RewardsClaimed(tokenId, msg.sender, rewards, block.timestamp);
     }
@@ -357,7 +360,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
     // ============================================
 
     /**
-     * @notice Burn an NFT to receive WMON reward
+     * @notice Burn an NFT to receive TOURS reward
      * @param tokenId The token to burn (master or license)
      */
     function burnNFT(uint256 tokenId) external nonReentrant {
@@ -379,7 +382,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
 
         // Reward burner
         if (burnRewardAmount > 0) {
-            require(wmonToken.transfer(msg.sender, burnRewardAmount), "Reward transfer failed");
+            require(toursToken.transfer(msg.sender, burnRewardAmount), "Reward transfer failed");
         }
 
         emit NFTBurned(tokenId, msg.sender, burnRewardAmount, block.timestamp);
@@ -417,7 +420,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
 
         // Reward the owner (not the caller)
         if (burnRewardAmount > 0) {
-            require(wmonToken.transfer(owner, burnRewardAmount), "Reward transfer failed");
+            require(toursToken.transfer(owner, burnRewardAmount), "Reward transfer failed");
         }
 
         emit NFTBurned(tokenId, owner, burnRewardAmount, block.timestamp);
@@ -461,7 +464,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
 
         // Reward the owner (not the caller)
         if (burnRewardAmount > 0) {
-            require(wmonToken.transfer(owner, burnRewardAmount), "Reward transfer failed");
+            require(toursToken.transfer(owner, burnRewardAmount), "Reward transfer failed");
         }
 
         emit NFTBurned(tokenId, owner, burnRewardAmount, block.timestamp);
