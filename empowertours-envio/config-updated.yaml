@@ -180,4 +180,57 @@ networks:
               transaction_fields:
                 - hash
 
+      # ✅ NEW: DailyPassLotteryV3 Contract (deployed Dec 9, 2025)
+      - name: DailyPassLotteryV3
+        address:
+          - "0x006A8520d330af18D69e8E1294E5699Fc9f7Aa2e"
+        handler: src/EventHandlers.ts
+        events:
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Entry tracking (supports delegation)
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, address indexed payer, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Commit-reveal randomness
+          - event: "RandomnessCommitted(uint256 indexed roundId, uint256 commitBlock, bytes32 commitHash, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner selection
+          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Prize claims
+          - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 monAmount, uint256 shMonAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Escrow expiration
+          - event: "EscrowExpired(uint256 indexed roundId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Fee tracking
+          - event: "PlatformSafeFeeCollected(address indexed platformSafe, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PlatformWalletFeeCollected(address indexed platformWallet, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false

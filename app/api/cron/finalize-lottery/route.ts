@@ -125,6 +125,47 @@ export async function GET(req: NextRequest) {
 
     const actions: string[] = [];
 
+    // Check if current round is finalized and needs rotation (V3 backup)
+    const currentRound = await publicClient.readContract({
+      address: LOTTERY_ADDRESS,
+      abi: LOTTERY_ABI,
+      functionName: 'getRound',
+      args: [currentRoundId],
+    });
+
+    // If current round is finalized and has passed endTime, force new round
+    if (currentRound.status === 3 && currentRound.participantCount > 0n) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now >= Number(currentRound.endTime)) {
+        console.log('[KEEPER] Current round finalized and expired, starting new round...');
+
+        try {
+          const forceNewRoundAbi = [
+            {
+              inputs: [],
+              name: 'forceNewRound',
+              outputs: [],
+              stateMutability: 'nonpayable',
+              type: 'function',
+            }
+          ] as const;
+
+          const hash = await walletClient.writeContract({
+            address: LOTTERY_ADDRESS,
+            abi: forceNewRoundAbi,
+            functionName: 'forceNewRound',
+          });
+
+          console.log(`[KEEPER] Force new round tx: ${hash}`);
+          actions.push(`Started new round: ${hash}`);
+
+          await publicClient.waitForTransactionReceipt({ hash });
+        } catch (error) {
+          console.log('[KEEPER] Could not force new round (may not be owner):', error);
+        }
+      }
+    }
+
     // Check last 3 rounds for pending finalization
     for (let i = Number(currentRoundId); i > Math.max(0, Number(currentRoundId) - 3); i--) {
       const roundId = BigInt(i);

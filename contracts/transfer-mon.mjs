@@ -27,21 +27,22 @@ async function main() {
   const gasReserve = ethers.parseEther("0.1");
   const amountToSend = balance - gasReserve;
 
-  if (amountToSend <= 0n) {
-    console.error("❌ Insufficient balance to cover gas fees!");
-    console.log("Need at least 0.1 MON for gas, but have:", ethers.formatEther(balance), "MON");
+  if (balance < amountToSend) {
+    console.error("❌ Insufficient balance!");
+    console.log("Need:", AMOUNT_TO_SEND, "MON + gas");
+    console.log("Have:", ethers.formatEther(balance), "MON");
     return;
   }
 
   console.log("\n📤 Transfer Details:");
   console.log("Amount to send:", ethers.formatEther(amountToSend), "MON");
-  console.log("Gas reserve:", ethers.formatEther(gasReserve), "MON");
+  console.log("Purpose: Fund lottery contract for winner payouts");
 
   // Send transaction
   console.log("\n🚀 Sending transaction...");
   try {
-    const tx = await treasuryWallet.sendTransaction({
-      to: RECIPIENT_ADDRESS,
+    const tx = await wallet.sendTransaction({
+      to: LOTTERY_CONTRACT,
       value: amountToSend,
       gasLimit: 21000n,
     });
@@ -56,12 +57,12 @@ async function main() {
     console.log("Gas used:", receipt?.gasUsed.toString());
 
     // Check final balances
-    const finalTreasuryBalance = await provider.getBalance(treasuryWallet.address);
-    const recipientBalance = await provider.getBalance(RECIPIENT_ADDRESS);
+    const finalWalletBalance = await provider.getBalance(wallet.address);
+    const lotteryBalance = await provider.getBalance(LOTTERY_CONTRACT);
 
     console.log("\n📊 Final Balances:");
-    console.log("Treasury:", ethers.formatEther(finalTreasuryBalance), "MON");
-    console.log("Recipient:", ethers.formatEther(recipientBalance), "MON");
+    console.log("Wallet:", ethers.formatEther(finalWalletBalance), "MON");
+    console.log("Lottery Contract:", ethers.formatEther(lotteryBalance), "MON");
 
   } catch (error) {
     console.error("\n❌ Transaction failed:", error.message);
