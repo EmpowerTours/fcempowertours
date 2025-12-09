@@ -63,7 +63,7 @@ contract MusicBeatMatchV2 is Ownable, ReentrancyGuard {
     mapping(address => mapping(uint256 => bool)) public hasPlayed;
 
     uint256 private _challengeIdCounter;
-    IERC20 public toursToken;
+    IERC20 public wmonToken;
     address public keeper;
 
     // Rewards configuration
@@ -124,12 +124,12 @@ contract MusicBeatMatchV2 is Ownable, ReentrancyGuard {
     // ========================================================================
 
     constructor(
-        address _toursToken,
+        address _wmonToken,
         address _keeper
     ) Ownable(msg.sender) {
-        require(_toursToken != address(0), "Invalid TOURS token");
+        require(_wmonToken != address(0), "Invalid WMON token");
         require(_keeper != address(0), "Invalid keeper");
-        toursToken = IERC20(_toursToken);
+        wmonToken = IERC20(_wmonToken);
         keeper = _keeper;
     }
 
@@ -232,7 +232,7 @@ contract MusicBeatMatchV2 is Ownable, ReentrancyGuard {
 
         // Distribute reward if correct (to beneficiary!)
         if (correct && reward > 0) {
-            require(toursToken.transfer(beneficiary, reward), "Reward transfer failed");
+            require(wmonToken.transfer(beneficiary, reward), "Reward transfer failed");
         }
 
         emit GuessSubmitted(challengeId, beneficiary, challenge.artistId, challenge.artistUsername, correct, reward);
@@ -425,15 +425,15 @@ contract MusicBeatMatchV2 is Ownable, ReentrancyGuard {
     }
 
     function fundRewards(uint256 amount) external {
-        require(toursToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        require(wmonToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
     }
 
-    function withdrawTours(uint256 amount) external onlyOwner {
-        require(toursToken.transfer(owner(), amount), "Transfer failed");
+    function withdrawWMON(uint256 amount) external onlyOwner {
+        require(wmonToken.transfer(owner(), amount), "Transfer failed");
     }
 
     function getContractBalance() external view returns (uint256) {
-        return toursToken.balanceOf(address(this));
+        return wmonToken.balanceOf(address(this));
     }
 
     receive() external payable {}

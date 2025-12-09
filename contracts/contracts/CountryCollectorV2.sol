@@ -64,7 +64,7 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
     mapping(address => CountryBadge[]) public userBadges;
 
     uint256 private _weekIdCounter;
-    IERC20 public toursToken;
+    IERC20 public wmonToken;
     address public keeper;
 
     // Rewards
@@ -124,12 +124,12 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
     // ========================================================================
 
     constructor(
-        address _toursToken,
+        address _wmonToken,
         address _keeper
     ) Ownable(msg.sender) {
-        require(_toursToken != address(0), "Invalid TOURS token");
+        require(_wmonToken != address(0), "Invalid WMON token");
         require(_keeper != address(0), "Invalid keeper");
-        toursToken = IERC20(_toursToken);
+        wmonToken = IERC20(_wmonToken);
         keeper = _keeper;
     }
 
@@ -199,7 +199,7 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
         progress.lastCompletedAt = block.timestamp;
 
         // Award discovery bonus (to beneficiary!)
-        require(toursToken.transfer(beneficiary, ARTIST_COMPLETION_REWARD), "Reward transfer failed");
+        require(wmonToken.transfer(beneficiary, ARTIST_COMPLETION_REWARD), "Reward transfer failed");
 
         // Update stats (for beneficiary!)
         CollectorStats storage stats = collectorStats[beneficiary];
@@ -239,7 +239,7 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
         progress.badgeEarned = true;
 
         // Award badge reward
-        require(toursToken.transfer(user, BADGE_REWARD), "Badge reward transfer failed");
+        require(wmonToken.transfer(user, BADGE_REWARD), "Badge reward transfer failed");
 
         // Update stats
         CollectorStats storage stats = collectorStats[user];
@@ -273,7 +273,7 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
 
         // Check for Global Citizen achievement
         if (stats.countriesCollected == GLOBAL_CITIZEN_THRESHOLD) {
-            require(toursToken.transfer(user, GLOBAL_CITIZEN_BONUS), "Global citizen bonus failed");
+            require(wmonToken.transfer(user, GLOBAL_CITIZEN_BONUS), "Global citizen bonus failed");
             stats.totalRewards += GLOBAL_CITIZEN_BONUS;
             emit GlobalCitizenAchieved(user, stats.countriesCollected, GLOBAL_CITIZEN_BONUS);
         }
@@ -339,15 +339,15 @@ contract CountryCollectorV2 is Ownable, ReentrancyGuard {
     }
 
     function fundRewards(uint256 amount) external {
-        require(toursToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        require(wmonToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
     }
 
-    function withdrawTours(uint256 amount) external onlyOwner {
-        require(toursToken.transfer(owner(), amount), "Transfer failed");
+    function withdrawWMON(uint256 amount) external onlyOwner {
+        require(wmonToken.transfer(owner(), amount), "Transfer failed");
     }
 
     function getContractBalance() external view returns (uint256) {
-        return toursToken.balanceOf(address(this));
+        return wmonToken.balanceOf(address(this));
     }
 
     receive() external payable {}
