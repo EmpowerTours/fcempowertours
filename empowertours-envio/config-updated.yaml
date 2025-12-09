@@ -233,4 +233,34 @@ networks:
               transaction_fields:
                 - hash
 
+      # ✅ NEW: ExperienceNFT Contract (GPS-revealed travel experiences)
+      - name: ExperienceNFT
+        address:
+          - "0x5B61286AC88688fe8930711fAa5b1155e98daFe8"
+        handler: src/EventHandlers.ts
+        events:
+          # Experience creation
+          - event: "ExperienceCreated(uint256 indexed experienceId, address indexed creator, string title, string city, string country, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Experience purchase
+          - event: "ExperiencePurchased(uint256 indexed experienceId, address indexed buyer, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Experience completion with photo proof
+          - event: "ExperienceCompleted(uint256 indexed experienceId, address indexed user, string photoProofHash, uint256 rewardAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Transportation request hook
+          - event: "TransportationRequested(uint256 indexed experienceId, address indexed user, int256 fromLat, int256 fromLon, int256 toLat, int256 toLon)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false
