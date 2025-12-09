@@ -8,7 +8,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 export async function POST(req: NextRequest) {
   try {
     const {
-      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours'
+      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours' | 'experience_created' | 'experience_purchased' | 'lottery_winner'
       fid,            // Farcaster ID
       tokenId,        // NFT token ID
       txHash,         // Transaction hash
@@ -19,6 +19,19 @@ export async function POST(req: NextRequest) {
       artist,         // For music purchase
       amount,         // For staking
       positionId,     // For staking
+      // Experience fields
+      experienceId,   // For experiences
+      title,          // Experience title
+      city,           // Experience city
+      country,        // Experience country
+      creatorAddress, // Experience creator
+      buyerAddress,   // Experience buyer
+      // Lottery fields
+      roundId,        // Lottery round ID
+      winnerAddress,  // Lottery winner address
+      monPrize,       // MON prize amount
+      shMonPrize,     // shMON prize amount
+      participantCount, // Number of participants
     } = await req.json();
 
     console.log('🎵 [CAST] Posting cast:', { type, fid, tokenId, countryCode, songTitle });
@@ -137,6 +150,97 @@ TX: https://testnet.monadscan.com/tx/${txHash}
 
       embeds = [{ url: stakingUrl }];
       console.log('📢 Staking cast text:', castText);
+    }
+
+    // ==================== EXPERIENCE CREATED CAST ====================
+    else if (type === 'experience_created') {
+      const experienceUrl = `${APP_URL}/experiences/${experienceId}`;
+      castText = `🗺️ New Experience Created on @empowertours!
+
+"${title || 'Untitled Experience'}"
+📍 ${city}, ${country}
+💰 Price: ${price} WMON
+
+✨ GPS-revealed travel experience
+🎁 Earn rewards for completing
+
+View: https://testnet.monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: experienceUrl }];
+      console.log('📢 Experience created cast text:', castText);
+    }
+
+    // ==================== EXPERIENCE PURCHASED CAST ====================
+    else if (type === 'experience_purchased') {
+      const experienceUrl = `${APP_URL}/experiences/${experienceId}`;
+      castText = `🎉 Experience Purchased on @empowertours!
+
+"${title || 'Untitled Experience'}"
+📍 ${city}, ${country}
+💰 ${price} WMON
+
+🗺️ Location unlocked! Time to explore!
+
+TX: https://testnet.monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: experienceUrl }];
+      console.log('📢 Experience purchased cast text:', castText);
+    }
+
+    // ==================== LOTTERY WINNER CAST ====================
+    else if (type === 'lottery_winner') {
+      const lotteryUrl = `${APP_URL}/lottery`;
+
+      // Calculate total prize
+      const totalMonPrize = parseFloat(monPrize || '0');
+      const totalShMonPrize = parseFloat(shMonPrize || '0');
+      const totalPrize = (totalMonPrize + totalShMonPrize).toFixed(4);
+
+      // Try to get winner's Farcaster username
+      let winnerDisplay = winnerAddress ? `${winnerAddress.slice(0, 6)}...${winnerAddress.slice(-4)}` : 'Unknown';
+      let winnerUsername = '';
+
+      if (winnerAddress && NEYNAR_API_KEY) {
+        try {
+          const userResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${winnerAddress}`,
+            {
+              headers: {
+                'Accept': 'application/json',
+                'x-api-key': NEYNAR_API_KEY,
+              },
+            }
+          );
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData && userData[winnerAddress.toLowerCase()]?.[0]) {
+              winnerUsername = userData[winnerAddress.toLowerCase()][0].username;
+              winnerDisplay = `@${winnerUsername}`;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch winner username:', err);
+        }
+      }
+
+      castText = `🎰 LOTTERY WINNER - Round #${roundId}!
+
+🏆 Congratulations ${winnerDisplay}!
+💰 Prize: ${totalPrize} MON${totalShMonPrize > 0 ? ` (${totalMonPrize.toFixed(4)} MON + ${totalShMonPrize.toFixed(4)} shMON)` : ''}
+👥 ${participantCount || 0} participants
+
+🎫 Enter the next round at fcempowertours.xyz/lottery
+
+TX: https://testnet.monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: lotteryUrl }];
+      console.log('📢 Lottery winner cast text:', castText);
     }
 
     if (!castText) {

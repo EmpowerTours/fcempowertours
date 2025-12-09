@@ -776,6 +776,37 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🗺️ Experience #${experienceId} created: "${title}" in ${city}, ${country} by ${creator}`);
+
+  // ✅ Announce on Farcaster
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+    const priceInWmon = (Number(price) / 1e18).toFixed(2);
+
+    const response = await fetch(`${appUrl}/api/cast-nft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'experience_created',
+        experienceId: experienceId.toString(),
+        title: title,
+        city: city,
+        country: country,
+        price: priceInWmon,
+        txHash: event.transaction.hash,
+        creatorAddress: creator,
+        fid: undefined, // Will be looked up by address if available
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      context.log.info(`📢 Experience creation announced on Farcaster: ${result.castHash}`);
+    } else {
+      context.log.warn(`⚠️ Failed to announce experience creation on Farcaster`);
+    }
+  } catch (error: any) {
+    context.log.warn(`⚠️ Error announcing experience creation: ${error.message}`);
+  }
 });
 
 ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
@@ -840,6 +871,42 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🛒 Experience #${experienceId} purchased by ${buyer} for ${price.toString()}`);
+
+  // ✅ Get experience details for announcement
+  const experience = await context.Experience.get(experienceEntityId);
+
+  if (experience) {
+    // ✅ Announce on Farcaster
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+      const priceInWmon = (Number(price) / 1e18).toFixed(2);
+
+      const response = await fetch(`${appUrl}/api/cast-nft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'experience_purchased',
+          experienceId: experienceId.toString(),
+          title: experience.title,
+          city: experience.city,
+          country: experience.country,
+          price: priceInWmon,
+          txHash: event.transaction.hash,
+          buyerAddress: buyer,
+          fid: undefined, // Will be looked up by address if available
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        context.log.info(`📢 Experience purchase announced on Farcaster: ${result.castHash}`);
+      } else {
+        context.log.warn(`⚠️ Failed to announce experience purchase on Farcaster`);
+      }
+    } catch (error: any) {
+      context.log.warn(`⚠️ Error announcing experience purchase: ${error.message}`);
+    }
+  }
 });
 
 ExperienceNFT.ExperienceCompleted.handler(async ({ event, context }) => {
@@ -1684,6 +1751,53 @@ DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🏆 WINNER for Round #${roundId}: ${winner} (revealed by ${caller}, reward: ${reward.toString()}) - Prize: ${monPrize.toString()} MON + ${shMonPrize.toString()} shMON`);
+
+  // ✅ Announce lottery winner on Farcaster
+  if (lotteryRound) {
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+      const monPrizeInMon = (Number(monPrize) / 1e18).toFixed(4);
+      const shMonPrizeInShMon = (Number(shMonPrize) / 1e18).toFixed(4);
+
+      const response = await fetch(`${appUrl}/api/cast-nft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'lottery_winner',
+          roundId: roundId.toString(),
+          winnerAddress: winner,
+          monPrize: monPrizeInMon,
+          shMonPrize: shMonPrizeInShMon,
+          participantCount: lotteryRound.participantCount,
+          txHash: event.transaction.hash,
+          fid: undefined, // Will be looked up by address if available
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        context.log.info(`📢 Lottery winner announced on Farcaster: ${result.castHash}`);
+
+        // Mark as announced in the round
+        await context.LotteryRound.set({
+          ...lotteryRound,
+          status: "Finalized",
+          winner: userId,
+          winnerIndex: Number(winnerIndex),
+          monPrize: monPrize,
+          shMonPrize: shMonPrize,
+          randomHash: undefined,
+          finalizedAt: new Date(event.block.timestamp * 1000),
+          announcedOnFarcaster: true,
+          announcementCastHash: result.castHash,
+        });
+      } else {
+        context.log.warn(`⚠️ Failed to announce lottery winner on Farcaster`);
+      }
+    } catch (error: any) {
+      context.log.warn(`⚠️ Error announcing lottery winner: ${error.message}`);
+    }
+  }
 });
 
 DailyPassLottery.PrizeClaimed.handler(async ({ event, context }) => {
