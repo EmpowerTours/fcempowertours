@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
+contract EmpowerToursNFTv8 is ERC721URIStorage, Ownable, ReentrancyGuard {
     uint256 private _masterTokenCounter;
     uint256 private _licenseTokenCounter = 1000000;
 
@@ -58,7 +58,7 @@ contract EmpowerToursNFTv7 is ERC721URIStorage, Ownable, ReentrancyGuard {
     uint256 public burnRewardAmount = 5 ether; // 5 TOURS reward for burning
     uint256 public totalBurned;
 
-    // ✅ NEW v7: Delegated Burning Support
+    // ✅ v8: Delegated Burning Support
     mapping(address => bool) public authorizedBurners;
 
     mapping(uint256 => MasterToken) public masterTokens;
