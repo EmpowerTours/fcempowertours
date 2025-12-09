@@ -8,30 +8,20 @@ import Link from 'next/link';
 const EXPERIENCE_NFT_ADDRESS = process.env.NEXT_PUBLIC_EXPERIENCE_NFT as Address;
 
 interface Experience {
-  experienceId: number;
+  experienceId: string;
+  creator: string;
   title: string;
-  previewDescription: string;
-  country: string;
   city: string;
-  experienceType: number;
+  country: string;
   price: bigint;
-  completionReward: bigint;
-  previewImageHash: string;
-  totalPurchased: number;
-  totalCompleted: number;
   active: boolean;
+  createdAt: string;
 }
-
-const EXPERIENCE_TYPES = [
-  'Food', 'Attraction', 'Cultural', 'Nature',
-  'Entertainment', 'Accommodation', 'Shopping', 'Adventure', 'Other'
-];
 
 export default function ExperiencesPage() {
   const { address } = useAccount();
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>('All');
-  const [selectedType, setSelectedType] = useState<string>('All');
 
   // Fetch experiences from Envio indexer
   useEffect(() => {
@@ -42,23 +32,19 @@ export default function ExperiencesPage() {
     try {
       const query = `
         query GetExperiences {
-          ExperienceNFT(
+          Experience(
             where: { active: { _eq: true } },
             order_by: { createdAt: desc },
             limit: 50
           ) {
             experienceId
+            creator
             title
-            previewDescription
-            country
             city
-            experienceType
+            country
             price
-            completionReward
-            previewImageHash
-            totalPurchased
-            totalCompleted
             active
+            createdAt
           }
         }
       `;
@@ -70,7 +56,7 @@ export default function ExperiencesPage() {
       });
 
       const data = await response.json();
-      setExperiences(data.data?.ExperienceNFT || []);
+      setExperiences(data.data?.Experience || []);
     } catch (error) {
       console.error('Failed to fetch experiences:', error);
     }
@@ -78,12 +64,10 @@ export default function ExperiencesPage() {
 
   const filteredExperiences = experiences.filter(exp => {
     const countryMatch = selectedCountry === 'All' || exp.country === selectedCountry;
-    const typeMatch = selectedType === 'All' || EXPERIENCE_TYPES[exp.experienceType] === selectedType;
-    return countryMatch && typeMatch;
+    return countryMatch;
   });
 
   const countries = ['All', ...new Set(experiences.map(e => e.country))];
-  const types = ['All', ...EXPERIENCE_TYPES];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6">
@@ -105,16 +89,6 @@ export default function ExperiencesPage() {
           >
             {countries.map(country => (
               <option key={country} value={country}>{country}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-          >
-            {types.map(type => (
-              <option key={type} value={type}>{type}</option>
             ))}
           </select>
 
@@ -145,26 +119,14 @@ export default function ExperiencesPage() {
 
 function ExperienceCard({ experience }: { experience: Experience }) {
   const priceInMON = Number(experience.price) / 1e18;
-  const rewardInMON = Number(experience.completionReward) / 1e18;
 
   return (
     <Link href={`/experiences/${experience.experienceId}`}>
       <div className="bg-gray-800 rounded-xl overflow-hidden hover:ring-2 ring-purple-500 transition-all cursor-pointer">
         {/* Image */}
-        <div className="relative h-48 bg-gray-700">
-          {experience.previewImageHash ? (
-            <img
-              src={`https://ipfs.io/ipfs/${experience.previewImageHash}`}
-              alt={experience.title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-500">
-              No preview
-            </div>
-          )}
-          <div className="absolute top-2 right-2 bg-black/70 px-3 py-1 rounded-full text-sm">
-            {EXPERIENCE_TYPES[experience.experienceType]}
+        <div className="relative h-48 bg-gradient-to-br from-purple-900/40 to-blue-900/40">
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-6xl">🗺️</div>
           </div>
         </div>
 
@@ -176,18 +138,14 @@ function ExperienceCard({ experience }: { experience: Experience }) {
             <span>📍 {experience.city}, {experience.country}</span>
           </div>
 
-          <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-            {experience.previewDescription}
+          <p className="text-gray-300 text-sm mb-4">
+            GPS-gated travel experience
           </p>
 
           <div className="flex items-center justify-between border-t border-gray-700 pt-3">
             <div>
               <div className="text-2xl font-bold text-purple-400">{priceInMON} MON</div>
-              <div className="text-xs text-gray-500">+ {rewardInMON} MON reward</div>
-            </div>
-            <div className="text-right text-xs text-gray-500">
-              <div>{experience.totalPurchased} purchased</div>
-              <div>{experience.totalCompleted} completed</div>
+              <div className="text-xs text-gray-500">Purchase to unlock location</div>
             </div>
           </div>
         </div>

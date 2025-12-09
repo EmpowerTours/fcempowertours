@@ -366,6 +366,8 @@ type UserStats @entity {
   passportNFTCount: Int!
   itinerariesCreated: Int!
   itinerariesPurchased: Int!
+  experiencesCreated: Int!     # ✅ NEW: Experiences created (separate from itineraries)
+  experiencesPurchased: Int!   # ✅ NEW: Experiences purchased (separate from itineraries)
   licensesOwned: Int!          # Licenses purchased by user
   eventsAttended: Int!         # ✅ NEW
   tandaGroupsJoined: Int!      # ✅ NEW
@@ -379,6 +381,8 @@ type GlobalStats @entity {
   totalPassports: Int!
   totalItineraries: Int!
   totalItineraryPurchases: Int!
+  totalExperiences: Int!                  # ✅ NEW: Experiences (separate from itineraries)
+  totalExperiencePurchases: Int!          # ✅ NEW: Experience purchases
   totalMusicLicensesPurchased: Int!
   totalStaked: BigInt!                    # ✅ NEW
   totalStakers: Int!                      # ✅ NEW

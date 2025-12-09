@@ -209,6 +209,8 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
       passportNFTCount: 0,
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
+      experiencesCreated: 0,
+      experiencesPurchased: 0,
       totalNFTs: 1,
       licensesOwned: 0,
       eventsAttended: 0,
@@ -233,6 +235,8 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
       totalPassports: 0,
       totalItineraries: 0,
       totalItineraryPurchases: 0,
+      totalExperiences: 0,
+      totalExperiencePurchases: 0,
       totalMusicLicensesPurchased: 0,
       totalStaked: BigInt(0),
       totalStakers: 0,
@@ -315,6 +319,8 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
       passportNFTCount: 0,
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
+      experiencesCreated: 0,
+      experiencesPurchased: 0,
       totalNFTs: 0,
       licensesOwned: 1,
       eventsAttended: 0,
@@ -340,6 +346,8 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
       totalPassports: 0,
       totalItineraries: 0,
       totalItineraryPurchases: 0,
+      totalExperiences: 0,
+      totalExperiencePurchases: 0,
       totalMusicLicensesPurchased: 1,
       totalStaked: BigInt(0),
       totalStakers: 0,
@@ -545,6 +553,8 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       passportNFTCount: 1,
       itinerariesCreated: 0,
       itinerariesPurchased: 0,
+      experiencesCreated: 0,
+      experiencesPurchased: 0,
       totalNFTs: 1,
       licensesOwned: 0,
       eventsAttended: 0,
@@ -569,6 +579,8 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       totalPassports: 1,
       totalItineraries: 0,
       totalItineraryPurchases: 0,
+      totalExperiences: 0,
+      totalExperiencePurchases: 0,
       totalMusicLicensesPurchased: 0,
       totalStaked: BigInt(0),
       totalStakers: 0,
@@ -730,7 +742,7 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
   if (userStats) {
     await context.UserStats.set({
       ...userStats,
-      itinerariesCreated: userStats.itinerariesCreated + 1,
+      experiencesCreated: userStats.experiencesCreated + 1,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   } else {
@@ -740,8 +752,10 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
       musicNFTCount: 0,
       artNFTCount: 0,
       passportNFTCount: 0,
-      itinerariesCreated: 1,
+      itinerariesCreated: 0,
       itinerariesPurchased: 0,
+      experiencesCreated: 1,
+      experiencesPurchased: 0,
       totalNFTs: 0,
       licensesOwned: 0,
       eventsAttended: 0,
@@ -755,7 +769,7 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
   if (globalStats) {
     await context.GlobalStats.set({
       ...globalStats,
-      totalItineraries: globalStats.totalItineraries + 1,
+      totalExperiences: globalStats.totalExperiences + 1,
       totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
@@ -792,7 +806,7 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
   if (userStats) {
     await context.UserStats.set({
       ...userStats,
-      itinerariesPurchased: userStats.itinerariesPurchased + 1,
+      experiencesPurchased: userStats.experiencesPurchased + 1,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   } else {
@@ -803,7 +817,9 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
       artNFTCount: 0,
       passportNFTCount: 0,
       itinerariesCreated: 0,
-      itinerariesPurchased: 1,
+      itinerariesPurchased: 0,
+      experiencesCreated: 0,
+      experiencesPurchased: 1,
       totalNFTs: 0,
       licensesOwned: 0,
       eventsAttended: 0,
@@ -817,7 +833,7 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
   if (globalStats) {
     await context.GlobalStats.set({
       ...globalStats,
-      totalItineraryPurchases: globalStats.totalItineraryPurchases + 1,
+      totalExperiencePurchases: globalStats.totalExperiencePurchases + 1,
       totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
       lastUpdated: new Date(event.block.timestamp * 1000),
     });
