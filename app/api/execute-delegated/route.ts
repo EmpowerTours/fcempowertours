@@ -3475,35 +3475,7 @@ ${enjoyText}
           mode: 'Platform Safe (FREE for user)',
         });
 
-        // Check Safe has enough MON
-        try {
-          const { createPublicClient, http } = await import('viem');
-          const { monadTestnet } = await import('@/app/chains');
-          const client = createPublicClient({
-            chain: monadTestnet,
-            transport: http(),
-          });
-
-          const safeMonBalanceLottery = await client.getBalance({
-            address: lotterySafe as Address,
-          });
-
-          console.log('💰 Safe MON balance:', safeMonBalanceLottery.toString());
-
-          if (safeMonBalanceLottery < lotteryEntryFee) {
-            const currentMON = (Number(safeMonBalanceLottery) / 1e18).toFixed(4);
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but lottery entry requires 1 MON.`
-              },
-              { status: 400 }
-            );
-          }
-        } catch (balanceErr: any) {
-          console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
-        }
-
+        // Note: Balance check removed - let blockchain handle balance validation during execution
         // Lottery enterWithMonFor function: enterWithMonFor(address beneficiary) payable
         // Platform Safe enters on behalf of the user (delegation)
         const lotteryEnterMonCalls = [
