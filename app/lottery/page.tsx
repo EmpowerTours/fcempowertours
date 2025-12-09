@@ -596,21 +596,21 @@ export default function LotteryPage() {
         <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
           <h2 className="text-lg font-bold text-white mb-4">How It Works</h2>
           <div className="space-y-4 text-sm text-white/70">
-            <div className="flex items-start">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">1</span>{' '}
-              <p className="flex-1 pl-3">Enter with 1 MON or equivalent shMON (one entry per day)</p>
+            <div className="flex items-start" style={{ gap: '12px' }}>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">1</span>
+              <p className="flex-1">Enter with 1 MON or equivalent shMON (one entry per day)</p>
             </div>
-            <div className="flex items-start">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">2</span>{' '}
-              <p className="flex-1 pl-3">90% to prize pool, 10% to platform</p>
+            <div className="flex items-start" style={{ gap: '12px' }}>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">2</span>
+              <p className="flex-1">90% to prize pool, 10% to platform</p>
             </div>
-            <div className="flex items-start">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>{' '}
-              <p className="flex-1 pl-3">At round end, anyone can trigger commit/reveal for 0.01 MON reward</p>
+            <div className="flex items-start" style={{ gap: '12px' }}>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>
+              <p className="flex-1">At round end, anyone can trigger commit/reveal for 0.01 MON reward</p>
             </div>
-            <div className="flex items-start">
-              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">4</span>{' '}
-              <p className="flex-1 pl-3">Winner claims prize from escrow (48hr window)</p>
+            <div className="flex items-start" style={{ gap: '12px' }}>
+              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">4</span>
+              <p className="flex-1">Winner claims prize from escrow (48hr window)</p>
             </div>
           </div>
         </div>
