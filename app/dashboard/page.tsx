@@ -9,7 +9,7 @@ interface Stats {
   totalMusicNFTs: number;
   totalArtNFTs: number;
   totalPassports: number;
-  totalItineraries: number;
+  totalExperiences: number;
   totalUsers: number;
   totalMusicLicensesPurchased: number;
   lastUpdated: string;
@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const [recentMusic, setRecentMusic] = useState<any[]>([]);
   const [recentArt, setRecentArt] = useState<any[]>([]);
   const [recentMusicPurchases, setRecentMusicPurchases] = useState<any[]>([]);
-  const [recentItineraries, setRecentItineraries] = useState<any[]>([]);
+  const [recentExperiences, setRecentExperiences] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pulse, setPulse] = useState(false);
@@ -42,7 +42,7 @@ export default function DashboardPage() {
           GlobalStats(limit: 1) {
             totalMusicNFTs
             totalPassports
-            totalItineraries
+            totalExperiences
             totalUsers
             totalMusicLicensesPurchased
             lastUpdated
@@ -104,14 +104,17 @@ export default function DashboardPage() {
               price
             }
           }
-          Itinerary(limit: 10, order_by: {createdAt: desc}) {
+          Experience(limit: 10, order_by: {createdAt: desc}) {
             id
-            itineraryId
+            experienceId
             creator
-            description
+            title
+            city
+            country
             price
             active
             createdAt
+            txHash
           }
         }
       `;
@@ -139,7 +142,7 @@ export default function DashboardPage() {
       const art = result.data?.ArtNFT || [];
       const passports = result.data?.PassportNFT || [];
       const purchases = result.data?.MusicLicense || [];
-      const itineraries = result.data?.Itinerary || [];
+      const experiences = result.data?.Experience || [];
 
       // Count from fetched data (non-burned only)
       const totalNFTCount = allNFTs.length;
@@ -162,13 +165,13 @@ export default function DashboardPage() {
       setRecentArt(art);
       setRecentPassports(passports);
       setRecentMusicPurchases(purchases);
-      setRecentItineraries(itineraries);
+      setRecentExperiences(experiences);
 
       console.log('✅ Dashboard data loaded:', {
         music: music.length,
         passports: passports.length,
         purchases: purchases.length,
-        itineraries: itineraries.length,
+        experiences: experiences.length,
         totalUsers: globalStats?.totalUsers,
         totalPurchased: globalStats?.totalMusicLicensesPurchased
       });
@@ -266,8 +269,8 @@ export default function DashboardPage() {
             />
             <StatCard
               icon="🗺️"
-              label="Itineraries"
-              value={stats.totalItineraries}
+              label="Experiences"
+              value={stats.totalExperiences}
               gradient="from-green-500 to-emerald-600"
               pulse={pulse}
             />
@@ -550,24 +553,24 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Recent Itineraries */}
+            {/* Recent Experiences */}
             <div>
               <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                🗺️ Recent Itineraries
-                <span className="text-sm font-normal text-gray-500">({recentItineraries.length})</span>
+                🗺️ Recent Experiences
+                <span className="text-sm font-normal text-gray-500">({recentExperiences.length})</span>
               </h4>
-              {loading && recentItineraries.length === 0 ? (
+              {loading && recentExperiences.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="animate-spin text-3xl mb-2">⏳</div>
                   <p className="text-gray-600">Loading...</p>
                 </div>
-              ) : recentItineraries.length === 0 ? (
+              ) : recentExperiences.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
-                  <p className="text-gray-600">No itineraries yet</p>
+                  <p className="text-gray-600">No experiences yet</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {recentItineraries.map((item, idx) => (
+                  {recentExperiences.map((item, idx) => (
                     <div
                       key={item.id || idx}
                       className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg hover:border-green-400 transition-all animate-slide-in"
@@ -577,11 +580,16 @@ export default function DashboardPage() {
                         <div className="text-3xl">🗺️</div>
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-green-900">
-                            Itinerary #{item.itineraryId}
+                            {item.title || `Experience #${item.experienceId}`}
                           </p>
-                          <p className="text-xs text-green-700 mt-1 truncate">
-                            {item.description || 'Adventure'}
+                          <p className="text-xs text-green-700 mt-1">
+                            📍 {item.city}, {item.country}
                           </p>
+                          {item.price && (
+                            <p className="text-xs text-orange-600 font-semibold">
+                              💰 {(Number(item.price) / 1e18).toFixed(2)} WMON
+                            </p>
+                          )}
                           <p className="text-xs text-gray-500 mt-1">
                             Creator: {String(item.creator).slice(0, 6)}...{String(item.creator).slice(-4)}
                           </p>
