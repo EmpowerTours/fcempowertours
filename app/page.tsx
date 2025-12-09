@@ -35,5 +35,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Page() {
+  // DailyAccessGate is already applied at layout level via PassportGate
   return <MusicDiscoveryPage />;
 }
