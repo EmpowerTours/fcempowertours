@@ -1,21 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, encodeFunctionData, parseAbi, Address, Hex } from 'viem';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createPublicClient, http, Address, parseAbi } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const neynar = new NeynarAPIClient({
+  apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!
+});
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 const MUSIC_BEAT_MATCH_V2 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
 const COUNTRY_COLLECTOR_V2 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V2 as Address;
-
-// Cron secret for security
 const CRON_SECRET = process.env.CRON_SECRET || 'dev-secret-change-in-production';
 
 /**
  * Autonomous Game Management Cron
- * Runs every hour to:
- * 1. Check if Beat Match challenge needs finalization/creation
- * 2. Check if Country Collector challenge needs finalization/creation
+ *
+ * Runs hourly to:
+ * 1. Finalize expired Beat Match challenges
+ * 2. Create new Beat Match challenges (using Gemini AI)
+ * 3. Finalize expired Country Collector challenges
+ * 4. Create new Country Collector challenges (using Gemini AI)
+ *
+ * Called by:
+ * - Railway cron (hourly via railway.json)
+ * - node-cron scheduler (backup via instrumentation.ts)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -25,106 +36,103 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('🤖 [CRON] Starting autonomous game management...');
+    console.log('[Game Manager] Running autonomous game management...');
 
     const client = createPublicClient({
       chain: monadTestnet,
       transport: http(),
     });
 
-    const results = {
-      beatMatch: { checked: false, finalized: false, created: false, error: null as string | null },
-      countryCollector: { checked: false, finalized: false, created: false, error: null as string | null },
-    };
+    const actions: string[] = [];
 
-    // ==================== BEAT MATCH MANAGEMENT ====================
-    try {
-      console.log('🎵 Checking Beat Match challenge...');
+    // ============= BEAT MATCH =============
+    console.log('[Beat Match] Checking current challenge...');
 
-      // Get current challenge
-      const currentChallenge = await client.readContract({
-        address: MUSIC_BEAT_MATCH_V2,
-        abi: parseAbi(['function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bytes32 answerHash))']),
-        functionName: 'getCurrentChallenge',
-      }) as any;
+    const currentChallenge = await client.readContract({
+      address: MUSIC_BEAT_MATCH_V2,
+      abi: parseAbi([
+        'function getCurrentChallenge() view returns (uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, bool active, bool finalized, address winner)'
+      ]),
+      functionName: 'getCurrentChallenge',
+    }) as any;
 
-      results.beatMatch.checked = true;
-      const now = BigInt(Math.floor(Date.now() / 1000));
+    const now = BigInt(Math.floor(Date.now() / 1000));
 
-      console.log('Current Beat Match:', {
-        id: currentChallenge.challengeId.toString(),
-        active: currentChallenge.active,
-        endTime: new Date(Number(currentChallenge.endTime) * 1000).toISOString(),
-        now: new Date(Number(now) * 1000).toISOString(),
-      });
+    // Finalize if expired
+    if (currentChallenge.active && !currentChallenge.finalized && currentChallenge.endTime < now) {
+      console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
 
-      // Check if challenge needs finalization
-      if (currentChallenge.active && currentChallenge.endTime < now) {
-        console.log('⏰ Beat Match challenge expired, finalizing...');
-        await finalizeBeatMatch(currentChallenge.challengeId);
-        results.beatMatch.finalized = true;
-      }
+      const finalizeTx = await sendSafeTransaction([{
+        to: MUSIC_BEAT_MATCH_V2,
+        value: 0n,
+        data: client.encodeFunctionData({
+          abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
+          functionName: 'finalizeChallenge',
+          args: [currentChallenge.challengeId],
+        }) as `0x${string}`,
+      }]);
 
-      // Check if we need a new challenge (no active challenge or just finalized)
-      if (!currentChallenge.active || currentChallenge.endTime < now) {
-        console.log('🆕 Creating new Beat Match challenge...');
-        await createNewBeatMatch();
-        results.beatMatch.created = true;
-      }
-    } catch (err: any) {
-      console.error('❌ Beat Match error:', err.message);
-      results.beatMatch.error = err.message;
+      actions.push(`Finalized Beat Match challenge #${currentChallenge.challengeId}: ${finalizeTx}`);
+      console.log(`[Beat Match] ✅ Finalized`);
     }
 
-    // ==================== COUNTRY COLLECTOR MANAGEMENT ====================
-    try {
-      console.log('🌍 Checking Country Collector challenge...');
+    // Create new challenge if needed
+    if (!currentChallenge.active || currentChallenge.endTime < now) {
+      console.log('[Beat Match] Creating new challenge with Gemini AI...');
 
-      // Get current challenge
-      const currentChallenge = await client.readContract({
-        address: COUNTRY_COLLECTOR_V2,
-        abi: parseAbi(['function getCurrentChallenge() view returns (tuple(uint256 id, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool active, bool finalized))']),
-        functionName: 'getCurrentChallenge',
-      }) as any;
-
-      results.countryCollector.checked = true;
-      const now = BigInt(Math.floor(Date.now() / 1000));
-
-      console.log('Current Country Collector:', {
-        id: currentChallenge.id.toString(),
-        country: currentChallenge.countryName,
-        active: currentChallenge.active,
-        endTime: new Date(Number(currentChallenge.endTime) * 1000).toISOString(),
-      });
-
-      // Check if challenge needs finalization
-      if (currentChallenge.active && currentChallenge.endTime < now) {
-        console.log('⏰ Country Collector challenge expired, finalizing...');
-        await finalizeCountryCollector(currentChallenge.id);
-        results.countryCollector.finalized = true;
-      }
-
-      // Check if we need a new challenge
-      if (!currentChallenge.active || currentChallenge.endTime < now) {
-        console.log('🆕 Creating new Country Collector challenge...');
-        await createNewCountryChallenge();
-        results.countryCollector.created = true;
-      }
-    } catch (err: any) {
-      console.error('❌ Country Collector error:', err.message);
-      results.countryCollector.error = err.message;
+      const beatMatchResult = await createBeatMatchWithGemini(client);
+      actions.push(`Created Beat Match challenge: ${beatMatchResult.reason}`);
+      console.log(`[Beat Match] ✅ Created: ${beatMatchResult.songTitle} by @${beatMatchResult.artistUsername}`);
     }
 
-    console.log('✅ [CRON] Game management complete:', results);
+    // ============= COUNTRY COLLECTOR =============
+    console.log('[Country Collector] Checking current challenge...');
+
+    const currentWeek = await client.readContract({
+      address: COUNTRY_COLLECTOR_V2,
+      abi: parseAbi([
+        'function getCurrentWeek() view returns (uint256 weekId, string country, string countryCode, uint256[3] artistIds, uint256 startTime, uint256 endTime, bool active, bool finalized)'
+      ]),
+      functionName: 'getCurrentWeek',
+    }) as any;
+
+    // Finalize if expired
+    if (currentWeek.active && !currentWeek.finalized && currentWeek.endTime < now) {
+      console.log(`[Country Collector] Finalizing expired week #${currentWeek.weekId}...`);
+
+      const finalizeTx = await sendSafeTransaction([{
+        to: COUNTRY_COLLECTOR_V2,
+        value: 0n,
+        data: client.encodeFunctionData({
+          abi: parseAbi(['function finalizeWeek(uint256 weekId)']),
+          functionName: 'finalizeWeek',
+          args: [currentWeek.weekId],
+        }) as `0x${string}`,
+      }]);
+
+      actions.push(`Finalized Country Collector week #${currentWeek.weekId}: ${finalizeTx}`);
+      console.log(`[Country Collector] ✅ Finalized`);
+    }
+
+    // Create new challenge if needed
+    if (!currentWeek.active || currentWeek.endTime < now) {
+      console.log('[Country Collector] Creating new challenge with Gemini AI...');
+
+      const collectorResult = await createCountryCollectorWithGemini(client);
+      actions.push(`Created Country Collector challenge: ${collectorResult.country} (${collectorResult.reason})`);
+      console.log(`[Country Collector] ✅ Created: ${collectorResult.country}`);
+    }
+
+    console.log('[Game Manager] ✅ Complete');
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      results,
+      actions,
     });
 
   } catch (error: any) {
-    console.error('❌ [CRON] Fatal error:', error);
+    console.error('[Game Manager] Error:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -132,38 +140,41 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ==================== BEAT MATCH FUNCTIONS ====================
-
-async function finalizeBeatMatch(challengeId: bigint) {
-  const data = encodeFunctionData({
-    abi: parseAbi(['function finalizeChallenge(uint256 challengeId) external']),
-    functionName: 'finalizeChallenge',
-    args: [challengeId],
-  }) as Hex;
-
-  const txHash = await sendSafeTransaction([{
-    to: MUSIC_BEAT_MATCH_V2,
-    value: 0n,
-    data,
-  }]);
-
-  console.log('✅ Beat Match finalized:', txHash);
-  return txHash;
+/**
+ * Helper: Fetch Farcaster username for an Ethereum address
+ */
+async function getArtistUsername(artistAddress: string): Promise<string> {
+  try {
+    const users = await neynar.fetchBulkUsersByEthOrSolAddress({ addresses: [artistAddress] });
+    if (users?.users?.length > 0) {
+      return users.users[0].username;
+    }
+  } catch (error) {
+    console.warn('Could not fetch username for', artistAddress);
+  }
+  return `${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}`;
 }
 
-async function createNewBeatMatch() {
-  // 1. Query Envio for random music NFT
+/**
+ * Create Beat Match challenge using Gemini AI for intelligent selection
+ */
+async function createBeatMatchWithGemini(client: any) {
+  // Fetch available music
   const query = `
-    query {
+    query GetMusic {
       MusicNFT(
-        where: {isBurned: {_eq: false}, isArt: {_eq: false}},
+        where: {
+          isBurned: {_eq: false},
+          isArt: {_eq: false}
+        },
         limit: 20,
         order_by: {mintedAt: desc}
       ) {
         tokenId
         name
         artist
-        imageUrl
+        genre
+        mood
       }
     }
   `;
@@ -174,105 +185,79 @@ async function createNewBeatMatch() {
     body: JSON.stringify({ query }),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch music NFTs from Envio');
-  }
-
-  const result = await response.json();
-  const musicNFTs = result.data?.MusicNFT || [];
+  const data = await response.json();
+  const musicNFTs = data.data?.MusicNFT || [];
 
   if (musicNFTs.length === 0) {
-    throw new Error('No music NFTs found in Envio');
+    throw new Error('No music NFTs available');
   }
 
-  // Pick random NFT
-  const randomNFT = musicNFTs[Math.floor(Math.random() * musicNFTs.length)];
-  console.log('🎵 Selected NFT:', randomNFT);
+  // Use Gemini to pick the best song
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+  const prompt = `
+You are selecting music for today's "Music Beat Match" game challenge.
 
-  // 2. Fetch artist's Farcaster username
-  let artistUsername = '';
-  try {
-    const neynarResponse = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${randomNFT.artist}`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          'x-api-key': NEYNAR_API_KEY,
-        },
-      }
-    );
+Available songs:
+${musicNFTs.map((m: any, i: number) => `${i + 1}. "${m.name}" (Token #${m.tokenId}) - Genre: ${m.genre || 'Unknown'}, Mood: ${m.mood || 'Unknown'}`).join('\n')}
 
-    if (neynarResponse.ok) {
-      const userData = await neynarResponse.json();
-      const userArray = userData[randomNFT.artist.toLowerCase()];
-      if (userArray && userArray.length > 0) {
-        artistUsername = userArray[0].username;
-      }
-    }
-  } catch (err) {
-    console.log('⚠️ Could not fetch Farcaster username, using address');
-  }
+Select ONE song that would make an engaging, fun daily challenge. Consider:
+- Variety from previous days
+- Appeal to diverse audience
+- Interesting enough to guess
 
-  if (!artistUsername) {
-    artistUsername = `${randomNFT.artist.slice(0, 6)}...${randomNFT.artist.slice(-4)}`;
-  }
+Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
+{"index": <number 0-${musicNFTs.length - 1}>, "reason": "<brief reason>"}
+`;
 
-  console.log('🎯 Artist username:', artistUsername);
+  const result = await model.generateContent(prompt);
+  let responseText = result.response.text().trim();
 
-  // 3. Create challenge
-  const data = encodeFunctionData({
-    abi: parseAbi(['function createDailyChallenge(uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash) external returns (uint256)']),
-    functionName: 'createDailyChallenge',
-    args: [
-      BigInt(randomNFT.tokenId),
-      randomNFT.name || 'Mystery Track',
-      artistUsername,
-      randomNFT.imageUrl || 'QmPlaceholder', // Use image URL as placeholder
-    ],
-  }) as Hex;
+  // Clean up response
+  responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
+  const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+  if (jsonMatch) responseText = jsonMatch[0];
 
-  const txHash = await sendSafeTransaction([{
+  const selection = JSON.parse(responseText);
+  const selectedMusic = musicNFTs[selection.index];
+
+  // Get artist's Farcaster username
+  const artistUsername = await getArtistUsername(selectedMusic.artist);
+
+  // Create challenge via bot Safe
+  const artistId = BigInt(selectedMusic.tokenId);
+  const songTitle = selectedMusic.name;
+  const ipfsHash = selectedMusic.imageUrl || `placeholder-${Date.now()}`;
+
+  const tx = await sendSafeTransaction([{
     to: MUSIC_BEAT_MATCH_V2,
     value: 0n,
-    data,
+    data: client.encodeFunctionData({
+      abi: parseAbi(['function createDailyChallenge(uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash)']),
+      functionName: 'createDailyChallenge',
+      args: [artistId, songTitle, artistUsername, ipfsHash],
+    }) as `0x${string}`,
   }]);
 
-  console.log('✅ New Beat Match challenge created:', txHash);
-  return txHash;
+  return {
+    songTitle,
+    artistUsername,
+    reason: selection.reason,
+    tx,
+  };
 }
 
-// ==================== COUNTRY COLLECTOR FUNCTIONS ====================
-
-async function finalizeCountryCollector(weekId: bigint) {
-  const data = encodeFunctionData({
-    abi: parseAbi(['function finalizeChallenge(uint256 weekId) external']),
-    functionName: 'finalizeChallenge',
-    args: [weekId],
-  }) as Hex;
-
-  const txHash = await sendSafeTransaction([{
-    to: COUNTRY_COLLECTOR_V2,
-    value: 0n,
-    data,
-  }]);
-
-  console.log('✅ Country Collector finalized:', txHash);
-  return txHash;
-}
-
-async function createNewCountryChallenge() {
-  // 1. Query Envio for countries with music artists
+/**
+ * Create Country Collector challenge using Gemini AI for intelligent selection
+ */
+async function createCountryCollectorWithGemini(client: any) {
+  // Get passport distribution by country
   const query = `
-    query {
-      PassportNFT {
+    query GetCountries {
+      PassportNFT(limit: 1000) {
         countryCode
         countryName
         owner
       }
-      MusicNFT(where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
-        tokenId
-        artist
-      }
     }
   `;
 
@@ -282,73 +267,108 @@ async function createNewCountryChallenge() {
     body: JSON.stringify({ query }),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch data from Envio');
-  }
+  const data = await response.json();
+  const passports = data.data?.PassportNFT || [];
 
-  const result = await response.json();
-  const passports = result.data?.PassportNFT || [];
-  const musicNFTs = result.data?.MusicNFT || [];
-
-  // 2. Group passports by country and find artists
-  const countryArtists: Record<string, { name: string; code: string; artists: string[] }> = {};
-
-  for (const passport of passports) {
-    if (!countryArtists[passport.countryCode]) {
-      countryArtists[passport.countryCode] = {
-        name: passport.countryName,
-        code: passport.countryCode,
-        artists: [],
-      };
+  // Count passports per country
+  const countryMap = new Map<string, { name: string; count: number; owners: Set<string> }>();
+  passports.forEach((p: any) => {
+    if (!p.countryCode || !p.countryName) return;
+    const existing = countryMap.get(p.countryCode);
+    if (existing) {
+      existing.count++;
+      existing.owners.add(p.owner);
+    } else {
+      countryMap.set(p.countryCode, { name: p.countryName, count: 1, owners: new Set([p.owner]) });
     }
-
-    // Check if this passport owner has minted music
-    const hasMusic = musicNFTs.some((nft: any) =>
-      nft.artist.toLowerCase() === passport.owner.toLowerCase()
-    );
-
-    if (hasMusic && !countryArtists[passport.countryCode].artists.includes(passport.owner)) {
-      countryArtists[passport.countryCode].artists.push(passport.owner);
-    }
-  }
-
-  // 3. Find countries with at least 3 artists
-  const eligibleCountries = Object.values(countryArtists).filter(c => c.artists.length >= 3);
-
-  if (eligibleCountries.length === 0) {
-    throw new Error('No countries with 3+ music artists found');
-  }
-
-  // 4. Pick random country
-  const selectedCountry = eligibleCountries[Math.floor(Math.random() * eligibleCountries.length)];
-  console.log('🌍 Selected country:', selectedCountry.name, `(${selectedCountry.artists.length} artists)`);
-
-  // 5. Pick 3 random artist token IDs from this country
-  const shuffledArtists = selectedCountry.artists.sort(() => Math.random() - 0.5).slice(0, 3);
-  const artistTokenIds = shuffledArtists.map(artist => {
-    const nft = musicNFTs.find((n: any) => n.artist.toLowerCase() === artist.toLowerCase());
-    return BigInt(nft?.tokenId || 1);
   });
 
-  console.log('🎵 Selected artist token IDs:', artistTokenIds.map(id => id.toString()));
+  const countries = Array.from(countryMap.entries())
+    .map(([code, info]) => ({ code, name: info.name, count: info.count, owners: Array.from(info.owners) }))
+    .filter(c => c.count >= 3);
 
-  // 6. Create challenge
-  const data = encodeFunctionData({
-    abi: parseAbi(['function createWeeklyChallenge(string country, string countryCode, uint256[3] artistIds) external returns (uint256)']),
-    functionName: 'createWeeklyChallenge',
-    args: [
-      selectedCountry.name,
-      selectedCountry.code,
-      [artistTokenIds[0], artistTokenIds[1], artistTokenIds[2]],
-    ],
-  }) as Hex;
+  if (countries.length === 0) {
+    throw new Error('No countries with enough artists');
+  }
 
-  const txHash = await sendSafeTransaction([{
+  // Use Gemini to pick the best country
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+  const prompt = `
+You are selecting a country for this week's "Country Collector" game challenge.
+
+Available countries (with number of artists):
+${countries.map((c, i) => `${i + 1}. ${c.name} (${c.code}) - ${c.count} artists`).join('\n')}
+
+Select ONE country that would make an engaging weekly challenge. Consider:
+- Cultural diversity
+- Geographic variety
+- Player interest
+
+Respond ONLY with valid JSON in this exact format (no markdown):
+{"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
+`;
+
+  const result = await model.generateContent(prompt);
+  let responseText = result.response.text().trim();
+
+  // Clean up response
+  responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
+  const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+  if (jsonMatch) responseText = jsonMatch[0];
+
+  const selection = JSON.parse(responseText);
+  const selectedCountry = countries[selection.index];
+
+  // Get music from artists in this country
+  const musicQuery = `
+    query GetMusic($artists: [String!]!) {
+      MusicNFT(
+        where: {
+          artist: {_in: $artists},
+          isBurned: {_eq: false},
+          isArt: {_eq: false}
+        },
+        limit: 5
+      ) {
+        tokenId
+      }
+    }
+  `;
+
+  const musicResponse = await fetch(ENVIO_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: musicQuery,
+      variables: { artists: selectedCountry.owners },
+    }),
+  });
+
+  const musicData = await musicResponse.json();
+  const artistIds = musicData.data?.MusicNFT?.slice(0, 3).map((m: any) => BigInt(m.tokenId)) || [];
+
+  if (artistIds.length < 3) {
+    throw new Error(`Not enough artists for ${selectedCountry.name}`);
+  }
+
+  // Create challenge via bot Safe
+  const tx = await sendSafeTransaction([{
     to: COUNTRY_COLLECTOR_V2,
     value: 0n,
-    data,
+    data: client.encodeFunctionData({
+      abi: parseAbi(['function createWeeklyChallenge(string country, string countryCode, uint256[3] artistIds)']),
+      functionName: 'createWeeklyChallenge',
+      args: [selectedCountry.name, selectedCountry.code, artistIds],
+    }) as `0x${string}`,
   }]);
 
-  console.log('✅ New Country Collector challenge created:', txHash);
-  return txHash;
+  return {
+    country: selectedCountry.name,
+    reason: selection.reason,
+    tx,
+  };
+}
+
+export async function POST(req: NextRequest) {
+  return GET(req);
 }
