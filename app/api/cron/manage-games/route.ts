@@ -173,8 +173,8 @@ async function createBeatMatchWithGemini(client: any) {
         tokenId
         name
         artist
-        genre
-        mood
+        previewAudioUrl
+        fullAudioUrl
       }
     }
   `;
@@ -198,7 +198,7 @@ async function createBeatMatchWithGemini(client: any) {
 You are selecting music for today's "Music Beat Match" game challenge.
 
 Available songs:
-${musicNFTs.map((m: any, i: number) => `${i + 1}. "${m.name}" (Token #${m.tokenId}) - Genre: ${m.genre || 'Unknown'}, Mood: ${m.mood || 'Unknown'}`).join('\n')}
+${musicNFTs.map((m: any, i: number) => `${i + 1}. "${m.name}" (Token #${m.tokenId}) - Artist: ${m.artist.slice(0, 6)}...${m.artist.slice(-4)}`).join('\n')}
 
 Select ONE song that would make an engaging, fun daily challenge. Consider:
 - Variety from previous days
@@ -226,7 +226,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
   // Create challenge via bot Safe
   const artistId = BigInt(selectedMusic.tokenId);
   const songTitle = selectedMusic.name;
-  const ipfsHash = selectedMusic.imageUrl || `placeholder-${Date.now()}`;
+  const ipfsHash = selectedMusic.previewAudioUrl || selectedMusic.fullAudioUrl || `placeholder-${Date.now()}`;
 
   const tx = await sendSafeTransaction([{
     to: MUSIC_BEAT_MATCH_V2,
