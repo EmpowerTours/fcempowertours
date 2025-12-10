@@ -202,9 +202,13 @@ async function createBeatMatchWithGemini(client: any) {
     throw new Error('No music NFTs available');
   }
 
-  // Use Gemini to pick the best song
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-  const prompt = `
+  // Try to use Gemini to pick the best song, fallback to random selection
+  let selectedMusic;
+  let selectionReason = 'Random selection';
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
 
 Available songs:
@@ -219,16 +223,24 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 {"index": <number 0-${musicNFTs.length - 1}>, "reason": "<brief reason>"}
 `;
 
-  const result = await model.generateContent(prompt);
-  let responseText = result.response.text().trim();
+    const result = await model.generateContent(prompt);
+    let responseText = result.response.text().trim();
 
-  // Clean up response
-  responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
-  const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-  if (jsonMatch) responseText = jsonMatch[0];
+    // Clean up response
+    responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
+    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) responseText = jsonMatch[0];
 
-  const selection = JSON.parse(responseText);
-  const selectedMusic = musicNFTs[selection.index];
+    const selection = JSON.parse(responseText);
+    selectedMusic = musicNFTs[selection.index];
+    selectionReason = selection.reason;
+  } catch (error) {
+    console.log('[Beat Match] Gemini AI failed, using random selection:', error);
+    // Fallback to random selection
+    const randomIndex = Math.floor(Math.random() * musicNFTs.length);
+    selectedMusic = musicNFTs[randomIndex];
+    selectionReason = `Random selection from ${musicNFTs.length} available tracks`;
+  }
 
   // Get artist's Farcaster username
   const artistUsername = await getArtistUsername(selectedMusic.artist);
@@ -251,7 +263,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
   return {
     songTitle,
     artistUsername,
-    reason: selection.reason,
+    reason: selectionReason,
     tx,
   };
 }
@@ -301,9 +313,13 @@ async function createCountryCollectorWithGemini(client: any) {
     throw new Error('No countries with enough artists');
   }
 
-  // Use Gemini to pick the best country
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-  const prompt = `
+  // Try to use Gemini to pick the best country, fallback to random selection
+  let selectedCountry;
+  let selectionReason = 'Random selection';
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
 
 Available countries (with number of artists):
@@ -318,16 +334,24 @@ Respond ONLY with valid JSON in this exact format (no markdown):
 {"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
 `;
 
-  const result = await model.generateContent(prompt);
-  let responseText = result.response.text().trim();
+    const result = await model.generateContent(prompt);
+    let responseText = result.response.text().trim();
 
-  // Clean up response
-  responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
-  const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-  if (jsonMatch) responseText = jsonMatch[0];
+    // Clean up response
+    responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
+    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) responseText = jsonMatch[0];
 
-  const selection = JSON.parse(responseText);
-  const selectedCountry = countries[selection.index];
+    const selection = JSON.parse(responseText);
+    selectedCountry = countries[selection.index];
+    selectionReason = selection.reason;
+  } catch (error) {
+    console.log('[Country Collector] Gemini AI failed, using random selection:', error);
+    // Fallback to random selection
+    const randomIndex = Math.floor(Math.random() * countries.length);
+    selectedCountry = countries[randomIndex];
+    selectionReason = `Random selection from ${countries.length} available countries`;
+  }
 
   // Get music from artists in this country
   const musicQuery = `
@@ -374,7 +398,7 @@ Respond ONLY with valid JSON in this exact format (no markdown):
 
   return {
     country: selectedCountry.name,
-    reason: selection.reason,
+    reason: selectionReason,
     tx,
   };
 }
