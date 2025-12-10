@@ -415,6 +415,11 @@ Respond ONLY with valid JSON in this exact format (no markdown):
     throw new Error(`Could not find a country with 3+ music NFTs after 5 attempts`);
   }
 
+  // Type guard: ensure selectedCountry is defined
+  if (!selectedCountry) {
+    throw new Error('No country was selected during retry loop');
+  }
+
   // Create challenge via bot Safe
   const tx = await sendSafeTransaction([{
     to: COUNTRY_COLLECTOR_V2,
