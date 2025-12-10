@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const currentChallenge = await client.readContract({
       address: MUSIC_BEAT_MATCH_V2,
       abi: parseAbi([
-        'function getCurrentChallenge() view returns (uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, bool active, bool finalized, address winner)'
+        'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bytes32 answerHash))'
       ]),
       functionName: 'getCurrentChallenge',
     }) as any;
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     const now = BigInt(Math.floor(Date.now() / 1000));
 
     // Finalize if expired
-    if (currentChallenge.active && !currentChallenge.finalized && currentChallenge.endTime < now) {
+    if (currentChallenge.active && currentChallenge.endTime < now) {
       console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
 
       const finalizeTx = await sendSafeTransaction([{
