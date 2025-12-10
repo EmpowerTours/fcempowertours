@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
     });
 
     const actions: string[] = [];
+    const now = BigInt(Math.floor(Date.now() / 1000));
 
     // ============= BEAT MATCH =============
     console.log('[Beat Match] Checking current challenge...');
@@ -59,8 +60,6 @@ export async function GET(req: NextRequest) {
         ]),
         functionName: 'getCurrentChallenge',
       }) as any;
-
-      const now = BigInt(Math.floor(Date.now() / 1000));
 
       // Finalize if expired
       if (currentChallenge.active && currentChallenge.endTime < now) {
