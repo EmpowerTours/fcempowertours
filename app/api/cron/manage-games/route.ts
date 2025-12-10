@@ -48,36 +48,47 @@ export async function GET(req: NextRequest) {
     // ============= BEAT MATCH =============
     console.log('[Beat Match] Checking current challenge...');
 
-    const currentChallenge = await client.readContract({
-      address: MUSIC_BEAT_MATCH_V2,
-      abi: parseAbi([
-        'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bytes32 answerHash))'
-      ]),
-      functionName: 'getCurrentChallenge',
-    }) as any;
+    let currentChallenge: any = null;
+    let needsNewChallenge = false;
 
-    const now = BigInt(Math.floor(Date.now() / 1000));
+    try {
+      currentChallenge = await client.readContract({
+        address: MUSIC_BEAT_MATCH_V2,
+        abi: parseAbi([
+          'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bytes32 answerHash))'
+        ]),
+        functionName: 'getCurrentChallenge',
+      }) as any;
 
-    // Finalize if expired
-    if (currentChallenge.active && currentChallenge.endTime < now) {
-      console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
+      const now = BigInt(Math.floor(Date.now() / 1000));
 
-      const finalizeTx = await sendSafeTransaction([{
-        to: MUSIC_BEAT_MATCH_V2,
-        value: 0n,
-        data: encodeFunctionData({
-          abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
-          functionName: 'finalizeChallenge',
-          args: [currentChallenge.challengeId],
-        }) as `0x${string}`,
-      }]);
+      // Finalize if expired
+      if (currentChallenge.active && currentChallenge.endTime < now) {
+        console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
 
-      actions.push(`Finalized Beat Match challenge #${currentChallenge.challengeId}: ${finalizeTx}`);
-      console.log(`[Beat Match] ✅ Finalized`);
+        const finalizeTx = await sendSafeTransaction([{
+          to: MUSIC_BEAT_MATCH_V2,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
+            functionName: 'finalizeChallenge',
+            args: [currentChallenge.challengeId],
+          }) as `0x${string}`,
+        }]);
+
+        actions.push(`Finalized Beat Match challenge #${currentChallenge.challengeId}: ${finalizeTx}`);
+        console.log(`[Beat Match] ✅ Finalized`);
+      }
+
+      // Check if new challenge needed
+      needsNewChallenge = !currentChallenge.active || currentChallenge.endTime < now;
+    } catch (error) {
+      console.log('[Beat Match] No current challenge found (first time)');
+      needsNewChallenge = true;
     }
 
     // Create new challenge if needed
-    if (!currentChallenge.active || currentChallenge.endTime < now) {
+    if (needsNewChallenge) {
       console.log('[Beat Match] Creating new challenge with Gemini AI...');
 
       const beatMatchResult = await createBeatMatchWithGemini(client);
