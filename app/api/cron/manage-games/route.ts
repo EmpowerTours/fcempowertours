@@ -427,7 +427,7 @@ Respond ONLY with valid JSON in this exact format (no markdown):
     data: encodeFunctionData({
       abi: parseAbi(['function createWeeklyChallenge(string country, string countryCode, uint256[3] artistIds)']),
       functionName: 'createWeeklyChallenge',
-      args: [selectedCountry.name, selectedCountry.code, artistIds],
+      args: [selectedCountry.name, selectedCountry.code, artistIds as [bigint, bigint, bigint]],
     }) as `0x${string}`,
   }]);
 
