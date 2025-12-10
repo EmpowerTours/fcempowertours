@@ -248,7 +248,7 @@ function BeatMatchContent() {
     );
   }
 
-  const isChallengeActive = challenge && !(challenge as any).finalized && (challenge as any).endTime > BigInt(Math.floor(Date.now() / 1000));
+  const isChallengeActive = challenge && (challenge as any).active && (challenge as any).endTime > BigInt(Math.floor(Date.now() / 1000));
   const timeRemaining = challenge ? Number((challenge as any).endTime) * 1000 - Date.now() : 0;
   const hoursLeft = Math.floor(timeRemaining / (1000 * 60 * 60));
   const minutesLeft = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
