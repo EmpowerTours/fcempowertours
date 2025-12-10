@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createPublicClient, http, Address, parseAbi } from 'viem';
+import { createPublicClient, http, Address, parseAbi, encodeFunctionData } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       const finalizeTx = await sendSafeTransaction([{
         to: MUSIC_BEAT_MATCH_V2,
         value: 0n,
-        data: client.encodeFunctionData({
+        data: encodeFunctionData({
           abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
           functionName: 'finalizeChallenge',
           args: [currentChallenge.challengeId],
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       const finalizeTx = await sendSafeTransaction([{
         to: COUNTRY_COLLECTOR_V2,
         value: 0n,
-        data: client.encodeFunctionData({
+        data: encodeFunctionData({
           abi: parseAbi(['function finalizeWeek(uint256 weekId)']),
           functionName: 'finalizeWeek',
           args: [currentWeek.weekId],
@@ -231,7 +231,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
   const tx = await sendSafeTransaction([{
     to: MUSIC_BEAT_MATCH_V2,
     value: 0n,
-    data: client.encodeFunctionData({
+    data: encodeFunctionData({
       abi: parseAbi(['function createDailyChallenge(uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash)']),
       functionName: 'createDailyChallenge',
       args: [artistId, songTitle, artistUsername, ipfsHash],
@@ -355,7 +355,7 @@ Respond ONLY with valid JSON in this exact format (no markdown):
   const tx = await sendSafeTransaction([{
     to: COUNTRY_COLLECTOR_V2,
     value: 0n,
-    data: client.encodeFunctionData({
+    data: encodeFunctionData({
       abi: parseAbi(['function createWeeklyChallenge(string country, string countryCode, uint256[3] artistIds)']),
       functionName: 'createWeeklyChallenge',
       args: [selectedCountry.name, selectedCountry.code, artistIds],

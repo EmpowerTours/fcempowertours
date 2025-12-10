@@ -10,7 +10,6 @@ const nextConfig = {
   reactStrictMode: false, // Disable strict mode to avoid double rendering issues with Three.js
   transpilePackages: ['three', '@react-three/fiber', '@react-three/drei'],
   experimental: {
-    instrumentationHook: true,
     optimizePackageImports: ['@tanstack/react-query'],
     serverActions: {
       bodySizeLimit: '10mb',
