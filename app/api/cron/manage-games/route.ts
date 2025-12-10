@@ -218,7 +218,7 @@ async function createBeatMatchWithGemini(client: any) {
   let selectionReason = 'Random selection';
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
 
@@ -327,10 +327,15 @@ async function createCountryCollectorWithGemini(client: any) {
   // Try to use Gemini to pick the best country, fallback to random selection
   let selectedCountry;
   let selectionReason = 'Random selection';
+  let artistIds: bigint[] = [];
 
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const prompt = `
+  // Try up to 5 different countries to find one with 3+ music NFTs
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt === 0) {
+      // First attempt: use Gemini AI
+      try {
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+        const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
 
 Available countries (with number of artists):
@@ -345,55 +350,69 @@ Respond ONLY with valid JSON in this exact format (no markdown):
 {"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
 `;
 
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text().trim();
+        const result = await model.generateContent(prompt);
+        let responseText = result.response.text().trim();
 
-    // Clean up response
-    responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
-    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-    if (jsonMatch) responseText = jsonMatch[0];
+        // Clean up response
+        responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
+        const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) responseText = jsonMatch[0];
 
-    const selection = JSON.parse(responseText);
-    selectedCountry = countries[selection.index];
-    selectionReason = selection.reason;
-  } catch (error) {
-    console.log('[Country Collector] Gemini AI failed, using random selection:', error);
-    // Fallback to random selection
-    const randomIndex = Math.floor(Math.random() * countries.length);
-    selectedCountry = countries[randomIndex];
-    selectionReason = `Random selection from ${countries.length} available countries`;
+        const selection = JSON.parse(responseText);
+        selectedCountry = countries[selection.index];
+        selectionReason = selection.reason;
+      } catch (error) {
+        console.log('[Country Collector] Gemini AI failed, using random selection:', error);
+        const randomIndex = Math.floor(Math.random() * countries.length);
+        selectedCountry = countries[randomIndex];
+        selectionReason = `Random selection from ${countries.length} available countries`;
+      }
+    } else {
+      // Subsequent attempts: random selection
+      const randomIndex = Math.floor(Math.random() * countries.length);
+      selectedCountry = countries[randomIndex];
+      selectionReason = `Random selection (attempt ${attempt + 1}) from ${countries.length} available countries`;
+      console.log(`[Country Collector] Retry #${attempt}: Trying ${selectedCountry.name}...`);
+    }
+
+    // Get music from artists in this country
+    const musicQuery = `
+      query GetMusic($artists: [String!]!) {
+        MusicNFT(
+          where: {
+            artist: {_in: $artists},
+            isBurned: {_eq: false},
+            isArt: {_eq: false}
+          },
+          limit: 5
+        ) {
+          tokenId
+        }
+      }
+    `;
+
+    const musicResponse = await fetch(ENVIO_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: musicQuery,
+        variables: { artists: selectedCountry.owners },
+      }),
+    });
+
+    const musicData = await musicResponse.json();
+    artistIds = musicData.data?.MusicNFT?.slice(0, 3).map((m: any) => BigInt(m.tokenId)) || [];
+
+    if (artistIds.length >= 3) {
+      console.log(`[Country Collector] ✅ Found ${artistIds.length} artists for ${selectedCountry.name}`);
+      break; // Success! Exit retry loop
+    }
+
+    console.log(`[Country Collector] ⚠️  ${selectedCountry.name} only has ${artistIds.length} music NFTs`);
   }
 
-  // Get music from artists in this country
-  const musicQuery = `
-    query GetMusic($artists: [String!]!) {
-      MusicNFT(
-        where: {
-          artist: {_in: $artists},
-          isBurned: {_eq: false},
-          isArt: {_eq: false}
-        },
-        limit: 5
-      ) {
-        tokenId
-      }
-    }
-  `;
-
-  const musicResponse = await fetch(ENVIO_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query: musicQuery,
-      variables: { artists: selectedCountry.owners },
-    }),
-  });
-
-  const musicData = await musicResponse.json();
-  const artistIds = musicData.data?.MusicNFT?.slice(0, 3).map((m: any) => BigInt(m.tokenId)) || [];
-
   if (artistIds.length < 3) {
-    throw new Error(`Not enough artists for ${selectedCountry.name}`);
+    throw new Error(`Could not find a country with 3+ music NFTs after 5 attempts`);
   }
 
   // Create challenge via bot Safe
