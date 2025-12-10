@@ -98,34 +98,45 @@ export async function GET(req: NextRequest) {
     // ============= COUNTRY COLLECTOR =============
     console.log('[Country Collector] Checking current challenge...');
 
-    const currentWeek = await client.readContract({
-      address: COUNTRY_COLLECTOR_V2,
-      abi: parseAbi([
-        'function getCurrentWeek() view returns (uint256 weekId, string country, string countryCode, uint256[3] artistIds, uint256 startTime, uint256 endTime, bool active, bool finalized)'
-      ]),
-      functionName: 'getCurrentWeek',
-    }) as any;
+    let currentWeek: any = null;
+    let needsNewWeek = false;
 
-    // Finalize if expired
-    if (currentWeek.active && !currentWeek.finalized && currentWeek.endTime < now) {
-      console.log(`[Country Collector] Finalizing expired week #${currentWeek.weekId}...`);
+    try {
+      currentWeek = await client.readContract({
+        address: COUNTRY_COLLECTOR_V2,
+        abi: parseAbi([
+          'function getCurrentChallenge() view returns (tuple(uint256 id, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool active, bool finalized))'
+        ]),
+        functionName: 'getCurrentChallenge',
+      }) as any;
 
-      const finalizeTx = await sendSafeTransaction([{
-        to: COUNTRY_COLLECTOR_V2,
-        value: 0n,
-        data: encodeFunctionData({
-          abi: parseAbi(['function finalizeWeek(uint256 weekId)']),
-          functionName: 'finalizeWeek',
-          args: [currentWeek.weekId],
-        }) as `0x${string}`,
-      }]);
+      // Finalize if expired
+      if (currentWeek.active && !currentWeek.finalized && currentWeek.endTime < now) {
+        console.log(`[Country Collector] Finalizing expired week #${currentWeek.id}...`);
 
-      actions.push(`Finalized Country Collector week #${currentWeek.weekId}: ${finalizeTx}`);
-      console.log(`[Country Collector] ✅ Finalized`);
+        const finalizeTx = await sendSafeTransaction([{
+          to: COUNTRY_COLLECTOR_V2,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function finalizeChallenge(uint256 weekId)']),
+            functionName: 'finalizeChallenge',
+            args: [currentWeek.id],
+          }) as `0x${string}`,
+        }]);
+
+        actions.push(`Finalized Country Collector week #${currentWeek.id}: ${finalizeTx}`);
+        console.log(`[Country Collector] ✅ Finalized`);
+      }
+
+      // Check if new challenge needed
+      needsNewWeek = !currentWeek.active || currentWeek.endTime < now;
+    } catch (error) {
+      console.log('[Country Collector] No current challenge found (first time)');
+      needsNewWeek = true;
     }
 
     // Create new challenge if needed
-    if (!currentWeek.active || currentWeek.endTime < now) {
+    if (needsNewWeek) {
       console.log('[Country Collector] Creating new challenge with Gemini AI...');
 
       const collectorResult = await createCountryCollectorWithGemini(client);
@@ -207,7 +218,7 @@ async function createBeatMatchWithGemini(client: any) {
   let selectionReason = 'Random selection';
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
 
@@ -318,7 +329,7 @@ async function createCountryCollectorWithGemini(client: any) {
   let selectionReason = 'Random selection';
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
 
