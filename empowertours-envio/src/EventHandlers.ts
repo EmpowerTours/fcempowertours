@@ -7,7 +7,9 @@ import {
   SmartEventManifest,
   TandaYieldGroup,
   CreditScoreCalculator,
-  DailyPassLottery,
+  DailyPassLotteryV3,
+  MusicBeatMatchV2,
+  CountryCollectorV2,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -116,7 +118,7 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
 }
 
 // ============================================
-// MUSIC LICENSE NFT EVENTS
+// EMPOWER TOURS NFT EVENTS
 // ============================================
 
 EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
@@ -622,7 +624,7 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
 
 // ✅ NEW: PassportNFTv2 staking handler
 PassportNFT.PassportStaked.handler(async ({ event, context }) => {
-  const { tokenId, amount, positionId } = event.params;
+  const { tokenId, monAmount, positionId } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
   const passportStakeId = `passport-stake-${event.block.number}-${event.logIndex}`;
@@ -632,7 +634,7 @@ PassportNFT.PassportStaked.handler(async ({ event, context }) => {
     id: passportStakeId,
     passport_id: passportNFTId,
     tokenId: tokenId.toString(),
-    amount: amount,
+    amount: monAmount,
     positionId: positionId,
     stakedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
@@ -644,7 +646,7 @@ PassportNFT.PassportStaked.handler(async ({ event, context }) => {
   // Update passport staked amount and credit score
   const passportNFT = await context.PassportNFT.get(passportNFTId);
   if (passportNFT) {
-    const newStakedAmount = passportNFT.stakedAmount + amount;
+    const newStakedAmount = passportNFT.stakedAmount + monAmount;
     const stakedUnits = Number(newStakedAmount) / 1e18;
     const stampBonus = passportNFT.stampCount * 10;
     const verifiedBonus = passportNFT.verifiedStampCount * 5;
@@ -656,7 +658,7 @@ PassportNFT.PassportStaked.handler(async ({ event, context }) => {
       creditScore: newCreditScore,
     });
 
-    context.log.info(`💰 Passport #${tokenId} staked ${amount.toString()} TOURS (position: ${positionId.toString()}). New credit score: ${newCreditScore}`);
+    context.log.info(`💰 Passport #${tokenId} staked ${monAmount.toString()} MON (position: ${positionId.toString()}). New credit score: ${newCreditScore}`);
   }
 });
 
@@ -799,7 +801,7 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
     });
 
     if (response.ok) {
-      const result = await response.json();
+      const result = await response.json() as any;
       context.log.info(`📢 Experience creation announced on Farcaster: ${result.castHash}`);
     } else {
       context.log.warn(`⚠️ Failed to announce experience creation on Farcaster`);
@@ -898,7 +900,7 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        const result = await response.json() as any;
         context.log.info(`📢 Experience purchase announced on Farcaster: ${result.castHash}`);
       } else {
         context.log.warn(`⚠️ Failed to announce experience purchase on Farcaster`);
@@ -959,24 +961,13 @@ ExperienceNFT.TransportationRequested.handler(async ({ event, context }) => {
   context.log.info(`🚗 Transportation requested for Experience #${experienceId} by ${user}`);
 });
 
-ExperienceNFT.Transfer.handler(async ({ event, context }) => {
-  const { from, to, tokenId } = event.params;
-
-  // Skip minting events (handled by ExperienceCreated)
-  if (from === "0x0000000000000000000000000000000000000000") {
-    return;
-  }
-
-  context.log.info(`🔄 ExperienceNFT #${tokenId} transferred from ${from} to ${to}`);
-});
-
 // ============================================
-// YIELD STRATEGY V3 (NFT-GATED STAKING) EVENTS
+// YIELD STRATEGY V9 (NFT-GATED STAKING WITH KINTSU)
 // ============================================
 
 YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
-  // V8: Only has monAmount (no toursAmount)
-  const { positionId, nftAddress, nftTokenId, owner, beneficiary, monAmount, timestamp } = event.params;
+  // V9: Uses monAmount and kintsuShares (Kintsu vault integration)
+  const { positionId, nftAddress, nftTokenId, owner, beneficiary, monAmount, kintsuShares, timestamp } = event.params;
 
   const stakingPositionId = positionId.toString();
   const beneficiaryId = beneficiary.toLowerCase();
@@ -1041,17 +1032,15 @@ YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`💰 Staking position #${positionId} created for ${beneficiary} - ${monAmount.toString()} MON (NFT: ${nftAddress}#${nftTokenId})`);
+  context.log.info(`💰 Staking position #${positionId} created for ${beneficiary} - ${monAmount.toString()} MON (${kintsuShares.toString()} Kintsu shares) (NFT: ${nftAddress}#${nftTokenId})`);
 });
 
 YieldStrategy.StakingPositionClosed.handler(async ({ event, context }) => {
-  // V8: user and monStaked instead of beneficiary and toursRefund
-  const { positionId, user, monStaked, yieldShare, timestamp } = event.params;
-  const beneficiary = user; // Alias for compatibility
-  const toursRefund = monStaked; // V8 uses MON
+  // V9: user, monRedeemed, yieldShare, netRefund (Kintsu redemption with fees)
+  const { positionId, user, monRedeemed, yieldShare, netRefund, timestamp } = event.params;
 
   const stakingPositionId = positionId.toString();
-  const beneficiaryId = beneficiary.toLowerCase();
+  const userId = user.toLowerCase();
 
   // Update staking position
   const stakingPosition = await context.StakingPosition.get(stakingPositionId);
@@ -1061,14 +1050,14 @@ YieldStrategy.StakingPositionClosed.handler(async ({ event, context }) => {
       ...stakingPosition,
       active: false,
       closedAt: new Date(Number(timestamp) * 1000),
-      toursRefund: toursRefund,
+      toursRefund: monRedeemed, // V9: Store monRedeemed as toursRefund
       yieldShare: yieldShare,
       closedTxHash: event.transaction.hash,
       closedBlockNumber: BigInt(event.block.number),
     });
 
     // Update user staking stats
-    let userStakingStats = await context.UserStakingStats.get(beneficiaryId);
+    let userStakingStats = await context.UserStakingStats.get(userId);
 
     if (userStakingStats) {
       await context.UserStakingStats.set({
@@ -1091,8 +1080,22 @@ YieldStrategy.StakingPositionClosed.handler(async ({ event, context }) => {
       });
     }
 
-    context.log.info(`💸 Staking position #${positionId} closed for ${beneficiary} - Refund: ${toursRefund.toString()}, Yield: ${yieldShare.toString()}`);
+    context.log.info(`💸 Staking position #${positionId} closed for ${user} - MON Redeemed: ${monRedeemed.toString()}, Yield: ${yieldShare.toString()}, Net Refund: ${netRefund.toString()}`);
   }
+});
+
+// V9 NEW: Unstake request tracking
+YieldStrategy.UnstakeRequested.handler(async ({ event, context }) => {
+  const { positionId, user, shares, expectedSpotValue, estimatedReadyTime, timestamp } = event.params;
+
+  context.log.info(`⏳ Unstake requested for position #${positionId} by ${user} - ${shares.toString()} Kintsu shares (est. ${expectedSpotValue.toString()} MON)`);
+});
+
+// V9 NEW: Unstake cancellation
+YieldStrategy.UnstakeCancelled.handler(async ({ event, context }) => {
+  const { positionId, user, sharesReturned, timestamp } = event.params;
+
+  context.log.info(`🔄 Unstake cancelled for position #${positionId} by ${user} - ${sharesReturned.toString()} shares returned`);
 });
 
 YieldStrategy.NFTWhitelisted.handler(async ({ event, context }) => {
@@ -1116,30 +1119,10 @@ YieldStrategy.NFTWhitelisted.handler(async ({ event, context }) => {
 });
 
 YieldStrategy.YieldHarvested.handler(async ({ event, context }) => {
-  const { yieldMonAmount, yieldToursAmount, totalAssets, timestamp } = event.params;
+  // V9: Simplified - just yieldMon and currentValue
+  const { yieldMon, currentValue, timestamp } = event.params;
 
-  const harvestEventId = `harvest-${event.block.number}-${event.logIndex}`;
-
-  // Create yield harvest event
-  const yieldHarvestEvent = {
-    id: harvestEventId,
-    yieldMonAmount: yieldMonAmount,
-    yieldToursAmount: yieldToursAmount,
-    totalAssets: totalAssets,
-    timestamp: new Date(Number(timestamp) * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.YieldHarvestEvent.set(yieldHarvestEvent);
-
-  context.log.info(`🌾 Yield harvested - MON: ${yieldMonAmount.toString()}, TOURS: ${yieldToursAmount.toString()}, Total Assets: ${totalAssets.toString()}`);
-});
-
-YieldStrategy.Initialized.handler(async ({ event, context }) => {
-  const { toursToken, kintsu, tokenSwap, dragonRouter, keeper } = event.params;
-
-  context.log.info(`🚀 YieldStrategy V3 initialized - TOURS: ${toursToken}, Kintsu: ${kintsu}, Keeper: ${keeper}`);
+  context.log.info(`🌾 Yield harvested - ${yieldMon.toString()} MON (current value: ${currentValue.toString()} MON)`);
 });
 
 // ============================================
@@ -1561,7 +1544,7 @@ CreditScoreCalculator.PaymentRecorded.handler(async ({ event, context }) => {
 // DAILY PASS LOTTERY EVENTS
 // ============================================
 
-DailyPassLottery.RoundStarted.handler(async ({ event, context }) => {
+DailyPassLotteryV3.RoundStarted.handler(async ({ event, context }) => {
   const { roundId, startTime, endTime } = event.params;
 
   const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
@@ -1603,7 +1586,7 @@ DailyPassLottery.RoundStarted.handler(async ({ event, context }) => {
   context.log.info(`🎰 Lottery Round #${roundId} started - ends at ${new Date(Number(endTime) * 1000).toISOString()}`);
 });
 
-DailyPassLottery.DailyPassPurchased.handler(async ({ event, context }) => {
+DailyPassLotteryV3.DailyPassPurchased.handler(async ({ event, context }) => {
   const { roundId, beneficiary, payer, entryIndex, paidWithShMon, amount } = event.params;
 
   const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
@@ -1678,7 +1661,7 @@ DailyPassLottery.DailyPassPurchased.handler(async ({ event, context }) => {
   context.log.info(`🎫 Lottery entry #${entryIndex} for round ${roundId} - ${beneficiary} (paid by ${payer}) ${amount.toString()} ${paidWithShMon ? 'shMON' : 'MON'}`);
 });
 
-DailyPassLottery.RandomnessCommitted.handler(async ({ event, context }) => {
+DailyPassLotteryV3.RandomnessCommitted.handler(async ({ event, context }) => {
   const { roundId, commitBlock, commitHash, caller, reward } = event.params;
 
   const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
@@ -1695,7 +1678,7 @@ DailyPassLottery.RandomnessCommitted.handler(async ({ event, context }) => {
   context.log.info(`🔐 Randomness committed for round ${roundId} at block ${commitBlock} by ${caller} (reward: ${reward.toString()})`);
 });
 
-DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
+DailyPassLotteryV3.WinnerRevealed.handler(async ({ event, context }) => {
   const { roundId, winner, winnerIndex, monPrize, shMonPrize, caller, reward } = event.params;
 
   const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
@@ -1775,7 +1758,7 @@ DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        const result = await response.json() as any;
         context.log.info(`📢 Lottery winner announced on Farcaster: ${result.castHash}`);
 
         // Mark as announced in the round
@@ -1800,7 +1783,7 @@ DailyPassLottery.WinnerRevealed.handler(async ({ event, context }) => {
   }
 });
 
-DailyPassLottery.PrizeClaimed.handler(async ({ event, context }) => {
+DailyPassLotteryV3.PrizeClaimed.handler(async ({ event, context }) => {
   const { roundId, winner, monAmount, shMonAmount } = event.params;
 
   const winnerHistoryId = `winner-${event.chainId}-${roundId.toString()}`;
@@ -1818,8 +1801,222 @@ DailyPassLottery.PrizeClaimed.handler(async ({ event, context }) => {
   context.log.info(`💰 Prize claimed for Round #${roundId} by ${winner}: ${monAmount.toString()} MON + ${shMonAmount.toString()} shMON`);
 });
 
-DailyPassLottery.EscrowExpired.handler(async ({ event, context }) => {
+DailyPassLotteryV3.EscrowExpired.handler(async ({ event, context }) => {
   const { roundId } = event.params;
 
   context.log.info(`⏰ Escrow expired for Round #${roundId} - unclaimed prize returned to platform`);
+});
+
+// ============================================
+// MUSIC BEAT MATCH V2 EVENTS
+// ============================================
+
+MusicBeatMatchV2.DailyChallengeCreated.handler(async ({ event, context }) => {
+  const { challengeId, artistId, songTitle, artistUsername, ipfsAudioHash, startTime, endTime } = event.params;
+
+  const beatMatchChallengeId = `challenge-${event.chainId}-${challengeId.toString()}`;
+
+  const challenge = {
+    id: beatMatchChallengeId,
+    challengeId: challengeId.toString(),
+    artistId: artistId.toString(),
+    songTitle: songTitle,
+    artistUsername: artistUsername,
+    ipfsAudioHash: ipfsAudioHash,
+    startTime: startTime,
+    endTime: endTime,
+    active: true,
+    finalized: false,
+    winner: undefined,
+    rewardAmount: undefined,
+    totalGuesses: 0,
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.BeatMatchChallenge.set(challenge);
+
+  context.log.info(`🎵 Beat Match Challenge #${challengeId} created: "${songTitle}" by @${artistUsername} (Artist ID: ${artistId})`);
+});
+
+MusicBeatMatchV2.GuessSubmitted.handler(async ({ event, context }) => {
+  const { challengeId, player, guessedArtistId, guessedSongTitle, guessedUsername } = event.params;
+
+  const beatMatchChallengeId = `challenge-${event.chainId}-${challengeId.toString()}`;
+  const guessId = `guess-${event.chainId}-${challengeId.toString()}-${player.toLowerCase()}`;
+
+  const guess = {
+    id: guessId,
+    challenge_id: beatMatchChallengeId,
+    challengeId: challengeId.toString(),
+    player: player.toLowerCase(),
+    guessedArtistId: guessedArtistId.toString(),
+    guessedSongTitle: guessedSongTitle,
+    guessedUsername: guessedUsername,
+    correct: undefined, // Will be determined when finalized
+    submittedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.BeatMatchGuess.set(guess);
+
+  // Update challenge guess count
+  const challenge = await context.BeatMatchChallenge.get(beatMatchChallengeId);
+  if (challenge) {
+    await context.BeatMatchChallenge.set({
+      ...challenge,
+      totalGuesses: challenge.totalGuesses + 1,
+    });
+  }
+
+  context.log.info(`🎯 Guess submitted for Challenge #${challengeId} by ${player}: "${guessedSongTitle}" by @${guessedUsername} (ID: ${guessedArtistId})`);
+});
+
+MusicBeatMatchV2.ChallengeFinalized.handler(async ({ event, context }) => {
+  const { challengeId, winner, rewardAmount } = event.params;
+
+  const beatMatchChallengeId = `challenge-${event.chainId}-${challengeId.toString()}`;
+
+  // Update challenge
+  const challenge = await context.BeatMatchChallenge.get(beatMatchChallengeId);
+  if (challenge) {
+    await context.BeatMatchChallenge.set({
+      ...challenge,
+      active: false,
+      finalized: true,
+      winner: winner === "0x0000000000000000000000000000000000000000" ? undefined : winner.toLowerCase(),
+      rewardAmount: rewardAmount,
+    });
+  }
+
+  context.log.info(`🏆 Beat Match Challenge #${challengeId} finalized - Winner: ${winner}, Reward: ${rewardAmount.toString()} TOURS`);
+});
+
+// ============================================
+// COUNTRY COLLECTOR V2 EVENTS
+// ============================================
+
+CountryCollectorV2.WeeklyChallengeCreated.handler(async ({ event, context }) => {
+  const { weekId, country, countryCode, artistIds, startTime, endTime } = event.params;
+
+  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
+
+  const challenge = {
+    id: countryChallengeId,
+    weekId: weekId.toString(),
+    country: country,
+    countryCode: countryCode,
+    artistIds: artistIds.map((id: bigint) => id.toString()),
+    startTime: startTime,
+    endTime: endTime,
+    active: true,
+    finalized: false,
+    totalCompletions: 0,
+    rewardAmount: undefined,
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.CountryChallenge.set(challenge);
+
+  context.log.info(`🌍 Country Collector Week #${weekId} created: ${country} (${countryCode}) - Artists: [${artistIds.join(', ')}]`);
+});
+
+CountryCollectorV2.ArtistCompleted.handler(async ({ event, context }) => {
+  const { weekId, player, artistIndex, artistId } = event.params;
+
+  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
+  const completionId = `completion-${event.chainId}-${weekId.toString()}-${player.toLowerCase()}-${artistIndex.toString()}`;
+  const progressId = `progress-${event.chainId}-${weekId.toString()}-${player.toLowerCase()}`;
+
+  // Create artist completion
+  const completion = {
+    id: completionId,
+    challenge_id: countryChallengeId,
+    weekId: weekId.toString(),
+    player: player.toLowerCase(),
+    artistIndex: Number(artistIndex),
+    artistId: artistId.toString(),
+    completedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  };
+
+  await context.ArtistCompletion.set(completion);
+
+  // Update or create player progress
+  let progress = await context.CountryPlayerProgress.get(progressId);
+  if (progress) {
+    await context.CountryPlayerProgress.set({
+      ...progress,
+      completedArtists: progress.completedArtists + 1,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.CountryPlayerProgress.set({
+      id: progressId,
+      challenge_id: countryChallengeId,
+      weekId: weekId.toString(),
+      player: player.toLowerCase(),
+      completedArtists: 1,
+      allCompleted: false,
+      rewardClaimed: false,
+      rewardAmount: undefined,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`✅ Player ${player} completed artist #${artistIndex} (ID: ${artistId}) in Week #${weekId}`);
+});
+
+CountryCollectorV2.ChallengeCompleted.handler(async ({ event, context }) => {
+  const { weekId, player, rewardAmount } = event.params;
+
+  const progressId = `progress-${event.chainId}-${weekId.toString()}-${player.toLowerCase()}`;
+
+  // Update player progress
+  const progress = await context.CountryPlayerProgress.get(progressId);
+  if (progress) {
+    await context.CountryPlayerProgress.set({
+      ...progress,
+      allCompleted: true,
+      rewardClaimed: true,
+      rewardAmount: rewardAmount,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  // Update challenge completion count
+  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
+  const challenge = await context.CountryChallenge.get(countryChallengeId);
+  if (challenge) {
+    await context.CountryChallenge.set({
+      ...challenge,
+      totalCompletions: challenge.totalCompletions + 1,
+    });
+  }
+
+  context.log.info(`🎉 Player ${player} completed all artists in Week #${weekId} - Reward: ${rewardAmount.toString()} TOURS`);
+});
+
+CountryCollectorV2.WeekFinalized.handler(async ({ event, context }) => {
+  const { weekId, totalCompletions } = event.params;
+
+  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
+
+  // Update challenge
+  const challenge = await context.CountryChallenge.get(countryChallengeId);
+  if (challenge) {
+    await context.CountryChallenge.set({
+      ...challenge,
+      active: false,
+      finalized: true,
+      totalCompletions: Number(totalCompletions),
+    });
+  }
+
+  context.log.info(`🏁 Country Collector Week #${weekId} finalized - Total completions: ${totalCompletions}`);
 });

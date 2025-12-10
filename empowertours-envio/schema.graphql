@@ -465,3 +465,81 @@ type UserLotteryStats @entity {
   lastEntryAt: Timestamp
   lastWinAt: Timestamp
 }
+
+# ✅ NEW: MusicBeatMatchV2 Entities (Daily song guessing game)
+type BeatMatchChallenge @entity {
+  id: ID!                                 # challenge-{chainId}-{challengeId}
+  challengeId: String!
+  artistId: String!                       # Music NFT token ID
+  songTitle: String!
+  artistUsername: String!
+  ipfsAudioHash: String!
+  startTime: BigInt!
+  endTime: BigInt!
+  active: Boolean!
+  finalized: Boolean!
+  winner: String
+  rewardAmount: BigInt
+  totalGuesses: Int!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  guesses: [BeatMatchGuess!]! @derivedFrom(field: "challenge")
+}
+
+type BeatMatchGuess @entity {
+  id: ID!                                 # guess-{chainId}-{challengeId}-{player}
+  challenge: BeatMatchChallenge!
+  challengeId: String!
+  player: String!
+  guessedArtistId: String!
+  guessedSongTitle: String!
+  guessedUsername: String!
+  correct: Boolean
+  submittedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: CountryCollectorV2 Entities (Weekly country music collection)
+type CountryChallenge @entity {
+  id: ID!                                 # week-{chainId}-{weekId}
+  weekId: String!
+  country: String!
+  countryCode: String!
+  artistIds: [String!]!                   # Array of 3 music NFT token IDs
+  startTime: BigInt!
+  endTime: BigInt!
+  active: Boolean!
+  finalized: Boolean!
+  totalCompletions: Int!
+  rewardAmount: BigInt
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  completions: [ArtistCompletion!]! @derivedFrom(field: "challenge")
+}
+
+type ArtistCompletion @entity {
+  id: ID!                                 # completion-{chainId}-{weekId}-{player}-{artistIndex}
+  challenge: CountryChallenge!
+  weekId: String!
+  player: String!
+  artistIndex: Int!
+  artistId: String!
+  completedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type CountryPlayerProgress @entity {
+  id: ID!                                 # progress-{chainId}-{weekId}-{player}
+  challenge: CountryChallenge!
+  weekId: String!
+  player: String!
+  completedArtists: Int!                  # 0-3
+  allCompleted: Boolean!
+  rewardClaimed: Boolean!
+  rewardAmount: BigInt
+  lastUpdated: Timestamp!
+}
