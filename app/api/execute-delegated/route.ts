@@ -8,6 +8,7 @@ import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance } from '@/lib/user-safe';
 import { USE_USER_SAFES } from '@/lib/safe-mode';
 import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, formatEther } from 'viem';
+import { createShortUrl } from '@/lib/url-shortener';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -453,10 +454,34 @@ View profile and collection!
 
             // ✅ OG image route based on NFT type with direct image URL
             const ogRoute = isArt ? 'art' : 'music';
-            // Pass imageUrl and other data directly to avoid Envio indexing delay
-            ogImageUrl = params.imageUrl
-              ? `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}&imageUrl=${encodeURIComponent(params.imageUrl)}&title=${encodeURIComponent(songTitle)}&artist=${encodeURIComponent(userAddress)}&price=${encodeURIComponent(params.price)}`
-              : `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
+
+            // Try to create short URL if params provided (to avoid 256 byte limit)
+            if (params.imageUrl) {
+              const fullOgUrl = `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}&imageUrl=${encodeURIComponent(params.imageUrl)}&title=${encodeURIComponent(songTitle)}&artist=${encodeURIComponent(userAddress)}&price=${encodeURIComponent(params.price)}`;
+
+              console.log(`🔗 Full OG URL length: ${fullOgUrl.length} bytes`);
+
+              // If URL > 256 bytes, use URL shortener
+              if (fullOgUrl.length > 256) {
+                console.log('⚠️ OG URL exceeds 256 bytes, creating short URL...');
+                const shortId = await createShortUrl(fullOgUrl);
+
+                if (shortId) {
+                  ogImageUrl = `${APP_URL}/api/s/${shortId}`;
+                  console.log(`✅ Short URL created: ${ogImageUrl} (${ogImageUrl.length} bytes)`);
+                } else {
+                  // Fallback: use simple URL without params (relies on Envio indexer)
+                  console.log('⚠️ Short URL creation failed, using fallback (no params)');
+                  ogImageUrl = `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
+                }
+              } else {
+                // URL is short enough, use it directly
+                ogImageUrl = fullOgUrl;
+              }
+            } else {
+              // No imageUrl provided, use simple URL
+              ogImageUrl = `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
+            }
 
             // ✅ Link to artist profile within mini app
             const artistProfileUrl = `${APP_URL}/artist/${userAddress}`;
