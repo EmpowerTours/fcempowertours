@@ -444,17 +444,17 @@ function BeatMatchContent() {
           </div>
         ) : (
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-12 border border-white/20 text-center">
-            <p className="text-white text-2xl mb-4">😴 No active challenge right now</p>
-            <p className="text-blue-200 mb-6">Check back soon for the next daily challenge!</p>
+            <p className="text-white text-2xl mb-4">🎵 Ready to play?</p>
+            <p className="text-blue-200 mb-6">Start a new challenge and test your music knowledge!</p>
 
-            {/* Admin: Create Challenge Button */}
-            <div className="border-t border-white/20 pt-6 mt-6">
+            {/* Start New Challenge Button */}
+            <div className="pt-2">
               <button
                 onClick={handleCreateChallenge}
                 disabled={isCreatingChallenge}
-                className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold px-8 py-3 rounded-xl transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold px-10 py-4 rounded-xl transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed shadow-xl text-lg"
               >
-                {isCreatingChallenge ? '⏳ Creating...' : '🎲 Create New Challenge (Admin)'}
+                {isCreatingChallenge ? '⏳ Starting New Challenge...' : '🎵 Start New Challenge'}
               </button>
               {createChallengeResult && (
                 <div className={`mt-4 p-4 rounded-lg ${createChallengeResult.startsWith('✅') ? 'bg-green-500/20 border border-green-500/50' : 'bg-red-500/20 border border-red-500/50'}`}>
