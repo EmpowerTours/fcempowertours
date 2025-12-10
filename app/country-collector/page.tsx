@@ -27,6 +27,8 @@ function CountryCollectorContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isCreatingChallenge, setIsCreatingChallenge] = useState(false);
+  const [createChallengeResult, setCreateChallengeResult] = useState('');
 
   const {
     useGetCurrentChallenge,
@@ -154,6 +156,35 @@ function CountryCollectorContent() {
 
     fetchCountryArtists();
   }, [address]);
+
+  const handleCreateChallenge = async () => {
+    setIsCreatingChallenge(true);
+    setCreateChallengeResult('');
+
+    try {
+      const response = await fetch('/api/cron/manage-games', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || 'dev-secret-change-in-production'}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setCreateChallengeResult(`✅ ${result.actions?.join(', ') || 'Challenge management completed'}`);
+        // Refresh the page after 2 seconds to show new challenge
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        setCreateChallengeResult(`❌ Error: ${result.error || 'Failed to manage challenges'}`);
+      }
+    } catch (err: any) {
+      setCreateChallengeResult(`❌ Error: ${err.message}`);
+    } finally {
+      setIsCreatingChallenge(false);
+    }
+  };
 
   const handleCompleteArtist = async (artistIndex: number, artistId: number) => {
     setIsSubmitting(true);
@@ -410,6 +441,32 @@ function CountryCollectorContent() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* No Active Challenge */}
+        {!isChallengeActive && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-12 border border-white/20 text-center mb-8">
+            <p className="text-white text-2xl mb-4">😴 No active challenge right now</p>
+            <p className="text-teal-200 mb-6">Check back soon for the next weekly challenge!</p>
+
+            {/* Admin: Create Challenge Button */}
+            <div className="border-t border-white/20 pt-6 mt-6">
+              <button
+                onClick={handleCreateChallenge}
+                disabled={isCreatingChallenge}
+                className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold px-8 py-3 rounded-xl transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+              >
+                {isCreatingChallenge ? '⏳ Creating...' : '🎲 Create New Challenge (Admin)'}
+              </button>
+              {createChallengeResult && (
+                <div className={`mt-4 p-4 rounded-lg ${createChallengeResult.startsWith('✅') ? 'bg-green-500/20 border border-green-500/50' : 'bg-red-500/20 border border-red-500/50'}`}>
+                  <p className={createChallengeResult.startsWith('✅') ? 'text-green-200' : 'text-red-200'}>
+                    {createChallengeResult}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
