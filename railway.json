@@ -12,6 +12,10 @@
     {
       "schedule": "0 */6 * * *",
       "command": "curl https://fcempowertours-production-6551.up.railway.app/api/cron/finalize-lottery?key=$KEEPER_SECRET"
+    },
+    {
+      "schedule": "0 * * * *",
+      "command": "curl -H 'Authorization: Bearer $CRON_SECRET' https://fcempowertours-production-6551.up.railway.app/api/cron/manage-games"
     }
   ]
 }
