@@ -162,22 +162,22 @@ function CountryCollectorContent() {
     setCreateChallengeResult('');
 
     try {
-      const response = await fetch('/api/cron/manage-games', {
+      const response = await fetch('/api/create-challenge', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || 'dev-secret-change-in-production'}`
-        }
+        },
+        body: JSON.stringify({ type: 'country-collector' })
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setCreateChallengeResult(`✅ ${result.actions?.join(', ') || 'Challenge management completed'}`);
+        setCreateChallengeResult(`✅ ${result.actions?.join(', ') || 'Challenge created successfully!'}`);
         // Refresh the page after 2 seconds to show new challenge
         setTimeout(() => window.location.reload(), 2000);
       } else {
-        setCreateChallengeResult(`❌ Error: ${result.error || 'Failed to manage challenges'}`);
+        setCreateChallengeResult(`❌ ${result.error || 'Failed to create challenge'}`);
       }
     } catch (err: any) {
       setCreateChallengeResult(`❌ Error: ${err.message}`);
