@@ -220,7 +220,7 @@ async function createBeatMatchWithGemini(client: any) {
   let selectionReason = 'Random selection';
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
@@ -337,7 +337,8 @@ async function createCountryCollectorWithGemini(client: any) {
     if (attempt === 0) {
       // First attempt: use Gemini AI
       try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        // Use gemini-pro (stable model name) instead of gemini-1.5-flash
+        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
         const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
