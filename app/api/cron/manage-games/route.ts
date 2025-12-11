@@ -3,10 +3,14 @@ import { createPublicClient, http, Address, parseAbi, encodeFunctionData } from 
 import { monadTestnet } from '@/app/chains';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const neynar = new NeynarAPIClient({
   apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!
 });
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const MUSIC_BEAT_MATCH_V2 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
@@ -216,6 +220,8 @@ async function createBeatMatchWithGemini(client: any) {
   let selectionReason = 'Random selection';
 
   try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
     const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
 
@@ -231,23 +237,8 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 {"index": <number 0-${musicNFTs.length - 1}>, "reason": "<brief reason>"}
 `;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    let responseText = data.candidates[0].content.parts[0].text.trim();
+    const result = await model.generateContent(prompt);
+    let responseText = result.response.text().trim();
 
     // Clean up response
     responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
@@ -346,6 +337,8 @@ async function createCountryCollectorWithGemini(client: any) {
     if (attempt === 0) {
       // First attempt: use Gemini AI
       try {
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
         const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
 
@@ -361,23 +354,8 @@ Respond ONLY with valid JSON in this exact format (no markdown):
 {"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
 `;
 
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Gemini API error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        let responseText = data.candidates[0].content.parts[0].text.trim();
+        const result = await model.generateContent(prompt);
+        let responseText = result.response.text().trim();
 
         // Clean up response
         responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();

@@ -21,22 +21,44 @@ async function checkBalance() {
   });
   
   const balanceMON = Number(balance) / 1e18;
-  
+
   console.log(`\nBalance: ${balanceMON.toFixed(4)} MON\n`);
-  
-  if (balanceMON < 1) {
-    console.log('⚠️  LOW BALANCE - Fund the Safe to enable delegated transactions');
-    console.log('Run: npm run fund-safe');
+
+  // Pimlico bundler requirements
+  const ABSOLUTE_MINIMUM = 3;
+  const RECOMMENDED = 5;
+  const OPTIMAL = 10;
+
+  if (balanceMON < ABSOLUTE_MINIMUM) {
+    console.log('❌ CRITICAL: Balance too low for Pimlico bundler operations');
+    console.log(`   Current: ${balanceMON.toFixed(4)} MON`);
+    console.log(`   Required: ${ABSOLUTE_MINIMUM} MON minimum`);
+    console.log(`   Deficit: ${(ABSOLUTE_MINIMUM - balanceMON).toFixed(4)} MON needed\n`);
+    console.log('⚠️  All delegated transactions will FAIL until funded');
+    console.log('📖 See FUNDING_SAFE_WALLET.md for funding instructions');
+  } else if (balanceMON < RECOMMENDED) {
+    console.log('⚠️  WARNING: Balance below recommended level');
+    console.log(`   Current: ${balanceMON.toFixed(4)} MON`);
+    console.log(`   Recommended: ${RECOMMENDED} MON`);
+    console.log(`   You may experience transaction failures`);
+  } else if (balanceMON < OPTIMAL) {
+    console.log('✅ Balance adequate (but not optimal)');
+    console.log(`   Current: ${balanceMON.toFixed(4)} MON`);
+    console.log(`   Optimal: ${OPTIMAL}+ MON for 24/7 operations`);
   } else {
-    console.log('✅ Balance sufficient for delegated transactions');
+    console.log('✅ Balance healthy for reliable operations');
+    console.log(`   Current: ${balanceMON.toFixed(4)} MON`);
   }
-  
-  console.log('\nCapabilities:');
-  console.log(`  Mint Passport (0.01 MON): ${balanceMON >= 0.01 ? '✅' : '❌'}`);
-  console.log(`  Mint Music (free):        ✅`);
-  console.log(`  Swap (0.1 MON):          ${balanceMON >= 0.1 ? '✅' : '❌'}`);
-  
-  console.log(`\n💡 Estimated operations: ~${Math.floor(balanceMON / 0.01)} passport mints`);
+
+  console.log('\n📊 Pimlico Bundler Status:');
+  console.log(`  Absolute minimum (3 MON):  ${balanceMON >= ABSOLUTE_MINIMUM ? '✅' : '❌'}`);
+  console.log(`  Recommended (5 MON):       ${balanceMON >= RECOMMENDED ? '✅' : '⚠️'}`);
+  console.log(`  Optimal (10+ MON):         ${balanceMON >= OPTIMAL ? '✅' : '⚠️'}`);
+
+  console.log('\n🔗 Funding Resources:');
+  console.log('  Testnet Faucet: https://testnet.monad.xyz/faucet');
+  console.log('  Safe Address:   ' + SAFE_ACCOUNT);
+  console.log('  Documentation:  FUNDING_SAFE_WALLET.md');
 }
 
 checkBalance().catch(console.error);
