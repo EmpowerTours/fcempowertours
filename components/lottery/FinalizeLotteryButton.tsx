@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { usePublicClient } from 'wagmi';
 import { Address } from 'viem';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 const LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_LOTTERY_ADDRESS as Address;
 
@@ -69,16 +70,14 @@ const LOTTERY_ABI = [
 
 export default function FinalizeLotteryButton() {
   const publicClient = usePublicClient();
+  const { walletAddress } = useFarcasterContext();
   const [pendingRound, setPendingRound] = useState<number | null>(null);
   const [canCommitRound, setCanCommitRound] = useState(false);
   const [canRevealRound, setCanRevealRound] = useState(false);
   const [checking, setChecking] = useState(false);
-
-  const { writeContract: commit, data: commitHash, isPending: isCommitPending } = useWriteContract();
-  const { writeContract: reveal, data: revealHash, isPending: isRevealPending } = useWriteContract();
-
-  const { isSuccess: commitSuccess, isLoading: commitLoading } = useWaitForTransactionReceipt({ hash: commitHash });
-  const { isSuccess: revealSuccess, isLoading: revealLoading } = useWaitForTransactionReceipt({ hash: revealHash });
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   // Check for pending rounds
   const checkPendingRounds = async () => {
@@ -144,31 +143,82 @@ export default function FinalizeLotteryButton() {
 
   // Recheck after successful transactions
   useEffect(() => {
-    if (commitSuccess || revealSuccess) {
-      setTimeout(checkPendingRounds, 2000);
+    if (success) {
+      setTimeout(() => {
+        checkPendingRounds();
+        setSuccess(null);
+      }, 3000);
     }
-  }, [commitSuccess, revealSuccess]);
+  }, [success]);
 
-  const handleCommit = () => {
-    if (!pendingRound) return;
+  const handleCommit = async () => {
+    if (!pendingRound || !walletAddress) {
+      setError('Wallet not connected');
+      return;
+    }
 
-    commit({
-      address: LOTTERY_ADDRESS,
-      abi: LOTTERY_ABI,
-      functionName: 'commitRandomness',
-      args: [BigInt(pendingRound)],
-    });
+    setProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'lottery_commit',
+          params: { roundId: pendingRound.toString() }
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to commit randomness');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`✅ Committed! You earned 0.01 MON. TX: ${txHash.slice(0, 10)}...`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to commit');
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const handleReveal = () => {
-    if (!pendingRound) return;
+  const handleReveal = async () => {
+    if (!pendingRound || !walletAddress) {
+      setError('Wallet not connected');
+      return;
+    }
 
-    reveal({
-      address: LOTTERY_ADDRESS,
-      abi: LOTTERY_ABI,
-      functionName: 'revealWinner',
-      args: [BigInt(pendingRound)],
-    });
+    setProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'lottery_reveal',
+          params: { roundId: pendingRound.toString() }
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to reveal winner');
+      }
+
+      const { txHash } = await response.json();
+      setSuccess(`🏆 Winner revealed! You earned 0.01 MON. TX: ${txHash.slice(0, 10)}...`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to reveal');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   if (!pendingRound || (!canCommitRound && !canRevealRound)) {
@@ -187,29 +237,41 @@ export default function FinalizeLotteryButton() {
             {canRevealRound && 'Lottery is ready to reveal the winner. Earn 0.01 MON by revealing!'}
           </p>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 mb-3">
             {canCommitRound && (
               <button
                 onClick={handleCommit}
-                disabled={checking || isCommitPending || commitLoading}
-                className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50"
+                disabled={checking || processing || !walletAddress}
+                className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCommitPending || commitLoading ? '⏳ Processing...' : checking ? 'Checking...' : '1️⃣ Commit Randomness (+0.01 MON)'}
+                {processing ? '⏳ Processing...' : checking ? 'Checking...' : '1️⃣ Commit Randomness (+0.01 MON)'}
               </button>
             )}
 
             {canRevealRound && (
               <button
                 onClick={handleReveal}
-                disabled={checking || isRevealPending || revealLoading}
-                className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50"
+                disabled={checking || processing || !walletAddress}
+                className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isRevealPending || revealLoading ? '⏳ Processing...' : checking ? 'Checking...' : '2️⃣ Reveal Winner (+0.01 MON)'}
+                {processing ? '⏳ Processing...' : checking ? 'Checking...' : '2️⃣ Reveal Winner (+0.01 MON)'}
               </button>
             )}
           </div>
 
-          <p className="text-xs text-yellow-200 mt-3">
+          {/* Success/Error Messages */}
+          {success && (
+            <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-2">
+              <p className="text-green-100 text-sm">{success}</p>
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 mb-2">
+              <p className="text-red-100 text-sm">{error}</p>
+            </div>
+          )}
+
+          <p className="text-xs text-yellow-200 mt-2">
             Round #{pendingRound} • Anyone can finalize • First come, first served
           </p>
         </div>
