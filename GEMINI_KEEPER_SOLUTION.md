@@ -55,7 +55,7 @@ Add to `.env.local`:
 
 ```env
 # Already have ✅
-GEMINI_API_KEY=AIzaSyAHXFOe6MvhJi_svCU1sWuAYb9p4iWBbSc
+GEMINI_API_KEY=your_gemini_api_key_here
 USE_GEMINI=true
 
 # Add these
