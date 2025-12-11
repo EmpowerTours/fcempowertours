@@ -80,7 +80,7 @@ networks:
 
       - name: PassportNFT
         address:
-          - "0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163"  # PassportNFTv4
+          - "0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163"  # PassportNFTv3
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data
