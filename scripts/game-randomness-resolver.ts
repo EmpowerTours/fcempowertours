@@ -145,29 +145,49 @@ async function resolveRandomness(randomnessId: string, requestedAt: number, swit
   console.log(`🎲 Resolving randomness for ID: ${randomnessId}`);
   console.log(`   Requested at: ${new Date(requestedAt * 1000).toISOString()}`);
 
-  // Get randomness data from Switchboard contract
-  console.log(`📡 Querying Switchboard contract for randomness metadata...`);
-  const randomnessData = await switchboardContract.getRandomness(randomnessId);
+  // Poll Switchboard contract until oracle settles the randomness
+  console.log(`⏳ Polling Switchboard contract for oracle settlement...`);
 
-  console.log(`✅ Randomness metadata:`, {
-    rollTimestamp: randomnessData.rollTimestamp.toString(),
-    minSettlementDelay: randomnessData.minSettlementDelay.toString(),
-    oracle: randomnessData.oracle,
-    settledAt: randomnessData.settledAt.toString()
-  });
+  let randomnessData;
+  let attempts = 0;
+  const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
+  const pollInterval = 5000; // 5 seconds
 
-  // Wait for settlement delay based on rollTimestamp
-  const settlementTime = Number(randomnessData.rollTimestamp) + Number(randomnessData.minSettlementDelay);
-  const now = Math.floor(Date.now() / 1000);
-  const waitTime = Math.max(0, settlementTime - now + 10); // Add 10s buffer for clock skew
+  while (attempts < maxAttempts) {
+    randomnessData = await switchboardContract.getRandomness(randomnessId);
 
-  if (waitTime > 0) {
-    console.log(`⏳ Waiting ${waitTime}s for Switchboard settlement...`);
-    await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+    const settledAt = Number(randomnessData.settledAt);
+
+    if (settledAt > 0) {
+      console.log(`✅ Randomness settled by oracle at ${new Date(settledAt * 1000).toISOString()}`);
+      console.log(`   Metadata:`, {
+        rollTimestamp: randomnessData.rollTimestamp.toString(),
+        minSettlementDelay: randomnessData.minSettlementDelay.toString(),
+        oracle: randomnessData.oracle,
+        settledAt: randomnessData.settledAt.toString(),
+        value: randomnessData.value.toString()
+      });
+      break;
+    }
+
+    attempts++;
+    if (attempts >= maxAttempts) {
+      throw new Error(`Randomness not settled by oracle after ${maxAttempts * pollInterval / 1000}s`);
+    }
+
+    const earliestSettlementTime = Number(randomnessData.rollTimestamp) + Number(randomnessData.minSettlementDelay);
+    const now = Math.floor(Date.now() / 1000);
+    const timeUntilEarliest = Math.max(0, earliestSettlementTime - now);
+
+    console.log(`   Attempt ${attempts}/${maxAttempts}: Not settled yet (settledAt = 0)`);
+    console.log(`   Earliest settlement: ${new Date(earliestSettlementTime * 1000).toISOString()} (${timeUntilEarliest}s from now)`);
+    console.log(`   Waiting ${pollInterval / 1000}s before next check...`);
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
 
-  // Fetch randomness from Crossbar with ALL required parameters
-  console.log(`📡 Fetching randomness from Crossbar with full parameters...`);
+  // Fetch randomness proof from Crossbar with ALL required parameters
+  console.log(`📡 Fetching randomness proof from Crossbar...`);
   const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
     chainId: CHAIN_ID,
     randomnessId,
@@ -176,7 +196,7 @@ async function resolveRandomness(randomnessId: string, requestedAt: number, swit
     oracle: randomnessData.oracle,
   });
 
-  console.log(`✅ Randomness resolved successfully from Crossbar`);
+  console.log(`✅ Randomness proof fetched successfully from Crossbar`);
   return encodedRandomness;
 }
 
