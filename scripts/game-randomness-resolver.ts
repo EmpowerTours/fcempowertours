@@ -326,50 +326,82 @@ async function main() {
   const beatMatchContract = new ethers.Contract(BEAT_MATCH_V3_ADDRESS, BEAT_MATCH_V3_ABI, wallet);
   const countryCollectorContract = new ethers.Contract(COUNTRY_COLLECTOR_V3_ADDRESS, COUNTRY_COLLECTOR_V3_ABI, wallet);
 
-  // Listen for Beat Match randomness requests
-  console.log(`👂 Listening for MusicBeatMatchV3 events...`);
-  beatMatchContract.on('RandomSongRequested', async (challengeId, randomnessId, requestedAt, caller) => {
-    console.log(`\n🔔 RandomSongRequested event received!`);
-    console.log(`   Challenge ID: ${challengeId}`);
-    console.log(`   Randomness ID: ${randomnessId}`);
-    console.log(`   Caller: ${caller}`);
+  // Poll for events (Monad doesn't support eth_newFilter)
+  console.log(`👂 Polling for MusicBeatMatchV3 and CountryCollectorV3 events...`);
+  console.log(`✅ Resolver is running (polling every 10 seconds)...\n`);
 
+  let lastBeatMatchBlock = await provider.getBlockNumber();
+  let lastCountryCollectorBlock = await provider.getBlockNumber();
+
+  // Polling interval: 10 seconds
+  setInterval(async () => {
     try {
-      await handleBeatMatchRandomness(
-        beatMatchContract,
-        challengeId,
-        randomnessId,
-        Number(requestedAt)
-      );
+      const currentBlock = await provider.getBlockNumber();
+
+      // Poll Beat Match events
+      if (currentBlock > lastBeatMatchBlock) {
+        const beatMatchEvents = await beatMatchContract.queryFilter(
+          beatMatchContract.filters.RandomSongRequested(),
+          lastBeatMatchBlock + 1,
+          currentBlock
+        );
+
+        for (const event of beatMatchEvents) {
+          console.log(`\n🔔 RandomSongRequested event received!`);
+          console.log(`   Challenge ID: ${event.args![0]}`);
+          console.log(`   Randomness ID: ${event.args![1]}`);
+          console.log(`   Caller: ${event.args![3]}`);
+
+          try {
+            await handleBeatMatchRandomness(
+              beatMatchContract,
+              event.args![0],
+              event.args![1],
+              Number(event.args![2])
+            );
+          } catch (error: any) {
+            console.error(`❌ Failed to handle beat match randomness:`, error.message);
+          }
+        }
+
+        lastBeatMatchBlock = currentBlock;
+      }
+
+      // Poll Country Collector events
+      if (currentBlock > lastCountryCollectorBlock) {
+        const countryCollectorEvents = await countryCollectorContract.queryFilter(
+          countryCollectorContract.filters.RandomArtistsRequested(),
+          lastCountryCollectorBlock + 1,
+          currentBlock
+        );
+
+        for (const event of countryCollectorEvents) {
+          console.log(`\n🔔 RandomArtistsRequested event received!`);
+          console.log(`   Week ID: ${event.args![0]}`);
+          console.log(`   Randomness ID: ${event.args![1]}`);
+          console.log(`   Country: ${event.args![3]} (${event.args![2]})`);
+          console.log(`   Caller: ${event.args![5]}`);
+
+          try {
+            await handleCountryCollectorRandomness(
+              countryCollectorContract,
+              event.args![0],
+              event.args![1],
+              event.args![2],
+              event.args![3],
+              Number(event.args![4])
+            );
+          } catch (error: any) {
+            console.error(`❌ Failed to handle country collector randomness:`, error.message);
+          }
+        }
+
+        lastCountryCollectorBlock = currentBlock;
+      }
     } catch (error: any) {
-      console.error(`❌ Failed to handle beat match randomness:`, error.message);
+      console.error(`❌ Polling error:`, error.message);
     }
-  });
-
-  // Listen for Country Collector randomness requests
-  console.log(`👂 Listening for CountryCollectorV3 events...\n`);
-  countryCollectorContract.on('RandomArtistsRequested', async (weekId, randomnessId, countryCode, countryName, requestedAt, caller) => {
-    console.log(`\n🔔 RandomArtistsRequested event received!`);
-    console.log(`   Week ID: ${weekId}`);
-    console.log(`   Randomness ID: ${randomnessId}`);
-    console.log(`   Country: ${countryName} (${countryCode})`);
-    console.log(`   Caller: ${caller}`);
-
-    try {
-      await handleCountryCollectorRandomness(
-        countryCollectorContract,
-        weekId,
-        randomnessId,
-        countryCode,
-        countryName,
-        Number(requestedAt)
-      );
-    } catch (error: any) {
-      console.error(`❌ Failed to handle country collector randomness:`, error.message);
-    }
-  });
-
-  console.log(`✅ Resolver is running and listening for events...\n`);
+  }, 10000); // Poll every 10 seconds
 
   // Keep process alive
   process.on('SIGINT', () => {
