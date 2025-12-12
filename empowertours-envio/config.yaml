@@ -420,7 +420,7 @@ networks:
       # ✅ V3: MusicBeatMatchV3 Contract (Switchboard randomness - Dec 12, 2025)
       - name: MusicBeatMatchV3
         address:
-          - "0xF8149b7EF0393170a5fB8Aef0BC54bC2eb7d1681"
+          - "0xC84D1A34cD1cE3b71933F4f39d4C8C4E9f7c7fAd"
         handler: src/EventHandlers.ts
         events:
           # Randomness request
@@ -450,7 +450,7 @@ networks:
       # ✅ V3: CountryCollectorV3 Contract (Switchboard randomness - Dec 12, 2025)
       - name: CountryCollectorV3
         address:
-          - "0xb0Bcd237DB21704D6ecfb6b96F8b2b5D136Ea87F"
+          - "0x84338d37aC95b965B087Ce5819bb5aeFbE4395c7"
         handler: src/EventHandlers.ts
         events:
           # Randomness request
