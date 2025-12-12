@@ -3729,10 +3729,7 @@ ${enjoyText}
 
           const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
             chainId: 10143, // Monad Testnet
-            randomnessId,
-            timestamp: randomnessRequestedAt,
-            minStalenessSeconds: 5,
-            oracle: '0x0000000000000000000000000000000000000000'
+            randomnessId
           });
 
           console.log('✅ Fetched encoded randomness from Switchboard');
