@@ -28,7 +28,7 @@ const monadTestnet = defineChain({
   testnet: true,
 });
 
-const LOTTERY_ADDRESS = '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE';
+const LOTTERY_ADDRESS = '0x21D83528281dD0262b6DD401e5c484153E3B52cE';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
