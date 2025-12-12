@@ -3,6 +3,7 @@ import { createPublicClient, http, Address, parseAbi, encodeFunctionData } from 
 import { monadTestnet } from '@/app/chains';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+import { ALL_COUNTRIES } from '@/lib/passport/countries';
 
 const neynar = new NeynarAPIClient({
   apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!
@@ -41,44 +42,38 @@ export async function POST(req: NextRequest) {
     const actions: string[] = [];
 
     if (type === 'beat-match') {
-      // Check if there's already an active challenge (V3 uses different structure)
+      // Check if there's already an active challenge using getCurrentChallenge()
       try {
-        const currentChallengeId = await client.readContract({
+        const currentChallenge = await client.readContract({
           address: MUSIC_BEAT_MATCH_V3,
-          abi: parseAbi(['function currentChallengeId() view returns (uint256)']),
-          functionName: 'currentChallengeId',
-        }) as bigint;
+          abi: parseAbi([
+            'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 musicNFTTokenId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bool randomnessRequested, bool randomnessFulfilled, bytes32 answerHash))'
+          ]),
+          functionName: 'getCurrentChallenge',
+        }) as any;
 
-        if (currentChallengeId > 0n) {
-          const currentChallenge = await client.readContract({
-            address: MUSIC_BEAT_MATCH_V3,
-            abi: parseAbi([
-              'function challenges(uint256) view returns (uint256 challengeId, uint256 musicNFTTokenId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 rewardPool, bool finalized, bytes32 randomnessId, uint256 randomValue)'
-            ]),
-            functionName: 'challenges',
-            args: [currentChallengeId],
-          }) as any;
-
-          if (!currentChallenge.finalized && currentChallenge.endTime > now) {
+        // Check if challenge is active or pending randomness
+        if (currentChallenge.active || (currentChallenge.randomnessRequested && !currentChallenge.randomnessFulfilled)) {
+          if (currentChallenge.endTime > now) {
             return NextResponse.json({
               success: false,
-              error: 'An active Beat Match challenge already exists. Wait for it to expire before creating a new one.'
+              error: 'An active or pending Beat Match challenge already exists. Wait for it to expire or be resolved.'
             }, { status: 400 });
           }
 
           // Finalize expired challenge first
-          if (!currentChallenge.finalized && currentChallenge.endTime < now) {
-            console.log(`[Beat Match] Finalizing expired challenge #${currentChallengeId}...`);
+          if (currentChallenge.active && currentChallenge.endTime < now) {
+            console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
             await sendSafeTransaction([{
               to: MUSIC_BEAT_MATCH_V3,
               value: 0n,
               data: encodeFunctionData({
                 abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
                 functionName: 'finalizeChallenge',
-                args: [currentChallengeId],
+                args: [currentChallenge.challengeId],
               }) as `0x${string}`,
             }]);
-            actions.push(`Finalized expired challenge #${currentChallengeId}`);
+            actions.push(`Finalized expired challenge #${currentChallenge.challengeId}`);
           }
         }
       } catch (error) {
@@ -87,56 +82,50 @@ export async function POST(req: NextRequest) {
 
       // Create new challenge with V3 randomness
       const beatMatchResult = await createBeatMatchV3(client);
-      actions.push(`Requested Beat Match randomness for challenge #${beatMatchResult.challengeId}`);
+      actions.push(`Requested Beat Match randomness`);
 
       return NextResponse.json({
         success: true,
         type: 'beat-match',
         actions,
-        challenge: beatMatchResult,
+        tx: beatMatchResult.tx,
         message: 'Randomness requested. Challenge will be created once resolved by the bot.',
       });
     }
 
     if (type === 'country-collector') {
-      // Check if there's already an active challenge (V3 uses different structure)
+      // Check if there's already an active challenge using getCurrentChallenge()
       try {
-        const currentWeekId = await client.readContract({
+        const currentChallenge = await client.readContract({
           address: COUNTRY_COLLECTOR_V3,
-          abi: parseAbi(['function currentWeekId() view returns (uint256)']),
-          functionName: 'currentWeekId',
-        }) as bigint;
+          abi: parseAbi([
+            'function getCurrentChallenge() view returns (tuple(uint256 id, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool active, bool finalized, bool randomnessRequested, bool randomnessFulfilled))'
+          ]),
+          functionName: 'getCurrentChallenge',
+        }) as any;
 
-        if (currentWeekId > 0n) {
-          const currentWeek = await client.readContract({
-            address: COUNTRY_COLLECTOR_V3,
-            abi: parseAbi([
-              'function weeks(uint256) view returns (uint256 weekId, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool finalized, bytes32 randomnessId, uint256 randomValue)'
-            ]),
-            functionName: 'weeks',
-            args: [currentWeekId],
-          }) as any;
-
-          if (!currentWeek.finalized && currentWeek.endTime > now) {
+        // Check if challenge is active or pending randomness
+        if (currentChallenge.active || (currentChallenge.randomnessRequested && !currentChallenge.randomnessFulfilled)) {
+          if (currentChallenge.endTime > now) {
             return NextResponse.json({
               success: false,
-              error: 'An active Country Collector challenge already exists. Wait for it to expire before creating a new one.'
+              error: 'An active or pending Country Collector challenge already exists. Wait for it to expire or be resolved.'
             }, { status: 400 });
           }
 
           // Finalize expired challenge first
-          if (!currentWeek.finalized && currentWeek.endTime < now) {
-            console.log(`[Country Collector] Finalizing expired week #${currentWeekId}...`);
+          if (currentChallenge.active && currentChallenge.endTime < now) {
+            console.log(`[Country Collector] Finalizing expired week #${currentChallenge.id}...`);
             await sendSafeTransaction([{
               to: COUNTRY_COLLECTOR_V3,
               value: 0n,
               data: encodeFunctionData({
-                abi: parseAbi(['function finalizeWeek(uint256 weekId)']),
-                functionName: 'finalizeWeek',
-                args: [currentWeekId],
+                abi: parseAbi(['function finalizeChallenge(uint256 weekId)']),
+                functionName: 'finalizeChallenge',
+                args: [currentChallenge.id],
               }) as `0x${string}`,
             }]);
-            actions.push(`Finalized expired week #${currentWeekId}`);
+            actions.push(`Finalized expired week #${currentChallenge.id}`);
           }
         }
       } catch (error) {
@@ -145,13 +134,15 @@ export async function POST(req: NextRequest) {
 
       // Create new challenge with V3 randomness
       const collectorResult = await createCountryCollectorV3(client);
-      actions.push(`Requested Country Collector randomness for week #${collectorResult.weekId}`);
+      actions.push(`Requested Country Collector randomness for ${collectorResult.country}`);
 
       return NextResponse.json({
         success: true,
         type: 'country-collector',
         actions,
-        challenge: collectorResult,
+        tx: collectorResult.tx,
+        country: collectorResult.country,
+        countryCode: collectorResult.countryCode,
         message: 'Randomness requested. Challenge will be created once resolved by the bot.',
       });
     }
@@ -195,15 +186,7 @@ async function createBeatMatchV3(client: any) {
     }) as `0x${string}`,
   }]);
 
-  // Get the new challenge ID
-  const nextChallengeId = await client.readContract({
-    address: MUSIC_BEAT_MATCH_V3,
-    abi: parseAbi(['function currentChallengeId() view returns (uint256)']),
-    functionName: 'currentChallengeId',
-  }) as bigint;
-
   return {
-    challengeId: nextChallengeId.toString(),
     tx,
   };
 }
@@ -212,26 +195,25 @@ async function createBeatMatchV3(client: any) {
  * Create Country Collector challenge with V3 Switchboard randomness
  */
 async function createCountryCollectorV3(client: any) {
+  // Select a random country
+  const randomCountry = ALL_COUNTRIES[Math.floor(Math.random() * ALL_COUNTRIES.length)];
+
+  console.log(`[Country Collector] Selected country: ${randomCountry.name} (${randomCountry.code})`);
+
   // V3: Just request randomness, bot will resolve and create challenge
   const tx = await sendSafeTransaction([{
     to: COUNTRY_COLLECTOR_V3,
     value: 0n,
     data: encodeFunctionData({
-      abi: parseAbi(['function requestRandomArtistSelection() returns (uint256 weekId)']),
+      abi: parseAbi(['function requestRandomArtistSelection(string country, string countryCode) returns (uint256 weekId)']),
       functionName: 'requestRandomArtistSelection',
-      args: [],
+      args: [randomCountry.name, randomCountry.code],
     }) as `0x${string}`,
   }]);
 
-  // Get the new week ID
-  const nextWeekId = await client.readContract({
-    address: COUNTRY_COLLECTOR_V3,
-    abi: parseAbi(['function currentWeekId() view returns (uint256)']),
-    functionName: 'currentWeekId',
-  }) as bigint;
-
   return {
-    weekId: nextWeekId.toString(),
     tx,
+    country: randomCountry.name,
+    countryCode: randomCountry.code,
   };
 }
