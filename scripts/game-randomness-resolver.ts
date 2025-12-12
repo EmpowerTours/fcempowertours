@@ -149,13 +149,10 @@ async function resolveRandomness(randomnessId: string, requestedAt: number): Pro
     await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
   }
 
-  // Fetch randomness from Crossbar
+  // Fetch randomness from Crossbar (only chainId and randomnessId are supported)
   const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
     chainId: CHAIN_ID,
     randomnessId,
-    timestamp: requestedAt,
-    minStalenessSeconds: 5,
-    oracle: '0x0000000000000000000000000000000000000000', // Auto-select oracle
   });
 
   console.log(`✅ Randomness resolved successfully`);

@@ -192,13 +192,56 @@ async function createBeatMatchV3(client: any) {
 }
 
 /**
+ * Fetch countries with artists from Envio
+ */
+async function getCountriesWithArtists(): Promise<Set<string>> {
+  const query = `
+    query {
+      PassportNFT(
+        distinct_on: countryCode
+        order_by: { countryCode: asc }
+      ) {
+        countryCode
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(ENVIO_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+
+    const { data } = await response.json();
+    const countryCodes = new Set((data?.PassportNFT || []).map((p: any) => p.countryCode));
+    console.log(`[Country Filter] Found ${countryCodes.size} countries with artists:`, Array.from(countryCodes));
+    return countryCodes;
+  } catch (error) {
+    console.error('[Country Filter] Error fetching countries:', error);
+    return new Set();
+  }
+}
+
+/**
  * Create Country Collector challenge with V3 Switchboard randomness
  */
 async function createCountryCollectorV3(client: any) {
-  // Select a random country
-  const randomCountry = ALL_COUNTRIES[Math.floor(Math.random() * ALL_COUNTRIES.length)];
+  // Get countries that have artists
+  const countriesWithArtists = await getCountriesWithArtists();
+
+  // Filter ALL_COUNTRIES to only those with artists
+  const eligibleCountries = ALL_COUNTRIES.filter(c => countriesWithArtists.has(c.code));
+
+  if (eligibleCountries.length === 0) {
+    throw new Error('No countries with artists found. Mint a passport NFT first!');
+  }
+
+  // Select a random country from eligible ones
+  const randomCountry = eligibleCountries[Math.floor(Math.random() * eligibleCountries.length)];
 
   console.log(`[Country Collector] Selected country: ${randomCountry.name} (${randomCountry.code})`);
+  console.log(`[Country Collector] ${eligibleCountries.length} eligible countries available`);
 
   // V3: Just request randomness, bot will resolve and create challenge
   const tx = await sendSafeTransaction([{
