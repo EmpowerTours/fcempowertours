@@ -23,10 +23,15 @@ const COUNTRY_COLLECTOR_V3_ADDRESS = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V
 
 const CHAIN_ID = 10143;
 const CROSSBAR_URL = 'https://crossbar.switchboard.xyz';
+const SWITCHBOARD_ADDRESS = '0xD3860E2C66cBd5c969Fa7343e6912Eff0416bA33'; // Monad testnet
 
 // ============================================================================
 // CONTRACT ABIs (minimal)
 // ============================================================================
+
+const SWITCHBOARD_ABI = [
+  'function getRandomness(bytes32 randomnessId) external view returns (tuple(bytes32 randId, uint256 createdAt, address authority, uint256 rollTimestamp, uint64 minSettlementDelay, address oracle, uint256 value, uint256 settledAt))',
+];
 
 const BEAT_MATCH_V3_ABI = [
   'event RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)',
@@ -134,28 +139,44 @@ async function fetchArtistsByCountry(countryCode: string): Promise<any[]> {
 // SWITCHBOARD RANDOMNESS RESOLUTION
 // ============================================================================
 
-async function resolveRandomness(randomnessId: string, requestedAt: number): Promise<string> {
+async function resolveRandomness(randomnessId: string, requestedAt: number, switchboardContract: ethers.Contract): Promise<string> {
   const crossbar = new CrossbarClient(CROSSBAR_URL);
 
   console.log(`🎲 Resolving randomness for ID: ${randomnessId}`);
   console.log(`   Requested at: ${new Date(requestedAt * 1000).toISOString()}`);
 
-  // Wait for settlement delay (5+ seconds)
+  // Get randomness data from Switchboard contract
+  console.log(`📡 Querying Switchboard contract for randomness metadata...`);
+  const randomnessData = await switchboardContract.getRandomness(randomnessId);
+
+  console.log(`✅ Randomness metadata:`, {
+    rollTimestamp: randomnessData.rollTimestamp.toString(),
+    minSettlementDelay: randomnessData.minSettlementDelay.toString(),
+    oracle: randomnessData.oracle,
+    settledAt: randomnessData.settledAt.toString()
+  });
+
+  // Wait for settlement delay based on rollTimestamp
+  const settlementTime = Number(randomnessData.rollTimestamp) + Number(randomnessData.minSettlementDelay);
   const now = Math.floor(Date.now() / 1000);
-  const elapsed = now - requestedAt;
-  if (elapsed < 6) {
-    const waitTime = 6 - elapsed;
+  const waitTime = Math.max(0, settlementTime - now + 10); // Add 10s buffer for clock skew
+
+  if (waitTime > 0) {
     console.log(`⏳ Waiting ${waitTime}s for Switchboard settlement...`);
     await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
   }
 
-  // Fetch randomness from Crossbar (only chainId and randomnessId are supported)
+  // Fetch randomness from Crossbar with ALL required parameters
+  console.log(`📡 Fetching randomness from Crossbar with full parameters...`);
   const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
     chainId: CHAIN_ID,
     randomnessId,
+    timestamp: Number(randomnessData.rollTimestamp),
+    minStalenessSeconds: Number(randomnessData.minSettlementDelay),
+    oracle: randomnessData.oracle,
   });
 
-  console.log(`✅ Randomness resolved successfully`);
+  console.log(`✅ Randomness resolved successfully from Crossbar`);
   return encodedRandomness;
 }
 
@@ -165,6 +186,7 @@ async function resolveRandomness(randomnessId: string, requestedAt: number): Pro
 
 async function handleBeatMatchRandomness(
   contract: ethers.Contract,
+  switchboardContract: ethers.Contract,
   challengeId: bigint,
   randomnessId: string,
   requestedAt: number
@@ -183,7 +205,7 @@ async function handleBeatMatchRandomness(
     }
 
     // Resolve randomness
-    const encodedRandomness = await resolveRandomness(randomnessId, requestedAt);
+    const encodedRandomness = await resolveRandomness(randomnessId, requestedAt, switchboardContract);
 
     // Decode random value to select NFT
     const randomValue = BigInt(randomnessId); // Use randomnessId as seed
@@ -233,6 +255,7 @@ async function handleBeatMatchRandomness(
 
 async function handleCountryCollectorRandomness(
   contract: ethers.Contract,
+  switchboardContract: ethers.Contract,
   weekId: bigint,
   randomnessId: string,
   countryCode: string,
@@ -254,7 +277,7 @@ async function handleCountryCollectorRandomness(
     }
 
     // Resolve randomness
-    const encodedRandomness = await resolveRandomness(randomnessId, requestedAt);
+    const encodedRandomness = await resolveRandomness(randomnessId, requestedAt, switchboardContract);
 
     // Use random value to select 3 artists (allow duplicates if < 3 unique artists)
     const randomValue = BigInt(randomnessId);
@@ -335,8 +358,11 @@ async function main() {
   console.log(`🔑 Resolver address: ${wallet.address}\n`);
 
   // Setup contracts
+  const switchboardContract = new ethers.Contract(SWITCHBOARD_ADDRESS, SWITCHBOARD_ABI, wallet);
   const beatMatchContract = new ethers.Contract(BEAT_MATCH_V3_ADDRESS, BEAT_MATCH_V3_ABI, wallet);
   const countryCollectorContract = new ethers.Contract(COUNTRY_COLLECTOR_V3_ADDRESS, COUNTRY_COLLECTOR_V3_ABI, wallet);
+
+  console.log(`🔗 Switchboard contract: ${SWITCHBOARD_ADDRESS}\n`);
 
   // Poll for events (Monad doesn't support eth_newFilter)
   console.log(`👂 Polling for MusicBeatMatchV3 and CountryCollectorV3 events...`);
@@ -367,6 +393,7 @@ async function main() {
           try {
             await handleBeatMatchRandomness(
               beatMatchContract,
+              switchboardContract,
               event.args![0],
               event.args![1],
               Number(event.args![2])
@@ -397,6 +424,7 @@ async function main() {
           try {
             await handleCountryCollectorRandomness(
               countryCollectorContract,
+              switchboardContract,
               event.args![0],
               event.args![1],
               event.args![2],
