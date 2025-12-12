@@ -7,16 +7,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SwitchboardTypes} from "@switchboard-xyz/on-demand-solidity/libraries/SwitchboardTypes.sol";
 import {ISwitchboard} from "@switchboard-xyz/on-demand-solidity/interfaces/ISwitchboard.sol";
 
-// Minimal interface for queue-aware randomness (avoids broken legacy imports)
-interface ISwitchboardRandomness {
-    function requestRandomness(
-        bytes32 randomnessId,
-        address authority,
-        bytes32 queueId,
-        uint64 minSettlementDelay
-    ) external;
-}
-
 /**
  * @title CountryCollectorV3
  * @notice V3 with Switchboard verifiable randomness for fair artist selection
@@ -103,10 +93,6 @@ contract CountryCollectorV3 is Ownable, ReentrancyGuard {
     // Timing
     uint256 public constant CHALLENGE_DURATION = 7 days;
     uint64 public constant MIN_SETTLEMENT_DELAY = 5; // 5 seconds
-
-    // Switchboard Queue IDs
-    bytes32 constant MAINNET_QUEUE = 0x86807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b0752;
-    bytes32 constant TESTNET_QUEUE = 0xc9477bfb5ff1012859f336cf98725680e7705ba2abece17188cfb28ca66ca5b0;
 
     // ========================================================================
     // EVENTS
@@ -221,14 +207,8 @@ contract CountryCollectorV3 is Ownable, ReentrancyGuard {
             "CountryCollector"
         ));
 
-        // Request randomness from Switchboard with TESTNET_QUEUE
-        // Cast to ISwitchboardRandomness to access requestRandomness() with queue parameter
-        ISwitchboardRandomness(address(switchboard)).requestRandomness(
-            randomnessId,           // Unique ID for the request
-            address(this),          // Authority (this contract manages the randomness)
-            TESTNET_QUEUE,          // Queue ID for Monad testnet oracles
-            MIN_SETTLEMENT_DELAY    // Minimum delay before settlement
-        );
+        // Step 1: Create randomness request on-chain
+        switchboard.createRandomness(randomnessId, MIN_SETTLEMENT_DELAY);
 
         // Store randomness request
         randomnessRequests[weekId] = RandomnessRequest({
