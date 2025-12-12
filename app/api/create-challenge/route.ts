@@ -10,8 +10,8 @@ const neynar = new NeynarAPIClient({
 });
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const MUSIC_BEAT_MATCH_V2 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
-const COUNTRY_COLLECTOR_V2 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V2 as Address;
+const MUSIC_BEAT_MATCH_V3 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V3 as Address;
+const COUNTRY_COLLECTOR_V3 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V3 as Address;
 
 /**
  * Public API for manually creating game challenges
@@ -45,27 +45,27 @@ export async function POST(req: NextRequest) {
       // Check if there's already an active challenge using getCurrentChallenge()
       try {
         const currentChallenge = await client.readContract({
-          address: MUSIC_BEAT_MATCH_V2,
+          address: MUSIC_BEAT_MATCH_V3,
           abi: parseAbi([
-            'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bytes32 answerHash))'
+            'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 musicNFTTokenId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bool randomnessRequested, bool randomnessFulfilled, bytes32 answerHash))'
           ]),
           functionName: 'getCurrentChallenge',
         }) as any;
 
-        // Check if challenge is active
-        if (currentChallenge.active) {
+        // Check if challenge is active or pending randomness
+        if (currentChallenge.active || (currentChallenge.randomnessRequested && !currentChallenge.randomnessFulfilled)) {
           if (currentChallenge.endTime > now) {
             return NextResponse.json({
               success: false,
-              error: 'An active Beat Match challenge already exists. Wait for it to expire or be resolved.'
+              error: 'An active or pending Beat Match challenge already exists. Wait for it to expire or be resolved.'
             }, { status: 400 });
           }
 
           // Finalize expired challenge first
-          if (currentChallenge.endTime < now) {
+          if (currentChallenge.active && currentChallenge.endTime < now) {
             console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
             await sendSafeTransaction([{
-              to: MUSIC_BEAT_MATCH_V2,
+              to: MUSIC_BEAT_MATCH_V3,
               value: 0n,
               data: encodeFunctionData({
                 abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
@@ -80,18 +80,16 @@ export async function POST(req: NextRequest) {
         console.log('[Beat Match] No current challenge found');
       }
 
-      // Create new challenge with V2 (direct creation)
-      const beatMatchResult = await createBeatMatchV2(client);
-      actions.push(`Created Beat Match challenge: "${beatMatchResult.songTitle}"`);
+      // Create new challenge with V3 randomness
+      const beatMatchResult = await createBeatMatchV3(client);
+      actions.push(`Requested Beat Match randomness`);
 
       return NextResponse.json({
         success: true,
         type: 'beat-match',
         actions,
         tx: beatMatchResult.tx,
-        songTitle: beatMatchResult.songTitle,
-        artistUsername: beatMatchResult.artistUsername,
-        message: 'Beat Match challenge created successfully!',
+        message: 'Randomness requested. Challenge will be created once resolved by the bot.',
       });
     }
 
@@ -99,27 +97,27 @@ export async function POST(req: NextRequest) {
       // Check if there's already an active challenge using getCurrentChallenge()
       try {
         const currentChallenge = await client.readContract({
-          address: COUNTRY_COLLECTOR_V2,
+          address: COUNTRY_COLLECTOR_V3,
           abi: parseAbi([
-            'function getCurrentChallenge() view returns (tuple(uint256 id, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool active, bool finalized))'
+            'function getCurrentChallenge() view returns (tuple(uint256 id, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool active, bool finalized, bool randomnessRequested, bool randomnessFulfilled))'
           ]),
           functionName: 'getCurrentChallenge',
         }) as any;
 
-        // Check if challenge is active
-        if (currentChallenge.active) {
+        // Check if challenge is active or pending randomness
+        if (currentChallenge.active || (currentChallenge.randomnessRequested && !currentChallenge.randomnessFulfilled)) {
           if (currentChallenge.endTime > now) {
             return NextResponse.json({
               success: false,
-              error: 'An active Country Collector challenge already exists. Wait for it to expire or be resolved.'
+              error: 'An active or pending Country Collector challenge already exists. Wait for it to expire or be resolved.'
             }, { status: 400 });
           }
 
           // Finalize expired challenge first
-          if (currentChallenge.endTime < now) {
+          if (currentChallenge.active && currentChallenge.endTime < now) {
             console.log(`[Country Collector] Finalizing expired week #${currentChallenge.id}...`);
             await sendSafeTransaction([{
-              to: COUNTRY_COLLECTOR_V2,
+              to: COUNTRY_COLLECTOR_V3,
               value: 0n,
               data: encodeFunctionData({
                 abi: parseAbi(['function finalizeChallenge(uint256 weekId)']),
@@ -134,9 +132,9 @@ export async function POST(req: NextRequest) {
         console.log('[Country Collector] No current challenge found');
       }
 
-      // Create new challenge with V2 (direct creation)
-      const collectorResult = await createCountryCollectorV2(client);
-      actions.push(`Created Country Collector challenge: ${collectorResult.country}`);
+      // Create new challenge with V3 randomness
+      const collectorResult = await createCountryCollectorV3(client);
+      actions.push(`Requested Country Collector randomness for ${collectorResult.country}`);
 
       return NextResponse.json({
         success: true,
@@ -145,8 +143,7 @@ export async function POST(req: NextRequest) {
         tx: collectorResult.tx,
         country: collectorResult.country,
         countryCode: collectorResult.countryCode,
-        artistIds: collectorResult.artistIds,
-        message: 'Country Collector challenge created successfully!',
+        message: 'Randomness requested. Challenge will be created once resolved by the bot.',
       });
     }
 
@@ -175,83 +172,23 @@ async function getArtistUsername(artistAddress: string): Promise<string> {
 }
 
 /**
- * Create Beat Match challenge with V2 (direct creation)
+ * Create Beat Match challenge with V3 Switchboard randomness
  */
-async function createBeatMatchV2(client: any) {
-  // Fetch eligible music NFTs from Envio
-  const musicNFTs = await fetchEligibleMusicNFTs();
-
-  if (musicNFTs.length === 0) {
-    throw new Error('No eligible music NFTs found. Please mint some music NFTs first!');
-  }
-
-  // Select random NFT using blockhash
-  const latestBlock = await client.getBlock({ blockTag: 'latest' });
-  const blockHashSeed = BigInt(latestBlock.hash);
-  const selectedIndex = Number(blockHashSeed % BigInt(musicNFTs.length));
-  const selectedNFT = musicNFTs[selectedIndex];
-
-  console.log(`[Beat Match V2] Selected NFT #${selectedIndex}: ${selectedNFT.name}`);
-
-  // Get artist username
-  const artistUsername = await getArtistUsername(selectedNFT.artist);
-
-  // Create challenge on-chain
+async function createBeatMatchV3(client: any) {
+  // V3: Just request randomness, bot will resolve and create challenge
   const tx = await sendSafeTransaction([{
-    to: MUSIC_BEAT_MATCH_V2,
+    to: MUSIC_BEAT_MATCH_V3,
     value: 0n,
     data: encodeFunctionData({
-      abi: parseAbi(['function createDailyChallenge(uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash) returns (uint256)']),
-      functionName: 'createDailyChallenge',
-      args: [
-        BigInt(selectedNFT.tokenId), // Use tokenId as artistId
-        selectedNFT.name || `Song #${selectedNFT.tokenId}`,
-        artistUsername,
-        selectedNFT.previewAudioUrl || selectedNFT.fullAudioUrl || '',
-      ],
+      abi: parseAbi(['function requestRandomSongSelection() returns (uint256 challengeId)']),
+      functionName: 'requestRandomSongSelection',
+      args: [],
     }) as `0x${string}`,
   }]);
 
   return {
     tx,
-    songTitle: selectedNFT.name || `Song #${selectedNFT.tokenId}`,
-    artistUsername,
   };
-}
-
-/**
- * Fetch eligible music NFTs from Envio
- */
-async function fetchEligibleMusicNFTs(): Promise<any[]> {
-  const query = `
-    query {
-      MusicNFT(
-        where: {
-          isArt: { _eq: false },
-          active: { _eq: true },
-          isBurned: { _eq: false },
-          metadataFetched: { _eq: true }
-        }
-        order_by: { mintedAt: desc }
-      ) {
-        tokenId
-        artist
-        name
-        previewAudioUrl
-        fullAudioUrl
-        imageUrl
-      }
-    }
-  `;
-
-  const response = await fetch(ENVIO_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-
-  const { data } = await response.json() as any;
-  return data?.MusicNFT || [];
 }
 
 /**
@@ -287,9 +224,9 @@ async function getCountriesWithArtists(): Promise<Set<string>> {
 }
 
 /**
- * Create Country Collector challenge with V2 (direct creation)
+ * Create Country Collector challenge with V3 Switchboard randomness
  */
-async function createCountryCollectorV2(client: any) {
+async function createCountryCollectorV3(client: any) {
   // Get countries that have artists
   const countriesWithArtists = await getCountriesWithArtists();
 
@@ -300,41 +237,20 @@ async function createCountryCollectorV2(client: any) {
     throw new Error('No countries with artists found. Mint a passport NFT first!');
   }
 
-  // Select random country using blockhash
-  const latestBlock = await client.getBlock({ blockTag: 'latest' });
-  const blockHashSeed = BigInt(latestBlock.hash);
-  const selectedIndex = Number(blockHashSeed % BigInt(eligibleCountries.length));
-  const randomCountry = eligibleCountries[selectedIndex];
+  // Select a random country from eligible ones
+  const randomCountry = eligibleCountries[Math.floor(Math.random() * eligibleCountries.length)];
 
-  console.log(`[Country Collector V2] Selected country: ${randomCountry.name} (${randomCountry.code})`);
+  console.log(`[Country Collector] Selected country: ${randomCountry.name} (${randomCountry.code})`);
+  console.log(`[Country Collector] ${eligibleCountries.length} eligible countries available`);
 
-  // Fetch artists from country
-  const artists = await fetchArtistsByCountry(randomCountry.code);
-
-  if (artists.length === 0) {
-    throw new Error(`No artists found for ${randomCountry.name}`);
-  }
-
-  // Select 3 random artists (allow duplicates if < 3 artists)
-  let seed = blockHashSeed;
-  const selectedArtistIds: [bigint, bigint, bigint] = [0n, 0n, 0n];
-
-  for (let i = 0; i < 3; i++) {
-    const artistIndex = Number(seed % BigInt(artists.length));
-    selectedArtistIds[i] = BigInt(artists[artistIndex].artistId);
-    seed = BigInt(latestBlock.hash.slice(0, 10 + i * 2)) + BigInt(i); // Vary the seed
-  }
-
-  console.log(`[Country Collector V2] Selected ${selectedArtistIds.length} artists:`, selectedArtistIds);
-
-  // Create challenge on-chain
+  // V3: Just request randomness, bot will resolve and create challenge
   const tx = await sendSafeTransaction([{
-    to: COUNTRY_COLLECTOR_V2,
+    to: COUNTRY_COLLECTOR_V3,
     value: 0n,
     data: encodeFunctionData({
-      abi: parseAbi(['function createWeeklyChallenge(string country, string countryCode, uint256[3] artistIds) returns (uint256)']),
-      functionName: 'createWeeklyChallenge',
-      args: [randomCountry.name, randomCountry.code, selectedArtistIds],
+      abi: parseAbi(['function requestRandomArtistSelection(string country, string countryCode) returns (uint256 weekId)']),
+      functionName: 'requestRandomArtistSelection',
+      args: [randomCountry.name, randomCountry.code],
     }) as `0x${string}`,
   }]);
 
@@ -342,42 +258,5 @@ async function createCountryCollectorV2(client: any) {
     tx,
     country: randomCountry.name,
     countryCode: randomCountry.code,
-    artistIds: selectedArtistIds,
   };
-}
-
-/**
- * Fetch artists by country from Envio
- */
-async function fetchArtistsByCountry(countryCode: string): Promise<any[]> {
-  const query = `
-    query {
-      PassportNFT(
-        where: {
-          countryCode: { _eq: "${countryCode.toUpperCase()}" }
-        }
-        order_by: { mintedAt: desc }
-        limit: 50
-      ) {
-        tokenId
-        owner
-        countryCode
-        countryName
-      }
-    }
-  `;
-
-  const response = await fetch(ENVIO_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-
-  const { data } = await response.json() as any;
-
-  // Use tokenId as artistId (in production, you'd have proper artist IDs)
-  return (data?.PassportNFT || []).map((p: any) => ({
-    artistId: p.tokenId,
-    countryCode: p.countryCode,
-  }));
 }
