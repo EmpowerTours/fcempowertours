@@ -251,34 +251,49 @@ async function handleCountryCollectorRandomness(
     const artists = await fetchArtistsByCountry(countryCode);
     console.log(`   Found ${artists.length} artists from ${countryName}`);
 
-    if (artists.length < 3) {
-      console.error(`❌ Not enough artists found for ${countryName} (need 3, found ${artists.length})`);
+    if (artists.length === 0) {
+      console.error(`❌ No artists found for ${countryName}`);
       return;
     }
 
     // Resolve randomness
     const encodedRandomness = await resolveRandomness(randomnessId, requestedAt);
 
-    // Use random value to select 3 unique artists
+    // Use random value to select 3 artists (allow duplicates if < 3 unique artists)
     const randomValue = BigInt(randomnessId);
-    const selectedIndices = new Set<number>();
+    const selectedIndices: number[] = [];
 
     let seed = randomValue;
-    while (selectedIndices.size < 3) {
-      const index = Number(seed % BigInt(artists.length));
-      selectedIndices.add(index);
-      seed = BigInt(ethers.keccak256(ethers.toBeHex(seed, 32)));
+
+    if (artists.length < 3) {
+      console.log(`⚠️  Only ${artists.length} artist(s) found - will use duplicates to fill 3 slots`);
+      // Fill with duplicates
+      while (selectedIndices.length < 3) {
+        const index = Number(seed % BigInt(artists.length));
+        selectedIndices.push(index);
+        seed = BigInt(ethers.keccak256(ethers.toBeHex(seed, 32)));
+      }
+    } else {
+      // Select 3 unique artists
+      const uniqueIndices = new Set<number>();
+      while (uniqueIndices.size < 3) {
+        const index = Number(seed % BigInt(artists.length));
+        uniqueIndices.add(index);
+        seed = BigInt(ethers.keccak256(ethers.toBeHex(seed, 32)));
+      }
+      selectedIndices.push(...Array.from(uniqueIndices));
     }
 
     const selectedArtistIds: [bigint, bigint, bigint] = [
-      BigInt(artists[Array.from(selectedIndices)[0]].artistId),
-      BigInt(artists[Array.from(selectedIndices)[1]].artistId),
-      BigInt(artists[Array.from(selectedIndices)[2]].artistId),
+      BigInt(artists[selectedIndices[0]].artistId),
+      BigInt(artists[selectedIndices[1]].artistId),
+      BigInt(artists[selectedIndices[2]].artistId),
     ];
 
-    console.log(`🎯 Selected 3 random artists:`);
+    console.log(`🎯 Selected 3 artists for challenge:`);
     selectedArtistIds.forEach((id, i) => {
-      console.log(`   ${i + 1}. Artist ID: ${id}`);
+      const isDuplicate = selectedArtistIds.slice(0, i).includes(id);
+      console.log(`   ${i + 1}. Artist ID: ${id}${isDuplicate ? ' (duplicate)' : ''}`);
     });
 
     // Call contract to create challenge
