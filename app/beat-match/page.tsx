@@ -39,7 +39,7 @@ function BeatMatchContent() {
 
   const { data: challenge, isLoading: challengeLoading } = useGetCurrentChallenge();
   const { data: playerStats } = useGetPlayerStats(address!);
-  const { data: hasPlayed } = useHasPlayed(address!, (challenge as any)?.id || BigInt(0));
+  const { data: hasPlayed } = useHasPlayed(address!, (challenge as any)?.challengeId || BigInt(0));
 
   // Fetch music NFTs from Envio
   useEffect(() => {
@@ -211,7 +211,7 @@ function BeatMatchContent() {
           userAddress: address,
           action: 'beat_match_submit_guess',
           params: {
-            challengeId: (challenge as any).id.toString(),
+            challengeId: (challenge as any).challengeId.toString(),
             artistId: selectedArtist?.toString() || '0',
             songTitle: guessReason,
             username: guessUsername || ''
@@ -313,7 +313,7 @@ function BeatMatchContent() {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold text-white">{(challenge as any).songTitle}</h3>
-                  <p className="text-blue-200">Challenge #{(challenge as any).id.toString()}</p>
+                  <p className="text-blue-200">Challenge #{(challenge as any).challengeId.toString()}</p>
                   {(challenge as any).artistUsername ? (
                     <p className="text-purple-300 text-sm">Guess the artist: @{(challenge as any).artistUsername}</p>
                   ) : (
