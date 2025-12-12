@@ -3,14 +3,10 @@ import { createPublicClient, http, Address, parseAbi, encodeFunctionData } from 
 import { monadTestnet } from '@/app/chains';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const neynar = new NeynarAPIClient({
   apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!
 });
-
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const MUSIC_BEAT_MATCH_V2 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
@@ -90,9 +86,9 @@ export async function GET(req: NextRequest) {
 
     // Create new challenge if needed
     if (needsNewChallenge) {
-      console.log('[Beat Match] Creating new challenge with Gemini AI...');
+      console.log('[Beat Match] Creating new challenge...');
 
-      const beatMatchResult = await createBeatMatchWithGemini(client);
+      const beatMatchResult = await createBeatMatch(client);
       actions.push(`Created Beat Match challenge: ${beatMatchResult.reason}`);
       console.log(`[Beat Match] ✅ Created: ${beatMatchResult.songTitle} by @${beatMatchResult.artistUsername}`);
     }
@@ -139,9 +135,9 @@ export async function GET(req: NextRequest) {
 
     // Create new challenge if needed
     if (needsNewWeek) {
-      console.log('[Country Collector] Creating new challenge with Gemini AI...');
+      console.log('[Country Collector] Creating new challenge...');
 
-      const collectorResult = await createCountryCollectorWithGemini(client);
+      const collectorResult = await createCountryCollector(client);
       actions.push(`Created Country Collector challenge: ${collectorResult.country} (${collectorResult.reason})`);
       console.log(`[Country Collector] ✅ Created: ${collectorResult.country}`);
     }
@@ -179,9 +175,9 @@ async function getArtistUsername(artistAddress: string): Promise<string> {
 }
 
 /**
- * Create Beat Match challenge using Gemini AI for intelligent selection
+ * Create Beat Match challenge with random selection
  */
-async function createBeatMatchWithGemini(client: any) {
+async function createBeatMatch(client: any) {
   // Fetch available music
   const query = `
     query GetMusic {
@@ -215,46 +211,10 @@ async function createBeatMatchWithGemini(client: any) {
     throw new Error('No music NFTs available');
   }
 
-  // Try to use Gemini to pick the best song, fallback to random selection
-  let selectedMusic;
-  let selectionReason = 'Random selection';
-
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-    const prompt = `
-You are selecting music for today's "Music Beat Match" game challenge.
-
-Available songs:
-${musicNFTs.map((m: any, i: number) => `${i + 1}. "${m.name}" (Token #${m.tokenId}) - Artist: ${m.artist.slice(0, 6)}...${m.artist.slice(-4)}`).join('\n')}
-
-Select ONE song that would make an engaging, fun daily challenge. Consider:
-- Variety from previous days
-- Appeal to diverse audience
-- Interesting enough to guess
-
-Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
-{"index": <number 0-${musicNFTs.length - 1}>, "reason": "<brief reason>"}
-`;
-
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text().trim();
-
-    // Clean up response
-    responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
-    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-    if (jsonMatch) responseText = jsonMatch[0];
-
-    const selection = JSON.parse(responseText);
-    selectedMusic = musicNFTs[selection.index];
-    selectionReason = selection.reason;
-  } catch (error) {
-    console.log('[Beat Match] Gemini AI failed, using random selection:', error);
-    // Fallback to random selection
-    const randomIndex = Math.floor(Math.random() * musicNFTs.length);
-    selectedMusic = musicNFTs[randomIndex];
-    selectionReason = `Random selection from ${musicNFTs.length} available tracks`;
-  }
+  // Random selection
+  const randomIndex = Math.floor(Math.random() * musicNFTs.length);
+  const selectedMusic = musicNFTs[randomIndex];
+  const selectionReason = `Random selection from ${musicNFTs.length} available tracks`;
 
   // Get artist's Farcaster username
   const artistUsername = await getArtistUsername(selectedMusic.artist);
@@ -283,9 +243,9 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 }
 
 /**
- * Create Country Collector challenge using Gemini AI for intelligent selection
+ * Create Country Collector challenge with random selection
  */
-async function createCountryCollectorWithGemini(client: any) {
+async function createCountryCollector(client: any) {
   // Get passport distribution by country
   const query = `
     query GetCountries {
@@ -327,56 +287,17 @@ async function createCountryCollectorWithGemini(client: any) {
     throw new Error('No countries with enough artists');
   }
 
-  // Try to use Gemini to pick the best country, fallback to random selection
   let selectedCountry;
   let selectionReason = 'Random selection';
   let artistIds: bigint[] = [];
 
   // Try up to 5 different countries to find one with 3+ music NFTs
   for (let attempt = 0; attempt < 5; attempt++) {
-    if (attempt === 0) {
-      // First attempt: use Gemini AI
-      try {
-        // Use gemini-pro (stable model name) instead of gemini-1.5-flash
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const randomIndex = Math.floor(Math.random() * countries.length);
+    selectedCountry = countries[randomIndex];
+    selectionReason = `Random selection from ${countries.length} available countries`;
 
-        const prompt = `
-You are selecting a country for this week's "Country Collector" game challenge.
-
-Available countries (with number of artists):
-${countries.map((c, i) => `${i + 1}. ${c.name} (${c.code}) - ${c.count} artists`).join('\n')}
-
-Select ONE country that would make an engaging weekly challenge. Consider:
-- Cultural diversity
-- Geographic variety
-- Player interest
-
-Respond ONLY with valid JSON in this exact format (no markdown):
-{"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
-`;
-
-        const result = await model.generateContent(prompt);
-        let responseText = result.response.text().trim();
-
-        // Clean up response
-        responseText = responseText.replace(/```json\n/g, '').replace(/```\n/g, '').replace(/```/g, '').trim();
-        const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-        if (jsonMatch) responseText = jsonMatch[0];
-
-        const selection = JSON.parse(responseText);
-        selectedCountry = countries[selection.index];
-        selectionReason = selection.reason;
-      } catch (error) {
-        console.log('[Country Collector] Gemini AI failed, using random selection:', error);
-        const randomIndex = Math.floor(Math.random() * countries.length);
-        selectedCountry = countries[randomIndex];
-        selectionReason = `Random selection from ${countries.length} available countries`;
-      }
-    } else {
-      // Subsequent attempts: random selection
-      const randomIndex = Math.floor(Math.random() * countries.length);
-      selectedCountry = countries[randomIndex];
-      selectionReason = `Random selection (attempt ${attempt + 1}) from ${countries.length} available countries`;
+    if (attempt > 0) {
       console.log(`[Country Collector] Retry #${attempt}: Trying ${selectedCountry.name}...`);
     }
 
