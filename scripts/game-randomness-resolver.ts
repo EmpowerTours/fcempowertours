@@ -31,6 +31,8 @@ const SWITCHBOARD_ADDRESS = '0xD3860E2C66cBd5c969Fa7343e6912Eff0416bA33'; // Mon
 
 const SWITCHBOARD_ABI = [
   'function getRandomness(bytes32 randomnessId) external view returns (tuple(bytes32 randId, uint256 createdAt, address authority, uint256 rollTimestamp, uint64 minSettlementDelay, address oracle, uint256 value, uint256 settledAt))',
+  'function settleRandomness(bytes calldata encodedRandomness) external payable',
+  'function updateFee() external view returns (uint256)',
 ];
 
 const BEAT_MATCH_V3_ABI = [
@@ -145,48 +147,28 @@ async function resolveRandomness(randomnessId: string, requestedAt: number, swit
   console.log(`🎲 Resolving randomness for ID: ${randomnessId}`);
   console.log(`   Requested at: ${new Date(requestedAt * 1000).toISOString()}`);
 
-  // Poll Switchboard contract until oracle settles the randomness
-  console.log(`⏳ Polling Switchboard contract for oracle settlement...`);
+  // Get randomness metadata from Switchboard contract
+  console.log(`📡 Querying Switchboard contract for randomness metadata...`);
+  const randomnessData = await switchboardContract.getRandomness(randomnessId);
 
-  let randomnessData;
-  let attempts = 0;
-  const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
-  const pollInterval = 5000; // 5 seconds
+  console.log(`✅ Randomness metadata:`, {
+    rollTimestamp: randomnessData.rollTimestamp.toString(),
+    minSettlementDelay: randomnessData.minSettlementDelay.toString(),
+    oracle: randomnessData.oracle,
+    settledAt: randomnessData.settledAt.toString()
+  });
 
-  while (attempts < maxAttempts) {
-    randomnessData = await switchboardContract.getRandomness(randomnessId);
+  // Wait for minimum settlement delay
+  const earliestSettlementTime = Number(randomnessData.rollTimestamp) + Number(randomnessData.minSettlementDelay);
+  const now = Math.floor(Date.now() / 1000);
+  const waitTime = Math.max(0, earliestSettlementTime - now + 2); // Add 2s buffer
 
-    const settledAt = Number(randomnessData.settledAt);
-
-    if (settledAt > 0) {
-      console.log(`✅ Randomness settled by oracle at ${new Date(settledAt * 1000).toISOString()}`);
-      console.log(`   Metadata:`, {
-        rollTimestamp: randomnessData.rollTimestamp.toString(),
-        minSettlementDelay: randomnessData.minSettlementDelay.toString(),
-        oracle: randomnessData.oracle,
-        settledAt: randomnessData.settledAt.toString(),
-        value: randomnessData.value.toString()
-      });
-      break;
-    }
-
-    attempts++;
-    if (attempts >= maxAttempts) {
-      throw new Error(`Randomness not settled by oracle after ${maxAttempts * pollInterval / 1000}s`);
-    }
-
-    const earliestSettlementTime = Number(randomnessData.rollTimestamp) + Number(randomnessData.minSettlementDelay);
-    const now = Math.floor(Date.now() / 1000);
-    const timeUntilEarliest = Math.max(0, earliestSettlementTime - now);
-
-    console.log(`   Attempt ${attempts}/${maxAttempts}: Not settled yet (settledAt = 0)`);
-    console.log(`   Earliest settlement: ${new Date(earliestSettlementTime * 1000).toISOString()} (${timeUntilEarliest}s from now)`);
-    console.log(`   Waiting ${pollInterval / 1000}s before next check...`);
-
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  if (waitTime > 0) {
+    console.log(`⏳ Waiting ${waitTime}s for settlement delay...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
   }
 
-  // Fetch randomness proof from Crossbar with ALL required parameters
+  // Fetch randomness proof from Crossbar
   console.log(`📡 Fetching randomness proof from Crossbar...`);
   const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
     chainId: CHAIN_ID,
@@ -196,7 +178,22 @@ async function resolveRandomness(randomnessId: string, requestedAt: number, swit
     oracle: randomnessData.oracle,
   });
 
-  console.log(`✅ Randomness proof fetched successfully from Crossbar`);
+  console.log(`✅ Randomness proof fetched from Crossbar`);
+
+  // Settle randomness on-chain (WE need to do this!)
+  console.log(`📤 Settling randomness on Switchboard contract...`);
+  const fee = await switchboardContract.updateFee();
+  console.log(`   Settlement fee: ${ethers.formatEther(fee)} MON`);
+
+  const settleTx = await switchboardContract.settleRandomness(encodedRandomness, {
+    value: fee,
+    gasLimit: 500000,
+  });
+
+  console.log(`⏳ Settlement transaction submitted: ${settleTx.hash}`);
+  const settleReceipt = await settleTx.wait();
+  console.log(`✅ Randomness settled on-chain! Block: ${settleReceipt.blockNumber}`);
+
   return encodedRandomness;
 }
 
