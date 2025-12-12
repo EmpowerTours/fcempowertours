@@ -214,7 +214,7 @@ async function getCountriesWithArtists(): Promise<Set<string>> {
     });
 
     const { data } = await response.json();
-    const countryCodes = new Set((data?.PassportNFT || []).map((p: any) => p.countryCode));
+    const countryCodes = new Set<string>((data?.PassportNFT || []).map((p: any) => p.countryCode as string));
     console.log(`[Country Filter] Found ${countryCodes.size} countries with artists:`, Array.from(countryCodes));
     return countryCodes;
   } catch (error) {
