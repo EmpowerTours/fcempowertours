@@ -1,11 +1,11 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 
-// DailyPassLotterySecure contract on Monad testnet (redeployed Dec 2, 2025)
-const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as `0x${string}`;
+// DailyPassLotteryV4 contract on Monad testnet (with Switchboard randomness)
+const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as `0x${string}`;
 const SHMON_ADDRESS = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as `0x${string}`;
 
-// DailyPassLotterySecure ABI
+// DailyPassLotteryV4 ABI (Switchboard randomness)
 const LOTTERY_ABI = [
   // Constants
   {
@@ -97,14 +97,14 @@ const LOTTERY_ABI = [
   },
   {
     "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
-    "name": "canCommit",
+    "name": "canRequestRandomness",
     "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
-    "name": "canReveal",
+    "name": "canResolveRandomness",
     "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
     "stateMutability": "view",
     "type": "function"
@@ -166,14 +166,17 @@ const LOTTERY_ABI = [
   },
   {
     "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
-    "name": "commitRandomness",
+    "name": "requestRandomness",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
-    "name": "revealWinner",
+    "inputs": [
+      {"internalType": "uint256", "name": "roundId", "type": "uint256"},
+      {"internalType": "bytes", "name": "encodedRandomness", "type": "bytes"}
+    ],
+    "name": "resolveRandomness",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -248,22 +251,22 @@ export function useDailyLottery() {
     });
   };
 
-  // Check if round can be committed
-  const useCanCommit = (roundId: bigint | undefined) => {
+  // Check if round can request randomness
+  const useCanRequestRandomness = (roundId: bigint | undefined) => {
     return useReadContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'canCommit',
+      functionName: 'canRequestRandomness',
       args: roundId !== undefined ? [roundId] : undefined,
     });
   };
 
-  // Check if round can be revealed
-  const useCanReveal = (roundId: bigint | undefined) => {
+  // Check if round can resolve randomness
+  const useCanResolveRandomness = (roundId: bigint | undefined) => {
     return useReadContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'canReveal',
+      functionName: 'canResolveRandomness',
       args: roundId !== undefined ? [roundId] : undefined,
     });
   };
@@ -308,23 +311,24 @@ export function useDailyLottery() {
     });
   };
 
-  // Commit randomness (anyone can call, gets 0.01 MON reward)
-  const commitRandomness = (roundId: bigint) => {
+  // Request randomness (anyone can call, gets 0.01 MON reward)
+  const requestRandomness = (roundId: bigint) => {
     writeContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'commitRandomness',
+      functionName: 'requestRandomness',
       args: [roundId],
     });
   };
 
-  // Reveal winner (anyone can call, gets 0.01 MON reward)
-  const revealWinner = (roundId: bigint) => {
+  // Resolve randomness (anyone can call, gets 0.01 MON reward)
+  // Note: encodedRandomness must be fetched from Switchboard Crossbar off-chain
+  const resolveRandomness = (roundId: bigint, encodedRandomness: `0x${string}`) => {
     writeContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'revealWinner',
-      args: [roundId],
+      functionName: 'resolveRandomness',
+      args: [roundId, encodedRandomness],
     });
   };
 
@@ -349,15 +353,15 @@ export function useDailyLottery() {
     useGetTimeRemaining,
     useGetStats,
     useGetShMonEntryFee,
-    useCanCommit,
-    useCanReveal,
+    useCanRequestRandomness,
+    useCanResolveRandomness,
     useGetUserPasses,
     useGetEscrow,
     // Write functions
     enterWithMon,
     enterWithShMon,
-    commitRandomness,
-    revealWinner,
+    requestRandomness,
+    resolveRandomness,
     claimPrize,
     // Transaction state
     isPending,

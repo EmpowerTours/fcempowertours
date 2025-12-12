@@ -417,4 +417,76 @@ networks:
               transaction_fields:
                 - hash
 
+      # ✅ V3: MusicBeatMatchV3 Contract (Switchboard randomness - Dec 12, 2025)
+      - name: MusicBeatMatchV3
+        address:
+          - "0xF8149b7EF0393170a5fB8Aef0BC54bC2eb7d1681"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random song
+          - event: "ChallengeCreatedWithRandomSong(uint256 indexed challengeId, uint256 indexed musicNFTTokenId, uint256 indexed artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 randomValue, uint256 startTime, uint256 rewardPool)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guess submission
+          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed user, uint256 indexed artistId, string artistUsername, bool correct, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge finalization
+          - event: "RewardsDistributed(uint256 indexed challengeId, uint256 totalDistributed, uint256 winnersCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V3: CountryCollectorV3 Contract (Switchboard randomness - Dec 12, 2025)
+      - name: CountryCollectorV3
+        address:
+          - "0xb0Bcd237DB21704D6ecfb6b96F8b2b5D136Ea87F"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random artists
+          - event: "ChallengeCreatedWithRandomArtists(uint256 indexed weekId, string indexed countryCode, string countryName, uint256[3] artistIds, uint256 randomValue, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Artist completion
+          - event: "ArtistCompleted(uint256 indexed weekId, address indexed user, uint256 artistIndex, uint256 artistId, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Badge earned
+          - event: "BadgeEarned(uint256 indexed weekId, address indexed user, string countryCode, string countryName, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Global citizen achievement
+          - event: "GlobalCitizenAchieved(address indexed user, uint256 countriesCollected, uint256 bonusReward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Week finalization
+          - event: "WeekFinalized(uint256 indexed weekId, uint256 totalCompletions)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false

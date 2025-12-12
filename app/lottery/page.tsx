@@ -7,19 +7,17 @@ import { formatEther, parseEther } from 'viem';
 import { useAccount } from 'wagmi';
 import FinalizeLotteryButton from '@/components/lottery/FinalizeLotteryButton';
 
-// Round status enum matching contract
+// Round status enum matching V4 contract
 enum RoundStatus {
   Active = 0,
-  Committed = 1,
-  Revealed = 2,
-  Completed = 3
+  RandomnessPending = 1,
+  Finalized = 2
 }
 
 const STATUS_LABELS: Record<number, string> = {
   [RoundStatus.Active]: 'Active - Entries Open',
-  [RoundStatus.Committed]: 'Committed - Awaiting Reveal',
-  [RoundStatus.Revealed]: 'Revealed - Ready to Claim',
-  [RoundStatus.Completed]: 'Completed'
+  [RoundStatus.RandomnessPending]: 'Randomness Pending',
+  [RoundStatus.Finalized]: 'Finalized'
 };
 
 export default function LotteryPage() {
@@ -32,13 +30,13 @@ export default function LotteryPage() {
     useGetStats,
     useGetTimeRemaining,
     useHasEnteredToday,
-    useCanCommit,
-    useCanReveal,
+    useCanRequestRandomness,
+    useCanResolveRandomness,
     useGetShMonEntryFee,
     enterWithMon,
     enterWithShMon,
-    commitRandomness,
-    revealWinner,
+    requestRandomness,
+    resolveRandomness,
     claimPrize,
     isPending,
     isConfirming,
@@ -56,8 +54,8 @@ export default function LotteryPage() {
   const { data: stats, refetch: refetchStats } = useGetStats();
   const { data: timeRemaining } = useGetTimeRemaining();
   const { data: hasEntered, refetch: refetchHasEntered } = useHasEnteredToday(effectiveAddress);
-  const { data: canCommit } = useCanCommit(currentRound?.roundId);
-  const { data: canReveal } = useCanReveal(currentRound?.roundId);
+  const { data: canRequest } = useCanRequestRandomness(currentRound?.roundId);
+  const { data: canResolve } = useCanResolveRandomness(currentRound?.roundId);
   const { data: shMonEntryFee } = useGetShMonEntryFee();
   const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
   const { data: shMonAllowance } = useGetAllowance(effectiveAddress, LOTTERY_ADDRESS);
@@ -78,10 +76,10 @@ export default function LotteryPage() {
 
         // Show appropriate success message based on current round state
         const updatedRound = await refetchRound();
-        if (updatedRound.data?.status === RoundStatus.Revealed && updatedRound.data?.winner) {
+        if (updatedRound.data?.status === RoundStatus.Finalized && updatedRound.data?.winner) {
           setSuccess(`🏆 WINNER REVEALED: ${updatedRound.data.winner.slice(0, 10)}...${updatedRound.data.winner.slice(-8)}`);
-        } else if (updatedRound.data?.status === RoundStatus.Committed) {
-          setSuccess('✅ Randomness committed! You earned 0.01 MON. Now anyone can reveal the winner.');
+        } else if (updatedRound.data?.status === RoundStatus.RandomnessPending) {
+          setSuccess('✅ Randomness requested! You earned 0.01 MON. Now anyone can resolve the winner.');
         } else {
           setSuccess('Transaction confirmed!');
         }
@@ -219,57 +217,57 @@ export default function LotteryPage() {
     }
   };
 
-  // Handle commit (anyone can call)
-  const handleCommit = async () => {
+  // Handle request randomness (anyone can call)
+  const handleRequest = async () => {
     if (!currentRound?.roundId || !effectiveAddress) return;
     setActionLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      // Use delegated API for gasless commit
+      // Use delegated API for gasless request
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: effectiveAddress,
-          action: 'lottery_commit',
+          action: 'lottery_request',
           params: { roundId: currentRound.roundId.toString() }
         })
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to commit randomness');
+        throw new Error(data.error || 'Failed to request randomness');
       }
 
       const { txHash } = await response.json();
-      setSuccess(`Committed randomness! TX: ${txHash.slice(0, 10)}... You earned 0.01 MON!`);
+      setSuccess(`Requested randomness! TX: ${txHash.slice(0, 10)}... You earned 0.01 MON!`);
 
       // Refresh after delay
       setTimeout(() => {
         refetchRound();
       }, 3000);
     } catch (err: any) {
-      setError(err.message || 'Failed to commit');
+      setError(err.message || 'Failed to request');
       // Fallback to direct call if delegated fails
       try {
-        await commitRandomness(currentRound.roundId);
-        setSuccess('Committing randomness... waiting for confirmation');
+        await requestRandomness(currentRound.roundId);
+        setSuccess('Requesting randomness... waiting for confirmation');
       } catch (fallbackErr: any) {
-        setError(fallbackErr.message || 'Failed to commit');
+        setError(fallbackErr.message || 'Failed to request');
       }
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle reveal (anyone can call)
-  const handleReveal = async () => {
-    console.log('[REVEAL] Button clicked!', { roundId: currentRound?.roundId, effectiveAddress });
+  // Handle resolve randomness (anyone can call - note: requires encodedRandomness from bot)
+  const handleResolve = async () => {
+    console.log('[RESOLVE] Button clicked!', { roundId: currentRound?.roundId, effectiveAddress });
     if (!currentRound?.roundId || !effectiveAddress) {
-      console.error('[REVEAL] Missing required data:', { currentRound, effectiveAddress });
-      setError(`Cannot reveal: ${!effectiveAddress ? 'Wallet not connected' : 'Round ID missing'}`);
+      console.error('[RESOLVE] Missing required data:', { currentRound, effectiveAddress });
+      setError(`Cannot resolve: ${!effectiveAddress ? 'Wallet not connected' : 'Round ID missing'}`);
       return;
     }
     setActionLoading(true);
@@ -277,20 +275,20 @@ export default function LotteryPage() {
     setSuccess(null);
 
     try {
-      // Use delegated API for gasless reveal
+      // Use delegated API for gasless resolve (bot fetches encodedRandomness from Switchboard)
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: effectiveAddress,
-          action: 'lottery_reveal',
+          action: 'lottery_resolve',
           params: { roundId: currentRound.roundId.toString() }
         })
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to reveal winner');
+        throw new Error(data.error || 'Failed to resolve randomness');
       }
 
       const { txHash } = await response.json();
@@ -301,14 +299,8 @@ export default function LotteryPage() {
         refetchRound();
       }, 3000);
     } catch (err: any) {
-      setError(err.message || 'Failed to reveal');
-      // Fallback to direct call if delegated fails
-      try {
-        await revealWinner(currentRound.roundId);
-        setSuccess('Revealing winner... waiting for confirmation');
-      } catch (fallbackErr: any) {
-        setError(fallbackErr.message || 'Failed to reveal');
-      }
+      setError(err.message || 'Failed to resolve');
+      setActionLoading(false);
     } finally {
       setActionLoading(false);
     }
@@ -403,8 +395,8 @@ export default function LotteryPage() {
             <h2 className="text-xl font-bold text-white">Round #{currentRound?.roundId?.toString() || '0'}</h2>
             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
               currentRound?.status === RoundStatus.Active ? 'bg-green-500/20 text-green-400' :
-              currentRound?.status === RoundStatus.Committed ? 'bg-yellow-500/20 text-yellow-400' :
-              currentRound?.status === RoundStatus.Revealed ? 'bg-blue-500/20 text-blue-400' :
+              currentRound?.status === RoundStatus.RandomnessPending ? 'bg-yellow-500/20 text-yellow-400' :
+              currentRound?.status === RoundStatus.Finalized ? 'bg-blue-500/20 text-blue-400' :
               'bg-gray-500/20 text-gray-400'
             }`}>
               {STATUS_LABELS[currentRound?.status || 0]}
@@ -441,10 +433,10 @@ export default function LotteryPage() {
 
           {/* Entry Section */}
           {((currentRound?.status === RoundStatus.Active && !hasEntered) ||
-            (currentRound?.status === RoundStatus.Completed)) && (
+            (currentRound?.status === RoundStatus.Finalized)) && (
             <div className="border-t border-white/10 pt-4 mt-4">
               <h3 className="text-white font-semibold mb-3">
-                {currentRound?.status === RoundStatus.Completed ? 'Enter New Round' : 'Enter Today\'s Lottery'}
+                {currentRound?.status === RoundStatus.Finalized ? 'Enter New Round' : 'Enter Today\'s Lottery'}
               </h3>
 
               {/* Entry Method Toggle */}
@@ -527,7 +519,7 @@ export default function LotteryPage() {
         </div>
 
         {/* Finalization Actions */}
-        {(canCommit || canReveal) && (
+        {(canRequest || canResolve) && (
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 mb-6">
             <h2 className="text-xl font-bold text-white mb-4">Help Finalize Round</h2>
             <p className="text-white/60 text-sm mb-4">
@@ -535,22 +527,22 @@ export default function LotteryPage() {
             </p>
 
             <div className="flex gap-3">
-              {canCommit && (
+              {canRequest && (
                 <button
-                  onClick={handleCommit}
+                  onClick={handleRequest}
                   disabled={actionLoading || isPending || isConfirming}
                   className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
                 >
-                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎲 Commit Randomness (+0.01 MON)'}
+                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎲 Request Randomness (+0.01 MON)'}
                 </button>
               )}
-              {canReveal && (
+              {canResolve && (
                 <button
-                  onClick={handleReveal}
+                  onClick={handleResolve}
                   disabled={actionLoading || isPending || isConfirming}
                   className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
                 >
-                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎰 Reveal Winner (+0.01 MON)'}
+                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎰 Resolve Winner (+0.01 MON)'}
                 </button>
               )}
             </div>
@@ -614,7 +606,7 @@ export default function LotteryPage() {
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>
-              <p className="flex-1">At round end, anyone can trigger commit/reveal for 0.01 MON reward</p>
+              <p className="flex-1">At round end, anyone can trigger request/resolve for 0.01 MON reward (uses Switchboard randomness)</p>
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">4</span>

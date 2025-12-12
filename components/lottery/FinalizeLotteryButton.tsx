@@ -10,28 +10,31 @@ const LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_LOTTERY_ADDRESS as Address;
 const LOTTERY_ABI = [
   {
     inputs: [{ name: 'roundId', type: 'uint256' }],
-    name: 'commitRandomness',
+    name: 'requestRandomness',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'roundId', type: 'uint256' },
+      { name: 'encodedRandomness', type: 'bytes' }
+    ],
+    name: 'resolveRandomness',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
     inputs: [{ name: 'roundId', type: 'uint256' }],
-    name: 'revealWinner',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'roundId', type: 'uint256' }],
-    name: 'canCommit',
+    name: 'canRequestRandomness',
     outputs: [{ name: '', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },
   {
     inputs: [{ name: 'roundId', type: 'uint256' }],
-    name: 'canReveal',
+    name: 'canResolveRandomness',
     outputs: [{ name: '', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
@@ -72,8 +75,8 @@ export default function FinalizeLotteryButton() {
   const publicClient = usePublicClient();
   const { walletAddress } = useFarcasterContext();
   const [pendingRound, setPendingRound] = useState<number | null>(null);
-  const [canCommitRound, setCanCommitRound] = useState(false);
-  const [canRevealRound, setCanRevealRound] = useState(false);
+  const [canRequestRound, setCanRequestRound] = useState(false);
+  const [canResolveRound, setCanResolveRound] = useState(false);
   const [checking, setChecking] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,29 +105,30 @@ export default function FinalizeLotteryButton() {
           args: [BigInt(i)],
         });
 
-        // Status: 0=Active, 1=CommitPending, 2=RevealPending, 3=Finalized
-        if (round.status === 1 || round.status === 2) {
-          setPendingRound(i);
-
-          // Check if we can commit
-          const canCommit = await publicClient.readContract({
+        // Status: 0=Active, 1=RandomnessPending, 2=Finalized
+        if (round.status === 0 || round.status === 1) {
+          // Check if we can request randomness
+          const canRequest = await publicClient.readContract({
             address: LOTTERY_ADDRESS,
             abi: LOTTERY_ABI,
-            functionName: 'canCommit',
+            functionName: 'canRequestRandomness',
             args: [BigInt(i)],
           });
 
-          // Check if we can reveal
-          const canReveal = await publicClient.readContract({
+          // Check if we can resolve randomness
+          const canResolve = await publicClient.readContract({
             address: LOTTERY_ADDRESS,
             abi: LOTTERY_ABI,
-            functionName: 'canReveal',
+            functionName: 'canResolveRandomness',
             args: [BigInt(i)],
           });
 
-          setCanCommitRound(canCommit);
-          setCanRevealRound(canReveal);
-          break;
+          if (canRequest || canResolve) {
+            setPendingRound(i);
+            setCanRequestRound(canRequest);
+            setCanResolveRound(canResolve);
+            break;
+          }
         }
       }
     } catch (error) {
@@ -151,7 +155,7 @@ export default function FinalizeLotteryButton() {
     }
   }, [success]);
 
-  const handleCommit = async () => {
+  const handleRequest = async () => {
     if (!pendingRound || !walletAddress) {
       setError('Wallet not connected');
       return;
@@ -167,26 +171,26 @@ export default function FinalizeLotteryButton() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: walletAddress,
-          action: 'lottery_commit',
+          action: 'lottery_request',
           params: { roundId: pendingRound.toString() }
         })
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to commit randomness');
+        throw new Error(data.error || 'Failed to request randomness');
       }
 
       const { txHash } = await response.json();
-      setSuccess(`✅ Committed! You earned 0.01 MON. TX: ${txHash.slice(0, 10)}...`);
+      setSuccess(`✅ Randomness requested! You earned 0.01 MON. TX: ${txHash.slice(0, 10)}...`);
     } catch (err: any) {
-      setError(err.message || 'Failed to commit');
+      setError(err.message || 'Failed to request');
     } finally {
       setProcessing(false);
     }
   };
 
-  const handleReveal = async () => {
+  const handleResolve = async () => {
     if (!pendingRound || !walletAddress) {
       setError('Wallet not connected');
       return;
@@ -202,26 +206,26 @@ export default function FinalizeLotteryButton() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: walletAddress,
-          action: 'lottery_reveal',
+          action: 'lottery_resolve',
           params: { roundId: pendingRound.toString() }
         })
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to reveal winner');
+        throw new Error(data.error || 'Failed to resolve randomness');
       }
 
       const { txHash } = await response.json();
       setSuccess(`🏆 Winner revealed! You earned 0.01 MON. TX: ${txHash.slice(0, 10)}...`);
     } catch (err: any) {
-      setError(err.message || 'Failed to reveal');
+      setError(err.message || 'Failed to resolve');
     } finally {
       setProcessing(false);
     }
   };
 
-  if (!pendingRound || (!canCommitRound && !canRevealRound)) {
+  if (!pendingRound || (!canRequestRound && !canResolveRound)) {
     return null;
   }
 
@@ -233,28 +237,28 @@ export default function FinalizeLotteryButton() {
             🎰 Earn 0.01 MON Reward!
           </h3>
           <p className="text-yellow-100 text-sm mb-4">
-            {canCommitRound && 'Yesterday\'s lottery needs finalization. Be the first to commit and earn a reward!'}
-            {canRevealRound && 'Lottery is ready to reveal the winner. Earn 0.01 MON by revealing!'}
+            {canRequestRound && 'Yesterday\'s lottery needs randomness. Be the first to request and earn a reward!'}
+            {canResolveRound && 'Lottery is ready to reveal the winner. Earn 0.01 MON by resolving!'}
           </p>
 
           <div className="flex gap-3 mb-3">
-            {canCommitRound && (
+            {canRequestRound && (
               <button
-                onClick={handleCommit}
+                onClick={handleRequest}
                 disabled={checking || processing || !walletAddress}
                 className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {processing ? '⏳ Processing...' : checking ? 'Checking...' : '1️⃣ Commit Randomness (+0.01 MON)'}
+                {processing ? '⏳ Processing...' : checking ? 'Checking...' : '1️⃣ Request Randomness (+0.01 MON)'}
               </button>
             )}
 
-            {canRevealRound && (
+            {canResolveRound && (
               <button
-                onClick={handleReveal}
+                onClick={handleResolve}
                 disabled={checking || processing || !walletAddress}
                 className="bg-white text-orange-600 font-bold px-6 py-3 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {processing ? '⏳ Processing...' : checking ? 'Checking...' : '2️⃣ Reveal Winner (+0.01 MON)'}
+                {processing ? '⏳ Processing...' : checking ? 'Checking...' : '2️⃣ Resolve Winner (+0.01 MON)'}
               </button>
             )}
           </div>

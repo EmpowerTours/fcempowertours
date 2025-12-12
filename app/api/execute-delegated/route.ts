@@ -9,6 +9,7 @@ import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance } fro
 import { USE_USER_SAFES } from '@/lib/safe-mode';
 import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, formatEther } from 'viem';
 import { createShortUrl } from '@/lib/url-shortener';
+import { CrossbarClient } from '@switchboard-xyz/common';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -72,8 +73,8 @@ export async function POST(req: NextRequest) {
     // Public actions that don't require delegation (anyone can call to earn rewards)
     // Also includes lottery entry actions for frictionless user experience
     const publicActions = [
-      'lottery_commit',
-      'lottery_reveal',
+      'lottery_request',       // V4 Switchboard randomness
+      'lottery_resolve',       // V4 Switchboard randomness
       'lottery_claim',
       'lottery_enter_mon',
       'lottery_enter_shmon',
@@ -3623,118 +3624,185 @@ ${enjoyText}
           message: `Entered lottery with ${params.amount} shMON successfully (gasless)`,
         });
 
-      // ==================== LOTTERY COMMIT RANDOMNESS ====================
-      case 'lottery_commit':
-        console.log('🎲 Action: lottery_commit');
+      // ==================== LOTTERY REQUEST RANDOMNESS (V4 SWITCHBOARD) ====================
+      case 'lottery_request':
+        console.log('🎲 Action: lottery_request (V4 Switchboard)');
 
-        const LOTTERY_COMMIT_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as Address;
+        const LOTTERY_REQUEST_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
 
         if (!params?.roundId) {
           return NextResponse.json(
-            { success: false, error: 'Missing roundId for lottery_commit' },
+            { success: false, error: 'Missing roundId for lottery_request' },
             { status: 400 }
           );
         }
 
-        const commitSafe = USE_USER_SAFES
+        const requestSafe = USE_USER_SAFES
           ? await getUserSafeAddress(userAddress as Address)
           : SAFE_ACCOUNT;
 
-        const commitCalls: Call[] = [
+        const requestCalls: Call[] = [
           {
-            to: LOTTERY_COMMIT_ADDRESS,
+            to: LOTTERY_REQUEST_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function commitRandomness(uint256 roundId) external']),
-              functionName: 'commitRandomness',
+              abi: parseAbi(['function requestRandomness(uint256 roundId) external']),
+              functionName: 'requestRandomness',
               args: [BigInt(params.roundId)],
             }) as Hex,
           },
         ];
 
-        const commitTxHash = await executeTransaction(commitCalls, userAddress as Address);
-        console.log('✅ Committed randomness for round', params.roundId, 'TX:', commitTxHash);
+        const requestTxHash = await executeTransaction(requestCalls, userAddress as Address);
+        console.log('✅ Requested Switchboard randomness for round', params.roundId, 'TX:', requestTxHash);
 
         // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
-          txHash: commitTxHash,
+          txHash: requestTxHash,
           action,
           userAddress,
           roundId: params.roundId,
-          message: `Committed randomness for round ${params.roundId} (earned 0.01 MON)`,
+          message: `Requested randomness for round ${params.roundId} (earned 0.01 MON)`,
         });
 
-      // ==================== LOTTERY REVEAL WINNER ====================
-      case 'lottery_reveal':
-        console.log('🎰 Action: lottery_reveal');
+      // ==================== LOTTERY RESOLVE RANDOMNESS (V4 SWITCHBOARD) ====================
+      case 'lottery_resolve':
+        console.log('🎰 Action: lottery_resolve (V4 Switchboard)');
 
-        const LOTTERY_REVEAL_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x9abf78d2d6C1C6C1A58EDF1a6bF8b8E63b25A2CE') as Address;
+        const LOTTERY_RESOLVE_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
 
         if (!params?.roundId) {
           return NextResponse.json(
-            { success: false, error: 'Missing roundId for lottery_reveal' },
+            { success: false, error: 'Missing roundId for lottery_resolve' },
             { status: 400 }
           );
         }
 
-        const revealSafe = USE_USER_SAFES
-          ? await getUserSafeAddress(userAddress as Address)
-          : SAFE_ACCOUNT;
-
-        const revealCalls: Call[] = [
-          {
-            to: LOTTERY_REVEAL_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function revealWinner(uint256 roundId) external']),
-              functionName: 'revealWinner',
-              args: [BigInt(params.roundId)],
-            }) as Hex,
-          },
-        ];
-
-        const revealTxHash = await executeTransaction(revealCalls, userAddress as Address);
-        console.log('✅ Revealed winner for round', params.roundId, 'TX:', revealTxHash);
-
-        // Automatically announce winner on Farcaster after successful reveal
-        let castHash: string | undefined;
         try {
-          console.log('📢 Auto-announcing winner on Farcaster...');
+          // Step 1: Read randomnessId and requestedAt from contract
+          console.log('📖 Reading randomness request data from contract...');
+          const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 
-          // Wait 3 seconds for transaction to be indexed
-          await new Promise(resolve => setTimeout(resolve, 3000));
-
-          // Call the announce-winner API internally
-          const announceResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/lottery/announce-winner`, {
+          const readResponse = await fetch(rpcUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roundId: params.roundId }),
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'eth_call',
+              params: [
+                {
+                  to: LOTTERY_RESOLVE_ADDRESS,
+                  data: encodeFunctionData({
+                    abi: parseAbi(['function rounds(uint256) external view returns (uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, bytes32 randomnessId, uint256 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsPaid)']),
+                    functionName: 'rounds',
+                    args: [BigInt(params.roundId)]
+                  })
+                },
+                'latest'
+              ],
+              id: 1
+            })
           });
 
-          if (announceResponse.ok) {
-            const announceData = await announceResponse.json();
-            castHash = announceData.castHash;
-            console.log('✅ Winner announced on Farcaster! Cast hash:', castHash);
-          } else {
-            const errorData = await announceResponse.json();
-            console.warn('⚠️ Failed to announce on Farcaster:', errorData.error);
+          const readData = await readResponse.json();
+          if (readData.error) {
+            throw new Error(`RPC error: ${readData.error.message}`);
           }
-        } catch (announceError: any) {
-          console.warn('⚠️ Farcaster announcement error:', announceError.message);
-          // Don't fail the whole request if announcement fails
-        }
 
-        // Public action - no delegation tracking needed
-        return NextResponse.json({
-          success: true,
-          txHash: revealTxHash,
-          castHash,
-          action,
-          userAddress,
-          roundId: params.roundId,
-          message: `Revealed winner for round ${params.roundId} (earned 0.01 MON)${castHash ? ' - Announced on Farcaster!' : ''}`,
-        });
+          // Decode the response - randomnessId is at position 7, requestedAt at position 9
+          const decodedData = readData.result;
+          const randomnessId = ('0x' + decodedData.slice(2 + (64 * 7), 2 + (64 * 8))) as Hex;
+          const randomnessRequestedAtHex = ('0x' + decodedData.slice(2 + (64 * 9), 2 + (64 * 10))) as Hex;
+          const randomnessRequestedAt = parseInt(randomnessRequestedAtHex, 16);
+
+          console.log('📝 Randomness ID:', randomnessId);
+          console.log('⏰ Requested at:', randomnessRequestedAt);
+
+          if (randomnessId === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+            throw new Error('Randomness not requested for this round yet');
+          }
+
+          // Step 2: Fetch encoded randomness from Switchboard Crossbar
+          console.log('🌐 Fetching encoded randomness from Switchboard Crossbar...');
+          const crossbar = new CrossbarClient('https://crossbar.switchboard.xyz');
+
+          const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
+            chainId: 10143, // Monad Testnet
+            randomnessId,
+            timestamp: randomnessRequestedAt,
+            minStalenessSeconds: 5,
+            oracle: '0x0000000000000000000000000000000000000000'
+          });
+
+          console.log('✅ Fetched encoded randomness from Switchboard');
+
+          // Step 3: Call resolveRandomness on contract
+          const resolveSafe = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const resolveCalls: Call[] = [
+            {
+              to: LOTTERY_RESOLVE_ADDRESS,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi(['function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external']),
+                functionName: 'resolveRandomness',
+                args: [BigInt(params.roundId), encodedRandomness as Hex],
+              }) as Hex,
+            },
+          ];
+
+          const resolveTxHash = await executeTransaction(resolveCalls, userAddress as Address);
+          console.log('✅ Resolved Switchboard randomness for round', params.roundId, 'TX:', resolveTxHash);
+
+          // Automatically announce winner on Farcaster after successful resolve
+          let castHash: string | undefined;
+          try {
+            console.log('📢 Auto-announcing winner on Farcaster...');
+
+            // Wait 3 seconds for transaction to be indexed
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Call the announce-winner API internally
+            const announceResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/lottery/announce-winner`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roundId: params.roundId }),
+            });
+
+            if (announceResponse.ok) {
+              const announceData = await announceResponse.json();
+              castHash = announceData.castHash;
+              console.log('✅ Winner announced on Farcaster! Cast hash:', castHash);
+            } else {
+              const errorData = await announceResponse.json();
+              console.warn('⚠️ Failed to announce on Farcaster:', errorData.error);
+            }
+          } catch (announceError: any) {
+            console.warn('⚠️ Farcaster announcement error:', announceError.message);
+            // Don't fail the whole request if announcement fails
+          }
+
+          // Public action - no delegation tracking needed
+          return NextResponse.json({
+            success: true,
+            txHash: resolveTxHash,
+            castHash,
+            action,
+            userAddress,
+            roundId: params.roundId,
+            message: `Resolved randomness for round ${params.roundId} (earned 0.01 MON)${castHash ? ' - Announced on Farcaster!' : ''}`,
+          });
+
+        } catch (error: any) {
+          console.error('❌ Error resolving Switchboard randomness:', error);
+          return NextResponse.json(
+            { success: false, error: `Failed to resolve randomness: ${error.message}` },
+            { status: 500 }
+          );
+        }
 
       // ==================== LOTTERY CLAIM PRIZE ====================
       case 'lottery_claim':
