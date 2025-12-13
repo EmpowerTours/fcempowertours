@@ -4,7 +4,6 @@ import { createWalletClient, http, parseEther, createPublicClient } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const PIMLICO_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 
 const publicClient = createPublicClient({
@@ -42,8 +41,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message required' }, { status: 400 });
     }
 
-    // Use Gemini to parse intent and decide action
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Create fresh client instance for each request with API key
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+    // Use correct model name for the installed SDK version
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     const systemPrompt = `
 You are the EmpowerTours Global Guide Oracle AI. You help travelers with blockchain-powered travel experiences.
