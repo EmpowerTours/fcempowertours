@@ -168,17 +168,44 @@ async function resolveRandomness(randomnessId: string, requestedAt: number, swit
     await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
   }
 
-  // Fetch randomness proof from Crossbar
+  // Fetch randomness proof from Crossbar with exponential backoff retry
   console.log(`📡 Fetching randomness proof from Crossbar...`);
-  const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
-    chainId: CHAIN_ID,
-    randomnessId,
-    timestamp: Number(randomnessData.rollTimestamp),
-    minStalenessSeconds: Number(randomnessData.minSettlementDelay),
-    oracle: randomnessData.oracle,
-  });
 
-  console.log(`✅ Randomness proof fetched from Crossbar`);
+  let encodedRandomness: string | null = null;
+  const maxRetries = 5;
+  let retryCount = 0;
+  let retryDelay = 5000; // Start with 5 seconds
+
+  while (retryCount < maxRetries && !encodedRandomness) {
+    try {
+      const result = await crossbar.resolveEVMRandomness({
+        chainId: CHAIN_ID,
+        randomnessId,
+        timestamp: Number(randomnessData.rollTimestamp),
+        minStalenessSeconds: Number(randomnessData.minSettlementDelay),
+        oracle: randomnessData.oracle,
+      });
+      encodedRandomness = result.encoded;
+      console.log(`✅ Randomness proof fetched from Crossbar`);
+      break;
+    } catch (error: any) {
+      retryCount++;
+      if (retryCount >= maxRetries) {
+        console.error(`❌ Failed to fetch randomness from Crossbar after ${maxRetries} attempts`);
+        throw error;
+      }
+
+      console.log(`⚠️  Crossbar fetch failed (attempt ${retryCount}/${maxRetries}): ${error.message}`);
+      console.log(`   Oracle may still be processing... Retrying in ${retryDelay / 1000}s...`);
+
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      retryDelay *= 2; // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+    }
+  }
+
+  if (!encodedRandomness) {
+    throw new Error('Failed to fetch randomness proof from Crossbar');
+  }
 
   // Settle randomness on-chain (WE need to do this!)
   console.log(`📤 Settling randomness on Switchboard contract...`);
