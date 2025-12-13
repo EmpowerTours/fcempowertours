@@ -80,18 +80,47 @@ async function main() {
         await new Promise(resolve => setTimeout(resolve, 10000));
       }
 
-      // Fetch randomness reveal from Crossbar
+      // Fetch randomness reveal from Crossbar with exponential backoff retry
       console.log(`\n📡 Fetching randomness from Crossbar...`);
 
-      const { encoded: encodedRandomness, response: crossbarResponse } = await crossbar.resolveEVMRandomness({
-        chainId: MONAD_TESTNET.chainId,
-        randomnessId,
-        timestamp: Number(round.randomnessRequestedAt),
-        minStalenessSeconds: 5,
-        oracle: '0x0000000000000000000000000000000000000000', // Will be filled by Crossbar
-      });
+      let encodedRandomness: string | null = null;
+      let crossbarResponse: any = null;
+      const maxRetries = 5;
+      let retryCount = 0;
+      let retryDelay = 5000; // Start with 5 seconds
 
-      console.log(`✅ Randomness received from Crossbar`);
+      while (retryCount < maxRetries && !encodedRandomness) {
+        try {
+          const result = await crossbar.resolveEVMRandomness({
+            chainId: MONAD_TESTNET.chainId,
+            randomnessId,
+            timestamp: Number(round.randomnessRequestedAt),
+            minStalenessSeconds: 5,
+            oracle: '0x0000000000000000000000000000000000000000', // Will be filled by Crossbar
+          });
+          encodedRandomness = result.encoded;
+          crossbarResponse = result.response;
+          console.log(`✅ Randomness received from Crossbar`);
+          break;
+        } catch (error: any) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            console.error(`❌ Failed to fetch randomness from Crossbar after ${maxRetries} attempts`);
+            throw error;
+          }
+
+          console.log(`⚠️  Crossbar fetch failed (attempt ${retryCount}/${maxRetries}): ${error.message}`);
+          console.log(`   Oracle may still be processing... Retrying in ${retryDelay / 1000}s...`);
+
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          retryDelay *= 2; // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+        }
+      }
+
+      if (!encodedRandomness) {
+        throw new Error('Failed to fetch randomness proof from Crossbar');
+      }
+
       console.log(`   Preview value: ${crossbarResponse.value}`);
       console.log(`   Winner index will be: ${BigInt(crossbarResponse.value) % BigInt(round.participantCount)}`);
 
@@ -138,14 +167,37 @@ async function main() {
 
         const round = await lottery.getRound(i);
 
-        // Fetch and resolve
-        const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
-          chainId: MONAD_TESTNET.chainId,
-          randomnessId: round.randomnessId,
-          timestamp: Number(round.randomnessRequestedAt),
-          minStalenessSeconds: 5,
-          oracle: '0x0000000000000000000000000000000000000000',
-        });
+        // Fetch and resolve with retry logic
+        let encodedRandomness: string | null = null;
+        const maxRetries = 5;
+        let retryCount = 0;
+        let retryDelay = 5000;
+
+        while (retryCount < maxRetries && !encodedRandomness) {
+          try {
+            const result = await crossbar.resolveEVMRandomness({
+              chainId: MONAD_TESTNET.chainId,
+              randomnessId: round.randomnessId,
+              timestamp: Number(round.randomnessRequestedAt),
+              minStalenessSeconds: 5,
+              oracle: '0x0000000000000000000000000000000000000000',
+            });
+            encodedRandomness = result.encoded;
+            break;
+          } catch (error: any) {
+            retryCount++;
+            if (retryCount >= maxRetries) {
+              console.error(`   Failed after ${maxRetries} attempts, skipping round ${i}`);
+              break;
+            }
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retryDelay *= 2;
+          }
+        }
+
+        if (!encodedRandomness) {
+          continue; // Skip this round
+        }
 
         const tx = await lottery.resolveRandomness(i, encodedRandomness);
         await tx.wait();
