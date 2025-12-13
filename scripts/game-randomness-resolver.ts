@@ -103,37 +103,65 @@ async function fetchEligibleMusicNFTs(): Promise<MusicNFT[]> {
 }
 
 async function fetchArtistsByCountry(countryCode: string): Promise<any[]> {
-  // Query PassportNFT entities to find artists from specific country
-  // In production, you'd have a separate Artists table indexed by country
-  const query = `
+  // Step 1: Get all artists (wallet addresses) from this country who have passports
+  const passportQuery = `
     query {
       PassportNFT(
         where: {
           countryCode: { _eq: "${countryCode.toUpperCase()}" }
         }
-        order_by: { mintedAt: desc }
-        limit: 50
       ) {
-        tokenId
         owner
         countryCode
-        countryName
       }
     }
   `;
 
-  const response = await fetch(ENVIO_ENDPOINT, {
+  const passportResponse = await fetch(ENVIO_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query: passportQuery }),
   });
 
-  const { data } = await response.json() as any;
+  const passportData = await passportResponse.json() as any;
+  const artistAddresses = (passportData.data?.PassportNFT || []).map((p: any) => p.owner);
 
-  // For now, use tokenId as artistId (in production, you'd have proper artist IDs)
-  return (data.PassportNFT || []).map((p: any) => ({
-    artistId: p.tokenId,
-    countryCode: p.countryCode,
+  if (artistAddresses.length === 0) {
+    return [];
+  }
+
+  // Step 2: Get all MusicNFTs from those artists
+  const musicQuery = `
+    query {
+      MusicNFT(
+        where: {
+          artist: { _in: ${JSON.stringify(artistAddresses)} },
+          isArt: { _eq: false },
+          active: { _eq: true },
+          isBurned: { _eq: false },
+          metadataFetched: { _eq: true }
+        }
+        order_by: { mintedAt: desc }
+      ) {
+        tokenId
+        artist
+        name
+      }
+    }
+  `;
+
+  const musicResponse = await fetch(ENVIO_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: musicQuery }),
+  });
+
+  const musicData = await musicResponse.json() as any;
+
+  // Return music NFT tokenIds as artistIds
+  return (musicData.data?.MusicNFT || []).map((m: any) => ({
+    artistId: m.tokenId,
+    countryCode: countryCode,
   }));
 }
 
