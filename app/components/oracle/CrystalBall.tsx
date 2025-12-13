@@ -294,8 +294,10 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
         shouldUpdate = true;
       } else if (currentHovered !== null && prevHovered === null) {
         shouldUpdate = true;
-      } else if (currentHovered && prevHovered && currentHovered.id !== prevHovered.id) {
-        shouldUpdate = true;
+      } else if (currentHovered !== null && prevHovered !== null) {
+        if (currentHovered.id !== prevHovered.id) {
+          shouldUpdate = true;
+        }
       }
 
       if (shouldUpdate) {
