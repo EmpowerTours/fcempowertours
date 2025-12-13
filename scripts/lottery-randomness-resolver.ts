@@ -24,6 +24,7 @@ const RESOLVER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY;
 const LOTTERY_ABI = [
   'event RandomnessRequested(uint256 indexed roundId, bytes32 indexed randomnessId, address indexed caller, uint256 reward)',
   'function getRound(uint256 roundId) view returns (tuple(uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, bytes32 randomnessId, uint256 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsPaid))',
+  'function getCurrentRound() view returns (tuple(uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, bytes32 randomnessId, uint256 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsPaid))',
   'function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external',
   'function canResolveRandomness(uint256 roundId) view returns (bool)',
 ];
@@ -52,17 +53,12 @@ async function main() {
   // Initialize Crossbar client
   const crossbar = new CrossbarClient('https://crossbar.switchboard.xyz');
 
-  // Listen for RandomnessRequested events
-  console.log('👂 Listening for RandomnessRequested events...\n');
-
-  lottery.on('RandomnessRequested', async (roundId, randomnessId, caller, reward, event) => {
-    console.log(`\n🎲 Randomness Requested!`);
-    console.log(`   Round ID: ${roundId}`);
-    console.log(`   Randomness ID: ${randomnessId}`);
-    console.log(`   Requested by: ${caller}`);
-    console.log(`   Caller reward: ${ethers.formatEther(reward)} MON`);
-
+  // Helper function to resolve randomness for a round
+  async function resolveRoundRandomness(roundId: bigint, randomnessId: string) {
     try {
+      console.log(`\n🎲 Resolving randomness for round ${roundId}...`);
+      console.log(`   Randomness ID: ${randomnessId}`);
+
       // Get round data
       const round = await lottery.getRound(roundId);
       console.log(`   Participants: ${round.participantCount}`);
@@ -81,9 +77,8 @@ async function main() {
       // Check if ready
       const canResolve = await lottery.canResolveRandomness(roundId);
       if (!canResolve) {
-        console.log(`⚠️  Randomness not ready yet, will retry...`);
-        // Retry after a delay
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        console.log(`⚠️  Randomness not ready yet, will retry on next poll...`);
+        return;
       }
 
       // Fetch randomness reveal from Crossbar with exponential backoff retry
@@ -128,7 +123,9 @@ async function main() {
       }
 
       console.log(`   Preview value: ${crossbarResponse.value}`);
-      console.log(`   Winner index will be: ${BigInt(crossbarResponse.value) % BigInt(round.participantCount)}`);
+      if (round.participantCount > 0) {
+        console.log(`   Winner index will be: ${BigInt(crossbarResponse.value) % BigInt(round.participantCount)}`);
+      }
 
       // Resolve randomness on-chain
       console.log(`\n📤 Resolving randomness on-chain...`);
@@ -147,7 +144,6 @@ async function main() {
       console.log(`   Winner: ${finalRound.winner}`);
       console.log(`   Winner index: ${finalRound.winnerIndex}`);
       console.log(`   Random value: ${finalRound.randomValue}`);
-      console.log(`   Caller reward earned: 0.01 MON`);
 
     } catch (error: any) {
       console.error(`\n❌ Error resolving randomness for round ${roundId}:`, error.message);
@@ -155,7 +151,7 @@ async function main() {
         console.error(`   Error data:`, error.data);
       }
     }
-  });
+  }
 
   // Check for any pending rounds that need resolution
   console.log('🔍 Checking for pending rounds...\n');
@@ -215,8 +211,40 @@ async function main() {
     console.log('No pending rounds found');
   }
 
-  console.log('\n✅ Randomness resolver is running...');
-  console.log('💡 Press Ctrl+C to stop\n');
+  // Poll for RandomnessRequested events (Monad doesn't support eth_newFilter)
+  console.log('\n👂 Polling for RandomnessRequested events...');
+  console.log('✅ Resolver is running (polling every 10 seconds)...\n');
+
+  let lastBlock = await provider.getBlockNumber();
+
+  // Polling interval: 10 seconds
+  setInterval(async () => {
+    try {
+      const currentBlock = await provider.getBlockNumber();
+
+      if (currentBlock > lastBlock) {
+        const events = await lottery.queryFilter(
+          lottery.filters.RandomnessRequested(),
+          lastBlock + 1,
+          currentBlock
+        );
+
+        for (const event of events) {
+          console.log(`\n🔔 RandomnessRequested event detected!`);
+          console.log(`   Round ID: ${event.args![0]}`);
+          console.log(`   Randomness ID: ${event.args![1]}`);
+          console.log(`   Caller: ${event.args![2]}`);
+          console.log(`   Reward: ${ethers.formatEther(event.args![3])} MON`);
+
+          await resolveRoundRandomness(event.args![0], event.args![1]);
+        }
+
+        lastBlock = currentBlock;
+      }
+    } catch (error: any) {
+      console.error(`❌ Polling error:`, error.message);
+    }
+  }, 10000); // Poll every 10 seconds
 
   // Keep the process alive
   process.on('SIGINT', () => {
