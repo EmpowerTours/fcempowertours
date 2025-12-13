@@ -13,10 +13,12 @@ import { CrossbarClient } from '@switchboard-xyz/common';
 // Network configuration
 const MONAD_TESTNET = {
   chainId: 10143,
-  rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
+  rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz',
   lottery: process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '',
   blockExplorer: 'https://testnet.monadexplorer.com',
 };
+
+const RESOLVER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY;
 
 // Lottery ABI (just the functions we need)
 const LOTTERY_ABI = [
@@ -33,9 +35,13 @@ async function main() {
     throw new Error('NEXT_PUBLIC_LOTTERY_ADDRESS not set');
   }
 
+  if (!RESOLVER_PRIVATE_KEY) {
+    throw new Error('SAFE_OWNER_PRIVATE_KEY not set');
+  }
+
   // Setup provider and signer
   const provider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrl);
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
+  const wallet = new ethers.Wallet(RESOLVER_PRIVATE_KEY, provider);
   const lottery = new ethers.Contract(MONAD_TESTNET.lottery, LOTTERY_ABI, wallet);
 
   console.log('📍 Network: Monad Testnet');
