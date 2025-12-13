@@ -259,7 +259,7 @@ export default function OraclePage() {
       )}
 
       {/* Music Playlist */}
-      <MusicPlaylist userAddress={walletAddress} />
+      <MusicPlaylist userAddress={walletAddress ?? undefined} />
     </div>
   );
 }
