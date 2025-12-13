@@ -288,10 +288,15 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
 
       // Only update display state if hover changed (prevents constant re-renders)
       const prevHovered = hoveredNFTRef.current;
-      const shouldUpdate =
-        (currentHovered === null && prevHovered !== null) ||
-        (currentHovered !== null && prevHovered === null) ||
-        (currentHovered !== null && prevHovered !== null && currentHovered.id !== prevHovered.id);
+      let shouldUpdate = false;
+
+      if (currentHovered === null && prevHovered !== null) {
+        shouldUpdate = true;
+      } else if (currentHovered !== null && prevHovered === null) {
+        shouldUpdate = true;
+      } else if (currentHovered && prevHovered && currentHovered.id !== prevHovered.id) {
+        shouldUpdate = true;
+      }
 
       if (shouldUpdate) {
         setHoveredNFTDisplay(currentHovered);
