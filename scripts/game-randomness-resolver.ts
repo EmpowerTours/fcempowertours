@@ -436,12 +436,90 @@ async function main() {
 
   console.log(`🔗 Switchboard contract: ${SWITCHBOARD_ADDRESS}\n`);
 
-  // Poll for events (Monad doesn't support eth_newFilter)
-  console.log(`👂 Polling for MusicBeatMatchV3 and CountryCollectorV3 events...`);
-  console.log(`✅ Resolver is running (polling every 10 seconds)...\n`);
+  // Check for pending randomness requests on startup
+  console.log('🔍 Checking for pending randomness requests...\n');
 
-  let lastBeatMatchBlock = await provider.getBlockNumber();
-  let lastCountryCollectorBlock = await provider.getBlockNumber();
+  const currentBlock = await provider.getBlockNumber();
+  const lookbackBlocks = 1000; // Check last ~1000 blocks (~1 hour on Monad)
+
+  // Check Beat Match for pending requests
+  try {
+    const beatMatchEvents = await beatMatchContract.queryFilter(
+      beatMatchContract.filters.RandomSongRequested(),
+      Math.max(0, currentBlock - lookbackBlocks),
+      currentBlock
+    );
+
+    for (const event of beatMatchEvents) {
+      const challengeId = event.args![0];
+      const randomnessId = event.args![1];
+      const requestedAt = Number(event.args![2]);
+
+      // Check if already fulfilled
+      const request = await beatMatchContract.getRandomnessRequest(challengeId);
+      if (!request.fulfilled) {
+        console.log(`\n⚡ Found pending Beat Match challenge ${challengeId}, resolving...`);
+        try {
+          await handleBeatMatchRandomness(
+            beatMatchContract,
+            switchboardContract,
+            challengeId,
+            randomnessId,
+            requestedAt
+          );
+        } catch (error: any) {
+          console.error(`   Failed to resolve challenge ${challengeId}:`, error.message);
+        }
+      }
+    }
+  } catch (error: any) {
+    console.log('No pending Beat Match requests found');
+  }
+
+  // Check Country Collector for pending requests
+  try {
+    const collectorEvents = await countryCollectorContract.queryFilter(
+      countryCollectorContract.filters.RandomArtistsRequested(),
+      Math.max(0, currentBlock - lookbackBlocks),
+      currentBlock
+    );
+
+    for (const event of collectorEvents) {
+      const weekId = event.args![0];
+      const randomnessId = event.args![1];
+      const countryCode = event.args![2];
+      const countryName = event.args![3];
+      const requestedAt = Number(event.args![4]);
+
+      // Check if already fulfilled
+      const request = await countryCollectorContract.getRandomnessRequest(weekId);
+      if (!request.fulfilled) {
+        console.log(`\n⚡ Found pending Country Collector week ${weekId} for ${countryName}, resolving...`);
+        try {
+          await handleCountryCollectorRandomness(
+            countryCollectorContract,
+            switchboardContract,
+            weekId,
+            randomnessId,
+            countryCode,
+            countryName,
+            requestedAt
+          );
+        } catch (error: any) {
+          console.error(`   Failed to resolve week ${weekId}:`, error.message);
+        }
+      }
+    }
+  } catch (error: any) {
+    console.log('No pending Country Collector requests found');
+  }
+
+  // Poll for events (Monad doesn't support eth_newFilter)
+  console.log('\n👂 Polling for new randomness requests...');
+  console.log('✅ Resolver is running (polling every 10 seconds)...\n');
+
+  let lastBeatMatchBlock = currentBlock;
+  let lastCountryCollectorBlock = currentBlock;
 
   // Polling interval: 10 seconds
   setInterval(async () => {
