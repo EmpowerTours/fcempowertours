@@ -465,9 +465,9 @@ export default function ProfilePage() {
         metadata: {
           name: nft.name,
           image: resolveIPFS(nft.imageUrl),
-          animation_url: resolveIPFS(nft.previewAudioUrl),
+          animation_url: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl),
         },
-        audioUrl: resolveIPFS(nft.previewAudioUrl),
+        audioUrl: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl),
         price: (Number(nft.price) / 1e18).toFixed(6),
         isArt: nft.isArt,
       }));
@@ -1026,7 +1026,7 @@ export default function ProfilePage() {
                               </div>
                             ) : (
                               <p className="text-xs text-gray-500 text-center mt-1">
-                                🎧 Preview
+                                🎵 Full Track
                               </p>
                             )}
                           </div>
