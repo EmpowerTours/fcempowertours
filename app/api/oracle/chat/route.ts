@@ -120,9 +120,6 @@ You MUST return ONLY valid JSON matching the specified schema.
           },
           required: ['type', 'message'],
           propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction']
-        },
-        thinkingConfig: {
-          thinkingBudget: 0 // Disable thinking for speed
         }
       }
     });

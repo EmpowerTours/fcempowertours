@@ -19,12 +19,7 @@ export async function generateCountryPassportSVG(country: string): Promise<strin
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        thinkingConfig: {
-          thinkingBudget: 0 // Disable thinking for speed
-        }
-      }
+      contents: prompt
     });
 
     const svg = response.text.trim();

@@ -16,10 +16,7 @@ export async function POST(request) {
 
     const result = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 0 }
-      }
+      contents: prompt
     }, { signal: controller.signal });
     clearTimeout(timeoutId);
 

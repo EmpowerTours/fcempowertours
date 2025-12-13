@@ -133,8 +133,7 @@ async function parseCommand(text: string, fid: number) {
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 }
+          responseMimeType: 'application/json'
         }
       });
       const responseText = result.text.trim();

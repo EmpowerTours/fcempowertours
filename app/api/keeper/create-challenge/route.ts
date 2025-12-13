@@ -151,8 +151,7 @@ Return valid JSON: {"index": <number 0-${musicNFTs.length - 1}>, "reason": "<bri
     model: 'gemini-2.5-flash',
     contents: prompt,
     config: {
-      responseMimeType: 'application/json',
-      thinkingConfig: { thinkingBudget: 0 }
+      responseMimeType: 'application/json'
     }
   });
   const responseText = result.text.trim();
@@ -290,8 +289,7 @@ Return valid JSON: {"index": <number 0-${countries.length - 1}>, "reason": "<bri
     model: 'gemini-2.5-flash',
     contents: prompt,
     config: {
-      responseMimeType: 'application/json',
-      thinkingConfig: { thinkingBudget: 0 }
+      responseMimeType: 'application/json'
     }
   });
   const responseText = result.text.trim();
