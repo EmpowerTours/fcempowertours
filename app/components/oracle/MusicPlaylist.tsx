@@ -42,18 +42,28 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
 
   // Fetch user's purchased music NFTs
   useEffect(() => {
-    if (!userAddress) return;
+    if (!userAddress) {
+      console.log('[MusicPlaylist] No userAddress, skipping fetch');
+      return;
+    }
+
+    console.log('[MusicPlaylist] Fetching songs for address:', userAddress);
 
     const fetchPurchasedSongs = async () => {
       try {
         const response = await fetch(`/api/music/get-user-licenses?address=${userAddress}`);
         const data = await response.json();
 
+        console.log('[MusicPlaylist] API response:', data);
+
         if (data.success) {
+          console.log('[MusicPlaylist] Loaded', data.songs.length, 'owned songs');
           setOwnedSongs(data.songs);
+        } else {
+          console.error('[MusicPlaylist] API returned success:false', data);
         }
       } catch (error) {
-        console.error('Failed to fetch songs:', error);
+        console.error('[MusicPlaylist] Failed to fetch songs:', error);
       }
     };
 

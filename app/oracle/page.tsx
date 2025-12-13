@@ -35,6 +35,12 @@ export default function OraclePage() {
   const [selectedNFT, setSelectedNFT] = useState<NFTObject | null>(null);
   const [clickedMusicNFTs, setClickedMusicNFTs] = useState<NFTObject[]>([]);
 
+  // Debug: Log wallet address changes
+  useEffect(() => {
+    console.log('[OraclePage] walletAddress changed:', walletAddress);
+    console.log('[OraclePage] user:', user);
+  }, [walletAddress, user]);
+
   // State machine: Map thinking/response state to visual OracleState
   useEffect(() => {
     if (isThinking) {
