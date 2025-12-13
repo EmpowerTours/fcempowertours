@@ -10,8 +10,8 @@ const neynar = new NeynarAPIClient({
 });
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
-const MUSIC_BEAT_MATCH_V3 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V3 as Address;
-const COUNTRY_COLLECTOR_V3 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V3 as Address;
+const MUSIC_BEAT_MATCH_V4 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V4 as Address;
+const COUNTRY_COLLECTOR_V4 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V4 as Address;
 
 /**
  * Public API for manually creating game challenges
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       // Check if there's already an active challenge using getCurrentChallenge()
       try {
         const currentChallenge = await client.readContract({
-          address: MUSIC_BEAT_MATCH_V3,
+          address: MUSIC_BEAT_MATCH_V4,
           abi: parseAbi([
             'function getCurrentChallenge() view returns (tuple(uint256 challengeId, uint256 musicNFTTokenId, uint256 artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime, uint256 correctGuesses, uint256 totalGuesses, uint256 rewardPool, bool active, bool randomnessRequested, bool randomnessFulfilled, bytes32 answerHash))'
           ]),
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
           if (currentChallenge.active && currentChallenge.endTime < now) {
             console.log(`[Beat Match] Finalizing expired challenge #${currentChallenge.challengeId}...`);
             await sendSafeTransaction([{
-              to: MUSIC_BEAT_MATCH_V3,
+              to: MUSIC_BEAT_MATCH_V4,
               value: 0n,
               data: encodeFunctionData({
                 abi: parseAbi(['function finalizeChallenge(uint256 challengeId)']),
@@ -80,8 +80,8 @@ export async function POST(req: NextRequest) {
         console.log('[Beat Match] No current challenge found');
       }
 
-      // Create new challenge with V3 randomness
-      const beatMatchResult = await createBeatMatchV3(client);
+      // Create new challenge with V4 randomness
+      const beatMatchResult = await createBeatMatchV4(client);
       actions.push(`Requested Beat Match randomness`);
 
       return NextResponse.json({
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       // Check if there's already an active challenge using getCurrentChallenge()
       try {
         const currentChallenge = await client.readContract({
-          address: COUNTRY_COLLECTOR_V3,
+          address: COUNTRY_COLLECTOR_V4,
           abi: parseAbi([
             'function getCurrentChallenge() view returns (tuple(uint256 id, string countryCode, string countryName, uint256[3] artistIds, uint256 startTime, uint256 endTime, uint256 rewardPool, bool active, bool finalized, bool randomnessRequested, bool randomnessFulfilled))'
           ]),
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
           if (currentChallenge.active && currentChallenge.endTime < now) {
             console.log(`[Country Collector] Finalizing expired week #${currentChallenge.id}...`);
             await sendSafeTransaction([{
-              to: COUNTRY_COLLECTOR_V3,
+              to: COUNTRY_COLLECTOR_V4,
               value: 0n,
               data: encodeFunctionData({
                 abi: parseAbi(['function finalizeChallenge(uint256 weekId)']),
@@ -132,8 +132,8 @@ export async function POST(req: NextRequest) {
         console.log('[Country Collector] No current challenge found');
       }
 
-      // Create new challenge with V3 randomness
-      const collectorResult = await createCountryCollectorV3(client);
+      // Create new challenge with V4 randomness
+      const collectorResult = await createCountryCollectorV4(client);
       actions.push(`Requested Country Collector randomness for ${collectorResult.country}`);
 
       return NextResponse.json({
@@ -172,12 +172,12 @@ async function getArtistUsername(artistAddress: string): Promise<string> {
 }
 
 /**
- * Create Beat Match challenge with V3 Switchboard randomness
+ * Create Beat Match challenge with V4 Switchboard randomness
  */
-async function createBeatMatchV3(client: any) {
-  // V3: Just request randomness, bot will resolve and create challenge
+async function createBeatMatchV4(client: any) {
+  // V4: Just request randomness, bot will resolve and create challenge
   const tx = await sendSafeTransaction([{
-    to: MUSIC_BEAT_MATCH_V3,
+    to: MUSIC_BEAT_MATCH_V4,
     value: 0n,
     data: encodeFunctionData({
       abi: parseAbi(['function requestRandomSongSelection() returns (uint256 challengeId)']),
@@ -260,9 +260,9 @@ async function getCountriesWithArtists(): Promise<Set<string>> {
 }
 
 /**
- * Create Country Collector challenge with V3 Switchboard randomness
+ * Create Country Collector challenge with V4 Switchboard randomness
  */
-async function createCountryCollectorV3(client: any) {
+async function createCountryCollectorV4(client: any) {
   // Get countries that have artists
   const countriesWithArtists = await getCountriesWithArtists();
 
@@ -279,9 +279,9 @@ async function createCountryCollectorV3(client: any) {
   console.log(`[Country Collector] Selected country: ${randomCountry.name} (${randomCountry.code})`);
   console.log(`[Country Collector] ${eligibleCountries.length} eligible countries available`);
 
-  // V3: Just request randomness, bot will resolve and create challenge
+  // V4: Just request randomness, bot will resolve and create challenge
   const tx = await sendSafeTransaction([{
-    to: COUNTRY_COLLECTOR_V3,
+    to: COUNTRY_COLLECTOR_V4,
     value: 0n,
     data: encodeFunctionData({
       abi: parseAbi(['function requestRandomArtistSelection(string country, string countryCode) returns (uint256 weekId)']),

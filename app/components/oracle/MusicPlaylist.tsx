@@ -133,9 +133,9 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
 
-      // Enforce 30-second preview limit for preview songs
+      // Enforce 3-second preview limit for preview songs
       const currentSong = songs[currentSongIndex];
-      if (currentSong?.isPreview && audio.currentTime >= 30) {
+      if (currentSong?.isPreview && audio.currentTime >= 3) {
         audio.pause();
         setIsPlaying(false);
         // Auto-skip to next song after preview ends
@@ -150,10 +150,10 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
-      // For preview songs, show duration as 30 seconds max
+      // For preview songs, show duration as 3 seconds max
       const currentSong = songs[currentSongIndex];
       if (currentSong?.isPreview) {
-        setDuration(Math.min(30, audio.duration));
+        setDuration(Math.min(3, audio.duration));
       }
     };
 
@@ -210,10 +210,10 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
     const newTime = parseFloat(e.target.value);
     const currentSong = songs[currentSongIndex];
 
-    // Prevent seeking beyond 30 seconds for preview songs
-    if (currentSong?.isPreview && newTime > 30) {
-      audio.currentTime = 30;
-      setCurrentTime(30);
+    // Prevent seeking beyond 3 seconds for preview songs
+    if (currentSong?.isPreview && newTime > 3) {
+      audio.currentTime = 3;
+      setCurrentTime(3);
       audio.pause();
       setIsPlaying(false);
     } else {
@@ -267,8 +267,11 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
   };
 
   if (!userAddress || songs.length === 0) {
+    console.log('[MusicPlaylist] Not rendering:', { userAddress, songsLength: songs.length, ownedSongsLength: ownedSongs.length });
     return null;
   }
+
+  console.log('[MusicPlaylist] Rendering player with', songs.length, 'songs');
 
   const currentSong = songs[currentSongIndex];
 
@@ -359,7 +362,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
                       <div className="text-white text-sm font-semibold truncate">{currentSong.title}</div>
                       {currentSong.isPreview && (
                         <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/30 text-purple-300 rounded-full flex-shrink-0">
-                          30s PREVIEW
+                          3s PREVIEW
                         </span>
                       )}
                     </div>
