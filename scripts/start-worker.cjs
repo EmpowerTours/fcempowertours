@@ -2,30 +2,64 @@
 
 /**
  * Smart worker entrypoint
- * Runs the game randomness resolver bot
+ * Runs both game and lottery randomness resolver bots
  */
 
 const { spawn } = require('child_process');
 
-console.log('🎮 Starting Game Randomness Resolver Worker...');
+console.log('🎮 Starting Randomness Resolver Workers...');
 
-const bot = spawn('npx', ['ts-node', 'scripts/game-randomness-resolver.ts'], {
-  stdio: 'inherit',
+// Start game randomness resolver
+const gameBot = spawn('npx', ['tsx', 'scripts/game-randomness-resolver.ts'], {
+  stdio: ['inherit', 'pipe', 'pipe'],
   env: process.env
 });
 
-bot.on('exit', (code) => {
-  console.log(`❌ Worker exited with code ${code}`);
+gameBot.stdout.on('data', (data) => {
+  process.stdout.write(`[GAME] ${data}`);
+});
+
+gameBot.stderr.on('data', (data) => {
+  process.stderr.write(`[GAME] ${data}`);
+});
+
+gameBot.on('exit', (code) => {
+  console.log(`❌ Game resolver exited with code ${code}`);
+  lotteryBot.kill('SIGTERM');
   process.exit(code || 1);
 });
+
+// Start lottery randomness resolver
+const lotteryBot = spawn('npx', ['tsx', 'scripts/lottery-randomness-resolver.ts'], {
+  stdio: ['inherit', 'pipe', 'pipe'],
+  env: process.env
+});
+
+lotteryBot.stdout.on('data', (data) => {
+  process.stdout.write(`[LOTTERY] ${data}`);
+});
+
+lotteryBot.stderr.on('data', (data) => {
+  process.stderr.write(`[LOTTERY] ${data}`);
+});
+
+lotteryBot.on('exit', (code) => {
+  console.log(`❌ Lottery resolver exited with code ${code}`);
+  gameBot.kill('SIGTERM');
+  process.exit(code || 1);
+});
+
+console.log('✅ Both resolvers started');
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('📴 Received SIGTERM, shutting down gracefully...');
-  bot.kill('SIGTERM');
+  gameBot.kill('SIGTERM');
+  lotteryBot.kill('SIGTERM');
 });
 
 process.on('SIGINT', () => {
   console.log('📴 Received SIGINT, shutting down gracefully...');
-  bot.kill('SIGINT');
+  gameBot.kill('SIGINT');
+  lotteryBot.kill('SIGINT');
 });
