@@ -8,13 +8,28 @@ interface Song {
   artist: string;
   audioUrl: string;
   imageUrl: string;
+  isPreview?: boolean; // True if user doesn't own this NFT
+  contractAddress?: string;
+}
+
+interface NFTObject {
+  id: string;
+  type: 'ART' | 'MUSIC' | 'EXPERIENCE';
+  tokenId: string;
+  name: string;
+  imageUrl: string;
+  price: string;
+  contractAddress: string;
+  tokenURI?: string;
 }
 
 interface MusicPlaylistProps {
   userAddress?: string;
+  clickedNFTs?: NFTObject[];
 }
 
-export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => {
+export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, clickedNFTs = [] }) => {
+  const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,6 +38,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
   const [showQueue, setShowQueue] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const previewTimeLimitRef = useRef<number | null>(null);
 
   // Fetch user's purchased music NFTs
   useEffect(() => {
@@ -34,7 +50,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
         const data = await response.json();
 
         if (data.success) {
-          setSongs(data.songs);
+          setOwnedSongs(data.songs);
         }
       } catch (error) {
         console.error('Failed to fetch songs:', error);
@@ -44,13 +60,103 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
     fetchPurchasedSongs();
   }, [userAddress]);
 
+  // Process clicked NFTs and merge with owned songs
+  useEffect(() => {
+    const processClickedNFTs = async () => {
+      const clickedSongs: Song[] = [];
+
+      for (const nft of clickedNFTs) {
+        try {
+          // Check if user owns this NFT
+          const isOwned = ownedSongs.some(s => s.tokenId === nft.tokenId);
+
+          if (!isOwned && nft.tokenURI) {
+            // User doesn't own this - add as preview
+            // Resolve IPFS URL
+            const resolveIPFS = (url: string) => {
+              if (!url) return '';
+              if (url.startsWith('ipfs://')) {
+                return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
+              }
+              return url;
+            };
+
+            try {
+              const metadataUrl = resolveIPFS(nft.tokenURI);
+              const metadataRes = await fetch(metadataUrl);
+
+              if (metadataRes.ok) {
+                const metadata = await metadataRes.json();
+                const audioUrl = resolveIPFS(metadata.animation_url || '');
+
+                if (audioUrl) {
+                  clickedSongs.push({
+                    id: `preview-${nft.tokenId}`,
+                    tokenId: nft.tokenId,
+                    title: metadata.name || nft.name,
+                    artist: metadata.artist || 'Unknown Artist',
+                    audioUrl,
+                    imageUrl: nft.imageUrl,
+                    isPreview: true,
+                    contractAddress: nft.contractAddress,
+                  });
+                }
+              }
+            } catch (err) {
+              console.error(`Failed to fetch metadata for NFT ${nft.tokenId}:`, err);
+            }
+          } else if (isOwned) {
+            // User owns this NFT - find it in the queue and jump to it
+            const ownedIndex = ownedSongs.findIndex(s => s.tokenId === nft.tokenId);
+            if (ownedIndex !== -1) {
+              setCurrentSongIndex(ownedIndex);
+              setIsPlaying(true);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to process clicked NFT:', error);
+        }
+      }
+
+      // Merge owned songs with clicked preview songs
+      setSongs([...ownedSongs, ...clickedSongs]);
+    };
+
+    processClickedNFTs();
+  }, [clickedNFTs, ownedSongs]);
+
   // Audio event handlers
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+
+      // Enforce 30-second preview limit for preview songs
+      const currentSong = songs[currentSongIndex];
+      if (currentSong?.isPreview && audio.currentTime >= 30) {
+        audio.pause();
+        setIsPlaying(false);
+        // Auto-skip to next song after preview ends
+        if (currentSongIndex < songs.length - 1) {
+          setTimeout(() => {
+            setCurrentSongIndex(prev => prev + 1);
+            setIsPlaying(true);
+          }, 1000);
+        }
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+      // For preview songs, show duration as 30 seconds max
+      const currentSong = songs[currentSongIndex];
+      if (currentSong?.isPreview) {
+        setDuration(Math.min(30, audio.duration));
+      }
+    };
+
     const handleEnded = () => {
       if (currentSongIndex < songs.length - 1) {
         setCurrentSongIndex(prev => prev + 1);
@@ -69,7 +175,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [currentSongIndex, songs.length]);
+  }, [currentSongIndex, songs]);
 
   const handlePlayPause = () => {
     const audio = audioRef.current;
@@ -102,8 +208,18 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
     if (!audio) return;
 
     const newTime = parseFloat(e.target.value);
-    audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    const currentSong = songs[currentSongIndex];
+
+    // Prevent seeking beyond 30 seconds for preview songs
+    if (currentSong?.isPreview && newTime > 30) {
+      audio.currentTime = 30;
+      setCurrentTime(30);
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
   };
 
   const handleSongClick = (index: number) => {
@@ -197,8 +313,15 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm truncate ${index === currentSongIndex ? 'text-cyan-400 font-semibold' : 'text-white'}`}>
-                      {song.title}
+                    <div className="flex items-center gap-2">
+                      <div className={`text-sm truncate ${index === currentSongIndex ? 'text-cyan-400 font-semibold' : 'text-white'}`}>
+                        {song.title}
+                      </div>
+                      {song.isPreview && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/30 text-purple-300 rounded-full flex-shrink-0">
+                          PREVIEW
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-400 truncate">{song.artist}</div>
                   </div>
@@ -232,7 +355,14 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm font-semibold truncate">{currentSong.title}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-white text-sm font-semibold truncate">{currentSong.title}</div>
+                      {currentSong.isPreview && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/30 text-purple-300 rounded-full flex-shrink-0">
+                          30s PREVIEW
+                        </span>
+                      )}
+                    </div>
                     <div className="text-gray-400 text-xs truncate">{currentSong.artist}</div>
                   </div>
                 </>

@@ -11,6 +11,7 @@ interface NFTObject {
   imageUrl: string;
   price: string;
   contractAddress: string;
+  tokenURI?: string; // For music NFTs to fetch metadata
 }
 
 // Utility function to resolve IPFS URLs with thumbnail optimization
@@ -122,6 +123,7 @@ export async function GET() {
           imageUrl,
           price: '0', // Music NFTs don't have direct price in this schema
           contractAddress: process.env.NEXT_PUBLIC_NFT_ADDRESS || '',
+          tokenURI: nft.tokenURI, // Include for fetching audio metadata
         };
       })
     );

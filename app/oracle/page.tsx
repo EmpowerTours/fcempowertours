@@ -15,6 +15,7 @@ interface NFTObject {
   imageUrl: string;
   price: string;
   contractAddress: string;
+  tokenURI?: string;
 }
 
 interface Message {
@@ -32,6 +33,7 @@ export default function OraclePage() {
   const [oracleState, setOracleState] = useState<OracleState>(OracleState.IDLE);
   const [isThinking, setIsThinking] = useState(false);
   const [selectedNFT, setSelectedNFT] = useState<NFTObject | null>(null);
+  const [clickedMusicNFTs, setClickedMusicNFTs] = useState<NFTObject[]>([]);
 
   // State machine: Map thinking/response state to visual OracleState
   useEffect(() => {
@@ -126,7 +128,19 @@ export default function OraclePage() {
   };
 
   const handleNFTClick = (nft: NFTObject) => {
-    setSelectedNFT(nft);
+    // If it's a music NFT, add to music player instead of showing modal
+    if (nft.type === 'MUSIC') {
+      setClickedMusicNFTs(prev => {
+        // Avoid duplicates
+        if (prev.some(n => n.tokenId === nft.tokenId)) {
+          return prev;
+        }
+        return [...prev, nft];
+      });
+    } else {
+      // For ART and EXPERIENCE, show modal
+      setSelectedNFT(nft);
+    }
   };
 
   const closeNFTModal = () => {
@@ -273,7 +287,10 @@ export default function OraclePage() {
       )}
 
       {/* Music Playlist */}
-      <MusicPlaylist userAddress={walletAddress ?? undefined} />
+      <MusicPlaylist
+        userAddress={walletAddress ?? undefined}
+        clickedNFTs={clickedMusicNFTs}
+      />
     </div>
   );
 }
