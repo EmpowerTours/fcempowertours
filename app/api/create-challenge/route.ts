@@ -192,30 +192,66 @@ async function createBeatMatchV3(client: any) {
 }
 
 /**
- * Fetch countries with artists from Envio
+ * Fetch countries with music NFTs from Envio
+ * Only returns countries where artists have actually minted music
  */
 async function getCountriesWithArtists(): Promise<Set<string>> {
-  const query = `
+  // Step 1: Get all active music NFTs and their artist addresses
+  const musicQuery = `
     query {
-      PassportNFT(
-        distinct_on: countryCode
-        order_by: { countryCode: asc }
+      MusicNFT(
+        where: {
+          isArt: { _eq: false },
+          active: { _eq: true },
+          isBurned: { _eq: false },
+          metadataFetched: { _eq: true }
+        }
+        distinct_on: artist
       ) {
-        countryCode
+        artist
       }
     }
   `;
 
   try {
-    const response = await fetch(ENVIO_ENDPOINT, {
+    const musicResponse = await fetch(ENVIO_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query: musicQuery }),
     });
 
-    const { data } = await response.json();
-    const countryCodes = new Set<string>((data?.PassportNFT || []).map((p: any) => p.countryCode as string));
-    console.log(`[Country Filter] Found ${countryCodes.size} countries with artists:`, Array.from(countryCodes));
+    const musicData = await musicResponse.json();
+    const artistAddresses = (musicData?.data?.MusicNFT || []).map((m: any) => m.artist);
+
+    if (artistAddresses.length === 0) {
+      console.log(`[Country Filter] No music NFTs found`);
+      return new Set();
+    }
+
+    // Step 2: Get countries for those artists
+    const passportQuery = `
+      query {
+        PassportNFT(
+          where: {
+            owner: { _in: ${JSON.stringify(artistAddresses)} }
+          }
+          distinct_on: countryCode
+        ) {
+          countryCode
+        }
+      }
+    `;
+
+    const passportResponse = await fetch(ENVIO_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: passportQuery }),
+    });
+
+    const passportData = await passportResponse.json();
+    const countryCodes = new Set<string>((passportData?.data?.PassportNFT || []).map((p: any) => p.countryCode as string));
+
+    console.log(`[Country Filter] Found ${countryCodes.size} countries with music:`, Array.from(countryCodes).sort());
     return countryCodes;
   } catch (error) {
     console.error('[Country Filter] Error fetching countries:', error);
