@@ -56,23 +56,23 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
     let textureLoaded = false;
     earthTexture.onload = () => { textureLoaded = true; };
 
-    // ORBITING PLANES CONFIGURATION
+    // ORBITING PLANES CONFIGURATION (adjusted for larger earth)
     const planes = Array.from({ length: 12 }).map((_, i) => ({
-      orbitRadius: 105 + Math.random() * 35,
+      orbitRadius: 140 + Math.random() * 45, // Increased from 105+35 to 140+45
       speed: (Math.random() * 0.02 + 0.005) * (i % 2 === 0 ? 1 : -1),
       angle: Math.random() * Math.PI * 2,
-      altitude: Math.random() * 50 - 25,
+      altitude: Math.random() * 60 - 30, // Slightly increased altitude range
       tiltOffset: Math.random() * Math.PI
     }));
 
-    // NFT OBJECTS CONFIGURATION (orbit with planes)
+    // NFT OBJECTS CONFIGURATION (orbit with planes, adjusted for larger earth)
     const nftOrbits = nftObjects.map((nft, i) => ({
       nft,
-      orbitRadius: 110 + Math.random() * 40,
+      orbitRadius: 145 + Math.random() * 50, // Increased from 110+40 to 145+50
       speed: (Math.random() * 0.015 + 0.004) * (i % 2 === 0 ? 1 : -1),
       angle: Math.random() * Math.PI * 2,
-      altitude: Math.random() * 60 - 30,
-      size: 12,
+      altitude: Math.random() * 70 - 35, // Increased altitude range
+      size: 16, // Increased from 12 to 16 for better visibility
       image: new Image(),
     }));
 
@@ -114,7 +114,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      const earthRadius = 120;
+      const earthRadius = 160; // Increased from 120 to 160 (33% larger)
 
       // 1. Atmosphere Glow
       const glow = ctx.createRadialGradient(cx, cy, earthRadius, cx, cy, earthRadius * 1.4);
@@ -301,13 +301,13 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
   const borderClass = state === OracleState.PROCESSING ? 'border-fuchsia-500/30' : 'border-syndicate-cyan/30';
 
   return (
-    <div className="relative flex items-center justify-center w-[240px] h-[240px] xs:w-[280px] xs:h-[280px] sm:w-[320px] sm:h-[320px]">
+    <div className="relative flex items-center justify-center w-[320px] h-[320px] xs:w-[380px] xs:h-[380px] sm:w-[440px] sm:h-[440px]">
       <div className={`absolute inset-0 rounded-full border border-dashed border-opacity-30 animate-[spin_60s_linear_infinite] ${borderClass}`}></div>
-      <div className="relative w-56 h-56 xs:w-64 xs:h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden" style={{ background: '#000', boxShadow: '0 0 60px rgba(0, 100, 255, 0.15)' }}>
+      <div className="relative w-72 h-72 xs:w-80 xs:h-80 sm:w-96 sm:h-96 rounded-full overflow-hidden" style={{ background: '#000', boxShadow: '0 0 80px rgba(0, 100, 255, 0.2)' }}>
         <canvas
           ref={canvasRef}
-          width={320}
-          height={320}
+          width={440}
+          height={440}
           className="w-full h-full cursor-pointer"
         />
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 via-transparent to-transparent rounded-full pointer-events-none mix-blend-overlay"></div>

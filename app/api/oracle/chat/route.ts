@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { createWalletClient, http, parseEther, createPublicClient } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -41,11 +41,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message required' }, { status: 400 });
     }
 
-    // Create fresh client instance for each request with API key
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
-    // Use current model (gemini-pro is deprecated)
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Create GoogleGenAI instance with correct SDK
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY!
+    });
 
     const systemPrompt = `
 You are the EmpowerTours Global Guide Oracle AI. You help travelers with blockchain-powered travel experiences.
@@ -77,26 +76,72 @@ Available Actions:
 
 Parse this user message: "${message}"
 
-Return ONLY valid JSON with this structure:
-{
-  "type": "navigate|execute|game|chat",
-  "destination": "/page-path" (if navigate),
-  "game": "TETRIS|TICTACTOE|MIRROR" (if game),
-  "transaction": {"contract": "address", "function": "name", "args": []} (if execute),
-  "message": "Response to user"
-}
+You MUST return ONLY valid JSON matching the specified schema.
 `;
 
-    const result = await model.generateContent(systemPrompt);
-    const responseText = result.response.text().trim();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: systemPrompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            type: {
+              type: Type.STRING,
+              enum: ['navigate', 'execute', 'game', 'chat'],
+              description: 'The type of action to perform'
+            },
+            destination: {
+              type: Type.STRING,
+              description: 'Page path if type is navigate'
+            },
+            game: {
+              type: Type.STRING,
+              enum: ['TETRIS', 'TICTACTOE', 'MIRROR'],
+              description: 'Game type if type is game'
+            },
+            transaction: {
+              type: Type.OBJECT,
+              properties: {
+                contract: { type: Type.STRING },
+                function: { type: Type.STRING },
+                args: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                }
+              },
+              description: 'Transaction details if type is execute'
+            },
+            message: {
+              type: Type.STRING,
+              description: 'Response message to user'
+            }
+          },
+          required: ['type', 'message'],
+          propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction']
+        },
+        thinkingConfig: {
+          thinkingBudget: 0 // Disable thinking for speed
+        }
+      }
+    });
 
-    // Clean JSON from markdown
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to parse AI response');
+    const responseText = response.text;
+
+    // Parse JSON response
+    let action: OracleAction;
+    try {
+      action = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', responseText);
+      throw new Error('Invalid JSON response from AI');
     }
 
-    const action: OracleAction = JSON.parse(jsonMatch[0]);
+    // Validate required fields
+    if (!action.type || !action.message) {
+      throw new Error('Invalid response structure from AI');
+    }
 
     // Execute action
     let txHash: string | null = null;

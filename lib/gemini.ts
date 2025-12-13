@@ -1,4 +1,6 @@
 // lib/gemini.ts
+import { GoogleGenAI } from '@google/genai';
+
 export async function generateCountryPassportSVG(country: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -13,26 +15,19 @@ export async function generateCountryPassportSVG(country: string): Promise<strin
   `;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            thinkingConfig: { thinkingBudget: 0 }, // Disable thinking for speed
-          },
-        }),
+    const ai = new GoogleGenAI({ apiKey });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        thinkingConfig: {
+          thinkingBudget: 0 // Disable thinking for speed
+        }
       }
-    );
+    });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const svg = data.candidates[0].content.parts[0].text.trim();
+    const svg = response.text.trim();
 
     if (!svg.startsWith('<svg') || !svg.endsWith('</svg>')) {
       throw new Error('Invalid SVG generated');

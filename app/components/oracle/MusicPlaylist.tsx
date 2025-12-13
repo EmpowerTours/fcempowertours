@@ -73,50 +73,71 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
   // Process clicked NFTs and merge with owned songs
   useEffect(() => {
     const processClickedNFTs = async () => {
+      console.log('[MusicPlaylist] Processing', clickedNFTs.length, 'clicked NFTs');
       const clickedSongs: Song[] = [];
 
       for (const nft of clickedNFTs) {
         try {
+          console.log('[MusicPlaylist] Processing NFT:', nft.name, nft.tokenId);
+
           // Check if user owns this NFT
           const isOwned = ownedSongs.some(s => s.tokenId === nft.tokenId);
 
-          if (!isOwned && nft.tokenURI) {
+          if (!isOwned) {
             // User doesn't own this - add as preview
-            // Resolve IPFS URL
-            const resolveIPFS = (url: string) => {
-              if (!url) return '';
-              if (url.startsWith('ipfs://')) {
-                return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
-              }
-              return url;
+            // Create a fallback preview song even if metadata fetch fails
+            const fallbackSong: Song = {
+              id: `preview-${nft.tokenId}`,
+              tokenId: nft.tokenId,
+              title: nft.name || `Music NFT #${nft.tokenId}`,
+              artist: 'Unknown Artist',
+              audioUrl: '', // Will try to fetch from metadata
+              imageUrl: nft.imageUrl,
+              isPreview: true,
+              contractAddress: nft.contractAddress,
             };
 
-            try {
-              const metadataUrl = resolveIPFS(nft.tokenURI);
-              const metadataRes = await fetch(metadataUrl);
-
-              if (metadataRes.ok) {
-                const metadata = await metadataRes.json();
-                const audioUrl = resolveIPFS(metadata.animation_url || '');
-
-                if (audioUrl) {
-                  clickedSongs.push({
-                    id: `preview-${nft.tokenId}`,
-                    tokenId: nft.tokenId,
-                    title: metadata.name || nft.name,
-                    artist: metadata.artist || 'Unknown Artist',
-                    audioUrl,
-                    imageUrl: nft.imageUrl,
-                    isPreview: true,
-                    contractAddress: nft.contractAddress,
-                  });
+            if (nft.tokenURI) {
+              // Resolve IPFS URL
+              const resolveIPFS = (url: string) => {
+                if (!url) return '';
+                if (url.startsWith('ipfs://')) {
+                  return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
                 }
+                return url;
+              };
+
+              try {
+                const metadataUrl = resolveIPFS(nft.tokenURI);
+                console.log('[MusicPlaylist] Fetching metadata from:', metadataUrl);
+                const metadataRes = await fetch(metadataUrl);
+
+                if (metadataRes.ok) {
+                  const metadata = await metadataRes.json();
+                  console.log('[MusicPlaylist] Metadata:', metadata);
+                  const audioUrl = resolveIPFS(metadata.animation_url || metadata.audio_url || '');
+
+                  if (audioUrl) {
+                    fallbackSong.audioUrl = audioUrl;
+                    fallbackSong.title = metadata.name || fallbackSong.title;
+                    fallbackSong.artist = metadata.artist || metadata.properties?.artist || 'Unknown Artist';
+                  } else {
+                    console.warn('[MusicPlaylist] No audio URL found in metadata');
+                  }
+                } else {
+                  console.warn('[MusicPlaylist] Metadata fetch failed:', metadataRes.status);
+                }
+              } catch (err) {
+                console.error(`[MusicPlaylist] Failed to fetch metadata for NFT ${nft.tokenId}:`, err);
               }
-            } catch (err) {
-              console.error(`Failed to fetch metadata for NFT ${nft.tokenId}:`, err);
             }
+
+            // Add song even if audio URL is empty (will show in queue but can't play)
+            console.log('[MusicPlaylist] Adding song:', fallbackSong.title);
+            clickedSongs.push(fallbackSong);
           } else if (isOwned) {
             // User owns this NFT - find it in the queue and jump to it
+            console.log('[MusicPlaylist] User owns this NFT, jumping to it');
             const ownedIndex = ownedSongs.findIndex(s => s.tokenId === nft.tokenId);
             if (ownedIndex !== -1) {
               setCurrentSongIndex(ownedIndex);
@@ -124,15 +145,19 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
             }
           }
         } catch (error) {
-          console.error('Failed to process clicked NFT:', error);
+          console.error('[MusicPlaylist] Failed to process clicked NFT:', error);
         }
       }
 
       // Merge owned songs with clicked preview songs
-      setSongs([...ownedSongs, ...clickedSongs]);
+      const allSongs = [...ownedSongs, ...clickedSongs];
+      console.log('[MusicPlaylist] Setting songs:', allSongs.length, 'total songs');
+      setSongs(allSongs);
     };
 
-    processClickedNFTs();
+    if (clickedNFTs.length > 0) {
+      processClickedNFTs();
+    }
   }, [clickedNFTs, ownedSongs]);
 
   // Audio event handlers
@@ -276,8 +301,14 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (!userAddress || songs.length === 0) {
-    console.log('[MusicPlaylist] Not rendering:', { userAddress, songsLength: songs.length, ownedSongsLength: ownedSongs.length });
+  // Render if we have songs (owned or clicked previews)
+  if (songs.length === 0) {
+    console.log('[MusicPlaylist] Not rendering:', {
+      userAddress,
+      songsLength: songs.length,
+      ownedSongsLength: ownedSongs.length,
+      clickedNFTsLength: clickedNFTs.length
+    });
     return null;
   }
 
