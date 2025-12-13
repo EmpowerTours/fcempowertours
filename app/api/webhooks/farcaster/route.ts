@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { createWalletClient, http, encodeFunctionData, parseEther, createPublicClient } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -34,7 +34,7 @@ const config = new Configuration({
 });
 
 const neynar = new NeynarAPIClient(config);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 const PIMLICO_BUNDLER_URL = 'https://api.pimlico.io/v1/monad-testnet/rpc';
 const PIMLICO_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const API_KEY = process.env.PIMLICO_API_KEY!;
@@ -128,10 +128,16 @@ export async function POST(req: NextRequest) {
 async function parseCommand(text: string, fid: number) {
   if (process.env.USE_GEMINI === 'true') {
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       const prompt = `Parse Farcaster command: "${text}". Return only valid JSON: {"type": "swap|mint_music|mint_passport|buy_itinerary|view_casts|unknown", "amount"?: number, "id"?: number}`;
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text().trim();
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 }
+        }
+      });
+      const responseText = result.text.trim();
       const parsed = JSON.parse(responseText);
       if (parsed.type !== 'unknown') return parsed;
     } catch (err) {

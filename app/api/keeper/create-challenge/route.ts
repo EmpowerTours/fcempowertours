@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { createPublicClient, createWalletClient, http, Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { monadTestnet } from '@/app/chains';
@@ -7,7 +7,7 @@ import MusicBeatMatchABI from '@/src/abis/MusicBeatMatch.json';
 import CountryCollectorABI from '@/src/abis/CountryCollector.json';
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 const neynar = new NeynarAPIClient({
   apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!
 });
@@ -133,7 +133,6 @@ async function createBeatMatchChallengeWithGemini() {
   console.log(`Found ${musicNFTs.length} music NFTs`);
 
   // Use Gemini to pick the best one for today's challenge
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
   const prompt = `
 You are selecting music for today's "Music Beat Match" game challenge.
 
@@ -145,12 +144,18 @@ Select ONE song that would make an engaging, fun daily challenge. Consider:
 - Appeal to diverse audience
 - Interesting enough to guess
 
-Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
-{"index": <number 0-${musicNFTs.length - 1}>, "reason": "<brief reason>"}
+Return valid JSON: {"index": <number 0-${musicNFTs.length - 1}>, "reason": "<brief reason>"}
 `;
 
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text().trim();
+  const result = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 0 }
+    }
+  });
+  const responseText = result.text.trim();
 
   // Clean up response - extract JSON from anywhere in the response
   let cleanedResponse = responseText
@@ -267,7 +272,6 @@ async function createCollectorChallengeWithGemini() {
   console.log(`Found ${countries.length} countries with enough artists`);
 
   // Use Gemini to pick the best country
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
   const prompt = `
 You are selecting a country for this week's "Country Collector" game challenge.
 
@@ -279,12 +283,18 @@ Select ONE country that would make an engaging weekly challenge. Consider:
 - Geographic variety
 - Player interest
 
-Respond ONLY with valid JSON in this exact format (no markdown):
-{"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
+Return valid JSON: {"index": <number 0-${countries.length - 1}>, "reason": "<brief reason>"}
 `;
 
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text().trim();
+  const result = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 0 }
+    }
+  });
+  const responseText = result.text.trim();
 
   // Clean up response - extract JSON from anywhere in the response
   let cleanedResponse = responseText

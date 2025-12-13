@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import FormData from "form-data";
 import { Redis } from "@upstash/redis";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 // Initialize Upstash Redis
 const redis = new Redis({
@@ -11,7 +11,7 @@ const redis = new Redis({
 });
 
 // Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,17 +45,19 @@ export async function POST(req: NextRequest) {
 
         // Gemini prompt
         const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition. Output a base64-encoded PNG string.`;
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const result = await model.generateContent([
-          {
-            inlineData: {
-              data: splashBase64,
-              mimeType: "image/png",
+        const result = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            {
+              inlineData: {
+                data: splashBase64,
+                mimeType: "image/png",
+              },
             },
-          },
-          { text: prompt },
-        ]);
-        const response = await result.response;
+            { text: prompt },
+          ],
+        });
+        const response = result;
         console.log("Gemini response:", JSON.stringify(response, null, 2));
 
         const textPart = response.candidates?.[0]?.content?.parts?.find(

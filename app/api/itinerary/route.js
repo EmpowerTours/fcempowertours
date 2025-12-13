@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { saveItineraryDraft } from '@/lib/storage';
 
 export async function POST(request) {
@@ -9,16 +9,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const result = await model.generateContent(prompt, { signal: controller.signal });
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 0 }
+      }
+    }, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    const itinerary = result.response.text();
+    const itinerary = result.text;
     saveItineraryDraft(Date.now().toString(), { prompt, itinerary });
     return NextResponse.json({ itinerary });
   } catch (error) {
