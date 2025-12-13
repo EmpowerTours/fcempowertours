@@ -535,18 +535,29 @@ async function main() {
         );
 
         for (const event of beatMatchEvents) {
+          const challengeId = event.args![0];
+          const randomnessId = event.args![1];
+          const requestedAt = Number(event.args![2]);
+
+          // Check if already fulfilled before processing
+          const request = await beatMatchContract.getRandomnessRequest(challengeId);
+          if (request.fulfilled) {
+            console.log(`   Skipping challenge ${challengeId} - already fulfilled`);
+            continue;
+          }
+
           console.log(`\n🔔 RandomSongRequested event received!`);
-          console.log(`   Challenge ID: ${event.args![0]}`);
-          console.log(`   Randomness ID: ${event.args![1]}`);
+          console.log(`   Challenge ID: ${challengeId}`);
+          console.log(`   Randomness ID: ${randomnessId}`);
           console.log(`   Caller: ${event.args![3]}`);
 
           try {
             await handleBeatMatchRandomness(
               beatMatchContract,
               switchboardContract,
-              event.args![0],
-              event.args![1],
-              Number(event.args![2])
+              challengeId,
+              randomnessId,
+              requestedAt
             );
           } catch (error: any) {
             console.error(`❌ Failed to handle beat match randomness:`, error.message);
@@ -565,21 +576,34 @@ async function main() {
         );
 
         for (const event of countryCollectorEvents) {
+          const weekId = event.args![0];
+          const randomnessId = event.args![1];
+          const countryCode = event.args![2];
+          const countryName = event.args![3];
+          const requestedAt = Number(event.args![4]);
+
+          // Check if already fulfilled before processing
+          const request = await countryCollectorContract.getRandomnessRequest(weekId);
+          if (request.fulfilled) {
+            console.log(`   Skipping week ${weekId} - already fulfilled`);
+            continue;
+          }
+
           console.log(`\n🔔 RandomArtistsRequested event received!`);
-          console.log(`   Week ID: ${event.args![0]}`);
-          console.log(`   Randomness ID: ${event.args![1]}`);
-          console.log(`   Country: ${event.args![3]} (${event.args![2]})`);
+          console.log(`   Week ID: ${weekId}`);
+          console.log(`   Randomness ID: ${randomnessId}`);
+          console.log(`   Country: ${countryName} (${countryCode})`);
           console.log(`   Caller: ${event.args![5]}`);
 
           try {
             await handleCountryCollectorRandomness(
               countryCollectorContract,
               switchboardContract,
-              event.args![0],
-              event.args![1],
-              event.args![2],
-              event.args![3],
-              Number(event.args![4])
+              weekId,
+              randomnessId,
+              countryCode,
+              countryName,
+              requestedAt
             );
           } catch (error: any) {
             console.error(`❌ Failed to handle country collector randomness:`, error.message);
