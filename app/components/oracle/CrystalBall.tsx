@@ -1,0 +1,347 @@
+// CORE VISUAL COMPONENT: Renders 3D Earth, Orbiting Planes & Clickable NFTs
+import React, { useEffect, useRef, useState } from 'react';
+
+export enum OracleState {
+  IDLE = 'IDLE',
+  PROCESSING = 'PROCESSING',
+  SPEAKING = 'SPEAKING',
+  GAMING = 'GAMING'
+}
+
+interface NFTObject {
+  id: string;
+  type: 'ART' | 'MUSIC' | 'EXPERIENCE';
+  tokenId: string;
+  name: string;
+  imageUrl: string;
+  price: string;
+  contractAddress: string;
+}
+
+interface CrystalBallProps {
+  state: OracleState;
+  onNFTClick?: (nft: NFTObject) => void;
+}
+
+export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [hoveredNFT, setHoveredNFT] = useState<NFTObject | null>(null);
+  const [nftObjects, setNFTObjects] = useState<NFTObject[]>([]);
+
+  // Fetch NFTs from Envio indexer
+  useEffect(() => {
+    const fetchNFTs = async () => {
+      try {
+        const response = await fetch('/api/envio/get-nfts');
+        const data = await response.json();
+        if (data.success) {
+          setNFTObjects(data.nfts);
+        }
+      } catch (error) {
+        console.error('Failed to fetch NFTs:', error);
+      }
+    };
+
+    fetchNFTs();
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const earthTexture = new Image();
+    earthTexture.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Blue_Marble_2002.png/1024px-Blue_Marble_2002.png';
+    let textureLoaded = false;
+    earthTexture.onload = () => { textureLoaded = true; };
+
+    // ORBITING PLANES CONFIGURATION
+    const planes = Array.from({ length: 12 }).map((_, i) => ({
+      orbitRadius: 105 + Math.random() * 35,
+      speed: (Math.random() * 0.02 + 0.005) * (i % 2 === 0 ? 1 : -1),
+      angle: Math.random() * Math.PI * 2,
+      altitude: Math.random() * 50 - 25,
+      tiltOffset: Math.random() * Math.PI
+    }));
+
+    // NFT OBJECTS CONFIGURATION (orbit with planes)
+    const nftOrbits = nftObjects.map((nft, i) => ({
+      nft,
+      orbitRadius: 110 + Math.random() * 40,
+      speed: (Math.random() * 0.015 + 0.004) * (i % 2 === 0 ? 1 : -1),
+      angle: Math.random() * Math.PI * 2,
+      altitude: Math.random() * 60 - 30,
+      size: 12,
+      image: new Image(),
+    }));
+
+    // Load NFT images
+    nftOrbits.forEach((orbit) => {
+      orbit.image.src = orbit.nft.imageUrl;
+      orbit.image.crossOrigin = 'anonymous';
+    });
+
+    let animationFrameId: number;
+    let time = 0;
+
+    // Mouse tracking for hover detection
+    let mouseX = 0;
+    let mouseY = 0;
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      if (hoveredNFT && onNFTClick) {
+        onNFTClick(hoveredNFT);
+      }
+    };
+
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('click', handleClick);
+
+    const render = () => {
+      time += 0.005;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const earthRadius = 90;
+
+      // 1. Atmosphere Glow
+      const glow = ctx.createRadialGradient(cx, cy, earthRadius, cx, cy, earthRadius * 1.4);
+      glow.addColorStop(0, 'rgba(0, 240, 255, 0.4)');
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, earthRadius * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 2. Earth Sphere Mask
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, earthRadius, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = '#050510';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (textureLoaded) {
+        const scaleHeight = earthRadius * 2.2;
+        const scaleWidth = (earthTexture.width / earthTexture.height) * scaleHeight;
+        const speed = state === OracleState.PROCESSING ? 1.5 : 0.5;
+        const offsetX = (time * 50 * speed) % scaleWidth;
+
+        ctx.filter = 'contrast(1.3) brightness(1.2) hue-rotate(160deg) saturate(1.5)';
+        const drawY = cy - scaleHeight / 2;
+        ctx.drawImage(earthTexture, -offsetX, drawY, scaleWidth, scaleHeight);
+        ctx.drawImage(earthTexture, -offsetX + scaleWidth, drawY, scaleWidth, scaleHeight);
+        ctx.filter = 'none';
+      }
+
+      // Inner Shadow (3D Effect)
+      const sphereGrad = ctx.createRadialGradient(cx - 30, cy - 30, 10, cx, cy, earthRadius);
+      sphereGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      sphereGrad.addColorStop(1, 'rgba(0,0,0,0.9)');
+      ctx.fillStyle = sphereGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, earthRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tech Grid
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, earthRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // 3. Render Orbiting Planes (3D Projection)
+      planes.forEach((p) => {
+        p.angle += p.speed * (state === OracleState.PROCESSING ? 3 : 1);
+        const tilt = 0.3;
+        const cosA = Math.cos(p.angle);
+        const sinA = Math.sin(p.angle);
+
+        const x3d = p.orbitRadius * cosA;
+        const z3d = p.orbitRadius * sinA;
+        const y3d = p.altitude + (z3d * Math.sin(tilt));
+
+        // Z-Sorting/Culling
+        const perspective = 300 / (300 - z3d);
+        const x2d = cx + x3d * perspective;
+        const y2d = cy + y3d * perspective;
+        const distFromCenter = Math.sqrt(x3d*x3d + y3d*y3d);
+        const isBehind = z3d < -10 && distFromCenter < earthRadius * 0.95;
+
+        if (!isBehind) {
+          ctx.save();
+          ctx.translate(x2d, y2d);
+          const heading = p.angle + (p.speed > 0 ? Math.PI/2 : -Math.PI/2);
+          ctx.rotate(heading);
+          const scale = perspective * 0.8;
+          ctx.scale(scale, scale);
+
+          // Draw Jet
+          ctx.fillStyle = state !== OracleState.IDLE ? '#ffffff' : '#00f0ff';
+          ctx.shadowColor = '#00f0ff';
+          ctx.shadowBlur = 5;
+          ctx.beginPath();
+          ctx.moveTo(0, -8);
+          ctx.lineTo(8, 3);
+          ctx.lineTo(0, 7);
+          ctx.lineTo(-8, 3);
+          ctx.fill();
+          ctx.restore();
+        }
+      });
+
+      // 4. Render NFT Objects (clickable)
+      let currentHovered: NFTObject | null = null;
+
+      nftOrbits.forEach((orbit) => {
+        orbit.angle += orbit.speed * (state === OracleState.PROCESSING ? 2 : 1);
+        const tilt = 0.25;
+        const cosA = Math.cos(orbit.angle);
+        const sinA = Math.sin(orbit.angle);
+
+        const x3d = orbit.orbitRadius * cosA;
+        const z3d = orbit.orbitRadius * sinA;
+        const y3d = orbit.altitude + (z3d * Math.sin(tilt));
+
+        const perspective = 300 / (300 - z3d);
+        const x2d = cx + x3d * perspective;
+        const y2d = cy + y3d * perspective;
+        const distFromCenter = Math.sqrt(x3d*x3d + y3d*y3d);
+        const isBehind = z3d < -10 && distFromCenter < earthRadius * 0.95;
+
+        if (!isBehind) {
+          const size = orbit.size * perspective;
+
+          // Check hover
+          const dist = Math.sqrt((mouseX - x2d) ** 2 + (mouseY - y2d) ** 2);
+          const isHovered = dist < size;
+
+          if (isHovered) {
+            currentHovered = orbit.nft;
+          }
+
+          ctx.save();
+          ctx.translate(x2d, y2d);
+
+          // Draw NFT icon based on type
+          if (orbit.image.complete && orbit.image.naturalWidth > 0) {
+            // Draw image thumbnail
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(orbit.image, -size, -size, size * 2, size * 2);
+            ctx.restore();
+
+            // Border
+            ctx.strokeStyle = isHovered ? '#ffd700' : getColorForType(orbit.nft.type);
+            ctx.lineWidth = isHovered ? 3 : 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            // Fallback: colored circle with icon
+            ctx.fillStyle = getColorForType(orbit.nft.type);
+            ctx.shadowColor = getColorForType(orbit.nft.type);
+            ctx.shadowBlur = isHovered ? 15 : 8;
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Type indicator
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${size}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(getEmojiForType(orbit.nft.type), 0, 0);
+          }
+
+          // Glow on hover
+          if (isHovered) {
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.arc(0, 0, size + 4, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          ctx.restore();
+        }
+      });
+
+      setHoveredNFT(currentHovered);
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('click', handleClick);
+    };
+  }, [state, nftObjects, hoveredNFT, onNFTClick]);
+
+  const borderClass = state === OracleState.PROCESSING ? 'border-fuchsia-500/30' : 'border-syndicate-cyan/30';
+
+  return (
+    <div className="relative flex items-center justify-center w-[240px] h-[240px] xs:w-[280px] xs:h-[280px] sm:w-[320px] sm:h-[320px]">
+      <div className={`absolute inset-0 rounded-full border border-dashed border-opacity-30 animate-[spin_60s_linear_infinite] ${borderClass}`}></div>
+      <div className="relative w-56 h-56 xs:w-64 xs:h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden" style={{ background: '#000', boxShadow: '0 0 60px rgba(0, 100, 255, 0.15)' }}>
+        <canvas
+          ref={canvasRef}
+          width={320}
+          height={320}
+          className="w-full h-full cursor-pointer"
+        />
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 via-transparent to-transparent rounded-full pointer-events-none mix-blend-overlay"></div>
+      </div>
+
+      {/* NFT Tooltip on Hover */}
+      {hoveredNFT && (
+        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-md border border-cyan-500/30 rounded-lg px-4 py-2 text-sm pointer-events-none z-50">
+          <div className="text-cyan-400 font-bold">{hoveredNFT.name}</div>
+          <div className="text-gray-400 text-xs">{hoveredNFT.type} • {hoveredNFT.price} TOURS</div>
+          <div className="text-gray-500 text-xs">Click to view</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Helper functions
+function getColorForType(type: string): string {
+  switch (type) {
+    case 'ART':
+      return '#ff6b6b';
+    case 'MUSIC':
+      return '#00f0ff';
+    case 'EXPERIENCE':
+      return '#ffd700';
+    default:
+      return '#ffffff';
+  }
+}
+
+function getEmojiForType(type: string): string {
+  switch (type) {
+    case 'ART':
+      return '🎨';
+    case 'MUSIC':
+      return '🎵';
+    case 'EXPERIENCE':
+      return '✈️';
+    default:
+      return '⭐';
+  }
+}

@@ -84,6 +84,11 @@ contract CountryCollectorV3 is Ownable, ReentrancyGuard {
     address public keeper;
     address public resolver; // Bot that resolves randomness
 
+    // Switchboard Queues
+    bytes32 private constant TESTNET_QUEUE = 0xc9477bfb5ff1012859f336cf98725680e7705ba2abece17188cfb28ca66ca5b0;
+    bytes32 private constant MAINNET_QUEUE = 0x86807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b0752;
+    bytes32 public immutable queue;
+
     // Rewards
     uint256 public constant ARTIST_COMPLETION_REWARD = 5 ether;
     uint256 public constant BADGE_REWARD = 50 ether;
@@ -177,6 +182,9 @@ contract CountryCollectorV3 is Ownable, ReentrancyGuard {
         toursToken = IERC20(_toursToken);
         keeper = _keeper;
         resolver = _resolver;
+
+        // Auto-detect network: Monad Mainnet = 143, Testnet = 10143
+        queue = block.chainid == 143 ? MAINNET_QUEUE : TESTNET_QUEUE;
     }
 
     // ========================================================================
@@ -256,8 +264,8 @@ contract CountryCollectorV3 is Ownable, ReentrancyGuard {
         require(!challenge.randomnessFulfilled, "Already fulfilled");
         require(artistIds[0] > 0 && artistIds[1] > 0 && artistIds[2] > 0, "All artist IDs required");
 
-        // Settle randomness with Switchboard
-        switchboard.settleRandomness(encodedRandomness);
+        // Settle randomness with Switchboard using updateFeeds
+        switchboard.updateFeeds(encodedRandomness);
         SwitchboardTypes.Randomness memory randomness = switchboard.getRandomness(request.randomnessId);
 
         require(randomness.settledAt != 0, "Randomness not settled");

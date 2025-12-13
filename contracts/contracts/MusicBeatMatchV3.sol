@@ -83,6 +83,11 @@ contract MusicBeatMatchV3 is Ownable, ReentrancyGuard {
     address public keeper;
     address public resolver; // Bot that resolves randomness
 
+    // Switchboard Queues
+    bytes32 private constant TESTNET_QUEUE = 0xc9477bfb5ff1012859f336cf98725680e7705ba2abece17188cfb28ca66ca5b0;
+    bytes32 private constant MAINNET_QUEUE = 0x86807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b0752;
+    bytes32 public immutable queue;
+
     // Rewards configuration
     uint256 public BASE_REWARD = 10 ether;
     uint256 public STREAK_BONUS_MULTIPLIER = 2;
@@ -171,6 +176,9 @@ contract MusicBeatMatchV3 is Ownable, ReentrancyGuard {
         toursToken = IERC20(_toursToken);
         keeper = _keeper;
         resolver = _resolver;
+
+        // Auto-detect: Monad Mainnet = 143, Testnet = 10143
+        queue = block.chainid == 143 ? MAINNET_QUEUE : TESTNET_QUEUE;
     }
 
     // ========================================================================
@@ -193,8 +201,13 @@ contract MusicBeatMatchV3 is Ownable, ReentrancyGuard {
             "MusicBeatMatch"
         ));
 
-        // Step 1: Create randomness request on-chain
-        switchboard.createRandomness(randomnessId, MIN_SETTLEMENT_DELAY);
+        // Step 1: Request randomness from queue-based oracle system
+        switchboard.requestRandomness(
+            randomnessId,
+            address(this),
+            queue,
+            uint16(MIN_SETTLEMENT_DELAY)
+        );
 
         // Store randomness request
         randomnessRequests[challengeId] = RandomnessRequest({
@@ -245,8 +258,8 @@ contract MusicBeatMatchV3 is Ownable, ReentrancyGuard {
         require(challenge.randomnessRequested, "Randomness not requested");
         require(!challenge.randomnessFulfilled, "Already fulfilled");
 
-        // Settle randomness with Switchboard
-        switchboard.settleRandomness(encodedRandomness);
+        // Settle randomness with Switchboard using updateFeeds
+        switchboard.updateFeeds(encodedRandomness);
         SwitchboardTypes.Randomness memory randomness = switchboard.getRandomness(request.randomnessId);
 
         require(randomness.settledAt != 0, "Randomness not settled");

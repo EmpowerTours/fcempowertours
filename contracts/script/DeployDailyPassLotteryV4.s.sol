@@ -31,8 +31,8 @@ contract DeployDailyPassLotteryV4 is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy on Monad Testnet
-        bool isMainnet = false; // Change to true for mainnet
+        // Auto-detect network based on chain ID (Monad Mainnet = 143, Testnet = 10143)
+        bool isMainnet = block.chainid == 143;
 
         address switchboard = isMainnet ? SWITCHBOARD_MAINNET : SWITCHBOARD_TESTNET;
         address shMon = isMainnet ? SHMON_MAINNET : SHMON_TESTNET;
@@ -40,6 +40,7 @@ contract DeployDailyPassLotteryV4 is Script {
 
         console.log("=== Deploying DailyPassLotteryV4 ===");
         console.log("Network:", isMainnet ? "MAINNET" : "TESTNET");
+        console.log("Chain ID:", block.chainid);
         console.log("Switchboard:", switchboard);
         console.log("Platform Safe:", PLATFORM_SAFE);
         console.log("Platform Wallet:", platformWallet);

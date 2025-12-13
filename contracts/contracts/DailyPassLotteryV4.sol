@@ -69,6 +69,11 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
     address public platformWallet;
     bool public shMonEnabled;
 
+    // Switchboard Queues
+    bytes32 private constant TESTNET_QUEUE = 0xc9477bfb5ff1012859f336cf98725680e7705ba2abece17188cfb28ca66ca5b0;
+    bytes32 private constant MAINNET_QUEUE = 0x86807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b0752;
+    bytes32 public immutable queue;
+
     // ============================================
     // Round State
     // ============================================
@@ -185,6 +190,9 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
         switchboard = ISwitchboard(_switchboard);
         platformSafe = _platformSafe;
         platformWallet = _platformWallet;
+
+        // Auto-detect: Monad Mainnet = 143, Testnet = 10143
+        queue = block.chainid == 143 ? MAINNET_QUEUE : TESTNET_QUEUE;
 
         if (_shMonToken != address(0)) {
             shMonToken = IshMON(_shMonToken);
@@ -349,13 +357,15 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
             address(this)
         ));
 
-        // Request randomness from Switchboard
+        // Request randomness from Switchboard queue-based system
         round.status = RoundStatus.RandomnessPending;
         round.randomnessRequestedAt = block.timestamp;
 
-        switchboard.createRandomness(
+        switchboard.requestRandomness(
             round.randomnessId,
-            MIN_SETTLEMENT_DELAY
+            address(this),
+            queue,
+            uint16(MIN_SETTLEMENT_DELAY)
         );
 
         // Pay caller reward
@@ -384,8 +394,8 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
         require(round.status == RoundStatus.RandomnessPending, "Not pending");
         require(round.randomnessId != bytes32(0), "Not requested");
 
-        // Settle randomness with encoded data from oracle
-        switchboard.settleRandomness(encodedRandomness);
+        // Settle randomness with Switchboard using updateFeeds
+        switchboard.updateFeeds(encodedRandomness);
 
         // Get the randomness result
         SwitchboardTypes.Randomness memory randomness = switchboard.getRandomness(round.randomnessId);
@@ -472,9 +482,11 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
                     round.status = RoundStatus.RandomnessPending;
                     round.randomnessRequestedAt = block.timestamp;
 
-                    switchboard.createRandomness(
+                    switchboard.requestRandomness(
                         round.randomnessId,
-                        MIN_SETTLEMENT_DELAY
+                        address(this),
+                        queue,
+                        uint16(MIN_SETTLEMENT_DELAY)
                     );
 
                     emit RandomnessRequested(i, round.randomnessId, address(this), 0);
