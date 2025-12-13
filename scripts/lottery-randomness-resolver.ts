@@ -25,11 +25,13 @@ const LOTTERY_ABI = [
   'event RandomnessRequested(uint256 indexed roundId, bytes32 indexed randomnessId, address indexed caller, uint256 reward)',
   'function getRound(uint256 roundId) view returns (tuple(uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, bytes32 randomnessId, uint256 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsPaid))',
   'function getCurrentRound() view returns (tuple(uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, bytes32 randomnessId, uint256 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsPaid))',
-  'function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external',
+  'function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external payable',
   'function canResolveRandomness(uint256 roundId) view returns (bool)',
 ];
 
-// Note: Lottery contract handles updateFeeds() internally in resolveRandomness()
+const SWITCHBOARD_ABI = [
+  'function updateFee() external view returns (uint256)',
+];
 
 async function main() {
   console.log('🎰 Lottery Randomness Resolver Starting...\n');
@@ -46,6 +48,10 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrl);
   const wallet = new ethers.Wallet(RESOLVER_PRIVATE_KEY, provider);
   const lottery = new ethers.Contract(MONAD_TESTNET.lottery, LOTTERY_ABI, wallet);
+
+  // Setup Switchboard contract to get update fee
+  const SWITCHBOARD_ADDRESS = '0xD3860E2C66cBd5c969Fa7343e6912Eff0416bA33'; // Monad testnet
+  const switchboard = new ethers.Contract(SWITCHBOARD_ADDRESS, SWITCHBOARD_ABI, wallet);
 
   console.log('📍 Network: Monad Testnet');
   console.log('🎰 Lottery:', MONAD_TESTNET.lottery);
@@ -129,10 +135,17 @@ async function main() {
         console.log(`   Winner index will be: ${BigInt(crossbarResponse.value) % BigInt(round.participantCount)}`);
       }
 
-      // Resolve randomness on-chain
+      // Get Switchboard update fee
+      console.log(`\n💰 Fetching Switchboard update fee...`);
+      const updateFee = await switchboard.updateFee();
+      console.log(`   Update fee: ${ethers.formatEther(updateFee)} MON`);
+
+      // Resolve randomness on-chain (MUST include updateFee)
       console.log(`\n📤 Resolving randomness on-chain...`);
 
-      const tx = await lottery.resolveRandomness(roundId, encodedRandomness);
+      const tx = await lottery.resolveRandomness(roundId, encodedRandomness, {
+        value: updateFee  // CRITICAL: Pay the Switchboard update fee
+      });
       console.log(`   TX submitted: ${tx.hash}`);
 
       const receipt = await tx.wait();
@@ -203,7 +216,10 @@ async function main() {
           continue; // Skip this round
         }
 
-        const tx = await lottery.resolveRandomness(i, encodedRandomness);
+        const updateFee = await switchboard.updateFee();
+        const tx = await lottery.resolveRandomness(i, encodedRandomness, {
+          value: updateFee  // CRITICAL: Pay the Switchboard update fee
+        });
         await tx.wait();
 
         console.log(`✅ Resolved pending round ${i}: ${MONAD_TESTNET.blockExplorer}/tx/${tx.hash}`);

@@ -76,14 +76,22 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
       console.log('[MusicPlaylist] Processing', clickedNFTs.length, 'clicked NFTs');
       const clickedSongs: Song[] = [];
 
+      // First, set songs to owned songs to ensure player shows immediately
+      if (ownedSongs.length > 0 && songs.length === 0) {
+        console.log('[MusicPlaylist] Setting initial songs to owned songs');
+        setSongs(ownedSongs);
+      }
+
       for (const nft of clickedNFTs) {
         try {
           console.log('[MusicPlaylist] Processing NFT:', nft.name, nft.tokenId);
 
           // Check if user owns this NFT
           const isOwned = ownedSongs.some(s => s.tokenId === nft.tokenId);
+          // Also check if we already added this as a clicked song
+          const alreadyClicked = clickedSongs.some(s => s.tokenId === nft.tokenId);
 
-          if (!isOwned) {
+          if (!isOwned && !alreadyClicked) {
             // User doesn't own this - add as preview
             // Create a fallback preview song even if metadata fetch fails
             const fallbackSong: Song = {
@@ -149,13 +157,21 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
         }
       }
 
-      // Merge owned songs with clicked preview songs
-      const allSongs = [...ownedSongs, ...clickedSongs];
+      // Merge owned songs with clicked preview songs (filter out duplicates)
+      const allSongs = [...ownedSongs];
+
+      // Add clicked songs that aren't already in owned songs
+      for (const clickedSong of clickedSongs) {
+        if (!allSongs.some(s => s.tokenId === clickedSong.tokenId)) {
+          allSongs.push(clickedSong);
+        }
+      }
+
       console.log('[MusicPlaylist] Setting songs:', allSongs.length, 'total songs');
       setSongs(allSongs);
     };
 
-    if (clickedNFTs.length > 0) {
+    if (clickedNFTs.length > 0 || ownedSongs.length > 0) {
       processClickedNFTs();
     }
   }, [clickedNFTs, ownedSongs]);
@@ -383,12 +399,12 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
         </div>
       )}
 
-      {/* Player Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-[100] bg-black/95 backdrop-blur-xl border-t border-cyan-500/20">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center gap-4">
+      {/* Player Bar - High z-index to ensure visibility */}
+      <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-black/95 backdrop-blur-xl border-t border-cyan-500/20 shadow-2xl">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Current Song Info */}
-            <div className="flex items-center gap-3 w-64 flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 sm:w-64 sm:flex-shrink-0 min-w-0">
               {currentSong && (
                 <>
                   <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg overflow-hidden flex items-center justify-center">
@@ -463,9 +479,10 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
             <div className="flex-shrink-0">
               <button
                 onClick={() => setShowQueue(!showQueue)}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-400 hover:text-white transition-colors whitespace-nowrap"
               >
-                Queue ({songs.length})
+                <span className="hidden sm:inline">Queue ({songs.length})</span>
+                <span className="sm:hidden">Q ({songs.length})</span>
               </button>
             </div>
           </div>

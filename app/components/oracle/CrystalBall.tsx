@@ -25,7 +25,8 @@ interface CrystalBallProps {
 
 export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hoveredNFT, setHoveredNFT] = useState<NFTObject | null>(null);
+  const hoveredNFTRef = useRef<NFTObject | null>(null);
+  const [hoveredNFTDisplay, setHoveredNFTDisplay] = useState<NFTObject | null>(null);
   const [nftObjects, setNFTObjects] = useState<NFTObject[]>([]);
 
   // Fetch NFTs from Envio indexer
@@ -90,19 +91,17 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
     let mouseY = 0;
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      // Scale mouse coordinates to canvas space
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      mouseX = (e.clientX - rect.left) * scaleX;
-      mouseY = (e.clientY - rect.top) * scaleY;
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
     };
 
     const handleClick = (e: MouseEvent) => {
-      console.log('[CrystalBall] Canvas clicked, hoveredNFT:', hoveredNFT);
-      if (hoveredNFT && onNFTClick) {
-        console.log('[CrystalBall] Calling onNFTClick with:', hoveredNFT);
-        onNFTClick(hoveredNFT);
-      } else if (!hoveredNFT) {
+      const currentHovered = hoveredNFTRef.current;
+      console.log('[CrystalBall] Canvas clicked, hoveredNFT:', currentHovered);
+      if (currentHovered && onNFTClick) {
+        console.log('[CrystalBall] Calling onNFTClick with:', currentHovered);
+        onNFTClick(currentHovered);
+      } else if (!currentHovered) {
         console.log('[CrystalBall] No NFT is hovered');
       } else if (!onNFTClick) {
         console.log('[CrystalBall] onNFTClick handler is missing');
@@ -287,7 +286,14 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
         }
       });
 
-      setHoveredNFT(currentHovered);
+      // Only update display state if hover changed (prevents constant re-renders)
+      const prevHovered = hoveredNFTRef.current;
+      if (currentHovered?.id !== prevHovered?.id) {
+        setHoveredNFTDisplay(currentHovered);
+      }
+
+      // Update ref after comparison for click handling
+      hoveredNFTRef.current = currentHovered;
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -299,7 +305,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('click', handleClick);
     };
-  }, [state, nftObjects, hoveredNFT, onNFTClick]);
+  }, [state, nftObjects, onNFTClick]);
 
   const borderClass = state === OracleState.PROCESSING ? 'border-fuchsia-500/30' : 'border-syndicate-cyan/30';
 
@@ -317,10 +323,10 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
       </div>
 
       {/* NFT Tooltip on Hover */}
-      {hoveredNFT && (
+      {hoveredNFTDisplay && (
         <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-md border border-cyan-500/30 rounded-lg px-4 py-2 text-sm pointer-events-none z-50">
-          <div className="text-cyan-400 font-bold">{hoveredNFT.name}</div>
-          <div className="text-gray-400 text-xs">{hoveredNFT.type} • {hoveredNFT.price} TOURS</div>
+          <div className="text-cyan-400 font-bold">{hoveredNFTDisplay.name}</div>
+          <div className="text-gray-400 text-xs">{hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} TOURS</div>
           <div className="text-gray-500 text-xs">Click to view</div>
         </div>
       )}

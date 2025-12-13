@@ -37,13 +37,13 @@ const SWITCHBOARD_ABI = [
 
 const BEAT_MATCH_V4_ABI = [
   'event RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)',
-  'function createChallengeWithRandomSong(uint256 challengeId, bytes calldata encodedRandomness, uint256 musicNFTTokenId, uint256 artistId, string memory songTitle, string memory artistUsername, string memory ipfsAudioHash) external',
+  'function createChallengeWithRandomSong(uint256 challengeId, bytes calldata encodedRandomness, uint256 musicNFTTokenId, uint256 artistId, string memory songTitle, string memory artistUsername, string memory ipfsAudioHash) external payable',
   'function getRandomnessRequest(uint256 challengeId) external view returns (tuple(uint256 challengeId, bytes32 randomnessId, uint256 requestedAt, bool fulfilled))',
 ];
 
 const COUNTRY_COLLECTOR_V4_ABI = [
   'event RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)',
-  'function createChallengeWithRandomArtists(uint256 weekId, bytes calldata encodedRandomness, uint256[3] memory artistIds) external',
+  'function createChallengeWithRandomArtists(uint256 weekId, bytes calldata encodedRandomness, uint256[3] memory artistIds) external payable',
   'function getRandomnessRequest(uint256 weekId) external view returns (tuple(uint256 weekId, bytes32 randomnessId, string countryCode, string countryName, uint256 requestedAt, bool fulfilled))',
 ];
 
@@ -285,7 +285,12 @@ async function handleBeatMatchRandomness(
     const artistUsername = ''; // Would need to look up from artist registry
     const ipfsAudioHash = selectedNFT.previewAudioUrl || '';
 
-    // Call contract to create challenge
+    // Get update fee from Switchboard
+    console.log(`💰 Fetching Switchboard update fee...`);
+    const updateFee = await switchboardContract.updateFee();
+    console.log(`   Update fee: ${ethers.formatEther(updateFee)} MON`);
+
+    // Call contract to create challenge (must include updateFee)
     console.log(`📤 Creating challenge on-chain...`);
     const tx = await contract.createChallengeWithRandomSong(
       challengeId,
@@ -296,6 +301,7 @@ async function handleBeatMatchRandomness(
       artistUsername,
       ipfsAudioHash,
       {
+        value: updateFee,  // CRITICAL: Pay the Switchboard update fee
         gasLimit: 1000000,
       }
     );
@@ -377,13 +383,19 @@ async function handleCountryCollectorRandomness(
       console.log(`   ${i + 1}. Artist ID: ${id}${isDuplicate ? ' (duplicate)' : ''}`);
     });
 
-    // Call contract to create challenge
+    // Get update fee from Switchboard
+    console.log(`💰 Fetching Switchboard update fee...`);
+    const updateFee = await switchboardContract.updateFee();
+    console.log(`   Update fee: ${ethers.formatEther(updateFee)} MON`);
+
+    // Call contract to create challenge (must include updateFee)
     console.log(`📤 Creating challenge on-chain...`);
     const tx = await contract.createChallengeWithRandomArtists(
       weekId,
       encodedRandomness,
       selectedArtistIds,
       {
+        value: updateFee,  // CRITICAL: Pay the Switchboard update fee
         gasLimit: 1000000,
       }
     );

@@ -247,7 +247,7 @@ contract MusicBeatMatchV4 is Ownable, ReentrancyGuard {
         string memory songTitle,
         string memory artistUsername,
         string memory ipfsAudioHash
-    ) external onlyResolver nonReentrant {
+    ) external payable onlyResolver nonReentrant {
         RandomnessRequest storage request = randomnessRequests[challengeId];
         require(!request.fulfilled, "Already fulfilled");
         require(request.randomnessId != bytes32(0), "Invalid request");
@@ -256,9 +256,17 @@ contract MusicBeatMatchV4 is Ownable, ReentrancyGuard {
         require(challenge.randomnessRequested, "Randomness not requested");
         require(!challenge.randomnessFulfilled, "Already fulfilled");
 
-        // Settle randomness with Switchboard
-        switchboard.settleRandomness(encodedRandomness);
+        // Settle randomness with Switchboard (requires updateFee payment)
+        uint256 updateFee = switchboard.updateFee();
+        require(msg.value >= updateFee, "Insufficient fee");
+        switchboard.settleRandomness{value: updateFee}(encodedRandomness);
         SwitchboardTypes.Randomness memory randomness = switchboard.getRandomness(request.randomnessId);
+
+        // Refund excess payment
+        if (msg.value > updateFee) {
+            (bool success, ) = msg.sender.call{value: msg.value - updateFee}("");
+            require(success, "Refund failed");
+        }
 
         require(randomness.settledAt != 0, "Randomness not settled");
 

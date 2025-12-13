@@ -386,18 +386,28 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
      * @param roundId The round to resolve
      * @param encodedRandomness The encoded randomness from Crossbar
      */
-    function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external nonReentrant {
+    function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external payable nonReentrant {
         DailyRound storage round = rounds[roundId];
 
         require(round.status == RoundStatus.RandomnessPending, "Not pending");
         require(round.randomnessId != bytes32(0), "Not requested");
 
-        // Settle randomness with Switchboard
-        switchboard.settleRandomness(encodedRandomness);
+        // Settle randomness with Switchboard (requires updateFee payment)
+        uint256 updateFee = switchboard.updateFee();
+        require(msg.value >= updateFee, "Insufficient fee");
+        switchboard.settleRandomness{value: updateFee}(encodedRandomness);
 
         // Get the randomness result
         SwitchboardTypes.Randomness memory randomness = switchboard.getRandomness(round.randomnessId);
         require(randomness.settledAt != 0, "Randomness not settled");
+
+        // Refund excess payment to caller
+        if (msg.value > updateFee) {
+            (bool success, ) = msg.sender.call{value: msg.value - updateFee}("");
+            if (!success) {
+                // If refund fails, just continue (caller loses excess)
+            }
+        }
 
         // Store random value
         round.randomValue = randomness.value;
