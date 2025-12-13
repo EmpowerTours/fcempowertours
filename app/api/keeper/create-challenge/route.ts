@@ -154,7 +154,7 @@ Return valid JSON: {"index": <number 0-${musicNFTs.length - 1}>, "reason": "<bri
       responseMimeType: 'application/json'
     }
   });
-  const responseText = result.text.trim();
+  const responseText = result.text?.trim() || '';
 
   // Clean up response - extract JSON from anywhere in the response
   let cleanedResponse = responseText
@@ -292,7 +292,7 @@ Return valid JSON: {"index": <number 0-${countries.length - 1}>, "reason": "<bri
       responseMimeType: 'application/json'
     }
   });
-  const responseText = result.text.trim();
+  const responseText = result.text?.trim() || '';
 
   // Clean up response - extract JSON from anywhere in the response
   let cleanedResponse = responseText

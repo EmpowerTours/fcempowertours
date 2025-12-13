@@ -136,7 +136,7 @@ async function parseCommand(text: string, fid: number) {
           responseMimeType: 'application/json'
         }
       });
-      const responseText = result.text.trim();
+      const responseText = result.text?.trim() || '';
       const parsed = JSON.parse(responseText);
       if (parsed.type !== 'unknown') return parsed;
     } catch (err) {

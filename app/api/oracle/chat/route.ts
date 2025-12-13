@@ -124,7 +124,7 @@ You MUST return ONLY valid JSON matching the specified schema.
       }
     });
 
-    const responseText = response.text;
+    const responseText = response.text || '';
 
     // Parse JSON response
     let action: OracleAction;

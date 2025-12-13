@@ -22,7 +22,7 @@ export async function generateCountryPassportSVG(country: string): Promise<strin
       contents: prompt
     });
 
-    const svg = response.text.trim();
+    const svg = response.text?.trim() || '';
 
     if (!svg.startsWith('<svg') || !svg.endsWith('</svg>')) {
       throw new Error('Invalid SVG generated');

@@ -20,7 +20,7 @@ export async function POST(request) {
     }, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    const itinerary = result.text;
+    const itinerary = result.text || '';
     saveItineraryDraft(Date.now().toString(), { prompt, itinerary });
     return NextResponse.json({ itinerary });
   } catch (error) {
