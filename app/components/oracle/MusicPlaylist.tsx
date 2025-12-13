@@ -167,7 +167,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
 
       {/* Queue Panel */}
       {showQueue && (
-        <div className="fixed bottom-24 left-0 right-0 max-w-2xl mx-auto px-4 z-50">
+        <div className="fixed bottom-24 left-0 right-0 max-w-2xl mx-auto px-4 z-[110]">
           <div className="bg-black/95 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-4 max-h-96 overflow-y-auto">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-white font-semibold">Queue ({songs.length})</h3>
@@ -217,7 +217,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress }) => 
       )}
 
       {/* Player Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-xl border-t border-cyan-500/20">
+      <div className="fixed bottom-0 left-0 right-0 z-[100] bg-black/95 backdrop-blur-xl border-t border-cyan-500/20">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4">
             {/* Current Song Info */}

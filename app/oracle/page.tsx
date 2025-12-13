@@ -153,50 +153,52 @@ export default function OraclePage() {
         </div>
       </div>
 
-      <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-24">
+      <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-24 pb-32 overflow-y-auto">
         {/* Crystal Ball - Shrinks and moves up when content loads */}
         <div className={`transition-all duration-700 ease-in-out ${getCrystalBallClasses()}`}>
           <CrystalBall state={oracleState} onNFTClick={handleNFTClick} />
         </div>
 
         {/* Messages Container */}
-        <div className="w-full max-w-2xl px-6 mt-8 flex-1 overflow-y-auto mb-32 space-y-4">
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
+        {messages.length > 0 && (
+          <div className="w-full max-w-2xl px-6 mt-8 space-y-4">
+            {messages.map((msg, idx) => (
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  msg.role === 'user'
-                    ? 'bg-cyan-500 text-black'
-                    : 'bg-gray-900/80 backdrop-blur-lg border border-cyan-500/20 text-white'
-                }`}
+                key={idx}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                {msg.role === 'oracle' && (
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs text-cyan-400 font-semibold">Oracle</span>
-                  </div>
-                )}
-                <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-              </div>
-            </div>
-          ))}
-          {isThinking && (
-            <div className="flex justify-start">
-              <div className="bg-gray-900/80 backdrop-blur-lg border border-cyan-500/20 rounded-2xl px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-                  <span className="text-sm text-cyan-400">Oracle is thinking...</span>
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    msg.role === 'user'
+                      ? 'bg-cyan-500 text-black'
+                      : 'bg-gray-900/80 backdrop-blur-lg border border-cyan-500/20 text-white'
+                  }`}
+                >
+                  {msg.role === 'oracle' && (
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles className="w-4 h-4 text-cyan-400" />
+                      <span className="text-xs text-cyan-400 font-semibold">Oracle</span>
+                    </div>
+                  )}
+                  <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+            {isThinking && (
+              <div className="flex justify-start">
+                <div className="bg-gray-900/80 backdrop-blur-lg border border-cyan-500/20 rounded-2xl px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                    <span className="text-sm text-cyan-400">Oracle is thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Input Field */}
-        <div className="fixed bottom-20 left-0 right-0 w-full max-w-2xl mx-auto px-6 z-50">
+        {/* Input Field - Below planet */}
+        <div className="w-full max-w-2xl px-6 mt-8">
           <div className="bg-black/90 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-4 shadow-2xl">
             <div className="flex items-center gap-3">
               <input
