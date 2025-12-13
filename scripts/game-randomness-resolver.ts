@@ -515,12 +515,15 @@ async function main() {
     try {
       const currentBlock = await provider.getBlockNumber();
 
-      // Poll Beat Match events
+      // Poll Beat Match events (limit to 50 blocks at a time to avoid RPC errors)
       if (currentBlock > lastBeatMatchBlock) {
+        const fromBlock = lastBeatMatchBlock + 1;
+        const toBlock = Math.min(currentBlock, fromBlock + 50);
+
         const beatMatchEvents = await beatMatchContract.queryFilter(
           beatMatchContract.filters.RandomSongRequested(),
-          lastBeatMatchBlock + 1,
-          currentBlock
+          fromBlock,
+          toBlock
         );
 
         for (const event of beatMatchEvents) {
@@ -553,15 +556,18 @@ async function main() {
           }
         }
 
-        lastBeatMatchBlock = currentBlock;
+        lastBeatMatchBlock = toBlock;
       }
 
-      // Poll Country Collector events
+      // Poll Country Collector events (limit to 50 blocks at a time to avoid RPC errors)
       if (currentBlock > lastCountryCollectorBlock) {
+        const fromBlock = lastCountryCollectorBlock + 1;
+        const toBlock = Math.min(currentBlock, fromBlock + 50);
+
         const countryCollectorEvents = await countryCollectorContract.queryFilter(
           countryCollectorContract.filters.RandomArtistsRequested(),
-          lastCountryCollectorBlock + 1,
-          currentBlock
+          fromBlock,
+          toBlock
         );
 
         for (const event of countryCollectorEvents) {
@@ -599,7 +605,7 @@ async function main() {
           }
         }
 
-        lastCountryCollectorBlock = currentBlock;
+        lastCountryCollectorBlock = toBlock;
       }
     } catch (error: any) {
       console.error(`❌ Polling error:`, error.message);
