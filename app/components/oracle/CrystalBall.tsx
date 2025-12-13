@@ -114,7 +114,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      const earthRadius = 90;
+      const earthRadius = 120;
 
       // 1. Atmosphere Glow
       const glow = ctx.createRadialGradient(cx, cy, earthRadius, cx, cy, earthRadius * 1.4);
