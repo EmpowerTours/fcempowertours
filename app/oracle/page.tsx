@@ -95,6 +95,22 @@ export default function OraclePage() {
               content: `${action.message}\n\nLaunching ${action.game}...`,
               action
             }]);
+            // Actually launch the game
+            if (action.game) {
+              setTimeout(() => {
+                setOracleState(OracleState.GAMING);
+                // Navigate to game or trigger game launch
+                if (action.game === 'MIRROR') {
+                  router.push('/mirror-mate');
+                } else if (action.game === 'TETRIS') {
+                  // Trigger Tetris game (implement based on your game system)
+                  console.log('Launching Tetris game');
+                } else if (action.game === 'TICTACTOE') {
+                  // Trigger TicTacToe game
+                  console.log('Launching TicTacToe game');
+                }
+              }, 1500);
+            }
             break;
 
           case 'execute':

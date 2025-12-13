@@ -67,10 +67,7 @@ Available Actions:
    - MIRROR - MirrorMate travel guide matching
 
 3. EXECUTE - Execute blockchain transactions via delegation
-   - swap_tokens(amount, from, to)
-   - mint_nft(type, metadata)
-   - buy_item(contract, tokenId)
-   - transfer(to, amount)
+   NOTE: Transaction execution is currently disabled. Instead, provide navigation guidance or suggest using the appropriate pages (/swap for swaps, /market for purchases, etc.)
 
 4. CHAT - Conversational response with travel advice
 
@@ -143,13 +140,21 @@ You MUST return ONLY valid JSON matching the specified schema.
     // Execute action
     let txHash: string | null = null;
 
+    // Disable transaction execution for now - guide users to appropriate pages instead
     if (action.type === 'execute' && action.transaction) {
-      // Execute delegated transaction
-      txHash = await executeDelegatedTransaction(
-        action.transaction,
-        userAddress,
-        userFid
-      );
+      console.log('[Oracle] Transaction execution is disabled. Suggested navigation instead.');
+      // Convert execute to navigate
+      action.type = 'navigate';
+      action.message = 'For transactions, please use the dedicated pages.';
+
+      // Determine appropriate page based on transaction
+      if (action.transaction.contract.includes('swap') || action.transaction.function.includes('swap')) {
+        action.destination = '/swap';
+      } else if (action.transaction.function.includes('mint')) {
+        action.destination = '/passport';
+      } else {
+        action.destination = '/market';
+      }
     }
 
     return NextResponse.json({
