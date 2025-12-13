@@ -160,7 +160,7 @@ export default function OraclePage() {
     <div className="relative w-screen bg-black text-white overflow-hidden font-sans" style={{ height: '100dvh' }}>
       {/* Header */}
       <div className="absolute top-6 left-6 z-50 flex items-center">
-        <Globe className="text-cyan-400 w-8 h-8 animate-[spin_60s_linear_infinite]" />
+        <Globe className="text-cyan-400 w-12 h-12 animate-[spin_60s_linear_infinite]" />
         <div className="ml-3">
           <span className="font-sans font-bold text-xl tracking-[0.2em]">EMPOWERTOURS</span>
           <div className="text-xs text-gray-400">Global Guide Oracle</div>
