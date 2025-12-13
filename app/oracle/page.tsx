@@ -134,17 +134,22 @@ export default function OraclePage() {
   };
 
   const handleNFTClick = (nft: NFTObject) => {
+    console.log('[OraclePage] handleNFTClick called with:', nft);
     // If it's a music NFT, add to music player instead of showing modal
     if (nft.type === 'MUSIC') {
+      console.log('[OraclePage] Adding music NFT to player');
       setClickedMusicNFTs(prev => {
         // Avoid duplicates
         if (prev.some(n => n.tokenId === nft.tokenId)) {
+          console.log('[OraclePage] NFT already in list');
           return prev;
         }
+        console.log('[OraclePage] Adding new NFT to list');
         return [...prev, nft];
       });
     } else {
       // For ART and EXPERIENCE, show modal
+      console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
       setSelectedNFT(nft);
     }
   };

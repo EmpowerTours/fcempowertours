@@ -95,8 +95,14 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
     };
 
     const handleClick = (e: MouseEvent) => {
+      console.log('[CrystalBall] Canvas clicked, hoveredNFT:', hoveredNFT);
       if (hoveredNFT && onNFTClick) {
+        console.log('[CrystalBall] Calling onNFTClick with:', hoveredNFT);
         onNFTClick(hoveredNFT);
+      } else if (!hoveredNFT) {
+        console.log('[CrystalBall] No NFT is hovered');
+      } else if (!onNFTClick) {
+        console.log('[CrystalBall] onNFTClick handler is missing');
       }
     };
 
