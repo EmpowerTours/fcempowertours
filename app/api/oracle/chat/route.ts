@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
     // Create fresh client instance for each request with API key
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-    // Use stable model name (gemini-pro works for @google/generative-ai v0.24.1)
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Use current model (gemini-pro is deprecated)
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const systemPrompt = `
 You are the EmpowerTours Global Guide Oracle AI. You help travelers with blockchain-powered travel experiences.
