@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use Gemini to parse intent and decide action
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     const systemPrompt = `
 You are the EmpowerTours Global Guide Oracle AI. You help travelers with blockchain-powered travel experiences.
