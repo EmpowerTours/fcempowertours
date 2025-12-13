@@ -280,10 +280,10 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ NEW: DailyPassLotteryV4 Contract (Switchboard randomness - Dec 12, 2025)
+      # ✅ NEW: DailyPassLotteryV4 Contract (Switchboard randomness - Dec 13, 2025)
       - name: DailyPassLotteryV4
         address:
-          - "0x21D83528281dD0262b6DD401e5c484153E3B52cE"
+          - "0x9c64d0Ec0eCc59d56EC6979fd779C3e00716AC6F"
         handler: src/EventHandlers.ts
         events:
           # Round lifecycle
@@ -451,6 +451,84 @@ networks:
       - name: CountryCollectorV3
         address:
           - "0x80208230350B60722b7AD87d6703c6ad094BBacA"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random artists
+          - event: "ChallengeCreatedWithRandomArtists(uint256 indexed weekId, string indexed countryCode, string countryName, uint256[3] artistIds, uint256 randomValue, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Artist completion
+          - event: "ArtistCompleted(uint256 indexed weekId, address indexed user, uint256 artistIndex, uint256 artistId, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Badge earned
+          - event: "BadgeEarned(uint256 indexed weekId, address indexed user, string countryCode, string countryName, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Global citizen achievement
+          - event: "GlobalCitizenAchieved(address indexed user, uint256 countriesCollected, uint256 bonusReward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Week finalization
+          - event: "WeekFinalized(uint256 indexed weekId, uint256 totalCompletions)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V4: MusicBeatMatchV4 Contract (Switchboard randomness - Dec 13, 2025)
+      - name: MusicBeatMatchV4
+        address:
+          - "0x4474Bd61b5a33927b7802c62A9C8dc5F22ce93F8"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random song
+          - event: "ChallengeCreatedWithRandomSong(uint256 indexed challengeId, uint256 indexed musicNFTTokenId, uint256 indexed artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 randomValue, uint256 startTime, uint256 rewardPool)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guess submission
+          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed user, uint256 indexed artistId, string artistUsername, bool correct, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Streak achievement
+          - event: "StreakAchieved(address indexed user, uint256 streakDays, uint256 bonusMultiplier)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge finalization
+          - event: "RewardsDistributed(uint256 indexed challengeId, uint256 totalDistributed, uint256 winnersCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V4: CountryCollectorV4 Contract (Switchboard randomness - Dec 13, 2025)
+      - name: CountryCollectorV4
+        address:
+          - "0xE4b41FE055DD05E2D7bF40C7c13a56cD3dCa3a59"
         handler: src/EventHandlers.ts
         events:
           # Randomness request

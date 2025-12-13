@@ -8,11 +8,11 @@ import {SwitchboardTypes} from "@switchboard-xyz/on-demand-solidity/libraries/Sw
 import {ISwitchboard} from "@switchboard-xyz/on-demand-solidity/interfaces/ISwitchboard.sol";
 
 /**
- * @title CountryCollectorV3
+ * @title CountryCollectorV4
  * @notice V3 with Switchboard verifiable randomness for fair artist selection
  * @dev Uses Switchboard oracles to randomly select artists from a country pool
  */
-contract CountryCollectorV3 is Ownable, ReentrancyGuard {
+contract CountryCollectorV4 is Ownable, ReentrancyGuard {
 
     // ========================================================================
     // STRUCTURES

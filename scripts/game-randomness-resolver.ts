@@ -18,8 +18,8 @@ const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.mona
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const RESOLVER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY;
 
-const BEAT_MATCH_V3_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V3 || '';
-const COUNTRY_COLLECTOR_V3_ADDRESS = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V3 || '';
+const BEAT_MATCH_V4_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V4 || '';
+const COUNTRY_COLLECTOR_V4_ADDRESS = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V4 || '';
 
 const CHAIN_ID = 10143;
 const CROSSBAR_URL = 'https://crossbar.switchboard.xyz';
@@ -35,13 +35,13 @@ const SWITCHBOARD_ABI = [
   'function updateFee() external view returns (uint256)',
 ];
 
-const BEAT_MATCH_V3_ABI = [
+const BEAT_MATCH_V4_ABI = [
   'event RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)',
   'function createChallengeWithRandomSong(uint256 challengeId, bytes calldata encodedRandomness, uint256 musicNFTTokenId, uint256 artistId, string memory songTitle, string memory artistUsername, string memory ipfsAudioHash) external',
   'function getRandomnessRequest(uint256 challengeId) external view returns (tuple(uint256 challengeId, bytes32 randomnessId, uint256 requestedAt, bool fulfilled))',
 ];
 
-const COUNTRY_COLLECTOR_V3_ABI = [
+const COUNTRY_COLLECTOR_V4_ABI = [
   'event RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)',
   'function createChallengeWithRandomArtists(uint256 weekId, bytes calldata encodedRandomness, uint256[3] memory artistIds) external',
   'function getRandomnessRequest(uint256 weekId) external view returns (tuple(uint256 weekId, bytes32 randomnessId, string countryCode, string countryName, uint256 requestedAt, bool fulfilled))',
@@ -235,19 +235,8 @@ async function resolveRandomness(randomnessId: string, requestedAt: number, swit
     throw new Error('Failed to fetch randomness proof from Crossbar');
   }
 
-  // Settle randomness on-chain (WE need to do this!)
-  console.log(`📤 Settling randomness on Switchboard contract...`);
-  const fee = await switchboardContract.updateFee();
-  console.log(`   Settlement fee: ${ethers.formatEther(fee)} MON`);
-
-  const settleTx = await switchboardContract.settleRandomness(encodedRandomness, {
-    value: fee,
-    gasLimit: 500000,
-  });
-
-  console.log(`⏳ Settlement transaction submitted: ${settleTx.hash}`);
-  const settleReceipt = await settleTx.wait();
-  console.log(`✅ Randomness settled on-chain! Block: ${settleReceipt.blockNumber}`);
+  console.log(`✅ Randomness proof ready for on-chain settlement`);
+  console.log(`   Note: Settlement will happen when contract calls updateFeeds()`);
 
   return encodedRandomness;
 }
@@ -431,8 +420,8 @@ async function main() {
 
   // Setup contracts
   const switchboardContract = new ethers.Contract(SWITCHBOARD_ADDRESS, SWITCHBOARD_ABI, wallet);
-  const beatMatchContract = new ethers.Contract(BEAT_MATCH_V3_ADDRESS, BEAT_MATCH_V3_ABI, wallet);
-  const countryCollectorContract = new ethers.Contract(COUNTRY_COLLECTOR_V3_ADDRESS, COUNTRY_COLLECTOR_V3_ABI, wallet);
+  const beatMatchContract = new ethers.Contract(BEAT_MATCH_V4_ADDRESS, BEAT_MATCH_V4_ABI, wallet);
+  const countryCollectorContract = new ethers.Contract(COUNTRY_COLLECTOR_V4_ADDRESS, COUNTRY_COLLECTOR_V4_ABI, wallet);
 
   console.log(`🔗 Switchboard contract: ${SWITCHBOARD_ADDRESS}\n`);
 

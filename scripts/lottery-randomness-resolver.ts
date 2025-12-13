@@ -29,6 +29,8 @@ const LOTTERY_ABI = [
   'function canResolveRandomness(uint256 roundId) view returns (bool)',
 ];
 
+// Note: Lottery contract handles updateFeeds() internally in resolveRandomness()
+
 async function main() {
   console.log('🎰 Lottery Randomness Resolver Starting...\n');
 

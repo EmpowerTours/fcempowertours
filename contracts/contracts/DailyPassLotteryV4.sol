@@ -361,11 +361,9 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
         round.status = RoundStatus.RandomnessPending;
         round.randomnessRequestedAt = block.timestamp;
 
-        switchboard.requestRandomness(
+        switchboard.createRandomness(
             round.randomnessId,
-            address(this),
-            queue,
-            uint16(MIN_SETTLEMENT_DELAY)
+            MIN_SETTLEMENT_DELAY
         );
 
         // Pay caller reward
@@ -394,8 +392,8 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
         require(round.status == RoundStatus.RandomnessPending, "Not pending");
         require(round.randomnessId != bytes32(0), "Not requested");
 
-        // Settle randomness with Switchboard using updateFeeds
-        switchboard.updateFeeds(encodedRandomness);
+        // Settle randomness with Switchboard
+        switchboard.settleRandomness(encodedRandomness);
 
         // Get the randomness result
         SwitchboardTypes.Randomness memory randomness = switchboard.getRandomness(round.randomnessId);
@@ -482,11 +480,9 @@ contract DailyPassLotteryV4 is Ownable, ReentrancyGuard {
                     round.status = RoundStatus.RandomnessPending;
                     round.randomnessRequestedAt = block.timestamp;
 
-                    switchboard.requestRandomness(
+                    switchboard.createRandomness(
                         round.randomnessId,
-                        address(this),
-                        queue,
-                        uint16(MIN_SETTLEMENT_DELAY)
+                        MIN_SETTLEMENT_DELAY
                     );
 
                     emit RandomnessRequested(i, round.randomnessId, address(this), 0);

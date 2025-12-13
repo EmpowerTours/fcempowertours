@@ -8,11 +8,11 @@ import {SwitchboardTypes} from "@switchboard-xyz/on-demand-solidity/libraries/Sw
 import {ISwitchboard} from "@switchboard-xyz/on-demand-solidity/interfaces/ISwitchboard.sol";
 
 /**
- * @title MusicBeatMatchV3
+ * @title MusicBeatMatchV4
  * @notice V3 with Switchboard verifiable randomness for fair song selection
  * @dev Uses Switchboard oracles to randomly select music NFTs from Envio-indexed pool
  */
-contract MusicBeatMatchV3 is Ownable, ReentrancyGuard {
+contract MusicBeatMatchV4 is Ownable, ReentrancyGuard {
 
     // ========================================================================
     // STRUCTURES
