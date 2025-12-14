@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Send, Sparkles, X, Globe, Loader2 } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
@@ -95,22 +95,6 @@ export default function OraclePage() {
               content: `${action.message}\n\nLaunching ${action.game}...`,
               action
             }]);
-            // Actually launch the game
-            if (action.game) {
-              setTimeout(() => {
-                setOracleState(OracleState.GAMING);
-                // Navigate to game or trigger game launch
-                if (action.game === 'MIRROR') {
-                  router.push('/mirror-mate');
-                } else if (action.game === 'TETRIS') {
-                  // Trigger Tetris game (implement based on your game system)
-                  console.log('Launching Tetris game');
-                } else if (action.game === 'TICTACTOE') {
-                  // Trigger TicTacToe game
-                  console.log('Launching TicTacToe game');
-                }
-              }, 1500);
-            }
             break;
 
           case 'execute':
@@ -149,7 +133,7 @@ export default function OraclePage() {
     }
   };
 
-  const handleNFTClick = (nft: NFTObject) => {
+  const handleNFTClick = useCallback((nft: NFTObject) => {
     console.log('[OraclePage] handleNFTClick called with:', nft);
     // If it's a music NFT, add to music player instead of showing modal
     if (nft.type === 'MUSIC') {
@@ -168,7 +152,7 @@ export default function OraclePage() {
       console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
       setSelectedNFT(nft);
     }
-  };
+  }, []);
 
   const closeNFTModal = () => {
     setSelectedNFT(null);
