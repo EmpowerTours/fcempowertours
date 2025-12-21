@@ -9,7 +9,7 @@ contract DeployEmpowerToursNFTv9 is Script {
         // Configuration
         address treasury = 0x6d11A83fEeFa14eF1B38Dce97Be3995441c9fEc3;
         address wmonToken = 0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541;
-        address toursToken = 0xa123600c82E69cB311B0e068B06Bfa9F787699B7;
+        address toursToken = 0x46d048EB424b0A95d5185f39C760c5FA754491d0;
 
         console.log("=== Deploying EmpowerToursNFTv9 ===");
         console.log("Treasury:", treasury);

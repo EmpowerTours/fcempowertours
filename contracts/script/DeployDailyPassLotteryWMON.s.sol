@@ -19,11 +19,13 @@ import "../src/DailyPassLotteryWMON.sol";
 contract DeployDailyPassLotteryWMON is Script {
     // Monad Testnet addresses
     address constant WMON_TESTNET = 0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541;
-    address constant ENTROPY_TESTNET = 0x825c0390f379c631f3cf11a82a37d20bddf93c07;
+    address constant TOURS_TESTNET = 0x46d048EB424b0A95d5185f39C760c5FA754491d0;
+    address constant ENTROPY_TESTNET = 0x825c0390f379C631f3Cf11A82a37D20BddF93c07;
     address constant PLATFORM_SAFE_TESTNET = 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20;
 
     // Monad Mainnet addresses (placeholder)
     address constant WMON_MAINNET = address(0); // Update when WMON is deployed
+    address constant TOURS_MAINNET = address(0); // Update when TOURS is deployed
     address constant ENTROPY_MAINNET = address(0); // Update when available
     address constant PLATFORM_SAFE_MAINNET = address(0); // Update when known
 
@@ -40,6 +42,7 @@ contract DeployDailyPassLotteryWMON is Script {
         console.log("Chain ID:", block.chainid);
 
         address wmonToken;
+        address toursToken;
         address entropy;
         address platformSafe;
         address platformWallet;
@@ -47,16 +50,19 @@ contract DeployDailyPassLotteryWMON is Script {
         if (isMainnet) {
             // Mainnet configuration
             wmonToken = WMON_MAINNET;
+            toursToken = TOURS_MAINNET;
             entropy = ENTROPY_MAINNET;
             platformSafe = PLATFORM_SAFE_MAINNET;
             platformWallet = vm.envAddress("PLATFORM_WALLET");
 
             require(wmonToken != address(0), "WMON not deployed to mainnet");
+            require(toursToken != address(0), "TOURS not deployed to mainnet");
             require(entropy != address(0), "Entropy not available on mainnet");
             require(platformSafe != address(0), "Platform safe not set");
         } else {
             // Testnet configuration
             wmonToken = WMON_TESTNET;
+            toursToken = TOURS_TESTNET;
             entropy = ENTROPY_TESTNET;
             platformSafe = PLATFORM_SAFE_TESTNET;
             platformWallet = vm.envAddress("PLATFORM_WALLET");
@@ -65,6 +71,7 @@ contract DeployDailyPassLotteryWMON is Script {
         console.log("");
         console.log("Configuration:");
         console.log("  WMON Token:", wmonToken);
+        console.log("  TOURS Token:", toursToken);
         console.log("  Pyth Entropy:", entropy);
         console.log("  Platform Safe:", platformSafe);
         console.log("  Platform Wallet:", platformWallet);
@@ -73,6 +80,7 @@ contract DeployDailyPassLotteryWMON is Script {
         // Deploy DailyPassLotteryWMON
         DailyPassLotteryWMON lottery = new DailyPassLotteryWMON(
             wmonToken,
+            toursToken,
             entropy,
             platformSafe,
             platformWallet
@@ -111,8 +119,9 @@ contract DeployDailyPassLotteryWMON is Script {
         console.log("");
 
         console.log("=== Next Steps ===");
-        console.log("1. Fund lottery contract with WMON for caller rewards:");
-        console.log("   lottery.fundRewards(100 ether) // 100 WMON");
+        console.log("1. Fund lottery contract with TOURS for caller rewards:");
+        console.log("   lottery.fundRewards(1000 ether) // 1000 TOURS");
+        console.log("   Caller Reward:", lottery.CALLER_REWARD_TOURS() / 1e18, "TOURS per request");
         console.log("");
         console.log("2. Users enter lottery:");
         console.log("   wmon.approve(lotteryAddress, 1 ether)");
@@ -131,8 +140,10 @@ contract DeployDailyPassLotteryWMON is Script {
         console.log("forge verify-contract", address(lottery));
         console.log("  src/DailyPassLotteryWMON.sol:DailyPassLotteryWMON");
         console.log("  --chain-id", block.chainid);
+        console.log("  --verifier sourcify");
         console.log("  --constructor-args:");
         console.log("    wmonToken:", wmonToken);
+        console.log("    toursToken:", toursToken);
         console.log("    entropy:", entropy);
         console.log("    platformSafe:", platformSafe);
         console.log("    platformWallet:", platformWallet);

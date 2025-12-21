@@ -9,6 +9,14 @@ import "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
 import "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 
 /**
+ * @notice WMON interface for unwrapping
+ */
+interface IWMON is IERC20 {
+    function deposit() external payable;
+    function withdraw(uint256) external;
+}
+
+/**
  * @title DailyPassLotteryWMON
  * @notice WMON-based lottery with Pyth Entropy for verifiable randomness
  * @author EmpowerTours
@@ -47,12 +55,13 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     uint256 public constant BASIS_POINTS = 10000;
     uint256 public constant ESCROW_CLAIM_PERIOD = 7 days;
     uint256 public constant ROUND_DURATION = 24 hours;
-    uint256 public constant CALLER_REWARD_WMON = 0.01 ether; // 0.01 WMON reward
+    uint256 public constant CALLER_REWARD_TOURS = 10 ether; // 10 TOURS reward
 
     // ============================================
     // Configuration
     // ============================================
     IERC20 public wmonToken;
+    IERC20 public toursToken;
     IEntropyV2 public entropy;
     address public platformSafe;
     address public platformWallet;
@@ -81,7 +90,7 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         // Winner
         address winner;
         uint256 winnerIndex;
-        uint256 callerRewardsWmonPaid;
+        uint256 callerRewardsToursPaid;
     }
 
     struct DailyPass {
@@ -159,16 +168,19 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     // ============================================
     constructor(
         address _wmonToken,
+        address _toursToken,
         address _entropy,
         address _platformSafe,
         address _platformWallet
     ) Ownable(msg.sender) {
         require(_wmonToken != address(0), "Invalid WMON");
+        require(_toursToken != address(0), "Invalid TOURS");
         require(_entropy != address(0), "Invalid Entropy");
         require(_platformSafe != address(0), "Invalid platform safe");
         require(_platformWallet != address(0), "Invalid platform wallet");
 
         wmonToken = IERC20(_wmonToken);
+        toursToken = IERC20(_toursToken);
         entropy = IEntropyV2(_entropy);
         platformSafe = _platformSafe;
         platformWallet = _platformWallet;
@@ -254,6 +266,10 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     /**
      * @notice Request randomness when round ends (anyone can call, receives reward)
      * @param roundId The round to request randomness for
+     *
+     * Supports two payment methods:
+     * 1. Direct MON payment (msg.value) - for EOA wallets
+     * 2. WMON unwrapping - for Safe/delegation (no msg.value needed)
      */
     function requestRandomness(uint256 roundId) external payable nonReentrant {
         DailyRound storage round = rounds[roundId];
@@ -263,12 +279,34 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         require(round.participantCount > 0, "No participants");
         require(round.entropySequenceNumber == 0, "Already requested");
 
-        // Get required fee from Pyth Entropy (using default provider and default gas limit)
+        // Get required fee from Pyth Entropy
         uint256 fee = entropy.getFeeV2();
-        require(msg.value >= fee, "Insufficient entropy fee");
 
-        // Request randomness from Pyth Entropy with callback (uses default provider and default gas limit)
-        uint64 sequenceNumber = entropy.requestV2{value: fee}();
+        uint64 sequenceNumber;
+
+        // Option 1: Caller sent native MON (EOA/manual calls)
+        if (msg.value >= fee) {
+            // Request randomness with provided MON
+            sequenceNumber = entropy.requestV2{value: fee}();
+
+            // Refund excess payment
+            if (msg.value > fee) {
+                (bool success, ) = msg.sender.call{value: msg.value - fee}("");
+                require(success, "Refund failed");
+            }
+        }
+        // Option 2: Unwrap WMON to MON (Safe/delegation calls)
+        else {
+            // Check contract has enough WMON to unwrap
+            uint256 wmonBalance = wmonToken.balanceOf(address(this));
+            require(wmonBalance >= fee + round.prizePoolWmon, "Insufficient WMON for entropy fee");
+
+            // Unwrap WMON to native MON
+            IWMON(address(wmonToken)).withdraw(fee);
+
+            // Request randomness with unwrapped MON
+            sequenceNumber = entropy.requestV2{value: fee}();
+        }
 
         round.entropySequenceNumber = sequenceNumber;
         round.status = RoundStatus.RandomnessPending;
@@ -277,19 +315,13 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         // Map sequence number to round ID for callback
         sequenceToRound[sequenceNumber] = roundId;
 
-        // Refund excess payment
-        if (msg.value > fee) {
-            (bool success, ) = msg.sender.call{value: msg.value - fee}("");
-            require(success, "Refund failed");
-        }
-
-        // Pay caller reward in WMON
+        // Pay caller reward in TOURS (if sufficient balance)
         uint256 reward = 0;
-        uint256 wmonBalance = wmonToken.balanceOf(address(this));
-        if (wmonBalance >= CALLER_REWARD_WMON + round.prizePoolWmon) {
-            reward = CALLER_REWARD_WMON;
-            round.callerRewardsWmonPaid += reward;
-            wmonToken.safeTransfer(msg.sender, reward);
+        uint256 toursBalance = toursToken.balanceOf(address(this));
+        if (toursBalance >= CALLER_REWARD_TOURS) {
+            reward = CALLER_REWARD_TOURS;
+            round.callerRewardsToursPaid += reward;
+            toursToken.safeTransfer(msg.sender, reward);
         }
 
         emit RandomnessRequested(roundId, sequenceNumber, msg.sender, reward, fee);
@@ -324,10 +356,8 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         round.winnerIndex = winnerIndex;
         round.status = RoundStatus.Finalized;
 
-        // Create escrow
-        uint256 escrowWmonAmount = round.prizePoolWmon > round.callerRewardsWmonPaid
-            ? round.prizePoolWmon - round.callerRewardsWmonPaid
-            : 0;
+        // Create escrow (full prize pool, caller rewards are paid in TOURS)
+        uint256 escrowWmonAmount = round.prizePoolWmon;
 
         escrows[roundId] = Escrow({
             roundId: roundId,
@@ -470,7 +500,7 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
             randomnessRequestedAt: 0,
             winner: address(0),
             winnerIndex: 0,
-            callerRewardsWmonPaid: 0
+            callerRewardsToursPaid: 0
         });
 
         emit RoundStarted(currentRoundId, block.timestamp, block.timestamp + ROUND_DURATION);
@@ -579,10 +609,10 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     }
 
     /**
-     * @notice Fund contract with WMON for caller rewards
+     * @notice Fund contract with TOURS for caller rewards
      */
     function fundRewards(uint256 amount) external onlyOwner {
-        wmonToken.safeTransferFrom(msg.sender, address(this), amount);
+        toursToken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     /**
