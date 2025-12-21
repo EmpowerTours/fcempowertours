@@ -1,0 +1,1137 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_toursToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_passportContract",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_keeper",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "COUNTRY_COMPLETION_REWARD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "DISCOVERY_BONUS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GLOBAL_CITIZEN_REWARD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PASSPORT_MASTER_REWARD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PASSPORT_MATCH_BONUS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TOTAL_COUNTRIES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "WEEKLY_STREAK_BONUS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "WEEK_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "collectorStats",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "totalBadges",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalRewards",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currentStreak",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "longestStreak",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "passportMatchBadges",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "globalCitizenProgress",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "completeArtist",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "artistIndex",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "artistId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createWeeklyChallenge",
+    "inputs": [
+      {
+        "name": "country",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "countryCode",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "artistIds",
+        "type": "uint256[3]",
+        "internalType": "uint256[3]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "finalizeChallenge",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fundRewards",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getChallenge",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct CountryCollector.WeeklyCountryChallenge",
+        "components": [
+          {
+            "name": "weekId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "country",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "countryCode",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "startTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "endTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "artistIds",
+            "type": "uint256[3]",
+            "internalType": "uint256[3]"
+          },
+          {
+            "name": "totalCompletions",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rewardPool",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCollectionProgress",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "totalBadges",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "passportMatchBadges",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currentStreak",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "progressToGlobalCitizen",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCollectorStats",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct CountryCollector.CollectorStats",
+        "components": [
+          {
+            "name": "totalBadges",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalRewards",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currentStreak",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "longestStreak",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "passportMatchBadges",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "globalCitizenProgress",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getContractBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCurrentChallenge",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct CountryCollector.WeeklyCountryChallenge",
+        "components": [
+          {
+            "name": "weekId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "country",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "countryCode",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "startTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "endTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "artistIds",
+            "type": "uint256[3]",
+            "internalType": "uint256[3]"
+          },
+          {
+            "name": "totalCompletions",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rewardPool",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserBadges",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct CountryCollector.CountryBadge[]",
+        "components": [
+          {
+            "name": "country",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "countryCode",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "earnedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "weekId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fromPassport",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserProgress",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct CountryCollector.UserCountryProgress",
+        "components": [
+          {
+            "name": "weekId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "user",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "artistsCompleted",
+            "type": "bool[3]",
+            "internalType": "bool[3]"
+          },
+          {
+            "name": "badgeEarned",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "completedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rewardEarned",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasBadgeForCountry",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasCountryBadge",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "countryCode",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "keeper",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "passportContract",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setKeeper",
+    "inputs": [
+      {
+        "name": "newKeeper",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPassportContract",
+    "inputs": [
+      {
+        "name": "_passportContract",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "toursToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateRewardConfig",
+    "inputs": [
+      {
+        "name": "countryReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "passportBonus",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "streakBonus",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "passportMasterReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "globalCitizenReward",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "discoveryBonus",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "userBadges",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "country",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "countryCode",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "earnedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fromPassport",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "userProgress",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "badgeEarned",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "completedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardEarned",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "weeklyChallenges",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "countryCode",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "startTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "endTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalCompletions",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardPool",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawTours",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ArtistCompleted",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "artistId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "artistIndex",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CountryBadgeEarned",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "countryCode",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "fromPassport",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "rewardEarned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MilestoneReached",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "milestoneType",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "progress",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardEarned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StreakAchieved",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "streakWeeks",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bonusEarned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "WeeklyChallengeCreated",
+    "inputs": [
+      {
+        "name": "weekId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "countryCode",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "artistIds",
+        "type": "uint256[3]",
+        "indexed": false,
+        "internalType": "uint256[3]"
+      },
+      {
+        "name": "startTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  }
+]

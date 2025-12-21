@@ -1,0 +1,171 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {"name": "_toursToken", "type": "address", "internalType": "address"}
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mint",
+    "inputs": [
+      {"name": "to", "type": "address", "internalType": "address"},
+      {"name": "name", "type": "string", "internalType": "string"},
+      {"name": "country", "type": "string", "internalType": "string"},
+      {"name": "pfp", "type": "string", "internalType": "string"},
+      {"name": "bio", "type": "string", "internalType": "string"},
+      {"name": "metadataUri", "type": "string", "internalType": "string"}
+    ],
+    "outputs": [
+      {"name": "", "type": "uint256", "internalType": "uint256"}
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getPassportData",
+    "inputs": [
+      {"name": "tokenId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PassportNFTv2.PassportMetadata",
+        "components": [
+          {"name": "name", "type": "string", "internalType": "string"},
+          {"name": "country", "type": "string", "internalType": "string"},
+          {"name": "pfp", "type": "string", "internalType": "string"},
+          {"name": "bio", "type": "string", "internalType": "string"},
+          {"name": "mintTimestamp", "type": "uint256", "internalType": "uint256"}
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasPassport",
+    "inputs": [
+      {"name": "user", "type": "address", "internalType": "address"},
+      {"name": "country", "type": "string", "internalType": "string"}
+    ],
+    "outputs": [
+      {"name": "", "type": "bool", "internalType": "bool"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MINT_PRICE",
+    "inputs": [],
+    "outputs": [
+      {"name": "", "type": "uint256", "internalType": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "toursToken",
+    "inputs": [],
+    "outputs": [
+      {"name": "", "type": "address", "internalType": "address"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawTOURS",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "balanceOf",
+    "inputs": [
+      {"name": "owner", "type": "address", "internalType": "address"}
+    ],
+    "outputs": [
+      {"name": "", "type": "uint256", "internalType": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ownerOf",
+    "inputs": [
+      {"name": "tokenId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {"name": "", "type": "address", "internalType": "address"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tokenURI",
+    "inputs": [
+      {"name": "tokenId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {"name": "", "type": "string", "internalType": "string"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "approve",
+    "inputs": [
+      {"name": "to", "type": "address", "internalType": "address"},
+      {"name": "tokenId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferFrom",
+    "inputs": [
+      {"name": "from", "type": "address", "internalType": "address"},
+      {"name": "to", "type": "address", "internalType": "address"},
+      {"name": "tokenId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "PassportMinted",
+    "inputs": [
+      {"name": "tokenId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "to", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "name", "type": "string", "indexed": false, "internalType": "string"},
+      {"name": "country", "type": "string", "indexed": false, "internalType": "string"},
+      {"name": "pfp", "type": "string", "indexed": false, "internalType": "string"},
+      {"name": "bio", "type": "string", "indexed": false, "internalType": "string"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Transfer",
+    "inputs": [
+      {"name": "from", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "to", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "tokenId", "type": "uint256", "indexed": true, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Approval",
+    "inputs": [
+      {"name": "owner", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "approved", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "tokenId", "type": "uint256", "indexed": true, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  }
+]

@@ -1,0 +1,848 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_toursToken",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "DEFAULT_ROUND_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_MEMBERS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_MEMBERS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "canClaim",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "memberAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cancelPool",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimPayout",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createPool",
+    "inputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "maxMembers",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "contributionPerRound",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalRounds",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "poolType",
+        "type": "uint8",
+        "internalType": "enum TandaPool.PoolType"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyWithdraw",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getContractBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCurrentRoundRecipient",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getMember",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "memberAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct TandaPool.Member",
+        "components": [
+          {
+            "name": "memberAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "joinedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalContributed",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "payoutRound",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "hasClaimed",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPool",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct TandaPool.Pool",
+        "components": [
+          {
+            "name": "poolId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "creator",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "maxMembers",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "contributionPerRound",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalRounds",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currentRound",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "roundStartTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "roundDuration",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "poolType",
+            "type": "uint8",
+            "internalType": "enum TandaPool.PoolType"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum TandaPool.PoolStatus"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPoolMembers",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPoolStats",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "totalMembers",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalPooled",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "roundsRemaining",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currentRoundPayout",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timeUntilNextRound",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "joinPool",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "poolMemberList",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "poolMembers",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "memberAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "joinedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalContributed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutRound",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "hasClaimed",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pools",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "creator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "maxMembers",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "contributionPerRound",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalRounds",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currentRound",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "roundStartTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "roundDuration",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "poolType",
+        "type": "uint8",
+        "internalType": "enum TandaPool.PoolType"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum TandaPool.PoolStatus"
+      },
+      {
+        "name": "createdAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "roundRecipients",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setRoundDuration",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "newDuration",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "toursToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "MemberJoined",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "member",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "payoutRound",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PayoutClaimed",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "round",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PoolCancelled",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PoolCompleted",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalDistributed",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PoolCreated",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "creator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "maxMembers",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "contributionPerRound",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "poolType",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum TandaPool.PoolType"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoundAdvanced",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "round",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  }
+]

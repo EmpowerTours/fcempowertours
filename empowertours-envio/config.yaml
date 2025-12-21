@@ -1,0 +1,751 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: empowertours-envio
+description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries + DeFi
+networks:
+  - id: 10143
+    start_block: 41800000  # ✅ Start from beginning to index all passports
+    contracts:
+      - name: EmpowerToursNFT
+        address:
+          - "0x5D0B5c12A398C09C5E14C6b053Ff389962402B54"  # ✅ EmpowerToursNFTv9 (Dec 14, 2025)
+        handler: src/EventHandlers.ts
+        events:
+          # Master NFT minting
+          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price, uint8 nftType)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ License purchase with expiry tracking
+          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed buyer, uint256 expiry)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ License expiration tracking
+          - event: "LicenseExpired(uint256 indexed licenseId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Royalty tracking
+          - event: "RoyaltyPaid(uint256 indexed tokenId, address indexed recipient, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Price updates
+          - event: "PriceUpdated(uint256 indexed masterTokenId, uint256 newPrice)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # NFT transfer tracking
+          - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # NFT staking events
+          - event: "NFTStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "NFTUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardsClaimed(uint256 indexed tokenId, address indexed staker, uint256 amount, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # NFT burning events
+          - event: "NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BurnRewardUpdated(uint256 newReward, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardRateUpdated(uint256 newRate, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      - name: PassportNFT
+        address:
+          - "0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163"  # PassportNFTv3
+        handler: src/EventHandlers.ts
+        events:
+          # Passport minting with country data
+          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # NFT transfer tracking
+          - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Passport staking
+          - event: "PassportStaked(uint256 indexed tokenId, uint256 monAmount, uint256 positionId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Venue stamps
+          - event: "VenueStampAdded(uint256 indexed tokenId, string location, string eventType, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      - name: Marketplace
+        address:
+          - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"
+        handler: src/EventHandlers.ts
+        events:
+          # Itinerary creation
+          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Itinerary purchase
+          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V9: YieldStrategy Contract (NFT-gated staking with Kintsu)
+      - name: YieldStrategy
+        address:
+          - "0x37aC86916Ae673bDFCc9c712057092E57b270f5f"  # V9 deployed
+        handler: src/EventHandlers.ts
+        events:
+          - event: "NFTWhitelisted(address indexed nftAddress, bool accepted)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, address owner, address beneficiary, uint256 monAmount, uint256 kintsuShares, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "UnstakeRequested(uint256 indexed positionId, address indexed user, uint96 shares, uint96 expectedSpotValue, uint256 estimatedReadyTime, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "UnstakeCancelled(uint256 indexed positionId, address indexed user, uint96 sharesReturned, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "StakingPositionClosed(uint256 indexed positionId, address indexed user, uint256 monRedeemed, uint256 yieldShare, uint256 netRefund, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "YieldHarvested(uint256 yieldMon, uint256 currentValue, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: DemandSignalEngine Contract
+      - name: DemandSignalEngine
+        address:
+          - "0xC2Eb75ddf31cd481765D550A91C5A63363B36817"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "DemandSubmitted(address indexed user, uint256 indexed eventId, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "DemandWithdrawn(address indexed user, uint256 indexed eventId, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: SmartEventManifest Contract
+      - name: SmartEventManifest
+        address:
+          - "0x5cfe8379058cA460aA60ef15051Be57dab4A651C"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "EventCreated(uint256 indexed eventId, string name, string location, uint256 startDate)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "TicketPurchased(uint256 indexed eventId, address indexed buyer, uint256 quantity)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "EventCancelled(uint256 indexed eventId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: TandaYieldGroup Contract
+      - name: TandaYieldGroup
+        address:
+          - "0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "GroupCreated(uint256 indexed groupId, address indexed creator, string name)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "MemberJoined(uint256 indexed groupId, address indexed member)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "ContributionMade(uint256 indexed groupId, address indexed member, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "PayoutClaimed(uint256 indexed groupId, address indexed member, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: CreditScoreCalculator Contract
+      - name: CreditScoreCalculator
+        address:
+          - "0x9598397899CCcf9d0CFbDB40dEf1EF34e550c0c5"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "ScoreUpdated(address indexed user, uint256 oldScore, uint256 newScore)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "PaymentRecorded(address indexed user, uint256 amount, bool onTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: DailyPassLotteryV3 Contract (deployed Dec 9, 2025)
+      - name: DailyPassLotteryV3
+        address:
+          - "0x006A8520d330af18D69e8E1294E5699Fc9f7Aa2e"
+        handler: src/EventHandlers.ts
+        events:
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Entry tracking (supports delegation)
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, address indexed payer, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Commit-reveal randomness
+          - event: "RandomnessCommitted(uint256 indexed roundId, uint256 commitBlock, bytes32 commitHash, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner selection
+          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Prize claims
+          - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 monAmount, uint256 shMonAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Escrow expiration
+          - event: "EscrowExpired(uint256 indexed roundId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Fee tracking
+          - event: "PlatformSafeFeeCollected(address indexed platformSafe, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PlatformWalletFeeCollected(address indexed platformWallet, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: DailyPassLotteryV4 Contract (Switchboard randomness - Dec 13, 2025)
+      - name: DailyPassLotteryV4
+        address:
+          - "0x9c64d0Ec0eCc59d56EC6979fd779C3e00716AC6F"
+        handler: src/EventHandlers.ts
+        events:
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Entry tracking (supports delegation)
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, address indexed payer, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Switchboard randomness request
+          - event: "RandomnessRequested(uint256 indexed roundId, bytes32 indexed randomnessId, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner selection with random value
+          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 randomValue, uint256 monPrize, uint256 shMonPrize, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Prize claims
+          - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 monAmount, uint256 shMonAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Escrow expiration
+          - event: "EscrowExpired(uint256 indexed roundId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Fee tracking
+          - event: "PlatformSafeFeeCollected(address indexed platformSafe, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PlatformWalletFeeCollected(address indexed platformWallet, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: ExperienceNFT Contract (GPS-revealed travel experiences)
+      - name: ExperienceNFT
+        address:
+          - "0x5B61286AC88688fe8930711fAa5b1155e98daFe8"
+        handler: src/EventHandlers.ts
+        events:
+          # Experience creation
+          - event: "ExperienceCreated(uint256 indexed experienceId, address indexed creator, string title, string city, string country, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Experience purchase
+          - event: "ExperiencePurchased(uint256 indexed experienceId, address indexed buyer, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Experience completion with photo proof
+          - event: "ExperienceCompleted(uint256 indexed experienceId, address indexed user, string photoProofHash, uint256 rewardAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Transportation request hook
+          - event: "TransportationRequested(uint256 indexed experienceId, address indexed user, int256 fromLat, int256 fromLon, int256 toLat, int256 toLon)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: MusicBeatMatchV2 Contract (deployed Dec 8, 2025)
+      - name: MusicBeatMatchV2
+        address:
+          - "0x913E65B7742Da72972fB821468215E89F085F178"
+        handler: src/EventHandlers.ts
+        events:
+          # Challenge creation
+          - event: "DailyChallengeCreated(uint256 indexed challengeId, uint256 indexed artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guess submission
+          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed player, uint256 guessedArtistId, string guessedSongTitle, string guessedUsername)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge finalization
+          - event: "ChallengeFinalized(uint256 indexed challengeId, address indexed winner, uint256 rewardAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ NEW: CountryCollectorV2 Contract (deployed Dec 8, 2025)
+      - name: CountryCollectorV2
+        address:
+          - "0xC7FfA579f66f6A3142b3e27427b04124F4b3cd61"
+        handler: src/EventHandlers.ts
+        events:
+          # Weekly challenge creation
+          - event: "WeeklyChallengeCreated(uint256 indexed weekId, string country, string countryCode, uint256[3] artistIds, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Artist completion
+          - event: "ArtistCompleted(uint256 indexed weekId, address indexed player, uint256 artistIndex, uint256 artistId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge completion (all 3 artists)
+          - event: "ChallengeCompleted(uint256 indexed weekId, address indexed player, uint256 rewardAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Week finalization
+          - event: "WeekFinalized(uint256 indexed weekId, uint256 totalCompletions)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V3: MusicBeatMatchV3 Contract (Switchboard randomness - Dec 12, 2025)
+      - name: MusicBeatMatchV3
+        address:
+          - "0x6E1f79aA6F65d8e4596A7C26CC34fBf41A57da0E"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random song
+          - event: "ChallengeCreatedWithRandomSong(uint256 indexed challengeId, uint256 indexed musicNFTTokenId, uint256 indexed artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 randomValue, uint256 startTime, uint256 rewardPool)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guess submission
+          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed user, uint256 indexed artistId, string artistUsername, bool correct, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge finalization
+          - event: "RewardsDistributed(uint256 indexed challengeId, uint256 totalDistributed, uint256 winnersCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V3: CountryCollectorV3 Contract (Switchboard randomness - Dec 12, 2025)
+      - name: CountryCollectorV3
+        address:
+          - "0x80208230350B60722b7AD87d6703c6ad094BBacA"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random artists
+          - event: "ChallengeCreatedWithRandomArtists(uint256 indexed weekId, string indexed countryCode, string countryName, uint256[3] artistIds, uint256 randomValue, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Artist completion
+          - event: "ArtistCompleted(uint256 indexed weekId, address indexed user, uint256 artistIndex, uint256 artistId, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Badge earned
+          - event: "BadgeEarned(uint256 indexed weekId, address indexed user, string countryCode, string countryName, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Global citizen achievement
+          - event: "GlobalCitizenAchieved(address indexed user, uint256 countriesCollected, uint256 bonusReward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Week finalization
+          - event: "WeekFinalized(uint256 indexed weekId, uint256 totalCompletions)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V4: MusicBeatMatchV4 Contract (Switchboard randomness - Dec 13, 2025)
+      - name: MusicBeatMatchV4
+        address:
+          - "0x4474Bd61b5a33927b7802c62A9C8dc5F22ce93F8"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random song
+          - event: "ChallengeCreatedWithRandomSong(uint256 indexed challengeId, uint256 indexed musicNFTTokenId, uint256 indexed artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 randomValue, uint256 startTime, uint256 rewardPool)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guess submission
+          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed user, uint256 indexed artistId, string artistUsername, bool correct, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Streak achievement
+          - event: "StreakAchieved(address indexed user, uint256 streakDays, uint256 bonusMultiplier)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge finalization
+          - event: "RewardsDistributed(uint256 indexed challengeId, uint256 totalDistributed, uint256 winnersCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V4: CountryCollectorV4 Contract (Switchboard randomness - Dec 13, 2025)
+      - name: CountryCollectorV4
+        address:
+          - "0xE4b41FE055DD05E2D7bF40C7c13a56cD3dCa3a59"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random artists
+          - event: "ChallengeCreatedWithRandomArtists(uint256 indexed weekId, string indexed countryCode, string countryName, uint256[3] artistIds, uint256 randomValue, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Artist completion
+          - event: "ArtistCompleted(uint256 indexed weekId, address indexed user, uint256 artistIndex, uint256 artistId, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Badge earned
+          - event: "BadgeEarned(uint256 indexed weekId, address indexed user, string countryCode, string countryName, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Global citizen achievement
+          - event: "GlobalCitizenAchieved(address indexed user, uint256 countriesCollected, uint256 bonusReward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Week finalization
+          - event: "WeekFinalized(uint256 indexed weekId, uint256 totalCompletions)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V5: MusicBeatMatchV5 Contract (Switchboard updateFee payment - Dec 14, 2025)
+      - name: MusicBeatMatchV5
+        address:
+          - "0x44676e73825997cE1d645b42640De6D6a2697a6f"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomSongRequested(uint256 indexed challengeId, bytes32 indexed randomnessId, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random song
+          - event: "ChallengeCreatedWithRandomSong(uint256 indexed challengeId, uint256 indexed musicNFTTokenId, uint256 indexed artistId, string songTitle, string artistUsername, string ipfsAudioHash, uint256 randomValue, uint256 startTime, uint256 rewardPool)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guess submission
+          - event: "GuessSubmitted(uint256 indexed challengeId, address indexed user, uint256 indexed artistId, string artistUsername, bool correct, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Streak achievement
+          - event: "StreakAchieved(address indexed user, uint256 streakDays, uint256 bonusMultiplier)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge finalization
+          - event: "RewardsDistributed(uint256 indexed challengeId, uint256 totalDistributed, uint256 winnersCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V5: CountryCollectorV5 Contract (Switchboard updateFee payment - Dec 14, 2025)
+      - name: CountryCollectorV5
+        address:
+          - "0x376777d58Ef9C5772f110307f6c5F09E0f9A9218"
+        handler: src/EventHandlers.ts
+        events:
+          # Randomness request
+          - event: "RandomArtistsRequested(uint256 indexed weekId, bytes32 indexed randomnessId, string countryCode, string countryName, uint256 requestedAt, address indexed caller)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Challenge creation with random artists
+          - event: "ChallengeCreatedWithRandomArtists(uint256 indexed weekId, string indexed countryCode, string countryName, uint256[3] artistIds, uint256 randomValue, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Artist completion
+          - event: "ArtistCompleted(uint256 indexed weekId, address indexed user, uint256 artistIndex, uint256 artistId, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Badge earned
+          - event: "BadgeEarned(uint256 indexed weekId, address indexed user, string countryCode, string countryName, uint256 rewardEarned)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Global citizen achievement
+          - event: "GlobalCitizenAchieved(address indexed user, uint256 countriesCollected, uint256 bonusReward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Week finalization
+          - event: "WeekFinalized(uint256 indexed weekId, uint256 totalCompletions)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ V5: DailyPassLotteryV5 Contract (Switchboard updateFee payment - Dec 14, 2025)
+      - name: DailyPassLotteryV5
+        address:
+          - "0x5AfA5ACc9f684ff3B757D15Ce17E00140993436C"
+        handler: src/EventHandlers.ts
+        events:
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Entry tracking (supports delegation)
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, address indexed payer, uint256 entryIndex, bool paidWithShMon, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Switchboard randomness request
+          - event: "RandomnessRequested(uint256 indexed roundId, bytes32 indexed randomnessId, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner selection with random value
+          - event: "WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 randomValue, uint256 monPrize, uint256 shMonPrize, address indexed caller, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Prize claims
+          - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 monAmount, uint256 shMonAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Escrow expiration
+          - event: "EscrowExpired(uint256 indexed roundId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Fee tracking
+          - event: "PlatformSafeFeeCollected(address indexed platformSafe, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PlatformWalletFeeCollected(address indexed platformWallet, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ MusicSubscription Contract (Platform-wide streaming subscription - Dec 14, 2025)
+      - name: MusicSubscription
+        address:
+          - "0xba1D2bE3356ba0162E1C412f05942c69e940d7a6"
+        handler: src/EventHandlers.ts
+        events:
+          # Subscription lifecycle
+          - event: "Subscribed(address indexed user, uint256 expiry, uint256 stakedAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "SubscriptionRenewed(address indexed user, uint256 newExpiry)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Play tracking for artist payouts
+          - event: "PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Monthly revenue distribution
+          - event: "MonthlyDistributionFinalized(uint256 indexed monthId, uint256 totalRevenue, uint256 totalPlays, uint256 perPlayRate)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ArtistPayout(uint256 indexed monthId, address indexed artist, uint256 amount, uint256 playCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Anti-bot and governance
+          - event: "AccountFlagged(address indexed user, string reason)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "AccountSlashed(address indexed user, uint256 slashedAmount, string reason)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "VoteToBan(address indexed voter, address indexed target, uint256 totalVotes)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+rollback_on_reorg: false

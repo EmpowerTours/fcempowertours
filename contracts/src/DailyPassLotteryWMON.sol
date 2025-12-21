@@ -1,0 +1,621 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.22;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
+import "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
+
+/**
+ * @title DailyPassLotteryWMON
+ * @notice WMON-based lottery with Pyth Entropy for verifiable randomness
+ * @author EmpowerTours
+ *
+ * === MAINNET VERSION ===
+ * - Uses WMON (Wrapped MON) for all entries
+ * - 1 WMON entrance fee
+ * - Supports delegation (Oracle/Safe can pay for users)
+ * - Pyth Entropy for secure, verifiable randomness
+ *
+ * === SECURITY: PYTH ENTROPY RANDOMNESS ===
+ * - Request randomness via Pyth Entropy when round ends
+ * - Callback-based: requestV2() → entropyCallback()
+ * - Verifiable, tamper-proof random numbers
+ * - Fee paid in native gas tokens (MON)
+ *
+ * === INCENTIVIZED FINALIZATION ===
+ * - Anyone can call request functions and receive CALLER_REWARD
+ * - Randomness resolution happens via Pyth Entropy callback
+ *
+ * === ESCROW PAYOUT ===
+ * - Winner's prize held in escrow until claimed
+ * - 7 day claim window
+ * - Expired escrow returns to platform
+ */
+contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
+    using SafeERC20 for IERC20;
+
+    // ============================================
+    // Constants
+    // ============================================
+    uint256 public constant ENTRY_FEE = 1 ether; // 1 WMON
+    uint256 public constant PLATFORM_SAFE_FEE_BPS = 500; // 5%
+    uint256 public constant PLATFORM_WALLET_FEE_BPS = 500; // 5%
+    uint256 public constant PRIZE_POOL_BPS = 9000; // 90%
+    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant ESCROW_CLAIM_PERIOD = 7 days;
+    uint256 public constant ROUND_DURATION = 24 hours;
+    uint256 public constant CALLER_REWARD_WMON = 0.01 ether; // 0.01 WMON reward
+
+    // ============================================
+    // Configuration
+    // ============================================
+    IERC20 public wmonToken;
+    IEntropyV2 public entropy;
+    address public platformSafe;
+    address public platformWallet;
+    address public entropyProvider;
+
+    // ============================================
+    // Round State
+    // ============================================
+    enum RoundStatus {
+        Active,           // Accepting entries
+        RandomnessPending, // Waiting for randomness callback
+        Finalized         // Winner selected
+    }
+
+    struct DailyRound {
+        uint256 roundId;
+        uint256 startTime;
+        uint256 endTime;
+        uint256 prizePoolWmon;
+        uint256 participantCount;
+        RoundStatus status;
+        // Pyth Entropy randomness
+        uint64 entropySequenceNumber;
+        bytes32 randomValue;
+        uint256 randomnessRequestedAt;
+        // Winner
+        address winner;
+        uint256 winnerIndex;
+        uint256 callerRewardsWmonPaid;
+    }
+
+    struct DailyPass {
+        uint256 roundId;
+        address beneficiary;
+        uint256 entryTime;
+        uint256 entryIndex;
+    }
+
+    struct Escrow {
+        uint256 roundId;
+        address winner;
+        uint256 wmonAmount;
+        uint256 createdAt;
+        uint256 expiresAt;
+        bool claimed;
+    }
+
+    // ============================================
+    // Storage
+    // ============================================
+    uint256 public currentRoundId;
+
+    mapping(uint256 => DailyRound) public rounds;
+    mapping(uint256 => address[]) public roundParticipants;
+    mapping(uint256 => mapping(address => bool)) public hasEnteredRound;
+    mapping(address => DailyPass[]) public userPasses;
+    mapping(uint256 => Escrow) public escrows;
+    mapping(address => uint256[]) public userWinnings;
+
+    // Mapping from Pyth Entropy sequence number to round ID
+    mapping(uint64 => uint256) public sequenceToRound;
+
+    uint256 public totalPrizesPaid;
+    uint256 public totalParticipants;
+    uint256 public platformSafeFeesCollected;
+    uint256 public platformWalletFeesCollected;
+
+    // ============================================
+    // Events
+    // ============================================
+    event RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime);
+    event DailyPassPurchased(
+        uint256 indexed roundId,
+        address indexed beneficiary,
+        address indexed payer,
+        uint256 entryIndex,
+        uint256 amount
+    );
+    event RandomnessRequested(
+        uint256 indexed roundId,
+        uint64 indexed sequenceNumber,
+        address indexed caller,
+        uint256 reward,
+        uint256 entropyFee
+    );
+    event WinnerRevealed(
+        uint256 indexed roundId,
+        address indexed winner,
+        uint256 winnerIndex,
+        bytes32 randomValue,
+        uint256 wmonPrize
+    );
+    event PrizeClaimed(
+        uint256 indexed roundId,
+        address indexed winner,
+        uint256 wmonAmount
+    );
+    event EscrowExpired(uint256 indexed roundId);
+    event PlatformSafeFeeCollected(address indexed platformSafe, uint256 amount);
+    event PlatformWalletFeeCollected(address indexed platformWallet, uint256 amount);
+
+    // ============================================
+    // Constructor
+    // ============================================
+    constructor(
+        address _wmonToken,
+        address _entropy,
+        address _platformSafe,
+        address _platformWallet
+    ) Ownable(msg.sender) {
+        require(_wmonToken != address(0), "Invalid WMON");
+        require(_entropy != address(0), "Invalid Entropy");
+        require(_platformSafe != address(0), "Invalid platform safe");
+        require(_platformWallet != address(0), "Invalid platform wallet");
+
+        wmonToken = IERC20(_wmonToken);
+        entropy = IEntropyV2(_entropy);
+        platformSafe = _platformSafe;
+        platformWallet = _platformWallet;
+
+        // Get default entropy provider
+        entropyProvider = entropy.getDefaultProvider();
+
+        _startNewRound();
+    }
+
+    // ============================================
+    // Entry Functions
+    // ============================================
+
+    /**
+     * @notice Enter lottery with WMON for yourself
+     */
+    function enterWithWMON() external nonReentrant returns (uint256 entryIndex) {
+        return _enterWithWMON(msg.sender);
+    }
+
+    /**
+     * @notice Enter lottery with WMON for another user (delegation support)
+     * @param beneficiary The user who will be entered into the lottery
+     */
+    function enterWithWMONFor(address beneficiary) external nonReentrant returns (uint256 entryIndex) {
+        require(beneficiary != address(0), "Invalid beneficiary");
+        return _enterWithWMON(beneficiary);
+    }
+
+    function _enterWithWMON(address beneficiary) internal returns (uint256 entryIndex) {
+        _lazyFinalizePreviousRounds();
+        _checkAndRotateRound();
+
+        require(rounds[currentRoundId].status == RoundStatus.Active, "Round not active");
+        require(!hasEnteredRound[currentRoundId][beneficiary], "Already entered");
+
+        // Transfer WMON from caller (supports delegation)
+        wmonToken.safeTransferFrom(msg.sender, address(this), ENTRY_FEE);
+
+        DailyRound storage round = rounds[currentRoundId];
+
+        uint256 platformSafeFee = (ENTRY_FEE * PLATFORM_SAFE_FEE_BPS) / BASIS_POINTS;
+        uint256 platformWalletFee = (ENTRY_FEE * PLATFORM_WALLET_FEE_BPS) / BASIS_POINTS;
+        uint256 toPrizePool = ENTRY_FEE - platformSafeFee - platformWalletFee;
+
+        round.prizePoolWmon += toPrizePool;
+        entryIndex = round.participantCount;
+        round.participantCount++;
+
+        roundParticipants[currentRoundId].push(beneficiary);
+        hasEnteredRound[currentRoundId][beneficiary] = true;
+
+        userPasses[beneficiary].push(DailyPass({
+            roundId: currentRoundId,
+            beneficiary: beneficiary,
+            entryTime: block.timestamp,
+            entryIndex: entryIndex
+        }));
+
+        totalParticipants++;
+
+        if (platformSafeFee > 0) {
+            platformSafeFeesCollected += platformSafeFee;
+            wmonToken.safeTransfer(platformSafe, platformSafeFee);
+            emit PlatformSafeFeeCollected(platformSafe, platformSafeFee);
+        }
+
+        if (platformWalletFee > 0) {
+            platformWalletFeesCollected += platformWalletFee;
+            wmonToken.safeTransfer(platformWallet, platformWalletFee);
+            emit PlatformWalletFeeCollected(platformWallet, platformWalletFee);
+        }
+
+        emit DailyPassPurchased(currentRoundId, beneficiary, msg.sender, entryIndex, ENTRY_FEE);
+        return entryIndex;
+    }
+
+    // ============================================
+    // Pyth Entropy Randomness
+    // ============================================
+
+    /**
+     * @notice Request randomness when round ends (anyone can call, receives reward)
+     * @param roundId The round to request randomness for
+     */
+    function requestRandomness(uint256 roundId) external payable nonReentrant {
+        DailyRound storage round = rounds[roundId];
+
+        require(round.status == RoundStatus.Active, "Round not active");
+        require(block.timestamp >= round.endTime, "Round not ended");
+        require(round.participantCount > 0, "No participants");
+        require(round.entropySequenceNumber == 0, "Already requested");
+
+        // Get required fee from Pyth Entropy (using default provider and default gas limit)
+        uint256 fee = entropy.getFeeV2();
+        require(msg.value >= fee, "Insufficient entropy fee");
+
+        // Request randomness from Pyth Entropy with callback (uses default provider and default gas limit)
+        uint64 sequenceNumber = entropy.requestV2{value: fee}();
+
+        round.entropySequenceNumber = sequenceNumber;
+        round.status = RoundStatus.RandomnessPending;
+        round.randomnessRequestedAt = block.timestamp;
+
+        // Map sequence number to round ID for callback
+        sequenceToRound[sequenceNumber] = roundId;
+
+        // Refund excess payment
+        if (msg.value > fee) {
+            (bool success, ) = msg.sender.call{value: msg.value - fee}("");
+            require(success, "Refund failed");
+        }
+
+        // Pay caller reward in WMON
+        uint256 reward = 0;
+        uint256 wmonBalance = wmonToken.balanceOf(address(this));
+        if (wmonBalance >= CALLER_REWARD_WMON + round.prizePoolWmon) {
+            reward = CALLER_REWARD_WMON;
+            round.callerRewardsWmonPaid += reward;
+            wmonToken.safeTransfer(msg.sender, reward);
+        }
+
+        emit RandomnessRequested(roundId, sequenceNumber, msg.sender, reward, fee);
+    }
+
+    /**
+     * @notice Pyth Entropy callback - automatically called when randomness is ready
+     * @param sequenceNumber The sequence number from the request
+     * @param provider The provider address
+     * @param randomNumber The generated random number
+     */
+    function entropyCallback(
+        uint64 sequenceNumber,
+        address provider,
+        bytes32 randomNumber
+    ) internal override {
+        uint256 roundId = sequenceToRound[sequenceNumber];
+        require(roundId != 0, "Invalid sequence number");
+
+        DailyRound storage round = rounds[roundId];
+        require(round.status == RoundStatus.RandomnessPending, "Not pending");
+        require(round.entropySequenceNumber == sequenceNumber, "Sequence mismatch");
+
+        // Store random value
+        round.randomValue = randomNumber;
+
+        // Select winner using verifiable random value
+        uint256 winnerIndex = uint256(randomNumber) % round.participantCount;
+        address winner = roundParticipants[roundId][winnerIndex];
+
+        round.winner = winner;
+        round.winnerIndex = winnerIndex;
+        round.status = RoundStatus.Finalized;
+
+        // Create escrow
+        uint256 escrowWmonAmount = round.prizePoolWmon > round.callerRewardsWmonPaid
+            ? round.prizePoolWmon - round.callerRewardsWmonPaid
+            : 0;
+
+        escrows[roundId] = Escrow({
+            roundId: roundId,
+            winner: winner,
+            wmonAmount: escrowWmonAmount,
+            createdAt: block.timestamp,
+            expiresAt: block.timestamp + ESCROW_CLAIM_PERIOD,
+            claimed: false
+        });
+
+        userWinnings[winner].push(roundId);
+        totalPrizesPaid += escrowWmonAmount;
+
+        emit WinnerRevealed(
+            roundId,
+            winner,
+            winnerIndex,
+            randomNumber,
+            escrowWmonAmount
+        );
+    }
+
+    /**
+     * @notice Required by IEntropyConsumer - returns the Entropy contract address
+     */
+    function getEntropy() internal view override returns (address) {
+        return address(entropy);
+    }
+
+    // ============================================
+    // Lazy Finalization
+    // ============================================
+
+    function _lazyFinalizePreviousRounds() internal {
+        // Check last 5 rounds for any that need auto-finalization
+        uint256 minRound = currentRoundId > 5 ? currentRoundId - 5 : 0;
+
+        for (uint256 i = currentRoundId; i > minRound; i--) {
+            DailyRound storage round = rounds[i];
+
+            if (round.participantCount == 0 || round.status == RoundStatus.Finalized) {
+                continue;
+            }
+
+            if (i == currentRoundId && block.timestamp < round.endTime) {
+                continue;
+            }
+
+            // Note: We don't auto-request randomness here since it requires payment
+            // Rounds must be manually triggered by calling requestRandomness()
+        }
+    }
+
+    // ============================================
+    // Escrow & Claims
+    // ============================================
+
+    /**
+     * @notice Claim prize for yourself
+     */
+    function claimPrize(uint256 roundId) external nonReentrant {
+        _claimPrize(msg.sender, roundId);
+    }
+
+    /**
+     * @notice Claim prize for another user (delegation support)
+     */
+    function claimPrizeFor(address beneficiary, uint256 roundId) external nonReentrant {
+        require(beneficiary != address(0), "Invalid beneficiary");
+        _claimPrize(beneficiary, roundId);
+    }
+
+    function _claimPrize(address beneficiary, uint256 roundId) internal {
+        Escrow storage esc = escrows[roundId];
+
+        require(esc.winner == beneficiary, "Not winner");
+        require(!esc.claimed, "Already claimed");
+        require(block.timestamp <= esc.expiresAt, "Expired");
+
+        esc.claimed = true;
+
+        if (esc.wmonAmount > 0) {
+            wmonToken.safeTransfer(beneficiary, esc.wmonAmount);
+        }
+
+        emit PrizeClaimed(roundId, beneficiary, esc.wmonAmount);
+
+        _checkAndRotateRound();
+    }
+
+    /**
+     * @notice Reclaim expired escrow (only owner)
+     */
+    function reclaimExpiredEscrow(uint256 roundId) external onlyOwner nonReentrant {
+        Escrow storage esc = escrows[roundId];
+
+        require(!esc.claimed, "Already claimed");
+        require(block.timestamp > esc.expiresAt, "Not expired");
+
+        esc.claimed = true;
+
+        if (esc.wmonAmount > 0) {
+            wmonToken.safeTransfer(platformSafe, esc.wmonAmount);
+        }
+
+        emit EscrowExpired(roundId);
+
+        _checkAndRotateRound();
+    }
+
+    // ============================================
+    // Round Management
+    // ============================================
+
+    function _checkAndRotateRound() internal {
+        DailyRound storage current = rounds[currentRoundId];
+
+        if (block.timestamp >= current.endTime) {
+            if (current.participantCount > 0 && current.status != RoundStatus.Finalized) {
+                // Round ended but not finalized - leave it pending
+                // Will be finalized when someone calls requestRandomness()
+            }
+
+            _startNewRound();
+        }
+    }
+
+    function _startNewRound() internal {
+        currentRoundId++;
+
+        rounds[currentRoundId] = DailyRound({
+            roundId: currentRoundId,
+            startTime: block.timestamp,
+            endTime: block.timestamp + ROUND_DURATION,
+            prizePoolWmon: 0,
+            participantCount: 0,
+            status: RoundStatus.Active,
+            entropySequenceNumber: 0,
+            randomValue: bytes32(0),
+            randomnessRequestedAt: 0,
+            winner: address(0),
+            winnerIndex: 0,
+            callerRewardsWmonPaid: 0
+        });
+
+        emit RoundStarted(currentRoundId, block.timestamp, block.timestamp + ROUND_DURATION);
+    }
+
+    /**
+     * @notice Force start a new round (emergency only)
+     */
+    function forceNewRound() external onlyOwner {
+        rounds[currentRoundId].status = RoundStatus.RandomnessPending;
+        _startNewRound();
+    }
+
+    /**
+     * @notice Force end current round (emergency only)
+     */
+    function forceEndRound() external onlyOwner {
+        rounds[currentRoundId].endTime = block.timestamp;
+    }
+
+    // ============================================
+    // View Functions
+    // ============================================
+
+    function getCurrentRound() external view returns (DailyRound memory) {
+        return rounds[currentRoundId];
+    }
+
+    function getRound(uint256 roundId) external view returns (DailyRound memory) {
+        return rounds[roundId];
+    }
+
+    function hasEnteredToday(address user) external view returns (bool) {
+        return hasEnteredRound[currentRoundId][user];
+    }
+
+    function getUserPasses(address user) external view returns (DailyPass[] memory) {
+        return userPasses[user];
+    }
+
+    function getRoundParticipants(uint256 roundId) external view returns (address[] memory) {
+        return roundParticipants[roundId];
+    }
+
+    function getEscrow(uint256 roundId) external view returns (Escrow memory) {
+        return escrows[roundId];
+    }
+
+    function getUserWinnings(address user) external view returns (uint256[] memory) {
+        return userWinnings[user];
+    }
+
+    function getTimeRemaining() external view returns (uint256) {
+        if (block.timestamp >= rounds[currentRoundId].endTime) return 0;
+        return rounds[currentRoundId].endTime - block.timestamp;
+    }
+
+    function canRequestRandomness(uint256 roundId) external view returns (bool) {
+        DailyRound memory r = rounds[roundId];
+        return r.status == RoundStatus.Active
+            && block.timestamp >= r.endTime
+            && r.participantCount > 0
+            && r.entropySequenceNumber == 0;
+    }
+
+    function getEntropyFee() external view returns (uint256) {
+        return entropy.getFeeV2();
+    }
+
+    function getStats() external view returns (
+        uint256 _currentRoundId,
+        uint256 _prizePoolWmon,
+        uint256 _participants,
+        uint256 _totalPaid,
+        uint256 _totalParticipants,
+        RoundStatus _status
+    ) {
+        DailyRound memory r = rounds[currentRoundId];
+        return (
+            currentRoundId,
+            r.prizePoolWmon,
+            r.participantCount,
+            totalPrizesPaid,
+            totalParticipants,
+            r.status
+        );
+    }
+
+    // ============================================
+    // Admin
+    // ============================================
+
+    function setPlatformSafe(address _safe) external onlyOwner {
+        require(_safe != address(0), "Invalid address");
+        platformSafe = _safe;
+    }
+
+    function setPlatformWallet(address _wallet) external onlyOwner {
+        require(_wallet != address(0), "Invalid address");
+        platformWallet = _wallet;
+    }
+
+    function setEntropyProvider(address _provider) external onlyOwner {
+        require(_provider != address(0), "Invalid provider");
+        entropyProvider = _provider;
+    }
+
+    /**
+     * @notice Fund contract with WMON for caller rewards
+     */
+    function fundRewards(uint256 amount) external onlyOwner {
+        wmonToken.safeTransferFrom(msg.sender, address(this), amount);
+    }
+
+    /**
+     * @notice Emergency withdraw (only withdraws excess, not active prize pools)
+     */
+    function emergencyWithdraw() external onlyOwner {
+        // Calculate total active prize pools and escrows
+        uint256 reservedWmon = 0;
+
+        // Add current round prize pool
+        reservedWmon += rounds[currentRoundId].prizePoolWmon;
+
+        // Add unclaimed escrows from last 10 rounds
+        uint256 minRound = currentRoundId > 10 ? currentRoundId - 10 : 0;
+        for (uint256 i = currentRoundId; i > minRound; i--) {
+            if (!escrows[i].claimed && escrows[i].wmonAmount > 0) {
+                reservedWmon += escrows[i].wmonAmount;
+            }
+        }
+
+        uint256 wmonBalance = wmonToken.balanceOf(address(this));
+        if (wmonBalance > reservedWmon) {
+            uint256 excess = wmonBalance - reservedWmon;
+            wmonToken.safeTransfer(owner(), excess);
+        }
+
+        // Withdraw any native tokens (entropy fees)
+        uint256 nativeBalance = address(this).balance;
+        if (nativeBalance > 0) {
+            (bool success, ) = owner().call{value: nativeBalance}("");
+            require(success, "Native transfer failed");
+        }
+    }
+
+    receive() external payable {}
+}

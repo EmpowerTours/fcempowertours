@@ -1,0 +1,364 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+Traces:
+  [11190248] DeployComplete::run()
+    ├─ [0] VM::envUint("PRIVATE_KEY") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::addr(<pk>) [staticcall]
+    │   └─ ← [Return] 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("DEPLOYING EMPOWERTOURS CONTRACTS") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Network: Monad Testnet") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Deployer Address:", 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Deployer Balance:", 5, "MON") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::startBroadcast(<pk>)
+    │   └─ ← [Return]
+    ├─ [0] console::log("1/5 Deploying ActionBasedDemandSignal...") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2614961] → new ActionBasedDemandSignal@0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    │   └─ ← [Return] 12058 bytes of code
+    ├─ [0] console::log("    Deployed at:", ActionBasedDemandSignal: [0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("    Authorizing backend wallet:", 0x37302543aeF0b06202adcb06Db36daB05F8237E9) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [22885] ActionBasedDemandSignal::authorizeContract(0x37302543aeF0b06202adcb06Db36daB05F8237E9, true)
+    │   └─ ← [Stop]
+    ├─ [0] console::log("    Backend wallet authorized!") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("2/5 Deploying ItineraryNFT...") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2856222] → new ItineraryNFT@0x5B61286AC88688fe8930711fAa5b1155e98daFe8
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    │   └─ ← [Return] 13589 bytes of code
+    ├─ [0] console::log("    Deployed at:", ItineraryNFT: [0x5B61286AC88688fe8930711fAa5b1155e98daFe8]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("3/5 Deploying MusicBeatMatch...") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [1699049] → new MusicBeatMatch@0xee83AC7E916f4feBDb7297363B47eE370FE2EC87
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    │   └─ ← [Return] 7593 bytes of code
+    ├─ [0] console::log("    Deployed at:", MusicBeatMatch: [0xee83AC7E916f4feBDb7297363B47eE370FE2EC87]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("4/5 Deploying CountryCollector...") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2266210] → new CountryCollector@0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    │   └─ ← [Return] 10094 bytes of code
+    ├─ [0] console::log("    Deployed at:", CountryCollector: [0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("5/5 Deploying TandaPool...") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [1509231] → new TandaPool@0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    │   └─ ← [Return] 7198 bytes of code
+    ├─ [0] console::log("    Deployed at:", TandaPool: [0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopBroadcast()
+    │   └─ ← [Return]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("DEPLOYMENT SUMMARY") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Mini-App Contracts Deployed:") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  ActionBasedDemandSignal:", ActionBasedDemandSignal: [0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  ItineraryNFT:           ", ItineraryNFT: [0x5B61286AC88688fe8930711fAa5b1155e98daFe8]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  MusicBeatMatch:         ", MusicBeatMatch: [0xee83AC7E916f4feBDb7297363B47eE370FE2EC87]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  CountryCollector:       ", CountryCollector: [0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  TandaPool:              ", TandaPool: [0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Configuration:") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  Keeper (Safe):          ", 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  Backend Wallet (EOA):   ", 0x37302543aeF0b06202adcb06Db36daB05F8237E9) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  TOURS Token:            ", 0xa123600c82E69cB311B0e068B06Bfa9F787699B7) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  Passport NFT v3:        ", 0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("NEXT STEPS") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("1. See DEPLOYMENT.md for verification commands") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("2. Run ./script/FundContracts.sh to fund with TOURS") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("3. Update frontend environment variables:") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("   NEXT_PUBLIC_ACTION_BASED_DEMAND_SIGNAL=", ActionBasedDemandSignal: [0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("   NEXT_PUBLIC_ITINERARY_NFT=", ItineraryNFT: [0x5B61286AC88688fe8930711fAa5b1155e98daFe8]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("   NEXT_PUBLIC_MUSIC_BEAT_MATCH=", MusicBeatMatch: [0xee83AC7E916f4feBDb7297363B47eE370FE2EC87]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("   NEXT_PUBLIC_COUNTRY_COLLECTOR=", CountryCollector: [0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("   NEXT_PUBLIC_TANDA_POOL=", TandaPool: [0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("DEPLOYMENT COMPLETE!") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("All 5 mini-app contracts deployed successfully") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("==============================================") [staticcall]
+    │   └─ ← [Stop]
+    └─ ← [Return]
+
+
+Script ran successfully.
+
+== Logs ==
+  ==============================================
+  DEPLOYING EMPOWERTOURS CONTRACTS
+  Network: Monad Testnet
+  ==============================================
+  
+  Deployer Address: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9
+  Deployer Balance: 5 MON
+  
+  1/5 Deploying ActionBasedDemandSignal...
+      Deployed at: 0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E
+      Authorizing backend wallet: 0x37302543aeF0b06202adcb06Db36daB05F8237E9
+      Backend wallet authorized!
+  
+  2/5 Deploying ItineraryNFT...
+      Deployed at: 0x5B61286AC88688fe8930711fAa5b1155e98daFe8
+  
+  3/5 Deploying MusicBeatMatch...
+      Deployed at: 0xee83AC7E916f4feBDb7297363B47eE370FE2EC87
+  
+  4/5 Deploying CountryCollector...
+      Deployed at: 0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200
+  
+  5/5 Deploying TandaPool...
+      Deployed at: 0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B
+  
+  ==============================================
+  DEPLOYMENT SUMMARY
+  ==============================================
+  
+  Mini-App Contracts Deployed:
+    ActionBasedDemandSignal: 0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E
+    ItineraryNFT:            0x5B61286AC88688fe8930711fAa5b1155e98daFe8
+    MusicBeatMatch:          0xee83AC7E916f4feBDb7297363B47eE370FE2EC87
+    CountryCollector:        0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200
+    TandaPool:               0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B
+  
+  Configuration:
+    Keeper (Safe):           0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20
+    Backend Wallet (EOA):    0x37302543aeF0b06202adcb06Db36daB05F8237E9
+    TOURS Token:             0xa123600c82E69cB311B0e068B06Bfa9F787699B7
+    Passport NFT v3:         0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163
+  
+  ==============================================
+  NEXT STEPS
+  ==============================================
+  
+  1. See DEPLOYMENT.md for verification commands
+  2. Run ./script/FundContracts.sh to fund with TOURS
+  3. Update frontend environment variables:
+  
+     NEXT_PUBLIC_ACTION_BASED_DEMAND_SIGNAL= 0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E
+     NEXT_PUBLIC_ITINERARY_NFT= 0x5B61286AC88688fe8930711fAa5b1155e98daFe8
+     NEXT_PUBLIC_MUSIC_BEAT_MATCH= 0xee83AC7E916f4feBDb7297363B47eE370FE2EC87
+     NEXT_PUBLIC_COUNTRY_COLLECTOR= 0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200
+     NEXT_PUBLIC_TANDA_POOL= 0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B
+  
+  ==============================================
+  DEPLOYMENT COMPLETE!
+  All 5 mini-app contracts deployed successfully
+  ==============================================
+
+## Setting up 1 EVM.
+==========================
+Simulated On-chain Traces:
+
+  [2614961] → new ActionBasedDemandSignal@0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E
+    ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    └─ ← [Return] 12058 bytes of code
+
+  [24885] ActionBasedDemandSignal::authorizeContract(0x37302543aeF0b06202adcb06Db36daB05F8237E9, true)
+    └─ ← [Stop]
+
+  [2856222] → new ItineraryNFT@0x5B61286AC88688fe8930711fAa5b1155e98daFe8
+    ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    └─ ← [Return] 13589 bytes of code
+
+  [1699049] → new MusicBeatMatch@0xee83AC7E916f4feBDb7297363B47eE370FE2EC87
+    ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    └─ ← [Return] 7593 bytes of code
+
+  [2266210] → new CountryCollector@0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200
+    ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    └─ ← [Return] 10094 bytes of code
+
+  [1509231] → new TandaPool@0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B
+    ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0xe67e13D545C76C2b4e28DFE27Ad827E1FC18e8D9)
+    └─ ← [Return] 7198 bytes of code
+
+
+==========================
+
+Chain 10143
+
+Estimated gas price: 200.000000001 gwei
+
+Estimated total gas used for script: 16135876
+
+Estimated amount required: 3.227175200016135876 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+##
+Start verification for (5) contracts
+Start verifying contract `0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E` deployed on monad-testnet
+EVM version: shanghai
+Compiler version: 0.8.20
+Optimizations:    200
+Constructor args: 0000000000000000000000002217d0bd793fc38dc9f9d9bc46cec91191ee4f20
+
+Submitting verification for [contracts/ActionBasedDemandSignal.sol:ActionBasedDemandSignal] 0xabE750F9de36d69D41AaF8f20Da097fB67f7e15E.
+Submitted contract for verification:
+	Response: `OK`
+	GUID: `zru1uemenw8uicty1dxprn4vybefubxxf7c4yvdd1eajb2r8xr`
+	URL: https://testnet.monadscan.com/address/0xabe750f9de36d69d41aaf8f20da097fb67f7e15e
+Contract verification status:
+Response: `NOTOK`
+Details: `Pending in queue`
+Warning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)
+Contract verification status:
+Response: `OK`
+Details: `Pass - Verified`
+Contract successfully verified
+Start verifying contract `0x5B61286AC88688fe8930711fAa5b1155e98daFe8` deployed on monad-testnet
+EVM version: shanghai
+Compiler version: 0.8.20
+Optimizations:    200
+Constructor args: 000000000000000000000000820a9cc395d4349e19db18bac5be7b3c71ac5163000000000000000000000000a123600c82e69cb311b0e068b06bfa9f787699b7
+
+Submitting verification for [contracts/ItineraryNFT.sol:ItineraryNFT] 0x5B61286AC88688fe8930711fAa5b1155e98daFe8.
+Submitted contract for verification:
+	Response: `OK`
+	GUID: `xitnrcnx3ibgkbqcebbqz6bjpcnjvwjv8ufd4tfrg2skdjupuz`
+	URL: https://testnet.monadscan.com/address/0x5b61286ac88688fe8930711faa5b1155e98dafe8
+Contract verification status:
+Response: `NOTOK`
+Details: `Pending in queue`
+Warning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)
+Contract verification status:
+Response: `OK`
+Details: `Pass - Verified`
+Contract successfully verified
+Start verifying contract `0xee83AC7E916f4feBDb7297363B47eE370FE2EC87` deployed on monad-testnet
+EVM version: shanghai
+Compiler version: 0.8.20
+Optimizations:    200
+Constructor args: 000000000000000000000000a123600c82e69cb311b0e068b06bfa9f787699b70000000000000000000000002217d0bd793fc38dc9f9d9bc46cec91191ee4f20
+
+Submitting verification for [contracts/MusicBeatMatch.sol:MusicBeatMatch] 0xee83AC7E916f4feBDb7297363B47eE370FE2EC87.
+Submitted contract for verification:
+	Response: `OK`
+	GUID: `nfyhssi9yepd36y5zhxcykkbaxdgh49rqwz5ys2dwvu223ymny`
+	URL: https://testnet.monadscan.com/address/0xee83ac7e916f4febdb7297363b47ee370fe2ec87
+Contract verification status:
+Response: `NOTOK`
+Details: `Pending in queue`
+Warning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)
+Contract verification status:
+Response: `OK`
+Details: `Pass - Verified`
+Contract successfully verified
+Start verifying contract `0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200` deployed on monad-testnet
+EVM version: shanghai
+Compiler version: 0.8.20
+Optimizations:    200
+Constructor args: 000000000000000000000000a123600c82e69cb311b0e068b06bfa9f787699b7000000000000000000000000820a9cc395d4349e19db18bac5be7b3c71ac51630000000000000000000000002217d0bd793fc38dc9f9d9bc46cec91191ee4f20
+
+Submitting verification for [contracts/CountryCollector.sol:CountryCollector] 0xb7F929B78F2A88d97CdC9Ef0235b113dd8351200.
+Submitted contract for verification:
+	Response: `OK`
+	GUID: `kcrhscumxuetsu6yn6xu77fjhdrj97ysuaiwa8vwacuzz3uzv4`
+	URL: https://testnet.monadscan.com/address/0xb7f929b78f2a88d97cdc9ef0235b113dd8351200
+Contract verification status:
+Response: `NOTOK`
+Details: `Pending in queue`
+Warning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)
+Contract verification status:
+Response: `OK`
+Details: `Pass - Verified`
+Contract successfully verified
+Start verifying contract `0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B` deployed on monad-testnet
+EVM version: shanghai
+Compiler version: 0.8.20
+Optimizations:    200
+Constructor args: 000000000000000000000000a123600c82e69cb311b0e068b06bfa9f787699b7
+
+Submitting verification for [contracts/TandaPool.sol:TandaPool] 0x3Ba6f8d6e873c9E7b06451FCB28C0a10bb3DBa8B.
+Submitted contract for verification:
+	Response: `OK`
+	GUID: `fsftsexx1nlbdrwnzhbapfbajvdhkearq6s6bsjfz38haaqw4c`
+	URL: https://testnet.monadscan.com/address/0x3ba6f8d6e873c9e7b06451fcb28c0a10bb3dba8b
+Contract verification status:
+Response: `NOTOK`
+Details: `Pending in queue`
+Warning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)
+Contract verification status:
+Response: `OK`
+Details: `Pass - Verified`
+Contract successfully verified
+All (5) contracts were verified!
+
+Transactions saved to: /home/empowertours/projects/fcempowertours/contracts/broadcast/DeployComplete.s.sol/10143/run-latest.json
+
+Sensitive values saved to: /home/empowertours/projects/fcempowertours/contracts/cache/DeployComplete.s.sol/10143/run-latest.json
+

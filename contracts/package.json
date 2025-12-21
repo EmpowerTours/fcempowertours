@@ -1,0 +1,22 @@
+{
+  "name": "empowertours-contracts",
+  "version": "5.0.0",
+  "description": "EmpowerTours Smart Contracts - V5 with delegated staking support",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy-v5.ts --network monadTestnet",
+    "verify": "hardhat verify --network monadTestnet",
+    "flatten": "hardhat flatten contracts/EmpowerToursYieldStrategyV5.sol > EmpowerToursYieldStrategyV5.flattened.sol"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@pythnetwork/entropy-sdk-solidity": "^2.2.1",
+    "@switchboard-xyz/on-demand-solidity": "^1.1.0",
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "hardhat": "^2.19.0"
+  }
+}

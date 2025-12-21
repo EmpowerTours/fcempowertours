@@ -1,0 +1,137 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createEvent",
+    "inputs": [
+      {"name": "name", "type": "string", "internalType": "string"},
+      {"name": "location", "type": "string", "internalType": "string"},
+      {"name": "startDate", "type": "uint256", "internalType": "uint256"},
+      {"name": "endDate", "type": "uint256", "internalType": "uint256"},
+      {"name": "capacity", "type": "uint256", "internalType": "uint256"},
+      {"name": "price", "type": "uint256", "internalType": "uint256"},
+      {"name": "metadataUri", "type": "string", "internalType": "string"}
+    ],
+    "outputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getEvent",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct SmartEventManifest.Event",
+        "components": [
+          {"name": "name", "type": "string", "internalType": "string"},
+          {"name": "location", "type": "string", "internalType": "string"},
+          {"name": "startDate", "type": "uint256", "internalType": "uint256"},
+          {"name": "endDate", "type": "uint256", "internalType": "uint256"},
+          {"name": "capacity", "type": "uint256", "internalType": "uint256"},
+          {"name": "ticketsSold", "type": "uint256", "internalType": "uint256"},
+          {"name": "price", "type": "uint256", "internalType": "uint256"},
+          {"name": "metadataUri", "type": "string", "internalType": "string"},
+          {"name": "isActive", "type": "bool", "internalType": "bool"}
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAllEvents",
+    "inputs": [],
+    "outputs": [
+      {"name": "", "type": "uint256[]", "internalType": "uint256[]"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getActiveEvents",
+    "inputs": [],
+    "outputs": [
+      {"name": "", "type": "uint256[]", "internalType": "uint256[]"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "purchaseTicket",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"},
+      {"name": "quantity", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateEvent",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"},
+      {"name": "name", "type": "string", "internalType": "string"},
+      {"name": "location", "type": "string", "internalType": "string"},
+      {"name": "startDate", "type": "uint256", "internalType": "uint256"},
+      {"name": "endDate", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelEvent",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "EventCreated",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "name", "type": "string", "indexed": false, "internalType": "string"},
+      {"name": "location", "type": "string", "indexed": false, "internalType": "string"},
+      {"name": "startDate", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TicketPurchased",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "buyer", "type": "address", "indexed": true, "internalType": "address"},
+      {"name": "quantity", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EventUpdated",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "indexed": true, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EventCancelled",
+    "inputs": [
+      {"name": "eventId", "type": "uint256", "indexed": true, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  }
+]

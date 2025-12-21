@@ -1,0 +1,4339 @@
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getDelegation,
+  hasPermission,
+  incrementTransactionCount
+} from '@/lib/delegation-system';
+import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance } from '@/lib/user-safe';
+import { USE_USER_SAFES } from '@/lib/safe-mode';
+import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, formatEther } from 'viem';
+import { createShortUrl } from '@/lib/url-shortener';
+import { CrossbarClient } from '@switchboard-xyz/common';
+
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
+
+// Type definition for Safe transaction calls
+type Call = { to: Address; value: bigint; data: Hex };
+
+// ✅ Helper: Execute transaction through appropriate Safe (user-funded or platform)
+async function executeTransaction(
+  calls: Array<{ to: Address; value: bigint; data: Hex }>,
+  userAddress: Address,
+  requiredValue: bigint = 0n
+): Promise<string> {
+  if (USE_USER_SAFES) {
+    // User-funded Safe mode
+    const userSafeAddress = await getUserSafeAddress(userAddress);
+    console.log(`🏠 Using USER Safe: ${userSafeAddress}`);
+
+    // Check if user Safe has sufficient balance
+    const balanceCheck = await checkUserSafeBalance(userAddress, requiredValue);
+    if (!balanceCheck.hasSufficientBalance) {
+      throw new Error(
+        `Insufficient balance in your Safe wallet (${balanceCheck.currentBalance} MON). ` +
+        `Required: ${balanceCheck.requiredBalance} MON. ` +
+        `Please fund your Safe at ${userSafeAddress} with at least ${balanceCheck.shortfall} more MON.`
+      );
+    }
+
+    const result = await sendUserSafeTransaction(userAddress, calls);
+    return result.txHash;
+  } else {
+    // Platform-funded Safe mode (original behavior)
+    console.log(`🏢 Using PLATFORM Safe: ${SAFE_ACCOUNT}`);
+    return sendSafeTransaction(calls);
+  }
+}
+
+// ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
+function convertPriceFromWei(price: string | number | bigint): string {
+  try {
+    const priceBI = BigInt(price);
+    const priceNum = Number(priceBI) / 1e18;
+    return priceNum.toString();
+  } catch (e) {
+    console.warn('Failed to convert price:', price);
+    return String(price);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { userAddress, action, params } = await req.json();
+    if (!userAddress || !action) {
+      return NextResponse.json(
+        { success: false, error: 'Missing userAddress or action' },
+        { status: 400 }
+      );
+    }
+
+    // Public actions that don't require delegation (anyone can call to earn rewards)
+    // Also includes lottery entry actions for frictionless user experience
+    const publicActions = [
+      'lottery_request',       // V4 Switchboard randomness
+      'lottery_resolve',       // V4 Switchboard randomness
+      'lottery_claim',
+      'lottery_enter_mon',
+      'lottery_enter_shmon',
+      'concierge_custom',
+      'concierge_food',
+      'concierge_ride'
+    ];
+    const requiresDelegation = !publicActions.includes(action);
+
+    if (requiresDelegation) {
+      console.log('🎫 [DELEGATED] Checking delegation for:', userAddress);
+
+      // ✅ RETRY MECHANISM: Handle potential Redis eventual consistency
+      let delegation = null;
+      let retries = 3;
+
+      while (retries > 0 && !delegation) {
+        delegation = await getDelegation(userAddress);
+
+        if (delegation) {
+          console.log('✅ Delegation found:', {
+            user: delegation.user,
+            expires: new Date(delegation.expiresAt).toISOString(),
+            permissions: delegation.config.permissions.length,
+            transactionsExecuted: delegation.transactionsExecuted
+          });
+        } else {
+          retries--;
+          if (retries > 0) {
+            console.log(`⏳ Delegation not found, retrying in 500ms... (${retries} retries left)`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+      }
+
+      if (!delegation || delegation.expiresAt < Date.now()) {
+        console.error('❌ No valid delegation found after retries for:', userAddress);
+        return NextResponse.json(
+          { success: false, error: 'No active delegation. Please try again or refresh the page to create a new delegation.' },
+          { status: 403 }
+        );
+      }
+
+      if (!(await hasPermission(userAddress, action))) {
+        return NextResponse.json(
+          { success: false, error: `No permission for ${action}` },
+          { status: 403 }
+        );
+      }
+
+      if (delegation.transactionsExecuted >= delegation.config.maxTransactions) {
+        return NextResponse.json(
+          { success: false, error: 'Transaction limit reached' },
+          { status: 403 }
+        );
+      }
+
+      console.log('✅ Delegation valid, transactions left:',
+        delegation.config.maxTransactions - delegation.transactionsExecuted);
+    } else {
+      console.log('🌐 [PUBLIC ACTION] Bypassing delegation check for:', action);
+    }
+
+    const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+    const PASSPORT_NFT = (process.env.NEXT_PUBLIC_PASSPORT_NFT_V2 || process.env.NEXT_PUBLIC_PASSPORT) as Address;
+    const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address; // v7: Music + Art NFTs with delegated burning
+    const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
+    // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
+
+    // DeFi contract addresses
+    const YIELD_STRATEGY = (process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x37aC86916Ae673bDFCc9c712057092E57b270f5f') as Address;
+    const TANDA_YIELD_GROUP = '0xE0983Cd98f5852AD6BF56648B4724979B75E9fC8' as Address;
+    const SMART_EVENT_MANIFEST = '0x5cfe8379058cA460aA60ef15051Be57dab4A651C' as Address;
+    const DEMAND_SIGNAL_ENGINE = '0xC2Eb75ddf31cd481765D550A91C5A63363B36817' as Address;
+
+    switch (action) {
+      // ==================== MINT PASSPORT (WITH CAST + FRAME) ====================
+      case 'mint_passport':
+        console.log('🎫 Action: mint_passport (batched approve + mint)');
+
+        // ✅ VALIDATION: Check if contracts are deployed
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Validating contract deployments...');
+
+          // Check TOURS token
+          const toursCode = await client.getCode({ address: TOURS_TOKEN });
+          if (!toursCode || toursCode === '0x') {
+            throw new Error(`TOURS token at ${TOURS_TOKEN} is not deployed!`);
+          }
+          console.log('✅ TOURS token is deployed');
+
+          // Check Passport NFT
+          const passportCode = await client.getCode({ address: PASSPORT_NFT });
+          if (!passportCode || passportCode === '0x') {
+            throw new Error(`Passport NFT at ${PASSPORT_NFT} is not deployed!`);
+          }
+          console.log('✅ Passport NFT is deployed');
+
+          // Check Safe account
+          const safeCode = await client.getCode({ address: SAFE_ACCOUNT });
+          if (!safeCode || safeCode === '0x') {
+            throw new Error(`Safe account at ${SAFE_ACCOUNT} is not deployed!`);
+          }
+          console.log('✅ Safe account is deployed');
+        } catch (validationErr: any) {
+          console.error('❌ Contract validation failed:', validationErr.message);
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Contract validation failed: ${validationErr.message}. Please ensure all contracts are deployed on chain 10143 (Monad Testnet).`
+            },
+            { status: 500 }
+          );
+        }
+
+        // ✅ Check Safe's MON balance - Passport minting requires MON, not TOURS
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const mintSafeAddress = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          // ✅ CRITICAL: Check Safe's MON balance for MINT PRICE (0.01 MON) + gas
+          const monBalance = await client.getBalance({
+            address: mintSafeAddress,
+          });
+
+          console.log('⛽ Safe MON balance:', monBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+
+          // Need 0.01 MON for mint + ~0.001 MON for gas = 0.011 MON minimum
+          const MIN_MON_REQUIRED = parseEther('0.011');
+          if (monBalance < MIN_MON_REQUIRED) {
+            const currentMon = Number(monBalance) / 1e18;
+            const requiredMon = Number(MIN_MON_REQUIRED) / 1e18;
+            const errorMsg = USE_USER_SAFES
+              ? `Insufficient MON in your Safe wallet. You need ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only have ${currentMon.toFixed(4)} MON. Please send MON to your Safe: ${mintSafeAddress}`
+              : `Insufficient MON in Safe account. The Safe needs ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`;
+            return NextResponse.json(
+              {
+                success: false,
+                error: errorMsg
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.error('❌ Failed to check MON balance:', balanceErr);
+          // Continue with mint attempt - don't block on balance check failure
+        }
+
+        // 🔍 DEBUG: Log the actual addresses and amounts involved
+        console.log('🔍 [MINT-DEBUG] Transaction details:', {
+          safeAccount: SAFE_ACCOUNT,
+          userAddress: userAddress,
+          passportNFT: PASSPORT_NFT,
+          mintPriceMON: '0.01 MON',
+          countryCode: params?.countryCode || 'US',
+        });
+
+        // ✅ CRITICAL FIX: Passport contract requires 0.01 MON payment (not TOURS tokens)
+        // The contract checks: require(msg.value >= MINT_PRICE, "Insufficient payment")
+        // where MINT_PRICE = 0.01 ether
+        const PASSPORT_MINT_PRICE_MON = parseEther('0.01');
+
+        const mintCalls = [
+          {
+            to: PASSPORT_NFT,
+            value: PASSPORT_MINT_PRICE_MON,  // ✅ Send 0.01 MON as required by contract
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mint(address to, string countryCode, string countryName, string region, string continent, string uri) external payable returns (uint256)'
+              ]),
+              functionName: 'mint',
+              args: [
+                userAddress as Address,
+                params?.countryCode || 'US',
+                params?.countryName || 'United States',
+                params?.region || 'Americas',
+                params?.continent || 'North America',
+                params?.uri || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing batched mint transaction (Safe pays, NFT goes to user)...');
+        const mintTxHash = await executeTransaction(mintCalls, userAddress as Address);
+        console.log('✅ Mint successful, TX:', mintTxHash);
+
+        // ✅ POST CAST WITH MINIAPP LINK (to minter's profile, not frame)
+        if (params?.fid) {
+          try {
+            const tokenId = params.tokenId || 0;
+            const miniAppUrl = `${APP_URL}/profile?address=${userAddress}`;
+            const castText = `🎫 New Travel Passport NFT Minted!
+
+${params.countryCode || 'US'} ${params.countryName || 'United States'}
+
+⚡ Gasless minting powered by @empowertours
+🌍 Collect all 195 countries
+
+View profile and collection!
+
+@empowertours`;
+
+            console.log('📢 Posting passport cast with miniapp link...');
+            console.log('🎬 MiniApp URL:', miniAppUrl);
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const client = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+            });
+
+            const castResult = await client.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: castText,
+              embeds: [{ url: miniAppUrl }]
+            });
+
+            console.log('✅ Passport cast posted with miniapp link:', {
+              hash: castResult.cast?.hash,
+              countryCode: params.countryCode,
+              miniAppUrl
+            });
+          } catch (castError: any) {
+            console.error('❌ Passport cast posting failed:', {
+              message: castError.message,
+              status: castError.response?.status,
+              statusText: castError.response?.statusText,
+              errorData: castError.response?.data,
+            });
+            // Don't fail the transaction if cast fails
+          }
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: mintTxHash,
+          action,
+          userAddress,
+          message: `Passport minted successfully`,
+        });
+
+      // ==================== MINT MUSIC (WITH CAST + FRAME) ====================
+      case 'mint_music':
+        // ✅ Determine if it's Art or Music NFT
+        const isArtNFT = params.is_art === true || params.is_art === 1 || params.is_art === '1';
+        const nftTypeValue = isArtNFT ? 1 : 0; // 0 = MUSIC, 1 = ART
+        const nftTypeName = isArtNFT ? 'Art' : 'Music';
+
+        console.log(`${isArtNFT ? '🎨' : '🎵'} Action: mint_${isArtNFT ? 'art' : 'music'} (nftType: ${nftTypeValue})`);
+        if (!params?.tokenURI || !params?.price) {
+          return NextResponse.json(
+            { success: false, error: `Missing tokenURI or price for ${nftTypeName.toLowerCase()} mint` },
+            { status: 400 }
+          );
+        }
+
+        // ✅ CHECK IF SONG/ART ALREADY EXISTS
+        const songTitle = params.songTitle || params.title || 'Untitled';
+        console.log('🔍 Checking if NFT already exists:', { artist: userAddress, title: songTitle, isArt: isArtNFT });
+
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const checkClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const songExists = await checkClient.readContract({
+            address: EMPOWER_TOURS_NFT as Address,
+            abi: parseAbi(['function hasSong(address artist, string songTitle) external view returns (bool)']),
+            functionName: 'hasSong',
+            args: [userAddress as Address, songTitle],
+          });
+
+          if (songExists) {
+            console.log(`❌ ${nftTypeName} NFT already minted:`, songTitle);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `"${songTitle}" has already been minted by this artist. Please use a different title.`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ NFT title available');
+        } catch (checkError: any) {
+          console.warn('⚠️ Could not verify NFT existence, proceeding with mint:', checkError.message);
+          // Continue with mint if check fails (backwards compatible)
+        }
+
+        const musicPrice = parseEther(params.price.toString());
+        console.log(`${isArtNFT ? '🎨' : '🎵'} Minting ${nftTypeName} NFT:`, {
+          artist: userAddress,
+          price: params.price,
+          tokenURI: params.tokenURI,
+          title: songTitle,
+          nftType: `${nftTypeValue} (${nftTypeName})`,
+          imageUrl: params.imageUrl ? 'provided' : 'none'
+        });
+
+        const musicCalls = [
+          {
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mintMaster(address artist, string tokenURI, string title, uint256 price, uint8 nftType) external returns (uint256)'
+              ]),
+              functionName: 'mintMaster',
+              args: [
+                userAddress as Address,
+                params.tokenURI,
+                songTitle,
+                musicPrice,
+                nftTypeValue, // ✅ 0 = MUSIC, 1 = ART
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log(`💳 Executing ${nftTypeName} NFT mint transaction...`);
+        const musicTxHash = await executeTransaction(musicCalls, userAddress as Address);
+        console.log(`✅ ${nftTypeName} NFT mint successful, TX:`, musicTxHash);
+
+        // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
+        let extractedTokenId = '0';
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const receipt = await client.getTransactionReceipt({
+            hash: musicTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for Transfer event (ERC721 mint)
+            const transferLog = receipt.logs.find(
+              log => log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+            );
+            if (transferLog && transferLog.topics[3]) {
+              extractedTokenId = BigInt(transferLog.topics[3]).toString();
+              console.log('🎫 Extracted token ID from receipt:', extractedTokenId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
+        }
+
+        // ✅ POST CAST WITH FRAME - Link to artist profile
+        let frameUrl = '';
+        let ogImageUrl = '';
+        if (params?.fid) {
+          try {
+            // ✅ Determine if it's music or art (0 = MUSIC, 1 = ART)
+            const isArt = params.is_art === true || params.is_art === 1 || params.is_art === '1';
+
+            // ✅ OG image route based on NFT type with direct image URL
+            const ogRoute = isArt ? 'art' : 'music';
+
+            // Try to create short URL if params provided (to avoid 256 byte limit)
+            if (params.imageUrl) {
+              const fullOgUrl = `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}&imageUrl=${encodeURIComponent(params.imageUrl)}&title=${encodeURIComponent(songTitle)}&artist=${encodeURIComponent(userAddress)}&price=${encodeURIComponent(params.price)}`;
+
+              console.log(`🔗 Full OG URL length: ${fullOgUrl.length} bytes`);
+
+              // If URL > 256 bytes, use URL shortener
+              if (fullOgUrl.length > 256) {
+                console.log('⚠️ OG URL exceeds 256 bytes, creating short URL...');
+                const shortId = await createShortUrl(fullOgUrl);
+
+                if (shortId) {
+                  ogImageUrl = `${APP_URL}/api/s/${shortId}`;
+                  console.log(`✅ Short URL created: ${ogImageUrl} (${ogImageUrl.length} bytes)`);
+                } else {
+                  // Fallback: use simple URL without params (relies on Envio indexer)
+                  console.log('⚠️ Short URL creation failed, using fallback (no params)');
+                  ogImageUrl = `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
+                }
+              } else {
+                // URL is short enough, use it directly
+                ogImageUrl = fullOgUrl;
+              }
+            } else {
+              // No imageUrl provided, use simple URL
+              ogImageUrl = `${APP_URL}/api/og/${ogRoute}?tokenId=${extractedTokenId}`;
+            }
+
+            // ✅ Link to artist profile within mini app
+            const artistProfileUrl = `${APP_URL}/artist/${userAddress}`;
+            frameUrl = artistProfileUrl;
+
+            // ✅ Conditional cast message based on NFT type
+            const nftTypeEmoji = isArt ? '🎨' : '🎵';
+            const nftTypeText = isArt ? 'Art NFT' : 'Music NFT';
+            const actionText = isArt ? 'View Gallery' : 'Listen & Buy';
+
+            const castText = `${nftTypeEmoji} New ${nftTypeText} Minted!
+
+"${params.songTitle || params.title || 'Untitled'}"
+💰 License Price: ${params.price} TOURS
+
+🔗 Transaction: https://testnet.monadscan.com/tx/${musicTxHash}
+
+⚡ Gasless minting powered by @empowertours
+👀 ${actionText}
+
+@empowertours`;
+
+            console.log('📢 Posting NFT cast with artist profile link...');
+            console.log('🎬 Artist Profile URL:', frameUrl);
+            console.log('🎬 NFT Type:', isArt ? 'Art' : 'Music');
+            console.log('🎬 Bot Signer UUID:', process.env.BOT_SIGNER_UUID ? 'set' : 'NOT SET');
+            console.log('🎬 Neynar API Key:', process.env.NEXT_PUBLIC_NEYNAR_API_KEY ? 'set' : 'NOT SET');
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const client = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+            });
+
+            console.log('📤 Calling Neynar publishCast...');
+            const castResult = await client.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: castText,
+              embeds: [
+                { url: ogImageUrl },  // OG preview image
+                { url: frameUrl }     // Clickable link to artist profile
+              ]
+            });
+
+            console.log(`✅ ${nftTypeName} NFT cast posted:`, {
+              hash: castResult.cast?.hash,
+              title: songTitle,
+              tokenId: extractedTokenId,
+              ogImageUrl,
+              frameUrl
+            });
+          } catch (castError: any) {
+            console.error(`❌ ${nftTypeName} NFT cast posting FAILED:`, {
+              errorMessage: castError.message,
+              httpStatus: castError.response?.status,
+              statusText: castError.response?.statusText,
+              responseData: castError.response?.data,
+              responseText: castError.response?.text,
+              tokenId: extractedTokenId,
+              title: songTitle,
+              isArt: isArtNFT,
+              ogImageUrl,
+              frameUrl,
+            });
+            // Don't fail the transaction if cast fails
+          }
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: musicTxHash,
+          tokenId: extractedTokenId,
+          action,
+          userAddress,
+          songTitle: songTitle,
+          title: songTitle,
+          isArt: isArtNFT,
+          nftType: nftTypeValue,
+          price: params.price,
+          message: `${nftTypeName} NFT minted successfully: "${songTitle}" at ${params.price} TOURS (Token #${extractedTokenId})`,
+        });
+
+      // ==================== BUY MUSIC (WITH CAST + FRAME) - FIXED ====================
+      case 'buy_music':
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for buy_music' },
+            { status: 400 }
+          );
+        }
+
+        const tokenId = BigInt(params.tokenId);
+
+        // ✅ Check if it's an art NFT first for proper logging
+        let isPurchaseArtNFT = false;
+        try {
+          const typeCheckQuery = `
+            query CheckPurchaseNFTType($tokenId: String!) {
+              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                tokenId
+                isArt
+              }
+            }
+          `;
+
+          const typeCheckRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: typeCheckQuery,
+              variables: { tokenId: tokenId.toString() }
+            })
+          });
+
+          if (typeCheckRes.ok) {
+            const typeCheckData = await typeCheckRes.json();
+            const nft = typeCheckData.data?.MusicNFT?.[0];
+            if (nft) {
+              isPurchaseArtNFT = nft.isArt === true;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check purchase NFT type, assuming music');
+        }
+
+        const purchaseNFTType = isPurchaseArtNFT ? 'Art NFT' : 'Music License';
+        const purchaseEmoji = isPurchaseArtNFT ? '🎨' : '🎵';
+        console.log(`${purchaseEmoji} Action: buy_${isPurchaseArtNFT ? 'art' : 'music'} (batched approve + purchaseLicenseFor)`);
+        console.log(`${purchaseEmoji} Token:`, tokenId.toString());
+        console.log(`👤 Buyer:`, userAddress);
+        console.log(`📦 Type:`, purchaseNFTType);
+
+        // ✅ Check Safe has enough TOURS before purchase
+        try {
+          // First, get the NFT price from Envio
+          const priceQuery = `
+            query GetNFTPrice($tokenId: String!) {
+              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                tokenId
+                price
+              }
+            }
+          `;
+
+          const priceRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: priceQuery,
+              variables: { tokenId: tokenId.toString() }
+            })
+          });
+
+          if (priceRes.ok) {
+            const priceData = await priceRes.json();
+            const nft = priceData.data?.MusicNFT?.[0];
+
+            if (nft?.price) {
+              const nftPrice = BigInt(nft.price);
+              console.log('💰 NFT Price from Envio:', nftPrice.toString(), 'wei');
+
+              // Now check Safe's TOURS balance
+              const { createPublicClient, http } = await import('viem');
+              const { monadTestnet } = await import('@/app/chains');
+              const client = createPublicClient({
+                chain: monadTestnet,
+                transport: http(),
+              });
+
+              // Use correct Safe address based on mode
+              const safeToCheck = USE_USER_SAFES
+                ? await getUserSafeAddress(userAddress as Address)
+                : SAFE_ACCOUNT;
+
+              const safeToursBalance = await client.readContract({
+                address: TOURS_TOKEN,
+                abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+                functionName: 'balanceOf',
+                args: [safeToCheck],
+              }) as bigint;
+
+              console.log('💰 Safe TOURS balance:', safeToursBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+              console.log('   Required for NFT purchase:', nftPrice.toString());
+
+              if (safeToursBalance < nftPrice) {
+                const currentTOURS = (Number(safeToursBalance) / 1e18).toFixed(4);
+                const requiredTOURS = (Number(nftPrice) / 1e18).toFixed(4);
+                const shortfall = (Number(nftPrice - safeToursBalance) / 1e18).toFixed(4);
+
+                return NextResponse.json(
+                  {
+                    success: false,
+                    error: `Insufficient TOURS in Safe. Safe has ${currentTOURS} TOURS, but this ${purchaseNFTType} costs ${requiredTOURS} TOURS. You need ${shortfall} more TOURS. ${USE_USER_SAFES ? `Please fund your Safe at ${safeToCheck} with TOURS tokens.` : 'Your TOURS may be in your wallet, not the Safe.'}`
+                  },
+                  { status: 400 }
+                );
+              }
+
+              console.log('✅ Sufficient TOURS balance confirmed');
+            }
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe TOURS balance:', balanceErr.message);
+          // Continue with purchase - balance check is a nice-to-have, not critical
+        }
+
+        const buyCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [EMPOWER_TOURS_NFT, parseEther('1000')],
+            }) as Hex,
+          },
+          {
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function purchaseLicenseFor(uint256 masterTokenId, address licensee) external'
+              ]),
+              functionName: 'purchaseLicenseFor',
+              args: [tokenId, userAddress as Address],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing batched music purchase transaction...');
+        const buyTxHash = await executeTransaction(buyCalls, userAddress as Address);
+        console.log('✅ Music purchase successful, TX:', buyTxHash);
+
+        // ✅ POST CAST WITH FRAME - FETCH MUSIC DATA FROM ENVIO (IMPROVED)
+        if (params?.fid) {
+          try {
+            let songTitle = params.songTitle || 'Track';
+            let songPrice = '0';  // ✅ Default to 0 not ?
+            let songArtist = 'Unknown Artist';  // ✅ Better default
+            let isArtNFT = false;  // ✅ Track if this is an Art NFT
+            let buyerUsername = '';  // ✅ Track buyer's Farcaster username
+
+            console.log('🔍 Fetching music metadata from Envio for token:', tokenId.toString());
+
+            // ✅ Try to resolve buyer's Farcaster username first
+            try {
+              console.log('👤 Resolving buyer Farcaster username for:', userAddress);
+              const buyerNeynarRes = await fetch(
+                `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`,
+                {
+                  headers: {
+                    'api_key': process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+                  }
+                }
+              );
+
+              if (buyerNeynarRes.ok) {
+                const buyerNeynarData: any = await buyerNeynarRes.json();
+                console.log('👤 Buyer Neynar response:', JSON.stringify(buyerNeynarData).substring(0, 300));
+
+                // Handle bulk_by_address response format
+                const buyerData = buyerNeynarData[userAddress.toLowerCase()];
+                if (buyerData && buyerData.length > 0 && buyerData[0].username) {
+                  buyerUsername = `@${buyerData[0].username}`;
+                  console.log('✅ Resolved buyer username:', buyerUsername);
+                } else {
+                  // Fallback to shortened address
+                  buyerUsername = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+                  console.log('⚠️ Could not resolve buyer username, using address');
+                }
+              } else {
+                buyerUsername = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+                console.log('⚠️ Buyer Neynar API failed, using address');
+              }
+            } catch (buyerErr) {
+              console.warn('⚠️ Buyer FID lookup failed:', buyerErr);
+              buyerUsername = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+            }
+
+            try {
+              const query = `
+                query GetMusicNFT($tokenId: String!) {
+                  MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
+                    tokenId
+                    name
+                    price
+                    artist
+                    isArt
+                  }
+                }
+              `;
+
+              console.log('📤 Envio query variables:', { tokenId: tokenId.toString() });
+
+              const envioRes = await fetch(ENVIO_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query,
+                  variables: { tokenId: tokenId.toString() }
+                })
+              });
+
+              console.log('📥 Envio response status:', envioRes.status);
+
+              if (envioRes.ok) {
+                const envioData = await envioRes.json();
+                console.log('📥 Envio data:', JSON.stringify(envioData).substring(0, 200));
+
+                const musicNFT = envioData.data?.MusicNFT?.[0];
+                console.log('🎵 Found MusicNFT:', musicNFT);
+
+                if (musicNFT) {
+                  songTitle = musicNFT.name || 'Track';
+                  isArtNFT = musicNFT.isArt === true;  // ✅ Check if it's an Art NFT
+
+                  // ✅ Convert price from wei (inline to ensure it works)
+                  if (musicNFT.price) {
+                    try {
+                      const priceBI = BigInt(musicNFT.price);
+                      const priceNum = Number(priceBI) / 1e18;
+                      songPrice = priceNum.toString();
+                      console.log('💰 Converted price:', { raw: musicNFT.price, converted: songPrice });
+                    } catch (priceErr) {
+                      console.warn('⚠️ Price conversion failed:', priceErr);
+                      songPrice = String(musicNFT.price);
+                    }
+                  }
+
+                  // ✅ Get artist and try FID lookup with correct endpoint
+                  if (musicNFT.artist) {
+                    songArtist = musicNFT.artist;
+
+                    // Try to resolve to FID if it's a wallet
+                    if (musicNFT.artist.startsWith('0x')) {
+                      try {
+                        console.log('🔍 Resolving artist Farcaster username for:', musicNFT.artist);
+                        const artistNeynarRes = await fetch(
+                          `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${musicNFT.artist}`,
+                          {
+                            headers: {
+                              'api_key': process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+                            }
+                          }
+                        );
+
+                        if (artistNeynarRes.ok) {
+                          const artistNeynarData: any = await artistNeynarRes.json();
+                          console.log('🎤 Artist Neynar response:', JSON.stringify(artistNeynarData).substring(0, 300));
+
+                          // Handle bulk_by_address response format
+                          const artistData = artistNeynarData[musicNFT.artist.toLowerCase()];
+                          if (artistData && artistData.length > 0 && artistData[0].username) {
+                            songArtist = `@${artistData[0].username}`;
+                            console.log('✅ Resolved artist username:', songArtist);
+                          } else {
+                            // Keep the wallet address if resolution fails
+                            console.log('⚠️ Could not resolve artist username, keeping address');
+                          }
+                        } else {
+                          console.warn('⚠️ Artist Neynar API failed, status:', artistNeynarRes.status);
+                        }
+                      } catch (fidErr) {
+                        console.warn('⚠️ Artist FID lookup failed:', fidErr);
+                      }
+                    }
+                  }
+
+                  console.log('✅ Music data resolved:', { songTitle, songPrice, songArtist, buyerUsername });
+                } else {
+                  console.warn('⚠️ MusicNFT array empty or not found');
+                }
+              } else {
+                console.warn('⚠️ Envio not ok:', envioRes.status);
+                const text = await envioRes.text();
+                console.warn('⚠️ Response:', text.substring(0, 200));
+              }
+            } catch (envioErr: any) {
+              console.error('❌ Envio fetch failed:', envioErr.message);
+              console.error('❌ Stack:', envioErr.stack);
+            }
+
+            // ✅ Conditional frame URL and cast text based on NFT type
+            const frameRoute = isArtNFT ? 'art' : 'music';
+            const frameUrl = `${APP_URL}/api/frames/${frameRoute}/${tokenId.toString()}`;
+
+            const nftEmoji = isArtNFT ? '🎨' : '🎵';
+            const nftType = isArtNFT ? 'Art NFT' : 'Music License';
+            const enjoyText = isArtNFT ? '🖼️ Enjoy your NFT!' : '🎧 Enjoy streaming!';
+
+            const castText = `${nftEmoji} ${nftType} Purchased!
+
+"${songTitle}" #${tokenId}
+🎤 ${songArtist}
+🛍️ Buyer: ${buyerUsername}
+💰 ${songPrice} TOURS
+
+⚡ Gasless transaction powered by @empowertours
+${enjoyText}
+
+🔗 TX: https://testnet.monadscan.com/tx/${buyTxHash}
+
+@empowertours`;
+
+            console.log('📢 Posting purchase cast with frame...');
+            console.log('🎬 Frame URL:', frameUrl);
+            console.log('🎬 Cast text:', castText);
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const client = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+            });
+
+            const castResult = await client.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: castText,
+              embeds: [{ url: frameUrl }]
+            });
+
+            console.log('✅ Purchase cast posted with frame:', {
+              hash: castResult.cast?.hash,
+              tokenId: tokenId.toString(),
+              songTitle,
+              songPrice,
+              songArtist,
+              buyerUsername,
+              frameUrl
+            });
+          } catch (castError: any) {
+            console.error('❌ Purchase cast posting failed:', {
+              message: castError.message,
+              status: castError.response?.status,
+              statusText: castError.response?.statusText,
+              errorData: castError.response?.data,
+            });
+            // Don't fail the transaction if cast fails
+          }
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: buyTxHash,
+          action,
+          userAddress,
+          tokenId: tokenId.toString(),
+          message: `NFT purchased for ${userAddress}`,
+        });
+
+      // ==================== SEND TOURS ====================
+      case 'send_tours':
+        console.log('💸 Action: send_tours');
+        if (!params?.recipient || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing recipient or amount for send_tours' },
+            { status: 400 }
+          );
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid recipient address' },
+            { status: 400 }
+          );
+        }
+
+        const sendAmount = parseEther(params.amount.toString());
+        console.log('💸 Sending:', sendAmount.toString(), 'TOURS to', params.recipient);
+
+        const sendCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [params.recipient as Address, sendAmount],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing TOURS transfer transaction...');
+        const sendTxHash = await executeTransaction(sendCalls, userAddress as Address);
+        console.log('✅ TOURS sent successfully, TX:', sendTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: sendTxHash,
+          action,
+          userAddress,
+          recipient: params.recipient,
+          amount: params.amount,
+          message: `Sent ${params.amount} TOURS successfully`,
+        });
+
+      // ==================== SEND MON ====================
+      case 'send_mon':
+        console.log('💸 Action: send_mon');
+        if (!params?.recipient || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing recipient or amount for send_mon' },
+            { status: 400 }
+          );
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid recipient address' },
+            { status: 400 }
+          );
+        }
+
+        const sendMonAmount = parseEther(params.amount.toString());
+        console.log('💸 Sending:', sendMonAmount.toString(), 'MON to', params.recipient);
+
+        // Check Safe has enough MON
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const safeToCheckMon = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeBalance = await client.getBalance({
+            address: safeToCheckMon as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested send amount:', sendMonAmount.toString());
+
+          if (safeBalance < sendMonAmount) {
+            const currentMON = (Number(safeBalance) / 1e18).toFixed(4);
+            const requestedMON = (Number(sendMonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON balance. Safe has ${currentMON} MON, but you're trying to send ${requestedMON} MON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.error('❌ Failed to check MON balance:', balanceErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to verify MON balance: ${balanceErr.message}` },
+            { status: 500 }
+          );
+        }
+
+        // Native MON transfer (plain value transfer)
+        const sendMonCalls = [
+          {
+            to: params.recipient as Address,
+            value: sendMonAmount,
+            data: '0x' as Hex, // Empty data for plain transfer
+          },
+        ];
+
+        console.log('💳 Executing MON transfer transaction...');
+        const sendMonTxHash = await executeTransaction(sendMonCalls, userAddress as Address);
+        console.log('✅ MON sent successfully, TX:', sendMonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: sendMonTxHash,
+          action,
+          userAddress,
+          recipient: params.recipient,
+          amount: params.amount,
+          message: `Sent ${params.amount} MON successfully`,
+        });
+
+      // ==================== SWAP MON FOR TOURS ====================
+      case 'swap_mon_for_tours':
+        console.log('💱 Action: swap_mon_for_tours');
+        const monAmount = params?.amount ? parseEther(params.amount) : parseEther('0.1');
+        console.log('💱 Swapping:', monAmount.toString(), 'wei MON');
+
+        // ✅ Check TOURS balance BEFORE swap
+        let toursBalanceBefore = 0n;
+        let toursBalanceAfter = 0n;
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const swapClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const swapSafeToCheck = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          toursBalanceBefore = await swapClient.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [swapSafeToCheck],
+          }) as bigint;
+
+          console.log('💰 TOURS balance BEFORE swap:', (Number(toursBalanceBefore) / 1e18).toFixed(6), 'TOURS', USE_USER_SAFES ? `(User Safe: ${swapSafeToCheck})` : '(Platform Safe)');
+        } catch (err: any) {
+          console.warn('⚠️ Could not check TOURS balance before swap:', err.message);
+        }
+
+        const swapCalls = [
+          {
+            to: TOKEN_SWAP,
+            value: monAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function swap() external payable']),
+              functionName: 'swap',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing swap transaction...');
+        const swapTxHash = await executeTransaction(swapCalls, userAddress as Address);
+        console.log('✅ Swap successful, TX:', swapTxHash);
+
+        // ✅ Check TOURS balance AFTER swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const swapClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const swapSafeToCheck = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          toursBalanceAfter = await swapClient.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [swapSafeToCheck],
+          }) as bigint;
+
+          const toursReceived = toursBalanceAfter - toursBalanceBefore;
+          console.log('💰 TOURS balance AFTER swap:', (Number(toursBalanceAfter) / 1e18).toFixed(6), 'TOURS', USE_USER_SAFES ? `(User Safe: ${swapSafeToCheck})` : '(Platform Safe)');
+          console.log('✅ TOURS received from swap:', (Number(toursReceived) / 1e18).toFixed(6), 'TOURS');
+        } catch (err: any) {
+          console.warn('⚠️ Could not check TOURS balance after swap:', err.message);
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: swapTxHash,
+          action,
+          userAddress,
+          monAmount: monAmount.toString(),
+          toursBalanceBefore: toursBalanceBefore.toString(),
+          toursBalanceAfter: toursBalanceAfter.toString(),
+          toursReceived: (toursBalanceAfter - toursBalanceBefore).toString(),
+          message: `Swapped ${params?.amount || '0.1'} MON for TOURS successfully`,
+        });
+
+      // ==================== SWAP TOURS FOR WMON (AMM) ====================
+      case 'swap_tours_for_wmon':
+        console.log('💱 Action: swap_tours_for_wmon (AMM)');
+        if (!params?.toursAmount || !params?.minWMONOut) {
+          return NextResponse.json(
+            { success: false, error: 'Missing toursAmount or minWMONOut for swap_tours_for_wmon' },
+            { status: 400 }
+          );
+        }
+
+        const AMM_POOL = process.env.NEXT_PUBLIC_TOURS_WMON_POOL as Address;
+        const toursSwapAmount = parseEther(params.toursAmount.toString());
+        const minWMONOut = parseEther(params.minWMONOut.toString());
+
+        console.log('💱 Swapping TOURS for WMON:', {
+          toursAmount: params.toursAmount,
+          minWMONOut: params.minWMONOut,
+          ammPool: AMM_POOL,
+        });
+
+        // ✅ Check Safe has enough TOURS before swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const safeToCheck = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeToursBalance = await client.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [safeToCheck],
+          }) as bigint;
+
+          console.log('💰 Safe TOURS balance:', safeToursBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested swap amount:', toursSwapAmount.toString());
+
+          if (safeToursBalance < toursSwapAmount) {
+            const currentTOURS = (Number(safeToursBalance) / 1e18).toFixed(4);
+            const requestedTOURS = (Number(toursSwapAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient TOURS in Safe. Safe has ${currentTOURS} TOURS, but you're trying to swap ${requestedTOURS} TOURS. Your TOURS may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe TOURS balance:', balanceErr.message);
+        }
+
+        const toursSwapCalls = [
+          // Approve TOURS for AMM pool (use max to avoid allowance issues)
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [AMM_POOL, BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')], // max uint256
+            }) as Hex,
+          },
+          // Swap TOURS for WMON
+          {
+            to: AMM_POOL,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function swapToursForWMON(uint256 toursIn, uint256 minWMONOut) external returns (uint256)']),
+              functionName: 'swapToursForWMON',
+              args: [toursSwapAmount, minWMONOut],
+            }) as Hex,
+          },
+        ];
+
+        const toursSwapTxHash = await executeTransaction(toursSwapCalls, userAddress as Address);
+        console.log('✅ TOURS → WMON swap successful, TX:', toursSwapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: toursSwapTxHash,
+          action,
+          userAddress,
+          toursAmount: params.toursAmount,
+          minWMONOut: params.minWMONOut,
+          message: `Swapped ${params.toursAmount} TOURS for WMON successfully (gasless)`,
+        });
+
+      // ==================== SWAP WMON FOR TOURS (AMM) ====================
+      case 'swap_wmon_for_tours':
+        console.log('💱 Action: swap_wmon_for_tours (AMM)');
+        if (!params?.wmonAmount || !params?.minToursOut) {
+          return NextResponse.json(
+            { success: false, error: 'Missing wmonAmount or minToursOut for swap_wmon_for_tours' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
+        const AMM_POOL_WMON = process.env.NEXT_PUBLIC_TOURS_WMON_POOL as Address;
+        const wmonSwapAmount = parseEther(params.wmonAmount.toString());
+        const minToursOut = parseEther(params.minToursOut.toString());
+
+        console.log('💱 Swapping WMON for TOURS:', {
+          wmonAmount: params.wmonAmount,
+          minToursOut: params.minToursOut,
+          ammPool: AMM_POOL_WMON,
+        });
+
+        // ✅ Check Safe has enough WMON before swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const safeToCheckWmon = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeWmonBalance = await client.readContract({
+            address: WMON_ADDRESS,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [safeToCheckWmon],
+          }) as bigint;
+
+          console.log('💰 Safe WMON balance:', safeWmonBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested swap amount:', wmonSwapAmount.toString());
+
+          if (safeWmonBalance < wmonSwapAmount) {
+            const currentWMON = (Number(safeWmonBalance) / 1e18).toFixed(4);
+            const requestedWMON = (Number(wmonSwapAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient WMON in Safe. Safe has ${currentWMON} WMON, but you're trying to swap ${requestedWMON} WMON. Your WMON may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe WMON balance:', balanceErr.message);
+        }
+
+        const wmonSwapCalls = [
+          // Approve WMON for AMM pool (use max to avoid allowance issues)
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [AMM_POOL_WMON, BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')], // max uint256
+            }) as Hex,
+          },
+          // Swap WMON for TOURS
+          {
+            to: AMM_POOL_WMON,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function swapWMONForTours(uint256 wmonIn, uint256 minToursOut) external returns (uint256)']),
+              functionName: 'swapWMONForTours',
+              args: [wmonSwapAmount, minToursOut],
+            }) as Hex,
+          },
+        ];
+
+        const wmonSwapTxHash = await executeTransaction(wmonSwapCalls, userAddress as Address);
+        console.log('✅ WMON → TOURS swap successful, TX:', wmonSwapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: wmonSwapTxHash,
+          action,
+          userAddress,
+          wmonAmount: params.wmonAmount,
+          minToursOut: params.minToursOut,
+          message: `Swapped ${params.wmonAmount} WMON for TOURS successfully (gasless)`,
+        });
+
+      // ==================== WRAP MON TO WMON ====================
+      case 'wrap_mon':
+        console.log('🎁 Action: wrap_mon');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for wrap_mon' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS_WRAP = process.env.NEXT_PUBLIC_WMON as Address;
+        const wrapMonAmount = parseEther(params.amount.toString());
+
+        console.log('🎁 Wrapping MON to WMON:', {
+          amount: params.amount,
+          wmonAddress: WMON_ADDRESS_WRAP,
+        });
+
+        // ✅ Check Safe has enough MON before wrap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const safeToCheckWrap = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeMonBalance = await client.getBalance({
+            address: safeToCheckWrap as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested wrap amount:', wrapMonAmount.toString());
+
+          if (safeMonBalance < wrapMonAmount) {
+            const currentMON = (Number(safeMonBalance) / 1e18).toFixed(4);
+            const requestedMON = (Number(wrapMonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but you're trying to wrap ${requestedMON} MON. Your MON may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
+        }
+
+        const wrapMonCalls = [
+          {
+            to: WMON_ADDRESS_WRAP,
+            value: wrapMonAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          },
+        ];
+
+        const wrapMonTxHash = await executeTransaction(wrapMonCalls, userAddress as Address);
+        console.log('✅ MON wrapped to WMON, TX:', wrapMonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: wrapMonTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Wrapped ${params.amount} MON to WMON successfully (gasless)`,
+        });
+
+      // ==================== UNWRAP WMON TO MON (via Helper) ====================
+      // Uses WMONUnwrapHelper to bypass 2300 gas limit issue with Safe accounts
+      case 'unwrap_wmon':
+        console.log('🎁 Action: unwrap_wmon (using WMONUnwrapHelper)');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for unwrap_wmon' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS_UNWRAP = process.env.NEXT_PUBLIC_WMON as Address;
+        const WMON_UNWRAP_HELPER = (process.env.NEXT_PUBLIC_WMON_UNWRAP_HELPER || '0x70580F77d7602f9A03fD34F17f3cC395BbCe6938') as Address;
+        const unwrapWmonAmount = parseEther(params.amount.toString());
+
+        // Determine the correct recipient Safe address
+        const unwrapRecipientSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('🎁 Unwrapping WMON to MON via Helper:', {
+          amount: params.amount,
+          wmonAddress: WMON_ADDRESS_UNWRAP,
+          helperAddress: WMON_UNWRAP_HELPER,
+          safeAddress: unwrapRecipientSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+        });
+
+        // ✅ Check Safe has enough WMON before unwrap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const safeToCheckUnwrap = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeWmonBalanceUnwrap = await client.readContract({
+            address: WMON_ADDRESS_UNWRAP,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [safeToCheckUnwrap],
+          }) as bigint;
+
+          console.log('💰 Safe WMON balance:', safeWmonBalanceUnwrap.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested unwrap amount:', unwrapWmonAmount.toString());
+
+          if (safeWmonBalanceUnwrap < unwrapWmonAmount) {
+            const currentWMON = (Number(safeWmonBalanceUnwrap) / 1e18).toFixed(4);
+            const requestedWMON = (Number(unwrapWmonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient WMON in Safe. Safe has ${currentWMON} WMON, but you're trying to unwrap ${requestedWMON} WMON. Your WMON may be in your wallet, not the Safe.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe WMON balance:', balanceErr.message);
+        }
+
+        // Two-step process (batched in single Safe transaction):
+        // 1. Approve helper to spend WMON
+        // 2. Call helper.unwrapTo(amount, Safe) - helper receives MON via transfer(), forwards to Safe via call()
+        const unwrapWmonCalls = [
+          {
+            to: WMON_ADDRESS_UNWRAP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [WMON_UNWRAP_HELPER, unwrapWmonAmount],
+            }) as Hex,
+          },
+          {
+            to: WMON_UNWRAP_HELPER,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unwrapTo(uint256 amount, address recipient) external']),
+              functionName: 'unwrapTo',
+              args: [unwrapWmonAmount, unwrapRecipientSafe],
+            }) as Hex,
+          },
+        ];
+
+        const unwrapWmonTxHash = await executeTransaction(unwrapWmonCalls, userAddress as Address);
+        console.log('✅ WMON unwrapped to MON via helper, TX:', unwrapWmonTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unwrapWmonTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Unwrapped ${params.amount} WMON to MON successfully (gasless via helper)`,
+        });
+
+      // ==================== WITHDRAW TO USER (Safe → User Wallet) ====================
+      case 'withdraw_to_user':
+        console.log('💸 Action: withdraw_to_user (Safe → User Wallet)');
+        if (!params?.token || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing token or amount for withdraw_to_user' },
+            { status: 400 }
+          );
+        }
+
+        const withdrawAmount = parseEther(params.amount.toString());
+
+        // Support common token shortcuts
+        let withdrawTokenAddress: Address;
+        const tokenParam = params.token.toLowerCase();
+
+        if (tokenParam === 'tours') {
+          withdrawTokenAddress = TOURS_TOKEN;
+        } else if (tokenParam === 'wmon') {
+          withdrawTokenAddress = process.env.NEXT_PUBLIC_WMON as Address;
+        } else if (tokenParam === 'mon') {
+          // Native MON transfer (no ERC-20, just send value)
+          console.log('💸 Withdrawing native MON to user:', {
+            amount: params.amount,
+            recipient: userAddress,
+          });
+
+          const withdrawMonCalls = [
+            {
+              to: userAddress,
+              value: withdrawAmount,
+              data: '0x' as Hex, // Empty calldata for native transfer
+            },
+          ];
+
+          const withdrawMonTxHash = await executeTransaction(withdrawMonCalls, userAddress as Address);
+          console.log('✅ MON withdrawn to user, TX:', withdrawMonTxHash);
+
+          await incrementTransactionCount(userAddress);
+          return NextResponse.json({
+            success: true,
+            txHash: withdrawMonTxHash,
+            action,
+            userAddress,
+            token: 'MON',
+            amount: params.amount,
+            message: `Withdrew ${params.amount} MON to your wallet successfully`,
+          });
+        } else if (tokenParam.startsWith('0x')) {
+          // Direct address provided
+          withdrawTokenAddress = tokenParam as Address;
+        } else {
+          return NextResponse.json(
+            { success: false, error: `Unknown token: ${params.token}. Use 'tours', 'wmon', 'mon', or a token address.` },
+            { status: 400 }
+          );
+        }
+
+        console.log('💸 Withdrawing ERC-20 to user:', {
+          token: withdrawTokenAddress,
+          amount: params.amount,
+          recipient: userAddress,
+        });
+
+        const withdrawTokenCalls = [
+          {
+            to: withdrawTokenAddress,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [userAddress, withdrawAmount],
+            }) as Hex,
+          },
+        ];
+
+        const withdrawTokenTxHash = await executeTransaction(withdrawTokenCalls, userAddress as Address);
+        console.log('✅ Token withdrawn to user, TX:', withdrawTokenTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: withdrawTokenTxHash,
+          action,
+          userAddress,
+          token: params.token,
+          amount: params.amount,
+          message: `Withdrew ${params.amount} ${params.token.toUpperCase()} to your wallet successfully`,
+        });
+
+      // ==================== APPROVE YIELD STRATEGY (ONE-TIME SETUP) ====================
+      case 'approve_yield_strategy':
+        console.log('🔓 Action: approve_yield_strategy (one-time max approval)');
+
+        // Approve max uint256 so we never need to approve again
+        const { maxUint256 } = await import('viem');
+
+        const approveCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [YIELD_STRATEGY, maxUint256],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing max approval for YieldStrategy...');
+        console.log('   Amount: max uint256 (unlimited)');
+        const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
+        console.log('✅ Approval successful, TX:', approveTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: approveTxHash,
+          action,
+          userAddress,
+          message: `YieldStrategy approved for unlimited TOURS tokens. You can now stake without approval!`,
+        });
+
+      // ==================== STAKE TOURS ====================
+      case 'stake_tours':
+        console.log('💰 Action: stake_tours');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for stake_tours' },
+            { status: 400 }
+          );
+        }
+
+        const stakeAmount = parseUnits(params.amount.toString(), 18);
+        console.log('💰 Staking:', stakeAmount.toString(), 'MON (V6)');
+
+        // ✅ V6 CHECK: Verify Safe has enough MON (native currency)
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          // Use correct Safe address based on mode
+          const safeToCheckStake = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const monBalance = await client.getBalance({
+            address: safeToCheckStake as Address,
+          });
+
+          console.log('💰 Safe MON balance:', monBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+
+          if (monBalance < stakeAmount) {
+            const currentMon = Number(monBalance) / 1e18;
+            const requiredMon = Number(stakeAmount) / 1e18;
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Required: ${requiredMon} MON, but Safe only has ${currentMon.toFixed(4)} MON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.error('❌ Failed to check MON balance:', balanceErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to verify MON balance: ${balanceErr.message}` },
+            { status: 500 }
+          );
+        }
+
+        // ✅ Query user's passport NFTs to use as collateral (from NEW contract only)
+        // Find a passport that is NOT already being used in YieldStrategy
+        let nftTokenId = '0';
+        try {
+          console.log('🔍 Fetching user passport NFTs for collateral...');
+          const passportQuery = `
+            query GetUserPassports($owner: String!, $contract: String!) {
+              PassportNFT(
+                where: {
+                  owner: { _eq: $owner }
+                  contract: { _eq: $contract }
+                },
+                order_by: { mintedAt: desc }
+              ) {
+                tokenId
+                countryCode
+                countryName
+                contract
+              }
+            }
+          `;
+
+          const passportRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: passportQuery,
+              variables: {
+                owner: userAddress.toLowerCase(),
+                contract: PASSPORT_NFT.toLowerCase()
+              }
+            })
+          });
+
+          if (passportRes.ok) {
+            const passportData = await passportRes.json();
+            const passports = passportData.data?.PassportNFT || [];
+
+            if (passports.length === 0) {
+              return NextResponse.json(
+                { success: false, error: 'No passport NFT found. Mint a passport first!' },
+                { status: 400 }
+              );
+            }
+
+            // ✅ Check each passport to find one that's not already used as collateral
+            const { createPublicClient, http } = await import('viem');
+            const { monadTestnet } = await import('@/app/chains');
+            const client = createPublicClient({
+              chain: monadTestnet,
+              transport: http(),
+            });
+
+            let availablePassport = null;
+            for (const passport of passports) {
+              const isUsed = await client.readContract({
+                address: YIELD_STRATEGY,
+                abi: parseAbi(['function nftCollateralUsed(address,uint256) external view returns (bool)']),
+                functionName: 'nftCollateralUsed',
+                args: [PASSPORT_NFT, BigInt(passport.tokenId)],
+              });
+
+              if (!isUsed) {
+                availablePassport = passport;
+                break;
+              }
+            }
+
+            if (!availablePassport) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: `All your ${passports.length} passport NFT${passports.length > 1 ? 's are' : ' is'} already being used as collateral in active staking positions. Please unstake a position first, or mint another passport to create a new staking position.`
+                },
+                { status: 400 }
+              );
+            }
+
+            nftTokenId = availablePassport.tokenId;
+            console.log('✅ Using available passport NFT as collateral:', {
+              tokenId: nftTokenId,
+              country: availablePassport.countryCode,
+              contract: availablePassport.contract,
+              totalPassports: passports.length
+            });
+          } else {
+            throw new Error('Failed to fetch passport NFTs');
+          }
+        } catch (nftErr: any) {
+          console.error('❌ Failed to fetch passport NFT:', nftErr);
+          return NextResponse.json(
+            { success: false, error: 'Failed to fetch passport NFT for collateral. Please try again.' },
+            { status: 500 }
+          );
+        }
+
+        // ✅ CHECK: Verify YieldStrategy contract is deployed
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Checking if YieldStrategy is deployed...');
+          const yieldStrategyCode = await client.getCode({ address: YIELD_STRATEGY });
+          if (!yieldStrategyCode || yieldStrategyCode === '0x') {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `YieldStrategy contract at ${YIELD_STRATEGY} is not deployed on Monad Testnet. Staking is currently unavailable. Please contact support.`
+              },
+              { status: 500 }
+            );
+          }
+          console.log('✅ YieldStrategy is deployed (code length: ' + yieldStrategyCode.length + ')');
+        } catch (deployCheckErr: any) {
+          console.error('❌ Failed to check YieldStrategy deployment:', deployCheckErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to verify YieldStrategy contract: ${deployCheckErr.message}` },
+            { status: 500 }
+          );
+        }
+
+        // ✅ V6 CONTRACT: MON-based staking with beneficiary parameter
+        // The V6 contract accepts MON directly (payable), no TOURS/TokenSwap needed!
+        // The user keeps their NFT and the Safe stakes MON on their behalf.
+        //
+        // Flow:
+        // 1. Safe calls stakeWithDeposit with MON sent as msg.value
+        // 2. User receives MON + yield on unstake
+        // No TOURS approval needed - MON is native currency
+        // Determine the correct Safe address for staking
+        const stakeFromSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('💎 Preparing stakeWithDeposit with beneficiary (V6 - MON deposits):', {
+          nftAddress: PASSPORT_NFT,
+          nftTokenId: nftTokenId,
+          monAmount: stakeAmount.toString(),
+          beneficiary: userAddress,
+          safe: stakeFromSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe'
+        });
+
+        // ✅ V6: Check MON balance and NFT ownership
+        let stakeCalls: any[] = [];
+
+        // ✅ TRY: Simulate the calls to catch errors early
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Simulating staking preconditions (V6 - MON based)...');
+
+          // Check NFT ownership
+          const nftOwner = await client.readContract({
+            address: PASSPORT_NFT,
+            abi: parseAbi(['function ownerOf(uint256 tokenId) external view returns (address)']),
+            functionName: 'ownerOf',
+            args: [BigInt(nftTokenId)],
+          });
+
+          if (nftOwner.toLowerCase() !== userAddress.toLowerCase()) {
+            throw new Error(`Beneficiary must own NFT #${nftTokenId}`);
+          }
+
+          console.log('✅ NFT ownership verified - user owns passport #' + nftTokenId);
+
+          // ✅ V6: Check MON balance (native currency) + reserve for gas
+          console.log('🔍 Checking Safe MON balance...', USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          const safeMonBalance = await client.getBalance({
+            address: stakeFromSafe as Address,
+          });
+          console.log('   Safe MON balance:', safeMonBalance.toString());
+          console.log('   Required for stake:', stakeAmount.toString());
+
+          // ✅ Require Safe to keep 1 MON reserve for gas costs
+          const RESERVE_BALANCE = parseUnits('1', 18); // 1 MON reserve
+          const totalRequired = stakeAmount + RESERVE_BALANCE;
+
+          console.log('   Reserve balance requirement:', RESERVE_BALANCE.toString(), '(1 MON)');
+          console.log('   Total required (stake + reserve):', totalRequired.toString());
+
+          if (safeMonBalance < totalRequired) {
+            const currentMON = (Number(safeMonBalance) / 1e18).toFixed(4);
+            const requiredMON = (Number(totalRequired) / 1e18).toFixed(4);
+            const stakeMON = (Number(stakeAmount) / 1e18).toFixed(4);
+            throw new Error(
+              `Insufficient MON balance. Safe has ${currentMON} MON but needs ${requiredMON} MON total ` +
+              `(${stakeMON} MON for stake + 1 MON reserve for gas). ` +
+              `Please reduce stake amount or add more MON to the Safe.`
+            );
+          }
+
+          console.log('✅ All precondition checks passed - proceeding with stake');
+        } catch (simErr: any) {
+          console.error('❌ Stake simulation failed:', simErr);
+          const errorMsg = simErr.shortMessage || simErr.message || 'Unknown error';
+
+          // Check if it's an NFT ownership issue
+          if (errorMsg.includes('Beneficiary must own NFT') || errorMsg.includes('ERC721') || errorMsg.includes('not owner')) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `You must own passport #${nftTokenId} to stake with it. Please ensure you own the NFT and try again.`
+              },
+              { status: 400 }
+            );
+          }
+
+          // Check for balance issues
+          if (errorMsg.includes('Insufficient MON balance')) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: errorMsg
+              },
+              { status: 400 }
+            );
+          }
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Staking would fail: ${errorMsg}. Please try again or contact support.`
+            },
+            { status: 400 }
+          );
+        }
+
+        // ✅ V6: Build stake call with MON sent as value (no approval needed)
+        console.log('\n💎 Building V6 stake transaction (MON as native currency)...');
+        console.log('   Sending', stakeAmount.toString(), 'MON to YieldStrategy');
+        console.log('   No TOURS approval needed - using native MON');
+
+        stakeCalls = [
+          {
+            to: YIELD_STRATEGY,
+            value: stakeAmount, // ✅ V6: Send MON with transaction
+            data: encodeFunctionData({
+              abi: parseAbi(['function stakeWithDeposit(address nftAddress, uint256 nftTokenId, address beneficiary) external payable returns (uint256)']),
+              functionName: 'stakeWithDeposit',
+              args: [PASSPORT_NFT, BigInt(nftTokenId), userAddress as Address], // ✅ V6: No toursAmount parameter
+            }) as Hex,
+          },
+        ];
+
+        const stakeTxHash = await executeTransaction(stakeCalls, userAddress as Address);
+        console.log('✅ Stake successful, TX:', stakeTxHash);
+
+        // ✅ NOTE: YieldStrategy's stakeWithDeposit returns a position ID
+        // The contract tracks:
+        // - NFT address and tokenId (collateral)
+        // - Owner (Safe account that staked)
+        // - Beneficiary (user who receives rewards)
+        // - Amount staked
+        // - Deposit time
+        // We generate a client-side ID for tracking, but the real positionId
+        // is returned by the contract (starts at 0 and increments)
+        const positionId = `${userAddress.slice(2, 10)}-${nftTokenId}`; // Client-side tracking ID
+        console.log('🎫 Generated client position ID:', positionId);
+
+        await incrementTransactionCount(userAddress);
+
+        // ✅ POST FARCASTER CAST: Announce the stake on Farcaster
+        try {
+          // Try to get FID from params, or lookup from wallet address
+          let fid = params?.fid;
+
+          if (!fid && process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
+            // Try to get FID from wallet address using Neynar
+            try {
+              const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${userAddress}`;
+              const response = await fetch(url, {
+                headers: { 'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY }
+              });
+
+              if (response.ok) {
+                const data: any = await response.json();
+                const userData = data[userAddress.toLowerCase()];
+                if (userData && userData.length > 0) {
+                  fid = userData[0].fid?.toString();
+                }
+              }
+            } catch (lookupErr) {
+              console.log('ℹ️ Could not lookup FID from wallet:', lookupErr);
+            }
+          }
+
+          if (fid) {
+            console.log('📢 Posting staking cast to Farcaster...');
+            const castResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/cast-nft`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'stake_tours',
+                fid: fid,
+                tokenId: nftTokenId,
+                txHash: stakeTxHash,
+                amount: params.amount,
+                positionId: positionId,
+              }),
+            });
+            const castResult = await castResponse.json();
+            console.log('✅ Staking cast posted:', castResult.castHash);
+          } else {
+            console.log('ℹ️ No FID found for user, skipping cast');
+          }
+        } catch (castErr: any) {
+          console.error('⚠️ Failed to post staking cast (non-critical):', castErr.message);
+          // Don't fail the stake if casting fails
+        }
+
+        return NextResponse.json({
+          success: true,
+          txHash: stakeTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          positionId: positionId,
+          nftTokenId: nftTokenId,
+          message: `Staked ${params.amount} MON successfully`,
+        });
+
+      // ==================== UNSTAKE TOURS ====================
+      case 'unstake_tours':
+        console.log('💰 Action: unstake_tours');
+        if (!params?.positionId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing positionId for unstake_tours. You need to provide the position ID from your staking position.' },
+            { status: 400 }
+          );
+        }
+
+        const unstakePositionId = BigInt(params.positionId);
+        console.log('💰 Unstaking position:', unstakePositionId.toString());
+
+        // ✅ QUERY: Get position details to know which NFT to return
+        let unstakeNftTokenId = '0';
+        let unstakeAmount = 0n;
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          console.log('🔍 Fetching V6 position details for unstake...');
+          const position = await client.readContract({
+            address: YIELD_STRATEGY,
+            abi: parseAbi(['function stakingPositions(uint256) external view returns (address nftAddress, uint256 nftTokenId, address owner, address beneficiary, uint256 depositTime, uint256 monStaked, uint256 monDeployed, uint256 yieldDebt, bool active)']),
+            functionName: 'stakingPositions',
+            args: [unstakePositionId],
+          });
+
+          // V6 position tuple: [nftAddress, nftTokenId, owner, beneficiary, depositTime, monStaked, monDeployed, yieldDebt, active]
+          unstakeNftTokenId = position[1].toString();
+          unstakeAmount = position[5]; // monStaked at index 5
+          console.log('✅ Position found:', {
+            nftTokenId: unstakeNftTokenId,
+            owner: position[2],
+            beneficiary: position[3],
+            monStaked: unstakeAmount.toString(),
+            active: position[8] // active at index 8
+          });
+
+          if (!position[8]) { // V6: active field at index 8
+            return NextResponse.json(
+              { success: false, error: `Position #${params.positionId} is not active. It may have already been unstaked.` },
+              { status: 400 }
+            );
+          }
+
+          // Note: position[2] (owner) will be the Safe account since Safe executed stakeWithNFT
+          // The delegation system ensures only the original user can trigger this unstake
+          console.log('💡 Position owner is Safe (expected):', position[2]);
+        } catch (posErr: any) {
+          console.error('❌ Failed to fetch position details:', posErr);
+          return NextResponse.json(
+            { success: false, error: `Failed to fetch position details: ${posErr.message}` },
+            { status: 500 }
+          );
+        }
+
+        // ✅ V2 CONTRACT: Simplified unstake with beneficiary
+        // Since the NFT never left the user's wallet and staking was done with beneficiary,
+        // unstake automatically returns TOURS + yield to the beneficiary.
+        // No NFT transfer needed!
+        console.log('💎 Preparing unstake (beneficiary receives rewards):', {
+          positionId: unstakePositionId.toString(),
+          nftTokenId: unstakeNftTokenId,
+          beneficiary: userAddress
+        });
+
+        const unstakeCalls = [
+          // Unstake position (TOURS + yield automatically go to beneficiary)
+          {
+            to: YIELD_STRATEGY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
+              functionName: 'unstake',
+              args: [unstakePositionId],
+            }) as Hex,
+          },
+        ];
+
+        const unstakeTxHash = await executeTransaction(unstakeCalls, userAddress as Address);
+        console.log('✅ Unstake successful, TX:', unstakeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeTxHash,
+          action,
+          userAddress,
+          positionId: params.positionId,
+          nftTokenId: unstakeNftTokenId,
+          message: `Unstaked position #${params.positionId} successfully. Your TOURS (+ yield) have been returned to your wallet.`,
+        });
+
+      // ==================== CLAIM REWARDS ====================
+      // ⚠️ NOTE: The EmpowerToursYieldStrategy contract doesn't have a separate
+      // claimRewards() function. Rewards are automatically distributed when you
+      // call unstake(positionId). The unstake function calculates your yield share
+      // and returns it along with your original stake.
+      case 'claim_rewards':
+        console.log('💰 Action: claim_rewards (not supported by current contract)');
+        return NextResponse.json({
+          success: false,
+          error: 'Claim rewards is not available. Rewards are automatically distributed when you unstake your position. Use "unstake <positionId>" to withdraw your stake and claim rewards.',
+        }, { status: 400 });
+
+      // ==================== CREATE TANDA GROUP ====================
+      case 'create_tanda_group':
+        console.log('🤝 Action: create_tanda_group');
+        if (!params?.name || !params?.contributionAmount || !params?.frequency || !params?.maxMembers) {
+          return NextResponse.json(
+            { success: false, error: 'Missing parameters for create_tanda_group' },
+            { status: 400 }
+          );
+        }
+
+        const tandaContribution = parseUnits(params.contributionAmount.toString(), 18);
+        console.log('🤝 Creating Tanda group:', params.name);
+
+        const createTandaCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createGroup(string name, uint256 contributionAmount, uint256 frequency, uint256 maxMembers) external']),
+              functionName: 'createGroup',
+              args: [params.name, tandaContribution, BigInt(params.frequency), BigInt(params.maxMembers)],
+            }) as Hex,
+          },
+        ];
+
+        const createTandaTxHash = await executeTransaction(createTandaCalls, userAddress as Address);
+        console.log('✅ Tanda group created, TX:', createTandaTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: createTandaTxHash,
+          action,
+          userAddress,
+          message: `Tanda group "${params.name}" created successfully`,
+        });
+
+      // ==================== JOIN TANDA GROUP ====================
+      case 'join_tanda_group':
+        console.log('🤝 Action: join_tanda_group');
+        if (!params?.groupId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing groupId for join_tanda_group' },
+            { status: 400 }
+          );
+        }
+
+        const joinTandaCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function joinGroup(uint256 groupId) external']),
+              functionName: 'joinGroup',
+              args: [BigInt(params.groupId)],
+            }) as Hex,
+          },
+        ];
+
+        const joinTandaTxHash = await executeTransaction(joinTandaCalls, userAddress as Address);
+        console.log('✅ Joined Tanda group, TX:', joinTandaTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: joinTandaTxHash,
+          action,
+          userAddress,
+          groupId: params.groupId,
+          message: `Joined Tanda group #${params.groupId} successfully`,
+        });
+
+      // ==================== CONTRIBUTE TO TANDA ====================
+      case 'contribute_tanda':
+        console.log('🤝 Action: contribute_tanda');
+        if (!params?.groupId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing groupId for contribute_tanda' },
+            { status: 400 }
+          );
+        }
+
+        const contributeCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function contribute(uint256 groupId) external']),
+              functionName: 'contribute',
+              args: [BigInt(params.groupId)],
+            }) as Hex,
+          },
+        ];
+
+        const contributeTxHash = await executeTransaction(contributeCalls, userAddress as Address);
+        console.log('✅ Contributed to Tanda, TX:', contributeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: contributeTxHash,
+          action,
+          userAddress,
+          groupId: params.groupId,
+          message: `Contributed to Tanda group #${params.groupId} successfully`,
+        });
+
+      // ==================== CLAIM TANDA PAYOUT ====================
+      case 'claim_tanda_payout':
+        console.log('🤝 Action: claim_tanda_payout');
+        if (!params?.groupId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing groupId for claim_tanda_payout' },
+            { status: 400 }
+          );
+        }
+
+        const claimTandaCalls = [
+          {
+            to: TANDA_YIELD_GROUP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claimPayout(uint256 groupId) external']),
+              functionName: 'claimPayout',
+              args: [BigInt(params.groupId)],
+            }) as Hex,
+          },
+        ];
+
+        const claimTandaTxHash = await executeTransaction(claimTandaCalls, userAddress as Address);
+        console.log('✅ Tanda payout claimed, TX:', claimTandaTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: claimTandaTxHash,
+          action,
+          userAddress,
+          groupId: params.groupId,
+          message: `Claimed payout from Tanda group #${params.groupId} successfully`,
+        });
+
+      // ==================== PURCHASE EVENT TICKET ====================
+      case 'purchase_event_ticket':
+        console.log('🎉 Action: purchase_event_ticket');
+        if (!params?.eventId || !params?.quantity) {
+          return NextResponse.json(
+            { success: false, error: 'Missing eventId or quantity for purchase_event_ticket' },
+            { status: 400 }
+          );
+        }
+
+        const ticketCalls = [
+          {
+            to: SMART_EVENT_MANIFEST,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function purchaseTicket(uint256 eventId, uint256 quantity) external']),
+              functionName: 'purchaseTicket',
+              args: [BigInt(params.eventId), BigInt(params.quantity)],
+            }) as Hex,
+          },
+        ];
+
+        const ticketTxHash = await executeTransaction(ticketCalls, userAddress as Address);
+        console.log('✅ Event ticket purchased, TX:', ticketTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: ticketTxHash,
+          action,
+          userAddress,
+          eventId: params.eventId,
+          quantity: params.quantity,
+          message: `Purchased ${params.quantity} ticket(s) for event #${params.eventId} successfully`,
+        });
+
+      // ==================== SUBMIT DEMAND SIGNAL ====================
+      case 'submit_demand_signal':
+        console.log('📊 Action: submit_demand_signal');
+        if (!params?.eventId || !params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing eventId or amount for submit_demand_signal' },
+            { status: 400 }
+          );
+        }
+
+        const demandAmount = parseUnits(params.amount.toString(), 18);
+        console.log('📊 Submitting demand signal:', demandAmount.toString(), 'TOURS for event', params.eventId);
+
+        const demandCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [DEMAND_SIGNAL_ENGINE, demandAmount],
+            }) as Hex,
+          },
+          {
+            to: DEMAND_SIGNAL_ENGINE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function submitDemand(uint256 eventId, uint256 amount) external']),
+              functionName: 'submitDemand',
+              args: [BigInt(params.eventId), demandAmount],
+            }) as Hex,
+          },
+        ];
+
+        const demandTxHash = await executeTransaction(demandCalls, userAddress as Address);
+        console.log('✅ Demand signal submitted, TX:', demandTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: demandTxHash,
+          action,
+          userAddress,
+          eventId: params.eventId,
+          amount: params.amount,
+          message: `Demand signal of ${params.amount} TOURS submitted for event #${params.eventId}`,
+        });
+
+      // ==================== WITHDRAW DEMAND SIGNAL ====================
+      case 'withdraw_demand_signal':
+        console.log('📊 Action: withdraw_demand_signal');
+        if (!params?.eventId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing eventId for withdraw_demand_signal' },
+            { status: 400 }
+          );
+        }
+
+        const withdrawDemandCalls = [
+          {
+            to: DEMAND_SIGNAL_ENGINE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function withdrawDemand(uint256 eventId) external']),
+              functionName: 'withdrawDemand',
+              args: [BigInt(params.eventId)],
+            }) as Hex,
+          },
+        ];
+
+        const withdrawDemandTxHash = await executeTransaction(withdrawDemandCalls, userAddress as Address);
+        console.log('✅ Demand signal withdrawn, TX:', withdrawDemandTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: withdrawDemandTxHash,
+          action,
+          userAddress,
+          eventId: params.eventId,
+          message: `Demand signal withdrawn for event #${params.eventId}`,
+        });
+
+      // ==================== MUSIC NFT V5: STAKING ====================
+      case 'stake_music':
+        console.log('🎵 Action: stake_music');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for stake_music' },
+            { status: 400 }
+          );
+        }
+
+        const stakeTokenId = BigInt(params.tokenId);
+
+        // ✅ Check if NFT is already used as collateral in YieldStrategy (prevent dual staking)
+        try {
+          const YIELD_STRATEGY_CHECK = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const yieldClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const isCollateral = await yieldClient.readContract({
+            address: YIELD_STRATEGY_CHECK,
+            abi: parseAbi(['function nftCollateralUsed(address,uint256) external view returns (bool)']),
+            functionName: 'nftCollateralUsed',
+            args: [EMPOWER_TOURS_NFT, stakeTokenId],
+          });
+
+          if (isCollateral) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Music NFT #${params.tokenId} is already staked in YieldStrategy for Kintsu yields. Please unstake it first with "unstake music yield <positionId>" before staking internally.`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Music NFT is not used as YieldStrategy collateral');
+        } catch (collateralCheckError: any) {
+          console.warn('⚠️ Could not verify YieldStrategy collateral status:', collateralCheckError.message);
+          // Continue - if check fails, proceed anyway (backwards compatible)
+        }
+
+        const stakeMusicCalls = [
+          {
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function stakeMusicNFT(uint256 tokenId) external']),
+              functionName: 'stakeMusicNFT',
+              args: [stakeTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const stakeMusicTxHash = await executeTransaction(stakeMusicCalls, userAddress as Address);
+        console.log('✅ Music NFT staked, TX:', stakeMusicTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeMusicTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Music NFT #${params.tokenId} staked successfully`,
+        });
+
+      // ==================== MUSIC NFT V5: UNSTAKING ====================
+      case 'unstake_music':
+        console.log('🎵 Action: unstake_music');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for unstake_music' },
+            { status: 400 }
+          );
+        }
+
+        const unstakeTokenId = BigInt(params.tokenId);
+
+        const unstakeMusicCalls = [
+          {
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unstakeMusicNFT(uint256 tokenId) external']),
+              functionName: 'unstakeMusicNFT',
+              args: [unstakeTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const unstakeMusicTxHash = await executeTransaction(unstakeMusicCalls, userAddress as Address);
+        console.log('✅ Music NFT unstaked, TX:', unstakeMusicTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeMusicTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
+        });
+
+      // ==================== MUSIC NFT V7: DELEGATED BURNING ====================
+      case 'burn_music':
+        console.log('🔥 Action: burn_music (v7 delegated)');
+        if (!params?.tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for burn_music' },
+            { status: 400 }
+          );
+        }
+
+        const burnTokenId = BigInt(params.tokenId);
+
+        console.log('🔥 Burning NFT with delegated burner (Safe Account)');
+        console.log('  - Owner:', userAddress);
+        console.log('  - Token ID:', burnTokenId.toString());
+
+        // v7 uses burnNFTForDelegated - Safe Account is authorized burner
+        // NFT stays with user, Safe just has permission to burn it
+        const burnMusicCalls = [
+          {
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
+              functionName: 'burnNFTForDelegated',
+              args: [userAddress as Address, burnTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const burnMusicTxHash = await executeTransaction(burnMusicCalls, userAddress as Address);
+        console.log('✅ Music NFT burned via delegated burner, TX:', burnMusicTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: burnMusicTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Music NFT #${params.tokenId} burned for 5 TOURS reward`,
+        });
+
+      // ==================== MUSIC NFT YIELD STAKING (YieldStrategyV9) ====================
+      case 'stake_music_yield':
+        console.log('💎 Action: stake_music_yield (YieldStrategyV9)');
+        if (!params?.tokenId || !params?.monAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId or monAmount for stake_music_yield' },
+            { status: 400 }
+          );
+        }
+
+        const YIELD_STRATEGY_V8 = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
+        const stakeMusicYieldTokenId = BigInt(params.tokenId);
+        const stakeMusicMonAmount = parseEther(params.monAmount.toString());
+
+        console.log('💎 Staking Music NFT with YieldStrategyV9:', {
+          nftAddress: EMPOWER_TOURS_NFT,
+          tokenId: stakeMusicYieldTokenId.toString(),
+          beneficiary: userAddress,
+          monAmount: params.monAmount,
+          yieldStrategy: YIELD_STRATEGY_V8
+        });
+
+        // ✅ Check if Music NFT is whitelisted
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const checkClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const isWhitelisted = await checkClient.readContract({
+            address: YIELD_STRATEGY_V8,
+            abi: parseAbi(['function acceptedNFTs(address) external view returns (bool)']),
+            functionName: 'acceptedNFTs',
+            args: [EMPOWER_TOURS_NFT],
+          });
+
+          if (!isWhitelisted) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Music NFT is not whitelisted in YieldStrategy. Contact admin to whitelist.'
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Music NFT is whitelisted in YieldStrategy');
+        } catch (checkError: any) {
+          console.warn('⚠️ Could not verify Music NFT whitelist status:', checkError.message);
+        }
+
+        // ✅ Verify user owns the Music NFT
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const nftClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const nftOwner = await nftClient.readContract({
+            address: EMPOWER_TOURS_NFT,
+            abi: parseAbi(['function ownerOf(uint256) external view returns (address)']),
+            functionName: 'ownerOf',
+            args: [stakeMusicYieldTokenId],
+          });
+
+          if (nftOwner.toLowerCase() !== userAddress.toLowerCase()) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `You do not own Music NFT #${params.tokenId}. Owner: ${nftOwner}`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ User owns Music NFT #' + params.tokenId);
+        } catch (nftError: any) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Failed to verify NFT ownership: ${nftError.message}`
+            },
+            { status: 400 }
+          );
+        }
+
+        // ✅ Check if NFT is already staked internally (prevent dual staking)
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const stakingClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const stakingInfo = await stakingClient.readContract({
+            address: EMPOWER_TOURS_NFT,
+            abi: parseAbi([
+              'function stakingInfo(uint256) external view returns (tuple(address staker, uint256 stakedAt, uint256 lastClaimAt, bool isStaked))'
+            ]),
+            functionName: 'stakingInfo',
+            args: [stakeMusicYieldTokenId],
+          }) as { staker: Address; stakedAt: bigint; lastClaimAt: bigint; isStaked: boolean };
+
+          if (stakingInfo.isStaked) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Music NFT #${params.tokenId} is already staked internally for TOURS rewards. Please unstake it first with "unstake_music ${params.tokenId}" before staking with YieldStrategy.`
+              },
+              { status: 400 }
+            );
+          }
+          console.log('✅ Music NFT is not staked internally');
+        } catch (stakingCheckError: any) {
+          console.warn('⚠️ Could not verify internal staking status:', stakingCheckError.message);
+          // Continue - if check fails, proceed anyway (backwards compatible)
+        }
+
+        // ✅ Check Safe MON balance
+        const { createPublicClient, http } = await import('viem');
+        const { monadTestnet } = await import('@/app/chains');
+        const publicClient = createPublicClient({
+          chain: monadTestnet,
+          transport: http(),
+        });
+
+        // Use correct Safe address based on mode
+        const musicStakeSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        const safeMusicMonBalance = await publicClient.getBalance({
+          address: musicStakeSafe,
+        });
+
+        console.log('💰 Safe MON balance:', formatEther(safeMusicMonBalance), 'MON', USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+        console.log('📊 Required MON:', params.monAmount, 'MON');
+
+        if (safeMusicMonBalance < stakeMusicMonAmount) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Insufficient MON balance in Safe. Has: ${formatEther(safeMusicMonBalance)} MON, needs: ${params.monAmount} MON`
+            },
+            { status: 400 }
+          );
+        }
+
+        // ✅ Build stake call with MON as value
+        const stakeMusicYieldCalls = [
+          {
+            to: YIELD_STRATEGY_V8,
+            value: stakeMusicMonAmount, // Send MON with transaction
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function stakeWithDeposit(address nftAddress, uint256 nftTokenId, address beneficiary) external payable returns (uint256)'
+              ]),
+              functionName: 'stakeWithDeposit',
+              args: [EMPOWER_TOURS_NFT, stakeMusicYieldTokenId, userAddress as Address],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing Music NFT yield stake transaction...');
+        const stakeMusicYieldTxHash = await executeTransaction(stakeMusicYieldCalls, userAddress as Address);
+        console.log('✅ Music NFT staked in YieldStrategy, TX:', stakeMusicYieldTxHash);
+
+        // ✅ Extract position ID from transaction receipt
+        let musicYieldPositionId = '0';
+        try {
+          const receipt = await publicClient.getTransactionReceipt({
+            hash: stakeMusicYieldTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for StakingPositionCreated event
+            // event StakingPositionCreated(uint256 indexed positionId, address indexed nftAddress, uint256 indexed nftTokenId, ...)
+            const positionLog = receipt.logs.find(
+              log => log.topics[0] === '0x' + '...' // Event signature hash
+            );
+            if (positionLog && positionLog.topics[1]) {
+              musicYieldPositionId = BigInt(positionLog.topics[1]).toString();
+              console.log('🎫 Extracted position ID:', musicYieldPositionId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract position ID:', extractError.message);
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: stakeMusicYieldTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          monAmount: params.monAmount,
+          positionId: musicYieldPositionId,
+          message: `Music NFT #${params.tokenId} staked with ${params.monAmount} MON in YieldStrategy`,
+        });
+
+      // ==================== CREATE ITINERARY ====================
+      case 'create_itinerary':
+        console.log('🗺️ Action: create_itinerary');
+        if (!params?.locationName || !params?.city || !params?.country || !params?.price || !params?.latitude || !params?.longitude) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters for create_itinerary' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const createItineraryPrice = parseEther(params.price.toString());
+
+        console.log('🗺️ Creating itinerary:', {
+          creator: userAddress,
+          locationName: params.locationName,
+          city: params.city,
+          country: params.country,
+          price: params.price,
+          coords: { lat: params.latitude, lon: params.longitude }
+        });
+
+        // Build metadata object
+        const metadata = {
+          locationName: params.locationName,
+          city: params.city,
+          country: params.country,
+          description: params.description || '',
+          experienceType: params.experienceType || 'general',
+          latitude: params.latitude.toString(),
+          longitude: params.longitude.toString(),
+          proximityRadius: params.proximityRadius || 100,
+          imageHash: params.imageHash || '',
+        };
+
+        const createItineraryCalls = [
+          // Approve TOURS for the contract if needed
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [ITINERARY_NFT, createItineraryPrice],
+            }) as Hex,
+          },
+          {
+            to: ITINERARY_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function createExperience(string locationName, string city, string country, string description, string experienceType, uint256 price, int256 latitude, int256 longitude, uint256 proximityRadius, string imageHash) external returns (uint256)'
+              ]),
+              functionName: 'createExperience',
+              args: [
+                params.locationName,
+                params.city,
+                params.country,
+                params.description || '',
+                params.experienceType || 'general',
+                createItineraryPrice,
+                BigInt(Math.floor(params.latitude * 1e6)), // Store as integers with 6 decimal precision
+                BigInt(Math.floor(params.longitude * 1e6)),
+                BigInt(params.proximityRadius || 100),
+                params.imageHash || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const createItineraryTxHash = await executeTransaction(createItineraryCalls, userAddress as Address);
+        console.log('✅ Itinerary created, TX:', createItineraryTxHash);
+
+        // Extract itinerary ID from transaction receipt
+        let itineraryId = '0';
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const receipt = await client.getTransactionReceipt({
+            hash: createItineraryTxHash as Hex,
+          });
+
+          if (receipt?.logs && receipt.logs.length > 0) {
+            // Look for ItineraryCreated or ExperienceCreated event
+            const createdLog = receipt.logs.find(
+              log => log.topics[0] === '0x' + '...' // Event signature hash
+            );
+            if (createdLog && createdLog.topics[1]) {
+              itineraryId = BigInt(createdLog.topics[1]).toString();
+              console.log('🎫 Extracted itinerary ID:', itineraryId);
+            }
+          }
+        } catch (extractError: any) {
+          console.warn('⚠️ Could not extract itinerary ID:', extractError.message);
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: createItineraryTxHash,
+          itineraryId,
+          action,
+          userAddress,
+          message: `Itinerary created successfully: ${params.locationName} in ${params.city}`,
+        });
+
+      // ==================== MINT ITINERARY (SIMPLIFIED) ====================
+      case 'mint_itinerary':
+        console.log('🗺️ Action: mint_itinerary');
+        if (!params?.destination || !params?.country) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: destination and country' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_MINT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+
+        // Set sensible defaults
+        const experienceType = 0; // ExperienceType.FOOD = 0
+        const defaultPrice = parseEther('10'); // 10 TOURS default
+        const defaultLat = 0; // Default coords (user can update later)
+        const defaultLon = 0;
+        const defaultRadius = 100; // 100 meters
+
+        console.log('🗺️ Minting itinerary stamp:', {
+          creator: userAddress,
+          destination: params.destination,
+          country: params.country,
+          climbingGrade: params.climbingGrade || 'Not specified',
+        });
+
+        const mintItineraryCalls = [
+          {
+            to: ITINERARY_NFT_MINT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function createExperience(string country, string city, string locationName, string description, uint8 experienceType, int256 latitude, int256 longitude, uint256 proximityRadius, uint256 price, string ipfsImageHash) external returns (uint256)'
+              ]),
+              functionName: 'createExperience',
+              args: [
+                params.country,
+                params.city || params.destination, // Use destination as city if not provided
+                params.destination,
+                params.description || `${params.destination} - ${params.climbingGrade || 'Travel experience'}`,
+                experienceType,
+                BigInt(defaultLat),
+                BigInt(defaultLon),
+                BigInt(defaultRadius),
+                defaultPrice,
+                params.photoUri || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const mintItineraryTxHash = await executeTransaction(mintItineraryCalls, userAddress as Address);
+        console.log('✅ Itinerary minted, TX:', mintItineraryTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: mintItineraryTxHash,
+          action,
+          userAddress,
+          message: `Itinerary stamp minted successfully: ${params.destination}`,
+        });
+
+      // ==================== PURCHASE ITINERARY ====================
+      case 'purchase_itinerary':
+        console.log('🗺️ Action: purchase_itinerary');
+        if (!params?.itineraryId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing itineraryId for purchase_itinerary' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_PURCHASE = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const purchaseItineraryId = BigInt(params.itineraryId);
+
+        console.log('🗺️ Purchasing itinerary:', {
+          buyer: userAddress,
+          itineraryId: purchaseItineraryId.toString()
+        });
+
+        const purchaseItineraryCalls = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [ITINERARY_NFT_PURCHASE, parseEther('1000')], // Approve enough for any itinerary
+            }) as Hex,
+          },
+          {
+            to: ITINERARY_NFT_PURCHASE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function purchaseExperience(uint256 itineraryId) external']),
+              functionName: 'purchaseExperience',
+              args: [purchaseItineraryId],
+            }) as Hex,
+          },
+        ];
+
+        const purchaseItineraryTxHash = await executeTransaction(purchaseItineraryCalls, userAddress as Address);
+        console.log('✅ Itinerary purchased, TX:', purchaseItineraryTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: purchaseItineraryTxHash,
+          action,
+          userAddress,
+          itineraryId: params.itineraryId,
+          message: `Itinerary #${params.itineraryId} purchased successfully`,
+        });
+
+      // ==================== CHECK-IN TO ITINERARY (STAMP PASSPORT) ====================
+      // Now auto-finds the correct passport based on experience country!
+      case 'checkin_itinerary':
+        console.log('📍 Action: checkin_itinerary');
+        if (!params?.itineraryId || !params?.userLatitude || !params?.userLongitude) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: itineraryId, userLatitude, userLongitude' },
+            { status: 400 }
+          );
+        }
+
+        const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_ADDRESS as Address;
+        const ITINERARY_NFT_CHECKIN = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const checkinItineraryId = BigInt(params.itineraryId);
+
+        console.log('📍 Checking in to itinerary:', {
+          user: userAddress,
+          itineraryId: checkinItineraryId.toString(),
+          userCoords: { lat: params.userLatitude, lon: params.userLongitude }
+        });
+
+        // Verify GPS proximity (calculate on server for security)
+        const { calculateDistance } = await import('@/lib/utils/gps');
+        const { getCountryByName } = await import('@/lib/passport/countries');
+
+        // Get itinerary details from Envio (including country for passport matching)
+        let experienceCountry = '';
+        let experienceCity = '';
+        let experienceName = '';
+        let gpsVerified = false;
+
+        try {
+          const query = `
+            query GetItinerary($itineraryId: String!) {
+              ExperienceNFT_ExperienceCreated(where: { tokenId: { _eq: $itineraryId } }, limit: 1) {
+                tokenId
+                name
+                city
+                country
+                latitude
+                longitude
+                proximityRadius
+              }
+            }
+          `;
+
+          const envioRes = await fetch(ENVIO_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              variables: { itineraryId: checkinItineraryId.toString() }
+            })
+          });
+
+          if (envioRes.ok) {
+            const envioData = await envioRes.json();
+            const itinerary = envioData.data?.ExperienceNFT_ExperienceCreated?.[0];
+
+            if (itinerary) {
+              experienceCountry = itinerary.country || '';
+              experienceCity = itinerary.city || '';
+              experienceName = itinerary.name || '';
+
+              const targetLat = parseFloat(itinerary.latitude) / 1e6;
+              const targetLon = parseFloat(itinerary.longitude) / 1e6;
+              const radiusMeters = parseInt(itinerary.proximityRadius) || 100;
+
+              const distance = calculateDistance(
+                params.userLatitude,
+                params.userLongitude,
+                targetLat,
+                targetLon
+              );
+
+              console.log('📏 Distance check:', {
+                distance,
+                radiusRequired: radiusMeters,
+                isWithin: distance <= radiusMeters
+              });
+
+              if (distance <= radiusMeters) {
+                gpsVerified = true;
+              } else if (!params.manualVerification) {
+                return NextResponse.json(
+                  {
+                    success: false,
+                    error: `You are too far from the location. You are ${Math.round(distance)}m away, but need to be within ${radiusMeters}m.`
+                  },
+                  { status: 400 }
+                );
+              }
+            }
+          }
+        } catch (gpsError: any) {
+          console.warn('⚠️ GPS/Envio lookup failed:', gpsError.message);
+        }
+
+        // Convert country name to code
+        const countryData = getCountryByName(experienceCountry);
+        if (!countryData) {
+          return NextResponse.json(
+            { success: false, error: `Unknown country: ${experienceCountry}. Cannot find matching passport.` },
+            { status: 400 }
+          );
+        }
+
+        console.log('🌍 Experience country:', { name: experienceCountry, code: countryData.code });
+
+        // Look up user's passport for this country
+        let passportTokenId: bigint;
+        if (params.passportTokenId) {
+          // User explicitly specified a passport
+          passportTokenId = BigInt(params.passportTokenId);
+        } else {
+          // Auto-find passport by country
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const publicClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const passportLookupCalls = encodeFunctionData({
+            abi: parseAbi(['function userPassports(address, string) view returns (uint256)']),
+            functionName: 'userPassports',
+            args: [userAddress as Address, countryData.code],
+          });
+
+          try {
+            const passportResult = await publicClient.call({
+              to: PASSPORT_NFT_ADDRESS,
+              data: passportLookupCalls,
+            });
+
+            passportTokenId = passportResult.data ? BigInt(passportResult.data) : 0n;
+          } catch (lookupErr: any) {
+            console.error('Failed to lookup passport:', lookupErr);
+            passportTokenId = 0n;
+          }
+
+          if (passportTokenId === 0n) {
+            return NextResponse.json({
+              success: false,
+              error: `You don't have a ${experienceCountry} passport! Mint a ${experienceCountry} passport first to collect stamps there.`,
+              countryRequired: experienceCountry,
+              countryCode: countryData.code,
+              hint: 'Visit the passport page to mint a passport for this country.',
+            }, { status: 400 });
+          }
+        }
+
+        console.log('🛂 Found passport:', { passportTokenId: passportTokenId.toString(), country: countryData.code });
+
+        // Call PassportNFTv3's addItineraryStamp (stamps go directly to passport)
+        const checkinCalls = [
+          {
+            to: PASSPORT_NFT_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function addItineraryStamp(uint256 tokenId, uint256 itineraryId, string memory locationName, string memory city, string memory country, bool gpsVerified) external'
+              ]),
+              functionName: 'addItineraryStamp',
+              args: [
+                passportTokenId,
+                checkinItineraryId,
+                experienceName,
+                experienceCity,
+                experienceCountry,
+                gpsVerified,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const checkinTxHash = await executeTransaction(checkinCalls, userAddress as Address);
+        console.log('✅ Passport stamped!', { txHash: checkinTxHash, passport: passportTokenId.toString(), country: experienceCountry });
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: checkinTxHash,
+          action,
+          userAddress,
+          itineraryId: params.itineraryId,
+          passportTokenId: passportTokenId.toString(),
+          country: experienceCountry,
+          countryCode: countryData.code,
+          city: experienceCity,
+          locationName: experienceName,
+          gpsVerified,
+          message: `🎫 Stamp collected! Your ${experienceCountry} passport now has a stamp from ${experienceCity}.`,
+        });
+
+      // ==================== ITINERARY BURN (ItineraryNFTv2) ====================
+      case 'burn_itinerary': {
+        console.log('🔥 Action: burn_itinerary (ItineraryNFTv2)');
+
+        const { tokenId } = params;
+        if (!tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId for burn_itinerary' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_V2 = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const burnItineraryTokenId = BigInt(tokenId);
+
+        console.log('🔥 Burning Itinerary NFT via delegated burner:', {
+          owner: userAddress,
+          tokenId: burnItineraryTokenId.toString(),
+          contract: ITINERARY_NFT_V2,
+        });
+
+        // Use burnItineraryForDelegated function from ItineraryNFTv2
+        const burnItineraryCalls = [
+          {
+            to: ITINERARY_NFT_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function burnItineraryForDelegated(address owner, uint256 tokenId) external']),
+              functionName: 'burnItineraryForDelegated',
+              args: [userAddress as Address, burnItineraryTokenId],
+            }) as Hex,
+          },
+        ];
+
+        const burnItineraryTxHash = await executeTransaction(burnItineraryCalls, userAddress as Address);
+        console.log('✅ Itinerary NFT burned via delegated burner, TX:', burnItineraryTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: burnItineraryTxHash,
+          action,
+          userAddress,
+          tokenId: params.tokenId,
+          message: `Itinerary #${params.tokenId} burned successfully`,
+        });
+      }
+
+      // ==================== MUSIC NFT YIELD UNSTAKING (YieldStrategyV9) ====================
+      case 'unstake_music_yield':
+        console.log('💎 Action: unstake_music_yield (YieldStrategyV9)');
+        if (!params?.positionId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing positionId for unstake_music_yield' },
+            { status: 400 }
+          );
+        }
+
+        const YIELD_STRATEGY_V8_UNSTAKE = process.env.NEXT_PUBLIC_YIELD_STRATEGY as Address;
+        const musicYieldUnstakePositionId = BigInt(params.positionId);
+
+        console.log('💎 Unstaking position from YieldStrategyV9:', {
+          positionId: musicYieldUnstakePositionId.toString(),
+          yieldStrategy: YIELD_STRATEGY_V8_UNSTAKE,
+          user: userAddress
+        });
+
+        // ✅ Verify position exists and belongs to user
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const posClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const position = await posClient.readContract({
+            address: YIELD_STRATEGY_V8_UNSTAKE,
+            abi: parseAbi([
+              'function getPosition(uint256) external view returns (tuple(address nftAddress, uint256 nftTokenId, address owner, address beneficiary, uint256 depositTime, uint256 monStaked, uint256 monDeployed, uint256 yieldDebt, bool active))'
+            ]),
+            functionName: 'getPosition',
+            args: [musicYieldUnstakePositionId],
+          }) as { nftAddress: Address; nftTokenId: bigint; owner: Address; beneficiary: Address; depositTime: bigint; monStaked: bigint; monDeployed: bigint; yieldDebt: bigint; active: boolean };
+
+          console.log('📋 Position details:', position);
+
+          if (!position.active) {
+            return NextResponse.json(
+              { success: false, error: 'Position is not active (already unstaked)' },
+              { status: 400 }
+            );
+          }
+
+          if (position.beneficiary.toLowerCase() !== userAddress.toLowerCase()) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Position does not belong to you. Beneficiary: ${position.beneficiary}`
+              },
+              { status: 400 }
+            );
+          }
+
+          console.log('✅ Position is valid and active');
+        } catch (posError: any) {
+          console.warn('⚠️ Could not verify position:', posError.message);
+        }
+
+        // ✅ Build unstake call
+        const unstakeMusicYieldCalls = [
+          {
+            to: YIELD_STRATEGY_V8_UNSTAKE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unstake(uint256 positionId) external returns (uint256)']),
+              functionName: 'unstake',
+              args: [musicYieldUnstakePositionId],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing Music NFT yield unstake transaction...');
+        const unstakeMusicYieldTxHash = await executeTransaction(unstakeMusicYieldCalls, userAddress as Address);
+        console.log('✅ Music NFT position unstaked, TX:', unstakeMusicYieldTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: unstakeMusicYieldTxHash,
+          action,
+          userAddress,
+          positionId: params.positionId,
+          message: `Music NFT position #${params.positionId} unstaked from YieldStrategy with yield`,
+        });
+
+      // ==================== BURN NFT (DELEGATED) ====================
+      case 'burn_nft': {
+        console.log('🔥 Action: burn_nft (delegated burning)');
+
+        const { tokenId } = params;
+        if (!tokenId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId' },
+            { status: 400 }
+          );
+        }
+
+        console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
+
+        // Use burnNFTForDelegated function (platform Safe is authorized burner)
+        const burnCalldata = encodeFunctionData({
+          abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
+          functionName: 'burnNFTForDelegated',
+          args: [userAddress as Address, BigInt(tokenId)],
+        });
+
+        const txHash = await executeTransaction([
+          {
+            to: EMPOWER_TOURS_NFT,
+            data: burnCalldata as Hex,
+            value: BigInt(0),
+          }
+        ], userAddress as Address);
+
+        await incrementTransactionCount(userAddress);
+        console.log('🔥 NFT burned successfully:', txHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash,
+          userAddress,
+          tokenId,
+          message: `NFT #${tokenId} burned successfully! 5 TOURS reward sent to owner.`,
+        });
+      }
+
+      // ==================== SHMON DEPOSIT (Liquid Staking) ====================
+      case 'shmon_deposit':
+        console.log('💎 Action: shmon_deposit (MON → shMON liquid staking)');
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for shmon_deposit' },
+            { status: 400 }
+          );
+        }
+
+        const SHMON_ADDRESS = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as Address;
+        const shmonDepositAmount = parseEther(params.amount.toString());
+
+        // Determine the correct Safe address for receiver
+        const shmonReceiverSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('💎 Depositing MON to get shMON:', {
+          amount: params.amount,
+          shmonAddress: SHMON_ADDRESS,
+          receiverSafe: shmonReceiverSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+        });
+
+        // ✅ Check Safe has enough MON before deposit
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeToCheckShmon = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const safeMonBalanceShmon = await client.getBalance({
+            address: safeToCheckShmon as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalanceShmon.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('   Requested deposit amount:', shmonDepositAmount.toString());
+
+          if (safeMonBalanceShmon < shmonDepositAmount) {
+            const currentMON = (Number(safeMonBalanceShmon) / 1e18).toFixed(4);
+            const requestedMON = (Number(shmonDepositAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but you're trying to stake ${requestedMON} MON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe MON balance:', balanceErr.message);
+        }
+
+        // ========== shMON deposit - Standard ERC4626 deposit ==========
+        // The shMON contract uses standard ERC4626 deposit:
+        // deposit(uint256 assets, address receiver) payable - deposits MON and receives shMON
+
+        console.log('💎 Using shMON deposit function...');
+
+        const shmonDepositCalls = [
+          {
+            to: SHMON_ADDRESS,
+            value: shmonDepositAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit(uint256 assets, address receiver) external payable returns (uint256)']),
+              functionName: 'deposit',
+              args: [shmonDepositAmount, shmonReceiverSafe as Address],
+            }) as Hex,
+          },
+        ];
+
+        try {
+          const shmonDepositTxHash = await executeTransaction(shmonDepositCalls, userAddress as Address);
+          console.log('✅ MON deposited to shMON, TX:', shmonDepositTxHash);
+
+          await incrementTransactionCount(userAddress);
+          return NextResponse.json({
+            success: true,
+            txHash: shmonDepositTxHash,
+            action,
+            userAddress,
+            amount: params.amount,
+            receiverSafe: shmonReceiverSafe,
+            message: `Staked ${params.amount} MON to receive shMON successfully (gasless)`,
+          });
+        } catch (shmonErr: any) {
+          console.error('❌ shMON deposit failed:', shmonErr);
+
+          // Decode revert reason if available
+          let decodedReason = 'Unknown error';
+          const errMsg = shmonErr.message || '';
+
+          // Try to extract hex reason
+          const hexMatch = errMsg.match(/0x[0-9a-fA-F]+/);
+          if (hexMatch) {
+            try {
+              const hexData = hexMatch[0];
+              // Check for Error(string) selector (0x08c379a0)
+              if (hexData.startsWith('0x08c379a0')) {
+                const { decodeAbiParameters } = await import('viem');
+                const decoded = decodeAbiParameters(
+                  [{ type: 'string', name: 'reason' }],
+                  `0x${hexData.slice(10)}` as `0x${string}`
+                );
+                decodedReason = decoded[0] as string;
+              }
+            } catch (decodeErr) {
+              console.warn('Could not decode error reason');
+            }
+          }
+
+          return NextResponse.json({
+            success: false,
+            error: `shMON deposit failed: ${decodedReason}`,
+            details: errMsg.substring(0, 500),
+            shmonAddress: SHMON_ADDRESS,
+            receiverSafe: shmonReceiverSafe,
+            hint: 'The shMON contract may have restrictions. Check if the contract is paused or if there are deposit limits.',
+          }, { status: 500 });
+        }
+
+      // ==================== LOTTERY ENTER WITH MON ====================
+      case 'lottery_enter_mon':
+        console.log('🎰 Action: lottery_enter_mon');
+
+        const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
+        const lotteryEntryFee = parseEther('1'); // 1 MON entry fee
+
+        // 🎁 ALWAYS use platform Safe for lottery entries (gasless/free for users)
+        const lotterySafe = SAFE_ACCOUNT;
+
+        console.log('🎰 Entering lottery with MON:', {
+          entryFee: '1 MON',
+          lotteryAddress: LOTTERY_ADDRESS,
+          safeAddress: lotterySafe,
+          mode: 'Platform Safe (FREE for user)',
+        });
+
+        // Note: Balance check removed - let blockchain handle balance validation during execution
+        // Lottery enterWithMonFor function: enterWithMonFor(address beneficiary) payable
+        // Platform Safe enters on behalf of the user (delegation)
+        const lotteryEnterMonCalls = [
+          {
+            to: LOTTERY_ADDRESS,
+            value: lotteryEntryFee,
+            data: encodeFunctionData({
+              abi: parseAbi(['function enterWithMonFor(address beneficiary) external payable returns (uint256)']),
+              functionName: 'enterWithMonFor',
+              args: [userAddress as Address], // The user is the beneficiary
+            }) as Hex,
+          },
+        ];
+
+        const lotteryEnterMonTxHash = await executeTransaction(lotteryEnterMonCalls, userAddress as Address);
+        console.log('✅ Entered lottery with MON, TX:', lotteryEnterMonTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: lotteryEnterMonTxHash,
+          action,
+          userAddress,
+          message: `Entered lottery with 1 MON successfully (gasless)`,
+        });
+
+      // ==================== LOTTERY ENTER WITH SHMON ====================
+      case 'lottery_enter_shmon':
+        console.log('🎰 Action: lottery_enter_shmon');
+
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for lottery_enter_shmon' },
+            { status: 400 }
+          );
+        }
+
+        const LOTTERY_ADDRESS_SHMON = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
+        const SHMON_ADDRESS_LOTTERY = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as Address;
+        const lotteryShMonAmount = parseEther(params.amount.toString());
+
+        // 🎁 ALWAYS use platform Safe for lottery entries (gasless/free for users)
+        const lotteryShMonSafe = SAFE_ACCOUNT;
+
+        console.log('🎰 Entering lottery with shMON:', {
+          amount: params.amount,
+          lotteryAddress: LOTTERY_ADDRESS_SHMON,
+          shmonAddress: SHMON_ADDRESS_LOTTERY,
+          safeAddress: lotteryShMonSafe,
+          mode: 'Platform Safe (FREE for user)',
+        });
+
+        // Check Safe has enough shMON and approval
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeShMonBalance = await client.readContract({
+            address: SHMON_ADDRESS_LOTTERY,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [lotteryShMonSafe],
+          }) as bigint;
+
+          console.log('💰 Safe shMON balance:', safeShMonBalance.toString());
+
+          if (safeShMonBalance < lotteryShMonAmount) {
+            const currentShMON = (Number(safeShMonBalance) / 1e18).toFixed(4);
+            const requiredShMON = (Number(lotteryShMonAmount) / 1e18).toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient shMON in Safe. Safe has ${currentShMON} shMON, but lottery entry requires ${requiredShMON} shMON.`
+              },
+              { status: 400 }
+            );
+          }
+        } catch (balanceErr: any) {
+          console.warn('⚠️ Could not verify Safe shMON balance:', balanceErr.message);
+        }
+
+        // First approve shMON, then enter lottery
+        const lotteryEnterShMonCalls = [
+          // Approve shMON to lottery contract
+          {
+            to: SHMON_ADDRESS_LOTTERY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [LOTTERY_ADDRESS_SHMON, lotteryShMonAmount],
+            }) as Hex,
+          },
+          // Enter lottery with shMON
+          {
+            to: LOTTERY_ADDRESS_SHMON,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function enterWithShMon(uint256 shMonAmount) external returns (uint256)']),
+              functionName: 'enterWithShMon',
+              args: [lotteryShMonAmount],
+            }) as Hex,
+          },
+        ];
+
+        const lotteryEnterShMonTxHash = await executeTransaction(lotteryEnterShMonCalls, userAddress as Address);
+        console.log('✅ Entered lottery with shMON, TX:', lotteryEnterShMonTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: lotteryEnterShMonTxHash,
+          action,
+          userAddress,
+          amount: params.amount,
+          message: `Entered lottery with ${params.amount} shMON successfully (gasless)`,
+        });
+
+      // ==================== LOTTERY REQUEST RANDOMNESS (V4 SWITCHBOARD) ====================
+      case 'lottery_request':
+        console.log('🎲 Action: lottery_request (V4 Switchboard)');
+
+        const LOTTERY_REQUEST_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
+
+        if (!params?.roundId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing roundId for lottery_request' },
+            { status: 400 }
+          );
+        }
+
+        const requestSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        const requestCalls: Call[] = [
+          {
+            to: LOTTERY_REQUEST_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function requestRandomness(uint256 roundId) external']),
+              functionName: 'requestRandomness',
+              args: [BigInt(params.roundId)],
+            }) as Hex,
+          },
+        ];
+
+        const requestTxHash = await executeTransaction(requestCalls, userAddress as Address);
+        console.log('✅ Requested Switchboard randomness for round', params.roundId, 'TX:', requestTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: requestTxHash,
+          action,
+          userAddress,
+          roundId: params.roundId,
+          message: `Requested randomness for round ${params.roundId} (earned 0.01 MON)`,
+        });
+
+      // ==================== LOTTERY RESOLVE RANDOMNESS (V4 SWITCHBOARD) ====================
+      case 'lottery_resolve':
+        console.log('🎰 Action: lottery_resolve (V4 Switchboard)');
+
+        const LOTTERY_RESOLVE_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
+
+        if (!params?.roundId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing roundId for lottery_resolve' },
+            { status: 400 }
+          );
+        }
+
+        try {
+          // Step 1: Read randomnessId and requestedAt from contract
+          console.log('📖 Reading randomness request data from contract...');
+          const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+
+          const readResponse = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'eth_call',
+              params: [
+                {
+                  to: LOTTERY_RESOLVE_ADDRESS,
+                  data: encodeFunctionData({
+                    abi: parseAbi(['function rounds(uint256) external view returns (uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, bytes32 randomnessId, uint256 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsPaid)']),
+                    functionName: 'rounds',
+                    args: [BigInt(params.roundId)]
+                  })
+                },
+                'latest'
+              ],
+              id: 1
+            })
+          });
+
+          const readData = await readResponse.json();
+          if (readData.error) {
+            throw new Error(`RPC error: ${readData.error.message}`);
+          }
+
+          // Decode the response - randomnessId is at position 7, requestedAt at position 9
+          const decodedData = readData.result;
+          const randomnessId = ('0x' + decodedData.slice(2 + (64 * 7), 2 + (64 * 8))) as Hex;
+          const randomnessRequestedAtHex = ('0x' + decodedData.slice(2 + (64 * 9), 2 + (64 * 10))) as Hex;
+          const randomnessRequestedAt = parseInt(randomnessRequestedAtHex, 16);
+
+          console.log('📝 Randomness ID:', randomnessId);
+          console.log('⏰ Requested at:', randomnessRequestedAt);
+
+          if (randomnessId === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+            throw new Error('Randomness not requested for this round yet');
+          }
+
+          // Step 2: Fetch encoded randomness from Switchboard Crossbar
+          console.log('🌐 Fetching encoded randomness from Switchboard Crossbar...');
+          const crossbar = new CrossbarClient('https://crossbar.switchboard.xyz');
+
+          const { encoded: encodedRandomness } = await crossbar.resolveEVMRandomness({
+            chainId: 10143, // Monad Testnet
+            randomnessId
+          });
+
+          console.log('✅ Fetched encoded randomness from Switchboard');
+
+          // Step 3: Call resolveRandomness on contract
+          const resolveSafe = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const resolveCalls: Call[] = [
+            {
+              to: LOTTERY_RESOLVE_ADDRESS,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi(['function resolveRandomness(uint256 roundId, bytes calldata encodedRandomness) external']),
+                functionName: 'resolveRandomness',
+                args: [BigInt(params.roundId), encodedRandomness as Hex],
+              }) as Hex,
+            },
+          ];
+
+          const resolveTxHash = await executeTransaction(resolveCalls, userAddress as Address);
+          console.log('✅ Resolved Switchboard randomness for round', params.roundId, 'TX:', resolveTxHash);
+
+          // Automatically announce winner on Farcaster after successful resolve
+          let castHash: string | undefined;
+          try {
+            console.log('📢 Auto-announcing winner on Farcaster...');
+
+            // Wait 3 seconds for transaction to be indexed
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Call the announce-winner API internally
+            const announceResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/lottery/announce-winner`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roundId: params.roundId }),
+            });
+
+            if (announceResponse.ok) {
+              const announceData = await announceResponse.json();
+              castHash = announceData.castHash;
+              console.log('✅ Winner announced on Farcaster! Cast hash:', castHash);
+            } else {
+              const errorData = await announceResponse.json();
+              console.warn('⚠️ Failed to announce on Farcaster:', errorData.error);
+            }
+          } catch (announceError: any) {
+            console.warn('⚠️ Farcaster announcement error:', announceError.message);
+            // Don't fail the whole request if announcement fails
+          }
+
+          // Public action - no delegation tracking needed
+          return NextResponse.json({
+            success: true,
+            txHash: resolveTxHash,
+            castHash,
+            action,
+            userAddress,
+            roundId: params.roundId,
+            message: `Resolved randomness for round ${params.roundId} (earned 0.01 MON)${castHash ? ' - Announced on Farcaster!' : ''}`,
+          });
+
+        } catch (error: any) {
+          console.error('❌ Error resolving Switchboard randomness:', error);
+          return NextResponse.json(
+            { success: false, error: `Failed to resolve randomness: ${error.message}` },
+            { status: 500 }
+          );
+        }
+
+      // ==================== LOTTERY CLAIM PRIZE ====================
+      case 'lottery_claim':
+        console.log('💰 Action: lottery_claim');
+
+        const LOTTERY_CLAIM_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as Address;
+
+        if (!params?.roundId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing roundId for lottery_claim' },
+            { status: 400 }
+          );
+        }
+
+        const claimSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        const claimCalls: Call[] = [
+          {
+            to: LOTTERY_CLAIM_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claimPrizeFor(address beneficiary, uint256 roundId) external']),
+              functionName: 'claimPrizeFor',
+              args: [userAddress as Address, BigInt(params.roundId)],
+            }) as Hex,
+          },
+        ];
+
+        const claimTxHash = await executeTransaction(claimCalls, userAddress as Address);
+        console.log('✅ Claimed prize for round', params.roundId, 'for', userAddress, 'TX:', claimTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: claimTxHash,
+          action,
+          userAddress,
+          roundId: params.roundId,
+          message: `Claimed prize for round ${params.roundId}`,
+        });
+
+      // ==================== CONCIERGE CUSTOM SERVICE REQUEST ====================
+      case 'concierge_custom':
+        console.log('🛎️ Action: concierge_custom');
+
+        // Use PersonalAssistantV2 with delegation support
+        const PERSONAL_ASSISTANT_V2_ADDRESS = (process.env.NEXT_PUBLIC_PERSONAL_ASSISTANT_V2 || '0xDFB9Bec42E250E2ec159376b39B6e5233928D73D') as Address;
+
+        if (!params?.serviceType || !params?.details) {
+          return NextResponse.json(
+            { success: false, error: 'Missing serviceType or details for concierge_custom' },
+            { status: 400 }
+          );
+        }
+
+        const suggestedPrice = parseEther((params.suggestedPrice || '0.1').toString());
+
+        const customServiceCalls: Call[] = [
+          {
+            to: PERSONAL_ASSISTANT_V2_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createServiceRequestFor(address beneficiary, string serviceType, string details, uint256 suggestedPrice) external returns (uint256)']),
+              functionName: 'createServiceRequestFor',
+              args: [userAddress as Address, params.serviceType as string, params.details as string, suggestedPrice],
+            }) as Hex,
+          },
+        ];
+
+        const customServiceTxHash = await executeTransaction(customServiceCalls, userAddress as Address);
+        console.log('✅ Created custom service request for', userAddress, 'TX:', customServiceTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: customServiceTxHash,
+          action,
+          userAddress,
+          message: `Custom service request created`,
+        });
+
+      // ==================== CONCIERGE FOOD ORDER ====================
+      case 'concierge_food':
+        console.log('🍽️ Action: concierge_food');
+
+        const SERVICE_MARKETPLACE_ADDRESS = (process.env.NEXT_PUBLIC_SERVICE_MARKETPLACE_ADDRESS || '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4') as Address;
+
+        if (!params?.provider || !params?.menuItemIds || !params?.deliveryAddress) {
+          return NextResponse.json(
+            { success: false, error: 'Missing provider, menuItemIds, or deliveryAddress for concierge_food' },
+            { status: 400 }
+          );
+        }
+
+        const menuItemIds = Array.isArray(params.menuItemIds) ? params.menuItemIds.map((id: any) => BigInt(id)) : [BigInt(params.menuItemIds)];
+        const quantities = Array.isArray(params.quantities) ? params.quantities.map((q: any) => BigInt(q)) : [BigInt(params.quantities || 1)];
+        const deliveryFee = parseEther((params.deliveryFee || '0.01').toString());
+
+        const foodOrderCalls: Call[] = [
+          {
+            to: SERVICE_MARKETPLACE_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createFoodOrderFor(address beneficiary, address provider, uint256[] menuItemIds, uint256[] quantities, string deliveryAddress, uint256 deliveryFee) external returns (uint256)']),
+              functionName: 'createFoodOrderFor',
+              args: [userAddress as Address, params.provider as Address, menuItemIds, quantities, params.deliveryAddress as string, deliveryFee],
+            }) as Hex,
+          },
+        ];
+
+        const foodOrderTxHash = await executeTransaction(foodOrderCalls, userAddress as Address);
+        console.log('✅ Created food order for', userAddress, 'TX:', foodOrderTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: foodOrderTxHash,
+          action,
+          userAddress,
+          message: `Food order created`,
+        });
+
+      // ==================== CONCIERGE RIDE REQUEST ====================
+      case 'concierge_ride':
+        console.log('🚗 Action: concierge_ride');
+
+        const SERVICE_MARKETPLACE_RIDE_ADDRESS = (process.env.NEXT_PUBLIC_SERVICE_MARKETPLACE_ADDRESS || '0xa576aB68b630F68F6D7E09fCc888ddA80dfc8ee4') as Address;
+
+        if (!params?.pickupLocation || !params?.destination) {
+          return NextResponse.json(
+            { success: false, error: 'Missing pickupLocation or destination for concierge_ride' },
+            { status: 400 }
+          );
+        }
+
+        const agreedPrice = parseEther((params.agreedPrice || '0.1').toString());
+        const capacity = BigInt(params.capacity || 1); // Default to 1 passenger
+
+        const rideRequestCalls: Call[] = [
+          {
+            to: SERVICE_MARKETPLACE_RIDE_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function createRideRequestFor(address beneficiary, string pickupLocation, string destination, uint256 agreedPrice, uint256 capacity) external returns (uint256)']),
+              functionName: 'createRideRequestFor',
+              args: [userAddress as Address, params.pickupLocation as string, params.destination as string, agreedPrice, capacity],
+            }) as Hex,
+          },
+        ];
+
+        const rideRequestTxHash = await executeTransaction(rideRequestCalls, userAddress as Address);
+        console.log('✅ Created ride request for', userAddress, 'TX:', rideRequestTxHash);
+
+        // Public action - no delegation tracking needed
+        return NextResponse.json({
+          success: true,
+          txHash: rideRequestTxHash,
+          action,
+          userAddress,
+          message: `Ride request created`,
+        });
+
+      // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
+      case 'create_experience':
+        console.log('📍 Action: create_experience');
+
+        const ITINERARY_ADDRESS = (process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x5B61286AC88688fe8930711fAa5b1155e98daFe8') as Address;
+
+        // Validate required params
+        if (!params?.locationName || !params?.city || !params?.country) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required fields: locationName, city, country' },
+            { status: 400 }
+          );
+        }
+
+        const expCountry = params.country as string;
+        const expCity = params.city as string;
+        const expLocationName = params.locationName as string;
+        const expDescription = (params.description as string) || `${expLocationName} in ${expCity}, ${expCountry}`;
+        const expType = Number(params.experienceType || 0);
+        const expLatitude = BigInt(params.latitude || 0);
+        const expLongitude = BigInt(params.longitude || 0);
+        const expProximityRadius = BigInt(params.proximityRadius || 100);
+        const expPrice = parseEther((params.price || '10').toString()); // Price in TOURS
+        const expIpfsHash = (params.ipfsImageHash as string) || '';
+
+        console.log('📍 Creating experience:', {
+          locationName: expLocationName,
+          city: expCity,
+          country: expCountry,
+          experienceType: expType,
+          latitude: expLatitude.toString(),
+          longitude: expLongitude.toString(),
+          price: formatEther(expPrice),
+          ipfsHash: expIpfsHash,
+        });
+
+        // Build create experience call
+        const createExperienceCalls = [
+          {
+            to: ITINERARY_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function createExperience(string memory country, string memory city, string memory locationName, string memory description, uint8 experienceType, int256 latitude, int256 longitude, uint256 proximityRadius, uint256 price, string memory ipfsImageHash) external returns (uint256)'
+              ]),
+              functionName: 'createExperience',
+              args: [
+                expCountry,
+                expCity,
+                expLocationName,
+                expDescription,
+                expType,
+                expLatitude,
+                expLongitude,
+                expProximityRadius,
+                expPrice,
+                expIpfsHash
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const createExperienceTxHash = await executeTransaction(createExperienceCalls, userAddress as Address);
+        console.log('✅ Created experience, TX:', createExperienceTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: createExperienceTxHash,
+          action,
+          userAddress,
+          locationName: expLocationName,
+          city: expCity,
+          country: expCountry,
+          message: `Experience "${expLocationName}" created successfully (gasless)`,
+        });
+
+      // ==================== SWAP MON FOR TOURS ====================
+      case 'swap_mon_for_tours':
+        console.log('💱 Action: swap_mon_for_tours');
+
+        if (!params?.amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for swap' },
+            { status: 400 }
+          );
+        }
+
+        // TOKEN_SWAP and TOURS_TOKEN already declared at top level
+        if (!TOKEN_SWAP || !TOURS_TOKEN) {
+          return NextResponse.json(
+            { success: false, error: 'Swap contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        const swapAmount = parseFloat(params.amount.toString());
+        if (isNaN(swapAmount) || swapAmount <= 0 || swapAmount > 10) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid swap amount. Must be between 0.01 and 10 MON' },
+            { status: 400 }
+          );
+        }
+
+        const swapMonValue = parseEther(swapAmount.toString());
+
+        // Determine the correct Safe address
+        const swapSafe = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
+        console.log('💱 Executing swap:', {
+          amount: swapAmount,
+          tokenSwap: TOKEN_SWAP,
+          toursToken: TOURS_TOKEN,
+          safeAddress: swapSafe,
+          mode: USE_USER_SAFES ? 'User Safe' : 'Platform Safe',
+        });
+
+        // Check Safe has enough MON for swap
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const client = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const safeMonBalanceSwap = await client.getBalance({
+            address: swapSafe as Address,
+          });
+
+          console.log('💰 Safe MON balance:', safeMonBalanceSwap.toString());
+
+          if (safeMonBalanceSwap < swapMonValue) {
+            const currentMON = (Number(safeMonBalanceSwap) / 1e18).toFixed(4);
+            const requiredMON = swapAmount.toFixed(4);
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but swap requires ${requiredMON} MON.`
+              },
+              { status: 400 }
+            );
+          }
+
+          // Get exchange rate to calculate expected TOURS
+          const exchangeRate = await client.readContract({
+            address: TOKEN_SWAP,
+            abi: parseAbi(['function exchangeRate() external view returns (uint256)']),
+            functionName: 'exchangeRate',
+          }) as bigint;
+
+          const expectedTours = (swapMonValue * exchangeRate) / parseEther('1');
+          console.log('📊 Exchange rate:', formatEther(exchangeRate), 'TOURS per MON');
+          console.log('📊 Expected TOURS:', formatEther(expectedTours));
+
+          // Check swap contract has enough TOURS
+          const swapContractToursBalance = await client.readContract({
+            address: TOURS_TOKEN,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [TOKEN_SWAP],
+          }) as bigint;
+
+          console.log('💰 Swap contract TOURS balance:', formatEther(swapContractToursBalance));
+
+          if (swapContractToursBalance < expectedTours) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Swap contract has insufficient TOURS tokens. Please contact support.`,
+                details: `Contract has ${formatEther(swapContractToursBalance)} TOURS, but swap requires ${formatEther(expectedTours)} TOURS`
+              },
+              { status: 500 }
+            );
+          }
+
+          // IMPORTANT: Batched calls for atomic swap
+          // 1. Platform Safe calls TokenSwap.swap() with MON -> receives TOURS
+          // 2. Platform Safe transfers TOURS to user
+          const swapCalls = [
+            // Call 1: Execute swap (Platform Safe receives TOURS)
+            {
+              to: TOKEN_SWAP,
+              value: swapMonValue,
+              data: encodeFunctionData({
+                abi: parseAbi(['function swap() external payable']),
+                functionName: 'swap',
+                args: [],
+              }) as Hex,
+            },
+            // Call 2: Transfer TOURS from Platform Safe to user
+            {
+              to: TOURS_TOKEN,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+                functionName: 'transfer',
+                args: [userAddress as Address, expectedTours],
+              }) as Hex,
+            },
+          ];
+
+          console.log('⚡ Executing batched swap calls...');
+          const swapTxHash = await executeTransaction(swapCalls, userAddress as Address, swapMonValue);
+          console.log('✅ Swap executed, TX:', swapTxHash);
+
+          await incrementTransactionCount(userAddress);
+          return NextResponse.json({
+            success: true,
+            txHash: swapTxHash,
+            action,
+            userAddress,
+            monSpent: swapAmount,
+            toursReceived: formatEther(expectedTours),
+            exchangeRate: formatEther(exchangeRate),
+            message: `Swapped ${swapAmount} MON for ${formatEther(expectedTours)} TOURS successfully (gasless)`,
+          });
+
+        } catch (swapErr: any) {
+          console.error('❌ Swap failed:', swapErr);
+          return NextResponse.json({
+            success: false,
+            error: `Swap failed: ${swapErr.message || 'Unknown error'}`,
+            details: swapErr.shortMessage || swapErr.message,
+          }, { status: 500 });
+        }
+
+      // ==================== MUSIC BEAT MATCH (V2) ====================
+      case 'beat_match_submit_guess':
+        console.log('🎵 Action: beat_match_submit_guess');
+
+        if (!params?.challengeId || !params?.songTitle) {
+          return NextResponse.json(
+            { success: false, error: 'Missing challenge params' },
+            { status: 400 }
+          );
+        }
+
+        const MUSIC_BEAT_MATCH_V2 = process.env.NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
+
+        const beatMatchCalls = [
+          {
+            to: MUSIC_BEAT_MATCH_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function submitGuessFor(address beneficiary, uint256 challengeId, uint256 guessedArtistId, string guessedSongTitle, string guessedUsername) external'
+              ]),
+              functionName: 'submitGuessFor',
+              args: [
+                userAddress as Address,              // beneficiary
+                BigInt(params.challengeId),
+                BigInt(params.artistId || 0),
+                params.songTitle,
+                params.username || ''                // Farcaster username guess
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const beatMatchTxHash = await executeTransaction(beatMatchCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: beatMatchTxHash,
+          action,
+          userAddress,
+          message: 'Guess submitted successfully!',
+        });
+
+      // ==================== COUNTRY COLLECTOR (V2) ====================
+      case 'country_collector_complete':
+        console.log('🌍 Action: country_collector_complete');
+
+        if (!params?.weekId || !params?.artistIndex || !params?.artistId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing parameters' },
+            { status: 400 }
+          );
+        }
+
+        const COUNTRY_COLLECTOR_V2 = process.env.NEXT_PUBLIC_COUNTRY_COLLECTOR_V2 as Address;
+
+        const collectorCalls = [
+          {
+            to: COUNTRY_COLLECTOR_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function completeArtistFor(address beneficiary, uint256 weekId, uint256 artistIndex, uint256 artistId) external'
+              ]),
+              functionName: 'completeArtistFor',
+              args: [
+                userAddress as Address,              // beneficiary
+                BigInt(params.weekId),
+                BigInt(params.artistIndex),
+                BigInt(params.artistId)
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const collectorTxHash = await executeTransaction(collectorCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        return NextResponse.json({
+          success: true,
+          txHash: collectorTxHash,
+          action,
+          userAddress,
+          message: 'Artist completed!',
+        });
+
+      default:
+        return NextResponse.json(
+          { success: false, error: `Unknown action: ${action}` },
+          { status: 400 }
+        );
+    }
+  } catch (error: any) {
+    console.error('❌ [DELEGATED] Execution error:', error.message);
+
+    // ✅ Enhanced error handling for common AA/bundler errors
+    let userFriendlyError = error.message || 'Failed to execute action';
+    let statusCode = 500;
+
+    // ✅ Extract UserOperation hash if available (from timeout or other errors)
+    const userOpHash = error.userOpHash;
+
+    // Check for Pimlico reserve balance errors
+    if (error.message?.includes('reserve balance') || error.message?.includes('Insufficient MON balance')) {
+      statusCode = 503; // Service Unavailable - Safe needs funding
+      userFriendlyError = error.message; // Already user-friendly
+    }
+    // Check for gas estimation errors
+    else if (error.message?.includes('Gas estimation failed')) {
+      statusCode = 400; // Bad Request - likely an invalid operation
+      userFriendlyError = error.message; // Already detailed
+    }
+    // Check for insufficient token balance
+    else if (error.message?.includes('Insufficient token balance') || error.message?.includes('Insufficient TOURS')) {
+      statusCode = 400;
+      userFriendlyError = error.message; // Already user-friendly
+    }
+    // Check for NFT ownership/whitelist errors
+    else if (error.message?.includes('not whitelisted') || error.message?.includes('does not own NFT')) {
+      statusCode = 400;
+      userFriendlyError = error.message; // Already user-friendly
+    }
+    // ✅ Check for transaction timeout with UserOp hash
+    else if (error.message?.includes('taking longer than expected') && userOpHash) {
+      statusCode = 202; // Accepted - transaction is processing
+      userFriendlyError = error.message; // Already includes userOpHash
+    }
+
+    const errorResponse: any = {
+      success: false,
+      error: userFriendlyError,
+      action: 'execute_delegated',
+    };
+
+    // ✅ Include UserOp hash in response if available so users can track their transaction
+    if (userOpHash) {
+      errorResponse.userOpHash = userOpHash;
+      console.log('📋 Including UserOperation hash in error response:', userOpHash);
+    }
+
+    return NextResponse.json(errorResponse, { status: statusCode });
+  }
+}

@@ -1,0 +1,15 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Override default npm install to use --omit=dev instead of --production
+[build.nixpacksPlan.phases.install]
+cmds = ["npm ci --omit=dev"]
+
+# Set Node.js version to meet requirements
+[build.nixpacksPlan.variables]
+NODE_VERSION = "20"

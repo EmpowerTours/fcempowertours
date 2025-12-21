@@ -1,0 +1,21 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "npm run start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "cron": [
+    {
+      "schedule": "0 */6 * * *",
+      "command": "curl https://fcempowertours-production-6551.up.railway.app/api/cron/finalize-lottery?key=$KEEPER_SECRET"
+    },
+    {
+      "schedule": "0 * * * *",
+      "command": "curl -H 'Authorization: Bearer $CRON_SECRET' https://fcempowertours-production-6551.up.railway.app/api/cron/manage-games"
+    }
+  ]
+}

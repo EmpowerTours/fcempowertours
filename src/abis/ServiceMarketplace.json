@@ -1,0 +1,1920 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_wmonToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_platformSafe",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_personalAssistantContract",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "acceptDelivery",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "acceptFoodOrder",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "acceptRideRequest",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "estimatedDuration",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "activeFoodProviders",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "activeRideProviders",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "addMenuItem",
+    "inputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "price",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "prepTimeMinutes",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "imageUrl",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimFoodNoShowCompensation",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "proofPhotoHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimRideNoShowCompensation",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "proofPhotoHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "confirmFoodDelivery",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "confirmFoodDeliveryFor",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "confirmRideCompletion",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "confirmRideCompletionFor",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createFoodOrder",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "menuItemIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "quantities",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "deliveryAddress",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "deliveryFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createFoodOrderFor",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "menuItemIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "quantities",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "deliveryAddress",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "deliveryFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createRideRequest",
+    "inputs": [
+      {
+        "name": "pickupLocation",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "destination",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "agreedPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "capacity",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createRideRequestFor",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "pickupLocation",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "destination",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "agreedPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "capacity",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "disputeTimeWindow",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "emergencyWithdraw",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "foodOrders",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "deliveryDriver",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "foodPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deliveryFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "escrowAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum ServiceMarketplace.FoodStatus"
+      },
+      {
+        "name": "deliveryAddress",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "locationHash",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "createdAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "completedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "arrivalTimestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fundsReleased",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "foodProviders",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "providerAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "businessName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "totalOrders",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "ratingCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "registeredAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getActiveFoodProviders",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getActiveRideProviders",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getFoodOrder",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ServiceMarketplace.FoodOrder",
+        "components": [
+          {
+            "name": "orderId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "customer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "provider",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "deliveryDriver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "menuItemIds",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "quantities",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "foodPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deliveryFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "escrowAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum ServiceMarketplace.FoodStatus"
+          },
+          {
+            "name": "deliveryAddress",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "locationHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "completedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "arrivalTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fundsReleased",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getFoodProvider",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "providerAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "businessName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "totalOrders",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "ratingCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getProviderMenu",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct ServiceMarketplace.MenuItem[]",
+        "components": [
+          {
+            "name": "id",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "price",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "prepTimeMinutes",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "available",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "imageUrl",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRideProvider",
+    "inputs": [
+      {
+        "name": "driver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "driverAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "driverName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "vehicle",
+        "type": "tuple",
+        "internalType": "struct ServiceMarketplace.Vehicle",
+        "components": [
+          {
+            "name": "vehicleType",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "model",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "licensePlate",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "capacity",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "imageUrl",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "totalRides",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "ratingCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRideRequest",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ServiceMarketplace.RideRequest",
+        "components": [
+          {
+            "name": "requestId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "passenger",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "driver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "pickupLocation",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "destination",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "agreedPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "escrowAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum ServiceMarketplace.RideStatus"
+          },
+          {
+            "name": "currentLocationHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "estimatedDuration",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "capacity",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "completedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "arrivalTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fundsReleased",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "orderToCustomer",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "personalAssistantContract",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPersonalAssistant"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformFeePercent",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformSafe",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "raiseFoodDispute",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "raiseRideDispute",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerFoodProvider",
+    "inputs": [
+      {
+        "name": "businessName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerRideProvider",
+    "inputs": [
+      {
+        "name": "driverName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "vehicleType",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "licensePlate",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "capacity",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "vehicleImageUrl",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requestToPassenger",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "resolveFoodDispute",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "refundCustomer",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "refundPercent",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "resolveRideDispute",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "refundPassenger",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "refundPercent",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "rideProviders",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "driverAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "driverName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "vehicle",
+        "type": "tuple",
+        "internalType": "struct ServiceMarketplace.Vehicle",
+        "components": [
+          {
+            "name": "vehicleType",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "model",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "licensePlate",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "capacity",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "imageUrl",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "totalRides",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "ratingCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "registeredAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "rideRequests",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "passenger",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "driver",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "pickupLocation",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "destination",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "agreedPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "escrowAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum ServiceMarketplace.RideStatus"
+      },
+      {
+        "name": "currentLocationHash",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "estimatedDuration",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "capacity",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "createdAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "completedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "arrivalTimestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fundsReleased",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setDisputeTimeWindow",
+    "inputs": [
+      {
+        "name": "newWindow",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPlatformFee",
+    "inputs": [
+      {
+        "name": "newFeePercent",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPlatformSafe",
+    "inputs": [
+      {
+        "name": "newSafe",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateFoodStatus",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "newStatus",
+        "type": "uint8",
+        "internalType": "enum ServiceMarketplace.FoodStatus"
+      },
+      {
+        "name": "locationHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateMenuItemAvailability",
+    "inputs": [
+      {
+        "name": "itemIndex",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "available",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateRideStatus",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "newStatus",
+        "type": "uint8",
+        "internalType": "enum ServiceMarketplace.RideStatus"
+      },
+      {
+        "name": "locationHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "wmonToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "DeliveryAccepted",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "driver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DisputeRaised",
+    "inputs": [
+      {
+        "name": "serviceType",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ServiceMarketplace.ServiceType"
+      },
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "raiser",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FoodOrderCompleted",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "providerAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "driver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "driverAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FoodOrderCreated",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "totalAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FoodOrderStatusUpdated",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ServiceMarketplace.FoodStatus"
+      },
+      {
+        "name": "locationHash",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FoodProviderRegistered",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "businessName",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MenuItemAdded",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "itemId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "price",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "NoShowCompensationClaimed",
+    "inputs": [
+      {
+        "name": "serviceType",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ServiceMarketplace.ServiceType"
+      },
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "claimer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "compensation",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "proofHash",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RatingSubmitted",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "rating",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "rater",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RideCompleted",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "driver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RideProviderRegistered",
+    "inputs": [
+      {
+        "name": "driver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "driverName",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RideRequestAccepted",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "driver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RideRequestCreated",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "passenger",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "agreedPrice",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RideStatusUpdated",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ServiceMarketplace.RideStatus"
+      },
+      {
+        "name": "locationHash",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  }
+]
