@@ -7,7 +7,7 @@ import { parseEther, formatEther, type Abi } from 'viem';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 // Contract addresses
-const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REGISTRY_ADDRESS as `0x${string}`;
+const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as `0x${string}`;
 const MIRRORMATE_ADDRESS = process.env.NEXT_PUBLIC_MIRRORMATE_ADDRESS as `0x${string}`;
 const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as `0x${string}`;
 

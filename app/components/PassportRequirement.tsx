@@ -131,8 +131,15 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
 
   const handleMint = async () => {
     if (!walletAddress) {
-      setError('Wallet not connected');
-      return;
+      setError('Connecting wallet...');
+      // Request wallet if not connected yet
+      await requestWallet();
+
+      // Check again after requesting
+      if (!walletAddress) {
+        setError('Wallet not connected. Please try again.');
+        return;
+      }
     }
 
     if (!isFollowing || !hasCasted) {
