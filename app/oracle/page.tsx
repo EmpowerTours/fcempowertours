@@ -88,6 +88,11 @@ export default function OraclePage() {
     console.log('[OraclePage] activeGame state changed to:', activeGame);
   }, [activeGame]);
 
+  // Debug: Log showCreateNFTModal state changes
+  useEffect(() => {
+    console.log('[OraclePage] showCreateNFTModal state changed to:', showCreateNFTModal);
+  }, [showCreateNFTModal]);
+
   // Detect user location
   useEffect(() => {
     if ('geolocation' in navigator) {
@@ -177,12 +182,14 @@ export default function OraclePage() {
 
           case 'create_nft':
             console.log('[Oracle] CREATE_NFT case triggered');
+            console.log('[Oracle] Setting showCreateNFTModal to true');
             setMessages(prev => [...prev, {
               role: 'oracle',
               content: `${action.message}\n\nOpening NFT creation studio...`,
               action
             }]);
             setTimeout(() => {
+              console.log('[Oracle] Timeout fired, opening modal');
               setShowCreateNFTModal(true);
             }, 500);
             break;
@@ -492,15 +499,26 @@ export default function OraclePage() {
             </div>
             <div className="mt-2 flex items-center justify-between">
               <div className="text-xs text-gray-500">
-                Try: "Find restaurants near me", "Play Tetris", "Play TicTacToe", "Play MirrorMate"
+                Try: "Create NFT", "Find restaurants near me", "Play Tetris"
               </div>
-              <button
-                onClick={() => setShowSubscriptionModal(true)}
-                className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-semibold transition-all flex items-center gap-1"
-              >
-                <Music2 className="w-3 h-3" />
-                Subscribe
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    console.log('[Oracle] Test button clicked - opening modal');
+                    setShowCreateNFTModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-gradient-to-r from-green-500/20 to-emerald-600/20 hover:from-green-500/30 hover:to-emerald-600/30 border border-green-500/30 rounded-lg text-xs text-green-400 font-semibold transition-all"
+                >
+                  🎨 Create NFT
+                </button>
+                <button
+                  onClick={() => setShowSubscriptionModal(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-semibold transition-all flex items-center gap-1"
+                >
+                  <Music2 className="w-3 h-3" />
+                  Subscribe
+                </button>
+              </div>
             </div>
           </div>
         </div>
