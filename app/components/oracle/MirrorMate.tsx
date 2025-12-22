@@ -122,7 +122,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         console.log('[MirrorMate] Calling getAllGuides...');
         const guideFids = (await (publicClient.readContract as any)({
           address: REGISTRY_ADDRESS,
-          abi: registryAbi as Abi,
+          abi: registryAbi as any,
           functionName: 'getAllGuides',
         })) as bigint[];
 
@@ -142,7 +142,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         // Fetch profiles in batch
         const profiles = (await (publicClient.readContract as any)({
           address: REGISTRY_ADDRESS,
-          abi: registryAbi as Abi,
+          abi: registryAbi as any,
           functionName: 'getBatchProfiles',
           args: [fidsArray],
         })) as GuideProfile[];
@@ -204,13 +204,13 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         const [skipCount, freeSkips] = await Promise.all([
           publicClient.readContract({
             address: REGISTRY_ADDRESS,
-            abi: registryAbi as Abi,
+            abi: registryAbi as any,
             functionName: 'getDailySkipCount',
             args: [BigInt(user.fid)],
           }) as Promise<bigint>,
           publicClient.readContract({
             address: REGISTRY_ADDRESS,
-            abi: registryAbi as Abi,
+            abi: registryAbi as any,
             functionName: 'getRemainingFreeSkips',
             args: [BigInt(user.fid)],
           }) as Promise<bigint>,
@@ -260,7 +260,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       setTxState('confirming');
       const skipTx = await walletClient.writeContract({
         address: REGISTRY_ADDRESS,
-        abi: registryAbi as Abi,
+        abi: registryAbi as any,
         functionName: 'skipGuide',
         args: [BigInt(user.fid), guide.fid],
       });
@@ -318,7 +318,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       setTxState('confirming');
       const connectionTx = await walletClient.writeContract({
         address: REGISTRY_ADDRESS,
-        abi: registryAbi as Abi,
+        abi: registryAbi as any,
         functionName: 'requestConnection',
         args: [
           BigInt(user.fid),
