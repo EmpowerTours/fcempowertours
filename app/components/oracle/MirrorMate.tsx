@@ -8,7 +8,6 @@ import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 // Contract addresses
 const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as `0x${string}`;
-const MIRRORMATE_ADDRESS = process.env.NEXT_PUBLIC_MIRRORMATE_ADDRESS as `0x${string}`;
 const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as `0x${string}`;
 
 interface GuideProfile {
@@ -47,7 +46,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   const [txError, setTxError] = useState<string>('');
   const [userStats, setUserStats] = useState<{ skipCount: number; remainingFreeSkips: number }>({
     skipCount: 0,
-    remainingFreeSkips: 10,
+    remainingFreeSkips: 20, // TourGuideRegistry has 20 free skips per day
   });
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [nearbyFids, setNearbyFids] = useState<number[]>([]);
@@ -192,31 +191,31 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     fetchGuides();
   }, [publicClient, nearbyFids]);
 
-  // Fetch user stats
+  // Fetch user stats from TourGuideRegistry
   useEffect(() => {
     const fetchUserStats = async () => {
-      if (!publicClient || !walletAddress) return;
+      if (!publicClient || !user || !user.fid) return;
 
       try {
-        const { default: mirrorMateAbi } = await import('@/lib/abis/MirrorMate.json');
+        const { default: registryAbi } = await import('@/lib/abis/TourGuideRegistry.json');
 
-        const [stats, freeSkips] = await Promise.all([
+        const [skipCount, freeSkips] = await Promise.all([
           publicClient.readContract({
-            address: MIRRORMATE_ADDRESS,
-            abi: mirrorMateAbi,
-            functionName: 'getUserStats',
-            args: [walletAddress],
-          }) as Promise<any>,
+            address: REGISTRY_ADDRESS,
+            abi: registryAbi,
+            functionName: 'getDailySkipCount',
+            args: [BigInt(user.fid)],
+          }) as Promise<bigint>,
           publicClient.readContract({
-            address: MIRRORMATE_ADDRESS,
-            abi: mirrorMateAbi,
+            address: REGISTRY_ADDRESS,
+            abi: registryAbi,
             functionName: 'getRemainingFreeSkips',
-            args: [walletAddress],
+            args: [BigInt(user.fid)],
           }) as Promise<bigint>,
         ]);
 
         setUserStats({
-          skipCount: Number(stats.skipCount),
+          skipCount: Number(skipCount),
           remainingFreeSkips: Number(freeSkips),
         });
       } catch (error) {
@@ -225,22 +224,22 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     };
 
     fetchUserStats();
-  }, [publicClient, walletAddress]);
+  }, [publicClient, user]);
 
   const handleSkip = async () => {
-    if (!walletClient || !walletAddress || currentIndex >= guides.length) return;
+    if (!walletClient || !walletAddress || !user || !user.fid || currentIndex >= guides.length) return;
 
     const guide = guides[currentIndex];
     setTxState('confirming');
 
     try {
-      const { default: mirrorMateAbi } = await import('@/lib/abis/MirrorMate.json');
+      const { default: registryAbi } = await import('@/lib/abis/TourGuideRegistry.json');
 
-      // Check if user needs to pay
-      const cost = userStats.remainingFreeSkips > 0 ? 0 : parseEther('0.01');
+      // Check if user needs to pay (after 20 free skips)
+      const needsPayment = userStats.remainingFreeSkips === 0;
 
-      if (cost > 0) {
-        // Approve WMON if needed
+      if (needsPayment) {
+        // Approve 5 WMON for paid skip
         const { default: erc20Abi } = await import('@/lib/abis/ERC20.json');
 
         setTxState('confirming');
@@ -248,7 +247,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           address: WMON_ADDRESS,
           abi: erc20Abi,
           functionName: 'approve',
-          args: [MIRRORMATE_ADDRESS, cost],
+          args: [REGISTRY_ADDRESS, parseEther('5')], // 5 WMON per skip
         });
 
         setTxState('loading');
@@ -257,10 +256,10 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       setTxState('confirming');
       const skipTx = await walletClient.writeContract({
-        address: MIRRORMATE_ADDRESS,
-        abi: mirrorMateAbi,
+        address: REGISTRY_ADDRESS,
+        abi: registryAbi,
         functionName: 'skipGuide',
-        args: [guide.fid, WMON_ADDRESS],
+        args: [BigInt(user.fid), guide.fid],
       });
 
       setTxState('loading');
@@ -294,43 +293,39 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     setTxState('confirming');
 
     try {
-      const { default: mirrorMateAbi } = await import('@/lib/abis/MirrorMate.json');
+      const { default: registryAbi } = await import('@/lib/abis/TourGuideRegistry.json');
+
+      // Check if user needs to pay (after 5 free connections per day)
+      // We'll approve 10 WMON just in case (contract will only charge if needed)
       const { default: erc20Abi } = await import('@/lib/abis/ERC20.json');
 
-      const matchCost = parseEther('10'); // 10 MON
-
-      // Approve WMON
       setTxState('confirming');
       const approveTx = await walletClient.writeContract({
         address: WMON_ADDRESS,
         abi: erc20Abi,
         functionName: 'approve',
-        args: [MIRRORMATE_ADDRESS, matchCost],
+        args: [REGISTRY_ADDRESS, parseEther('10')], // 10 WMON per paid connection
       });
 
       setTxState('loading');
       await publicClient!.waitForTransactionReceipt({ hash: approveTx });
 
-      // Get guide's verified address from Neynar
-      const guideAddress = await fetchGuideVerifiedAddress(Number(guide.fid));
-
-      // Match with guide
+      // Request connection (free or paid based on daily limit)
       setTxState('confirming');
-      const matchTx = await walletClient.writeContract({
-        address: MIRRORMATE_ADDRESS,
-        abi: mirrorMateAbi,
-        functionName: 'matchWithGuide',
+      const connectionTx = await walletClient.writeContract({
+        address: REGISTRY_ADDRESS,
+        abi: registryAbi,
+        functionName: 'requestConnection',
         args: [
           BigInt(user.fid),
           guide.fid,
-          guideAddress,
-          guide.displayName || guide.username,
-          WMON_ADDRESS,
+          'meetup', // meetupType: coffee, advice, trial, etc.
+          `Hi! I'd love to connect with you as my guide in ${guide.location || 'your city'}!`,
         ],
       });
 
       setTxState('loading');
-      await publicClient!.waitForTransactionReceipt({ hash: matchTx });
+      await publicClient!.waitForTransactionReceipt({ hash: connectionTx });
 
       setTxState('success');
 
@@ -340,8 +335,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         setTxState('idle');
       }, 1000);
     } catch (error: any) {
-      console.error('Match failed:', error);
-      setTxError(error.message || 'Match failed');
+      console.error('Connection request failed:', error);
+      setTxError(error.message || 'Connection failed');
       setTxState('error');
       setTimeout(() => setTxState('idle'), 2000);
     }
@@ -489,8 +484,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           <span className="text-white font-bold text-lg">MirrorMate</span>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-400">Free skips: {userStats.remainingFreeSkips}/10</p>
-          <p className="text-xs text-gray-400">Total skips: {userStats.skipCount}</p>
+          <p className="text-xs text-gray-400">Free skips: {userStats.remainingFreeSkips}/20</p>
+          <p className="text-xs text-gray-400">Today's skips: {userStats.skipCount}</p>
         </div>
         {onClose && (
           <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -604,24 +599,24 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         >
           <X className="w-8 h-8 text-red-500" />
           <span className="text-xs text-red-500 mt-1">
-            {userStats.remainingFreeSkips > 0 ? 'Free' : '0.01 MON'}
+            {userStats.remainingFreeSkips > 0 ? 'Free' : '5 WMON'}
           </span>
         </button>
 
-        {/* Match Button */}
+        {/* Match Button (Request Connection) */}
         <button
           onClick={handleMatch}
           disabled={txState !== 'idle'}
           className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex flex-col items-center justify-center transition-all shadow-2xl hover:scale-110 active:scale-95"
         >
           <Heart className="w-10 h-10 text-white fill-current" />
-          <span className="text-xs text-white mt-1 font-bold">10 MON</span>
+          <span className="text-xs text-white mt-1 font-bold">Connect</span>
         </button>
       </div>
 
       {/* Instructions */}
       <p className="text-gray-500 text-sm mt-6 text-center max-w-md">
-        Skip to see next guide • Match to connect with this guide
+        Skip to see next guide • Connect to request meeting with guide
       </p>
     </div>
   );
