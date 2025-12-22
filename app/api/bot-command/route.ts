@@ -652,7 +652,7 @@ Click below to open the transaction page and connect your Farcaster wallet with 
             }
           `;
 
-          const PASSPORT_NFT_ADDRESS = '0x54e935c5f1ec987bb87f36fc046cf13fb393acc8'; // NEW PassportNFTv2
+          const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT || '0xeB6D46684849D292FFf0D27221ABEB293633c1ba'; // FID-enabled PassportNFT (Dec 21, 2025)
 
           const checkRes = await fetch(ENVIO_ENDPOINT, {
             method: 'POST',

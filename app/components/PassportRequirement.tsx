@@ -27,8 +27,9 @@ export default function PassportRequirement({ onPassportMinted }: PassportRequir
   const hasPassport = passportBalance !== undefined && passportBalance !== null && typeof passportBalance === 'bigint' && passportBalance > 0n;
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('');
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [hasCasted, setHasCasted] = useState(false);
+  // 🚫 DAILYGATE DISABLED FOR TESTING (Dec 22, 2025)
+  const [isFollowing, setIsFollowing] = useState(true);
+  const [hasCasted, setHasCasted] = useState(true);
   const [isCheckingFollow, setIsCheckingFollow] = useState(false);
   const [isCheckingCast, setIsCheckingCast] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
