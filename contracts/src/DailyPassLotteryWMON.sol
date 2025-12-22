@@ -95,6 +95,7 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
 
     struct DailyPass {
         uint256 roundId;
+        uint256 userFid;        // User's Farcaster ID
         address beneficiary;
         uint256 entryTime;
         uint256 entryIndex;
@@ -118,8 +119,10 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     mapping(uint256 => address[]) public roundParticipants;
     mapping(uint256 => mapping(address => bool)) public hasEnteredRound;
     mapping(address => DailyPass[]) public userPasses;
+    mapping(uint256 => DailyPass[]) public fidPasses;  // FID => passes
     mapping(uint256 => Escrow) public escrows;
     mapping(address => uint256[]) public userWinnings;
+    mapping(uint256 => uint256[]) public fidWinnings;  // FID => round IDs won
 
     // Mapping from Pyth Entropy sequence number to round ID
     mapping(uint64 => uint256) public sequenceToRound;
@@ -136,7 +139,8 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     event DailyPassPurchased(
         uint256 indexed roundId,
         address indexed beneficiary,
-        address indexed payer,
+        uint256 indexed userFid,
+        address payer,
         uint256 entryIndex,
         uint256 amount
     );
@@ -197,21 +201,24 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
 
     /**
      * @notice Enter lottery with WMON for yourself
+     * @param userFid User's Farcaster ID
      */
-    function enterWithWMON() external nonReentrant returns (uint256 entryIndex) {
-        return _enterWithWMON(msg.sender);
+    function enterWithWMON(uint256 userFid) external nonReentrant returns (uint256 entryIndex) {
+        return _enterWithWMON(msg.sender, userFid);
     }
 
     /**
      * @notice Enter lottery with WMON for another user (delegation support)
      * @param beneficiary The user who will be entered into the lottery
+     * @param userFid User's Farcaster ID
      */
-    function enterWithWMONFor(address beneficiary) external nonReentrant returns (uint256 entryIndex) {
+    function enterWithWMONFor(address beneficiary, uint256 userFid) external nonReentrant returns (uint256 entryIndex) {
         require(beneficiary != address(0), "Invalid beneficiary");
-        return _enterWithWMON(beneficiary);
+        return _enterWithWMON(beneficiary, userFid);
     }
 
-    function _enterWithWMON(address beneficiary) internal returns (uint256 entryIndex) {
+    function _enterWithWMON(address beneficiary, uint256 userFid) internal returns (uint256 entryIndex) {
+        require(userFid > 0, "Invalid FID");
         _lazyFinalizePreviousRounds();
         _checkAndRotateRound();
 
@@ -234,12 +241,16 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         roundParticipants[currentRoundId].push(beneficiary);
         hasEnteredRound[currentRoundId][beneficiary] = true;
 
-        userPasses[beneficiary].push(DailyPass({
+        DailyPass memory newPass = DailyPass({
             roundId: currentRoundId,
+            userFid: userFid,
             beneficiary: beneficiary,
             entryTime: block.timestamp,
             entryIndex: entryIndex
-        }));
+        });
+
+        userPasses[beneficiary].push(newPass);
+        fidPasses[userFid].push(newPass);
 
         totalParticipants++;
 
@@ -255,7 +266,7 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
             emit PlatformWalletFeeCollected(platformWallet, platformWalletFee);
         }
 
-        emit DailyPassPurchased(currentRoundId, beneficiary, msg.sender, entryIndex, ENTRY_FEE);
+        emit DailyPassPurchased(currentRoundId, beneficiary, userFid, msg.sender, entryIndex, ENTRY_FEE);
         return entryIndex;
     }
 
@@ -369,6 +380,16 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         });
 
         userWinnings[winner].push(roundId);
+
+        // Add to FID winnings if we can find the FID
+        DailyPass[] memory passes = userPasses[winner];
+        for (uint256 i = 0; i < passes.length; i++) {
+            if (passes[i].roundId == roundId) {
+                fidWinnings[passes[i].userFid].push(roundId);
+                break;
+            }
+        }
+
         totalPrizesPaid += escrowWmonAmount;
 
         emit WinnerRevealed(
@@ -551,6 +572,14 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
 
     function getUserWinnings(address user) external view returns (uint256[] memory) {
         return userWinnings[user];
+    }
+
+    function getFidPasses(uint256 fid) external view returns (DailyPass[] memory) {
+        return fidPasses[fid];
+    }
+
+    function getFidWinnings(uint256 fid) external view returns (uint256[] memory) {
+        return fidWinnings[fid];
     }
 
     function getTimeRemaining() external view returns (uint256) {

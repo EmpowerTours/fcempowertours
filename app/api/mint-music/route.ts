@@ -2,22 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
-// ✅ EmpowerToursNFTv5 with Music + Art support
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS || '0xb7c3565C2a00F29947219875AaE067c6cC36331a';
+// ✅ EmpowerToursNFTv9 with FID support (Dec 21, 2025)
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS || '0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08';
 const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0E068B06Bfa9F787699B7';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 
-// MusicLicenseNFTv4 ABI
+// EmpowerToursNFTv9 ABI with FID (Dec 21, 2025)
 const MUSIC_NFT_ABI = [
   {
     inputs: [
       { internalType: 'address', name: 'artist', type: 'address' },
+      { internalType: 'uint256', name: 'artistFid', type: 'uint256' },
       { internalType: 'string', name: 'tokenURI', type: 'string' },
-      { internalType: 'string', name: 'songTitle', type: 'string' },
-      { internalType: 'uint256', name: 'price', type: 'uint256' }
+      { internalType: 'string', name: 'title', type: 'string' },
+      { internalType: 'uint256', name: 'price', type: 'uint256' },
+      { internalType: 'uint8', name: 'nftType', type: 'uint8' }
     ],
     name: 'mintMaster',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
@@ -30,7 +32,8 @@ const MUSIC_NFT_ABI = [
       { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
       { indexed: true, internalType: 'address', name: 'artist', type: 'address' },
       { indexed: false, internalType: 'string', name: 'tokenURI', type: 'string' },
-      { indexed: false, internalType: 'uint256', name: 'price', type: 'uint256' }
+      { indexed: false, internalType: 'uint256', name: 'price', type: 'uint256' },
+      { indexed: false, internalType: 'uint8', name: 'nftType', type: 'uint8' }
     ],
     name: 'MasterMinted',
     type: 'event',
@@ -86,9 +89,11 @@ export async function POST(req: NextRequest) {
     
     const tx = await contract.mintMaster(
       recipient,
+      fid || 0,                // artistFid (0 if not provided)
       finalTokenURI,
       songTitle || 'Untitled',
-      priceInWei
+      priceInWei,
+      0                        // nftType: 0 = MUSIC
     );
     console.log('📤 Mint tx sent:', tx.hash);
     const receipt = await tx.wait();

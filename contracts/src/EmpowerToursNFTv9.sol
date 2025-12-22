@@ -38,6 +38,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     enum NFTType { MUSIC, ART }
 
     struct MasterToken {
+        uint256 artistFid;      // Artist's Farcaster ID
         address originalArtist; // Never changes, receives royalties forever
         string tokenURI;
         string collectorTokenURI; // AI-enhanced version for collector editions
@@ -54,6 +55,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
     struct License {
         uint256 masterTokenId;
+        uint256 licenseeFid;    // Licensee's Farcaster ID
         address licensee;
         uint256 expiry;
         bool active;
@@ -91,6 +93,8 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     mapping(uint256 => MasterToken) public masterTokens;
     mapping(uint256 => License) public licenses;
     mapping(address => uint256[]) public userLicenses;
+    mapping(uint256 => uint256[]) public fidLicenses;        // FID => license IDs
+    mapping(uint256 => uint256[]) public artistFidMasters;   // FID => master token IDs
     mapping(address => mapping(string => bool)) public artistSongs;
 
     address public treasury;
@@ -104,9 +108,9 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     // ============================================
     // Events
     // ============================================
-    event MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price, NFTType nftType, uint96 royalty);
-    event CollectorMasterMinted(uint256 indexed tokenId, address indexed artist, uint256 maxEditions, uint256 collectorPrice);
-    event LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed buyer, uint256 expiry, bool isCollector);
+    event MasterMinted(uint256 indexed tokenId, address indexed artist, uint256 indexed artistFid, string tokenURI, uint256 price, NFTType nftType, uint96 royalty);
+    event CollectorMasterMinted(uint256 indexed tokenId, address indexed artist, uint256 indexed artistFid, uint256 maxEditions, uint256 collectorPrice);
+    event LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, uint256 indexed licenseeFid, address buyer, uint256 expiry, bool isCollector);
     event LicenseExpired(uint256 indexed licenseId);
     event PriceUpdated(uint256 indexed masterTokenId, uint256 newPrice);
     event RoyaltyPaid(uint256 indexed masterTokenId, address indexed artist, uint256 amount);
@@ -145,12 +149,14 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
     function mintMaster(
         address artist,
+        uint256 artistFid,
         string memory tokenURI,
         string memory title,
         uint256 price,
         NFTType nftType
     ) external returns (uint256) {
         require(!artistSongs[artist][title], "NFT already minted");
+        require(artistFid > 0, "Invalid FID");
         require(price >= MINIMUM_LICENSE_PRICE, "Price below minimum");
 
         _masterTokenCounter++;
@@ -162,6 +168,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
         uint96 royalty = nftType == NFTType.MUSIC ? MUSIC_ROYALTY : ART_ROYALTY;
 
         masterTokens[masterTokenId] = MasterToken({
+            artistFid: artistFid,
             originalArtist: artist,
             tokenURI: tokenURI,
             collectorTokenURI: "",
@@ -178,13 +185,15 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
         _setTokenRoyalty(masterTokenId, artist, royalty);
         artistSongs[artist][title] = true;
+        artistFidMasters[artistFid].push(masterTokenId);
 
-        emit MasterMinted(masterTokenId, artist, tokenURI, price, nftType, royalty);
+        emit MasterMinted(masterTokenId, artist, artistFid, tokenURI, price, nftType, royalty);
         return masterTokenId;
     }
 
     function mintCollectorMaster(
         address artist,
+        uint256 artistFid,
         string memory tokenURI,
         string memory collectorTokenURI,
         string memory title,
@@ -194,6 +203,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
         NFTType nftType
     ) external returns (uint256) {
         require(!artistSongs[artist][title], "NFT already minted");
+        require(artistFid > 0, "Invalid FID");
         require(standardPrice >= MINIMUM_LICENSE_PRICE, "Standard price too low");
         require(collectorPrice >= MINIMUM_COLLECTOR_PRICE, "Collector price too low");
         require(maxCollectorEditions > 0 && maxCollectorEditions <= 1000, "Invalid edition count");
@@ -207,6 +217,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
         uint96 royalty = nftType == NFTType.MUSIC ? MUSIC_ROYALTY : ART_ROYALTY;
 
         masterTokens[masterTokenId] = MasterToken({
+            artistFid: artistFid,
             originalArtist: artist,
             tokenURI: tokenURI,
             collectorTokenURI: collectorTokenURI,
@@ -223,9 +234,10 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
         _setTokenRoyalty(masterTokenId, artist, royalty);
         artistSongs[artist][title] = true;
+        artistFidMasters[artistFid].push(masterTokenId);
 
-        emit MasterMinted(masterTokenId, artist, tokenURI, standardPrice, nftType, royalty);
-        emit CollectorMasterMinted(masterTokenId, artist, maxCollectorEditions, collectorPrice);
+        emit MasterMinted(masterTokenId, artist, artistFid, tokenURI, standardPrice, nftType, royalty);
+        emit CollectorMasterMinted(masterTokenId, artist, artistFid, maxCollectorEditions, collectorPrice);
         return masterTokenId;
     }
 
@@ -233,21 +245,22 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     // License Purchase
     // ============================================
 
-    function purchaseLicenseFor(uint256 masterTokenId, address licensee) public nonReentrant {
-        _purchaseLicenseFor(masterTokenId, licensee, false);
+    function purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) public nonReentrant {
+        _purchaseLicenseFor(masterTokenId, licensee, licenseeFid, false);
     }
 
-    function purchaseCollectorEditionFor(uint256 masterTokenId, address licensee) public nonReentrant {
+    function purchaseCollectorEditionFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) public nonReentrant {
         MasterToken storage master = masterTokens[masterTokenId];
         require(master.maxCollectorEditions > 0, "No collector editions available");
         require(master.collectorsMinted < master.maxCollectorEditions, "Collector editions sold out");
 
-        _purchaseLicenseFor(masterTokenId, licensee, true);
+        _purchaseLicenseFor(masterTokenId, licensee, licenseeFid, true);
         master.collectorsMinted++;
     }
 
-    function _purchaseLicenseFor(uint256 masterTokenId, address licensee, bool isCollector) internal {
+    function _purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid, bool isCollector) internal {
         require(licensee != address(0), "Invalid licensee address");
+        require(licenseeFid > 0, "Invalid FID");
         MasterToken storage master = masterTokens[masterTokenId];
         require(master.originalArtist != address(0), "Master doesn't exist");
         require(master.active, "Sales paused");
@@ -276,6 +289,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
         licenses[licenseId] = License({
             masterTokenId: masterTokenId,
+            licenseeFid: licenseeFid,
             licensee: licensee,
             expiry: block.timestamp + licensePeriod,
             active: true,
@@ -283,19 +297,20 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
         });
 
         userLicenses[licensee].push(licenseId);
+        fidLicenses[licenseeFid].push(licenseId);
         master.totalSold++;
         master.activeLicenses++;
 
-        emit LicensePurchased(licenseId, masterTokenId, licensee, licenses[licenseId].expiry, isCollector);
+        emit LicensePurchased(licenseId, masterTokenId, licenseeFid, licensee, licenses[licenseId].expiry, isCollector);
         emit RoyaltyPaid(masterTokenId, master.originalArtist, artistAmount);
     }
 
-    function purchaseLicense(uint256 masterTokenId) external {
-        purchaseLicenseFor(masterTokenId, msg.sender);
+    function purchaseLicense(uint256 masterTokenId, uint256 licenseeFid) external {
+        purchaseLicenseFor(masterTokenId, msg.sender, licenseeFid);
     }
 
-    function purchaseCollectorEdition(uint256 masterTokenId) external {
-        purchaseCollectorEditionFor(masterTokenId, msg.sender);
+    function purchaseCollectorEdition(uint256 masterTokenId, uint256 licenseeFid) external {
+        purchaseCollectorEditionFor(masterTokenId, msg.sender, licenseeFid);
     }
 
     // ============================================
@@ -627,6 +642,14 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     function getMasterType(uint256 tokenId) external view returns (NFTType) {
         require(masterTokens[tokenId].originalArtist != address(0), "Master doesn't exist");
         return masterTokens[tokenId].nftType;
+    }
+
+    function getArtistMastersByFid(uint256 artistFid) external view returns (uint256[] memory) {
+        return artistFidMasters[artistFid];
+    }
+
+    function getLicensesByFid(uint256 fid) external view returns (uint256[] memory) {
+        return fidLicenses[fid];
     }
 
     // ============================================

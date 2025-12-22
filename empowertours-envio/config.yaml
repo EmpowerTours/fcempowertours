@@ -7,7 +7,7 @@ networks:
     contracts:
       - name: EmpowerToursNFT
         address:
-          - "0x5D0B5c12A398C09C5E14C6b053Ff389962402B54"  # ✅ EmpowerToursNFTv9 (Dec 14, 2025)
+          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"  # ✅ EmpowerToursNFTv9 with FID (Dec 21, 2025)
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting
@@ -80,11 +80,11 @@ networks:
 
       - name: PassportNFT
         address:
-          - "0x820A9cc395D4349e19dB18BAc5Be7b3C71ac5163"  # PassportNFTv3
+          - "0xeB6D46684849D292FFf0D27221ABEB293633c1ba"  # PassportNFT with FID (Dec 21, 2025)
         handler: src/EventHandlers.ts
         events:
-          # Passport minting with country data
-          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, string countryCode, string countryName, string region, string continent)"
+          # Passport minting with country data and FID
+          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, uint256 indexed userFid, string countryCode, string countryName, string region, string continent)"
             field_selection:
               transaction_fields:
                 - hash
@@ -95,31 +95,186 @@ networks:
               transaction_fields:
                 - hash
 
-          # Passport staking
-          - event: "PassportStaked(uint256 indexed tokenId, uint256 monAmount, uint256 positionId)"
+          # Verification flow
+          - event: "VerificationRequested(uint256 indexed tokenId, address indexed owner, string photoProofIPFS)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Venue stamps
-          - event: "VenueStampAdded(uint256 indexed tokenId, string location, string eventType, uint256 timestamp)"
+          - event: "VerificationApproved(uint256 indexed tokenId, address indexed oracle)"
             field_selection:
               transaction_fields:
                 - hash
 
-      - name: Marketplace
+          - event: "VerificationRejected(uint256 indexed tokenId, address indexed oracle, string reason)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Venue stamps (credit scoring)
+          - event: "VenueStampAdded(uint256 indexed tokenId, string venueName, uint256 creditAdded)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Itinerary stamps (credit scoring)
+          - event: "ItineraryStampAdded(uint256 indexed tokenId, uint256 indexed itineraryId, uint256 creditAdded)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      - name: ItineraryNFT
         address:
-          - "0x48a4B5b9F97682a4723eBFd0086C47C70B96478C"
+          - "0x49A3fB80008e51750FAd622cA75f551d0C7a1c0A"  # ItineraryNFT with FID (Dec 21, 2025)
         handler: src/EventHandlers.ts
         events:
-          # Itinerary creation
-          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, string description, uint256 price)"
+          # Itinerary creation (UGC - user-generated content)
+          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, uint256 indexed creatorFid, string title, string city, string country, uint256 price)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Itinerary purchase
-          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer)"
+          # Itinerary purchase (70% to creator, 30% to platform)
+          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer, uint256 indexed buyerFid, uint256 price)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Location completion tracking
+          - event: "LocationCompleted(uint256 indexed itineraryId, address indexed user, uint256 locationIndex, string photoProofIPFS)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Rating and reviews
+          - event: "ItineraryRated(uint256 indexed itineraryId, address indexed user, uint256 rating, string reviewIPFS)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # NFT transfer
+          - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      - name: TourGuideRegistry
+        address:
+          - "0xD290D8278A5c0159e5f358745B71976531533675"  # TourGuideRegistry with FID (Dec 21, 2025)
+        handler: src/EventHandlers.ts
+        events:
+          # Guide Registration
+          - event: "GuideRegistered(uint256 indexed guideFid, address indexed guideAddress, uint256 indexed passportTokenId, string[] countries)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideUpdated(uint256 indexed guideFid, uint256 hourlyRateWMON, uint256 hourlyRateTOURS, bool active)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideSuspended(uint256 indexed guideFid, string reason)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideReinstated(uint256 indexed guideFid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Applications (manual approval flow)
+          - event: "GuideApplicationSubmitted(uint256 indexed guideFid, address indexed applicant, uint256 creditScore)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideApplicationApproved(uint256 indexed guideFid, string adminNotes)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideApplicationRejected(uint256 indexed guideFid, string reason)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Free Connections (rate-limited)
+          - event: "ConnectionRequested(uint256 indexed connectionId, uint256 indexed travelerFid, uint256 indexed guideFid, string meetupType)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ConnectionAccepted(uint256 indexed connectionId, uint256 indexed travelerFid, uint256 indexed guideFid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ConnectionDeclined(uint256 indexed connectionId, uint256 indexed travelerFid, uint256 indexed guideFid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PaidConnectionRequested(uint256 indexed connectionId, uint256 indexed travelerFid, uint256 fee)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Guide Discovery (skip feature)
+          - event: "GuideSkipped(uint256 indexed travelerFid, uint256 indexed guideFid, bool paidSkip)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PaidSkipProcessed(uint256 indexed travelerFid, uint256 fee)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Paid Bookings
+          - event: "BookingCreated(uint256 indexed bookingId, uint256 indexed guideFid, uint256 indexed travelerFid, address traveler, uint256 hoursDuration, uint256 totalCost, address paymentToken)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "TourMarkedComplete(uint256 indexed bookingId, uint256 indexed guideFid, string proofIPFS, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "TourCompleted(uint256 indexed bookingId, uint256 indexed guideFid, uint256 indexed travelerFid, uint256 rating, bool autoCompleted)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideRated(uint256 indexed guideFid, uint256 newAverageRating, uint256 ratingCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GuideReviewedTraveler(uint256 indexed bookingId, uint256 indexed travelerFid, uint256 rating)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BookingCancelled(uint256 indexed bookingId, address indexed cancelledBy, string reason, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Admin events
+          - event: "CountryAdded(uint256 indexed guideFid, string country)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ApprovalOracleUpdated(address indexed oldOracle, address indexed newOracle)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PlatformWalletUpdated(address indexed oldWallet, address indexed newWallet)"
             field_selection:
               transaction_fields:
                 - hash
@@ -698,19 +853,24 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ MusicSubscription Contract (Platform-wide streaming subscription - Dec 14, 2025)
-      - name: MusicSubscription
+      # ✅ MusicSubscriptionV2 Contract with FID (Dec 21, 2025)
+      - name: MusicSubscriptionV2
         address:
-          - "0xba1D2bE3356ba0162E1C412f05942c69e940d7a6"
+          - "0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc"
         handler: src/EventHandlers.ts
         events:
-          # Subscription lifecycle
-          - event: "Subscribed(address indexed user, uint256 expiry, uint256 stakedAmount)"
+          # Subscription lifecycle with FID
+          - event: "Subscribed(address indexed user, uint256 indexed userFid, uint8 indexed tier, uint256 expiry, uint256 stakedAmount)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "SubscriptionRenewed(address indexed user, uint256 newExpiry)"
+          - event: "SubscriptionRenewed(address indexed user, uint256 indexed userFid, uint256 newExpiry)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "SubscriptionCancelled(address indexed user, uint256 indexed userFid, uint256 refundAmount)"
             field_selection:
               transaction_fields:
                 - hash
@@ -744,6 +904,48 @@ networks:
                 - hash
 
           - event: "VoteToBan(address indexed voter, address indexed target, uint256 totalVotes)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ DailyPassLotteryWMON Contract with FID (Pyth Entropy - Dec 21, 2025)
+      - name: DailyPassLotteryWMON
+        address:
+          - "0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F"
+        handler: src/EventHandlers.ts
+        events:
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Entry tracking with FID support
+          - event: "DailyPassPurchased(uint256 indexed roundId, address indexed beneficiary, uint256 indexed userFid, uint256 entryIndex, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Pyth Entropy randomness
+          - event: "RandomnessRequested(uint256 indexed roundId, uint64 indexed sequenceNumber, bytes32 userRandomNumber)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner selection
+          - event: "WinnerSelected(uint256 indexed roundId, address indexed winner, uint256 indexed winnerFid, uint256 winnerIndex, uint256 prize)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Prize claims
+          - event: "PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Refunds
+          - event: "RefundIssued(uint256 indexed roundId, address indexed user, uint256 amount)"
             field_selection:
               transaction_fields:
                 - hash

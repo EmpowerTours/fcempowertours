@@ -75,6 +75,7 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     // Subscription State
     // ============================================
     struct Subscription {
+        uint256 userFid;    // User's Farcaster ID
         uint256 expiry;
         bool active;
         uint256 totalPlays; // Lifetime play count
@@ -83,6 +84,7 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     }
 
     mapping(address => Subscription) public subscriptions;
+    mapping(uint256 => address) public fidToAddress; // FID => user address
     uint256 public totalActiveSubscribers;
 
     // ============================================
@@ -136,7 +138,7 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     // ============================================
     // Events
     // ============================================
-    event Subscribed(address indexed user, SubscriptionTier tier, uint256 expiry, uint256 paidAmount);
+    event Subscribed(address indexed user, uint256 indexed userFid, SubscriptionTier tier, uint256 expiry, uint256 paidAmount);
     event SubscriptionRenewed(address indexed user, uint256 newExpiry);
     event PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp);
     event MonthlyDistributionFinalized(uint256 indexed monthId, uint256 totalRevenue, uint256 totalPlays, uint256 perPlayRate);
@@ -174,8 +176,10 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     /**
      * @notice Subscribe for streaming access
      * @param tier Subscription tier (DAILY, WEEKLY, MONTHLY, YEARLY)
+     * @param userFid User's Farcaster ID
      */
-    function subscribe(SubscriptionTier tier) external nonReentrant {
+    function subscribe(SubscriptionTier tier, uint256 userFid) external nonReentrant {
+        require(userFid > 0, "Invalid FID");
         Subscription storage sub = subscriptions[msg.sender];
 
         uint256 cost = getTierPrice(tier);
@@ -191,6 +195,8 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
         if (sub.expiry < block.timestamp) {
             // New or expired subscription
             sub.expiry = block.timestamp + duration;
+            sub.userFid = userFid;
+            fidToAddress[userFid] = msg.sender;
             totalActiveSubscribers++;
         } else {
             // Extend existing subscription
@@ -204,16 +210,18 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
         uint256 monthId = block.timestamp / 30 days;
         monthlyStats[monthId].totalRevenue += cost;
 
-        emit Subscribed(msg.sender, tier, sub.expiry, cost);
+        emit Subscribed(msg.sender, userFid, tier, sub.expiry, cost);
     }
 
     /**
      * @notice Subscribe on behalf of another user (delegation support)
      * @param user The user to subscribe
+     * @param userFid User's Farcaster ID
      * @param tier Subscription tier
      */
-    function subscribeFor(address user, SubscriptionTier tier) external nonReentrant {
+    function subscribeFor(address user, uint256 userFid, SubscriptionTier tier) external nonReentrant {
         require(user != address(0), "Invalid user");
+        require(userFid > 0, "Invalid FID");
 
         Subscription storage sub = subscriptions[user];
 
@@ -229,6 +237,8 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
         // Update subscription
         if (sub.expiry < block.timestamp) {
             sub.expiry = block.timestamp + duration;
+            sub.userFid = userFid;
+            fidToAddress[userFid] = user;
             totalActiveSubscribers++;
         } else {
             sub.expiry += duration;
@@ -241,7 +251,7 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
         uint256 monthId = block.timestamp / 30 days;
         monthlyStats[monthId].totalRevenue += cost;
 
-        emit Subscribed(user, tier, sub.expiry, cost);
+        emit Subscribed(user, userFid, tier, sub.expiry, cost);
     }
 
     /**
@@ -491,6 +501,7 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     }
 
     function getSubscriptionInfo(address user) external view returns (
+        uint256 userFid,
         uint256 expiry,
         bool active,
         uint256 totalPlays,
@@ -500,12 +511,31 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     ) {
         Subscription memory sub = subscriptions[user];
         return (
+            sub.userFid,
             sub.expiry,
             sub.active,
             sub.totalPlays,
             sub.flagVotes,
             sub.lastTier,
             flaggedAccounts[user]
+        );
+    }
+
+    function getSubscriptionByFid(uint256 fid) external view returns (
+        address user,
+        uint256 expiry,
+        bool active,
+        uint256 totalPlays,
+        SubscriptionTier lastTier
+    ) {
+        address userAddr = fidToAddress[fid];
+        Subscription memory sub = subscriptions[userAddr];
+        return (
+            userAddr,
+            sub.expiry,
+            sub.active,
+            sub.totalPlays,
+            sub.lastTier
         );
     }
 

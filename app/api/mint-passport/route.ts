@@ -65,18 +65,19 @@ const PINATA_JWT = process.env.PINATA_JWT!;
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-// ✅ UPDATED ABI FOR PassportNFTv2
+// ✅ UPDATED ABI FOR PassportNFT with FID (Dec 21, 2025)
 const PASSPORT_ABI = [
   {
     inputs: [
-      { internalType: "address", name: "to", type: "address" },
+      { internalType: "address", name: "beneficiary", type: "address" },
+      { internalType: "uint256", name: "userFid", type: "uint256" },
       { internalType: "string", name: "countryCode", type: "string" },
       { internalType: "string", name: "countryName", type: "string" },
       { internalType: "string", name: "region", type: "string" },
       { internalType: "string", name: "continent", type: "string" },
       { internalType: "string", name: "uri", type: "string" }
     ],
-    name: "mint",
+    name: "mintFor",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "nonpayable",
     type: "function",
@@ -86,6 +87,7 @@ const PASSPORT_ABI = [
     inputs: [
       { indexed: true, internalType: "uint256", name: "tokenId", type: "uint256" },
       { indexed: true, internalType: "address", name: "owner", type: "address" },
+      { indexed: true, internalType: "uint256", name: "userFid", type: "uint256" },
       { indexed: false, internalType: "string", name: "countryCode", type: "string" },
       { indexed: false, internalType: "string", name: "countryName", type: "string" },
       { indexed: false, internalType: "string", name: "region", type: "string" },
@@ -322,19 +324,21 @@ export async function POST(req: NextRequest) {
     // Upload metadata to IPFS
     const tokenURI = await uploadMetadataToPinata(metadata, countryCode, 0);
 
-    // ✅ Mint using PassportNFTv2 with all country data
+    // ✅ Mint using PassportNFT with FID support (delegation-enabled)
     console.log(`⚡ Minting passport to ${recipientAddress}...`);
     console.log(`📍 Country data:`, {
       code: countryInfo.code,
       name: countryInfo.name,
       region: countryInfo.region,
-      continent: countryInfo.continent
+      continent: countryInfo.continent,
+      fid: fid || 0
     });
 
-    const tx = await contract.mint(
-      recipientAddress,
+    const tx = await contract.mintFor(
+      recipientAddress,        // beneficiary
+      fid || 0,                // userFid (0 if not provided)
       countryInfo.code,        // countryCode
-      countryInfo.name,        // countryName  
+      countryInfo.name,        // countryName
       countryInfo.region,      // region
       countryInfo.continent,   // continent
       tokenURI                 // uri
