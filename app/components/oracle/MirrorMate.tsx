@@ -114,14 +114,15 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         setLoading(true);
 
         // Import Registry ABI
-        const { default: registryAbi } = await import('@/lib/abis/EmpowerToursRegistry.json');
+        const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
+        const registryAbi = registryAbiModule.default || registryAbiModule;
         console.log('[MirrorMate] Registry ABI loaded');
 
         // Get all guide FIDs
         console.log('[MirrorMate] Calling getAllGuides...');
         const guideFids = (await (publicClient.readContract as any)({
           address: REGISTRY_ADDRESS,
-          abi: registryAbi,
+          abi: registryAbi as Abi,
           functionName: 'getAllGuides',
         })) as bigint[];
 
@@ -141,7 +142,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         // Fetch profiles in batch
         const profiles = (await (publicClient.readContract as any)({
           address: REGISTRY_ADDRESS,
-          abi: registryAbi,
+          abi: registryAbi as Abi,
           functionName: 'getBatchProfiles',
           args: [fidsArray],
         })) as GuideProfile[];
@@ -197,18 +198,19 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       if (!publicClient || !user || !user.fid) return;
 
       try {
-        const { default: registryAbi } = await import('@/lib/abis/TourGuideRegistry.json');
+        const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
+        const registryAbi = registryAbiModule.default || registryAbiModule;
 
         const [skipCount, freeSkips] = await Promise.all([
           publicClient.readContract({
             address: REGISTRY_ADDRESS,
-            abi: registryAbi,
+            abi: registryAbi as Abi,
             functionName: 'getDailySkipCount',
             args: [BigInt(user.fid)],
           }) as Promise<bigint>,
           publicClient.readContract({
             address: REGISTRY_ADDRESS,
-            abi: registryAbi,
+            abi: registryAbi as Abi,
             functionName: 'getRemainingFreeSkips',
             args: [BigInt(user.fid)],
           }) as Promise<bigint>,
@@ -233,7 +235,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     setTxState('confirming');
 
     try {
-      const { default: registryAbi } = await import('@/lib/abis/TourGuideRegistry.json');
+      const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
+      const registryAbi = registryAbiModule.default || registryAbiModule;
 
       // Check if user needs to pay (after 20 free skips)
       const needsPayment = userStats.remainingFreeSkips === 0;
@@ -257,7 +260,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       setTxState('confirming');
       const skipTx = await walletClient.writeContract({
         address: REGISTRY_ADDRESS,
-        abi: registryAbi,
+        abi: registryAbi as Abi,
         functionName: 'skipGuide',
         args: [BigInt(user.fid), guide.fid],
       });
@@ -293,7 +296,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     setTxState('confirming');
 
     try {
-      const { default: registryAbi } = await import('@/lib/abis/TourGuideRegistry.json');
+      const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
+      const registryAbi = registryAbiModule.default || registryAbiModule;
 
       // Check if user needs to pay (after 5 free connections per day)
       // We'll approve 10 WMON just in case (contract will only charge if needed)
@@ -314,7 +318,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       setTxState('confirming');
       const connectionTx = await walletClient.writeContract({
         address: REGISTRY_ADDRESS,
-        abi: registryAbi,
+        abi: registryAbi as Abi,
         functionName: 'requestConnection',
         args: [
           BigInt(user.fid),
