@@ -543,3 +543,120 @@ type CountryPlayerProgress @entity {
   rewardAmount: BigInt
   lastUpdated: Timestamp!
 }
+
+# ✅ NEW: TourGuideRegistry Entities (Dec 22, 2025)
+type TourGuide @entity {
+  id: ID!                                 # guide-{chainId}-{guideFid}
+  guideFid: String!
+  guideAddress: String!
+  passportTokenId: String!
+  countries: [String!]!
+  hourlyRateWMON: BigInt!
+  hourlyRateTOURS: BigInt!
+  active: Boolean!
+  suspended: Boolean!
+  averageRating: BigInt!
+  ratingCount: Int!
+  totalBookings: Int!
+  completedBookings: Int!
+  registeredAt: Timestamp!
+  lastUpdated: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+
+  # Metadata fetched from Neynar (optional)
+  username: String
+  displayName: String
+  pfpUrl: String
+  bio: String
+  location: String
+  languages: String
+  transport: String
+
+  # Relations
+  connections: [GuideConnection!]! @derivedFrom(field: "guide")
+  bookings: [GuideBooking!]! @derivedFrom(field: "guide")
+  applications: [GuideApplication!]! @derivedFrom(field: "guide")
+}
+
+type GuideApplication @entity {
+  id: ID!                                 # application-{chainId}-{guideFid}
+  guide: TourGuide!
+  guideFid: String!
+  applicant: String!
+  creditScore: BigInt!
+  approved: Boolean
+  rejected: Boolean
+  adminNotes: String
+  rejectionReason: String
+  submittedAt: Timestamp!
+  reviewedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type GuideConnection @entity {
+  id: ID!                                 # connection-{chainId}-{connectionId}
+  connectionId: String!
+  guide: TourGuide!
+  guideFid: String!
+  travelerFid: String!
+  travelerAddress: String
+  meetupType: String!
+  message: String
+  isPaid: Boolean!
+  fee: BigInt
+  accepted: Boolean
+  declined: Boolean
+  requestedAt: Timestamp!
+  respondedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type GuideBooking @entity {
+  id: ID!                                 # booking-{chainId}-{bookingId}
+  bookingId: String!
+  guide: TourGuide!
+  guideFid: String!
+  travelerFid: String!
+  traveler: String!
+  hoursDuration: BigInt!
+  totalCost: BigInt!
+  paymentToken: String!
+  status: String!                         # Pending, Completed, Cancelled
+  rating: Int
+  autoCompleted: Boolean
+  proofIPFS: String
+  markedCompleteAt: Timestamp
+  completedAt: Timestamp
+  cancelledAt: Timestamp
+  cancelledBy: String
+  cancellationReason: String
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type GuideSkipEvent @entity {
+  id: ID!                                 # skip-{chainId}-{txHash}-{logIndex}
+  travelerFid: String!
+  guideFid: String!
+  paidSkip: Boolean!
+  fee: BigInt
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TravelerStats @entity {
+  id: ID!                                 # traveler-{chainId}-{fid}
+  travelerFid: String!
+  freeSkipsUsedToday: Int!
+  freeConnectionsUsedToday: Int!
+  totalBookings: Int!
+  completedBookings: Int!
+  totalSpent: BigInt!
+  averageRating: BigInt!
+  lastActiveAt: Timestamp!
+}

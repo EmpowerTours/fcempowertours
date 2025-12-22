@@ -100,74 +100,45 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     fetchNearbyUsers();
   }, [userLocation]);
 
-  // Fetch guides from Registry contract
+  // Fetch guides from Envio indexer (TourGuideRegistry doesn't have getAllGuides function)
   useEffect(() => {
-    console.log('[MirrorMate] fetchGuides useEffect triggered, publicClient:', !!publicClient);
+    console.log('[MirrorMate] fetchGuides useEffect triggered');
     const fetchGuides = async () => {
-      if (!publicClient) {
-        console.log('[MirrorMate] No publicClient, waiting...');
-        return;
-      }
-
       try {
-        console.log('[MirrorMate] Starting guide fetch, REGISTRY_ADDRESS:', REGISTRY_ADDRESS);
+        console.log('[MirrorMate] Starting guide fetch from Envio...');
         setLoading(true);
 
-        // Import Registry ABI
-        const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
-        const registryAbi = registryAbiModule.default || registryAbiModule;
-        console.log('[MirrorMate] Registry ABI loaded');
+        // Fetch guides from Envio GraphQL endpoint
+        const response = await fetch('/api/envio/get-guides');
+        const data = await response.json();
 
-        // Get all guide FIDs
-        console.log('[MirrorMate] Calling getAllGuides...');
-        const guideFids = (await (publicClient.readContract as any)({
-          address: REGISTRY_ADDRESS,
-          abi: registryAbi as any,
-          functionName: 'getAllGuides',
-        })) as bigint[];
-
-        console.log('[MirrorMate] Raw guideFids from contract:', guideFids);
-        console.log('[MirrorMate] guideFids type:', typeof guideFids, Array.isArray(guideFids));
-
-        // Ensure guideFids is an array
-        const fidsArray = Array.isArray(guideFids) ? guideFids : [];
-
-        if (fidsArray.length === 0) {
-          console.log('[MirrorMate] No guides found in Registry');
+        if (!data.success || !data.guides) {
+          console.log('[MirrorMate] No guides found');
           setGuides([]);
           setLoading(false);
           return;
         }
 
-        // Fetch profiles in batch
-        const profiles = (await (publicClient.readContract as any)({
-          address: REGISTRY_ADDRESS,
-          abi: registryAbi as any,
-          functionName: 'getBatchProfiles',
-          args: [fidsArray],
-        })) as GuideProfile[];
+        console.log('[MirrorMate] Fetched guides from Envio:', data.guides.length);
 
-        console.log('[MirrorMate] Raw profiles from contract:', profiles);
-        console.log('[MirrorMate] profiles type:', typeof profiles, 'isArray:', Array.isArray(profiles));
-
-        // Ensure profiles is an array - contract might return object with numeric keys
-        let profilesArray: GuideProfile[];
-        if (Array.isArray(profiles)) {
-          profilesArray = profiles;
-        } else if (profiles && typeof profiles === 'object') {
-          // Convert object with numeric keys to array
-          profilesArray = Object.values(profiles);
-        } else {
-          profilesArray = [];
-        }
-
-        console.log('[MirrorMate] profilesArray length:', profilesArray.length);
-
-        // Filter valid profiles
-        const validGuides = profilesArray.filter((p) => p && p.exists && p.isGuide);
+        // Transform Envio data to GuideProfile format
+        const transformedGuides: GuideProfile[] = data.guides.map((g: any) => ({
+          fid: BigInt(g.fid),
+          username: g.username || 'unknown',
+          displayName: g.displayName || g.username || 'Unknown Guide',
+          pfpUrl: g.pfpUrl || '',
+          isGuide: true,
+          bio: g.bio || '',
+          location: g.location || '',
+          languages: g.languages || '',
+          transport: g.transport || '',
+          registeredAt: BigInt(g.registeredAt || 0),
+          lastUpdated: BigInt(g.lastUpdated || 0),
+          exists: true,
+        }));
 
         // Sort guides: nearby first, then others
-        const sortedGuides = validGuides.sort((a, b) => {
+        const sortedGuides = transformedGuides.sort((a, b) => {
           const nearbyFidsArray = Array.isArray(nearbyFids) ? nearbyFids : [];
           const aIsNearby = nearbyFidsArray.includes(Number(a.fid));
           const bIsNearby = nearbyFidsArray.includes(Number(b.fid));
@@ -178,8 +149,6 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         });
 
         console.log('[MirrorMate] Valid guides after filtering:', sortedGuides.length);
-        const nearbyFidsArray = Array.isArray(nearbyFids) ? nearbyFids : [];
-        console.log('[MirrorMate] Nearby guides:', sortedGuides.filter(g => nearbyFidsArray.includes(Number(g.fid))).length);
         setGuides(sortedGuides);
       } catch (error) {
         console.error('Failed to fetch guides:', error);
@@ -190,7 +159,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     };
 
     fetchGuides();
-  }, [publicClient, nearbyFids]);
+  }, [nearbyFids]);
 
   // Fetch user stats from TourGuideRegistry
   useEffect(() => {
