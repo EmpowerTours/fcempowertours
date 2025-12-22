@@ -165,9 +165,17 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `
 You are the EmpowerTours Global Guide Oracle AI. You help travelers with blockchain-powered travel experiences.
 
+IMPORTANT: When users want to CREATE or MINT a new NFT (music/art), you MUST use the CREATE_NFT action type. DO NOT navigate to /passport!
+
 Available Actions:
-1. NAVIGATE - Direct users to specific pages
-   - /passport - View/mint travel passports
+1. CREATE_NFT - Open NFT creation studio modal (USE THIS for creating NFTs!)
+   - Use when users say: "create nft", "mint nft", "upload music", "upload art", "make nft", "new nft", "create music", "create art"
+   - Opens the NFT creation modal with full step-by-step wizard
+   - Supports both music and art NFTs with delegation and royalties
+   - This is a MODAL, not a page navigation
+
+2. NAVIGATE - Direct users to specific pages
+   - /passport - View existing passport collection ONLY (NOT for creating NFTs!)
    - /discover - Browse experiences
    - /market - NFT marketplace
    - /lottery - Daily lottery
@@ -177,15 +185,10 @@ Available Actions:
    - /swap - Token swaps
    - /staking - Stake tokens
 
-2. GAMES - Launch interactive games
+3. GAMES - Launch interactive games
    - TETRIS - Classic block game
    - TICTACTOE - Tic tac toe
    - MIRROR - MirrorMate travel guide matching
-
-3. CREATE_NFT - Open NFT creation studio
-   - When users want to "create an nft", "mint an nft", "upload music", "upload art", "create music nft", "make nft" etc.
-   - Opens the NFT creation modal with full step-by-step wizard
-   - Supports both music and art NFTs with delegation and royalties (NFTv9)
 
 4. CONCIERGE - Request personalized travel services
    - TAXI - Book a taxi/ride
