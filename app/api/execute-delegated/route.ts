@@ -292,21 +292,46 @@ export async function POST(req: NextRequest) {
 
         const mintCalls: Array<{ to: Address; value: bigint; data: Hex }> = [];
 
-        // Check existing WMON allowance for passport contract
+        // Check existing WMON balance and allowance
         let hasAllowance = false;
+        let hasWmonBalance = false;
+        const mintSafeAddr = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT;
+
         try {
           const { createPublicClient, http } = await import('viem');
           const { monadTestnet } = await import('@/app/chains');
-          const allowanceClient = createPublicClient({
+          const checkClient = createPublicClient({
             chain: monadTestnet,
             transport: http(),
           });
 
-          const mintSafeAddr = USE_USER_SAFES
-            ? await getUserSafeAddress(userAddress as Address)
-            : SAFE_ACCOUNT;
+          // Check WMON balance
+          const wmonBal = await checkClient.readContract({
+            address: WMON_ADDRESS,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [mintSafeAddr],
+          }) as bigint;
 
-          const currentAllowance = await allowanceClient.readContract({
+          hasWmonBalance = wmonBal >= PASSPORT_MINT_PRICE;
+          console.log('💰 Safe WMON balance:', wmonBal.toString(), hasWmonBalance ? '(sufficient)' : '(need wrap)');
+
+          // If not enough WMON, tell user to wrap first (don't bundle wrap with mint)
+          if (!hasWmonBalance) {
+            const wmonNeeded = PASSPORT_MINT_PRICE - wmonBal;
+            const wmonNeededStr = (Number(wmonNeeded) / 1e18).toFixed(2);
+            return NextResponse.json({
+              success: false,
+              error: `Insufficient WMON. Please call wrap_mon action first with amount: ${wmonNeededStr}`,
+              needsWrap: true,
+              wmonNeeded: wmonNeededStr,
+            }, { status: 400 });
+          }
+
+          // Check allowance
+          const currentAllowance = await checkClient.readContract({
             address: WMON_ADDRESS,
             abi: parseAbi(['function allowance(address owner, address spender) view returns (uint256)']),
             functionName: 'allowance',
@@ -315,24 +340,11 @@ export async function POST(req: NextRequest) {
 
           hasAllowance = currentAllowance >= PASSPORT_MINT_PRICE;
           console.log('💳 WMON allowance for passport:', currentAllowance.toString(), hasAllowance ? '(sufficient)' : '(need approval)');
-        } catch (allowErr: any) {
-          console.warn('⚠️ Could not check allowance:', allowErr.message);
+        } catch (checkErr: any) {
+          console.warn('⚠️ Could not check WMON state:', checkErr.message);
         }
 
-        // Step 1: Wrap MON to WMON if needed
-        if (needsWrap) {
-          mintCalls.push({
-            to: WMON_ADDRESS,
-            value: PASSPORT_MINT_PRICE,
-            data: encodeFunctionData({
-              abi: parseAbi(['function deposit() external payable']),
-              functionName: 'deposit',
-              args: [],
-            }) as Hex,
-          });
-        }
-
-        // Step 2: Approve WMON for passport contract (skip if already approved)
+        // Only add approve if needed (simpler batch = more reliable)
         if (!hasAllowance) {
           mintCalls.push({
             to: WMON_ADDRESS,
