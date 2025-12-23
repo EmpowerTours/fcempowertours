@@ -76,85 +76,13 @@ export async function POST(req: NextRequest) {
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = (process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT) as Address;
     const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
-    const AMM_POOL = process.env.NEXT_PUBLIC_TOURS_WMON_POOL as Address;
     const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
-    const WMON_UNWRAP_HELPER = (process.env.NEXT_PUBLIC_WMON_UNWRAP_HELPER || '0x70580F77d7602f9A03fD34F17f3cC395BbCe6938') as Address;
 
     let calls: Array<{ to: Address; value: bigint; data: Hex }> = [];
     let requiredValue = 0n;
 
     // Build transaction based on action
     switch (action) {
-      // ==================== SWAP TOURS FOR WMON ====================
-      case 'swap_tours_for_wmon':
-        if (!params?.toursAmount || !params?.minWMONOut) {
-          return NextResponse.json({
-            success: false,
-            error: 'Missing toursAmount or minWMONOut',
-            safeAddress: userSafeAddress,
-          }, { status: 400 });
-        }
-
-        const toursSwapAmount = parseEther(params.toursAmount.toString());
-        const minWMONOut = parseEther(params.minWMONOut.toString());
-
-        calls = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [AMM_POOL, toursSwapAmount],
-            }) as Hex,
-          },
-          {
-            to: AMM_POOL,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function swapToursForWMON(uint256 toursIn, uint256 minWMONOut) external returns (uint256)']),
-              functionName: 'swapToursForWMON',
-              args: [toursSwapAmount, minWMONOut],
-            }) as Hex,
-          },
-        ];
-        break;
-
-      // ==================== SWAP WMON FOR TOURS ====================
-      case 'swap_wmon_for_tours':
-        if (!params?.wmonAmount || !params?.minToursOut) {
-          return NextResponse.json({
-            success: false,
-            error: 'Missing wmonAmount or minToursOut',
-            safeAddress: userSafeAddress,
-          }, { status: 400 });
-        }
-
-        const wmonSwapAmount = parseEther(params.wmonAmount.toString());
-        const minToursOut = parseEther(params.minToursOut.toString());
-
-        calls = [
-          {
-            to: WMON_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [AMM_POOL, wmonSwapAmount],
-            }) as Hex,
-          },
-          {
-            to: AMM_POOL,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function swapWMONForTours(uint256 wmonIn, uint256 minToursOut) external returns (uint256)']),
-              functionName: 'swapWMONForTours',
-              args: [wmonSwapAmount, minToursOut],
-            }) as Hex,
-          },
-        ];
-        break;
-
       // ==================== WRAP MON TO WMON ====================
       case 'wrap_mon':
         if (!params?.amount) {
@@ -176,40 +104,6 @@ export async function POST(req: NextRequest) {
               abi: parseAbi(['function deposit() external payable']),
               functionName: 'deposit',
               args: [],
-            }) as Hex,
-          },
-        ];
-        break;
-
-      // ==================== UNWRAP WMON TO MON ====================
-      case 'unwrap_wmon':
-        if (!params?.amount) {
-          return NextResponse.json({
-            success: false,
-            error: 'Missing amount',
-            safeAddress: userSafeAddress,
-          }, { status: 400 });
-        }
-
-        const unwrapAmount = parseEther(params.amount.toString());
-
-        calls = [
-          {
-            to: WMON_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [WMON_UNWRAP_HELPER, unwrapAmount],
-            }) as Hex,
-          },
-          {
-            to: WMON_UNWRAP_HELPER,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function unwrapTo(uint256 amount, address recipient) external']),
-              functionName: 'unwrapTo',
-              args: [unwrapAmount, userSafeAddress],
             }) as Hex,
           },
         ];
