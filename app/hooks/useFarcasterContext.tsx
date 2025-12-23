@@ -87,7 +87,21 @@ export function useFarcasterContext() {
         setContext(ctx);
         setError(null);
 
-        // 🔥 CRITICAL: Fetch VERIFIED custody address from Neynar API
+        // 🔥 CRITICAL: Fetch VERIFIED custody address from Neynar API (with caching)
+        const cacheKey = `neynar_wallet_${ctx.user.fid}`;
+        const cachedWallet = sessionStorage.getItem(cacheKey);
+
+        if (cachedWallet) {
+          console.log('✅ [5/5] Using cached wallet address:', cachedWallet);
+          setCustodyAddress(cachedWallet);
+          setWalletConnected(true);
+          setContext(prev =>
+            prev ? { ...prev, user: { ...prev.user, custody_address: cachedWallet } } : null
+          );
+          setLoading(false);
+          return;
+        }
+
         console.log('🔄 [5/5] Fetching verified custody address from Neynar for FID:', ctx.user.fid);
 
         try {
@@ -119,6 +133,7 @@ export function useFarcasterContext() {
 
               if (address) {
                 console.log('✅ Found VERIFIED wallet address:', address);
+                sessionStorage.setItem(cacheKey, address); // Cache for session
                 setCustodyAddress(address);
                 setWalletConnected(true);
 
