@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Address, encodeFunctionData } from 'viem';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
 
-const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REGISTRY_ADDRESS as Address;
+const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
 
 export async function POST(req: NextRequest) {
   try {
