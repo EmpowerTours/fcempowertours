@@ -248,6 +248,36 @@ export async function POST(req: NextRequest) {
           countryCode: params?.countryCode || 'US',
         });
 
+        // ✅ PRE-CHECK: Verify user doesn't already have passport for this country
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const checkClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const countryCode = params?.countryCode || 'US';
+          const hasExistingPassport = await checkClient.readContract({
+            address: PASSPORT_NFT,
+            abi: parseAbi(['function hasPassport(address user, string countryCode) view returns (bool)']),
+            functionName: 'hasPassport',
+            args: [userAddress as Address, countryCode],
+          });
+
+          if (hasExistingPassport) {
+            const countryName = params?.countryName || 'this country';
+            return NextResponse.json({
+              success: false,
+              error: `You already own a passport for ${countryName}. Each wallet can only mint one passport per country.`,
+            }, { status: 400 });
+          }
+          console.log('✅ Pre-check passed: No existing passport for', countryCode);
+        } catch (preCheckErr: any) {
+          console.warn('⚠️ Pre-check failed (continuing anyway):', preCheckErr.message);
+          // Continue with mint attempt - contract will reject if duplicate
+        }
+
         // ✅ CRITICAL FIX: Passport contract requires 0.01 MON payment (not TOURS tokens)
         // The contract checks: require(msg.value >= MINT_PRICE, "Insufficient payment")
         // where MINT_PRICE = 0.01 ether

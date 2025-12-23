@@ -79,6 +79,8 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
           params: {
             countryCode: selectedCountry.code,
             countryName: selectedCountry.name,
+            region: selectedCountry.region,
+            continent: selectedCountry.continent,
             fid: user?.fid
           }
         }),
