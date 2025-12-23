@@ -432,7 +432,7 @@ function getAbiName(contractAddress: string): string {
   const contracts: Record<string, string> = {
     [process.env.NEXT_PUBLIC_TOKEN_SWAP || '']: 'TokenSwap',
     [process.env.NEXT_PUBLIC_NFT_ADDRESS || '']: 'MusicNFT',
-    [process.env.NEXT_PUBLIC_PASSPORT_NFT_V2 || '']: 'PassportNFT',
+    [process.env.NEXT_PUBLIC_PASSPORT_NFT || '']: 'PassportNFT',
     [process.env.NEXT_PUBLIC_MIRRORMATE_ADDRESS || '']: 'MirrorMate',
   };
 

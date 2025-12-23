@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, parseEther } from 'ethers';
 
 const TOURS_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
-const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT_V2 || process.env.NEXT_PUBLIC_PASSPORT || '0x04a8983587B79cd0a4927AE71040caf3baA613f1';
+const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT || '0xeB6D46684849D292FFf0D27221ABEB293633c1ba';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 

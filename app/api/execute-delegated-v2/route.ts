@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     // Contract addresses
     const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-    const PASSPORT_NFT = (process.env.NEXT_PUBLIC_PASSPORT_NFT_V2 || process.env.NEXT_PUBLIC_PASSPORT) as Address;
+    const PASSPORT_NFT = (process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT) as Address;
     const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
     const AMM_POOL = process.env.NEXT_PUBLIC_TOURS_WMON_POOL as Address;
     const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
