@@ -1350,7 +1350,7 @@ ${enjoyText}
         const PASSPORT_APPROVE = (process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT) as Address;
         const approveAmount = parseEther('1000000'); // Approve large amount for multiple mints
 
-        const approveCalls = [
+        const passportApproveCalls = [
           {
             to: WMON_APPROVE,
             value: 0n,
@@ -1362,13 +1362,13 @@ ${enjoyText}
           },
         ];
 
-        const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
-        console.log('✅ WMON approved for passport, TX:', approveTxHash);
+        const passportApproveTxHash = await executeTransaction(passportApproveCalls, userAddress as Address);
+        console.log('✅ WMON approved for passport, TX:', passportApproveTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
-          txHash: approveTxHash,
+          txHash: passportApproveTxHash,
           action,
           userAddress,
           message: `Approved WMON for passport contract successfully`,
@@ -1462,39 +1462,6 @@ ${enjoyText}
           token: params.token,
           amount: params.amount,
           message: `Withdrew ${params.amount} ${params.token.toUpperCase()} to your wallet successfully`,
-        });
-
-      // ==================== APPROVE YIELD STRATEGY (ONE-TIME SETUP) ====================
-      case 'approve_yield_strategy':
-        console.log('🔓 Action: approve_yield_strategy (one-time max approval)');
-
-        // Approve max uint256 so we never need to approve again
-        const { maxUint256 } = await import('viem');
-
-        const approveCalls = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [YIELD_STRATEGY, maxUint256],
-            }) as Hex,
-          },
-        ];
-
-        console.log('💳 Executing max approval for YieldStrategy...');
-        console.log('   Amount: max uint256 (unlimited)');
-        const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
-        console.log('✅ Approval successful, TX:', approveTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: approveTxHash,
-          action,
-          userAddress,
-          message: `YieldStrategy approved for unlimited TOURS tokens. You can now stake without approval!`,
         });
 
       // ==================== STAKE TOURS ====================
