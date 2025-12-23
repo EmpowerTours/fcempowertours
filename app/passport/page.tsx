@@ -87,7 +87,7 @@ export default function PassportPage() {
             userAddress: walletAddress,
             durationHours: 24,
             maxTransactions: 100,
-            permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'approve_yield_strategy']
+            permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
           })
         });
 
@@ -100,8 +100,8 @@ export default function PassportPage() {
 
       setSuccess('⏳ Minting passport (FREE - we pay gas)...');
 
-      // ✅ Execute mint via delegation API
-      const response = await fetch('/api/execute-delegated', {
+      // ✅ Execute mint via delegation API - with auto-wrap if needed
+      let response = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,19 +115,60 @@ export default function PassportPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      let responseData = await response.json();
 
-        // ✅ Extract UserOp hash from error response if available
-        if (errorData.userOpHash) {
-          setUserOpHash(errorData.userOpHash);
-          console.log('📋 UserOperation hash from error:', errorData.userOpHash);
+      // If needs WMON wrap, do that first then retry mint
+      if (!response.ok && responseData.needsWrap) {
+        console.log('🔄 Need to wrap MON first, amount:', responseData.wmonNeeded);
+        setSuccess('⏳ Wrapping MON to WMON...');
+
+        const wrapRes = await fetch('/api/execute-delegated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            action: 'wrap_mon',
+            params: { amount: responseData.wmonNeeded }
+          }),
+        });
+
+        const wrapData = await wrapRes.json();
+        if (!wrapRes.ok || !wrapData.success) {
+          throw new Error(wrapData.error || 'Failed to wrap MON');
         }
 
-        throw new Error(errorData.error || 'Mint failed');
+        console.log('✅ Wrapped MON, now minting...');
+        setSuccess('⏳ Minting passport...');
+
+        // Retry mint
+        response = await fetch('/api/execute-delegated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: walletAddress,
+            action: 'mint_passport',
+            params: {
+              countryCode: selectedCountry.code,
+              countryName: selectedCountry.name,
+              fid: farcasterFid
+            }
+          }),
+        });
+
+        responseData = await response.json();
       }
 
-      const { txHash: responseTxHash, tokenId } = await response.json();
+      if (!response.ok) {
+        // ✅ Extract UserOp hash from error response if available
+        if (responseData.userOpHash) {
+          setUserOpHash(responseData.userOpHash);
+          console.log('📋 UserOperation hash from error:', responseData.userOpHash);
+        }
+
+        throw new Error(responseData.error || 'Mint failed');
+      }
+
+      const { txHash: responseTxHash, tokenId } = responseData;
 
       setTxHash(responseTxHash);
       setSuccess(`🎉 Passport minted (FREE)!
