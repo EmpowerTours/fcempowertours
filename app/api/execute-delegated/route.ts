@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
         // CRITICAL: Do approve as SEPARATE UserOp to avoid bundler gas estimation issues
         if (!hasAllowance) {
           console.log('🔓 Step 1: Approving WMON for passport (separate UserOp)...');
-          const approveCalls = [{
+          const wmonApproveCalls = [{
             to: WMON_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
@@ -357,7 +357,7 @@ export async function POST(req: NextRequest) {
             }) as Hex,
           }];
 
-          const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
+          const approveTxHash = await executeTransaction(wmonApproveCalls, userAddress as Address);
           console.log('✅ Approve successful, TX:', approveTxHash);
 
           // Wait a moment for state to propagate
