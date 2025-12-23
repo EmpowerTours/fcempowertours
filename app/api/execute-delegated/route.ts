@@ -292,6 +292,33 @@ export async function POST(req: NextRequest) {
 
         const mintCalls: Array<{ to: Address; value: bigint; data: Hex }> = [];
 
+        // Check existing WMON allowance for passport contract
+        let hasAllowance = false;
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { monadTestnet } = await import('@/app/chains');
+          const allowanceClient = createPublicClient({
+            chain: monadTestnet,
+            transport: http(),
+          });
+
+          const mintSafeAddr = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          const currentAllowance = await allowanceClient.readContract({
+            address: WMON_ADDRESS,
+            abi: parseAbi(['function allowance(address owner, address spender) view returns (uint256)']),
+            functionName: 'allowance',
+            args: [mintSafeAddr, PASSPORT_NFT],
+          }) as bigint;
+
+          hasAllowance = currentAllowance >= PASSPORT_MINT_PRICE;
+          console.log('💳 WMON allowance for passport:', currentAllowance.toString(), hasAllowance ? '(sufficient)' : '(need approval)');
+        } catch (allowErr: any) {
+          console.warn('⚠️ Could not check allowance:', allowErr.message);
+        }
+
         // Step 1: Wrap MON to WMON if needed
         if (needsWrap) {
           mintCalls.push({
@@ -305,16 +332,18 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // Step 2: Approve WMON for passport contract
-        mintCalls.push({
-          to: WMON_ADDRESS,
-          value: 0n,
-          data: encodeFunctionData({
-            abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-            functionName: 'approve',
-            args: [PASSPORT_NFT, PASSPORT_MINT_PRICE],
-          }) as Hex,
-        });
+        // Step 2: Approve WMON for passport contract (skip if already approved)
+        if (!hasAllowance) {
+          mintCalls.push({
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [PASSPORT_NFT, PASSPORT_MINT_PRICE],
+            }) as Hex,
+          });
+        }
 
         // Step 3: Call mintFor
         mintCalls.push({
@@ -1292,6 +1321,38 @@ ${enjoyText}
           userAddress,
           amount: params.amount,
           message: `Wrapped ${params.amount} MON to WMON successfully (gasless)`,
+        });
+
+      // ==================== APPROVE WMON FOR PASSPORT ====================
+      case 'approve_wmon_for_passport':
+        console.log('🔓 Action: approve_wmon_for_passport');
+
+        const WMON_APPROVE = process.env.NEXT_PUBLIC_WMON as Address;
+        const PASSPORT_APPROVE = (process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT) as Address;
+        const approveAmount = parseEther('1000000'); // Approve large amount for multiple mints
+
+        const approveCalls = [
+          {
+            to: WMON_APPROVE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [PASSPORT_APPROVE, approveAmount],
+            }) as Hex,
+          },
+        ];
+
+        const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
+        console.log('✅ WMON approved for passport, TX:', approveTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: approveTxHash,
+          action,
+          userAddress,
+          message: `Approved WMON for passport contract successfully`,
         });
 
       // ==================== WITHDRAW TO USER (Safe → User Wallet) ====================
