@@ -4,7 +4,7 @@ import { createPublicClient, http, parseAbi, formatEther } from 'viem';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID;
 const LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE';
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
 
 // Monad testnet chain config
 const monadTestnet = {

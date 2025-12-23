@@ -9,6 +9,7 @@ import { MirrorMate } from '@/app/components/oracle/MirrorMate';
 import { Tetris } from '@/app/components/oracle/Tetris';
 import { TicTacToe } from '@/app/components/oracle/TicTacToe';
 import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
+import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useRouter } from 'next/navigation';
 
@@ -55,6 +56,7 @@ export default function OraclePage() {
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
+  const [showPassportMintModal, setShowPassportMintModal] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [paymentRequired, setPaymentRequired] = useState<{ message: string; estimatedCost: string } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string>('');
@@ -183,6 +185,17 @@ export default function OraclePage() {
             }]);
             setTimeout(() => {
               setShowCreateNFTModal(true);
+            }, 500);
+            break;
+
+          case 'mint_passport':
+            setMessages(prev => [...prev, {
+              role: 'oracle',
+              content: `${action.message}\n\nOpening passport minting...`,
+              action
+            }]);
+            setTimeout(() => {
+              setShowPassportMintModal(true);
             }, 500);
             break;
 
@@ -681,6 +694,11 @@ export default function OraclePage() {
       {/* Create NFT Modal */}
       {showCreateNFTModal && (
         <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} />
+      )}
+
+      {/* Passport Mint Modal */}
+      {showPassportMintModal && (
+        <PassportMintModal onClose={() => setShowPassportMintModal(false)} />
       )}
 
       {/* Payment Confirmation Dialog */}

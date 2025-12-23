@@ -13,7 +13,7 @@ export const monadTestnet = {
   },
   rpcUrls: {
     default: {
-      http: ['https://testnet-rpc.monad.xyz'],
+      http: ['https://rpc-testnet.monadinfra.com'],
     },
   },
   blockExplorers: {
@@ -28,7 +28,7 @@ export const monadTestnet = {
 // Public client for reading blockchain
 export const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
+  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
 });
 
 // Pimlico client for Monad (CONFIRMED WORKING!)

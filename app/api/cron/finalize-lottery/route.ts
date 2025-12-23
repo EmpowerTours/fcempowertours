@@ -10,8 +10,8 @@ const monadTestnet = defineChain({
   network: 'monad-testnet',
   nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://testnet-rpc.monad.xyz'] },
-    public: { http: ['https://testnet-rpc.monad.xyz'] },
+    default: { http: ['https://rpc-testnet.monadinfra.com'] },
+    public: { http: ['https://rpc-testnet.monadinfra.com'] },
   },
 });
 

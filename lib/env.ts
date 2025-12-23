@@ -6,7 +6,7 @@ export const env = {
   APP_URL: process.env.NEXT_PUBLIC_URL || process.env.VITE_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app',
 
   // Blockchain
-  MONAD_RPC: process.env.NEXT_PUBLIC_MONAD_RPC || process.env.VITE_MONAD_RPC || 'https://testnet-rpc.monad.xyz',
+  MONAD_RPC: process.env.NEXT_PUBLIC_MONAD_RPC || process.env.VITE_MONAD_RPC || 'https://rpc-testnet.monadinfra.com',
   CHAIN_ID: process.env.NEXT_PUBLIC_CHAIN_ID || process.env.VITE_CHAIN_ID || '10143',
 
   // Pimlico (Account Abstraction - Current Bundler)

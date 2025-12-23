@@ -22,7 +22,7 @@ import ServiceMarketplaceABI from '../abis/ServiceMarketplace.json';
 
 // Monad Testnet Configuration
 export const MONAD_TESTNET_CHAIN_ID = 10143;
-export const MONAD_TESTNET_RPC = 'https://testnet-rpc.monad.xyz';
+export const MONAD_TESTNET_RPC = 'https://rpc-testnet.monadinfra.com';
 
 // Contract Addresses on Monad Testnet
 export const CONTRACTS = {

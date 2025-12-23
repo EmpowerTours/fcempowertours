@@ -4,7 +4,7 @@ import { createWalletClient, http, parseEther, createPublicClient, decodeEventLo
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
-const PIMLICO_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+const PIMLICO_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
@@ -174,8 +174,13 @@ Available Actions:
    - Supports both music and art NFTs with delegation and royalties
    - This is a MODAL, not a page navigation
 
-2. NAVIGATE - Direct users to specific pages
-   - /passport - View existing passport collection ONLY (NOT for creating NFTs!)
+2. MINT_PASSPORT - Open passport minting modal (USE THIS for minting passports!)
+   - Use when users say: "mint passport", "get passport", "travel passport", "country passport", "passport nft"
+   - Opens the passport minting modal with country selection
+   - This is a MODAL, not a page navigation
+
+3. NAVIGATE - Direct users to specific pages
+   - /passport - View existing passport collection ONLY (NOT for minting!)
    - /discover - Browse experiences
    - /market - NFT marketplace
    - /lottery - Daily lottery
@@ -185,25 +190,25 @@ Available Actions:
    - /swap - Token swaps
    - /staking - Stake tokens
 
-3. GAMES - Launch interactive games
+4. GAMES - Launch interactive games
    - TETRIS - Classic block game
    - TICTACTOE - Tic tac toe
    - MIRROR - MirrorMate travel guide matching
 
-4. CONCIERGE - Request personalized travel services
+5. CONCIERGE - Request personalized travel services
    - TAXI - Book a taxi/ride
    - RESTAURANT_RESERVATION - Reserve a table
    - ACTIVITY_BOOKING - Book tours/activities
    - HOTEL_BOOKING - Reserve accommodations
    - TOUR_GUIDE - Request a personal tour guide
 
-5. EXECUTE - Execute blockchain transactions via delegation
+6. EXECUTE - Execute blockchain transactions via delegation
    - swap_tokens(amount, from, to)
    - mint_nft(type, metadata)
    - buy_item(contract, tokenId)
    - transfer(to, amount)
 
-6. CHAT - Conversational response with travel advice
+7. CHAT - Conversational response with travel advice
 
 Parse this user message: "${message}"
 
@@ -218,7 +223,7 @@ You MUST return ONLY valid JSON matching the specified schema.
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'concierge', 'create_nft'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'concierge', 'create_nft', 'mint_passport'],
             description: 'The type of action to perform'
           },
           destination: {

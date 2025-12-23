@@ -98,7 +98,7 @@ const PASSPORT_ABI = [
   },
 ];
 
-const provider = new JsonRpcProvider("https://testnet-rpc.monad.xyz");
+const provider = new JsonRpcProvider(process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc-testnet.monadinfra.com");
 const wallet = new Wallet(process.env.DEPLOYER_PRIVATE_KEY || "", provider);
 const contract = new Contract(PASSPORT_NFT_ADDRESS, PASSPORT_ABI, wallet);
 

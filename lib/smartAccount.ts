@@ -11,14 +11,14 @@ const monadTestnet = defineChain({
   id: Number(process.env.MONAD_CHAIN_ID || '10143'),
   name: 'Monad Testnet',
   nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
-  rpcUrls: { default: { http: [process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz'] } },
+  rpcUrls: { default: { http: [process.env.MONAD_RPC || 'https://rpc-testnet.monadinfra.com'] } },
   blockExplorers: { default: { name: 'Monad Explorer', url: 'https://testnet.monadexplorer.com' } },
   testnet: true,
 });
 
 const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz'),
+  transport: http(process.env.MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
 });
 
 const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
