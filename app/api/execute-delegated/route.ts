@@ -197,7 +197,12 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // ✅ Check Safe's MON balance - Passport minting requires MON, not TOURS
+        // Check Safe's WMON balance - Passport requires 150 WMON
+        // If not enough WMON, check if we can wrap MON to WMON
+        let needsWrap = false;
+        const WMON_CHECK = process.env.NEXT_PUBLIC_WMON as Address;
+        const MINT_PRICE_CHECK = parseEther('150');
+
         try {
           const { createPublicClient, http } = await import('viem');
           const { monadTestnet } = await import('@/app/chains');
@@ -206,37 +211,40 @@ export async function POST(req: NextRequest) {
             transport: http(),
           });
 
-          // Use correct Safe address based on mode
           const mintSafeAddress = USE_USER_SAFES
             ? await getUserSafeAddress(userAddress as Address)
             : SAFE_ACCOUNT;
 
-          // ✅ CRITICAL: Check Safe's MON balance for MINT PRICE (0.01 MON) + gas
-          const monBalance = await client.getBalance({
-            address: mintSafeAddress,
-          });
+          const wmonBalance = await client.readContract({
+            address: WMON_CHECK,
+            abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+            functionName: 'balanceOf',
+            args: [mintSafeAddress],
+          }) as bigint;
 
-          console.log('⛽ Safe MON balance:', monBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+          console.log('⛽ Safe WMON balance:', wmonBalance.toString());
 
-          // Need 0.01 MON for mint + ~0.001 MON for gas = 0.011 MON minimum
-          const MIN_MON_REQUIRED = parseEther('0.011');
-          if (monBalance < MIN_MON_REQUIRED) {
-            const currentMon = Number(monBalance) / 1e18;
-            const requiredMon = Number(MIN_MON_REQUIRED) / 1e18;
-            const errorMsg = USE_USER_SAFES
-              ? `Insufficient MON in your Safe wallet. You need ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only have ${currentMon.toFixed(4)} MON. Please send MON to your Safe: ${mintSafeAddress}`
-              : `Insufficient MON in Safe account. The Safe needs ${requiredMon} MON (0.01 for mint + 0.001 for gas), but only has ${currentMon.toFixed(4)} MON. Please contact support to fund the Safe account.`;
-            return NextResponse.json(
-              {
+          if (wmonBalance < MINT_PRICE_CHECK) {
+            // Check MON balance to see if we can wrap
+            const monBalance = await client.getBalance({ address: mintSafeAddress });
+            console.log('⛽ Safe MON balance:', monBalance.toString());
+
+            const wmonNeeded = MINT_PRICE_CHECK - wmonBalance;
+            if (monBalance >= wmonNeeded) {
+              console.log('💡 Will wrap', (Number(wmonNeeded) / 1e18).toFixed(2), 'MON to WMON');
+              needsWrap = true;
+            } else {
+              const totalNeeded = Number(MINT_PRICE_CHECK) / 1e18;
+              const haveWmon = Number(wmonBalance) / 1e18;
+              const haveMon = Number(monBalance) / 1e18;
+              return NextResponse.json({
                 success: false,
-                error: errorMsg
-              },
-              { status: 400 }
-            );
+                error: `Insufficient funds. Need 150 WMON. Safe has ${haveWmon.toFixed(2)} WMON + ${haveMon.toFixed(2)} MON.`
+              }, { status: 400 });
+            }
           }
         } catch (balanceErr: any) {
-          console.error('❌ Failed to check MON balance:', balanceErr);
-          // Continue with mint attempt - don't block on balance check failure
+          console.error('❌ Failed to check balance:', balanceErr);
         }
 
         // 🔍 DEBUG: Log the actual addresses and amounts involved
@@ -278,29 +286,56 @@ export async function POST(req: NextRequest) {
           // Continue with mint attempt - contract will reject if duplicate
         }
 
-        // ✅ Deployed PassportNFT uses mintFor(beneficiary, userFid, countryCode, countryName, region, continent, uri)
-        // Function is nonpayable - no MON required
-        const mintCalls = [
-          {
-            to: PASSPORT_NFT,
-            value: 0n,
+        // PassportNFT requires 150 WMON via safeTransferFrom
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
+        const PASSPORT_MINT_PRICE = parseEther('150');
+
+        const mintCalls: Array<{ to: Address; value: bigint; data: Hex }> = [];
+
+        // Step 1: Wrap MON to WMON if needed
+        if (needsWrap) {
+          mintCalls.push({
+            to: WMON_ADDRESS,
+            value: PASSPORT_MINT_PRICE,
             data: encodeFunctionData({
-              abi: parseAbi([
-                'function mintFor(address beneficiary, uint256 userFid, string countryCode, string countryName, string region, string continent, string uri) external returns (uint256)'
-              ]),
-              functionName: 'mintFor',
-              args: [
-                userAddress as Address,
-                BigInt(params?.fid || 0),
-                params?.countryCode || 'US',
-                params?.countryName || 'United States',
-                params?.region || 'Americas',
-                params?.continent || 'North America',
-                params?.uri || '',
-              ],
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+              args: [],
             }) as Hex,
-          },
-        ];
+          });
+        }
+
+        // Step 2: Approve WMON for passport contract
+        mintCalls.push({
+          to: WMON_ADDRESS,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+            functionName: 'approve',
+            args: [PASSPORT_NFT, PASSPORT_MINT_PRICE],
+          }) as Hex,
+        });
+
+        // Step 3: Call mintFor
+        mintCalls.push({
+          to: PASSPORT_NFT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi([
+              'function mintFor(address beneficiary, uint256 userFid, string countryCode, string countryName, string region, string continent, string uri) external returns (uint256)'
+            ]),
+            functionName: 'mintFor',
+            args: [
+              userAddress as Address,
+              BigInt(params?.fid || 0),
+              params?.countryCode || 'US',
+              params?.countryName || 'United States',
+              params?.region || 'Americas',
+              params?.continent || 'North America',
+              params?.uri || '',
+            ],
+          }) as Hex,
+        });
 
         console.log('💳 Executing batched mint transaction (Safe pays, NFT goes to user)...');
         const mintTxHash = await executeTransaction(mintCalls, userAddress as Address);
