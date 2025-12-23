@@ -616,7 +616,7 @@ async function mintPassportForUser(
   countryName: string,
   fid?: number
 ): Promise<{ txHash: string | null; tokenId?: number; error?: string }> {
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours.vercel.app';
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
   try {
     // First ensure delegation exists with wrap_mon permission

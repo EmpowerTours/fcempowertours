@@ -318,16 +318,38 @@ export async function POST(req: NextRequest) {
           hasWmonBalance = wmonBal >= PASSPORT_MINT_PRICE;
           console.log('💰 Safe WMON balance:', wmonBal.toString(), hasWmonBalance ? '(sufficient)' : '(need wrap)');
 
-          // If not enough WMON, tell user to wrap first (don't bundle wrap with mint)
+          // If not enough WMON, auto-wrap MON to WMON first
           if (!hasWmonBalance) {
             const wmonNeeded = PASSPORT_MINT_PRICE - wmonBal;
             const wmonNeededStr = (Number(wmonNeeded) / 1e18).toFixed(2);
-            return NextResponse.json({
-              success: false,
-              error: `Insufficient WMON. Please call wrap_mon action first with amount: ${wmonNeededStr}`,
-              needsWrap: true,
-              wmonNeeded: wmonNeededStr,
-            }, { status: 400 });
+            console.log('🔄 AUTO-WRAP: Need to wrap', wmonNeededStr, 'MON to WMON before mint');
+
+            // Check if Safe has enough MON to wrap
+            const monBal = await checkClient.getBalance({ address: mintSafeAddr });
+            if (monBal < wmonNeeded) {
+              return NextResponse.json({
+                success: false,
+                error: `Insufficient MON. Need ${wmonNeededStr} MON to wrap but only have ${(Number(monBal) / 1e18).toFixed(2)} MON.`,
+              }, { status: 400 });
+            }
+
+            // Execute wrap as separate UserOp
+            console.log('💱 Wrapping MON to WMON...');
+            const wrapCalls = [{
+              to: WMON_ADDRESS,
+              value: wmonNeeded,
+              data: encodeFunctionData({
+                abi: parseAbi(['function deposit() external payable']),
+                functionName: 'deposit',
+              }) as Hex,
+            }];
+
+            const wrapTxHash = await executeTransaction(wrapCalls, userAddress as Address);
+            console.log('✅ Wrap successful, TX:', wrapTxHash);
+
+            // Wait for state to propagate
+            await new Promise(r => setTimeout(r, 2000));
+            hasWmonBalance = true;
           }
 
           // Check allowance
