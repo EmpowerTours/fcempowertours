@@ -344,20 +344,27 @@ export async function POST(req: NextRequest) {
           console.warn('⚠️ Could not check WMON state:', checkErr.message);
         }
 
-        // Only add approve if needed (simpler batch = more reliable)
+        // CRITICAL: Do approve as SEPARATE UserOp to avoid bundler gas estimation issues
         if (!hasAllowance) {
-          mintCalls.push({
+          console.log('🔓 Step 1: Approving WMON for passport (separate UserOp)...');
+          const approveCalls = [{
             to: WMON_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [PASSPORT_NFT, PASSPORT_MINT_PRICE],
+              args: [PASSPORT_NFT, parseEther('1000000')], // Large approval for future mints
             }) as Hex,
-          });
+          }];
+
+          const approveTxHash = await executeTransaction(approveCalls, userAddress as Address);
+          console.log('✅ Approve successful, TX:', approveTxHash);
+
+          // Wait a moment for state to propagate
+          await new Promise(r => setTimeout(r, 2000));
         }
 
-        // Step 3: Call mintFor
+        // Step 2: Call mintFor (now as single call, not batched with approve)
         mintCalls.push({
           to: PASSPORT_NFT,
           value: 0n,
@@ -378,7 +385,7 @@ export async function POST(req: NextRequest) {
           }) as Hex,
         });
 
-        console.log('💳 Executing batched mint transaction (Safe pays, NFT goes to user)...');
+        console.log('💳 Step 2: Executing mint transaction...');
         const mintTxHash = await executeTransaction(mintCalls, userAddress as Address);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
