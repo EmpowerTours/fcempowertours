@@ -62,26 +62,31 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       pollingInterval: 2000, // 2 seconds (Monad testnet might be slow)
     });
 
-    const modulesAbi = parseAbi([
-      'function getModulesPaginated(address start, uint256 pageSize) external view returns (address[] array, address next)',
-    ]);
-    const [modules] = await publicClient.readContract({
-      address: SAFE_ACCOUNT,
-      abi: modulesAbi,
-      functionName: 'getModulesPaginated',
-      args: ['0x0000000000000000000000000000000000000001' as Address, 10n],
-    });
-    console.log('   Enabled modules:', modules);
+    // Debug logging - non-fatal if Safe isn't properly deployed
+    try {
+      const modulesAbi = parseAbi([
+        'function getModulesPaginated(address start, uint256 pageSize) external view returns (address[] array, address next)',
+      ]);
+      const [modules] = await publicClient.readContract({
+        address: SAFE_ACCOUNT,
+        abi: modulesAbi,
+        functionName: 'getModulesPaginated',
+        args: ['0x0000000000000000000000000000000000000001' as Address, 10n],
+      });
+      console.log('   Enabled modules:', modules);
 
-    const FALLBACK_HANDLER_STORAGE_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
-    const storageValue = await publicClient.getStorageAt({
-      address: SAFE_ACCOUNT,
-      slot: FALLBACK_HANDLER_STORAGE_SLOT as `0x${string}`,
-    });
-    const fallbackHandler = storageValue
-      ? ('0x' + storageValue.slice(-40)) as `0x${string}`
-      : '0x0000000000000000000000000000000000000000';
-    console.log('   Fallback handler:', fallbackHandler);
+      const FALLBACK_HANDLER_STORAGE_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
+      const storageValue = await publicClient.getStorageAt({
+        address: SAFE_ACCOUNT,
+        slot: FALLBACK_HANDLER_STORAGE_SLOT as `0x${string}`,
+      });
+      const fallbackHandler = storageValue
+        ? ('0x' + storageValue.slice(-40)) as `0x${string}`
+        : '0x0000000000000000000000000000000000000000';
+      console.log('   Fallback handler:', fallbackHandler);
+    } catch (debugError) {
+      console.warn('   ⚠️ Could not read Safe modules (Safe may not be deployed)');
+    }
 
     console.log('✅ Smart Account Client created with EntryPoint v0.7');
     return smartAccountClient;

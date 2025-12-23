@@ -49,7 +49,7 @@ export default function SendMonPage() {
     if (!amount || !recipient) return;
 
     // Use Safe AA wallet address
-    const senderAddress = '0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20';
+    const senderAddress = '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533';
 
     try {
       setError('');
@@ -146,7 +146,7 @@ export default function SendMonPage() {
   }
 
   // Safe AA wallet address (hardcoded as primary wallet)
-  const safeWalletAddress = '0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20';
+  const safeWalletAddress = '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black flex items-center justify-center p-4">
