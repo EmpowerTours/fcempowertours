@@ -22,7 +22,7 @@ const walletClient = createWalletClient({
 });
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'concierge' | 'create_nft' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'concierge' | 'create_nft' | 'mint_passport' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -37,6 +37,10 @@ interface OracleAction {
     serviceType: string; // TAXI, RESTAURANT_RESERVATION, ACTIVITY_BOOKING, etc.
     details: string;
     suggestedPrice: string; // in MON
+  };
+  passport?: {
+    countryCode: string;
+    countryName: string;
   };
 }
 
@@ -266,13 +270,27 @@ You MUST return ONLY valid JSON matching the specified schema.
             },
             description: 'Transaction details if type is execute'
           },
+          passport: {
+            type: Type.OBJECT,
+            properties: {
+              countryCode: {
+                type: Type.STRING,
+                description: 'ISO country code (e.g. US, GB, JP)'
+              },
+              countryName: {
+                type: Type.STRING,
+                description: 'Full country name'
+              }
+            },
+            description: 'Passport minting details if type is mint_passport'
+          },
           message: {
             type: Type.STRING,
             description: 'Response message to user'
           }
         },
         required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'concierge', 'transaction']
+        propertyOrdering: ['type', 'message', 'destination', 'game', 'concierge', 'transaction', 'passport']
       }
     };
 
@@ -383,6 +401,20 @@ You MUST return ONLY valid JSON matching the specified schema.
       );
       txHash = result.txHash;
       requestId = result.requestId;
+    } else if (action.type === 'mint_passport' && action.passport && userAddress) {
+      // Mint passport via execute-delegated API with auto-wrap
+      const result = await mintPassportForUser(
+        userAddress,
+        action.passport.countryCode,
+        action.passport.countryName,
+        userFid
+      );
+      txHash = result.txHash;
+      if (result.error) {
+        action.message = result.error;
+      } else {
+        action.message = `Passport minted successfully! ${action.passport.countryName} - Token #${result.tokenId || 'pending'}`;
+      }
     }
 
     return NextResponse.json({
@@ -575,4 +607,109 @@ async function createConciergeRequest(
   }
 
   return { txHash: hash, requestId };
+}
+
+// Mint passport via execute-delegated API with auto-wrap
+async function mintPassportForUser(
+  userAddress: string,
+  countryCode: string,
+  countryName: string,
+  fid?: number
+): Promise<{ txHash: string | null; tokenId?: number; error?: string }> {
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours.vercel.app';
+
+  try {
+    // First ensure delegation exists with wrap_mon permission
+    const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+    const delegationData = await delegationRes.json();
+
+    const hasValidDelegation = delegationData.success &&
+                              delegationData.delegation &&
+                              Array.isArray(delegationData.delegation.permissions) &&
+                              delegationData.delegation.permissions.includes('mint_passport') &&
+                              delegationData.delegation.permissions.includes('wrap_mon');
+
+    if (!hasValidDelegation) {
+      console.log('[Oracle] Creating delegation with mint_passport and wrap_mon permissions...');
+      const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          durationHours: 24,
+          maxTransactions: 100,
+          permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+        })
+      });
+
+      const createData = await createRes.json();
+      if (!createData.success) {
+        return { txHash: null, error: 'Failed to create delegation: ' + createData.error };
+      }
+    }
+
+    // Try to mint passport
+    let mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userAddress,
+        action: 'mint_passport',
+        params: {
+          countryCode,
+          countryName,
+          fid
+        }
+      })
+    });
+
+    let mintData = await mintRes.json();
+
+    // Auto-wrap if needed
+    if (!mintData.success && mintData.needsWrap) {
+      console.log('[Oracle] Need to wrap MON first, amount:', mintData.wmonNeeded);
+
+      const wrapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          action: 'wrap_mon',
+          params: { amount: mintData.wmonNeeded }
+        })
+      });
+
+      const wrapData = await wrapRes.json();
+      if (!wrapData.success) {
+        return { txHash: null, error: wrapData.error || 'Failed to wrap MON' };
+      }
+      console.log('[Oracle] Wrapped MON, now minting...');
+
+      // Retry mint after wrap
+      mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          action: 'mint_passport',
+          params: {
+            countryCode,
+            countryName,
+            fid
+          }
+        })
+      });
+      mintData = await mintRes.json();
+    }
+
+    if (!mintData.success) {
+      return { txHash: null, error: mintData.error || 'Mint failed' };
+    }
+
+    console.log('[Oracle] Passport minted:', mintData.txHash);
+    return { txHash: mintData.txHash, tokenId: mintData.tokenId };
+  } catch (error: any) {
+    console.error('[Oracle] Passport mint error:', error);
+    return { txHash: null, error: error.message || 'Mint failed' };
+  }
 }

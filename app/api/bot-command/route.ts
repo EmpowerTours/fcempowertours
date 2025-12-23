@@ -285,7 +285,7 @@ Address: ${userAddress.slice(0, 10)}...`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music']
+              permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music']
             })
           });
           const createData = await createRes.json();
@@ -367,7 +367,7 @@ View: https://testnet.monadscan.com/tx/${buyData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
+              permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -499,7 +499,7 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['send_tours', 'mint_passport', 'mint_music', 'swap_mon_for_tours', 'buy_music']
+              permissions: ['send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -700,7 +700,7 @@ Try "mint passport" from a different location or "help" for other commands.`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -709,7 +709,7 @@ Try "mint passport" from a different location or "help" for other commands.`
           }
         }
 
-        const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+        let mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -722,7 +722,45 @@ Try "mint passport" from a different location or "help" for other commands.`
             }
           })
         });
-        const mintData = await mintRes.json();
+        let mintData = await mintRes.json();
+
+        // ✅ AUTO-WRAP: If needs WMON, wrap MON first then retry mint
+        if (!mintData.success && mintData.needsWrap) {
+          console.log('[BOT] Need to wrap MON first, amount:', mintData.wmonNeeded);
+
+          const wrapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              action: 'wrap_mon',
+              params: { amount: mintData.wmonNeeded }
+            })
+          });
+
+          const wrapData = await wrapRes.json();
+          if (!wrapData.success) {
+            throw new Error(wrapData.error || 'Failed to wrap MON');
+          }
+          console.log('[BOT] Wrapped MON, now minting...');
+
+          // Retry mint after wrap
+          mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              action: 'mint_passport',
+              params: {
+                countryCode,
+                countryName,
+                fid
+              }
+            })
+          });
+          mintData = await mintRes.json();
+        }
+
         if (!mintData.success) {
           throw new Error(mintData.error || 'Mint failed');
         }
@@ -784,7 +822,7 @@ https://testnet.monadscan.com/tx/${mintData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
+              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -864,7 +902,7 @@ View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
+              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -942,7 +980,7 @@ View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'mint_music', 'buy_music']
+              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -1049,7 +1087,7 @@ Or go to the Music page to upload files.`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_music', 'mint_passport', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['mint_music', 'mint_passport', 'wrap_mon', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
