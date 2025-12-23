@@ -278,22 +278,20 @@ export async function POST(req: NextRequest) {
           // Continue with mint attempt - contract will reject if duplicate
         }
 
-        // ✅ CRITICAL FIX: Passport contract requires 0.01 MON payment (not TOURS tokens)
-        // The contract checks: require(msg.value >= MINT_PRICE, "Insufficient payment")
-        // where MINT_PRICE = 0.01 ether
-        const PASSPORT_MINT_PRICE_MON = parseEther('0.01');
-
+        // ✅ Deployed PassportNFT uses mintFor(beneficiary, userFid, countryCode, countryName, region, continent, uri)
+        // Function is nonpayable - no MON required
         const mintCalls = [
           {
             to: PASSPORT_NFT,
-            value: PASSPORT_MINT_PRICE_MON,  // ✅ Send 0.01 MON as required by contract
+            value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
-                'function mint(address to, string countryCode, string countryName, string region, string continent, string uri) external payable returns (uint256)'
+                'function mintFor(address beneficiary, uint256 userFid, string countryCode, string countryName, string region, string continent, string uri) external returns (uint256)'
               ]),
-              functionName: 'mint',
+              functionName: 'mintFor',
               args: [
                 userAddress as Address,
+                BigInt(params?.fid || 0),
                 params?.countryCode || 'US',
                 params?.countryName || 'United States',
                 params?.region || 'Americas',
