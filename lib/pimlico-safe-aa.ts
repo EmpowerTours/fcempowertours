@@ -2,7 +2,9 @@ import {
   createSmartAccountClient,
   SmartAccountClient,
 } from 'permissionless';
+import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { createPublicClient, http, Address, Hex, parseAbi, parseEther } from 'viem';
+import { entryPoint07Address } from 'viem/account-abstraction';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
@@ -55,11 +57,25 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       saltNonce: 0n,
     });
 
+    // Create Pimlico client for paymaster sponsorship
+    const pimlicoClient = createPimlicoClient({
+      transport: http(PIMLICO_BUNDLER_URL),
+      entryPoint: {
+        address: entryPoint07Address,
+        version: '0.7',
+      },
+    });
+
     const smartAccountClient = createSmartAccountClient({
       account: safeSmartAccount,
       chain: monadTestnet,
-      bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 120000 }), // Increased to 2 minutes for music minting
-      pollingInterval: 2000, // 2 seconds (Monad testnet might be slow)
+      bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 120000 }),
+      paymaster: pimlicoClient,
+      userOperation: {
+        estimateFeesPerGas: async () => {
+          return (await pimlicoClient.getUserOperationGasPrice()).fast;
+        },
+      },
     });
 
     // Debug logging - non-fatal if Safe isn't properly deployed
