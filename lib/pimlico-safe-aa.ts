@@ -586,12 +586,12 @@ export async function sendSafeTransaction(
       console.log('🔧 Using fixed gas values for approve + spend pattern (skipping estimation)');
       console.log('   Bundler gas estimation will fail for this pattern, but execution will succeed');
 
-      // These values are from successful approve + stakeWithDeposit transactions
-      // See transaction 0x478a2cad4c8be76ef36e491da884317cc249b76eb9f491bce1299c1de1ac0add
+      // These values are increased to handle complex operations like passport minting
+      // which requires approve + safeTransferFrom + NFT mint in one UserOp
       estimatedGas = {
-        callGasLimit: 157_920n,      // 0x264e0 from successful tx
-        verificationGasLimit: 235_344n, // 0x39750 from successful tx
-        preVerificationGas: 272_266n,   // 0x4278a from successful tx
+        callGasLimit: 500_000n,      // Increased for complex operations
+        verificationGasLimit: 400_000n, // Increased for batched calls
+        preVerificationGas: 300_000n,   // Increased bundler overhead
       };
 
       console.log('   Using fixed gas values:', JSON.stringify(estimatedGas, (_, v) =>
