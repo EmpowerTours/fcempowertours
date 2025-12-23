@@ -467,21 +467,32 @@ function detectMapsQuery(message: string): boolean {
     return false; // Don't use Maps Grounding for emergency services
   }
 
+  const lowerMessage = message.toLowerCase();
+
+  // Exclude NFT/game commands from Maps detection
+  const excludePatterns = [
+    'create nft', 'mint nft', 'make nft', 'new nft', 'upload',
+    'play tetris', 'play tictactoe', 'play mirror', 'mirrormate',
+    'swap', 'stake', 'lottery', 'passport', 'beat match'
+  ];
+  if (excludePatterns.some(pattern => lowerMessage.includes(pattern))) {
+    return false;
+  }
+
   const mapsKeywords = [
-    'restaurant', 'cafe', 'coffee', 'food', 'eat', 'dining',
+    'restaurant', 'cafe', 'coffee', 'food', 'dining',
     'hotel', 'accommodation', 'stay', 'lodge',
-    'museum', 'attraction', 'tourist', 'visit', 'see',
-    'near me', 'nearby', 'around', 'close', 'walking distance',
-    'directions', 'how to get', 'route',
-    'shop', 'store', 'buy', 'shopping',
-    'bar', 'nightlife', 'club', 'entertainment',
+    'museum', 'attraction', 'tourist', 'visit',
+    'near me', 'nearby', 'around here', 'close by', 'walking distance',
+    'directions to', 'how to get to', 'route to',
+    'shop', 'store', 'shopping',
+    'bar', 'nightlife', 'club',
     'park', 'beach', 'outdoor',
-    'best', 'top rated', 'recommended',
-    'open now', 'hours', 'when',
-    'address', 'location', 'where is'
+    'top rated', 'recommended places',
+    'open now', 'what time',
+    'address of', 'where is the'
   ];
 
-  const lowerMessage = message.toLowerCase();
   return mapsKeywords.some(keyword => lowerMessage.includes(keyword));
 }
 
