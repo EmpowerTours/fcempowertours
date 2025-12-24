@@ -80,11 +80,11 @@ networks:
 
       - name: PassportNFT
         address:
-          - "0xeB6D46684849D292FFf0D27221ABEB293633c1ba"  # PassportNFT with FID (Dec 21, 2025)
+          - "0xCDdE80E0cf16b31e7Ad7D83dD012d33b328f9E4f"  # PassportNFT v2 with region/continent (Dec 23, 2025)
         handler: src/EventHandlers.ts
         events:
-          # Passport minting with country data and FID
-          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, uint256 indexed userFid, string countryCode, string countryName, string region, string continent)"
+          # Passport minting with country data, region, continent, and FID
+          - event: "PassportMinted(uint256 indexed tokenId, address indexed owner, uint256 indexed userFid, string countryCode, string countryName, string region, string continent, bool verified)"
             field_selection:
               transaction_fields:
                 - hash

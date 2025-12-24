@@ -79,16 +79,14 @@ contract DeployPassportNFT is Script {
         console.log("");
 
         console.log("=== Passport Configuration ===");
-        console.log("Mint Price:", passport.MINT_PRICE() / 1e18, "WMON (~$0.70)");
-        console.log("Verification Fee:", passport.VERIFICATION_FEE() / 1e18, "WMON (~$1.75)");
-        console.log("Creator Share:", passport.CREATOR_PERCENTAGE(), "%");
-        console.log("Platform Share:", passport.PLATFORM_PERCENTAGE(), "%");
+        console.log("Mint Price:", passport.MINT_PRICE() / 1e18, "WMON (~$5.25)");
+        console.log("Mint Cooldown:", passport.MINT_COOLDOWN() / 3600, "hours");
         console.log("");
 
         console.log("=== Credit Scoring ===");
-        console.log("Base Credit:", passport.BASE_CREDIT(), "points");
-        console.log("Venue Stamp Range:", passport.MIN_VENUE_CREDIT(), "-", passport.MAX_VENUE_CREDIT(), "pts");
-        console.log("Itinerary Stamp Range:", passport.MIN_ITINERARY_CREDIT(), "-", passport.MAX_ITINERARY_CREDIT(), "pts");
+        console.log("Base Credit: 100 points");
+        console.log("Venue Stamp: +10 pts (+5 if verified)");
+        console.log("Itinerary Stamp: +15 pts (+10 if GPS verified)");
         console.log("Verification Multiplier: 2x (verified passports)");
         console.log("");
 

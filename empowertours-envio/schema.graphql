@@ -55,10 +55,12 @@ type PassportNFT @entity {
   tokenId: String!
   contract: String!
   owner: String!
+  userFid: String!             # Farcaster ID
   countryCode: String!         # Country code (e.g., "US", "AR")
   countryName: String!         # Country name
   region: String!              # Geographic region
   continent: String!           # Continent
+  verified: Boolean!           # GPS/location verification status
   tokenURI: String
   stakedAmount: BigInt!        # ✅ Total TOURS staked with this passport
   stampCount: Int!             # ✅ Number of venue stamps

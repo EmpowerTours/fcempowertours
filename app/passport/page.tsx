@@ -110,6 +110,8 @@ export default function PassportPage() {
           params: {
             countryCode: selectedCountry.code,
             countryName: selectedCountry.name,
+            region: selectedCountry.region,
+            continent: selectedCountry.continent,
             fid: farcasterFid
           }
         }),
@@ -150,6 +152,8 @@ export default function PassportPage() {
             params: {
               countryCode: selectedCountry.code,
               countryName: selectedCountry.name,
+              region: selectedCountry.region,
+              continent: selectedCountry.continent,
               fid: farcasterFid
             }
           }),

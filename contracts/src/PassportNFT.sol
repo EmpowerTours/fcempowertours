@@ -117,6 +117,8 @@ contract PassportNFT is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         uint256 indexed userFid,
         string countryCode,
         string countryName,
+        string region,
+        string continent,
         bool verified
     );
     event VerificationProofSubmitted(
@@ -244,7 +246,7 @@ contract PassportNFT is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         lastMintTime[beneficiary] = block.timestamp;
         totalMinted[beneficiary]++;
 
-        emit PassportMinted(tokenId, beneficiary, userFid, countryCode, countryName, false);
+        emit PassportMinted(tokenId, beneficiary, userFid, countryCode, countryName, region, continent, false);
         return tokenId;
     }
 

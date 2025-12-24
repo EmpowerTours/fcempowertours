@@ -6,7 +6,7 @@ import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/gen
 import { getCountryByCode } from "@/lib/passport/countries";
 import { redis } from "@/lib/redis";
 
-const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT || "0xeB6D46684849D292FFf0D27221ABEB293633c1ba";
+const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT || "0xCDdE80E0cf16b31e7Ad7D83dD012d33b328f9E4f";
 const IPINFO_TOKEN = process.env.IPINFO_TOKEN;
 
 // Anti-gaming constants

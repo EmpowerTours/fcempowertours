@@ -499,9 +499,11 @@ EmpowerToursNFT.RewardRateUpdated.handler(async ({ event, context }) => {
 // ============================================
 
 PassportNFT.PassportMinted.handler(async ({ event, context }) => {
-  const { tokenId, owner, countryCode, countryName, region, continent } = event.params;
+  const { tokenId, owner, userFid, countryCode, countryName, region, continent, verified } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+
+  context.log.info(`🛂 Passport #${tokenId} minted for owner ${owner} (FID: ${userFid}, Country: ${countryCode}, Region: ${region}, Continent: ${continent}, Verified: ${verified})`);
 
   // ✅ CRITICAL FIX: Normalize countryCode to uppercase for consistency
   const normalizedCountryCode = countryCode.toUpperCase();
@@ -518,10 +520,12 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
     owner: owner.toLowerCase(),
+    userFid: userFid.toString(), // ✅ Farcaster ID
     countryCode: normalizedCountryCode, // ✅ FIX: Store as uppercase
     countryName: countryName,
     region: region,
     continent: continent,
+    verified: verified, // ✅ Verification status
     tokenURI: "",
     stakedAmount: BigInt(0),
     stampCount: 0,
