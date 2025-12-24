@@ -2826,49 +2826,76 @@ ${enjoyText}
           }, { status: 500 });
         }
 
-      // ==================== LOTTERY ENTER WITH MON ====================
+      // ==================== LOTTERY ENTER WITH WMON ====================
       case 'lottery_enter_mon':
-        console.log('🎰 Action: lottery_enter_mon');
+      case 'lottery_enter_wmon': {
+        console.log('🎰 Action: lottery_enter_wmon');
 
-        const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as Address;
-        const lotteryEntryFee = parseEther('1'); // 1 MON entry fee
+        const lotteryAddr = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as Address;
+        const wmonAddr = (process.env.NEXT_PUBLIC_WMON || '0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541') as Address;
+        const lotteryEntryFee = parseEther('1'); // 1 WMON entry fee
 
         // 🎁 ALWAYS use platform Safe for lottery entries (gasless/free for users)
         const lotterySafe = SAFE_ACCOUNT;
 
-        console.log('🎰 Entering lottery with MON:', {
-          entryFee: '1 MON',
-          lotteryAddress: LOTTERY_ADDRESS,
+        // Use FID from params, default to 1 for non-Farcaster users (contract requires fid > 0)
+        const userFid = BigInt(params?.fid || 1);
+
+        console.log('🎰 Entering lottery with WMON:', {
+          entryFee: '1 WMON',
+          lotteryAddress: lotteryAddr,
+          wmonAddress: wmonAddr,
           safeAddress: lotterySafe,
+          beneficiary: userAddress,
+          userFid: userFid.toString(),
           mode: 'Platform Safe (FREE for user)',
         });
 
-        // Note: Balance check removed - let blockchain handle balance validation during execution
-        // Lottery enterWithMonFor function: enterWithMonFor(address beneficiary) payable
-        // Platform Safe enters on behalf of the user (delegation)
-        const lotteryEnterMonCalls = [
+        // Three-step process: Wrap MON -> Approve WMON -> Enter Lottery
+        const lotteryEnterWmonCalls = [
+          // Step 1: Wrap MON to WMON (deposit)
           {
-            to: LOTTERY_ADDRESS,
+            to: wmonAddr,
             value: lotteryEntryFee,
             data: encodeFunctionData({
-              abi: parseAbi(['function enterWithMonFor(address beneficiary) external payable returns (uint256)']),
-              functionName: 'enterWithMonFor',
-              args: [userAddress as Address], // The user is the beneficiary
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+            }) as Hex,
+          },
+          // Step 2: Approve lottery to spend WMON
+          {
+            to: wmonAddr,
+            value: BigInt(0),
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [lotteryAddr, lotteryEntryFee],
+            }) as Hex,
+          },
+          // Step 3: Enter lottery with WMON for user
+          {
+            to: lotteryAddr,
+            value: BigInt(0),
+            data: encodeFunctionData({
+              abi: parseAbi(['function enterWithWMONFor(address beneficiary, uint256 userFid) external returns (uint256)']),
+              functionName: 'enterWithWMONFor',
+              args: [userAddress as Address, userFid],
             }) as Hex,
           },
         ];
 
-        const lotteryEnterMonTxHash = await executeTransaction(lotteryEnterMonCalls, userAddress as Address);
-        console.log('✅ Entered lottery with MON, TX:', lotteryEnterMonTxHash);
+        const lotteryEnterWmonTxHash = await executeTransaction(lotteryEnterWmonCalls, userAddress as Address);
+        console.log('✅ Entered lottery with WMON, TX:', lotteryEnterWmonTxHash);
 
         // Public action - no delegation tracking needed
         return NextResponse.json({
           success: true,
-          txHash: lotteryEnterMonTxHash,
+          txHash: lotteryEnterWmonTxHash,
           action,
           userAddress,
-          message: `Entered lottery with 1 MON successfully (gasless)`,
+          message: `Entered lottery with 1 WMON successfully (gasless)`,
         });
+      }
 
       // ==================== LOTTERY ENTER WITH SHMON ====================
       case 'lottery_enter_shmon':

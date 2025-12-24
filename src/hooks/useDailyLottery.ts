@@ -145,10 +145,10 @@ const LOTTERY_ABI = [
   },
   {
     "inputs": [
-      {"internalType": "uint256", "name": "userFid", "type": "uint256"},
-      {"internalType": "address", "name": "beneficiary", "type": "address"}
+      {"internalType": "address", "name": "beneficiary", "type": "address"},
+      {"internalType": "uint256", "name": "userFid", "type": "uint256"}
     ],
-    "name": "enterWithWmonFor",
+    "name": "enterWithWMONFor",
     "outputs": [{"internalType": "uint256", "name": "entryIndex", "type": "uint256"}],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -283,12 +283,12 @@ export function useDailyLottery() {
   };
 
   // Enter lottery with WMON for someone else
-  const enterWithWmonFor = (userFid: bigint, beneficiary: `0x${string}`) => {
+  const enterWithWMONFor = (beneficiary: `0x${string}`, userFid: bigint) => {
     writeContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'enterWithWmonFor',
-      args: [userFid, beneficiary],
+      functionName: 'enterWithWMONFor',
+      args: [beneficiary, userFid],
     });
   };
 
@@ -330,7 +330,7 @@ export function useDailyLottery() {
     useGetEntryFee,
     // Write functions
     enterWithWmon,
-    enterWithWmonFor,
+    enterWithWMONFor,
     requestRandomness,
     claimPrize,
     // Transaction state
