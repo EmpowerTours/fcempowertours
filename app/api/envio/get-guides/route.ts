@@ -23,7 +23,7 @@ interface GuideObject {
 
 export async function GET() {
   try {
-    // Query for active tour guides
+    // Query for active tour guides from Envio indexer
     const response = await fetch(ENVIO_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -102,7 +102,7 @@ export async function GET() {
       {
         success: false,
         error: error.message || 'Failed to fetch guides',
-        guides: [], // Return empty array so UI doesn't break
+        guides: [],
         count: 0,
       },
       { status: 500 }

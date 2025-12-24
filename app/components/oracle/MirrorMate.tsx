@@ -367,6 +367,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           displayName: user.displayName || user.username || '',
           pfpUrl: user.pfpUrl || '',
           location: user.location?.city || '',
+          walletAddress: walletAddress || '',
         }),
       });
 

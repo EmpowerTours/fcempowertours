@@ -97,7 +97,7 @@ contract DeployTourGuideRegistry is Script {
         console.log("=== Registration Thresholds ===");
         console.log("Auto-Approve Credit:", registry.AUTO_APPROVE_CREDIT(), "points (200+)");
         console.log("Manual-Approve Credit:", registry.MANUAL_APPROVE_CREDIT(), "points (100-199)");
-        console.log("Max Booking Hours:", registry.MAX_BOOKING_HOURS(), "hours (168 = 1 week)");
+        console.log("Max Booking Hours:", registry.MAX_HOURS_PER_BOOKING(), "hours (168 = 1 week)");
         console.log("");
 
         console.log("=== Revenue Split ===");
