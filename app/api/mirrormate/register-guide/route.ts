@@ -82,34 +82,54 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for passport ownership
-    const passportBalance = await publicClient.readContract({
-      address: PASSPORT_ADDRESS,
-      abi: passportAbi,
-      functionName: 'balanceOf',
-      args: [walletAddress as Address],
-    });
+    let passportBalance: bigint;
+    let tokenId: bigint;
+    let creditScore: bigint;
+
+    try {
+      passportBalance = await publicClient.readContract({
+        address: PASSPORT_ADDRESS,
+        abi: passportAbi,
+        functionName: 'balanceOf',
+        args: [walletAddress as Address],
+      });
+    } catch (err) {
+      console.log('[MirrorMate] Passport balance check failed:', err);
+      return NextResponse.json(
+        { error: 'You need a Passport NFT to register as a guide. Mint one at /passport first!' },
+        { status: 400 }
+      );
+    }
 
     if (passportBalance === 0n) {
       return NextResponse.json(
-        { error: 'You need a Passport NFT to register as a guide. Mint one first!' },
+        { error: 'You need a Passport NFT to register as a guide. Mint one at /passport first!' },
         { status: 400 }
       );
     }
 
     // Get passport token ID and credit score
-    const tokenId = await publicClient.readContract({
-      address: PASSPORT_ADDRESS,
-      abi: passportAbi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [walletAddress as Address, 0n],
-    });
+    try {
+      tokenId = await publicClient.readContract({
+        address: PASSPORT_ADDRESS,
+        abi: passportAbi,
+        functionName: 'tokenOfOwnerByIndex',
+        args: [walletAddress as Address, 0n],
+      });
 
-    const creditScore = await publicClient.readContract({
-      address: PASSPORT_ADDRESS,
-      abi: passportAbi,
-      functionName: 'getCreditScore',
-      args: [tokenId],
-    });
+      creditScore = await publicClient.readContract({
+        address: PASSPORT_ADDRESS,
+        abi: passportAbi,
+        functionName: 'getCreditScore',
+        args: [tokenId],
+      });
+    } catch (err) {
+      console.log('[MirrorMate] Passport lookup failed:', err);
+      return NextResponse.json(
+        { error: 'Could not find your Passport NFT. Please mint one at /passport first!' },
+        { status: 400 }
+      );
+    }
 
     console.log('[MirrorMate] Passport found:', { tokenId: tokenId.toString(), creditScore: creditScore.toString() });
 
