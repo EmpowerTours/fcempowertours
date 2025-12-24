@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useDailyLottery, useShMon } from '@/src/hooks';
+import { useDailyLottery } from '@/src/hooks';
 import { formatEther } from 'viem';
 import { useAccount } from 'wagmi';
 
@@ -21,10 +21,8 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     useGetCurrentRound,
     useGetTimeRemaining,
     useHasEnteredToday,
-    useGetShMonEntryFee,
+    useGetEntryFee,
   } = useDailyLottery();
-
-  const { useGetShMonBalance } = useShMon();
 
   // Contract data hooks
   const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
@@ -32,11 +30,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // 🔒 SIMPLIFIED: Only check user's wallet address for lottery entry
   // Safe wallet integration was causing bypass issues
   const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
-  const { data: shMonEntryFee } = useGetShMonEntryFee();
-  const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
+  const { data: entryFee } = useGetEntryFee();
 
   // Local state
-  const [entryMethod, setEntryMethod] = useState<'mon' | 'shmon'>('mon');
   const [isEntering, setIsEntering] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -152,64 +148,6 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     }
   };
 
-  // Handle lottery entry with shMON
-  const handleEnterWithShMon = async () => {
-    if (!effectiveAddress || !shMonEntryFee) {
-      setError('Wallet not connected or fee not loaded');
-      return;
-    }
-
-    setIsEntering(true);
-    setError('');
-    setStatusMessage('');
-    setTxHash(null);
-
-    try {
-      // ✅ Lottery entry is now a PUBLIC action - no delegation needed!
-      setStatusMessage('Entering lottery with shMON...');
-
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: effectiveAddress,
-          action: 'lottery_enter_shmon',
-          params: { amount: formatEther(shMonEntryFee) }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Entry failed');
-      }
-
-      const { txHash: hash } = await response.json();
-      setTxHash(hash);
-      setStatusMessage('');
-      setIsEntering(false);
-
-      setTimeout(() => refetchHasEntered(), 3000);
-      setTimeout(() => refetchHasEntered(), 6000);
-      setTimeout(() => refetchRound(), 5000);
-
-    } catch (err: any) {
-      console.error('Entry error:', err);
-      const errMsg = err.message || 'Failed to enter lottery';
-
-      // Check for "Already entered" error - grant access if so
-      if (errMsg.includes('Already entered') || errMsg.includes('416c726561647920656e7465726564')) {
-        console.log('User already entered in current round - granting access');
-        setGrantAccess(true);
-        setGrantedRoundId(currentRound?.roundId || null);
-        setIsEntering(false);
-        return;
-      }
-
-      setError(errMsg);
-      setIsEntering(false);
-    }
-  };
-
   // Debug logging
   useEffect(() => {
     if (!roundLoading && !entryLoading && !contextLoading) {
@@ -274,7 +212,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   // Calculate total prize pool
   const totalPrizePool = currentRound
-    ? Number(formatEther(currentRound.prizePoolMon + currentRound.prizePoolShMon)).toFixed(4)
+    ? Number(formatEther(currentRound.prizePoolWmon)).toFixed(4)
     : '0';
 
   // Show lottery gate - FULL SCREEN CENTERED
@@ -344,51 +282,13 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                   </div>
                 </div>
 
-                {/* Entry Options */}
+                {/* Entry Fee */}
                 <div className="bg-white/10 rounded-2xl p-4 mb-6 border border-white/10">
-                  <h3 className="text-white font-semibold mb-3 text-center">Choose Entry Method</h3>
-
-                  <div className="flex gap-2 mb-4">
-                    <button
-                      onClick={() => setEntryMethod('mon')}
-                      className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-                        entryMethod === 'mon'
-                          ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      <div className="text-lg mb-1">💜</div>
-                      <div>1 MON</div>
-                    </button>
-                    <button
-                      onClick={() => setEntryMethod('shmon')}
-                      className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-                        entryMethod === 'shmon'
-                          ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      <div className="text-lg mb-1">💎</div>
-                      <div>shMON</div>
-                    </button>
-                  </div>
-
                   <div className="bg-black/20 rounded-xl p-3 text-center">
-                    {entryMethod === 'mon' ? (
-                      <>
-                        <p className="text-white text-lg font-bold">1 MON</p>
-                        <p className="text-white/50 text-xs">90% to prize pool, 10% to platform</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-white text-lg font-bold">
-                          ~{shMonEntryFee ? Number(formatEther(shMonEntryFee)).toFixed(4) : '...'} shMON
-                        </p>
-                        <p className="text-white/50 text-xs">
-                          Your balance: {shMonBalance ? Number(formatEther(shMonBalance)).toFixed(4) : '0'} shMON
-                        </p>
-                      </>
-                    )}
+                    <p className="text-white text-lg font-bold">
+                      {entryFee ? Number(formatEther(entryFee)).toFixed(2) : '1'} WMON
+                    </p>
+                    <p className="text-white/50 text-xs">90% to prize pool, 10% to platform</p>
                   </div>
                 </div>
 
@@ -411,7 +311,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
                 {/* Enter Button */}
                 <button
-                  onClick={entryMethod === 'mon' ? handleEnterWithMon : handleEnterWithShMon}
+                  onClick={handleEnterWithMon}
                   disabled={isEntering || !effectiveAddress}
                   className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg shadow-purple-500/30"
                 >
@@ -435,7 +335,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                   <div className="space-y-2 text-xs text-white/60">
                     <div className="flex items-start gap-2">
                       <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">1</span>
-                      <p>Enter today's lottery with MON or shMON</p>
+                      <p>Enter today's lottery with WMON</p>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">2</span>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useDailyLottery, useShMon, LOTTERY_CONTRACT_ADDRESS, SHMON_CONTRACT_ADDRESS } from '@/src/hooks';
+import { useDailyLottery, LOTTERY_CONTRACT_ADDRESS } from '@/src/hooks';
 import { formatEther, parseEther } from 'viem';
 import { useAccount } from 'wagmi';
 import FinalizeLotteryButton from '@/components/lottery/FinalizeLotteryButton';
@@ -31,12 +31,10 @@ export default function LotteryPage() {
     useGetTimeRemaining,
     useHasEnteredToday,
     useCanRequestRandomness,
-    useCanResolveRandomness,
-    useGetShMonEntryFee,
-    enterWithMon,
-    enterWithShMon,
+    useGetEntryFee,
+    useGetEntropyFee,
+    enterWithWmon,
     requestRandomness,
-    resolveRandomness,
     claimPrize,
     isPending,
     isConfirming,
@@ -44,10 +42,8 @@ export default function LotteryPage() {
     writeError,
     hash,
     LOTTERY_ADDRESS,
-    SHMON_ADDRESS
+    WMON_ADDRESS
   } = useDailyLottery();
-
-  const { useGetShMonBalance, useGetAllowance, approveShMon } = useShMon();
 
   // Contract data hooks
   const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
@@ -55,13 +51,10 @@ export default function LotteryPage() {
   const { data: timeRemaining } = useGetTimeRemaining();
   const { data: hasEntered, refetch: refetchHasEntered } = useHasEnteredToday(effectiveAddress);
   const { data: canRequest } = useCanRequestRandomness(currentRound?.roundId);
-  const { data: canResolve } = useCanResolveRandomness(currentRound?.roundId);
-  const { data: shMonEntryFee } = useGetShMonEntryFee();
-  const { data: shMonBalance } = useGetShMonBalance(effectiveAddress);
-  const { data: shMonAllowance } = useGetAllowance(effectiveAddress, LOTTERY_ADDRESS);
+  const { data: entryFee } = useGetEntryFee();
+  const { data: entropyFee } = useGetEntropyFee();
 
   // Local state
-  const [entryMethod, setEntryMethod] = useState<'mon' | 'shmon'>('mon');
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -120,8 +113,8 @@ export default function LotteryPage() {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Handle entry with MON (gasless via delegated)
-  const handleEnterWithMon = async () => {
+  // Handle entry with WMON (gasless via delegated)
+  const handleEnterWithWmon = async () => {
     if (!effectiveAddress) {
       setError('Wallet not connected');
       return;
@@ -138,7 +131,7 @@ export default function LotteryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: effectiveAddress,
-          action: 'lottery_enter_mon',
+          action: 'lottery_enter_wmon',
           params: {}
         })
       });
@@ -158,60 +151,6 @@ export default function LotteryPage() {
       }, 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to enter');
-      enterWithMon(); // Fallback to direct call
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Handle entry with shMON
-  const handleEnterWithShMon = async () => {
-    if (!effectiveAddress || !shMonEntryFee) {
-      setError('Wallet not connected or fee not loaded');
-      return;
-    }
-
-    setActionLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      // Check allowance
-      const requiredAllowance = shMonEntryFee;
-      if (!shMonAllowance || shMonAllowance < requiredAllowance) {
-        setSuccess('Approving shMON... please confirm');
-        approveShMon(LOTTERY_ADDRESS, formatEther(requiredAllowance * BigInt(10)));
-        return;
-      }
-
-      // Use gasless delegation
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: effectiveAddress,
-          action: 'lottery_enter_shmon',
-          params: { amount: formatEther(shMonEntryFee) }
-        })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to enter lottery');
-      }
-
-      const { txHash } = await response.json();
-      setSuccess(`Entry submitted! TX: ${txHash.slice(0, 10)}...`);
-
-      setTimeout(() => {
-        refetchRound();
-        refetchHasEntered();
-      }, 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to enter');
-      if (shMonEntryFee) {
-        enterWithShMon(formatEther(shMonEntryFee));
-      }
     } finally {
       setActionLoading(false);
     }
@@ -249,58 +188,7 @@ export default function LotteryPage() {
         refetchRound();
       }, 3000);
     } catch (err: any) {
-      setError(err.message || 'Failed to request');
-      // Fallback to direct call if delegated fails
-      try {
-        await requestRandomness(currentRound.roundId);
-        setSuccess('Requesting randomness... waiting for confirmation');
-      } catch (fallbackErr: any) {
-        setError(fallbackErr.message || 'Failed to request');
-      }
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Handle resolve randomness (anyone can call - note: requires encodedRandomness from bot)
-  const handleResolve = async () => {
-    console.log('[RESOLVE] Button clicked!', { roundId: currentRound?.roundId, effectiveAddress });
-    if (!currentRound?.roundId || !effectiveAddress) {
-      console.error('[RESOLVE] Missing required data:', { currentRound, effectiveAddress });
-      setError(`Cannot resolve: ${!effectiveAddress ? 'Wallet not connected' : 'Round ID missing'}`);
-      return;
-    }
-    setActionLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      // Use delegated API for gasless resolve (bot fetches encodedRandomness from Switchboard)
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: effectiveAddress,
-          action: 'lottery_resolve',
-          params: { roundId: currentRound.roundId.toString() }
-        })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to resolve randomness');
-      }
-
-      const { txHash } = await response.json();
-      setSuccess(`Winner revealed! TX: ${txHash.slice(0, 10)}... You earned 0.01 MON!`);
-
-      // Refresh after delay
-      setTimeout(() => {
-        refetchRound();
-      }, 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to resolve');
-      setActionLoading(false);
+      setError(err.message || 'Failed to request randomness');
     } finally {
       setActionLoading(false);
     }
@@ -363,7 +251,7 @@ export default function LotteryPage() {
   }
 
   const totalPrizePool = currentRound ?
-    Number(formatEther(currentRound.prizePoolMon + currentRound.prizePoolShMon)).toFixed(4) : '0';
+    Number(formatEther(currentRound.prizePoolWmon)).toFixed(4) : '0';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-4">
@@ -410,8 +298,7 @@ export default function LotteryPage() {
               {totalPrizePool} MON
             </p>
             <div className="flex gap-4 mt-2 text-xs text-white/50">
-              <span>MON: {currentRound ? formatEther(currentRound.prizePoolMon) : '0'}</span>
-              <span>shMON: {currentRound ? formatEther(currentRound.prizePoolShMon) : '0'}</span>
+              <span>WMON Pool: {currentRound ? formatEther(currentRound.prizePoolWmon) : '0'}</span>
             </div>
           </div>
 
@@ -439,48 +326,14 @@ export default function LotteryPage() {
                 {currentRound?.status === RoundStatus.Finalized ? 'Enter New Round' : 'Enter Today\'s Lottery'}
               </h3>
 
-              {/* Entry Method Toggle */}
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setEntryMethod('mon')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all ${
-                    entryMethod === 'mon'
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
-                >
-                  Pay with MON (1 MON)
-                </button>
-                <button
-                  onClick={() => setEntryMethod('shmon')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all ${
-                    entryMethod === 'shmon'
-                      ? 'bg-cyan-500 text-white'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
-                >
-                  Pay with shMON
-                </button>
-              </div>
-
               {/* Entry Fee Info */}
               <div className="bg-white/5 rounded-lg p-3 mb-4 text-sm">
-                {entryMethod === 'mon' ? (
-                  <p className="text-white/70">Entry fee: <span className="text-purple-400 font-bold">1 MON</span></p>
-                ) : (
-                  <p className="text-white/70">
-                    Entry fee: <span className="text-cyan-400 font-bold">
-                      {shMonEntryFee ? `~${Number(formatEther(shMonEntryFee)).toFixed(4)}` : '...'} shMON
-                    </span>
-                    <br/>
-                    <span className="text-white/50 text-xs">Your balance: {shMonBalance ? Number(formatEther(shMonBalance)).toFixed(4) : '0'} shMON</span>
-                  </p>
-                )}
+                <p className="text-white/70">Entry fee: <span className="text-purple-400 font-bold">1 WMON</span></p>
               </div>
 
               {/* Enter Button */}
               <button
-                onClick={entryMethod === 'mon' ? handleEnterWithMon : handleEnterWithShMon}
+                onClick={handleEnterWithWmon}
                 disabled={actionLoading || isPending || isConfirming}
                 className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-4 rounded-xl transition-all"
               >
@@ -519,33 +372,20 @@ export default function LotteryPage() {
         </div>
 
         {/* Finalization Actions */}
-        {(canRequest || canResolve) && (
+        {canRequest && (
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 mb-6">
             <h2 className="text-xl font-bold text-white mb-4">Help Finalize Round</h2>
             <p className="text-white/60 text-sm mb-4">
-              Earn 0.01 MON by helping finalize the round!
+              Earn TOURS tokens by triggering the winner selection!
             </p>
 
-            <div className="flex gap-3">
-              {canRequest && (
-                <button
-                  onClick={handleRequest}
-                  disabled={actionLoading || isPending || isConfirming}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
-                >
-                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎲 Request Randomness (+0.01 MON)'}
-                </button>
-              )}
-              {canResolve && (
-                <button
-                  onClick={handleResolve}
-                  disabled={actionLoading || isPending || isConfirming}
-                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
-                >
-                  {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎰 Resolve Winner (+0.01 MON)'}
-                </button>
-              )}
-            </div>
+            <button
+              onClick={handleRequest}
+              disabled={actionLoading || isPending || isConfirming}
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
+            >
+              {actionLoading || isPending || isConfirming ? '⏳ Processing...' : '🎲 Draw Winner (Earn TOURS)'}
+            </button>
           </div>
         )}
 

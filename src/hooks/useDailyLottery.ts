@@ -1,34 +1,12 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { parseEther } from 'viem';
 
-// DailyPassLotteryV4 contract on Monad testnet (with Switchboard randomness)
-const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE') as `0x${string}`;
-const SHMON_ADDRESS = (process.env.NEXT_PUBLIC_SHMON_ADDRESS || '0x3a98250F98Dd388C211206983453837C8365BDc1') as `0x${string}`;
+// DailyPassLotteryWMON contract on Monad testnet
+const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as `0x${string}`;
+const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541') as `0x${string}`;
 
-// DailyPassLotteryV4 ABI (Switchboard randomness)
+// DailyPassLotteryWMON ABI (Pyth Entropy randomness)
 const LOTTERY_ABI = [
-  // Constants
-  {
-    "inputs": [],
-    "name": "ENTRY_FEE",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "PLATFORM_FEE_BPS",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "CALLER_REWARD",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
   // Read functions
   {
     "inputs": [],
@@ -45,16 +23,17 @@ const LOTTERY_ABI = [
         {"internalType": "uint256", "name": "roundId", "type": "uint256"},
         {"internalType": "uint256", "name": "startTime", "type": "uint256"},
         {"internalType": "uint256", "name": "endTime", "type": "uint256"},
-        {"internalType": "uint256", "name": "prizePoolMon", "type": "uint256"},
-        {"internalType": "uint256", "name": "prizePoolShMon", "type": "uint256"},
+        {"internalType": "uint256", "name": "prizePoolWmon", "type": "uint256"},
         {"internalType": "uint256", "name": "participantCount", "type": "uint256"},
-        {"internalType": "enum DailyPassLotterySecure.RoundStatus", "name": "status", "type": "uint8"},
-        {"internalType": "uint256", "name": "commitBlock", "type": "uint256"},
-        {"internalType": "bytes32", "name": "commitHash", "type": "bytes32"},
+        {"internalType": "enum DailyPassLotteryWMON.RoundStatus", "name": "status", "type": "uint8"},
+        {"internalType": "uint64", "name": "entropySequenceNumber", "type": "uint64"},
+        {"internalType": "bytes32", "name": "randomValue", "type": "bytes32"},
+        {"internalType": "uint256", "name": "randomnessRequestedAt", "type": "uint256"},
         {"internalType": "address", "name": "winner", "type": "address"},
-        {"internalType": "uint256", "name": "winnerEntryIndex", "type": "uint256"}
+        {"internalType": "uint256", "name": "winnerIndex", "type": "uint256"},
+        {"internalType": "uint256", "name": "callerRewardsToursPaid", "type": "uint256"}
       ],
-      "internalType": "struct DailyPassLotterySecure.DailyRound",
+      "internalType": "struct DailyPassLotteryWMON.DailyRound",
       "name": "",
       "type": "tuple"
     }],
@@ -80,17 +59,18 @@ const LOTTERY_ABI = [
     "name": "getStats",
     "outputs": [
       {"internalType": "uint256", "name": "_currentRoundId", "type": "uint256"},
-      {"internalType": "uint256", "name": "_currentPrizePool", "type": "uint256"},
-      {"internalType": "uint256", "name": "_currentParticipants", "type": "uint256"},
-      {"internalType": "uint256", "name": "_totalPrizesPaid", "type": "uint256"},
-      {"internalType": "uint256", "name": "_totalParticipants", "type": "uint256"}
+      {"internalType": "uint256", "name": "_prizePoolWmon", "type": "uint256"},
+      {"internalType": "uint256", "name": "_participants", "type": "uint256"},
+      {"internalType": "uint256", "name": "_totalPaid", "type": "uint256"},
+      {"internalType": "uint256", "name": "_totalParticipants", "type": "uint256"},
+      {"internalType": "enum DailyPassLotteryWMON.RoundStatus", "name": "_status", "type": "uint8"}
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "getShMonEntryFee",
+    "name": "getEntropyFee",
     "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
@@ -98,13 +78,6 @@ const LOTTERY_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
     "name": "canRequestRandomness",
-    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
-    "name": "canResolveRandomness",
     "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
     "stateMutability": "view",
     "type": "function"
@@ -122,12 +95,12 @@ const LOTTERY_ABI = [
     "outputs": [{
       "components": [
         {"internalType": "uint256", "name": "roundId", "type": "uint256"},
-        {"internalType": "address", "name": "holder", "type": "address"},
+        {"internalType": "uint256", "name": "userFid", "type": "uint256"},
+        {"internalType": "address", "name": "beneficiary", "type": "address"},
         {"internalType": "uint256", "name": "entryTime", "type": "uint256"},
-        {"internalType": "bool", "name": "paidWithShMon", "type": "bool"},
         {"internalType": "uint256", "name": "entryIndex", "type": "uint256"}
       ],
-      "internalType": "struct DailyPassLotterySecure.DailyPass[]",
+      "internalType": "struct DailyPassLotteryWMON.DailyPass[]",
       "name": "",
       "type": "tuple[]"
     }],
@@ -140,8 +113,7 @@ const LOTTERY_ABI = [
     "outputs": [
       {"internalType": "uint256", "name": "roundId", "type": "uint256"},
       {"internalType": "address", "name": "winner", "type": "address"},
-      {"internalType": "uint256", "name": "monAmount", "type": "uint256"},
-      {"internalType": "uint256", "name": "shMonAmount", "type": "uint256"},
+      {"internalType": "uint256", "name": "wmonAmount", "type": "uint256"},
       {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
       {"internalType": "uint256", "name": "expiresAt", "type": "uint256"},
       {"internalType": "bool", "name": "claimed", "type": "bool"}
@@ -149,36 +121,46 @@ const LOTTERY_ABI = [
     "stateMutability": "view",
     "type": "function"
   },
-  // Write functions
   {
     "inputs": [],
-    "name": "enterWithMon",
-    "outputs": [{"internalType": "uint256", "name": "entryIndex", "type": "uint256"}],
-    "stateMutability": "payable",
+    "name": "ENTRY_FEE",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [{"internalType": "uint256", "name": "shMonAmount", "type": "uint256"}],
-    "name": "enterWithShMon",
+    "inputs": [],
+    "name": "CALLER_REWARD",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  // Write functions
+  {
+    "inputs": [{"internalType": "uint256", "name": "userFid", "type": "uint256"}],
+    "name": "enterWithWmon",
     "outputs": [{"internalType": "uint256", "name": "entryIndex", "type": "uint256"}],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [{"internalType": "uint256", "name": "roundId", "type": "uint256"}],
-    "name": "requestRandomness",
-    "outputs": [],
+    "inputs": [
+      {"internalType": "uint256", "name": "userFid", "type": "uint256"},
+      {"internalType": "address", "name": "beneficiary", "type": "address"}
+    ],
+    "name": "enterWithWmonFor",
+    "outputs": [{"internalType": "uint256", "name": "entryIndex", "type": "uint256"}],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [
       {"internalType": "uint256", "name": "roundId", "type": "uint256"},
-      {"internalType": "bytes", "name": "encodedRandomness", "type": "bytes"}
+      {"internalType": "bytes32", "name": "userRandomNumber", "type": "bytes32"}
     ],
-    "name": "resolveRandomness",
+    "name": "requestRandomness",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -242,12 +224,12 @@ export function useDailyLottery() {
     });
   };
 
-  // Get shMON entry fee equivalent
-  const useGetShMonEntryFee = () => {
+  // Get entropy fee for randomness request
+  const useGetEntropyFee = () => {
     return useReadContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'getShMonEntryFee',
+      functionName: 'getEntropyFee',
     });
   };
 
@@ -257,16 +239,6 @@ export function useDailyLottery() {
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
       functionName: 'canRequestRandomness',
-      args: roundId !== undefined ? [roundId] : undefined,
-    });
-  };
-
-  // Check if round can resolve randomness
-  const useCanResolveRandomness = (roundId: bigint | undefined) => {
-    return useReadContract({
-      address: LOTTERY_ADDRESS,
-      abi: LOTTERY_ABI,
-      functionName: 'canResolveRandomness',
       args: roundId !== undefined ? [roundId] : undefined,
     });
   };
@@ -291,44 +263,43 @@ export function useDailyLottery() {
     });
   };
 
-  // Enter lottery with MON (1 MON)
-  const enterWithMon = () => {
-    writeContract({
+  // Get entry fee
+  const useGetEntryFee = () => {
+    return useReadContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'enterWithMon',
-      value: parseEther('1'), // 1 MON entry fee
+      functionName: 'ENTRY_FEE',
     });
   };
 
-  // Enter lottery with shMON
-  const enterWithShMon = (shMonAmount: string) => {
+  // Enter lottery with WMON
+  const enterWithWmon = (userFid: bigint) => {
     writeContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
-      functionName: 'enterWithShMon',
-      args: [parseEther(shMonAmount)],
+      functionName: 'enterWithWmon',
+      args: [userFid],
     });
   };
 
-  // Request randomness (anyone can call, gets 0.01 MON reward)
-  const requestRandomness = (roundId: bigint) => {
+  // Enter lottery with WMON for someone else
+  const enterWithWmonFor = (userFid: bigint, beneficiary: `0x${string}`) => {
+    writeContract({
+      address: LOTTERY_ADDRESS,
+      abi: LOTTERY_ABI,
+      functionName: 'enterWithWmonFor',
+      args: [userFid, beneficiary],
+    });
+  };
+
+  // Request randomness (anyone can call, pays entropy fee)
+  const requestRandomness = (roundId: bigint, userRandomNumber: `0x${string}`, entropyFee: bigint) => {
     writeContract({
       address: LOTTERY_ADDRESS,
       abi: LOTTERY_ABI,
       functionName: 'requestRandomness',
-      args: [roundId],
-    });
-  };
-
-  // Resolve randomness (anyone can call, gets 0.01 MON reward)
-  // Note: encodedRandomness must be fetched from Switchboard Crossbar off-chain
-  const resolveRandomness = (roundId: bigint, encodedRandomness: `0x${string}`) => {
-    writeContract({
-      address: LOTTERY_ADDRESS,
-      abi: LOTTERY_ABI,
-      functionName: 'resolveRandomness',
-      args: [roundId, encodedRandomness],
+      args: [roundId, userRandomNumber],
+      value: entropyFee,
     });
   };
 
@@ -345,23 +316,22 @@ export function useDailyLottery() {
   return {
     // Contract addresses
     LOTTERY_ADDRESS,
-    SHMON_ADDRESS,
+    WMON_ADDRESS,
     // Read hooks
     useGetCurrentRoundId,
     useGetCurrentRound,
     useHasEnteredToday,
     useGetTimeRemaining,
     useGetStats,
-    useGetShMonEntryFee,
+    useGetEntropyFee,
     useCanRequestRandomness,
-    useCanResolveRandomness,
     useGetUserPasses,
     useGetEscrow,
+    useGetEntryFee,
     // Write functions
-    enterWithMon,
-    enterWithShMon,
+    enterWithWmon,
+    enterWithWmonFor,
     requestRandomness,
-    resolveRandomness,
     claimPrize,
     // Transaction state
     isPending,
