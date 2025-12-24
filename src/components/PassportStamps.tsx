@@ -7,11 +7,11 @@ import { useState, useEffect } from 'react';
 import { Address } from 'viem';
 
 interface PassportData {
-  name: string;
-  country: string;
-  pfp: string;
-  bio: string;
-  mintTimestamp: bigint;
+  countryCode: string;
+  countryName: string;
+  region: string;
+  continent: string;
+  verified: boolean;
 }
 
 export function PassportStamps() {
@@ -63,36 +63,18 @@ export function PassportStamps() {
         {passports.map((passport, index) => (
           <Card key={index} className="p-6 hover:shadow-lg transition-shadow">
             <div className="aspect-square bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg mb-4 flex items-center justify-center">
-              {passport.pfp ? (
-                <img
-                  src={passport.pfp}
-                  alt={passport.name}
-                  className="w-full h-full object-cover rounded-lg"
-                />
-              ) : (
-                <div className="text-white text-4xl font-bold">
-                  {passport.country}
-                </div>
-              )}
+              <div className="text-white text-4xl font-bold">
+                {passport.countryCode}
+              </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-lg">{passport.name}</h3>
-                  <p className="text-sm text-gray-600">{passport.country}</p>
+                  <h3 className="font-bold text-lg">{passport.countryName}</h3>
+                  <p className="text-sm text-gray-600">{passport.region}, {passport.continent}</p>
                 </div>
-                <div className="text-2xl">🛂</div>
-              </div>
-
-              {passport.bio && (
-                <p className="text-sm text-gray-600 line-clamp-2">
-                  {passport.bio}
-                </p>
-              )}
-
-              <div className="text-xs text-gray-500 pt-2 border-t">
-                Minted: {new Date(Number(passport.mintTimestamp) * 1000).toLocaleDateString()}
+                <div className="text-2xl">{passport.verified ? '✅' : '🛂'}</div>
               </div>
             </div>
           </Card>
