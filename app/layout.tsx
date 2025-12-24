@@ -53,6 +53,14 @@ export const metadata: Metadata = {
     title: 'EmpowerTours',
     statusBarStyle: 'black-translucent',
   },
+  // Farcaster Frame v2 / Mini App metadata
+  other: {
+    'fc:frame': 'vNext',
+    'fc:frame:image': `${APP_URL}/images/og-image.png`,
+    'fc:frame:button:1': 'Open EmpowerTours',
+    'fc:frame:button:1:action': 'launch_frame',
+    'fc:frame:button:1:target': APP_URL,
+  },
 };
 
 export const viewport: Viewport = {
