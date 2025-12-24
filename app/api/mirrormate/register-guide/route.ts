@@ -142,13 +142,7 @@ export async function POST(req: NextRequest) {
 
     console.log('[MirrorMate] Passport found:', { tokenId: tokenId.toString(), creditScore: creditScore.toString() });
 
-    if (creditScore < 200n) {
-      return NextResponse.json(
-        { error: `Credit score too low (${creditScore}). Need 200+ for auto-approval, or 100+ to apply for manual approval.` },
-        { status: 400 }
-      );
-    }
-
+    // No credit score requirement for testnet - anyone with a passport can register
     // Register on-chain via Safe
     const tx = await sendSafeTransaction([{
       to: REGISTRY_ADDRESS,

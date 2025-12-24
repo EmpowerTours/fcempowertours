@@ -349,6 +349,8 @@ You MUST return ONLY valid JSON matching the specified schema.
       throw new Error('Invalid JSON response from AI');
     }
 
+    console.log('[Oracle] Parsed action:', JSON.stringify(action, null, 2));
+
     // Validate required fields
     if (!action.type || !action.message) {
       throw new Error('Invalid response structure from AI');
