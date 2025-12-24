@@ -5,6 +5,7 @@ import { X, Heart, Loader2, MapPin, Languages, Car } from 'lucide-react';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, formatEther, type Abi } from 'viem';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useGeolocation } from '@/lib/useGeolocation';
 
 // Contract addresses
 const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as `0x${string}`;
@@ -34,6 +35,7 @@ type TransactionState = 'idle' | 'confirming' | 'loading' | 'success' | 'error';
 export function MirrorMate({ onClose }: MirrorMateProps) {
   console.log('[MirrorMate] Component mounted');
   const { user, walletAddress } = useFarcasterContext();
+  const { location } = useGeolocation();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
 
@@ -366,8 +368,9 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           username: user.username || '',
           displayName: user.displayName || user.username || '',
           pfpUrl: user.pfpUrl || '',
-          location: user.location?.city || '',
+          location: location?.city || user.location?.city || '',
           walletAddress: walletAddress || '',
+          countryCode: location?.country || '',
         }),
       });
 

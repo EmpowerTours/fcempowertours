@@ -21,7 +21,7 @@ const publicClient = createPublicClient({
 // Passport NFT ABI
 const passportAbi = [
   { name: 'balanceOf', type: 'function', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' },
-  { name: 'tokenOfOwnerByIndex', type: 'function', inputs: [{ name: 'owner', type: 'address' }, { name: 'index', type: 'uint256' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' },
+  { name: 'getPassportByFid', type: 'function', inputs: [{ name: 'fid', type: 'uint256' }, { name: 'countryCode', type: 'string' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' },
   { name: 'getCreditScore', type: 'function', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' },
 ] as const;
 
@@ -45,9 +45,12 @@ const registryAbi = [
   },
 ] as const;
 
+// Common country codes to try when looking up passport
+const COMMON_COUNTRY_CODES = ['US', 'GB', 'CA', 'AU', 'DE', 'FR', 'ES', 'IT', 'NL', 'JP', 'KR', 'SG', 'IN', 'BR', 'MX', 'NG', 'ZA', 'AE'];
+
 export async function POST(req: NextRequest) {
   try {
-    const { fid, username, displayName, pfpUrl, location, walletAddress } = await req.json();
+    const { fid, username, displayName, pfpUrl, location, walletAddress, countryCode } = await req.json();
 
     if (!fid || !username) {
       return NextResponse.json(
@@ -81,42 +84,48 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Check for passport ownership
-    let passportBalance: bigint;
-    let tokenId: bigint;
-    let creditScore: bigint;
+    // Find passport by FID - try provided country code first, then common codes
+    let tokenId: bigint = 0n;
+    let creditScore: bigint = 0n;
+    let foundCountry: string = '';
 
-    try {
-      passportBalance = await publicClient.readContract({
-        address: PASSPORT_ADDRESS,
-        abi: passportAbi,
-        functionName: 'balanceOf',
-        args: [walletAddress as Address],
-      });
-    } catch (err) {
-      console.log('[MirrorMate] Passport balance check failed:', err);
+    // Build list of country codes to try
+    const codesToTry = countryCode
+      ? [countryCode, ...COMMON_COUNTRY_CODES.filter(c => c !== countryCode)]
+      : COMMON_COUNTRY_CODES;
+
+    console.log('[MirrorMate] Looking for passport with FID:', fid, 'trying codes:', codesToTry.slice(0, 5), '...');
+
+    for (const code of codesToTry) {
+      try {
+        const passportTokenId = await publicClient.readContract({
+          address: PASSPORT_ADDRESS,
+          abi: passportAbi,
+          functionName: 'getPassportByFid',
+          args: [BigInt(fid), code],
+        });
+
+        if (passportTokenId > 0n) {
+          tokenId = passportTokenId;
+          foundCountry = code;
+          console.log('[MirrorMate] Found passport:', { tokenId: tokenId.toString(), country: code });
+          break;
+        }
+      } catch (err) {
+        // Token not found for this country, continue trying
+      }
+    }
+
+    if (tokenId === 0n) {
+      console.log('[MirrorMate] No passport found for FID:', fid);
       return NextResponse.json(
         { error: 'You need a Passport NFT to register as a guide. Mint one at /passport first!' },
         { status: 400 }
       );
     }
 
-    if (passportBalance === 0n) {
-      return NextResponse.json(
-        { error: 'You need a Passport NFT to register as a guide. Mint one at /passport first!' },
-        { status: 400 }
-      );
-    }
-
-    // Get passport token ID and credit score
+    // Get credit score
     try {
-      tokenId = await publicClient.readContract({
-        address: PASSPORT_ADDRESS,
-        abi: passportAbi,
-        functionName: 'tokenOfOwnerByIndex',
-        args: [walletAddress as Address, 0n],
-      });
-
       creditScore = await publicClient.readContract({
         address: PASSPORT_ADDRESS,
         abi: passportAbi,
@@ -124,9 +133,9 @@ export async function POST(req: NextRequest) {
         args: [tokenId],
       });
     } catch (err) {
-      console.log('[MirrorMate] Passport lookup failed:', err);
+      console.log('[MirrorMate] Credit score lookup failed:', err);
       return NextResponse.json(
-        { error: 'Could not find your Passport NFT. Please mint one at /passport first!' },
+        { error: 'Could not verify your Passport credit score. Please try again.' },
         { status: 400 }
       );
     }
