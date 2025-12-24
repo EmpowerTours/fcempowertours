@@ -1,18 +1,59 @@
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useReadContract } from 'wagmi';
 import { Address } from 'viem';
-import { passportNFTv3Config } from '../config/contracts';
+
+// PassportNFT contract address from environment
+const PASSPORT_NFT_ADDRESS = (process.env.NEXT_PUBLIC_PASSPORT_NFT ||
+  process.env.NEXT_PUBLIC_PASSPORT ||
+  '0xCDdE80E0cf16b31e7Ad7D83dD012d33b328f9E4f') as Address;
+
+// Minimal ABI for passport checks
+const PASSPORT_ABI = [
+  {
+    inputs: [{ name: 'owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }, { name: 'country', type: 'string' }],
+    name: 'hasPassport',
+    outputs: [{ type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    name: 'getPassportData',
+    outputs: [{ type: 'tuple', components: [
+      { name: 'countryCode', type: 'string' },
+      { name: 'countryName', type: 'string' },
+      { name: 'region', type: 'string' },
+      { name: 'continent', type: 'string' },
+      { name: 'verified', type: 'bool' },
+    ]}],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    name: 'tokenURI',
+    outputs: [{ type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+const passportConfig = {
+  address: PASSPORT_NFT_ADDRESS,
+  abi: PASSPORT_ABI,
+};
 
 export function usePassportNFT() {
-  const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
-
   // Read functions
   const useGetPassportData = (tokenId: bigint) => {
     return useReadContract({
-      ...passportNFTv3Config,
+      ...passportConfig,
       functionName: 'getPassportData',
       args: [tokenId],
     });
@@ -20,7 +61,7 @@ export function usePassportNFT() {
 
   const useHasPassport = (user: Address, country: string) => {
     return useReadContract({
-      ...passportNFTv3Config,
+      ...passportConfig,
       functionName: 'hasPassport',
       args: [user, country],
     });
@@ -28,40 +69,17 @@ export function usePassportNFT() {
 
   const useBalanceOf = (owner: Address) => {
     return useReadContract({
-      ...passportNFTv3Config,
+      ...passportConfig,
       functionName: 'balanceOf',
       args: [owner],
     });
   };
 
-  const useMintPrice = () => {
-    return useReadContract({
-      ...passportNFTv3Config,
-      functionName: 'MINT_PRICE',
-    });
-  };
-
   const useTokenURI = (tokenId: bigint) => {
     return useReadContract({
-      ...passportNFTv3Config,
+      ...passportConfig,
       functionName: 'tokenURI',
       args: [tokenId],
-    });
-  };
-
-  // Write functions
-  const mint = (
-    to: Address,
-    name: string,
-    country: string,
-    pfp: string,
-    bio: string,
-    metadataUri: string
-  ) => {
-    writeContract({
-      ...passportNFTv3Config,
-      functionName: 'mint',
-      args: [to, name, country, pfp, bio, metadataUri],
     });
   };
 
@@ -70,17 +88,6 @@ export function usePassportNFT() {
     useGetPassportData,
     useHasPassport,
     useBalanceOf,
-    useMintPrice,
     useTokenURI,
-
-    // Write functions
-    mint,
-
-    // Transaction state
-    hash,
-    isPending,
-    isConfirming,
-    isConfirmed,
-    writeError,
   };
 }

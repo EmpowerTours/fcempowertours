@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useReadContract } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { personalAssistantConfig } from '@/src/config/contracts';
 
 type ServiceType = 'food' | 'ride' | 'custom';
 type ServiceStatus = 'pending' | 'quoted' | 'accepted' | 'completed' | 'disputed';
@@ -55,11 +54,8 @@ export default function ConciergePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Read verified assistants count
-  const { data: assistantCount } = useReadContract({
-    ...personalAssistantConfig,
-    functionName: 'getVerifiedAssistantCount',
-  });
+  // Placeholder for assistant count (contract removed)
+  const assistantCount = 0;
 
   const handleRequestCustomService = async () => {
     if (!effectiveAddress || !serviceDescription) {

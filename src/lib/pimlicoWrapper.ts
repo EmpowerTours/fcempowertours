@@ -8,12 +8,6 @@
 import { encodeFunctionData, type Address, type Hex } from 'viem';
 import { createUserSmartAccount } from '@/lib/pimlico/smartAccount';
 import {
-  passportNFTv3Config,
-  yieldStrategyConfig,
-  dragonRouterConfig,
-  demandSignalEngineConfig,
-  smartEventManifestConfig,
-  tandaYieldGroupConfig,
   creditScoreCalculatorConfig,
   toursTokenConfig,
 } from '../config/contracts';
@@ -61,94 +55,7 @@ export async function executeGaslessTransaction(
 }
 
 /**
- * Mint PassportNFT with gasless transaction
- */
-export async function mintPassportGasless(
-  userPrivateKey: Hex,
-  to: Address,
-  name: string,
-  country: string,
-  pfp: string,
-  bio: string,
-  metadataUri: string
-): Promise<Hex> {
-  return executeGaslessTransaction(
-    userPrivateKey,
-    passportNFTv3Config.address,
-    passportNFTv3Config.abi,
-    'mint',
-    [to, name, country, pfp, bio, metadataUri]
-  );
-}
-
-/**
- * Stake TOURS tokens with gasless transaction
- */
-export async function stakeToursGasless(
-  userPrivateKey: Hex,
-  amount: bigint
-): Promise<Hex> {
-  return executeGaslessTransaction(
-    userPrivateKey,
-    yieldStrategyConfig.address,
-    yieldStrategyConfig.abi,
-    'stake',
-    [amount]
-  );
-}
-
-/**
- * Submit demand signal with gasless transaction
- */
-export async function submitDemandGasless(
-  userPrivateKey: Hex,
-  eventId: bigint,
-  demandAmount: bigint
-): Promise<Hex> {
-  return executeGaslessTransaction(
-    userPrivateKey,
-    demandSignalEngineConfig.address,
-    demandSignalEngineConfig.abi,
-    'submitDemand',
-    [eventId, demandAmount]
-  );
-}
-
-/**
- * Purchase event ticket with gasless transaction
- */
-export async function purchaseTicketGasless(
-  userPrivateKey: Hex,
-  eventId: bigint,
-  quantity: bigint
-): Promise<Hex> {
-  return executeGaslessTransaction(
-    userPrivateKey,
-    smartEventManifestConfig.address,
-    smartEventManifestConfig.abi,
-    'purchaseTicket',
-    [eventId, quantity]
-  );
-}
-
-/**
- * Join Tanda group with gasless transaction
- */
-export async function joinTandaGroupGasless(
-  userPrivateKey: Hex,
-  groupId: bigint
-): Promise<Hex> {
-  return executeGaslessTransaction(
-    userPrivateKey,
-    tandaYieldGroupConfig.address,
-    tandaYieldGroupConfig.abi,
-    'joinGroup',
-    [groupId]
-  );
-}
-
-/**
- * Approve TOURS tokens for spending (required before staking)
+ * Approve TOURS tokens for spending
  */
 export async function approveToursGasless(
   userPrivateKey: Hex,
