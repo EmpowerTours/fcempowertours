@@ -588,10 +588,11 @@ export async function sendSafeTransaction(
 
       // These values are increased to handle complex operations like lottery entry
       // which requires wrap MON + approve WMON + enter lottery in one UserOp
+      // Base values get 150% buffer applied later (line 714)
       estimatedGas = {
-        callGasLimit: 1_200_000n,        // Increased for 3-step batch operations
-        verificationGasLimit: 800_000n,  // Increased for batched calls
-        preVerificationGas: 800_000n,    // Increased - bundler needs ~1.05M with buffer
+        callGasLimit: 1_500_000n,        // 1.5M base → 2.25M with buffer
+        verificationGasLimit: 1_000_000n, // 1M base → 1.5M with buffer
+        preVerificationGas: 1_200_000n,   // 1.2M base → 1.8M with buffer (bundler needs ~1.46M)
       };
 
       console.log('   Using fixed gas values:', JSON.stringify(estimatedGas, (_, v) =>
