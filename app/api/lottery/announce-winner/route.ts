@@ -3,7 +3,7 @@ import { createPublicClient, http, parseAbi, formatEther } from 'viem';
 
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID;
-const LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_LOTTERY_ADDRESS || '0x21D83528281dD0262b6DD401e5c484153E3B52cE';
+const LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
 
 // Monad testnet chain config
@@ -19,11 +19,11 @@ const publicClient = createPublicClient({
   transport: http(MONAD_RPC),
 });
 
-// Lottery ABI for reading round info
+// Lottery ABI for reading round info (DailyPassLotteryWMON)
 const LOTTERY_ABI = parseAbi([
   'function currentRoundId() view returns (uint256)',
-  'function rounds(uint256) view returns (uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolMon, uint256 prizePoolShMon, uint256 participantCount, uint8 status, uint256 commitBlock, bytes32 commitHash, address winner, uint256 winnerIndex)',
-  'event WinnerRevealed(uint256 indexed roundId, address indexed winner, uint256 winnerIndex, uint256 monPrize, uint256 shMonPrize, bytes32 randomHash)',
+  'function rounds(uint256) view returns (uint256 roundId, uint256 startTime, uint256 endTime, uint256 prizePoolWmon, uint256 participantCount, uint8 status, uint64 entropySequenceNumber, bytes32 randomValue, uint256 randomnessRequestedAt, address winner, uint256 winnerIndex, uint256 callerRewardsToursPaid)',
+  'event WinnerSelected(uint256 indexed roundId, address indexed winner, uint256 prizeAmount)',
 ]);
 
 /**
