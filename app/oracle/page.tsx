@@ -90,6 +90,11 @@ export default function OraclePage() {
     console.log('[OraclePage] activeGame state changed to:', activeGame);
   }, [activeGame]);
 
+  // Debug: Log showCreateNFTModal state changes
+  useEffect(() => {
+    console.log('[OraclePage] showCreateNFTModal state changed to:', showCreateNFTModal);
+  }, [showCreateNFTModal]);
+
   // Detect user location
   useEffect(() => {
     if ('geolocation' in navigator) {
@@ -178,12 +183,14 @@ export default function OraclePage() {
             break;
 
           case 'create_nft':
+            console.log('[Oracle] CREATE_NFT case triggered');
             setMessages(prev => [...prev, {
               role: 'oracle',
               content: `${action.message}\n\nOpening NFT creation studio...`,
               action
             }]);
             setTimeout(() => {
+              console.log('[Oracle] Setting showCreateNFTModal to true');
               setShowCreateNFTModal(true);
             }, 500);
             break;
@@ -693,7 +700,10 @@ export default function OraclePage() {
 
       {/* Create NFT Modal */}
       {showCreateNFTModal && (
-        <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} />
+        <>
+          {console.log('[OraclePage] Rendering CreateNFTModal')}
+          <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} />
+        </>
       )}
 
       {/* Passport Mint Modal */}
