@@ -592,7 +592,7 @@ export async function sendSafeTransaction(
       estimatedGas = {
         callGasLimit: 1_500_000n,        // 1.5M base → 2.25M with buffer
         verificationGasLimit: 1_000_000n, // 1M base → 1.5M with buffer
-        preVerificationGas: 1_200_000n,   // 1.2M base → 1.8M with buffer (bundler needs ~1.46M)
+        preVerificationGas: 1_400_000n,   // 1.4M base → 2.1M with buffer (bundler needs ~1.8M)
       };
 
       console.log('   Using fixed gas values:', JSON.stringify(estimatedGas, (_, v) =>
