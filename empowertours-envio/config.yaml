@@ -3,7 +3,7 @@ name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad - Music, Passports & Itineraries + DeFi
 networks:
   - id: 10143
-    start_block: 41800000  # ✅ Start from beginning to index all passports
+    start_block: 1560000  # Start from before PassportNFT v2 deployment (block 1566574)
     contracts:
       - name: EmpowerToursNFT
         address:
