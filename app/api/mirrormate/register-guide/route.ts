@@ -25,13 +25,14 @@ const passportAbi = [
   { name: 'getCreditScore', type: 'function', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' },
 ] as const;
 
-// TourGuideRegistry ABI
+// TourGuideRegistry ABI - uses registerGuideFor for AA wallet support
 const registryAbi = [
   { name: 'isRegisteredGuide', type: 'function', inputs: [{ name: 'fid', type: 'uint256' }], outputs: [{ type: 'bool' }], stateMutability: 'view' },
   {
-    name: 'registerGuide',
+    name: 'registerGuideFor',
     type: 'function',
     inputs: [
+      { name: 'passportOwner', type: 'address' },
       { name: 'guideFid', type: 'uint256' },
       { name: 'passportTokenId', type: 'uint256' },
       { name: 'countries', type: 'string[]' },
@@ -143,14 +144,17 @@ export async function POST(req: NextRequest) {
     console.log('[MirrorMate] Passport found:', { tokenId: tokenId.toString(), creditScore: creditScore.toString() });
 
     // No credit score requirement for testnet - anyone with a passport can register
-    // Register on-chain via Safe
+    // Register on-chain via Safe using registerGuideFor (AA wallet support)
+    // walletAddress = user's wallet that owns the passport
+    // Safe account sends the tx but we pass user's wallet as passportOwner
     const tx = await sendSafeTransaction([{
       to: REGISTRY_ADDRESS,
       value: 0n,
       data: encodeFunctionData({
         abi: registryAbi,
-        functionName: 'registerGuide',
+        functionName: 'registerGuideFor',
         args: [
+          walletAddress as Address,  // passportOwner - user's wallet that owns the passport
           BigInt(fid),
           tokenId,
           [location || 'Global'],

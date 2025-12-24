@@ -368,7 +368,39 @@ contract TourGuideRegistry is Ownable, ReentrancyGuard, Pausable {
     // ============================================
 
     /**
-     * @notice Register as tour guide (two paths: auto or manual approval)
+     * @notice Register as tour guide with AA wallet support
+     * @dev passportOwner is the wallet that owns the passport (may differ from msg.sender when using AA)
+     */
+    function registerGuideFor(
+        address passportOwner,
+        uint256 guideFid,
+        uint256 passportTokenId,
+        string[] memory countries,
+        uint256 hourlyRateWMON,
+        uint256 hourlyRateTOURS,
+        string memory bio,
+        string memory profileImageIPFS
+    ) public nonReentrant whenNotPaused validFid(guideFid) {
+        require(passportOwner != address(0), "Invalid passport owner");
+        require(!isRegisteredGuide[guideFid], "Already registered");
+        require(passportToGuide[passportTokenId] == 0, "Passport already used");
+        require(countries.length > 0 && countries.length <= MAX_COUNTRIES, "Invalid country count");
+        require(hourlyRateWMON >= MINIMUM_HOURLY_RATE && hourlyRateWMON <= MAXIMUM_HOURLY_RATE, "Invalid WMON rate");
+        require(bytes(bio).length > 0 && bytes(bio).length <= 1000, "Bio must be 1-1000 chars");
+
+        // Verify passport ownership against passportOwner (not msg.sender for AA support)
+        require(passportNFT.ownerOf(passportTokenId) == passportOwner, "Not passport owner");
+
+        // TESTNET: Skip verification check - just need a valid passport
+        // (,,,,,, bool verified,,) = passportNFT.getPassportData(passportTokenId);
+        // require(verified, "Passport not verified");
+
+        // TESTNET: No credit score requirement - anyone with passport can register
+        _createGuideFor(passportOwner, guideFid, passportTokenId, countries, hourlyRateWMON, hourlyRateTOURS, bio, profileImageIPFS);
+    }
+
+    /**
+     * @notice Register as tour guide (legacy function, calls registerGuideFor)
      */
     function registerGuide(
         uint256 guideFid,
@@ -378,34 +410,12 @@ contract TourGuideRegistry is Ownable, ReentrancyGuard, Pausable {
         uint256 hourlyRateTOURS,
         string memory bio,
         string memory profileImageIPFS
-    ) external nonReentrant whenNotPaused validFid(guideFid) {
-        require(!isRegisteredGuide[guideFid], "Already registered");
-        require(passportToGuide[passportTokenId] == 0, "Passport already used");
-        require(countries.length > 0 && countries.length <= MAX_COUNTRIES, "Invalid country count");
-        require(hourlyRateWMON >= MINIMUM_HOURLY_RATE && hourlyRateWMON <= MAXIMUM_HOURLY_RATE, "Invalid WMON rate");
-        require(bytes(bio).length > 0 && bytes(bio).length <= 1000, "Bio must be 1-1000 chars");
-
-        require(passportNFT.ownerOf(passportTokenId) == msg.sender, "Not passport owner");
-
-        (,,,,,, bool verified,,) = passportNFT.getPassportData(passportTokenId);
-        require(verified, "Passport not verified");
-
-        uint256 creditScore = passportNFT.getCreditScore(passportTokenId);
-
-        // Two registration paths
-        if (creditScore >= AUTO_APPROVE_CREDIT) {
-            // PATH A: AUTO-APPROVED (200+ credit)
-            _createGuide(guideFid, passportTokenId, countries, hourlyRateWMON, hourlyRateTOURS, bio, profileImageIPFS);
-        } else if (creditScore >= MANUAL_APPROVE_CREDIT && approvedGuides[guideFid]) {
-            // PATH B: MANUALLY APPROVED (100-199 credit + admin approval)
-            _createGuide(guideFid, passportTokenId, countries, hourlyRateWMON, hourlyRateTOURS, bio, profileImageIPFS);
-            delete approvedGuides[guideFid]; // One-time use
-        } else {
-            revert("Need 200+ credit OR admin approval");
-        }
+    ) external {
+        registerGuideFor(msg.sender, guideFid, passportTokenId, countries, hourlyRateWMON, hourlyRateTOURS, bio, profileImageIPFS);
     }
 
-    function _createGuide(
+    function _createGuideFor(
+        address guideAddress,
         uint256 guideFid,
         uint256 passportTokenId,
         string[] memory countries,
@@ -416,7 +426,7 @@ contract TourGuideRegistry is Ownable, ReentrancyGuard, Pausable {
     ) internal {
         TourGuide storage guide = guides[guideFid];
         guide.guideFid = guideFid;
-        guide.guideAddress = msg.sender;
+        guide.guideAddress = guideAddress;
         guide.passportTokenId = passportTokenId;
         guide.countries = countries;
         guide.hourlyRateWMON = hourlyRateWMON;
@@ -429,13 +439,26 @@ contract TourGuideRegistry is Ownable, ReentrancyGuard, Pausable {
 
         isRegisteredGuide[guideFid] = true;
         passportToGuide[passportTokenId] = guideFid;
-        addressToGuideFid[msg.sender] = guideFid;
+        addressToGuideFid[guideAddress] = guideFid;
 
         for (uint256 i = 0; i < countries.length; i++) {
             guidesByCountry[countries[i]].push(guideFid);
         }
 
-        emit GuideRegistered(guideFid, msg.sender, passportTokenId, countries);
+        emit GuideRegistered(guideFid, guideAddress, passportTokenId, countries);
+    }
+
+    // Legacy internal function for backwards compatibility
+    function _createGuide(
+        uint256 guideFid,
+        uint256 passportTokenId,
+        string[] memory countries,
+        uint256 hourlyRateWMON,
+        uint256 hourlyRateTOURS,
+        string memory bio,
+        string memory profileImageIPFS
+    ) internal {
+        _createGuideFor(msg.sender, guideFid, passportTokenId, countries, hourlyRateWMON, hourlyRateTOURS, bio, profileImageIPFS);
     }
 
     function updateGuide(
