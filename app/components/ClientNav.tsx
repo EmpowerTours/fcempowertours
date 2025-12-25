@@ -28,8 +28,6 @@ export default function ClientNav() {
     { path: '/nft', label: 'Create', icon: '➕' },
     { path: '/itinerary-market', label: 'Experiences', icon: '🗺️' },
     { path: '/concierge', label: 'Concierge', icon: '🛎️' },
-    { path: '/beat-match', label: 'Beat Match', icon: '🎯' },
-    { path: '/country-collector', label: 'Countries', icon: '🌍' },
     { path: '/lottery', label: 'Lottery', icon: '🎰' },
     { path: '/swap', label: 'Swap', icon: '💱' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
