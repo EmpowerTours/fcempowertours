@@ -3837,14 +3837,14 @@ ${enjoyText}
           }) as Hex,
         }];
 
-        const createItineraryTxHash = await executeTransaction(oracleCreateItineraryCalls, userAddress as Address, 0n);
+        const oracleItineraryTxHash = await executeTransaction(oracleCreateItineraryCalls, userAddress as Address, 0n);
         await incrementTransactionCount(userAddress);
 
-        console.log('✅ Itinerary created, TX:', createItineraryTxHash);
+        console.log('✅ Itinerary created, TX:', oracleItineraryTxHash);
 
         return NextResponse.json({
           success: true,
-          txHash: createItineraryTxHash,
+          txHash: oracleItineraryTxHash,
           action,
           userAddress,
           title: itinTitle,
