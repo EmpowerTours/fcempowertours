@@ -72,7 +72,7 @@ export default function LotteryPage() {
         if (updatedRound.data?.status === RoundStatus.Finalized && updatedRound.data?.winner) {
           setSuccess(`🏆 WINNER REVEALED: ${updatedRound.data.winner.slice(0, 10)}...${updatedRound.data.winner.slice(-8)}`);
         } else if (updatedRound.data?.status === RoundStatus.RandomnessPending) {
-          setSuccess('✅ Randomness requested! You earned 10 TOURS. Now anyone can resolve the winner.');
+          setSuccess('✅ Randomness requested! You will receive 1-1000 TOURS when the winner is revealed.');
         } else {
           setSuccess('Transaction confirmed!');
         }
@@ -181,7 +181,7 @@ export default function LotteryPage() {
       }
 
       const { txHash } = await response.json();
-      setSuccess(`Requested randomness! TX: ${txHash.slice(0, 10)}... You earned 10 TOURS!`);
+      setSuccess(`Requested randomness! TX: ${txHash.slice(0, 10)}... You'll receive 1-1000 TOURS!`);
 
       // Refresh after delay
       setTimeout(() => {
@@ -376,7 +376,7 @@ export default function LotteryPage() {
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 mb-6">
             <h2 className="text-xl font-bold text-white mb-4">Help Finalize Round</h2>
             <p className="text-white/60 text-sm mb-4">
-              Earn TOURS tokens by triggering the winner selection!
+              Earn 1-1000 random TOURS by triggering the winner selection!
             </p>
 
             <button
@@ -446,7 +446,7 @@ export default function LotteryPage() {
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>
-              <p className="flex-1">At round end, anyone can trigger request/resolve for 10 TOURS reward (uses Pyth Entropy randomness)</p>
+              <p className="flex-1">At round end, anyone can trigger the draw and earn 1-1000 random TOURS (uses Pyth Entropy randomness)</p>
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">4</span>

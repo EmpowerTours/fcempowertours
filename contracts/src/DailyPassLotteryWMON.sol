@@ -55,7 +55,8 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
     uint256 public constant BASIS_POINTS = 10000;
     uint256 public constant ESCROW_CLAIM_PERIOD = 7 days;
     uint256 public constant ROUND_DURATION = 24 hours;
-    uint256 public constant CALLER_REWARD_TOURS = 10 ether; // 10 TOURS reward
+    uint256 public constant MIN_REWARD_TOURS = 1 ether;    // 1 TOURS minimum
+    uint256 public constant MAX_REWARD_TOURS = 1000 ether; // 1000 TOURS maximum
 
     // ============================================
     // Configuration
@@ -126,6 +127,8 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
 
     // Mapping from Pyth Entropy sequence number to round ID
     mapping(uint64 => uint256) public sequenceToRound;
+    // Mapping from sequence number to requester (for random reward payment)
+    mapping(uint64 => address) public sequenceToRequester;
 
     uint256 public totalPrizesPaid;
     uint256 public totalParticipants;
@@ -323,19 +326,12 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         round.status = RoundStatus.RandomnessPending;
         round.randomnessRequestedAt = block.timestamp;
 
-        // Map sequence number to round ID for callback
+        // Map sequence number to round ID and requester for callback
         sequenceToRound[sequenceNumber] = roundId;
+        sequenceToRequester[sequenceNumber] = msg.sender;
 
-        // Pay caller reward in TOURS (if sufficient balance)
-        uint256 reward = 0;
-        uint256 toursBalance = toursToken.balanceOf(address(this));
-        if (toursBalance >= CALLER_REWARD_TOURS) {
-            reward = CALLER_REWARD_TOURS;
-            round.callerRewardsToursPaid += reward;
-            toursToken.safeTransfer(msg.sender, reward);
-        }
-
-        emit RandomnessRequested(roundId, sequenceNumber, msg.sender, reward, fee);
+        // Note: TOURS reward will be paid in callback with random amount (1-1000 TOURS)
+        emit RandomnessRequested(roundId, sequenceNumber, msg.sender, 0, fee);
     }
 
     /**
@@ -366,6 +362,19 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         round.winner = winner;
         round.winnerIndex = winnerIndex;
         round.status = RoundStatus.Finalized;
+
+        // Calculate random TOURS reward (1-1000 TOURS) using entropy
+        // Use a different portion of the random number for reward calculation
+        uint256 rewardRange = MAX_REWARD_TOURS - MIN_REWARD_TOURS + 1 ether;
+        uint256 randomReward = MIN_REWARD_TOURS + (uint256(keccak256(abi.encode(randomNumber, "reward"))) % rewardRange);
+
+        // Pay the requester their random TOURS reward
+        address requester = sequenceToRequester[sequenceNumber];
+        uint256 toursBalance = toursToken.balanceOf(address(this));
+        if (requester != address(0) && toursBalance >= randomReward) {
+            round.callerRewardsToursPaid = randomReward;
+            toursToken.safeTransfer(requester, randomReward);
+        }
 
         // Create escrow (full prize pool, caller rewards are paid in TOURS)
         uint256 escrowWmonAmount = round.prizePoolWmon;
