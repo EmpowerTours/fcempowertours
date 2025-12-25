@@ -47,6 +47,7 @@ export async function GET() {
                 tokenURI
                 isArt
                 artist
+                price
               }
             }
           `
@@ -109,13 +110,16 @@ export async function GET() {
           console.error(`Failed to fetch metadata for NFT ${nft.tokenId}:`, error);
         }
 
+        // Price is in wei (18 decimals) - convert to WMON
+        const priceInWMON = nft.price ? (Number(nft.price) / 1e18).toFixed(2) : '0';
+
         return {
           id: `music-${nft.id}`,
           type: nft.isArt ? 'ART' : 'MUSIC',
           tokenId: nft.tokenId.toString(),
           name,
           imageUrl,
-          price: '0', // Music NFTs don't have direct price in this schema
+          price: priceInWMON,
           contractAddress: process.env.NEXT_PUBLIC_NFT_ADDRESS || '',
           tokenURI: nft.tokenURI, // Include for fetching audio metadata
         };

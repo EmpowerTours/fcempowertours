@@ -647,8 +647,8 @@ export default function OraclePage() {
                         {isPlaying && (
                           <span className="text-xs text-cyan-400 animate-pulse">Now Playing</span>
                         )}
-                        {nft.price !== '0' && nft.type !== 'MUSIC' && (
-                          <span className="text-xs text-gray-400">{nft.price} MON</span>
+                        {nft.price !== '0' && nft.price !== '0.00' && (
+                          <span className="text-xs text-gray-400">{nft.price} WMON</span>
                         )}
                       </div>
                     </div>
@@ -687,10 +687,10 @@ export default function OraclePage() {
                 <span className="text-gray-400">Token ID</span>
                 <span className="text-white">#{selectedNFT.tokenId}</span>
               </div>
-              {selectedNFT.price && selectedNFT.price !== '0' && (
+              {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Price</span>
-                  <span className="text-white font-bold">{selectedNFT.price} MON</span>
+                  <span className="text-white font-bold">{selectedNFT.price} WMON</span>
                 </div>
               )}
               <button
