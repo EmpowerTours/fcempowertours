@@ -500,6 +500,13 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   if (loading) {
     return renderInPortal(
       <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+        >
+          <X className="w-6 h-6" />
+        </button>
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading guides...</p>
@@ -515,7 +522,14 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
     return renderInPortal(
       <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-        <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md">
+        <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md relative">
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
           <div className="text-6xl mb-4">
             {isOnlyGuide ? '🌟' : noGuides ? '🧳' : '✨'}
           </div>
