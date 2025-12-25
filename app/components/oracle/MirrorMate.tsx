@@ -589,7 +589,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   return renderInPortal(
     <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
       {/* Header */}
-      <div className="w-full max-w-sm flex items-center justify-between mb-2">
+      <div className="w-full max-w-xs flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">
           <Heart className="w-4 h-4 text-cyan-400" />
           <span className="text-white font-bold text-sm">MirrorMate</span>
@@ -606,73 +606,47 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       {/* Guide Card */}
       {currentGuide && (
-        <div className="w-full max-w-sm bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-2xl overflow-hidden shadow-2xl mb-4">
-          {/* Profile Picture */}
-          <div className="relative h-28 bg-gradient-to-br from-cyan-500/20 to-purple-600/20">
+        <div className="w-full max-w-xs bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-xl overflow-hidden shadow-xl mb-2">
+          {/* Profile Picture - Compact circular */}
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-cyan-500/10 to-purple-600/10">
             {currentGuide.pfpUrl ? (
               <img
                 src={currentGuide.pfpUrl}
                 alt={currentGuide.displayName}
-                className="w-full h-full object-cover object-center"
+                className="w-14 h-14 rounded-full object-cover border-2 border-cyan-500/50"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl">
+              <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center text-2xl border-2 border-cyan-500/50">
                 🧳
               </div>
             )}
-            {/* Transaction Overlay */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-bold text-white truncate">
+                {currentGuide.displayName || currentGuide.username}
+              </h3>
+              <p className="text-cyan-400 text-xs">@{currentGuide.username}</p>
+            </div>
+            {/* Transaction State Indicator */}
             {txState !== 'idle' && (
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center">
-                <div className="text-center">
-                  {txState === 'confirming' && (
-                    <>
-                      <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-2" />
-                      <p className="text-white">Confirm in wallet...</p>
-                    </>
-                  )}
-                  {txState === 'loading' && (
-                    <>
-                      <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-2" />
-                      <p className="text-white">Processing...</p>
-                    </>
-                  )}
-                  {txState === 'success' && (
-                    <>
-                      <div className="text-6xl mb-2">✅</div>
-                      <p className="text-white">Success!</p>
-                    </>
-                  )}
-                  {txState === 'error' && (
-                    <>
-                      <div className="text-6xl mb-2">❌</div>
-                      <p className="text-white">Failed</p>
-                      <p className="text-red-400 text-sm mt-1">{txError}</p>
-                    </>
-                  )}
-                </div>
+              <div className="flex items-center">
+                {txState === 'confirming' && <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />}
+                {txState === 'loading' && <Loader2 className="w-5 h-5 text-yellow-400 animate-spin" />}
+                {txState === 'success' && <span className="text-xl">✅</span>}
+              </div>
+            )}
+            {/* Nearby badge */}
+            {Array.isArray(nearbyFids) && nearbyFids.includes(Number(currentGuide.fid)) && (
+              <div className="flex items-center gap-1 bg-green-500/20 border border-green-500 rounded-full px-2 py-0.5">
+                <MapPin className="w-3 h-3 text-green-400" />
+                <span className="text-[10px] text-green-400 font-bold">NEARBY</span>
               </div>
             )}
           </div>
 
-          {/* Guide Info */}
-          <div className="p-4">
-            <div className="flex items-start justify-between mb-1">
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-white">
-                  {currentGuide.displayName || currentGuide.username}
-                </h3>
-                <p className="text-cyan-400 text-xs mb-2">@{currentGuide.username}</p>
-              </div>
-              {Array.isArray(nearbyFids) && nearbyFids.includes(Number(currentGuide.fid)) && (
-                <div className="flex items-center gap-1 bg-green-500/20 border border-green-500 rounded-full px-2 py-1">
-                  <MapPin className="w-3 h-3 text-green-400" />
-                  <span className="text-xs text-green-400 font-bold">NEARBY</span>
-                </div>
-              )}
-            </div>
-
+          {/* Guide Details */}
+          <div className="px-3 pb-3">
             {currentGuide.bio && (
-              <p className="text-gray-300 text-xs mb-2 line-clamp-2">{currentGuide.bio}</p>
+              <p className="text-gray-300 text-[11px] mb-2 line-clamp-2">{currentGuide.bio}</p>
             )}
 
             <div className="flex flex-wrap gap-2 text-xs">
@@ -700,7 +674,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       )}
 
       {/* Action Buttons */}
-      <div className="w-full max-w-sm flex items-center justify-center gap-4">
+      <div className="w-full max-w-xs flex items-center justify-center gap-4">
         {/* Skip Button */}
         <button
           onClick={handleSkip}
@@ -721,7 +695,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       </div>
 
       {/* Instructions */}
-      <p className="text-gray-500 text-xs mt-3 text-center max-w-sm">
+      <p className="text-gray-500 text-[10px] mt-2 text-center max-w-xs">
         Skip to see next guide • Connect to request meeting
       </p>
     </div>
