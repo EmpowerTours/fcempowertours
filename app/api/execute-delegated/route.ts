@@ -526,17 +526,21 @@ View profile and collection!
           imageUrl: params.imageUrl ? 'provided' : 'none'
         });
 
+        // Get artistFid from params - required by contract
+        const artistFid = params.fid ? BigInt(params.fid) : 0n;
+
         const musicCalls = [
           {
             to: EMPOWER_TOURS_NFT,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
-                'function mintMaster(address artist, string tokenURI, string title, uint256 price, uint8 nftType) external returns (uint256)'
+                'function mintMaster(address artist, uint256 artistFid, string tokenURI, string title, uint256 price, uint8 nftType) external returns (uint256)'
               ]),
               functionName: 'mintMaster',
               args: [
                 userAddress as Address,
+                artistFid,               // ✅ artistFid - Farcaster ID
                 params.tokenURI,
                 songTitle,
                 musicPrice,

@@ -705,8 +705,8 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                   <label className="block text-xl font-bold text-white mb-2">💰 License Price</label>
                   <p className="text-sm text-gray-400 mb-4">Set your price in WMON</p>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {['1', '2', '5', '10'].map((p) => (
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {['50', '100', '300'].map((p) => (
                       <button
                         key={p}
                         onClick={() => setPrice(p)}
@@ -721,17 +721,17 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     ))}
                   </div>
 
-                  <div className="relative">
+                  <div className="flex items-center gap-3">
                     <input
                       type="number"
-                      step="0.1"
+                      step="1"
                       min="1"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
-                      placeholder="Custom price"
-                      className="w-full px-6 py-4 text-lg bg-black/50 border border-cyan-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                      placeholder="Enter amount"
+                      className="flex-1 px-6 py-4 text-lg bg-black/50 border border-cyan-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
                     />
-                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-cyan-400 font-bold pointer-events-none">WMON</span>
+                    <span className="text-cyan-400 font-bold text-lg whitespace-nowrap">WMON</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">Minimum: 1 WMON</p>
                 </div>
