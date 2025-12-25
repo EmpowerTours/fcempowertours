@@ -2,23 +2,27 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../src/EmpowerToursNFTv8.sol";
+
+interface IEmpowerToursNFT {
+    function setAuthorizedBurner(address burner, bool authorized) external;
+    function authorizedBurners(address) external view returns (bool);
+}
 
 contract AuthorizeSafeAsBurner is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        // Addresses
-        address nftV7 = 0xAD403897CD7d465445aF0BD4fe40f18698655D4e;
-        address safeAccount = 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20;
+        // Current addresses
+        address nftContract = 0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08;
+        address safeAccount = 0xDdaE200DBc2874BAd4FdB5e39F227215386c7533;
 
         vm.startBroadcast(deployerPrivateKey);
 
-        EmpowerToursNFTv8 nft = EmpowerToursNFTv8(nftV7);
+        IEmpowerToursNFT nft = IEmpowerToursNFT(nftContract);
         nft.setAuthorizedBurner(safeAccount, true);
 
         console.log("Authorized Safe Account as burner:");
-        console.log("NFT v7:", nftV7);
+        console.log("NFT Contract:", nftContract);
         console.log("Safe Account:", safeAccount);
 
         // Verify authorization

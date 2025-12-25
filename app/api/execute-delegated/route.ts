@@ -3823,21 +3823,21 @@ ${enjoyText}
 
         console.log('🗺️ Creating itinerary:', { creator: userAddress, creatorFid, title: itinTitle, city, country, locationsCount: formattedLocations.length });
 
-        const createItineraryAbi = parseAbi([
+        const oracleCreateItineraryAbi = parseAbi([
           'function createItinerary(address,uint256,string,string,string,string,uint256,string,(string,string,string,int256,int256,string)[]) external returns (uint256)'
         ]);
 
-        const createItineraryCalls: Call[] = [{
+        const oracleCreateItineraryCalls: Call[] = [{
           to: ITINERARY_NFT_CREATE,
           value: 0n,
           data: encodeFunctionData({
-            abi: createItineraryAbi,
+            abi: oracleCreateItineraryAbi,
             functionName: 'createItinerary',
             args: [userAddress as Address, BigInt(creatorFid), itinTitle, itinDescription || '', city, country, itinPriceWei, photoProofIPFS || '', formattedLocations],
           }) as Hex,
         }];
 
-        const createItineraryTxHash = await executeTransaction(createItineraryCalls, userAddress as Address, 0n);
+        const createItineraryTxHash = await executeTransaction(oracleCreateItineraryCalls, userAddress as Address, 0n);
         await incrementTransactionCount(userAddress);
 
         console.log('✅ Itinerary created, TX:', createItineraryTxHash);
