@@ -823,13 +823,14 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   return renderInPortal(
     <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-      {/* Close button - absolute top right */}
+      {/* Close button - fixed to viewport top right */}
       {onClose && (
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 bg-gray-800/80 rounded-full p-2"
+          className="fixed top-4 right-4 text-gray-400 hover:text-white z-[10000] bg-gray-800/80 rounded-full p-2 hover:bg-gray-700/80 transition-colors"
+          style={{ position: 'fixed', top: '16px', right: '16px' }}
         >
-          <X className="w-5 h-5" />
+          <X className="w-6 h-6" />
         </button>
       )}
 
