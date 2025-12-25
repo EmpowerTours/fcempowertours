@@ -671,6 +671,7 @@ export default function OraclePage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-lg pointer-events-auto animate-fadeIn">
           <MusicSubscriptionModal
             userAddress={walletAddress ?? undefined}
+            userFid={user?.fid}
             onClose={() => setShowSubscriptionModal(false)}
           />
         </div>

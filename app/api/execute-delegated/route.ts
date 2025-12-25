@@ -3653,6 +3653,74 @@ ${enjoyText}
           message: 'Artist completed!',
         });
 
+      // ==================== MUSIC SUBSCRIPTION ====================
+      case 'music-subscribe':
+        console.log('🎵 Action: music-subscribe');
+
+        const { userFid: subUserFid, tier: subTier, amount: subAmount } = params || {};
+
+        if (!subUserFid || subTier === undefined || !subAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: userFid, tier, amount' },
+            { status: 400 }
+          );
+        }
+
+        const MUSIC_SUBSCRIPTION = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
+        if (!MUSIC_SUBSCRIPTION) {
+          return NextResponse.json(
+            { success: false, error: 'Music subscription contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        const WMON_TOKEN_SUB = process.env.NEXT_PUBLIC_WMON as Address;
+
+        console.log('🎵 Subscribing user:', {
+          user: userAddress,
+          userFid: subUserFid,
+          tier: subTier,
+          amount: subAmount,
+        });
+
+        // Create calls: 1) Approve WMON, 2) Call subscribeFor
+        const musicSubCalls: Call[] = [
+          // Approve WMON for subscription payment
+          {
+            to: WMON_TOKEN_SUB,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [MUSIC_SUBSCRIPTION, BigInt(subAmount)],
+            }) as Hex,
+          },
+          // Call subscribeFor (delegation pattern)
+          {
+            to: MUSIC_SUBSCRIPTION,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function subscribeFor(address user, uint256 userFid, uint8 tier) external']),
+              functionName: 'subscribeFor',
+              args: [userAddress as Address, BigInt(subUserFid), subTier],
+            }) as Hex,
+          },
+        ];
+
+        const musicSubTxHash = await executeTransaction(musicSubCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Music subscription successful, TX:', musicSubTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: musicSubTxHash,
+          action,
+          userAddress,
+          tier: subTier,
+          message: 'Music subscription activated!',
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },

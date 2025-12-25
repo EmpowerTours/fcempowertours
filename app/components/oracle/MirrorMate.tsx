@@ -523,15 +523,58 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   };
 
   // Open edit form for existing guides
-  const handleOpenEditForm = () => {
-    // Use currentUserGuideData which is already found before filtering
-    setFormData({
-      bio: currentUserGuideData?.bio || '',
-      languages: currentUserGuideData?.languages || '',
-      transport: currentUserGuideData?.transport ? currentUserGuideData.transport.split(',').map(t => t.trim()) : [],
-      hourlyRate: currentUserGuideData?.hourlyRateWMON ? formatEther(BigInt(currentUserGuideData.hourlyRateWMON)) : '10',
-      location: currentUserGuideData?.location || location?.city || '',
-    });
+  const handleOpenEditForm = async () => {
+    // If we have guide data from Envio, use it
+    if (currentUserGuideData) {
+      setFormData({
+        bio: currentUserGuideData.bio || '',
+        languages: currentUserGuideData.languages || '',
+        transport: currentUserGuideData.transport ? currentUserGuideData.transport.split(',').map(t => t.trim()) : [],
+        hourlyRate: currentUserGuideData.hourlyRateWMON ? formatEther(BigInt(currentUserGuideData.hourlyRateWMON)) : '10',
+        location: currentUserGuideData.location || location?.city || '',
+      });
+      setIsEditMode(true);
+      setShowGuideForm(true);
+      return;
+    }
+
+    // If Envio hasn't synced yet, try fetching from API
+    if (user?.fid) {
+      try {
+        const response = await fetch(`/api/guides?fid=${user.fid}`);
+        const data = await response.json();
+        const userGuide = data.guides?.find((g: any) => Number(g.fid) === user.fid);
+
+        if (userGuide) {
+          setFormData({
+            bio: userGuide.bio || '',
+            languages: userGuide.languages || '',
+            transport: userGuide.transport ? userGuide.transport.split(',').map((t: string) => t.trim()) : [],
+            hourlyRate: userGuide.hourlyRateWMON ? formatEther(BigInt(userGuide.hourlyRateWMON)) : '10',
+            location: userGuide.location || location?.city || '',
+          });
+        } else {
+          // Guide data not yet indexed - use defaults
+          setFormData({
+            bio: '',
+            languages: '',
+            transport: [],
+            hourlyRate: '10',
+            location: location?.city || '',
+          });
+        }
+      } catch (error) {
+        console.error('[MirrorMate] Failed to fetch guide data:', error);
+        setFormData({
+          bio: '',
+          languages: '',
+          transport: [],
+          hourlyRate: '10',
+          location: location?.city || '',
+        });
+      }
+    }
+
     setIsEditMode(true);
     setShowGuideForm(true);
   };
@@ -672,14 +715,14 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
     return renderInPortal(
       <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-        <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md relative">
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+        {/* Close button - top right of screen */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800/80 rounded-full p-2 z-10"
+        >
+          <X className="w-6 h-6" />
+        </button>
+        <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md">
           <div className="text-6xl mb-4">
             {isOnlyGuide ? '🌟' : noGuides ? '🧳' : '✨'}
           </div>
