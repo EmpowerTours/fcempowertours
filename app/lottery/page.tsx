@@ -446,7 +446,7 @@ export default function LotteryPage() {
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">3</span>
-              <p className="flex-1">At round end, anyone can trigger request/resolve for 0.01 MON reward (uses Switchboard randomness)</p>
+              <p className="flex-1">At round end, anyone can trigger request/resolve for 10 TOURS reward (uses Pyth Entropy randomness)</p>
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">4</span>
