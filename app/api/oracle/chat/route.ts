@@ -462,7 +462,7 @@ You MUST return ONLY valid JSON matching the specified schema.
           );
 
           if (itineraryResult.success) {
-            itineraryTxHash = itineraryResult.txHash;
+            itineraryTxHash = itineraryResult.txHash || null;
             itineraryData = {
               exists: false,
               created: true,
