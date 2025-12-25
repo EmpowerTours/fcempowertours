@@ -43,7 +43,10 @@ export async function GET() {
           query: `
             query GetMusicAndArt {
               MusicNFT(
-                where: {isBurned: {_eq: false}},
+                where: {
+                  isBurned: {_eq: false},
+                  owner: {_neq: "0x0000000000000000000000000000000000000000"}
+                },
                 order_by: {mintedAt: desc},
                 limit: 15
               ) {
