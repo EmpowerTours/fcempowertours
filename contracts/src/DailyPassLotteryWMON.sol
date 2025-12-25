@@ -364,9 +364,10 @@ contract DailyPassLotteryWMON is Ownable, ReentrancyGuard, IEntropyConsumer {
         round.status = RoundStatus.Finalized;
 
         // Calculate random TOURS reward (1-1000 TOURS) using entropy
-        // Use a different portion of the random number for reward calculation
-        uint256 rewardRange = MAX_REWARD_TOURS - MIN_REWARD_TOURS + 1 ether;
-        uint256 randomReward = MIN_REWARD_TOURS + (uint256(keccak256(abi.encode(randomNumber, "reward"))) % rewardRange);
+        // Use upper 128 bits of randomNumber (lower bits used for winner selection above)
+        uint256 rewardRange = MAX_REWARD_TOURS / 1 ether; // 1000
+        uint256 rewardIndex = (uint256(randomNumber) >> 128) % rewardRange; // 0-999
+        uint256 randomReward = MIN_REWARD_TOURS + rewardIndex * 1 ether; // 1-1000 TOURS
 
         // Pay the requester their random TOURS reward
         address requester = sequenceToRequester[sequenceNumber];
