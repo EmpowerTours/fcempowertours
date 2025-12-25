@@ -560,7 +560,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                               <p className="text-xl font-bold text-gray-300">Upload Preview Audio (Optional)</p>
                               <p className="text-sm text-gray-500 mt-2">MP3, WAV, M4A - Max 600KB</p>
                               <p className="text-xs text-purple-400 font-medium mt-2">
-                                💡 Or skip - we'll auto-generate a 5s preview!
+                                💡 Or skip - we'll auto-generate a 3s preview!
                               </p>
                             </div>
                           )}
@@ -604,7 +604,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     {/* Audio Trimmer */}
                     {fullFile && !previewFile && audioUrl && (
                       <div className="p-6 bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-2xl border-2 border-yellow-500/30">
-                        <h3 className="text-xl font-bold text-white mb-4">✂️ Select 5-Second Preview</h3>
+                        <h3 className="text-xl font-bold text-white mb-4">✂️ Select 3-Second Preview</h3>
                         <p className="text-sm text-gray-400 mb-4">
                           Choose which part of your track to use as the preview
                         </p>
