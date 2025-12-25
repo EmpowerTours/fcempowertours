@@ -3801,9 +3801,9 @@ ${enjoyText}
           );
         }
 
-        const ITINERARY_NFT = process.env.ITINERARY_NFT_ADDRESS as Address;
+        const ITINERARY_NFT_CREATE = process.env.ITINERARY_NFT_ADDRESS as Address;
 
-        if (!ITINERARY_NFT) {
+        if (!ITINERARY_NFT_CREATE) {
           return NextResponse.json(
             { success: false, error: 'ItineraryNFT address not configured' },
             { status: 500 }
@@ -3828,7 +3828,7 @@ ${enjoyText}
         ]);
 
         const createItineraryCalls: Call[] = [{
-          to: ITINERARY_NFT,
+          to: ITINERARY_NFT_CREATE,
           value: 0n,
           data: encodeFunctionData({
             abi: createItineraryAbi,
