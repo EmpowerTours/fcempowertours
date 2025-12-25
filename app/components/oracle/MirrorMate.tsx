@@ -523,35 +523,34 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   return (
     <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center p-4">
       {/* Header */}
-      <div className="w-full max-w-md flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Heart className="w-6 h-6 text-cyan-400" />
-          <span className="text-white font-bold text-lg">MirrorMate</span>
+      <div className="w-full max-w-sm flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1">
+          <Heart className="w-4 h-4 text-cyan-400" />
+          <span className="text-white font-bold text-sm">MirrorMate</span>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-400">Free skips: {userStats.remainingFreeSkips}/20</p>
-          <p className="text-xs text-gray-400">Today's skips: {userStats.skipCount}</p>
+        <div className="text-right text-[10px] text-gray-400">
+          <p>Free skips: {userStats.remainingFreeSkips}/20</p>
         </div>
         {onClose && (
           <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         )}
       </div>
 
       {/* Guide Card */}
       {currentGuide && (
-        <div className="w-full max-w-md bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-3xl overflow-hidden shadow-2xl mb-6">
+        <div className="w-full max-w-sm bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-2xl overflow-hidden shadow-2xl mb-4">
           {/* Profile Picture */}
-          <div className="relative h-80 bg-gradient-to-br from-cyan-500/20 to-purple-600/20">
+          <div className="relative h-28 bg-gradient-to-br from-cyan-500/20 to-purple-600/20">
             {currentGuide.pfpUrl ? (
               <img
                 src={currentGuide.pfpUrl}
                 alt={currentGuide.displayName}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-center"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-8xl">
+              <div className="w-full h-full flex items-center justify-center text-4xl">
                 🧳
               </div>
             )}
@@ -590,13 +589,13 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           </div>
 
           {/* Guide Info */}
-          <div className="p-6">
+          <div className="p-4">
             <div className="flex items-start justify-between mb-1">
               <div className="flex-1">
-                <h3 className="text-2xl font-bold text-white mb-1">
+                <h3 className="text-lg font-bold text-white">
                   {currentGuide.displayName || currentGuide.username}
                 </h3>
-                <p className="text-cyan-400 text-sm mb-3">@{currentGuide.username}</p>
+                <p className="text-cyan-400 text-xs mb-2">@{currentGuide.username}</p>
               </div>
               {Array.isArray(nearbyFids) && nearbyFids.includes(Number(currentGuide.fid)) && (
                 <div className="flex items-center gap-1 bg-green-500/20 border border-green-500 rounded-full px-2 py-1">
@@ -607,25 +606,25 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
             </div>
 
             {currentGuide.bio && (
-              <p className="text-gray-300 text-sm mb-4">{currentGuide.bio}</p>
+              <p className="text-gray-300 text-xs mb-2 line-clamp-2">{currentGuide.bio}</p>
             )}
 
-            <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 text-xs">
               {currentGuide.location && (
-                <div className="flex items-center gap-2 text-gray-400 text-sm">
-                  <MapPin className="w-4 h-4" />
+                <div className="flex items-center gap-1 text-gray-400 bg-gray-800 rounded-full px-2 py-0.5">
+                  <MapPin className="w-3 h-3" />
                   <span>{currentGuide.location}</span>
                 </div>
               )}
               {currentGuide.languages && (
-                <div className="flex items-center gap-2 text-gray-400 text-sm">
-                  <Languages className="w-4 h-4" />
+                <div className="flex items-center gap-1 text-gray-400 bg-gray-800 rounded-full px-2 py-0.5">
+                  <Languages className="w-3 h-3" />
                   <span>{currentGuide.languages}</span>
                 </div>
               )}
               {currentGuide.transport && (
-                <div className="flex items-center gap-2 text-gray-400 text-sm">
-                  <Car className="w-4 h-4" />
+                <div className="flex items-center gap-1 text-gray-400 bg-gray-800 rounded-full px-2 py-0.5">
+                  <Car className="w-3 h-3" />
                   <span>{currentGuide.transport}</span>
                 </div>
               )}
@@ -635,33 +634,29 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       )}
 
       {/* Action Buttons */}
-      <div className="w-full max-w-md flex items-center justify-center gap-6">
+      <div className="w-full max-w-sm flex items-center justify-center gap-4">
         {/* Skip Button */}
         <button
           onClick={handleSkip}
           disabled={txState !== 'idle'}
-          className="w-20 h-20 bg-red-500/20 hover:bg-red-500/30 disabled:bg-gray-700 disabled:cursor-not-allowed border-2 border-red-500 rounded-full flex flex-col items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
+          className="w-14 h-14 bg-red-500/20 hover:bg-red-500/30 disabled:bg-gray-700 disabled:cursor-not-allowed border-2 border-red-500 rounded-full flex flex-col items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
         >
-          <X className="w-8 h-8 text-red-500" />
-          <span className="text-xs text-red-500 mt-1">
-            {userStats.remainingFreeSkips > 0 ? 'Free' : '5 WMON'}
-          </span>
+          <X className="w-6 h-6 text-red-500" />
         </button>
 
         {/* Match Button (Request Connection) */}
         <button
           onClick={handleMatch}
           disabled={txState !== 'idle'}
-          className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex flex-col items-center justify-center transition-all shadow-2xl hover:scale-110 active:scale-95"
+          className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex flex-col items-center justify-center transition-all shadow-2xl hover:scale-110 active:scale-95"
         >
-          <Heart className="w-10 h-10 text-white fill-current" />
-          <span className="text-xs text-white mt-1 font-bold">Connect</span>
+          <Heart className="w-7 h-7 text-white fill-current" />
         </button>
       </div>
 
       {/* Instructions */}
-      <p className="text-gray-500 text-sm mt-6 text-center max-w-md">
-        Skip to see next guide • Connect to request meeting with guide
+      <p className="text-gray-500 text-xs mt-3 text-center max-w-sm">
+        Skip to see next guide • Connect to request meeting
       </p>
     </div>
   );
