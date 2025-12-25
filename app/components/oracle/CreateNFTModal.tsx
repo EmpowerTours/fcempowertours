@@ -37,7 +37,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(5);
+  const [trimEnd, setTrimEnd] = useState(3);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
@@ -781,7 +781,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                         <p><strong>Creator:</strong> @{user?.username || 'You'}</p>
                         {nftType === 'music' && (
                           <>
-                            <p><strong>Preview:</strong> ✓ 5-second preview {previewFile ? `(${previewFile.name})` : '(auto-generated)'}</p>
+                            <p><strong>Preview:</strong> ✓ 3-second preview {previewFile ? `(${previewFile.name})` : '(auto-generated)'}</p>
                             <p><strong>Full Track:</strong> ✓ {fullFile?.name}</p>
                           </>
                         )}
@@ -839,7 +839,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-cyan-400">•</span>
-                <span>Music NFTs include 5-second audio preview</span>
+                <span>Music NFTs include 3-second audio preview</span>
               </li>
             </ul>
           </div>
