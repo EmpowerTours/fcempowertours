@@ -169,19 +169,34 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       if (!publicClient || !user || !user.fid) return;
 
       try {
-        const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
-        const registryAbi = registryAbiModule.default || registryAbiModule;
+        // Inline ABI for stats functions
+        const statsAbi = [
+          {
+            name: 'getDailySkipCount',
+            type: 'function',
+            inputs: [{ name: 'fid', type: 'uint256' }],
+            outputs: [{ type: 'uint256' }],
+            stateMutability: 'view'
+          },
+          {
+            name: 'getRemainingFreeSkips',
+            type: 'function',
+            inputs: [{ name: 'fid', type: 'uint256' }],
+            outputs: [{ type: 'uint256' }],
+            stateMutability: 'view'
+          }
+        ] as const;
 
         const [skipCount, freeSkips] = await Promise.all([
           publicClient.readContract({
             address: REGISTRY_ADDRESS,
-            abi: registryAbi as any,
+            abi: statsAbi,
             functionName: 'getDailySkipCount',
             args: [BigInt(user.fid)],
           }) as Promise<bigint>,
           publicClient.readContract({
             address: REGISTRY_ADDRESS,
-            abi: registryAbi as any,
+            abi: statsAbi,
             functionName: 'getRemainingFreeSkips',
             args: [BigInt(user.fid)],
           }) as Promise<bigint>,
@@ -206,20 +221,38 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     setTxState('confirming');
 
     try {
-      const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
-      const registryAbi = registryAbiModule.default || registryAbiModule;
+      // Inline ABI for skipGuide
+      const skipGuideAbi = [{
+        name: 'skipGuide',
+        type: 'function',
+        inputs: [
+          { name: 'skipperFid', type: 'uint256' },
+          { name: 'guideFid', type: 'uint256' }
+        ],
+        outputs: [],
+        stateMutability: 'nonpayable'
+      }] as const;
+
+      // ERC20 approve ABI
+      const approveAbi = [{
+        name: 'approve',
+        type: 'function',
+        inputs: [
+          { name: 'spender', type: 'address' },
+          { name: 'amount', type: 'uint256' }
+        ],
+        outputs: [{ type: 'bool' }],
+        stateMutability: 'nonpayable'
+      }] as const;
 
       // Check if user needs to pay (after 20 free skips)
       const needsPayment = userStats.remainingFreeSkips === 0;
 
       if (needsPayment) {
-        // Approve 5 WMON for paid skip
-        const { default: erc20Abi } = await import('@/lib/abis/ERC20.json');
-
         setTxState('confirming');
         const approveTx = await walletClient.writeContract({
           address: WMON_ADDRESS,
-          abi: erc20Abi,
+          abi: approveAbi,
           functionName: 'approve',
           args: [REGISTRY_ADDRESS, parseEther('5')], // 5 WMON per skip
         });
@@ -231,7 +264,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       setTxState('confirming');
       const skipTx = await walletClient.writeContract({
         address: REGISTRY_ADDRESS,
-        abi: registryAbi as any,
+        abi: skipGuideAbi,
         functionName: 'skipGuide',
         args: [BigInt(user.fid), guide.fid],
       });
@@ -267,17 +300,37 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     setTxState('confirming');
 
     try {
-      const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
-      const registryAbi = registryAbiModule.default || registryAbiModule;
+      // Inline ABI for requestConnection
+      const requestConnectionAbi = [{
+        name: 'requestConnection',
+        type: 'function',
+        inputs: [
+          { name: 'requesterFid', type: 'uint256' },
+          { name: 'guideFid', type: 'uint256' },
+          { name: 'meetupType', type: 'string' },
+          { name: 'message', type: 'string' }
+        ],
+        outputs: [],
+        stateMutability: 'nonpayable'
+      }] as const;
 
-      // Check if user needs to pay (after 5 free connections per day)
-      // We'll approve 10 WMON just in case (contract will only charge if needed)
-      const { default: erc20Abi } = await import('@/lib/abis/ERC20.json');
+      // ERC20 approve ABI
+      const approveAbi = [{
+        name: 'approve',
+        type: 'function',
+        inputs: [
+          { name: 'spender', type: 'address' },
+          { name: 'amount', type: 'uint256' }
+        ],
+        outputs: [{ type: 'bool' }],
+        stateMutability: 'nonpayable'
+      }] as const;
 
+      // Approve 10 WMON just in case (contract will only charge if needed)
       setTxState('confirming');
       const approveTx = await walletClient.writeContract({
         address: WMON_ADDRESS,
-        abi: erc20Abi,
+        abi: approveAbi,
         functionName: 'approve',
         args: [REGISTRY_ADDRESS, parseEther('10')], // 10 WMON per paid connection
       });
@@ -289,7 +342,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       setTxState('confirming');
       const connectionTx = await walletClient.writeContract({
         address: REGISTRY_ADDRESS,
-        abi: registryAbi as any,
+        abi: requestConnectionAbi,
         functionName: 'requestConnection',
         args: [
           BigInt(user.fid),

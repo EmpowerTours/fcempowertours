@@ -17,6 +17,7 @@ const steps = [
 ];
 
 export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
+  console.log('[CreateNFTModal] Component rendering');
   const { user, walletAddress, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
 
