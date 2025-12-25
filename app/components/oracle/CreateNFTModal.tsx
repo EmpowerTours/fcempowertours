@@ -31,6 +31,8 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progressStage, setProgressStage] = useState<string>('');
+  const [progressPercent, setProgressPercent] = useState(0);
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string; title: string; price: string } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [nftType, setNftType] = useState<'music' | 'art'>('music');
@@ -269,12 +271,16 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
 
     setUploading(true);
     setError(null);
+    setProgressStage('Preparing files...');
+    setProgressPercent(5);
 
     try {
       const formData = new FormData();
 
       let actualPreviewFile = previewFile;
       if (!previewFile && fullFile && nftType === 'music') {
+        setProgressStage('Creating preview clip...');
+        setProgressPercent(10);
         console.log(`🎬 Auto-trimming preview from ${trimStart}s to ${trimEnd}s`);
         actualPreviewFile = await trimAudio(fullFile, trimStart, trimEnd);
       }
@@ -291,10 +297,17 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       formData.append('fid', farcasterFid?.toString() || '0');
       formData.append('isArtOnly', isArtOnly.toString());
 
+      setProgressStage('Uploading to IPFS...');
+      setProgressPercent(20);
+
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
+
+      // Simulate progress during upload (actual progress would need streaming)
+      setProgressPercent(50);
+      setProgressStage('Processing uploads...');
 
       if (!uploadRes.ok) {
         const errorData = await uploadRes.json();
@@ -305,10 +318,15 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
       const coverUrl = uploadData.coverUrl || `ipfs://${uploadData.coverCid}`;
 
+      setProgressPercent(70);
+      setProgressStage('Files uploaded! Minting NFT...');
       setUploading(false);
       setMinting(true);
 
       const command = `mint_music ${title.slice(0, 50)} ${tokenURI} ${price}`;
+
+      setProgressPercent(80);
+      setProgressStage('Sending to blockchain...');
 
       const mintData = await executeCommand(command, {
         imageUrl: coverUrl,
@@ -317,6 +335,9 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
         is_art: nftType === 'art',
       });
 
+      setProgressPercent(95);
+      setProgressStage('Confirming transaction...');
+
       if (!mintData.success) {
         throw new Error(mintData.error || mintData.message || 'Mint failed');
       }
@@ -324,6 +345,8 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       const tokenId = mintData.tokenId ? parseInt(String(mintData.tokenId)) : Math.floor(Math.random() * 10000);
       const txHash = mintData.txHash || '';
 
+      setProgressPercent(100);
+      setProgressStage('Success!');
       setSuccess({ tokenId, txHash, title, price });
       setPreviewFile(null);
       setFullFile(null);
@@ -333,6 +356,8 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
     } catch (err: any) {
       console.error('❌ Error:', err);
       setError(err.message || 'Something went wrong');
+      setProgressStage('');
+      setProgressPercent(0);
     } finally {
       setUploading(false);
       setMinting(false);
@@ -342,11 +367,62 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   // Don't render until mounted (for SSR compatibility with portal)
   if (!mounted) return null;
 
+  // Calculate circle progress values
+  const circleRadius = 70;
+  const circleCircumference = 2 * Math.PI * circleRadius;
+  const strokeDashoffset = circleCircumference - (progressPercent / 100) * circleCircumference;
+
   const modalContent = (
     <div
       className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-2 overflow-y-auto"
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
     >
+      {/* Circular Progress Overlay */}
+      {(uploading || minting) && (
+        <div className="absolute inset-0 bg-black/80 z-[10000] flex flex-col items-center justify-center backdrop-blur-sm">
+          <div className="relative">
+            {/* Background circle */}
+            <svg className="w-40 h-40 transform -rotate-90">
+              <circle
+                cx="80"
+                cy="80"
+                r={circleRadius}
+                stroke="rgba(100, 100, 100, 0.3)"
+                strokeWidth="8"
+                fill="transparent"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="80"
+                cy="80"
+                r={circleRadius}
+                stroke="url(#gradient)"
+                strokeWidth="8"
+                fill="transparent"
+                strokeLinecap="round"
+                strokeDasharray={circleCircumference}
+                strokeDashoffset={strokeDashoffset}
+                className="transition-all duration-500 ease-out"
+              />
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="50%" stopColor="#a855f7" />
+                  <stop offset="100%" stopColor="#ec4899" />
+                </linearGradient>
+              </defs>
+            </svg>
+            {/* Percentage number in center */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-4xl font-bold text-white">{progressPercent}</span>
+            </div>
+          </div>
+          {/* Stage text */}
+          <p className="mt-6 text-cyan-400 font-medium text-lg">{progressStage}</p>
+          <p className="mt-2 text-gray-500 text-sm">Please wait, do not close this window...</p>
+        </div>
+      )}
+
       <div className="w-full max-w-lg bg-gradient-to-br from-gray-900 via-purple-900/20 to-black border border-cyan-500/30 rounded-2xl shadow-2xl my-4 relative overflow-hidden">
         {/* Animated gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-purple-500/5 to-pink-500/5 opacity-50" />
@@ -444,16 +520,28 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                 <p className="text-green-300">
                   <strong className="text-green-400">Price:</strong> {success.price} WMON per license
                 </p>
-                {success.txHash && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {success.txHash && (
+                    <a
+                      href={`https://testnet.monadscan.com/tx/${success.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-lg hover:from-cyan-400 hover:to-purple-500 font-medium transition-all"
+                    >
+                      View on Monadscan
+                    </a>
+                  )}
                   <a
-                    href={`https://testnet.monadscan.com/tx/${success.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-lg hover:from-cyan-400 hover:to-purple-500 font-medium mt-3 transition-all"
+                    href="/profile"
+                    className="inline-block px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-400 hover:to-emerald-500 font-medium transition-all"
                   >
-                    View on Monadscan →
+                    Go to Profile
                   </a>
-                )}
+                </div>
+                <p className="text-yellow-400/80 text-xs mt-3 flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                  Your NFT may take up to 1 minute to appear in your profile
+                </p>
               </div>
             </div>
           )}
@@ -796,11 +884,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                   disabled={uploading || minting || botLoading}
                   className="w-full px-8 py-6 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 text-white rounded-2xl font-bold text-2xl hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all shadow-2xl"
                 >
-                  {uploading
-                    ? '⏳ Uploading to IPFS...'
-                    : minting || botLoading
-                    ? '⚡ Minting NFT (FREE)...'
-                    : `🚀 Mint NFT (FREE!)` }
+                  🚀 Mint NFT (FREE!)
                 </button>
 
                 {!walletAddress && (
