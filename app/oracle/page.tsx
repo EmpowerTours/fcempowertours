@@ -661,13 +661,9 @@ export default function OraclePage() {
         </div>
       )}
 
-      {/* MirrorMate Game - Centered Modal Overlay */}
+      {/* MirrorMate Game */}
       {activeGame === 'MIRROR' && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-2xl pointer-events-auto animate-fadeIn">
-          <div className="bg-black/95 backdrop-blur-xl border border-cyan-500/30 rounded-3xl p-6 shadow-2xl">
-            <MirrorMate onClose={() => setActiveGame(null)} />
-          </div>
-        </div>
+        <MirrorMate onClose={() => setActiveGame(null)} />
       )}
 
       {/* Tetris Game - Centered Modal Overlay */}
@@ -700,10 +696,7 @@ export default function OraclePage() {
 
       {/* Create NFT Modal */}
       {showCreateNFTModal && (
-        <>
-          {console.log('[OraclePage] Rendering CreateNFTModal')}
-          <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} />
-        </>
+        <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} />
       )}
 
       {/* Passport Mint Modal */}
