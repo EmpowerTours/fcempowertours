@@ -129,7 +129,7 @@ export default function NFTPage() {
 
       console.log('📤 Sending Envio query for tokenId:', tokenId);
       const response = await fetch(
-        process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql',
+        process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

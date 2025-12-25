@@ -27,7 +27,7 @@ interface StakingPosition {
   oracleSource?: 'switchboard' | 'fallback';
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
 const YIELD_STRATEGY = process.env.NEXT_PUBLIC_YIELD_STRATEGY || '0x37aC86916Ae673bDFCc9c712057092E57b270f5f';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
 const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT || process.env.NEXT_PUBLIC_PASSPORT || '';

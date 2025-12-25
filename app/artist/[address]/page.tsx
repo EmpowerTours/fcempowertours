@@ -7,7 +7,7 @@ import { isAddress } from 'viem';
 import Link from 'next/link';
 
 // ENV
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/32e51fc/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
 
 // Types
 interface MusicMetadata {

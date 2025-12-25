@@ -9,7 +9,7 @@ import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
 import UserSafeWidget from '@/app/components/UserSafeWidget';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
 
 interface MusicMetadata {
   animation_url?: string;
