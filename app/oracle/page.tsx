@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Send, Sparkles, X, Globe, Loader2, Music2, User } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
-import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
 import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
@@ -55,7 +54,6 @@ export default function OraclePage() {
   const [playingNFTId, setPlayingNFTId] = useState<string | null>(null);
   const [playingTokenId, setPlayingTokenId] = useState<string | null>(null);
   const [activeGame, setActiveGame] = useState<'MIRROR' | null>(null);
-  const [showMusicPlayer, setShowMusicPlayer] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
   const [showPassportMintModal, setShowPassportMintModal] = useState(false);
@@ -440,7 +438,7 @@ export default function OraclePage() {
   // Dynamic Crystal Ball classes based on state
   // When overlay is active (game, music, etc), Earth shrinks and blurs to background
   const getCrystalBallClasses = () => {
-    const hasActiveOverlay = activeGame !== null || showMusicPlayer || messages.length > 0;
+    const hasActiveOverlay = activeGame !== null || messages.length > 0;
 
     if (hasActiveOverlay) {
       // Earth recedes: shrinks, moves up, fades, blurs
@@ -556,22 +554,6 @@ export default function OraclePage() {
                 Try: "Create NFT", "Find restaurants near me", "Play Tetris"
               </div>
               <div className="flex items-center gap-2">
-                {/* My Music button - visible when user has subscription or owns music */}
-                {(hasSubscription || hasPurchasedMusic) && (
-                  <button
-                    onClick={() => {
-                      // Open playlist with owned music
-                      if (ownedMusicNFTs.length > 0) {
-                        setClickedMusicNFTs(ownedMusicNFTs);
-                      }
-                      setShowMusicPlayer(true);
-                    }}
-                    className="px-3 py-1.5 bg-gradient-to-r from-green-500/20 to-cyan-600/20 hover:from-green-500/30 hover:to-cyan-600/30 border border-green-500/30 rounded-lg text-xs text-green-400 font-semibold transition-all flex items-center gap-1"
-                  >
-                    <Music2 className="w-3 h-3" />
-                    My Music {ownedMusicNFTs.length > 0 && `(${ownedMusicNFTs.length})`}
-                  </button>
-                )}
                 <button
                   onClick={() => setShowSubscriptionModal(true)}
                   className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-semibold transition-all flex items-center gap-1"
@@ -637,18 +619,31 @@ export default function OraclePage() {
                         </div>
                       )}
                     </div>
-                    <div className="p-3">
-                      <p className="text-white text-sm font-semibold truncate">{nft.name}</p>
+                    <div className="p-2">
+                      <p className="text-white text-xs font-semibold truncate">{nft.name}</p>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-gray-400">{nft.type}</span>
-                        {nft.type === 'MUSIC' && !isPlaying && (
-                          <span className="text-xs text-cyan-400">🎵 Click to play</span>
-                        )}
+                        <span className="text-[10px] text-gray-400">{nft.type}</span>
                         {isPlaying && (
-                          <span className="text-xs text-cyan-400 animate-pulse">Now Playing</span>
+                          <span className="text-[10px] text-cyan-400 animate-pulse">Playing</span>
                         )}
-                        {nft.price !== '0' && nft.price !== '0.00' && (
-                          <span className="text-xs text-gray-400">{nft.price} WMON</span>
+                      </div>
+                      {/* Price and Buy Button */}
+                      <div className="flex items-center justify-between mt-2 gap-1">
+                        {nft.price !== '0' && nft.price !== '0.00' ? (
+                          <>
+                            <span className="text-[10px] text-green-400 font-bold">{nft.price} WMON</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInput(`Buy ${nft.type} NFT #${nft.tokenId}`);
+                              }}
+                              className="px-2 py-1 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-[10px] rounded-lg font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
+                            >
+                              Buy
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-gray-500">Free to play</span>
                         )}
                       </div>
                     </div>
@@ -708,28 +703,6 @@ export default function OraclePage() {
       )}
 
       </div>
-
-      {/* Music Player - Centered Modal Overlay (not fixed to screen edges) */}
-      {showMusicPlayer && clickedMusicNFTs.length > 0 && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-2xl pointer-events-auto animate-fadeIn">
-          <MusicPlaylist
-            userAddress={walletAddress ?? undefined}
-            userFid={user?.fid}
-            clickedNFTs={clickedMusicNFTs}
-            onPlayingChange={(nftId, isPlaying) => {
-              console.log('[OraclePage] onPlayingChange:', nftId, isPlaying);
-              setPlayingNFTId(isPlaying ? nftId : null);
-              if (isPlaying && nftId) {
-                const tokenId = nftId.replace('music-', '');
-                setPlayingTokenId(tokenId);
-              } else {
-                setPlayingTokenId(null);
-              }
-            }}
-            onClose={() => setShowMusicPlayer(false)}
-          />
-        </div>
-      )}
 
       {/* MirrorMate Game */}
       {activeGame === 'MIRROR' && (
