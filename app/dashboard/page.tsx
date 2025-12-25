@@ -47,11 +47,11 @@ export default function DashboardPage() {
             totalMusicLicensesPurchased
             lastUpdated
           }
-          AllNFTs: MusicNFT(limit: 1000, where: {isBurned: {_eq: false}}) {
+          AllNFTs: MusicNFT(limit: 1000, where: {isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
             id
             isArt
           }
-          MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
+          MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
             id
             tokenId
             owner
@@ -66,7 +66,7 @@ export default function DashboardPage() {
             mintedAt
             txHash
           }
-          ArtNFT: MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: true}}) {
+          ArtNFT: MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: true}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
             id
             tokenId
             owner

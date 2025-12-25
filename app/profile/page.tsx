@@ -353,7 +353,7 @@ export default function ProfilePage() {
             mintedAt
             txHash
           }
-          CreatedNFT: MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
+          CreatedNFT: MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             artist
@@ -374,7 +374,7 @@ export default function ProfilePage() {
             staker
             isArt
           }
-          OwnedNFT: MusicNFT(where: {owner: {_in: $addresses}, artist: {_nin: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
+          OwnedNFT: MusicNFT(where: {owner: {_in: $addresses, _neq: "0x0000000000000000000000000000000000000000"}, artist: {_nin: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
             id
             tokenId
             artist
@@ -496,7 +496,7 @@ export default function ProfilePage() {
       if (masterTokenIds.length > 0) {
         const masterQuery = `
           query GetMasterTokens($tokenIds: [String!]!) {
-            MusicNFT(where: {tokenId: {_in: $tokenIds}, isBurned: {_eq: false}}) {
+            MusicNFT(where: {tokenId: {_in: $tokenIds}, isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
               id
               tokenId
               artist
