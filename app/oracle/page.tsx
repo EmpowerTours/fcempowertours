@@ -6,8 +6,6 @@ import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
-import { Tetris } from '@/app/components/oracle/Tetris';
-import { TicTacToe } from '@/app/components/oracle/TicTacToe';
 import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
 import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
@@ -52,7 +50,7 @@ export default function OraclePage() {
   const [loadingNFTs, setLoadingNFTs] = useState(true);
   const [playingNFTId, setPlayingNFTId] = useState<string | null>(null);
   const [playingTokenId, setPlayingTokenId] = useState<string | null>(null);
-  const [activeGame, setActiveGame] = useState<'TETRIS' | 'TICTACTOE' | 'MIRROR' | null>(null);
+  const [activeGame, setActiveGame] = useState<'MIRROR' | null>(null);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
@@ -209,21 +207,22 @@ export default function OraclePage() {
           case 'game':
             console.log('[Oracle] GAME case triggered');
             console.log('[Oracle] Game action received:', action);
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: `${action.message}\n\nLaunching ${action.game}...`,
-              action
-            }]);
-            // Launch the game
-            if (action.game) {
-              const gameType = action.game as 'TETRIS' | 'TICTACTOE' | 'MIRROR';
-              console.log('[Oracle] Setting activeGame to:', gameType);
+            // Only support MirrorMate now
+            if (action.game === 'MIRROR') {
+              setMessages(prev => [...prev, {
+                role: 'oracle',
+                content: `${action.message}\n\nLaunching MirrorMate...`,
+                action
+              }]);
               setTimeout(() => {
-                console.log('[Oracle] Timeout fired, activating game:', gameType);
-                setActiveGame(gameType);
+                setActiveGame('MIRROR');
               }, 1000);
             } else {
-              console.error('[Oracle] action.game is missing!', action);
+              setMessages(prev => [...prev, {
+                role: 'oracle',
+                content: `Sorry, that game is not available right now. Try asking for MirrorMate!`,
+                action
+              }]);
             }
             break;
 
@@ -666,23 +665,6 @@ export default function OraclePage() {
         <MirrorMate onClose={() => setActiveGame(null)} />
       )}
 
-      {/* Tetris Game - Centered Modal Overlay */}
-      {activeGame === 'TETRIS' && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-lg pointer-events-auto animate-fadeIn">
-          <div className="bg-black/95 backdrop-blur-xl border border-cyan-500/30 rounded-3xl p-6 shadow-2xl">
-            <Tetris onClose={() => setActiveGame(null)} />
-          </div>
-        </div>
-      )}
-
-      {/* TicTacToe Game - Centered Modal Overlay */}
-      {activeGame === 'TICTACTOE' && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-lg pointer-events-auto animate-fadeIn">
-          <div className="bg-black/95 backdrop-blur-xl border border-cyan-500/30 rounded-3xl p-6 shadow-2xl">
-            <TicTacToe onClose={() => setActiveGame(null)} />
-          </div>
-        </div>
-      )}
 
       {/* Music Subscription Modal - Centered Overlay */}
       {showSubscriptionModal && (
