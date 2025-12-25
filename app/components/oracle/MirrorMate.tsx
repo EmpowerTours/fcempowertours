@@ -607,24 +607,24 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       {/* Guide Card */}
       {currentGuide && (
         <div className="w-full max-w-xs bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-xl overflow-hidden shadow-xl mb-2">
-          {/* Profile Picture - Compact circular */}
-          <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-cyan-500/10 to-purple-600/10">
+          {/* Profile Picture - Very compact */}
+          <div className="flex items-center gap-2 p-2 bg-gradient-to-br from-cyan-500/10 to-purple-600/10">
             {currentGuide.pfpUrl ? (
               <img
                 src={currentGuide.pfpUrl}
                 alt={currentGuide.displayName}
-                className="w-14 h-14 rounded-full object-cover border-2 border-cyan-500/50"
+                className="w-10 h-10 rounded-full object-cover border border-cyan-500/50"
               />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center text-2xl border-2 border-cyan-500/50">
+              <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg border border-cyan-500/50">
                 🧳
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-white truncate">
+              <h3 className="text-sm font-bold text-white truncate">
                 {currentGuide.displayName || currentGuide.username}
               </h3>
-              <p className="text-cyan-400 text-xs">@{currentGuide.username}</p>
+              <p className="text-cyan-400 text-[10px]">@{currentGuide.username}</p>
             </div>
             {/* Transaction State Indicator */}
             {txState !== 'idle' && (
@@ -674,23 +674,23 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       )}
 
       {/* Action Buttons */}
-      <div className="w-full max-w-xs flex items-center justify-center gap-4">
+      <div className="w-full max-w-xs flex items-center justify-center gap-3">
         {/* Skip Button */}
         <button
           onClick={handleSkip}
           disabled={txState !== 'idle'}
-          className="w-14 h-14 bg-red-500/20 hover:bg-red-500/30 disabled:bg-gray-700 disabled:cursor-not-allowed border-2 border-red-500 rounded-full flex flex-col items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
+          className="w-12 h-12 bg-red-500/20 hover:bg-red-500/30 disabled:bg-gray-700 disabled:cursor-not-allowed border-2 border-red-500 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95"
         >
-          <X className="w-6 h-6 text-red-500" />
+          <X className="w-5 h-5 text-red-500" />
         </button>
 
         {/* Match Button (Request Connection) */}
         <button
           onClick={handleMatch}
           disabled={txState !== 'idle'}
-          className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex flex-col items-center justify-center transition-all shadow-2xl hover:scale-110 active:scale-95"
+          className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all shadow-xl hover:scale-105 active:scale-95"
         >
-          <Heart className="w-7 h-7 text-white fill-current" />
+          <Heart className="w-6 h-6 text-white fill-current" />
         </button>
       </div>
 
