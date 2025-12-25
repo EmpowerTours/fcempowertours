@@ -539,9 +539,21 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
             <div className="bg-gradient-to-br from-cyan-500/10 to-purple-600/10 border border-cyan-500/30 rounded-xl p-4 mb-6">
               <div className="flex items-center gap-3">
                 {user?.pfpUrl ? (
-                  <img src={user.pfpUrl} alt="" className="w-12 h-12 rounded-full border-2 border-cyan-400" />
+                  <img
+                    src={user.pfpUrl}
+                    alt=""
+                    className="rounded-full border-2 border-cyan-400 object-cover"
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      minWidth: '40px',
+                      minHeight: '40px',
+                      maxWidth: '40px',
+                      maxHeight: '40px',
+                    }}
+                  />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-2xl">🧳</div>
+                  <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-xl">🧳</div>
                 )}
                 <div className="text-left">
                   <p className="text-white font-bold">{user?.displayName || user?.username}</p>
@@ -613,7 +625,15 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
               <img
                 src={currentGuide.pfpUrl}
                 alt={currentGuide.displayName}
-                className="w-10 h-10 rounded-full object-cover border border-cyan-500/50"
+                className="rounded-full object-cover border border-cyan-500/50"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  maxWidth: '40px',
+                  maxHeight: '40px',
+                }}
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg border border-cyan-500/50">
