@@ -17,17 +17,14 @@ const steps = [
 ];
 
 export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
-  console.log('[CreateNFTModal] Component rendering...');
   const { user, walletAddress, requestWallet } = useFarcasterContext();
-  console.log('[CreateNFTModal] useFarcasterContext:', { user: !!user, walletAddress });
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
-  console.log('[CreateNFTModal] useBotCommand loaded, botLoading:', botLoading);
 
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const [price, setPrice] = useState('0.01');
+  const [price, setPrice] = useState('1');
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +34,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(3);
+  const [trimEnd, setTrimEnd] = useState(5);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
@@ -109,7 +106,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
           audio.addEventListener('loadedmetadata', () => {
             setAudioDuration(audio.duration);
             setTrimStart(0);
-            setTrimEnd(Math.min(3, audio.duration));
+            setTrimEnd(Math.min(5, audio.duration));
           });
           setAudioElement(audio);
         }
@@ -251,8 +248,8 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       return;
     }
     const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum <= 0 || priceNum > 1000) {
-      setError('Price must be between 0.001 and 1000 TOURS');
+    if (isNaN(priceNum) || priceNum < 1) {
+      setError('Price must be at least 1 WMON');
       return;
     }
     if (!walletAddress) {
@@ -333,19 +330,14 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
     }
   };
 
-  console.log('[CreateNFTModal] About to return JSX');
-
   return (
-    <div
-      className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-4 overflow-y-auto"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
-    >
-      {/* Debug marker */}
-      <div className="fixed top-0 left-0 bg-red-500 text-white p-2 z-[10000] text-xs font-bold">
-        CREATE NFT MODAL VISIBLE
-      </div>
-      <div className="w-full max-w-4xl bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl shadow-2xl shadow-cyan-500/20 my-8">
-        <div className="p-8">
+    <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-4xl bg-gradient-to-br from-gray-900 via-purple-900/20 to-black border border-cyan-500/30 rounded-3xl shadow-2xl shadow-purple-500/20 my-8 relative overflow-hidden">
+        {/* Animated gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-purple-500/5 to-pink-500/5 animate-pulse" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <div className="relative p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -427,24 +419,24 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
 
           {/* Success */}
           {success && (
-            <div className="mb-6 p-4 bg-green-500/20 border border-green-500/30 rounded-lg">
-              <p className="text-green-400 font-bold text-lg mb-2">🎉 NFT Minted!</p>
+            <div className="mb-6 p-6 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 rounded-2xl">
+              <p className="text-green-400 font-bold text-xl mb-3">🎉 NFT Minted Successfully!</p>
               <div className="space-y-2 text-sm">
-                <p className="text-green-400">
-                  <strong>Token ID:</strong> #{success.tokenId}
+                <p className="text-green-300">
+                  <strong className="text-green-400">Token ID:</strong> #{success.tokenId}
                 </p>
-                <p className="text-green-400">
-                  <strong>Title:</strong> {success.title || 'Untitled'}
+                <p className="text-green-300">
+                  <strong className="text-green-400">Title:</strong> {success.title || 'Untitled'}
                 </p>
-                <p className="text-green-400">
-                  <strong>Price:</strong> {success.price} TOURS per license
+                <p className="text-green-300">
+                  <strong className="text-green-400">Price:</strong> {success.price} WMON per license
                 </p>
                 {success.txHash && (
                   <a
-                    href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
+                    href={`https://testnet.monadscan.com/tx/${success.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block px-4 py-2 bg-cyan-500 text-black rounded-lg hover:bg-cyan-400 font-medium mt-2"
+                    className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-lg hover:from-cyan-400 hover:to-purple-500 font-medium mt-3 transition-all"
                   >
                     View on Monadscan →
                   </a>
@@ -555,7 +547,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                               <p className="text-xl font-bold text-gray-300">Upload Preview Audio (Optional)</p>
                               <p className="text-sm text-gray-500 mt-2">MP3, WAV, M4A - Max 600KB</p>
                               <p className="text-xs text-purple-400 font-medium mt-2">
-                                💡 Or skip - we'll auto-generate a 3s preview!
+                                💡 Or skip - we'll auto-generate a 5s preview!
                               </p>
                             </div>
                           )}
@@ -599,7 +591,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     {/* Audio Trimmer */}
                     {fullFile && !previewFile && audioUrl && (
                       <div className="p-6 bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-2xl border-2 border-yellow-500/30">
-                        <h3 className="text-xl font-bold text-white mb-4">✂️ Select 3-Second Preview</h3>
+                        <h3 className="text-xl font-bold text-white mb-4">✂️ Select 5-Second Preview</h3>
                         <p className="text-sm text-gray-400 mb-4">
                           Choose which part of your track to use as the preview
                         </p>
@@ -632,13 +624,13 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                             <input
                               type="range"
                               min="0"
-                              max={Math.max(0, audioDuration - 3)}
+                              max={Math.max(0, audioDuration - 5)}
                               step="0.1"
                               value={trimStart}
                               onChange={(e) => {
                                 const newStart = parseFloat(e.target.value);
                                 setTrimStart(newStart);
-                                setTrimEnd(Math.min(newStart + 3, audioDuration));
+                                setTrimEnd(Math.min(newStart + 5, audioDuration));
                               }}
                               className="w-full h-2 bg-purple-500/30 rounded-lg appearance-none cursor-pointer"
                             />
@@ -696,22 +688,22 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                   <p className="text-sm text-gray-400 mt-2">{title.length}/200 characters</p>
                 </div>
 
-                <div className="p-6 bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-2xl border-2 border-green-500/30">
-                  <label className="block text-xl font-bold text-white mb-4">💰 License Price</label>
-                  <p className="text-sm text-gray-400 mb-4">How much will fans pay to own this NFT?</p>
+                <div className="p-6 bg-gradient-to-br from-cyan-900/30 to-blue-900/30 rounded-2xl border border-cyan-500/30">
+                  <label className="block text-xl font-bold text-white mb-2">💰 License Price</label>
+                  <p className="text-sm text-gray-400 mb-4">Set your price in WMON</p>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {['0.01', '0.05', '0.1', '1'].map((p) => (
+                    {['1', '2', '5', '10'].map((p) => (
                       <button
                         key={p}
                         onClick={() => setPrice(p)}
-                        className={`px-6 py-4 rounded-xl font-bold text-lg transition-all ${
+                        className={`px-4 py-3 rounded-xl font-bold text-base transition-all ${
                           price === p
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white scale-110 shadow-lg'
-                            : 'bg-gray-800 text-gray-300 hover:scale-105 border-2 border-gray-700'
+                            ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-105 shadow-lg shadow-cyan-500/30'
+                            : 'bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50'
                         }`}
                       >
-                        {p} TOURS
+                        {p} WMON
                       </button>
                     ))}
                   </div>
@@ -719,17 +711,16 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                   <div className="relative">
                     <input
                       type="number"
-                      step="0.001"
-                      min="0.001"
-                      max="10"
+                      step="0.1"
+                      min="1"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="Custom price"
-                      className="w-full px-6 py-4 text-lg bg-black/50 border-2 border-green-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-4 focus:ring-green-500/50 focus:border-transparent"
+                      className="w-full px-6 py-4 text-lg bg-black/50 border border-cyan-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
                     />
-                    <span className="absolute right-6 top-4.5 text-gray-400 font-bold pointer-events-none">TOURS</span>
+                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-cyan-400 font-bold pointer-events-none">WMON</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 | Max: 1000 TOURS</p>
+                  <p className="text-xs text-gray-500 mt-2">Minimum: 1 WMON</p>
                 </div>
 
                 <button
@@ -773,11 +764,11 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                       <h3 className="text-3xl font-bold text-white mb-4">{title || 'Untitled'}</h3>
                       <div className="space-y-2 text-gray-300">
                         <p><strong>Type:</strong> {nftType === 'music' ? 'Music NFT' : 'Art NFT'}</p>
-                        <p><strong>Price:</strong> {price} TOURS per license</p>
+                        <p><strong>Price:</strong> {price} WMON</p>
                         <p><strong>Creator:</strong> @{user?.username || 'You'}</p>
                         {nftType === 'music' && (
                           <>
-                            <p><strong>Preview Audio:</strong> ✓ {previewFile?.name || 'Auto-generated'}</p>
+                            <p><strong>Preview:</strong> ✓ 5-second preview {previewFile ? `(${previewFile.name})` : '(auto-generated)'}</p>
                             <p><strong>Full Track:</strong> ✓ {fullFile?.name}</p>
                           </>
                         )}
@@ -816,16 +807,27 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
           </div>
 
           {/* Info Box */}
-          <div className="mt-8 p-4 bg-blue-500/20 rounded-xl border-2 border-blue-500/30">
-            <p className="text-sm text-blue-400 font-medium mb-2">
+          <div className="mt-8 p-5 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-2xl border border-cyan-500/20">
+            <p className="text-sm text-cyan-400 font-bold mb-3">
               💡 How NFT Pricing Works:
             </p>
-            <ul className="text-sm text-blue-300 space-y-1 list-disc list-inside">
-              <li>Set your price in TOURS tokens (what fans pay to own your NFT)</li>
-              <li>You receive 90% of sales + royalties on resales (5% music, 7.5% art)</li>
-              <li>Minting is FREE - we cover all gas costs for you</li>
-              <li>Music NFTs: Fans can preview audio before buying</li>
-              <li>NFTv9 with delegation support for easy buying/selling</li>
+            <ul className="text-sm text-gray-300 space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="text-cyan-400">•</span>
+                <span>Set your price in WMON (minimum 1 WMON)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-cyan-400">•</span>
+                <span>You receive 90% of sales + royalties on resales</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-cyan-400">•</span>
+                <span>Minting is FREE - we cover all gas costs</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-cyan-400">•</span>
+                <span>Music NFTs include 5-second audio preview</span>
+              </li>
             </ul>
           </div>
         </div>

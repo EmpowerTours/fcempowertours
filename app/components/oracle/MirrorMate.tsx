@@ -351,12 +351,18 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       if (!publicClient || !user?.fid) return;
 
       try {
-        const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
-        const registryAbi = registryAbiModule.default || registryAbiModule;
+        // Simple inline ABI for just the isRegisteredGuide function
+        const isRegisteredAbi = [{
+          name: 'isRegisteredGuide',
+          type: 'function',
+          inputs: [{ name: 'fid', type: 'uint256' }],
+          outputs: [{ type: 'bool' }],
+          stateMutability: 'view'
+        }] as const;
 
         const isRegistered = await publicClient.readContract({
           address: REGISTRY_ADDRESS,
-          abi: registryAbi as any,
+          abi: isRegisteredAbi,
           functionName: 'isRegisteredGuide',
           args: [BigInt(user.fid)],
         });
