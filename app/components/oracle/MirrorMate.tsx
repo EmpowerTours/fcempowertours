@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Heart, Loader2, MapPin, Languages, Car } from 'lucide-react';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, formatEther, type Abi } from 'viem';
@@ -41,6 +42,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   console.log('[MirrorMate] publicClient:', !!publicClient, 'user:', !!user, 'walletAddress:', walletAddress);
 
+  const [mounted, setMounted] = useState(false);
   const [guides, setGuides] = useState<GuideProfile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,17 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   });
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [nearbyFids, setNearbyFids] = useState<number[]>([]);
+
+  // For portal rendering
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Helper to wrap content in portal
+  const renderInPortal = (content: React.ReactNode) => {
+    if (!mounted) return null;
+    return createPortal(content, document.body);
+  };
 
   // Detect user location
   useEffect(() => {
@@ -485,8 +498,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   };
 
   if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center">
+    return renderInPortal(
+      <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading guides...</p>
@@ -500,8 +513,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     const isOnlyGuide = isUserRegisteredGuide && noGuides;
     const notRegisteredNoGuides = !isUserRegisteredGuide && noGuides;
 
-    return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+    return renderInPortal(
+      <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
         <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md">
           <div className="text-6xl mb-4">
             {isOnlyGuide ? '🌟' : noGuides ? '🧳' : '✨'}
@@ -573,8 +586,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     );
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center p-4">
+  return renderInPortal(
+    <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
       {/* Header */}
       <div className="w-full max-w-sm flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">

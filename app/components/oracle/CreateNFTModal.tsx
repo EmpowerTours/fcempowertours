@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ArrowLeft } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useBotCommand } from '@/app/hooks/useBotCommand';
@@ -21,6 +22,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   const { user, walletAddress, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
 
+  const [mounted, setMounted] = useState(false);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -38,6 +40,12 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   const [trimEnd, setTrimEnd] = useState(5);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+
+  // Use portal to render at document body level
+  useEffect(() => {
+    setMounted(true);
+    console.log('[CreateNFTModal] Mounted, will use portal');
+  }, []);
 
   const farcasterFid = user?.fid || 0;
 
@@ -331,19 +339,23 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-4xl bg-gradient-to-br from-gray-900 via-purple-900/20 to-black border border-cyan-500/30 rounded-3xl shadow-2xl shadow-purple-500/20 my-8 relative overflow-hidden">
+  // Don't render until mounted (for SSR compatibility with portal)
+  if (!mounted) return null;
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-2 overflow-y-auto"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+    >
+      <div className="w-full max-w-lg bg-gradient-to-br from-gray-900 via-purple-900/20 to-black border border-cyan-500/30 rounded-2xl shadow-2xl my-4 relative overflow-hidden">
         {/* Animated gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-purple-500/5 to-pink-500/5 animate-pulse" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-        <div className="relative p-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-purple-500/5 to-pink-500/5 opacity-50" />
+        <div className="relative p-4">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Create Your NFT</h1>
-              <p className="text-gray-400">Choose music or art, upload files, and mint on Monad</p>
+              <h1 className="text-xl font-bold text-white">Create NFT</h1>
+              <p className="text-gray-400 text-xs">Upload and mint on Monad</p>
             </div>
             <button
               onClick={onClose}
@@ -835,4 +847,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       </div>
     </div>
   );
+
+  // Use portal to render at document.body level, bypassing any parent container issues
+  return createPortal(modalContent, document.body);
 }
