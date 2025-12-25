@@ -155,3 +155,7 @@ contracts/out/
 contracts/broadcast/
 empowertours-envio/node_modules/
 monad-trading-bot/
+
+# User data (playlists, etc)
+data/playlists/*.json
+!data/playlists/.gitkeep

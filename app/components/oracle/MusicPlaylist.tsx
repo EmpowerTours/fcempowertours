@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X } from 'lucide-react';
 
 interface Song {
@@ -25,12 +25,13 @@ interface NFTObject {
 
 interface MusicPlaylistProps {
   userAddress?: string;
+  userFid?: number;
   clickedNFTs?: NFTObject[];
   onPlayingChange?: (nftId: string | null, isPlaying: boolean) => void;
   onClose?: () => void;
 }
 
-export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, clickedNFTs = [], onPlayingChange, onClose }) => {
+export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose }) => {
   const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
@@ -41,6 +42,75 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewTimeLimitRef = useRef<number | null>(null);
+  const lastAutoPlayedTokenIdRef = useRef<string | null>(null);
+  const clickedNFTsRef = useRef<string>(''); // Track serialized clickedNFTs to detect actual changes
+  const [savedPlaylistOrder, setSavedPlaylistOrder] = useState<string[] | null>(null);
+  const [playlistLoaded, setPlaylistLoaded] = useState(false);
+
+  // Load saved playlist order from API on mount
+  useEffect(() => {
+    if (!userFid) {
+      setPlaylistLoaded(true);
+      return;
+    }
+
+    const loadPlaylist = async () => {
+      try {
+        // First try localStorage for faster load
+        const localKey = `playlist_${userFid}`;
+        const localData = localStorage.getItem(localKey);
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          setSavedPlaylistOrder(parsed.songOrder);
+          console.log('[MusicPlaylist] Loaded playlist from localStorage:', parsed.songOrder?.length);
+        }
+
+        // Then sync with server
+        const response = await fetch(`/api/music/playlist?fid=${userFid}`);
+        const data = await response.json();
+        if (data.success && data.playlist?.songOrder) {
+          setSavedPlaylistOrder(data.playlist.songOrder);
+          // Update localStorage with server data
+          localStorage.setItem(localKey, JSON.stringify(data.playlist));
+          console.log('[MusicPlaylist] Synced playlist from server:', data.playlist.songOrder.length);
+        }
+      } catch (error) {
+        console.error('[MusicPlaylist] Failed to load playlist:', error);
+      } finally {
+        setPlaylistLoaded(true);
+      }
+    };
+
+    loadPlaylist();
+  }, [userFid]);
+
+  // Save playlist order when songs are reordered (debounced)
+  const savePlaylistOrder = useCallback(async (songOrder: string[]) => {
+    if (!userFid) return;
+
+    // Save to localStorage immediately
+    const localKey = `playlist_${userFid}`;
+    localStorage.setItem(localKey, JSON.stringify({
+      songOrder,
+      updatedAt: Date.now(),
+    }));
+
+    // Sync to server
+    try {
+      await fetch('/api/music/playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fid: userFid,
+          name: 'My Playlist',
+          songOrder,
+        }),
+      });
+      console.log('[MusicPlaylist] Saved playlist order:', songOrder.length, 'songs');
+    } catch (error) {
+      console.error('[MusicPlaylist] Failed to save playlist:', error);
+    }
+  }, [userFid]);
 
   // Fetch user's purchased music NFTs
   useEffect(() => {
@@ -77,11 +147,31 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
     const processClickedNFTs = async () => {
       console.log('[MusicPlaylist] Processing', clickedNFTs.length, 'clicked NFTs');
 
-      // If no clicked NFTs, show owned songs
+      // Check if clickedNFTs actually changed (not just ownedSongs update)
+      const currentClickedIds = clickedNFTs.map(n => n.tokenId).join(',');
+      const clickedNFTsChanged = currentClickedIds !== clickedNFTsRef.current;
+
+      // If no clicked NFTs, show owned songs (with saved order if available)
       if (clickedNFTs.length === 0) {
-        if (ownedSongs.length > 0 && songs.length === 0) {
+        clickedNFTsRef.current = '';
+        if (ownedSongs.length > 0 && songs.length === 0 && playlistLoaded) {
           console.log('[MusicPlaylist] No clicked NFTs, setting songs to owned songs');
-          setSongs(ownedSongs);
+
+          // Apply saved playlist order if available
+          if (savedPlaylistOrder && savedPlaylistOrder.length > 0) {
+            const orderedSongs = [...ownedSongs].sort((a, b) => {
+              const indexA = savedPlaylistOrder.indexOf(a.tokenId);
+              const indexB = savedPlaylistOrder.indexOf(b.tokenId);
+              // Songs not in saved order go to end
+              if (indexA === -1) return 1;
+              if (indexB === -1) return -1;
+              return indexA - indexB;
+            });
+            console.log('[MusicPlaylist] Applied saved playlist order');
+            setSongs(orderedSongs);
+          } else {
+            setSongs(ownedSongs);
+          }
         }
         return;
       }
@@ -170,23 +260,33 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
       console.log('[MusicPlaylist] Setting songs to clicked NFTs:', clickedSongs.length, 'songs');
       setSongs(clickedSongs);
 
-      // Auto-play the last clicked song
-      if (lastClickedTokenId && clickedSongs.length > 0) {
+      // Only auto-play if clickedNFTs actually changed AND we haven't already auto-played this token
+      const shouldAutoPlay = clickedNFTsChanged &&
+                             lastClickedTokenId &&
+                             lastClickedTokenId !== lastAutoPlayedTokenIdRef.current;
+
+      if (shouldAutoPlay && lastClickedTokenId && clickedSongs.length > 0) {
         const newSongIndex = clickedSongs.findIndex(s => s.tokenId === lastClickedTokenId);
         if (newSongIndex !== -1) {
           console.log('[MusicPlaylist] Auto-playing clicked song at index:', newSongIndex);
           setCurrentSongIndex(newSongIndex);
           setIsPlaying(true);
+          lastAutoPlayedTokenIdRef.current = lastClickedTokenId;
         } else {
           console.warn('[MusicPlaylist] Could not find lastClickedTokenId in songs');
         }
+      } else if (!shouldAutoPlay && lastClickedTokenId) {
+        console.log('[MusicPlaylist] Skipping auto-play (already played or no change)');
       }
+
+      // Update the ref to track current clicked NFTs
+      clickedNFTsRef.current = currentClickedIds;
     };
 
-    if (clickedNFTs.length > 0 || ownedSongs.length > 0) {
+    if ((clickedNFTs.length > 0 || ownedSongs.length > 0) && playlistLoaded) {
       processClickedNFTs();
     }
-  }, [clickedNFTs, ownedSongs]);
+  }, [clickedNFTs, ownedSongs, playlistLoaded, savedPlaylistOrder]);
 
   // Notify parent of playing state changes
   useEffect(() => {
@@ -361,6 +461,11 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, click
 
   const handleDragEnd = () => {
     setDraggedIndex(null);
+    // Save the new playlist order
+    if (songs.length > 0) {
+      const songOrder = songs.map(s => s.tokenId);
+      savePlaylistOrder(songOrder);
+    }
   };
 
   const formatTime = (seconds: number) => {

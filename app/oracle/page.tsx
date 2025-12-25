@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2 } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
 import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
 import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
+import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
+import { ProfileModal } from '@/app/components/oracle/ProfileModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useRouter } from 'next/navigation';
 
@@ -34,6 +36,8 @@ interface Message {
   action?: any;
   mapsSources?: MapsSource[];
   mapsWidgetToken?: string;
+  mapsQuery?: string;
+  mapsPaymentTxHash?: string;
 }
 
 export default function OraclePage() {
@@ -58,6 +62,17 @@ export default function OraclePage() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [paymentRequired, setPaymentRequired] = useState<{ message: string; estimatedCost: string } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string>('');
+  const [showMapsResults, setShowMapsResults] = useState(false);
+  const [mapsResultsData, setMapsResultsData] = useState<{
+    sources: MapsSource[];
+    widgetToken?: string;
+    query: string;
+    paymentTxHash?: string;
+  } | null>(null);
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
+  const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Fetch NFT list
   useEffect(() => {
@@ -110,6 +125,46 @@ export default function OraclePage() {
       );
     }
   }, []);
+
+  // Check subscription status and owned music
+  useEffect(() => {
+    if (!walletAddress) return;
+
+    const checkMusicAccess = async () => {
+      try {
+        // Check subscription status
+        const subResponse = await fetch(`/api/music/check-subscription?address=${walletAddress}`);
+        const subData = await subResponse.json();
+        if (subData.success) {
+          setHasSubscription(subData.hasSubscription);
+          console.log('[Oracle] Subscription status:', subData.hasSubscription);
+        }
+
+        // Check owned music NFTs
+        const musicResponse = await fetch(`/api/music/get-user-licenses?address=${walletAddress}`);
+        const musicData = await musicResponse.json();
+        if (musicData.success && musicData.songs?.length > 0) {
+          setHasPurchasedMusic(true);
+          // Convert songs to NFTObject format
+          const musicNFTs: NFTObject[] = musicData.songs.map((song: any) => ({
+            id: song.id,
+            type: 'MUSIC' as const,
+            tokenId: song.tokenId,
+            name: song.title,
+            imageUrl: song.imageUrl,
+            price: '0',
+            contractAddress: song.contractAddress || '',
+          }));
+          setOwnedMusicNFTs(musicNFTs);
+          console.log('[Oracle] Owned music NFTs:', musicNFTs.length);
+        }
+      } catch (error) {
+        console.error('[Oracle] Failed to check music access:', error);
+      }
+    };
+
+    checkMusicAccess();
+  }, [walletAddress]);
 
   // State machine: Map thinking/response state to visual OracleState
   useEffect(() => {
@@ -308,6 +363,7 @@ export default function OraclePage() {
     if (!pendingMessage) return;
 
     console.log('[Oracle] Confirming payment for Maps query');
+    const queryMessage = pendingMessage;
     setPaymentRequired(null);
     setIsThinking(true);
 
@@ -316,7 +372,7 @@ export default function OraclePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: pendingMessage,
+          message: queryMessage,
           userAddress: walletAddress,
           userFid: user?.fid,
           userLocation,
@@ -329,18 +385,34 @@ export default function OraclePage() {
       if (data.success) {
         const { action, mapsSources, mapsWidgetToken, paymentTxHash } = data;
 
-        let responseMessage = action.message;
-        if (paymentTxHash) {
-          responseMessage += `\n\n💳 Payment: 2 MON collected\n🔗 https://testnet.monadscan.com/tx/${paymentTxHash}`;
-        }
-
+        // Add a brief confirmation message with data to reopen modal
         setMessages(prev => [...prev, {
           role: 'oracle',
-          content: responseMessage,
+          content: `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
           action,
           mapsSources,
-          mapsWidgetToken
+          mapsWidgetToken,
+          mapsQuery: queryMessage,
+          mapsPaymentTxHash: paymentTxHash
         }]);
+
+        // Show the Maps Results Modal if we have sources
+        if (mapsSources && mapsSources.length > 0) {
+          setMapsResultsData({
+            sources: mapsSources,
+            widgetToken: mapsWidgetToken,
+            query: queryMessage,
+            paymentTxHash
+          });
+          setShowMapsResults(true);
+        } else {
+          // Fallback to inline message if no sources
+          setMessages(prev => [...prev, {
+            role: 'oracle',
+            content: action.message || 'No places found for your query.',
+            action
+          }]);
+        }
       } else {
         throw new Error(data.error);
       }
@@ -419,55 +491,26 @@ export default function OraclePage() {
                   )}
                   <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
 
-                  {/* Google Maps Sources */}
+                  {/* Google Maps Sources - Show "View Places" button */}
                   {msg.mapsSources && msg.mapsSources.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      <div className="text-xs text-gray-400 font-semibold">📍 Powered by Google Maps</div>
-                      {msg.mapsSources.map((source, i) => (
-                        <a
-                          key={i}
-                          href={source.uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block bg-black/40 rounded-lg p-2 hover:bg-black/60 transition-colors border border-cyan-500/20"
-                        >
-                          <div className="text-sm text-cyan-400 hover:text-cyan-300">
-                            {source.title}
-                          </div>
-                          {source.placeId && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              Place ID: {source.placeId}
-                            </div>
-                          )}
-                        </a>
-                      ))}
-                      <div className="text-xs text-gray-500 italic mt-2">
-                        Results provided by Google Maps Platform
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Google Maps Contextual Widget */}
-                  {msg.mapsWidgetToken && (
-                    <div className="mt-4">
-                      <div className="text-xs text-gray-400 mb-2 flex items-center gap-2">
-                        <span>🗺️</span>
-                        <span>Interactive Map (Powered by Google Maps)</span>
-                      </div>
-                      {/* Google Maps Contextual Widget using context token */}
-                      <div
-                        id={`maps-widget-${msg.mapsWidgetToken.substring(0, 8)}`}
-                        className="w-full h-[300px] bg-gray-900/40 rounded-lg border border-cyan-500/20 flex items-center justify-center"
+                    <div className="mt-3">
+                      <button
+                        onClick={() => {
+                          setMapsResultsData({
+                            sources: msg.mapsSources!,
+                            widgetToken: msg.mapsWidgetToken,
+                            query: msg.mapsQuery || 'Places',
+                            paymentTxHash: msg.mapsPaymentTxHash
+                          });
+                          setShowMapsResults(true);
+                        }}
+                        className="w-full py-2 px-4 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-sm text-cyan-400 font-semibold transition-all flex items-center justify-center gap-2"
                       >
-                        {/* Widget will be rendered here using Google Maps JavaScript API */}
-                        <div className="text-center text-gray-500">
-                          <div className="text-4xl mb-2">🗺️</div>
-                          <div className="text-sm">Google Maps Widget</div>
-                          <div className="text-xs mt-1">Context: {msg.mapsWidgetToken.substring(0, 16)}...</div>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-2">
-                        Note: Full widget integration requires Google Maps JavaScript API
+                        <span>📍</span>
+                        View {msg.mapsSources.length} Places
+                      </button>
+                      <div className="text-xs text-gray-500 text-center mt-1">
+                        Powered by Google Maps
                       </div>
                     </div>
                   )}
@@ -512,13 +555,40 @@ export default function OraclePage() {
               <div className="text-xs text-gray-500">
                 Try: "Create NFT", "Find restaurants near me", "Play Tetris"
               </div>
-              <button
-                onClick={() => setShowSubscriptionModal(true)}
-                className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-semibold transition-all flex items-center gap-1"
-              >
-                <Music2 className="w-3 h-3" />
-                Subscribe
-              </button>
+              <div className="flex items-center gap-2">
+                {/* My Music button - visible when user has subscription or owns music */}
+                {(hasSubscription || hasPurchasedMusic) && (
+                  <button
+                    onClick={() => {
+                      // Open playlist with owned music
+                      if (ownedMusicNFTs.length > 0) {
+                        setClickedMusicNFTs(ownedMusicNFTs);
+                      }
+                      setShowMusicPlayer(true);
+                    }}
+                    className="px-3 py-1.5 bg-gradient-to-r from-green-500/20 to-cyan-600/20 hover:from-green-500/30 hover:to-cyan-600/30 border border-green-500/30 rounded-lg text-xs text-green-400 font-semibold transition-all flex items-center gap-1"
+                  >
+                    <Music2 className="w-3 h-3" />
+                    My Music {ownedMusicNFTs.length > 0 && `(${ownedMusicNFTs.length})`}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowSubscriptionModal(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-semibold transition-all flex items-center gap-1"
+                >
+                  <Music2 className="w-3 h-3" />
+                  {hasSubscription ? 'Subscribed ✓' : 'Subscribe'}
+                </button>
+                {walletAddress && (
+                  <button
+                    onClick={() => setShowProfileModal(true)}
+                    className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1"
+                  >
+                    <User className="w-3 h-3" />
+                    Profile
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -644,6 +714,7 @@ export default function OraclePage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-2xl pointer-events-auto animate-fadeIn">
           <MusicPlaylist
             userAddress={walletAddress ?? undefined}
+            userFid={user?.fid}
             clickedNFTs={clickedMusicNFTs}
             onPlayingChange={(nftId, isPlaying) => {
               console.log('[OraclePage] onPlayingChange:', nftId, isPlaying);
@@ -685,6 +756,20 @@ export default function OraclePage() {
       {/* Passport Mint Modal */}
       {showPassportMintModal && (
         <PassportMintModal onClose={() => setShowPassportMintModal(false)} />
+      )}
+
+      {/* Maps Results Modal */}
+      {showMapsResults && mapsResultsData && (
+        <MapsResultsModal
+          sources={mapsResultsData.sources}
+          widgetToken={mapsResultsData.widgetToken}
+          query={mapsResultsData.query}
+          paymentTxHash={mapsResultsData.paymentTxHash}
+          onClose={() => {
+            setShowMapsResults(false);
+            setMapsResultsData(null);
+          }}
+        />
       )}
 
       {/* Payment Confirmation Dialog */}
@@ -758,6 +843,17 @@ export default function OraclePage() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfileModal && walletAddress && (
+        <ProfileModal
+          walletAddress={walletAddress}
+          userFid={user?.fid}
+          username={user?.username}
+          pfpUrl={user?.pfpUrl}
+          onClose={() => setShowProfileModal(false)}
+        />
       )}
     </>
   );

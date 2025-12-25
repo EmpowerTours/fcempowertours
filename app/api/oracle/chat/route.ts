@@ -137,17 +137,14 @@ export async function POST(req: NextRequest) {
 
     // If Maps grounding needed and user hasn't confirmed payment, return cost estimate
     if (needsMapsGrounding && !confirmPayment) {
-      // Google Maps Pricing:
-      // - Free Tier: 1,500 RPD (requests per day)
-      // - Paid Tier: $25 per 1,000 requests = $0.025 per request
-      // - Model costs: ~$0.003 per request
-      // - Total cost: ~$0.028 per request
-      // - Charge: 2 MON (~$0.10) for healthy profit margin
+      // Pricing: 100 WMON per Maps query (~$5 at $0.05/WMON)
+      // Covers: Google Maps API ($0.025), Gemini ($0.003), infrastructure,
+      // and provides healthy margin for sustainability
       return NextResponse.json({
         success: true,
         requiresPayment: true,
-        estimatedCost: '2', // 2 MON per Maps query (250%+ markup for profitability)
-        message: 'This query requires real-time location data from Google Maps. Cost: 2 MON',
+        estimatedCost: '100', // 100 WMON per Maps query
+        message: 'This query uses Google Maps real-time location data. Cost: 100 WMON',
       });
     }
 
@@ -384,7 +381,6 @@ You MUST return ONLY valid JSON matching the specified schema.
 
     // Execute action
     let txHash: string | null = null;
-    let requestId: number | null = null;
 
     if (action.type === 'execute' && action.transaction) {
       // Execute delegated transaction
@@ -393,16 +389,6 @@ You MUST return ONLY valid JSON matching the specified schema.
         userAddress,
         userFid
       );
-    } else if (action.type === 'concierge' && action.concierge && userAddress) {
-      // Create concierge service request
-      const result = await createConciergeRequest(
-        userAddress,
-        action.concierge.serviceType,
-        action.concierge.details,
-        action.concierge.suggestedPrice
-      );
-      txHash = result.txHash;
-      requestId = result.requestId;
     } else if (action.type === 'mint_passport' && action.passport && userAddress) {
       // Mint passport via execute-delegated API with auto-wrap
       const result = await mintPassportForUser(
@@ -419,6 +405,80 @@ You MUST return ONLY valid JSON matching the specified schema.
       }
     }
 
+    // =============================================
+    // AUTONOMOUS ITINERARY CREATION/RECOMMENDATION
+    // =============================================
+    // When user makes a Maps query:
+    // 1. Check if similar itinerary already exists -> recommend it
+    // 2. If not exists -> create new itinerary with user as creator
+    let itineraryTxHash: string | null = null;
+    let itineraryData: any = null;
+
+    if (needsMapsGrounding && mapsSources.length > 0 && userAddress && userFid) {
+      try {
+        console.log('[Oracle] Processing itinerary for Maps results...');
+
+        // Extract city/country from the query
+        const locationInfo = extractLocationFromQuery(message);
+        const city = locationInfo.city || 'Unknown City';
+        const country = locationInfo.country || 'Unknown';
+
+        // Check if similar itinerary already exists
+        const existingItinerary = await findExistingItinerary(city, mapsSources);
+
+        if (existingItinerary) {
+          // Recommend existing itinerary to user
+          console.log('[Oracle] Found existing itinerary:', existingItinerary.id);
+          itineraryData = {
+            exists: true,
+            id: existingItinerary.id,
+            title: existingItinerary.title,
+            creator: existingItinerary.creator,
+            price: existingItinerary.price,
+            rating: existingItinerary.rating
+          };
+
+          action.message = `${action.message}\n\n📍 **Recommended Itinerary**\n"${existingItinerary.title}" by ${existingItinerary.creatorName || 'a fellow traveler'}\nPrice: ${existingItinerary.price} WMON | Rating: ${existingItinerary.rating}/5\nPurchase to unlock the full guide and earn completion stamps!`;
+        } else {
+          // Create new itinerary with user as creator
+          console.log('[Oracle] Creating new itinerary...');
+
+          const locations = mapsSources.map((source, index) => ({
+            name: source.title,
+            placeId: source.placeId || '',
+            uri: source.uri,
+            latitude: 0,
+            longitude: 0,
+            description: `Discover ${source.title}`
+          }));
+
+          const itineraryResult = await createItineraryFromMaps(
+            userAddress,
+            userFid,
+            `${city} Explorer: ${message.slice(0, 50)}`,
+            city,
+            country,
+            locations
+          );
+
+          if (itineraryResult.success) {
+            itineraryTxHash = itineraryResult.txHash;
+            itineraryData = {
+              exists: false,
+              created: true,
+              txHash: itineraryTxHash
+            };
+            console.log('[Oracle] Itinerary created:', itineraryTxHash);
+
+            action.message = `${action.message}\n\n🎉 **Itinerary Created!**\nYou are now the creator of "${city} Explorer". You'll earn 70% of all future sales when others purchase it!`;
+          }
+        }
+      } catch (itinError: any) {
+        console.error('[Oracle] Itinerary processing error:', itinError);
+        // Don't fail the main request
+      }
+    }
+
     return NextResponse.json({
       success: true,
       action,
@@ -427,7 +487,8 @@ You MUST return ONLY valid JSON matching the specified schema.
       paymentTxHash,
       mapsSources,
       mapsWidgetToken,
-      requestId,
+      itineraryTxHash,
+      itineraryData,
     });
 
   } catch (error: any) {
@@ -535,80 +596,34 @@ function detectMapsQuery(message: string): boolean {
   return mapsKeywords.some(keyword => lowerMessage.includes(keyword));
 }
 
-// Charge MON tokens for Maps query
+// Charge WMON tokens for Maps query via delegation
 async function chargeMONForMapsQuery(userAddress: string): Promise<string> {
-  const TREASURY = process.env.TREASURY_ADDRESS as `0x${string}`;
-  const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as `0x${string}`;
-  const CHARGE_AMOUNT = parseEther('2'); // 2 MON (~$0.10 at $0.05/MON)
-  // Cost breakdown:
-  // - Google Maps: $0.025 (after free tier)
-  // - Model tokens: ~$0.003
-  // - Total cost: ~$0.028
-  // - Charge: 2 MON (~$0.10)
-  // - Profit: ~$0.072 (257% markup)
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-  const { default: erc20Abi } = await import('@/lib/abis/ERC20.json');
+  // Pricing: 100 WMON per Maps query (~$5 at $0.05/WMON)
+  // Provides healthy margin for infrastructure, API costs, and sustainability
+  const CHARGE_AMOUNT = '100'; // 100 WMON per Maps query
 
-  // Transfer MON from user to treasury
-  const hash = await walletClient.writeContract({
-    address: WMON_ADDRESS,
-    abi: erc20Abi,
-    functionName: 'transferFrom',
-    args: [userAddress, TREASURY, CHARGE_AMOUNT],
+  // Use delegation API to transfer WMON from user to treasury
+  const response = await fetch(`${APP_URL}/api/execute-delegated`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userAddress,
+      action: 'maps_payment',
+      params: {
+        amount: CHARGE_AMOUNT
+      }
+    })
   });
 
-  await publicClient.waitForTransactionReceipt({ hash });
-  return hash;
-}
+  const data = await response.json();
 
-// Create concierge service request via PersonalAssistant contract
-async function createConciergeRequest(
-  beneficiary: string,
-  serviceType: string,
-  details: string,
-  suggestedPrice: string
-): Promise<{ txHash: string; requestId: number }> {
-  const PERSONAL_ASSISTANT = process.env.NEXT_PUBLIC_PERSONAL_ASSISTANT as `0x${string}`;
-  const { default: personalAssistantAbi } = await import('@/lib/abis/PersonalAssistantV2.json');
-
-  // Convert suggestedPrice from MON to wei
-  const priceInWei = parseEther(suggestedPrice);
-
-  // Create service request on behalf of the user
-  const hash = await walletClient.writeContract({
-    address: PERSONAL_ASSISTANT,
-    abi: personalAssistantAbi,
-    functionName: 'createServiceRequestFor',
-    args: [beneficiary, serviceType, details, priceInWei],
-  });
-
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-  // Extract requestId from ServiceRequestCreated event
-  const serviceRequestEvent = receipt.logs.find((log: any) => {
-    try {
-      const decoded = decodeEventLog({
-        abi: personalAssistantAbi,
-        data: log.data,
-        topics: log.topics,
-      });
-      return decoded.eventName === 'ServiceRequestCreated';
-    } catch {
-      return false;
-    }
-  });
-
-  let requestId = 0;
-  if (serviceRequestEvent) {
-    const decoded = decodeEventLog({
-      abi: personalAssistantAbi,
-      data: serviceRequestEvent.data,
-      topics: serviceRequestEvent.topics,
-    });
-    requestId = Number((decoded.args as any).requestId);
+  if (!data.success) {
+    throw new Error(data.error || 'Payment failed');
   }
 
-  return { txHash: hash, requestId };
+  return data.txHash;
 }
 
 // Mint passport via execute-delegated API with auto-wrap
@@ -713,5 +728,160 @@ async function mintPassportForUser(
   } catch (error: any) {
     console.error('[Oracle] Passport mint error:', error);
     return { txHash: null, error: error.message || 'Mint failed' };
+  }
+}
+
+// =============================================
+// ITINERARY HELPER FUNCTIONS
+// =============================================
+
+// Extract city and country from user query
+function extractLocationFromQuery(message: string): { city: string | null; country: string | null } {
+  const lowerMessage = message.toLowerCase();
+
+  // Common city patterns
+  const cityPatterns = [
+    /(?:in|near|around|at)\s+([A-Z][a-zA-Z\s]+?)(?:,|\s+(?:city|town|area)|\s*$)/i,
+    /([A-Z][a-zA-Z]+)\s+(?:restaurants?|cafes?|hotels?|attractions?|things to do)/i,
+    /best\s+(?:\w+\s+)?(?:in|near)\s+([A-Z][a-zA-Z\s]+)/i,
+  ];
+
+  // Common cities list for detection
+  const knownCities: Record<string, string> = {
+    'tokyo': 'Japan', 'paris': 'France', 'london': 'UK', 'new york': 'USA',
+    'los angeles': 'USA', 'sydney': 'Australia', 'barcelona': 'Spain',
+    'rome': 'Italy', 'berlin': 'Germany', 'bangkok': 'Thailand',
+    'singapore': 'Singapore', 'dubai': 'UAE', 'miami': 'USA',
+    'amsterdam': 'Netherlands', 'seoul': 'South Korea', 'hong kong': 'China',
+    'istanbul': 'Turkey', 'cairo': 'Egypt', 'mumbai': 'India',
+    'bali': 'Indonesia', 'lisbon': 'Portugal', 'athens': 'Greece',
+  };
+
+  // Check known cities
+  for (const [city, country] of Object.entries(knownCities)) {
+    if (lowerMessage.includes(city)) {
+      return { city: city.charAt(0).toUpperCase() + city.slice(1), country };
+    }
+  }
+
+  // Try pattern matching
+  for (const pattern of cityPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      return { city: match[1].trim(), country: null };
+    }
+  }
+
+  return { city: null, country: null };
+}
+
+// Find existing itinerary matching the city/locations
+async function findExistingItinerary(
+  city: string,
+  sources: MapsGroundingSource[]
+): Promise<{
+  id: number;
+  title: string;
+  creator: string;
+  creatorName?: string;
+  price: string;
+  rating: string;
+} | null> {
+  const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.bigdevenergy.link/6d149a6/v1/graphql';
+
+  try {
+    // Query Envio for itineraries in this city
+    const query = `
+      query FindItinerary($city: String!) {
+        ItineraryNFT_ItineraryCreated(
+          where: { city: { _ilike: $city } }
+          order_by: { totalPurchases: desc }
+          limit: 1
+        ) {
+          itineraryId
+          title
+          creator
+          price
+          averageRating
+        }
+      }
+    `;
+
+    const response = await fetch(ENVIO_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        variables: { city: `%${city}%` }
+      })
+    });
+
+    const data = await response.json();
+    const itinerary = data?.data?.ItineraryNFT_ItineraryCreated?.[0];
+
+    if (itinerary) {
+      return {
+        id: itinerary.itineraryId,
+        title: itinerary.title,
+        creator: itinerary.creator,
+        price: (Number(itinerary.price) / 1e18).toFixed(0),
+        rating: (itinerary.averageRating / 100).toFixed(1)
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[Oracle] Failed to query existing itineraries:', error);
+    return null;
+  }
+}
+
+// Create itinerary from Maps results via execute-delegated
+async function createItineraryFromMaps(
+  userAddress: string,
+  userFid: number,
+  title: string,
+  city: string,
+  country: string,
+  locations: Array<{
+    name: string;
+    placeId: string;
+    uri: string;
+    latitude: number;
+    longitude: number;
+    description: string;
+  }>
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
+
+  try {
+    const response = await fetch(`${APP_URL}/api/execute-delegated`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userAddress,
+        action: 'create_itinerary',
+        params: {
+          creatorFid: userFid,
+          title,
+          description: `Curated travel guide for ${city}`,
+          city,
+          country,
+          price: '10', // 10 WMON default price
+          photoProofIPFS: '',
+          locations
+        }
+      })
+    });
+
+    const data = await response.json();
+    return {
+      success: data.success,
+      txHash: data.txHash,
+      error: data.error
+    };
+  } catch (error: any) {
+    console.error('[Oracle] Create itinerary error:', error);
+    return { success: false, error: error.message };
   }
 }

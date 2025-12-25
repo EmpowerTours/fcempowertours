@@ -3721,6 +3721,138 @@ ${enjoyText}
           message: 'Music subscription activated!',
         });
 
+      // ==================== MAPS PAYMENT ====================
+      case 'maps_payment':
+        console.log('🗺️ Action: maps_payment');
+
+        const { amount: mapsAmount } = params || {};
+
+        if (!mapsAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameter: amount' },
+            { status: 400 }
+          );
+        }
+
+        const TREASURY = process.env.TREASURY_ADDRESS as Address;
+        const WMON_MAPS = process.env.NEXT_PUBLIC_WMON as Address;
+
+        if (!TREASURY) {
+          return NextResponse.json(
+            { success: false, error: 'Treasury address not configured' },
+            { status: 500 }
+          );
+        }
+
+        const mapsAmountWei = parseEther(mapsAmount);
+
+        console.log('🗺️ Maps payment:', {
+          user: userAddress,
+          amount: mapsAmount,
+          treasury: TREASURY,
+        });
+
+        // Transfer WMON from user to treasury
+        const mapsPaymentCalls: Call[] = [
+          {
+            to: WMON_MAPS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [TREASURY, mapsAmountWei],
+            }) as Hex,
+          },
+        ];
+
+        const mapsPaymentTxHash = await executeTransaction(mapsPaymentCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Maps payment successful, TX:', mapsPaymentTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: mapsPaymentTxHash,
+          action,
+          userAddress,
+          amount: mapsAmount,
+          message: 'Maps query payment processed!',
+        });
+
+      // ==================== CREATE ITINERARY ====================
+      case 'create_itinerary':
+        console.log('🗺️ Action: create_itinerary');
+
+        const {
+          creatorFid,
+          title: itinTitle,
+          description: itinDescription,
+          city,
+          country,
+          price: itinPrice,
+          photoProofIPFS,
+          locations
+        } = params || {};
+
+        if (!creatorFid || !itinTitle || !city || !country || !locations?.length) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required: creatorFid, title, city, country, locations' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT = process.env.ITINERARY_NFT_ADDRESS as Address;
+
+        if (!ITINERARY_NFT) {
+          return NextResponse.json(
+            { success: false, error: 'ItineraryNFT address not configured' },
+            { status: 500 }
+          );
+        }
+
+        const itinPriceWei = parseEther(itinPrice || '10');
+
+        const formattedLocations = locations.map((loc: any) => ({
+          name: loc.name || 'Unknown',
+          placeId: loc.placeId || '',
+          googleMapsUri: loc.uri || '',
+          latitude: BigInt(Math.round((loc.latitude || 0) * 1e6)),
+          longitude: BigInt(Math.round((loc.longitude || 0) * 1e6)),
+          description: loc.description || ''
+        }));
+
+        console.log('🗺️ Creating itinerary:', { creator: userAddress, creatorFid, title: itinTitle, city, country, locationsCount: formattedLocations.length });
+
+        const createItineraryAbi = parseAbi([
+          'function createItinerary(address,uint256,string,string,string,string,uint256,string,(string,string,string,int256,int256,string)[]) external returns (uint256)'
+        ]);
+
+        const createItineraryCalls: Call[] = [{
+          to: ITINERARY_NFT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: createItineraryAbi,
+            functionName: 'createItinerary',
+            args: [userAddress as Address, BigInt(creatorFid), itinTitle, itinDescription || '', city, country, itinPriceWei, photoProofIPFS || '', formattedLocations],
+          }) as Hex,
+        }];
+
+        const createItineraryTxHash = await executeTransaction(createItineraryCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Itinerary created, TX:', createItineraryTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: createItineraryTxHash,
+          action,
+          userAddress,
+          title: itinTitle,
+          city,
+          country,
+          message: `Itinerary "${itinTitle}" created! You earn 70% when others purchase.`,
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
