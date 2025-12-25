@@ -72,7 +72,7 @@ export default function LotteryPage() {
         if (updatedRound.data?.status === RoundStatus.Finalized && updatedRound.data?.winner) {
           setSuccess(`🏆 WINNER REVEALED: ${updatedRound.data.winner.slice(0, 10)}...${updatedRound.data.winner.slice(-8)}`);
         } else if (updatedRound.data?.status === RoundStatus.RandomnessPending) {
-          setSuccess('✅ Randomness requested! You earned 0.01 MON. Now anyone can resolve the winner.');
+          setSuccess('✅ Randomness requested! You earned 10 TOURS. Now anyone can resolve the winner.');
         } else {
           setSuccess('Transaction confirmed!');
         }
@@ -181,7 +181,7 @@ export default function LotteryPage() {
       }
 
       const { txHash } = await response.json();
-      setSuccess(`Requested randomness! TX: ${txHash.slice(0, 10)}... You earned 0.01 MON!`);
+      setSuccess(`Requested randomness! TX: ${txHash.slice(0, 10)}... You earned 10 TOURS!`);
 
       // Refresh after delay
       setTimeout(() => {
@@ -260,7 +260,7 @@ export default function LotteryPage() {
         <div className="text-center mb-8 pt-8">
           <div className="text-6xl mb-4">🎰</div>
           <h1 className="text-3xl font-bold text-white mb-2">Daily Lottery</h1>
-          <p className="text-white/70">Win MON every day on Monad!</p>
+          <p className="text-white/70">Win WMON every day on Monad!</p>
           <p className="text-purple-300 text-xs mt-1">
             Contract:{' '}
             <a
@@ -295,7 +295,7 @@ export default function LotteryPage() {
           <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl p-4 mb-4">
             <p className="text-white/60 text-sm mb-1">Total Prize Pool</p>
             <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-              {totalPrizePool} MON
+              {totalPrizePool} WMON
             </p>
             <div className="flex gap-4 mt-2 text-xs text-white/50">
               <span>WMON Pool: {currentRound ? formatEther(currentRound.prizePoolWmon) : '0'}</span>
@@ -397,7 +397,7 @@ export default function LotteryPage() {
               <div className="bg-white/5 rounded-xl p-4 text-center">
                 <p className="text-white/60 text-sm mb-1">Total Paid Out</p>
                 <p className="text-xl font-bold text-green-400">
-                  {stats[3] ? Number(formatEther(stats[3])).toFixed(2) : '0'} MON
+                  {stats[3] ? Number(formatEther(stats[3])).toFixed(2) : '0'} WMON
                 </p>
               </div>
               <div className="bg-white/5 rounded-xl p-4 text-center">
@@ -438,7 +438,7 @@ export default function LotteryPage() {
           <div className="space-y-4 text-sm text-white/70">
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">1</span>
-              <p className="flex-1">Enter with 1 MON or equivalent shMON (one entry per day)</p>
+              <p className="flex-1">Enter with 1 WMON (one entry per day)</p>
             </div>
             <div className="flex items-start" style={{ gap: '12px' }}>
               <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold shrink-0">2</span>
