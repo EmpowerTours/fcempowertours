@@ -115,7 +115,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
           audio.addEventListener('loadedmetadata', () => {
             setAudioDuration(audio.duration);
             setTrimStart(0);
-            setTrimEnd(Math.min(5, audio.duration));
+            setTrimEnd(Math.min(3, audio.duration));
           });
           setAudioElement(audio);
         }
@@ -643,7 +643,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                               onChange={(e) => {
                                 const newStart = parseFloat(e.target.value);
                                 setTrimStart(newStart);
-                                setTrimEnd(Math.min(newStart + 5, audioDuration));
+                                setTrimEnd(Math.min(newStart + 3, audioDuration));
                               }}
                               className="w-full h-2 bg-purple-500/30 rounded-lg appearance-none cursor-pointer"
                             />
