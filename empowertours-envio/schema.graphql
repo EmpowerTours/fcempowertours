@@ -5,6 +5,7 @@ type MusicNFT @entity {
   tokenId: String!
   contract: String!
   artist: String!
+  artistFid: String            # ✅ V9: Farcaster ID of the artist
   owner: String!
   tokenURI: String!
   coverArt: String

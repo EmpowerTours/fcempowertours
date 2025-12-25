@@ -490,10 +490,15 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     checkUserGuideStatus();
   }, [publicClient, user?.fid]);
 
-  // Filter out current user from guides list
+  // Filter out current user from guides list (but keep original for edit form)
   const filteredGuides = user?.fid
     ? guides.filter(g => Number(g.fid) !== user.fid)
     : guides;
+
+  // Get current user's guide data (before filtering)
+  const currentUserGuideData = user?.fid
+    ? guides.find(g => Number(g.fid) === user.fid)
+    : null;
 
   const currentGuide = filteredGuides[currentIndex];
   const isFinished = currentIndex >= filteredGuides.length;
@@ -519,14 +524,13 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   // Open edit form for existing guides
   const handleOpenEditForm = () => {
-    // Find current user's guide data from the guides list or fetch it
-    const userGuide = guides.find(g => Number(g.fid) === user?.fid);
+    // Use currentUserGuideData which is already found before filtering
     setFormData({
-      bio: userGuide?.bio || '',
-      languages: userGuide?.languages || '',
-      transport: userGuide?.transport ? userGuide.transport.split(',').map(t => t.trim()) : [],
-      hourlyRate: userGuide?.hourlyRateWMON ? formatEther(BigInt(userGuide.hourlyRateWMON)) : '10',
-      location: userGuide?.location || location?.city || '',
+      bio: currentUserGuideData?.bio || '',
+      languages: currentUserGuideData?.languages || '',
+      transport: currentUserGuideData?.transport ? currentUserGuideData.transport.split(',').map(t => t.trim()) : [],
+      hourlyRate: currentUserGuideData?.hourlyRateWMON ? formatEther(BigInt(currentUserGuideData.hourlyRateWMON)) : '10',
+      location: currentUserGuideData?.location || location?.city || '',
     });
     setIsEditMode(true);
     setShowGuideForm(true);
@@ -752,12 +756,21 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                 )}
               </>
             )}
+            {/* Keep Exploring button - only show when there are guides to browse again */}
+            {isFinished && filteredGuides.length > 0 && (
+              <button
+                onClick={() => setCurrentIndex(0)}
+                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
+              >
+                Keep Exploring
+              </button>
+            )}
             <button
               onClick={onClose}
               disabled={isRegistering}
-              className={`w-full py-3 ${isOnlyGuide ? 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500' : noGuides && !isUserRegisteredGuide ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500'} text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
+              className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {isOnlyGuide ? 'Continue Exploring' : 'Close'}
+              Close
             </button>
           </div>
         </div>
@@ -767,6 +780,16 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   return renderInPortal(
     <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+      {/* Close button - absolute top right */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 bg-gray-800/80 rounded-full p-2"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      )}
+
       {/* Header */}
       <div className="w-full max-w-xs flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">
@@ -776,11 +799,6 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
         <div className="text-right text-[10px] text-gray-400">
           <p>Free skips: {userStats.remainingFreeSkips}/20</p>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        )}
       </div>
 
       {/* Guide Card */}

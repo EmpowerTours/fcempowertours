@@ -10,8 +10,8 @@ networks:
           - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"  # ✅ EmpowerToursNFTv9 with FID (Dec 21, 2025)
         handler: src/EventHandlers.ts
         events:
-          # Master NFT minting
-          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, string tokenURI, uint256 price, uint8 nftType)"
+          # Master NFT minting (V9 with artistFid and royalty)
+          - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, uint256 indexed artistFid, string tokenURI, uint256 price, uint8 nftType, uint96 royalty)"
             field_selection:
               transaction_fields:
                 - hash

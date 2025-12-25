@@ -122,17 +122,22 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
 // ============================================
 
 EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
-  const { tokenId, artist, tokenURI, price, nftType } = event.params;
+  const { tokenId, artist, artistFid, tokenURI, price, nftType, royalty } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
 
   // ✅ V6: Use nftType from event (0 = Music, 1 = Art)
   const isArt = nftType === BigInt(1);
 
+  // ✅ V9: Convert royalty from basis points (e.g. 5000 = 50% -> 50, 500 = 5% -> 5)
+  const royaltyPercent = Number(royalty) / 100;
+
   context.log.info(`🎵 Processing MasterMinted event for tokenId ${tokenId}`);
   context.log.info(`   Artist: ${artist}`);
+  context.log.info(`   Artist FID: ${artistFid.toString()}`);
   context.log.info(`   TokenURI: ${tokenURI}`);
   context.log.info(`   Price: ${price.toString()}`);
+  context.log.info(`   Royalty: ${royaltyPercent}%`);
   context.log.info(`   NFT Type: ${isArt ? 'Art' : 'Music'} (${nftType})`);
 
   // ✅ Fetch metadata during indexing
@@ -149,13 +154,14 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
     tokenId: tokenId.toString(),
     contract: event.srcAddress.toLowerCase(),
     artist: artist.toLowerCase(),
+    artistFid: artistFid.toString(), // ✅ V9: Store artist Farcaster ID
     owner: artist.toLowerCase(),
     tokenURI: tokenURI, // ✅ CORRECT: Preserves original case
     price: price,
     totalSold: 0,
     active: true,
     coverArt: "",
-    royaltyPercentage: 10,
+    royaltyPercentage: royaltyPercent, // ✅ V9: Use royalty from event
 
     // ✅ Store metadata fields (with fallbacks)
     name: metadata?.name || `Music NFT #${tokenId}`,
