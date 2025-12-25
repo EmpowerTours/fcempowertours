@@ -2,11 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Heart, Loader2, MapPin, Languages, Car } from 'lucide-react';
+import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle } from 'lucide-react';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, formatEther, type Abi } from 'viem';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
+
+// Transport options
+const TRANSPORT_OPTIONS = [
+  { id: 'walking', label: '🚶 Walking Tours' },
+  { id: 'car', label: '🚗 Car/Driver' },
+  { id: 'public', label: '🚇 Public Transit' },
+  { id: 'bike', label: '🚴 Bicycle' },
+  { id: 'boat', label: '⛵ Boat/Water' },
+];
 
 // Contract addresses
 const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as `0x${string}`;
@@ -25,6 +34,19 @@ interface GuideProfile {
   registeredAt: bigint;
   lastUpdated: bigint;
   exists: boolean;
+  averageRating: number;
+  ratingCount: number;
+  totalBookings: number;
+  completedBookings: number;
+  hourlyRateWMON: string;
+}
+
+interface GuideFormData {
+  bio: string;
+  languages: string;
+  transport: string[];
+  hourlyRate: string;
+  location: string;
 }
 
 interface MirrorMateProps {
@@ -54,6 +76,17 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   });
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [nearbyFids, setNearbyFids] = useState<number[]>([]);
+
+  // Guide registration/edit form state
+  const [showGuideForm, setShowGuideForm] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [formData, setFormData] = useState<GuideFormData>({
+    bio: '',
+    languages: '',
+    transport: [],
+    hourlyRate: '10',
+    location: '',
+  });
 
   // For portal rendering
   useEffect(() => {
@@ -150,6 +183,11 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           registeredAt: BigInt(g.registeredAt || 0),
           lastUpdated: BigInt(g.lastUpdated || 0),
           exists: true,
+          averageRating: Number(g.averageRating || 0),
+          ratingCount: g.ratingCount || 0,
+          totalBookings: g.totalBookings || 0,
+          completedBookings: g.completedBookings || 0,
+          hourlyRateWMON: g.hourlyRateWMON || '0',
         }));
 
         // Sort guides: nearby first, then others
@@ -370,11 +408,20 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       setTxState('success');
 
+      // Open Warpcast DM with the guide
+      const dmMessage = encodeURIComponent(
+        `Hey @${guide.username}! 👋 I just sent you a connection request on MirrorMate. I'd love to connect with you as my guide in ${guide.location || 'your city'}! 🧳✨`
+      );
+      const warpcastDmUrl = `https://warpcast.com/~/inbox/create/${guide.fid}?text=${dmMessage}`;
+
+      // Open in new tab/window
+      window.open(warpcastDmUrl, '_blank');
+
       // Move to next guide
       setTimeout(() => {
         setCurrentIndex((prev) => prev + 1);
         setTxState('idle');
-      }, 1000);
+      }, 1500);
     } catch (error: any) {
       console.error('Connection request failed:', error);
       setTxError(error.message || 'Connection failed');
@@ -452,47 +499,146 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   const isFinished = currentIndex >= filteredGuides.length;
   const noGuides = !loading && filteredGuides.length === 0;
 
-  const handleRegisterAsGuide = async () => {
+  // Open registration form (instead of registering directly)
+  const handleOpenRegisterForm = () => {
+    if (!user || !user.fid) {
+      setRegisterError('Please connect your Farcaster account');
+      return;
+    }
+    // Pre-fill form with detected location
+    setFormData({
+      bio: '',
+      languages: '',
+      transport: [],
+      hourlyRate: '10',
+      location: location?.city || '',
+    });
+    setIsEditMode(false);
+    setShowGuideForm(true);
+  };
+
+  // Open edit form for existing guides
+  const handleOpenEditForm = () => {
+    // Find current user's guide data from the guides list or fetch it
+    const userGuide = guides.find(g => Number(g.fid) === user?.fid);
+    setFormData({
+      bio: userGuide?.bio || '',
+      languages: userGuide?.languages || '',
+      transport: userGuide?.transport ? userGuide.transport.split(',').map(t => t.trim()) : [],
+      hourlyRate: userGuide?.hourlyRateWMON ? formatEther(BigInt(userGuide.hourlyRateWMON)) : '10',
+      location: userGuide?.location || location?.city || '',
+    });
+    setIsEditMode(true);
+    setShowGuideForm(true);
+  };
+
+  // Handle form submission (register or update)
+  const handleFormSubmit = async () => {
     if (!user || !user.fid) {
       setRegisterError('Please connect your Farcaster account');
       return;
     }
 
-    console.log('[MirrorMate] Starting guide registration for FID:', user.fid);
+    if (!formData.bio.trim()) {
+      setRegisterError('Please enter a bio');
+      return;
+    }
+
+    console.log('[MirrorMate] Submitting guide form:', { isEditMode, formData });
     setIsRegistering(true);
     setRegisterError('');
 
     try {
-      // Register via backend API (delegated transaction through Safe)
-      const response = await fetch('/api/mirrormate/register-guide', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fid: user.fid,
-          username: user.username || '',
-          displayName: user.displayName || user.username || '',
-          pfpUrl: user.pfpUrl || '',
-          location: location?.city || user.location?.city || '',
-          walletAddress: walletAddress || '',
-          countryCode: location?.country || '',
-        }),
-      });
+      if (isEditMode) {
+        // For updates, call contract directly with user's wallet (requires msg.sender = guide address)
+        if (!walletClient || !publicClient) {
+          throw new Error('Wallet not connected. Please connect your wallet to update profile.');
+        }
 
-      const data = await response.json();
+        // Build full bio with languages and transport
+        const fullBio = [
+          formData.bio,
+          formData.languages ? `Languages: ${formData.languages}` : '',
+          formData.transport.length > 0 ? `Transport: ${formData.transport.join(', ')}` : '',
+        ].filter(Boolean).join(' | ');
 
-      if (!data.success) {
-        throw new Error(data.error || 'Registration failed');
+        // Parse hourly rate
+        const hourlyRateWMON = parseFloat(formData.hourlyRate) >= 10
+          ? parseEther(formData.hourlyRate)
+          : parseEther('10');
+
+        // Update guide ABI
+        const updateGuideAbi = [{
+          name: 'updateGuide',
+          type: 'function',
+          inputs: [
+            { name: 'hourlyRateWMON', type: 'uint256' },
+            { name: 'hourlyRateTOURS', type: 'uint256' },
+            { name: 'bio', type: 'string' },
+            { name: 'profileImageIPFS', type: 'string' },
+            { name: 'active', type: 'bool' },
+          ],
+          outputs: [],
+          stateMutability: 'nonpayable'
+        }] as const;
+
+        const txHash = await walletClient.writeContract({
+          address: REGISTRY_ADDRESS,
+          abi: updateGuideAbi,
+          functionName: 'updateGuide',
+          args: [
+            hourlyRateWMON,
+            0n, // TOURS rate
+            fullBio,
+            user.pfpUrl || '',
+            true, // active
+          ],
+        });
+
+        console.log('[MirrorMate] Update transaction sent:', txHash);
+
+        // Wait for confirmation
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        console.log('[MirrorMate] Update confirmed');
+
+      } else {
+        // For registration, use the API (Safe AA wallet)
+        const response = await fetch('/api/mirrormate/register-guide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fid: user.fid,
+            username: user.username || '',
+            displayName: user.displayName || user.username || '',
+            pfpUrl: user.pfpUrl || '',
+            location: formData.location || location?.city || '',
+            walletAddress: walletAddress || '',
+            countryCode: location?.country || '',
+            bio: formData.bio,
+            languages: formData.languages,
+            transport: formData.transport.join(', '),
+            hourlyRate: formData.hourlyRate,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Registration failed');
+        }
+
+        console.log('[MirrorMate] Registration successful:', data.txHash);
       }
 
-      console.log('[MirrorMate] Registration successful:', data.txHash);
+      setShowGuideForm(false);
 
       // Wait a moment for blockchain to update, then refresh
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     } catch (error: any) {
-      console.error('[MirrorMate] Registration failed:', error);
-      setRegisterError(error.message || 'Registration failed');
+      console.error('[MirrorMate] Form submission failed:', error);
+      setRegisterError(error.message || 'Operation failed');
       setIsRegistering(false);
     }
   };
@@ -569,10 +715,17 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-xl">🧳</div>
                 )}
-                <div className="text-left">
+                <div className="text-left flex-1">
                   <p className="text-white font-bold">{user?.displayName || user?.username}</p>
                   <p className="text-cyan-400 text-sm">Registered Guide</p>
                 </div>
+                <button
+                  onClick={handleOpenEditForm}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Edit Profile"
+                >
+                  <Edit3 className="w-4 h-4 text-cyan-400" />
+                </button>
               </div>
             </div>
           )}
@@ -581,7 +734,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
             {notRegisteredNoGuides && (
               <>
                 <button
-                  onClick={handleRegisterAsGuide}
+                  onClick={handleOpenRegisterForm}
                   disabled={isRegistering}
                   className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                 >
@@ -679,6 +832,33 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
           {/* Guide Details */}
           <div className="px-3 pb-3">
+            {/* Rating Display */}
+            {currentGuide.ratingCount > 0 && (
+              <div className="flex items-center gap-1 mb-2">
+                <div className="flex items-center">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-3 h-3 ${
+                        star <= Math.round(currentGuide.averageRating / 100)
+                          ? 'text-yellow-400 fill-yellow-400'
+                          : 'text-gray-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-yellow-400 text-xs font-medium">
+                  {(currentGuide.averageRating / 100).toFixed(1)}
+                </span>
+                <span className="text-gray-500 text-xs">
+                  ({currentGuide.ratingCount} {currentGuide.ratingCount === 1 ? 'review' : 'reviews'})
+                </span>
+                {currentGuide.completedBookings > 0 && (
+                  <span className="text-gray-500 text-xs">• {currentGuide.completedBookings} tours</span>
+                )}
+              </div>
+            )}
+
             {currentGuide.bio && (
               <p className="text-gray-300 text-[11px] mb-2 line-clamp-2">{currentGuide.bio}</p>
             )}
@@ -732,6 +912,129 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       <p className="text-gray-500 text-[10px] mt-2 text-center max-w-xs">
         Skip to see next guide • Connect to request meeting
       </p>
+
+      {/* Guide Registration/Edit Form Modal */}
+      {showGuideForm && (
+        <div className="fixed inset-0 bg-black/80 z-[10000] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="bg-gray-900 border border-cyan-500/30 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">
+                {isEditMode ? '✏️ Edit Profile' : '🧳 Become a Guide'}
+              </h2>
+              <button
+                onClick={() => { setShowGuideForm(false); setRegisterError(''); }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Bio */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Bio *</label>
+                <textarea
+                  value={formData.bio}
+                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                  placeholder="Tell travelers about yourself, your expertise, and what makes your tours special..."
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
+                  rows={3}
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1">{formData.bio.length}/500</p>
+              </div>
+
+              {/* Location */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Location</label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="e.g., Tokyo, Japan"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Languages */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Languages Spoken</label>
+                <input
+                  type="text"
+                  value={formData.languages}
+                  onChange={(e) => setFormData({ ...formData, languages: e.target.value })}
+                  placeholder="e.g., English, Japanese, Spanish"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Transport Options */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Transport Options</label>
+                <div className="flex flex-wrap gap-2">
+                  {TRANSPORT_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        const newTransport = formData.transport.includes(option.id)
+                          ? formData.transport.filter(t => t !== option.id)
+                          : [...formData.transport, option.id];
+                        setFormData({ ...formData, transport: newTransport });
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                        formData.transport.includes(option.id)
+                          ? 'bg-cyan-500 text-white'
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hourly Rate */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Hourly Rate (WMON)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={formData.hourlyRate}
+                    onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                    min="10"
+                    max="10000"
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
+                  />
+                  <span className="text-gray-400">WMON/hr</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Min: 10 WMON • For paid tour bookings</p>
+              </div>
+
+              {/* Error Message */}
+              {registerError && (
+                <p className="text-red-400 text-sm">{registerError}</p>
+              )}
+
+              {/* Submit Button */}
+              <button
+                onClick={handleFormSubmit}
+                disabled={isRegistering || !formData.bio.trim()}
+                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              >
+                {isRegistering ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {isEditMode ? 'Updating...' : 'Registering...'}
+                  </>
+                ) : (
+                  isEditMode ? 'Update Profile' : 'Register as Guide'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

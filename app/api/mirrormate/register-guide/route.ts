@@ -51,7 +51,19 @@ const COMMON_COUNTRY_CODES = ['US', 'GB', 'CA', 'AU', 'DE', 'FR', 'ES', 'IT', 'N
 
 export async function POST(req: NextRequest) {
   try {
-    const { fid, username, displayName, pfpUrl, location, walletAddress, countryCode } = await req.json();
+    const {
+      fid,
+      username,
+      displayName,
+      pfpUrl,
+      location,
+      walletAddress,
+      countryCode,
+      bio,
+      languages,
+      transport,
+      hourlyRate
+    } = await req.json();
 
     if (!fid || !username) {
       return NextResponse.json(
@@ -67,7 +79,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[MirrorMate] Registering guide:', { fid, username, displayName, walletAddress });
+    if (!bio || bio.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Bio is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('[MirrorMate] Registering guide:', { fid, username, displayName, walletAddress, bio, languages, transport, hourlyRate });
 
     // Check if already registered on-chain
     const isRegistered = await publicClient.readContract({
@@ -147,6 +166,19 @@ export async function POST(req: NextRequest) {
     // Register on-chain via Safe using registerGuideFor (AA wallet support)
     // walletAddress = user's wallet that owns the passport
     // Safe account sends the tx but we pass user's wallet as passportOwner
+
+    // Parse hourly rate - default to 10 WMON if not provided or invalid
+    const hourlyRateWMON = hourlyRate && parseFloat(hourlyRate) >= 10
+      ? parseEther(hourlyRate.toString())
+      : parseEther('10');
+
+    // Build bio with languages and transport info
+    const fullBio = [
+      bio,
+      languages ? `Languages: ${languages}` : '',
+      transport ? `Transport: ${transport}` : '',
+    ].filter(Boolean).join(' | ');
+
     const tx = await sendSafeTransaction([{
       to: REGISTRY_ADDRESS,
       value: 0n,
@@ -158,9 +190,9 @@ export async function POST(req: NextRequest) {
           BigInt(fid),
           tokenId,
           [location || 'Global'],
-          parseEther('10'),  // 10 WMON minimum hourly rate
-          0n,                // TOURS rate (optional)
-          `${displayName || username} - Travel Guide`,
+          hourlyRateWMON,            // User-specified hourly rate in WMON
+          0n,                        // TOURS rate (optional)
+          fullBio,                   // User-specified bio with languages/transport
           pfpUrl || '',
         ],
       }) as `0x${string}`,
