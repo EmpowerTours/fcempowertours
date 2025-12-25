@@ -17,8 +17,11 @@ const steps = [
 ];
 
 export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
+  console.log('[CreateNFTModal] Component rendering...');
   const { user, walletAddress, requestWallet } = useFarcasterContext();
+  console.log('[CreateNFTModal] useFarcasterContext:', { user: !!user, walletAddress });
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
+  console.log('[CreateNFTModal] useBotCommand loaded, botLoading:', botLoading);
 
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
@@ -330,8 +333,17 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
     }
   };
 
+  console.log('[CreateNFTModal] About to return JSX');
+
   return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-4 overflow-y-auto"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+    >
+      {/* Debug marker */}
+      <div className="fixed top-0 left-0 bg-red-500 text-white p-2 z-[10000] text-xs font-bold">
+        CREATE NFT MODAL VISIBLE
+      </div>
       <div className="w-full max-w-4xl bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl shadow-2xl shadow-cyan-500/20 my-8">
         <div className="p-8">
           {/* Header */}

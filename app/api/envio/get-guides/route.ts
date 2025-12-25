@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
+import { createPublicClient, http } from 'viem';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
+const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as `0x${string}`;
+
+const monadTestnet = {
+  id: 10143,
+  name: 'Monad Testnet',
+  nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+  rpcUrls: { default: { http: [MONAD_RPC] } },
+};
+
+const publicClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http(MONAD_RPC),
+});
 
 interface GuideObject {
   fid: string;
@@ -98,14 +113,15 @@ export async function GET() {
 
   } catch (error: any) {
     console.error('❌ Error fetching guides from Envio:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Failed to fetch guides',
-        guides: [],
-        count: 0,
-      },
-      { status: 500 }
-    );
+
+    // Return empty but successful response when Envio is unavailable
+    // The MirrorMate component will check on-chain if user is registered
+    return NextResponse.json({
+      success: true,
+      guides: [],
+      count: 0,
+      indexerUnavailable: true,
+      message: 'Indexer temporarily unavailable. Guide registration still works on-chain.',
+    });
   }
 }

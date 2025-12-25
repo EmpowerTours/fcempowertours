@@ -343,10 +343,42 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerError, setRegisterError] = useState('');
+  const [isUserRegisteredGuide, setIsUserRegisteredGuide] = useState(false);
 
-  const currentGuide = guides[currentIndex];
-  const isFinished = currentIndex >= guides.length;
-  const noGuides = !loading && guides.length === 0;
+  // Check if current user is already a registered guide
+  useEffect(() => {
+    const checkUserGuideStatus = async () => {
+      if (!publicClient || !user?.fid) return;
+
+      try {
+        const registryAbiModule = await import('@/lib/abis/TourGuideRegistry.json');
+        const registryAbi = registryAbiModule.default || registryAbiModule;
+
+        const isRegistered = await publicClient.readContract({
+          address: REGISTRY_ADDRESS,
+          abi: registryAbi as any,
+          functionName: 'isRegisteredGuide',
+          args: [BigInt(user.fid)],
+        });
+
+        console.log('[MirrorMate] User guide status:', isRegistered);
+        setIsUserRegisteredGuide(isRegistered as boolean);
+      } catch (error) {
+        console.error('[MirrorMate] Failed to check user guide status:', error);
+      }
+    };
+
+    checkUserGuideStatus();
+  }, [publicClient, user?.fid]);
+
+  // Filter out current user from guides list
+  const filteredGuides = user?.fid
+    ? guides.filter(g => Number(g.fid) !== user.fid)
+    : guides;
+
+  const currentGuide = filteredGuides[currentIndex];
+  const isFinished = currentIndex >= filteredGuides.length;
+  const noGuides = !loading && filteredGuides.length === 0;
 
   const handleRegisterAsGuide = async () => {
     if (!user || !user.fid) {
@@ -405,20 +437,50 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   }
 
   if (noGuides || isFinished) {
+    // Determine the message based on user's guide status
+    const isOnlyGuide = isUserRegisteredGuide && noGuides;
+    const notRegisteredNoGuides = !isUserRegisteredGuide && noGuides;
+
     return (
       <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
         <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md">
-          <div className="text-6xl mb-4">{noGuides ? '🧳' : '✨'}</div>
+          <div className="text-6xl mb-4">
+            {isOnlyGuide ? '🌟' : noGuides ? '🧳' : '✨'}
+          </div>
           <h2 className="text-2xl font-bold text-white mb-2">
-            {noGuides ? 'No Guides Registered' : 'No More Guides'}
+            {isOnlyGuide
+              ? "You're a Registered Guide!"
+              : noGuides
+              ? 'No Guides Yet'
+              : 'No More Guides'}
           </h2>
           <p className="text-gray-400 mb-6">
-            {noGuides
-              ? "There are no registered travel guides yet. Want to be a guide and help travelers explore your city?"
+            {isOnlyGuide
+              ? "You're one of the first guides on MirrorMate! Share the app with other travel enthusiasts to grow your network."
+              : notRegisteredNoGuides
+              ? "There are no registered travel guides yet. Be the first to register and help travelers explore your city!"
               : "You've seen all available guides. Check back later for more!"}
           </p>
+
+          {/* User's guide profile card if registered */}
+          {isUserRegisteredGuide && (
+            <div className="bg-gradient-to-br from-cyan-500/10 to-purple-600/10 border border-cyan-500/30 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-3">
+                {user?.pfpUrl ? (
+                  <img src={user.pfpUrl} alt="" className="w-12 h-12 rounded-full border-2 border-cyan-400" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-2xl">🧳</div>
+                )}
+                <div className="text-left">
+                  <p className="text-white font-bold">{user?.displayName || user?.username}</p>
+                  <p className="text-cyan-400 text-sm">Registered Guide</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
-            {noGuides && (
+            {notRegisteredNoGuides && (
               <>
                 <button
                   onClick={handleRegisterAsGuide}
@@ -442,9 +504,9 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
             <button
               onClick={onClose}
               disabled={isRegistering}
-              className={`w-full py-3 ${noGuides ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500'} text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
+              className={`w-full py-3 ${isOnlyGuide ? 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500' : noGuides && !isUserRegisteredGuide ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500'} text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
             >
-              Close
+              {isOnlyGuide ? 'Continue Exploring' : 'Close'}
             </button>
           </div>
         </div>
