@@ -4,7 +4,7 @@ import { getUserSafeAddress } from '@/lib/user-safe';
 import { Address } from 'viem';
 
 const TOKEN_SWAP_ADDRESS = '0xe004F2eaCd0AD74E14085929337875b20975F0AA';
-const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95d5185f39C760c5FA754491d0';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 

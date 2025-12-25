@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering - don't cache this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 
@@ -34,6 +38,7 @@ export async function GET() {
       fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({
           query: `
             query GetMusicAndArt {
@@ -58,6 +63,7 @@ export async function GET() {
       fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({
           query: `
             query GetExperiences {
@@ -171,6 +177,12 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       nfts: allNFTs.slice(0, 20), // Return max 20 NFTs for performance
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     });
 
   } catch (error: any) {
@@ -181,7 +193,12 @@ export async function GET() {
         error: error.message || 'Failed to fetch NFTs',
         nfts: [], // Return empty array on error so UI doesn't break
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        }
+      }
     );
   }
 }

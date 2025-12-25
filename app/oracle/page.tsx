@@ -76,7 +76,13 @@ export default function OraclePage() {
   useEffect(() => {
     const fetchNFTs = async () => {
       try {
-        const response = await fetch('/api/envio/get-nfts');
+        // Add cache-busting to ensure fresh data after burns
+        const response = await fetch('/api/envio/get-nfts', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
         const data = await response.json();
         if (data.success && data.nfts.length > 0) {
           setNftList(data.nfts);
@@ -336,16 +342,14 @@ export default function OraclePage() {
 
   const handleNFTClick = useCallback((nft: NFTObject) => {
     console.log('[OraclePage] handleNFTClick called with:', nft);
-    // If it's a music NFT, replace entire playlist with just this NFT and show player
+    // For music NFTs, set them in clickedMusicNFTs for the player
     if (nft.type === 'MUSIC') {
-      console.log('[OraclePage] Replacing playlist with single NFT');
+      console.log('[OraclePage] Setting music NFT for player');
       setClickedMusicNFTs([nft]);
-      setShowMusicPlayer(true);
-    } else {
-      // For ART and EXPERIENCE, show modal
-      console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
-      setSelectedNFT(nft);
     }
+    // Show modal for all NFT types
+    console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
+    setSelectedNFT(nft);
   }, []);
 
   // Debug: Log clickedMusicNFTs changes

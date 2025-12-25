@@ -8,7 +8,7 @@ import { formatEther, parseEther } from 'viem';
 import PassportGate from '@/app/components/PassportGate';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
-const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0e068B06Bfa9F787699B7';
+const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95d5185f39C760c5FA754491d0';
 const ERC20_ABI = [
   {
     inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }],
