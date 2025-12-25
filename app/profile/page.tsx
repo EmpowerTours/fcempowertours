@@ -7,7 +7,6 @@ import Link from 'next/link';
 import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/PageTransition';
 import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
-import PassportStakingModal from '@/app/components/PassportStakingModal';
 import UserSafeWidget from '@/app/components/UserSafeWidget';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -108,10 +107,6 @@ export default function ProfilePage() {
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
   const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
-  const [passportStakingModal, setPassportStakingModal] = useState<{ isOpen: boolean; passport: PassportNFT | null }>({
-    isOpen: false,
-    passport: null,
-  });
   const ITEMS_PER_PAGE = 12;
 
   // IPFS URL Resolver Function
@@ -1550,26 +1545,6 @@ export default function ProfilePage() {
                               </a>
                             )}
                           </div>
-                          {/* Passport Staking Button */}
-                          <button
-                            onClick={() => {
-                              console.log('[Staking] Button clicked, walletAddress:', walletAddress);
-                              console.log('[Staking] Passport:', passport);
-                              if (!walletAddress) {
-                                setError('Wallet not connected. Please open this app in Warpcast to stake MON.');
-                                return;
-                              }
-                              console.log('[Staking] Opening modal...');
-                              setPassportStakingModal({ isOpen: true, passport });
-                            }}
-                            className={`w-full px-3 py-3 text-white text-sm font-bold rounded-lg transition-all touch-manipulation ${
-                              walletAddress
-                                ? 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700'
-                                : 'bg-gray-400 cursor-not-allowed'
-                            }`}
-                          >
-                            {walletAddress ? '💰 Stake MON for Yield' : '🔒 Connect Wallet to Stake'}
-                          </button>
                         </div>
                       </div>
                     ))}
@@ -1759,17 +1734,6 @@ export default function ProfilePage() {
         </motion.div>
       </div>
 
-      {/* Passport Staking Modal */}
-      {passportStakingModal.isOpen && passportStakingModal.passport && walletAddress && (
-        <PassportStakingModal
-          isOpen={true}
-          onClose={() => setPassportStakingModal({ isOpen: false, passport: null })}
-          passportTokenId={passportStakingModal.passport.tokenId}
-          passportCountryCode={passportStakingModal.passport.countryCode}
-          passportCountryName={passportStakingModal.passport.countryName}
-          walletAddress={walletAddress}
-        />
-      )}
     </PageTransition>
   );
 }
