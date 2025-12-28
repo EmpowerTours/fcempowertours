@@ -89,6 +89,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     uint256 public totalBurned;
 
     mapping(address => bool) public authorizedBurners;
+    address public platformOperator; // Can register User Safes as burners
 
     mapping(uint256 => MasterToken) public masterTokens;
     mapping(uint256 => License) public licenses;
@@ -120,6 +121,8 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     event NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp, string burnType);
     event BurnRewardUpdated(string rewardType, uint256 newReward, uint256 timestamp);
     event RewardRateUpdated(uint256 newRate, uint256 timestamp);
+    event PlatformOperatorUpdated(address indexed operator);
+    event UserSafeRegisteredAsBurner(address indexed userSafe);
     event LicenseSold(
         uint256 indexed licenseId,
         uint256 indexed masterTokenId,
@@ -658,6 +661,18 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
     function setAuthorizedBurner(address burner, bool authorized) external onlyOwner {
         authorizedBurners[burner] = authorized;
+    }
+
+    function setPlatformOperator(address operator) external onlyOwner {
+        platformOperator = operator;
+        emit PlatformOperatorUpdated(operator);
+    }
+
+    // Platform operator can register User Safes as authorized burners
+    function registerUserSafeAsBurner(address userSafe) external {
+        require(msg.sender == platformOperator, "Only platform operator");
+        authorizedBurners[userSafe] = true;
+        emit UserSafeRegisteredAsBurner(userSafe);
     }
 
     function updateStakingRewardRate(uint256 newRate) external onlyOwner {

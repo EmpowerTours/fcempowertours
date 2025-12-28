@@ -10,7 +10,7 @@ import {
   createSmartAccountClient,
   SmartAccountClient,
 } from 'permissionless';
-import { createPublicClient, http, Address, Hex, keccak256, encodePacked, parseEther, parseAbi } from 'viem';
+import { createPublicClient, http, Address, Hex, keccak256, encodePacked, parseEther, parseAbi, encodeFunctionData } from 'viem';
 import { monadTestnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
@@ -321,5 +321,107 @@ export async function sendUserSafeTransaction(
     }
 
     throw error;
+  }
+}
+
+/**
+ * Check if a User Safe is registered as an authorized burner in the NFT contract
+ */
+export async function isUserSafeAuthorizedBurner(userSafeAddress: Address): Promise<boolean> {
+  const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
+  if (!NFT_CONTRACT) {
+    console.warn('⚠️ NFT contract address not configured');
+    return false;
+  }
+
+  try {
+    const isAuthorized = await publicClient.readContract({
+      address: NFT_CONTRACT,
+      abi: parseAbi(['function authorizedBurners(address) external view returns (bool)']),
+      functionName: 'authorizedBurners',
+      args: [userSafeAddress],
+    });
+    return isAuthorized as boolean;
+  } catch (error: any) {
+    console.error('❌ Failed to check burner authorization:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Register a User Safe as an authorized burner in the NFT contract.
+ * This must be called from the Platform Safe (which is the platformOperator).
+ */
+export async function registerUserSafeAsBurner(
+  userSafeAddress: Address
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
+  if (!NFT_CONTRACT) {
+    return { success: false, error: 'NFT contract address not configured' };
+  }
+
+  try {
+    // Check if already registered
+    const isAlreadyAuthorized = await isUserSafeAuthorizedBurner(userSafeAddress);
+    if (isAlreadyAuthorized) {
+      console.log('✅ User Safe already registered as authorized burner:', userSafeAddress);
+      return { success: true };
+    }
+
+    console.log('📝 Registering User Safe as authorized burner...');
+    console.log('   User Safe:', userSafeAddress);
+    console.log('   NFT Contract:', NFT_CONTRACT);
+
+    // Import sendSafeTransaction dynamically to avoid circular deps
+    const { sendSafeTransaction } = await import('@/lib/pimlico-safe-aa');
+
+    // Call registerUserSafeAsBurner from Platform Safe (platformOperator)
+    const registerCalldata = encodeFunctionData({
+      abi: parseAbi(['function registerUserSafeAsBurner(address userSafe) external']),
+      functionName: 'registerUserSafeAsBurner',
+      args: [userSafeAddress],
+    });
+
+    const txHash = await sendSafeTransaction([
+      {
+        to: NFT_CONTRACT,
+        value: 0n,
+        data: registerCalldata as Hex,
+      },
+    ]);
+
+    console.log('✅ User Safe registered as authorized burner:', txHash);
+    return { success: true, txHash };
+  } catch (error: any) {
+    console.error('❌ Failed to register User Safe as burner:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Ensure a User Safe is registered as an authorized burner.
+ * Registers it if not already authorized.
+ */
+export async function ensureUserSafeCanBurn(
+  userAddress: string
+): Promise<{ success: boolean; safeAddress: Address; error?: string }> {
+  try {
+    const safeAddress = await getUserSafeAddress(userAddress);
+
+    const isAuthorized = await isUserSafeAuthorizedBurner(safeAddress);
+    if (isAuthorized) {
+      console.log('✅ User Safe already authorized for burns:', safeAddress);
+      return { success: true, safeAddress };
+    }
+
+    // Register the User Safe
+    const result = await registerUserSafeAsBurner(safeAddress);
+    if (!result.success) {
+      return { success: false, safeAddress, error: result.error };
+    }
+
+    return { success: true, safeAddress };
+  } catch (error: any) {
+    return { success: false, safeAddress: '0x0' as Address, error: error.message };
   }
 }

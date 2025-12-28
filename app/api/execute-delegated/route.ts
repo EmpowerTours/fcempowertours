@@ -5,7 +5,7 @@ import {
   incrementTransactionCount
 } from '@/lib/delegation-system';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
-import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance } from '@/lib/user-safe';
+import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance, ensureUserSafeCanBurn } from '@/lib/user-safe';
 import { USE_USER_SAFES } from '@/lib/safe-mode';
 import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, formatEther } from 'viem';
 import { createShortUrl } from '@/lib/url-shortener';
@@ -2666,7 +2666,7 @@ ${enjoyText}
 
       // ==================== BURN NFT (DELEGATED) ====================
       case 'burn_nft': {
-        console.log('🔥 Action: burn_nft (delegated burning)');
+        console.log('🔥 Action: burn_nft (delegated burning via User Safe)');
 
         const { tokenId } = params;
         if (!tokenId) {
@@ -2678,7 +2678,22 @@ ${enjoyText}
 
         console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
 
-        // Use burnNFTForDelegated function (platform Safe is authorized burner)
+        // Step 1: Ensure User Safe is registered as authorized burner
+        // This will register the User Safe via Platform Safe if not already registered
+        if (USE_USER_SAFES) {
+          console.log('📝 Ensuring User Safe is authorized to burn...');
+          const burnAuthResult = await ensureUserSafeCanBurn(userAddress);
+          if (!burnAuthResult.success) {
+            return NextResponse.json(
+              { success: false, error: `Failed to authorize User Safe for burns: ${burnAuthResult.error}` },
+              { status: 500 }
+            );
+          }
+          console.log('✅ User Safe authorized:', burnAuthResult.safeAddress);
+        }
+
+        // Step 2: Burn the NFT via User Safe (or Platform Safe if not using User Safes)
+        // Use burnNFTForDelegated function - the User Safe is now an authorized burner
         const burnCalldata = encodeFunctionData({
           abi: parseAbi(['function burnNFTForDelegated(address owner, uint256 tokenId) external']),
           functionName: 'burnNFTForDelegated',

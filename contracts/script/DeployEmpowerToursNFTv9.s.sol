@@ -33,6 +33,11 @@ contract DeployEmpowerToursNFTv9 is Script {
             toursToken
         );
 
+        // Set Platform Safe as the operator (can register User Safes as burners)
+        address platformSafe = 0xDdaE200DBc2874BAd4FdB5e39F227215386c7533;
+        nft.setPlatformOperator(platformSafe);
+        console.log("Platform operator set to:", platformSafe);
+
         vm.stopBroadcast();
 
         console.log("EmpowerToursNFTv9 deployed to:", address(nft));

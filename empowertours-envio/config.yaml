@@ -7,7 +7,7 @@ networks:
     contracts:
       - name: EmpowerToursNFT
         address:
-          - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ EmpowerToursNFT (Dec 27, 2025)
+          - "0x957F10BC6EE140FfbCe64184864bc4C9C7652477"  # ✅ EmpowerToursNFTv9 with platformOperator (Dec 28, 2025)
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting (with artistFid and royalty)
