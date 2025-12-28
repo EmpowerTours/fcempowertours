@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -9,6 +9,7 @@ import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
 import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
 import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
 import { ProfileModal } from '@/app/components/oracle/ProfileModal';
+import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useRouter } from 'next/navigation';
 
@@ -71,6 +72,7 @@ export default function OraclePage() {
   const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
   const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showDAOModal, setShowDAOModal] = useState(false);
 
   // Fetch NFT list
   useEffect(() => {
@@ -566,13 +568,22 @@ export default function OraclePage() {
                   {hasSubscription ? 'Subscribed ✓' : 'Subscribe'}
                 </button>
                 {walletAddress && (
-                  <button
-                    onClick={() => setShowProfileModal(true)}
-                    className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1"
-                  >
-                    <User className="w-3 h-3" />
-                    Profile
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowDAOModal(true)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-indigo-500/20 to-purple-600/20 hover:from-indigo-500/30 hover:to-purple-600/30 border border-indigo-500/30 rounded-lg text-xs text-indigo-400 font-semibold transition-all flex items-center gap-1"
+                    >
+                      <Vote className="w-3 h-3" />
+                      DAO
+                    </button>
+                    <button
+                      onClick={() => setShowProfileModal(true)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1"
+                    >
+                      <User className="w-3 h-3" />
+                      Profile
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -830,6 +841,14 @@ export default function OraclePage() {
           username={user?.username}
           pfpUrl={user?.pfpUrl}
           onClose={() => setShowProfileModal(false)}
+        />
+      )}
+
+      {/* DAO Modal */}
+      {showDAOModal && (
+        <DAOModal
+          userAddress={walletAddress ?? undefined}
+          onClose={() => setShowDAOModal(false)}
         />
       )}
     </>
