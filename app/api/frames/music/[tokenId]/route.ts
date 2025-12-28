@@ -108,20 +108,22 @@ export async function GET(
       nftData = await getNFTData(tokenId);
     }
 
-    const miniAppUrl = `${APP_URL}/nft/${tokenId}`;
-    const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}${directImage ? `&imageUrl=${encodeURIComponent(directImage)}` : ''}${directTitle ? `&title=${encodeURIComponent(directTitle)}` : ''}`;
+    // Artist profile is the destination within the mini app
+    const artistAddress = nftData?.artist || '';
+    const artistProfileUrl = artistAddress ? `${APP_URL}/artist/${artistAddress}` : `${APP_URL}/oracle`;
+    const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}${directImage ? `&imageUrl=${encodeURIComponent(directImage)}` : ''}${directTitle ? `&title=${encodeURIComponent(directTitle)}` : ''}${directPrice ? `&price=${encodeURIComponent(directPrice)}` : ''}`;
 
-    // Mini app frame data with audio preview
+    // Mini app frame data - launches directly to artist profile
     const frameData = {
-      version: '1',
+      version: 'next',
       imageUrl: ogImageUrl,
       button: {
         title: '🎵 Listen & Buy',
         action: {
           type: 'launch_frame',
-          name: 'EmpowerTours Music',
-          url: miniAppUrl,
-          splashImageUrl: ogImageUrl,
+          name: 'EmpowerTours',
+          url: artistProfileUrl,
+          splashImageUrl: `${APP_URL}/splash.png`,
           splashBackgroundColor: '#0f172a'
         }
       }
@@ -155,13 +157,11 @@ export async function GET(
           <meta name="twitter:title" content="${nftData?.name || `Music NFT #${tokenId}`}">
           <meta name="twitter:image" content="${ogImageUrl}">
 
-          <!-- Farcaster Mini App -->
-          <meta name="fc:frame" content="vNext">
-          <meta name="fc:frame:image" content="${ogImageUrl}">
-          <meta name="fc:frame:button:1" content="🎧 Preview & Buy">
-          <meta name="fc:frame:button:1:action" content="link">
-          <meta name="fc:frame:button:1:target" content="${miniAppUrl}">
-          <meta name="fc:miniapp" content='${JSON.stringify(frameData)}'>
+          <!-- Farcaster Frame with Mini App Launch -->
+          <meta name="fc:frame" content='${JSON.stringify(frameData)}'>
+          <meta name="of:version" content="vNext">
+          <meta name="of:accepts:farcaster" content="vNext">
+          <meta name="of:image" content="${ogImageUrl}">
 
           <title>${nftData?.name || `Music NFT #${tokenId}`} - EmpowerTours</title>
         </head>
@@ -174,7 +174,7 @@ export async function GET(
               Your browser does not support the audio element.
             </audio>
           ` : ''}
-          <p><a href="${miniAppUrl}" style="color: #00d4ff;">Open in EmpowerTours</a></p>
+          <p><a href="${artistProfileUrl}" style="color: #00d4ff;">View Artist Profile</a></p>
         </body>
       </html>
     `;
