@@ -8,7 +8,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 interface IEmpowerToursNFT {
     enum NFTType { MUSIC, ART }
     function getMasterType(uint256 tokenId) external view returns (NFTType);
+    function artistMasterCount(address artist) external view returns (uint256);
     function masterTokens(uint256 tokenId) external view returns (
+        uint256 artistFid,
         address originalArtist,
         string memory tokenURI,
         string memory collectorTokenURI,
@@ -61,7 +63,18 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     uint256 public constant MONTHLY_PRICE = 300 ether;   // 300 WMON (~$10.50/month)
     uint256 public constant YEARLY_PRICE = 3000 ether;   // 3000 WMON (~$105/year, 15% discount)
 
-    uint256 public constant PLATFORM_FEE_PERCENTAGE = 5; // 5% platform fee
+    // Distribution Model: 10% Treasury, 20% Reserve (in contract), 70% Artist Pool
+    uint256 public constant TREASURY_PERCENTAGE = 10;
+    uint256 public constant RESERVE_PERCENTAGE = 20;
+    uint256 public constant ARTIST_POOL_PERCENTAGE = 70;
+
+    // Reserve fund stays in contract until DAO is deployed
+    uint256 public totalReserve;
+
+    // TOURS rewards for eligible artists
+    uint256 public minMasterCount = 10;      // Min NFTs minted to be eligible
+    uint256 public minLifetimePlays = 100;   // Min lifetime plays to be eligible
+    uint256 public monthlyToursReward = 1 ether; // 1 TOURS/month for eligible artists
 
     // ============================================
     // Play Validation Limits
@@ -123,8 +136,14 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     // monthId => artist => payout amount
     mapping(uint256 => mapping(address => uint256)) public artistMonthlyPayouts;
 
-    // artist => claimed month
+    // artist => claimed month (WMON payout)
     mapping(address => mapping(uint256 => bool)) public artistClaimedMonth;
+
+    // artist => lifetime plays (for TOURS eligibility)
+    mapping(address => uint256) public artistLifetimePlays;
+
+    // monthId => artist => TOURS reward claimed
+    mapping(uint256 => mapping(address => bool)) public artistToursClaimedMonth;
 
     uint256 public currentMonth;
 
@@ -141,8 +160,11 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     event Subscribed(address indexed user, uint256 indexed userFid, SubscriptionTier tier, uint256 expiry, uint256 paidAmount);
     event SubscriptionRenewed(address indexed user, uint256 newExpiry);
     event PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp);
-    event MonthlyDistributionFinalized(uint256 indexed monthId, uint256 totalRevenue, uint256 totalPlays, uint256 perPlayRate);
+    event MonthlyDistributionFinalized(uint256 indexed monthId, uint256 totalRevenue, uint256 totalPlays, uint256 artistPool);
     event ArtistPayout(uint256 indexed monthId, address indexed artist, uint256 amount, uint256 playCount);
+    event ArtistToursReward(uint256 indexed monthId, address indexed artist, uint256 toursAmount);
+    event ReserveAdded(uint256 indexed monthId, uint256 amount, uint256 totalReserve);
+    event ReserveWithdrawnToDAO(address indexed dao, uint256 amount);
     event AccountFlagged(address indexed user, string reason);
     event AccountUnflagged(address indexed user);
     event VoteToFlag(address indexed voter, address indexed target, uint256 totalVotes);
@@ -335,8 +357,9 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
         monthlyStats[monthId].totalPlays++;
 
         // Get artist address from NFT contract
-        (address artist,,,,,,,,,,,) = nftContract.masterTokens(masterTokenId);
+        (, address artist,,,,,,,,,,, ) = nftContract.masterTokens(masterTokenId);
         artistMonthlyPlays[monthId][artist]++;
+        artistLifetimePlays[artist]++;
 
         emit PlayRecorded(user, masterTokenId, duration, block.timestamp);
     }
@@ -346,7 +369,7 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     // ============================================
 
     /**
-     * @notice Finalize monthly distribution (calculate per-play rate)
+     * @notice Finalize monthly distribution (10% treasury, 20% reserve, 70% artist pool)
      * @param monthId The month to finalize (timestamp / 30 days)
      */
     function finalizeMonthlyDistribution(uint256 monthId) external onlyOwner {
@@ -357,19 +380,22 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
         require(stats.totalRevenue > 0, "No revenue this month");
         require(stats.totalPlays > 0, "No plays this month");
 
-        // Calculate platform fee (5%)
-        uint256 platformFee = (stats.totalRevenue * PLATFORM_FEE_PERCENTAGE) / 100;
-        uint256 artistPool = stats.totalRevenue - platformFee;
+        // Distribution: 10% Treasury, 20% Reserve, 70% Artist Pool
+        uint256 treasuryAmount = (stats.totalRevenue * TREASURY_PERCENTAGE) / 100;
+        uint256 reserveAmount = (stats.totalRevenue * RESERVE_PERCENTAGE) / 100;
+        uint256 artistPool = stats.totalRevenue - treasuryAmount - reserveAmount;
 
-        // Transfer platform fee to treasury
-        require(wmonToken.transfer(treasury, platformFee), "Platform fee transfer failed");
+        // Transfer treasury portion
+        require(wmonToken.transfer(treasury, treasuryAmount), "Treasury transfer failed");
+
+        // Reserve stays in contract
+        totalReserve += reserveAmount;
+        emit ReserveAdded(monthId, reserveAmount, totalReserve);
 
         stats.distributedAmount = artistPool;
         stats.finalized = true;
 
-        uint256 perPlayRate = artistPool / stats.totalPlays;
-
-        emit MonthlyDistributionFinalized(monthId, stats.totalRevenue, stats.totalPlays, perPlayRate);
+        emit MonthlyDistributionFinalized(monthId, stats.totalRevenue, stats.totalPlays, artistPool);
     }
 
     /**
@@ -568,6 +594,100 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     }
 
     // ============================================
+    // TOURS Rewards for Eligible Artists
+    // ============================================
+
+    /**
+     * @notice Check if an artist is eligible for TOURS rewards
+     * @param artist The artist address
+     * @return eligible Whether artist meets requirements
+     * @return masterCount Number of masters minted
+     * @return lifetimePlays Lifetime play count
+     */
+    function isArtistEligible(address artist) public view returns (
+        bool eligible,
+        uint256 masterCount,
+        uint256 lifetimePlays
+    ) {
+        masterCount = nftContract.artistMasterCount(artist);
+        lifetimePlays = artistLifetimePlays[artist];
+        eligible = masterCount >= minMasterCount && lifetimePlays >= minLifetimePlays;
+    }
+
+    /**
+     * @notice Eligible artists claim monthly TOURS reward
+     * @param monthId The month to claim TOURS for
+     */
+    function claimToursReward(uint256 monthId) external nonReentrant {
+        require(monthlyStats[monthId].finalized, "Month not finalized");
+        require(!artistToursClaimedMonth[monthId][msg.sender], "TOURS already claimed");
+        require(artistMonthlyPlays[monthId][msg.sender] > 0, "No plays this month");
+
+        (bool eligible,,) = isArtistEligible(msg.sender);
+        require(eligible, "Not eligible for TOURS reward");
+
+        artistToursClaimedMonth[monthId][msg.sender] = true;
+
+        require(toursToken.transfer(msg.sender, monthlyToursReward), "TOURS transfer failed");
+
+        emit ArtistToursReward(monthId, msg.sender, monthlyToursReward);
+    }
+
+    /**
+     * @notice Batch claim TOURS for multiple months
+     */
+    function batchClaimToursRewards(uint256[] calldata monthIds) external nonReentrant {
+        (bool eligible,,) = isArtistEligible(msg.sender);
+        require(eligible, "Not eligible for TOURS reward");
+
+        uint256 totalTours = 0;
+
+        for (uint256 i = 0; i < monthIds.length; i++) {
+            uint256 monthId = monthIds[i];
+
+            if (!monthlyStats[monthId].finalized) continue;
+            if (artistToursClaimedMonth[monthId][msg.sender]) continue;
+            if (artistMonthlyPlays[monthId][msg.sender] == 0) continue;
+
+            artistToursClaimedMonth[monthId][msg.sender] = true;
+            totalTours += monthlyToursReward;
+
+            emit ArtistToursReward(monthId, msg.sender, monthlyToursReward);
+        }
+
+        require(totalTours > 0, "No TOURS rewards available");
+        require(toursToken.transfer(msg.sender, totalTours), "TOURS transfer failed");
+    }
+
+    // ============================================
+    // Reserve & DAO Functions
+    // ============================================
+
+    /**
+     * @notice Withdraw reserve to DAO contract (when DAO is deployed)
+     * @param dao The DAO contract address
+     * @param amount Amount to withdraw (0 = all)
+     */
+    function withdrawReserveToDAO(address dao, uint256 amount) external onlyOwner {
+        require(dao != address(0), "Invalid DAO address");
+
+        uint256 withdrawAmount = amount == 0 ? totalReserve : amount;
+        require(withdrawAmount <= totalReserve, "Insufficient reserve");
+
+        totalReserve -= withdrawAmount;
+        require(wmonToken.transfer(dao, withdrawAmount), "Reserve transfer failed");
+
+        emit ReserveWithdrawnToDAO(dao, withdrawAmount);
+    }
+
+    /**
+     * @notice Get current reserve balance
+     */
+    function getReserveBalance() external view returns (uint256) {
+        return totalReserve;
+    }
+
+    // ============================================
     // Admin Functions
     // ============================================
 
@@ -579,6 +699,19 @@ contract MusicSubscriptionV2 is Ownable, ReentrancyGuard {
     function setTreasury(address newTreasury) external onlyOwner {
         require(newTreasury != address(0), "Invalid treasury");
         treasury = newTreasury;
+    }
+
+    /**
+     * @notice Update TOURS eligibility requirements (for DAO governance)
+     */
+    function setEligibilityRequirements(
+        uint256 _minMasterCount,
+        uint256 _minLifetimePlays,
+        uint256 _monthlyToursReward
+    ) external onlyOwner {
+        minMasterCount = _minMasterCount;
+        minLifetimePlays = _minLifetimePlays;
+        monthlyToursReward = _monthlyToursReward;
     }
 
     function emergencyWithdraw(address token, uint256 amount) external onlyOwner {

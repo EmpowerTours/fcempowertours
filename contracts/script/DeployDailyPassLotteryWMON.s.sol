@@ -120,8 +120,8 @@ contract DeployDailyPassLotteryWMON is Script {
 
         console.log("=== Next Steps ===");
         console.log("1. Fund lottery contract with TOURS for caller rewards:");
-        console.log("   lottery.fundRewards(1000 ether) // 1000 TOURS");
-        console.log("   Caller Reward:", lottery.CALLER_REWARD_TOURS() / 1e18, "TOURS per request");
+        console.log("   lottery.fundRewards(10000 ether) // 10000 TOURS");
+        console.log("   Random Reward: 1-1000 TOURS per finalization");
         console.log("");
         console.log("2. Users enter lottery:");
         console.log("   wmon.approve(lotteryAddress, 1 ether)");

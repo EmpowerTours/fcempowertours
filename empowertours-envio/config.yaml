@@ -7,29 +7,35 @@ networks:
     contracts:
       - name: EmpowerToursNFT
         address:
-          - "0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08"  # ✅ EmpowerToursNFTv9 with FID (Dec 21, 2025)
+          - "0x04a8983587B79cd0a4927AE71040caf3baA613f1"  # ✅ EmpowerToursNFT (Dec 27, 2025)
         handler: src/EventHandlers.ts
         events:
-          # Master NFT minting (V9 with artistFid and royalty)
+          # Master NFT minting (with artistFid and royalty)
           - event: "MasterMinted(uint256 indexed tokenId, address indexed artist, uint256 indexed artistFid, string tokenURI, uint256 price, uint8 nftType, uint96 royalty)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # ✅ License purchase with expiry tracking
-          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed buyer, uint256 expiry)"
+          # Collector Master minting
+          - event: "CollectorMasterMinted(uint256 indexed tokenId, address indexed artist, uint256 indexed artistFid, uint256 maxEditions, uint256 collectorPrice)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # ✅ License expiration tracking
-          - event: "LicenseExpired(uint256 indexed licenseId)"
+          # ✅ License purchase (perpetual - no expiry)
+          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, uint256 indexed licenseeFid, address buyer, bool isCollector)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # License resale (10% treasury, 60% artist, 30% seller)
+          - event: "LicenseSold(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed seller, address buyer, uint256 salePrice, uint256 royaltyPaid, address royaltyRecipient)"
             field_selection:
               transaction_fields:
                 - hash
 
           # Royalty tracking
-          - event: "RoyaltyPaid(uint256 indexed tokenId, address indexed recipient, uint256 amount)"
+          - event: "RoyaltyPaid(uint256 indexed masterTokenId, address indexed artist, uint256 amount)"
             field_selection:
               transaction_fields:
                 - hash
@@ -63,17 +69,29 @@ networks:
                 - hash
 
           # NFT burning events
-          - event: "NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp)"
+          - event: "NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp, string burnType)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "BurnRewardUpdated(uint256 newReward, uint256 timestamp)"
+          - event: "BurnRewardUpdated(string rewardType, uint256 newReward, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
 
           - event: "RewardRateUpdated(uint256 newRate, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ NEW: Stolen content removal (admin)
+          - event: "StolenContentBurned(uint256 indexed tokenId, address indexed originalOwner, string reason, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # ✅ NEW: Artist song cleared (allows reminting after burn)
+          - event: "ArtistSongCleared(address indexed artist, string title, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
@@ -853,24 +871,19 @@ networks:
               transaction_fields:
                 - hash
 
-      # ✅ MusicSubscriptionV2 Contract with FID (Dec 21, 2025)
+      # ✅ MusicSubscriptionV2 Contract (Dec 27, 2025) - 10/20/70 Distribution Model
       - name: MusicSubscriptionV2
         address:
-          - "0x33c3Cae53e6E5a0D5a7f7257f2eFC4Ca9c3dFEAc"
+          - "0x122b5F4F39e85438DB753Cf016657e96F13c5f9F"
         handler: src/EventHandlers.ts
         events:
           # Subscription lifecycle with FID
-          - event: "Subscribed(address indexed user, uint256 indexed userFid, uint8 indexed tier, uint256 expiry, uint256 stakedAmount)"
+          - event: "Subscribed(address indexed user, uint256 indexed userFid, uint8 tier, uint256 expiry, uint256 paidAmount)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "SubscriptionRenewed(address indexed user, uint256 indexed userFid, uint256 newExpiry)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "SubscriptionCancelled(address indexed user, uint256 indexed userFid, uint256 refundAmount)"
+          - event: "SubscriptionRenewed(address indexed user, uint256 newExpiry)"
             field_selection:
               transaction_fields:
                 - hash
@@ -881,13 +894,30 @@ networks:
               transaction_fields:
                 - hash
 
-          # Monthly revenue distribution
-          - event: "MonthlyDistributionFinalized(uint256 indexed monthId, uint256 totalRevenue, uint256 totalPlays, uint256 perPlayRate)"
+          # Monthly revenue distribution (10% treasury, 20% reserve, 70% artist pool)
+          - event: "MonthlyDistributionFinalized(uint256 indexed monthId, uint256 totalRevenue, uint256 totalPlays, uint256 artistPool)"
             field_selection:
               transaction_fields:
                 - hash
 
           - event: "ArtistPayout(uint256 indexed monthId, address indexed artist, uint256 amount, uint256 playCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # TOURS rewards for eligible artists
+          - event: "ArtistToursReward(uint256 indexed monthId, address indexed artist, uint256 toursAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Reserve tracking
+          - event: "ReserveAdded(uint256 indexed monthId, uint256 amount, uint256 totalReserve)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ReserveWithdrawnToDAO(address indexed dao, uint256 amount)"
             field_selection:
               transaction_fields:
                 - hash
@@ -898,12 +928,33 @@ networks:
               transaction_fields:
                 - hash
 
-          - event: "AccountSlashed(address indexed user, uint256 slashedAmount, string reason)"
+          - event: "AccountUnflagged(address indexed user)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "VoteToBan(address indexed voter, address indexed target, uint256 totalVotes)"
+          - event: "VoteToFlag(address indexed voter, address indexed target, uint256 totalVotes)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ✅ PlayOracle Contract (Dec 27, 2025) - Backend oracle for play recording
+      - name: PlayOracle
+        address:
+          - "0xC2Eb75ddf31cd481765D550A91C5A63363B36817"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "OperatorAdded(address indexed operator)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "OperatorRemoved(address indexed operator)"
             field_selection:
               transaction_fields:
                 - hash

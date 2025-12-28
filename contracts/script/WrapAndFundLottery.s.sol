@@ -16,7 +16,7 @@ contract WrapAndFundLottery is Script {
 
         // Addresses
         address wmonToken = 0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541;
-        address lotteryContract = 0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F;
+        address lotteryContract = 0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866;
 
         // Amount to wrap and transfer: 10 WMON for entropy fees
         uint256 amount = 10 ether;

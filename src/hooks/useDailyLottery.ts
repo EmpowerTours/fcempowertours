@@ -2,7 +2,7 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 
 import { parseEther } from 'viem';
 
 // DailyPassLotteryWMON contract on Monad testnet
-const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as `0x${string}`;
+const LOTTERY_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0x8D3d70a5F4eeaE446A70F6f38aBd2adf7c667866') as `0x${string}`;
 const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541') as `0x${string}`;
 
 // DailyPassLotteryWMON ABI (Pyth Entropy randomness)

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, Interface, parseEther } from 'ethers';
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
-// ✅ EmpowerToursNFTv9 with FID support (Dec 21, 2025)
+// ✅ EmpowerToursNFT with FID support + burn fix + stolen content admin (Dec 27, 2025)
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS || '0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08';
 const TOURS_TOKEN_ADDRESS = '0xa123600c82E69cB311B0E068B06Bfa9F787699B7';
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
@@ -10,7 +10,7 @@ const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 
-// EmpowerToursNFTv9 ABI with FID (Dec 21, 2025)
+// EmpowerToursNFT ABI with FID (Dec 27, 2025)
 const MUSIC_NFT_ABI = [
   {
     inputs: [
