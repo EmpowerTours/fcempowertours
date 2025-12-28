@@ -80,6 +80,12 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
     const checkFollow = async () => {
       try {
+        // If user IS unify34 (FID 765994), auto-pass
+        if (user.fid === 765994 || user.username?.toLowerCase() === 'unify34') {
+          setRequirements(prev => ({ ...prev, following: true }));
+          return;
+        }
+
         const res = await fetch(`/api/check-follow?fid=${user.fid}`);
         const data = await res.json();
         setRequirements(prev => ({ ...prev, following: data.isFollowing || false }));
@@ -90,7 +96,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     };
 
     checkFollow();
-  }, [user?.fid]);
+  }, [user?.fid, user?.username]);
 
   // Check passport ownership
   useEffect(() => {
