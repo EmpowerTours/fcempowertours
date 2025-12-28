@@ -263,31 +263,24 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
   context.log.info(`✅ Music NFT #${tokenId} minted by ${artist} - "${metadata?.name || 'Untitled'}"`);
 });
 
-// ✅ Handle LicensePurchased event with createdAt field
+// ✅ Handle LicensePurchased event (perpetual licenses - no expiry)
 EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
-  const { licenseId, masterTokenId, buyer, expiry } = event.params;
+  const { licenseId, masterTokenId, licenseeFid, buyer, isCollector } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
   const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
 
-  // ✅ VALIDATION: Ensure expiry is in the future
-  if (Number(expiry) <= event.block.timestamp) {
-    context.log.warn(
-      `⚠️ License #${licenseId} has expiry in the past (${new Date(Number(expiry) * 1000).toISOString()}). Skipping.`
-    );
-    return;
-  }
-
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Create MusicLicense entity
+  // Create MusicLicense entity (perpetual - no expiry)
   const musicLicense = {
     id: musicLicenseId,
     licenseId: licenseId.toString(),
     masterTokenId: masterTokenId.toString(),
     masterToken_id: musicNFTId,
     licensee: buyer.toLowerCase(),
-    expiry: BigInt(expiry),
+    licenseeFid: licenseeFid.toString(),
+    isCollector: isCollector,
     active: true,
     purchasedAt: timestamp,
     createdAt: timestamp,
@@ -372,24 +365,8 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
   }
 
   context.log.info(
-    `💳 License #${licenseId} purchased for Music NFT #${masterTokenId} by ${buyer} - Expires: ${new Date(Number(expiry) * 1000).toISOString()}`
+    `💳 License #${licenseId} purchased for Music NFT #${masterTokenId} by ${buyer} (FID: ${licenseeFid}, Collector: ${isCollector}) - Perpetual`
   );
-});
-
-// ✅ Handle LicenseExpired event
-EmpowerToursNFT.LicenseExpired.handler(async ({ event, context }) => {
-  const { licenseId } = event.params;
-
-  const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
-  const musicLicense = await context.MusicLicense.get(musicLicenseId);
-
-  if (musicLicense) {
-    await context.MusicLicense.set({
-      ...musicLicense,
-      active: false,
-    });
-    context.log.info(`⏰ License #${licenseId} expired`);
-  }
 });
 
 EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {

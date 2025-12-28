@@ -36,17 +36,18 @@ type MusicNFT @entity {
   licenses: [MusicLicense!]! @derivedFrom(field: "masterToken")  # Link to purchases
 }
 
-# ✅ UPDATED: Track purchased music licenses with createdAt field
+# ✅ UPDATED: Track purchased music licenses (perpetual - no expiry)
 type MusicLicense @entity {
   id: ID!
   licenseId: String!           # Unique license ID
   masterTokenId: String!       # Which music NFT was purchased
   masterToken: MusicNFT!       # Link back to the music NFT
   licensee: String!            # Who bought it
-  expiry: BigInt!              # When license expires
+  licenseeFid: String!         # Buyer's Farcaster ID
+  isCollector: Boolean!        # Is this a collector edition license
   active: Boolean!             # Is license still valid
   purchasedAt: Timestamp!      # When purchased
-  createdAt: Timestamp!        # ✅ ADDED: Alias for purchasedAt (for query compatibility)
+  createdAt: Timestamp!        # Alias for purchasedAt (for query compatibility)
   blockNumber: BigInt!
   txHash: String!
 }
