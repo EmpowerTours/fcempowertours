@@ -466,16 +466,6 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
               </p>
             )}
 
-            {/* Collector Mode Link */}
-            <div className="text-center mt-4 pt-4 border-t border-white/10">
-              <p className="text-white/50 text-xs mb-2">Just want to collect NFTs?</p>
-              <a
-                href="/nft"
-                className="text-purple-400 text-sm hover:text-purple-300 underline"
-              >
-                Browse NFT Marketplace →
-              </a>
-            </div>
           </div>
         </div>
       </div>
