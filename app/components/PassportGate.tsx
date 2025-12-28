@@ -1,70 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import PassportRequirement from './PassportRequirement';
 import DailyAccessGate from './DailyAccessGate';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { usePassportNFT } from '@/src/hooks/usePassportNFT';
-import { Address } from 'viem';
-import { usePathname } from 'next/navigation';
 
 interface PassportGateProps {
   children: React.ReactNode;
 }
 
+/**
+ * PassportGate - Main access control wrapper
+ *
+ * Now delegates all access checks to DailyAccessGate which handles:
+ * 1. Music subscription
+ * 2. Follow @unify34 on Farcaster
+ * 3. Passport NFT ownership
+ * 4. Daily lottery entry
+ */
 export default function PassportGate({ children }: PassportGateProps) {
-  const { walletAddress, isLoading: contextLoading } = useFarcasterContext();
-  const { useBalanceOf } = usePassportNFT();
-  const pathname = usePathname();
-
-  const [showGate, setShowGate] = useState(false);
-  const [hasChecked, setHasChecked] = useState(false);
-
-  // Check if user has any passports
-  const { data: passportBalance, isLoading: balanceLoading } = useBalanceOf(walletAddress as Address);
-  const hasPassport = passportBalance !== undefined && passportBalance !== null && typeof passportBalance === 'bigint' && passportBalance > 0n;
-
-  useEffect(() => {
-    // Don't check until we have a wallet address and balance has loaded
-    if (contextLoading || balanceLoading || !walletAddress) {
-      return;
-    }
-
-    // Mark that we've checked
-    if (!hasChecked) {
-      setHasChecked(true);
-    }
-
-    // If user doesn't have a passport, show the gate
-    if (!hasPassport) {
-      setShowGate(true);
-    } else {
-      setShowGate(false);
-    }
-  }, [hasPassport, balanceLoading, contextLoading, walletAddress, hasChecked]);
-
-  const handlePassportMinted = () => {
-    console.log('✅ Passport minted! Allowing navigation...');
-    setShowGate(false);
-  };
-
-  // Show children while loading
-  if (!hasChecked || contextLoading) {
-    return <>{children}</>;
-  }
-
-  // 🔒 CRITICAL: Don't render children until passport requirement is met
-  // This prevents users from navigating the site in the background
-  // After passport check, also check for daily access fee payment
   return (
-    <>
-      {showGate ? (
-        <PassportRequirement onPassportMinted={handlePassportMinted} />
-      ) : (
-        <DailyAccessGate>
-          {children}
-        </DailyAccessGate>
-      )}
-    </>
+    <DailyAccessGate>
+      {children}
+    </DailyAccessGate>
   );
 }

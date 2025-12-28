@@ -3,12 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useDailyLottery } from '@/src/hooks';
+import { useDailyLottery, usePassportNFT } from '@/src/hooks';
 import { formatEther } from 'viem';
 import { useAccount } from 'wagmi';
+import { Address } from 'viem';
 
 interface DailyAccessGateProps {
   children: React.ReactNode;
+}
+
+interface RequirementStatus {
+  subscription: boolean | null;
+  following: boolean | null;
+  passport: boolean | null;
+  lottery: boolean | null;
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
@@ -17,6 +25,11 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const { address: wagmiAddress } = useAccount();
   const effectiveAddress = (walletAddress || wagmiAddress) as `0x${string}` | undefined;
 
+  // Passport hook
+  const { useBalanceOf } = usePassportNFT();
+  const { data: passportBalance, isLoading: passportLoading } = useBalanceOf(effectiveAddress as Address);
+
+  // Lottery hooks
   const {
     useGetCurrentRound,
     useGetTimeRemaining,
@@ -24,55 +37,85 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     useGetEntryFee,
   } = useDailyLottery();
 
-  // Contract data hooks
   const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
   const { data: timeRemaining } = useGetTimeRemaining();
-  // 🔒 SIMPLIFIED: Only check user's wallet address for lottery entry
-  // Safe wallet integration was causing bypass issues
-  const { data: hasEntered, isLoading: entryLoading, refetch: refetchHasEntered, isError: hasEnteredError } = useHasEnteredToday(effectiveAddress);
+  const { data: hasEnteredLottery, isLoading: entryLoading, refetch: refetchHasEntered } = useHasEnteredToday(effectiveAddress);
   const { data: entryFee } = useGetEntryFee();
 
-  // Local state
-  const [isEntering, setIsEntering] = useState(false);
+  // Requirement states
+  const [requirements, setRequirements] = useState<RequirementStatus>({
+    subscription: null,
+    following: null,
+    passport: null,
+    lottery: null,
+  });
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const [txHash, setTxHash] = useState<string | null>(null);
-  const [grantAccess, setGrantAccess] = useState(false); // Force grant access when "Already entered"
-  const [grantedRoundId, setGrantedRoundId] = useState<bigint | null>(null); // Track which round access was granted for
-
-  // Live countdown
   const [countdown, setCountdown] = useState<string>('--:--:--');
 
-  // Auto-redirect after successful entry
+  // Check subscription status
   useEffect(() => {
-    if (txHash) {
-      const timer = setTimeout(() => {
-        router.push('/discover');
-      }, 2500); // Redirect after 2.5 seconds
-      return () => clearTimeout(timer);
-    }
-  }, [txHash, router]);
+    if (!effectiveAddress) return;
 
-  // Auto-redirect when grantAccess is set (Already entered case)
+    const checkSubscription = async () => {
+      try {
+        const res = await fetch(`/api/music/check-subscription?address=${effectiveAddress}`);
+        const data = await res.json();
+        setRequirements(prev => ({ ...prev, subscription: data.hasSubscription || false }));
+      } catch (err) {
+        console.error('Failed to check subscription:', err);
+        setRequirements(prev => ({ ...prev, subscription: false }));
+      }
+    };
+
+    checkSubscription();
+  }, [effectiveAddress]);
+
+  // Check follow status
   useEffect(() => {
-    if (grantAccess) {
-      router.push('/discover');
-    }
-  }, [grantAccess, router]);
+    if (!user?.fid) return;
 
-  // 🔒 SECURITY: Reset grantAccess if round changes (prevents 24hr bypass)
+    const checkFollow = async () => {
+      try {
+        const res = await fetch(`/api/check-follow?fid=${user.fid}`);
+        const data = await res.json();
+        setRequirements(prev => ({ ...prev, following: data.isFollowing || false }));
+      } catch (err) {
+        console.error('Failed to check follow:', err);
+        setRequirements(prev => ({ ...prev, following: false }));
+      }
+    };
+
+    checkFollow();
+  }, [user?.fid]);
+
+  // Check passport ownership
   useEffect(() => {
-    if (grantedRoundId !== null && currentRound?.roundId !== undefined && currentRound.roundId !== grantedRoundId) {
-      console.log('🔄 Round changed - resetting access grant', {
-        grantedRound: grantedRoundId.toString(),
-        currentRound: currentRound.roundId.toString()
-      });
-      setGrantAccess(false);
-      setGrantedRoundId(null);
+    if (!passportLoading && passportBalance !== undefined) {
+      const hasPassport = typeof passportBalance === 'bigint' && passportBalance > 0n;
+      setRequirements(prev => ({ ...prev, passport: hasPassport }));
     }
-  }, [currentRound?.roundId, grantedRoundId]);
+  }, [passportBalance, passportLoading]);
 
-  // Update countdown every second
+  // Check lottery entry
+  useEffect(() => {
+    if (!entryLoading && hasEnteredLottery !== undefined) {
+      setRequirements(prev => ({ ...prev, lottery: hasEnteredLottery }));
+    }
+  }, [hasEnteredLottery, entryLoading]);
+
+  // Update loading state
+  useEffect(() => {
+    const allChecked = Object.values(requirements).every(v => v !== null);
+    if (allChecked && !contextLoading && !passportLoading && !entryLoading) {
+      setIsLoading(false);
+    }
+  }, [requirements, contextLoading, passportLoading, entryLoading]);
+
+  // Update countdown
   useEffect(() => {
     const updateCountdown = () => {
       if (timeRemaining) {
@@ -83,29 +126,86 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
         setCountdown(`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
       }
     };
-
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
   }, [timeRemaining]);
 
-  // Handle lottery entry with MON
-  const handleEnterWithMon = async () => {
-    if (!effectiveAddress) {
-      setError('Wallet not connected');
-      return;
-    }
+  // Check if all requirements met
+  const allRequirementsMet = requirements.subscription && requirements.following && requirements.passport && requirements.lottery;
 
-    setIsEntering(true);
+  // Handle subscribe action
+  const handleSubscribe = async () => {
+    setActiveAction('subscription');
     setError('');
+    try {
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          userFid: user?.fid,
+          action: 'music_subscribe',
+          params: { tier: 0 } // Basic tier
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Subscription failed');
+      }
+
+      // Wait and recheck
+      setTimeout(async () => {
+        const checkRes = await fetch(`/api/music/check-subscription?address=${effectiveAddress}`);
+        const checkData = await checkRes.json();
+        setRequirements(prev => ({ ...prev, subscription: checkData.hasSubscription || false }));
+        setActiveAction(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message);
+      setActiveAction(null);
+    }
+  };
+
+  // Handle follow action
+  const handleFollow = () => {
+    // Open Farcaster to follow unify34
+    window.open('https://warpcast.com/unify34', '_blank');
+    setStatusMessage('After following, click "Verify" to check status');
+  };
+
+  // Verify follow status
+  const verifyFollow = async () => {
+    if (!user?.fid) return;
+    setActiveAction('following');
+    try {
+      const res = await fetch(`/api/check-follow?fid=${user.fid}`);
+      const data = await res.json();
+      setRequirements(prev => ({ ...prev, following: data.isFollowing || false }));
+      if (!data.isFollowing) {
+        setError('Still not following @unify34. Please follow and try again.');
+      }
+    } catch (err) {
+      setError('Failed to verify follow status');
+    }
+    setActiveAction(null);
     setStatusMessage('');
-    setTxHash(null);
+  };
+
+  // Handle mint passport
+  const handleMintPassport = () => {
+    router.push('/passport');
+  };
+
+  // Handle lottery entry
+  const handleEnterLottery = async () => {
+    if (!effectiveAddress) return;
+    setActiveAction('lottery');
+    setError('');
 
     try {
-      // ✅ Lottery entry is now a PUBLIC action - no delegation needed!
-      setStatusMessage('Entering lottery with 1 MON...');
-
-      const response = await fetch('/api/execute-delegated', {
+      const res = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,261 +215,242 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Entry failed');
+      if (!res.ok) {
+        const data = await res.json();
+        if (data.error?.includes('Already entered')) {
+          setRequirements(prev => ({ ...prev, lottery: true }));
+          setActiveAction(null);
+          return;
+        }
+        throw new Error(data.error || 'Entry failed');
       }
 
-      const { txHash: hash } = await response.json();
-      setTxHash(hash);
-      setStatusMessage('');
-      setIsEntering(false);
-
-      // Start background polling
-      setTimeout(() => refetchHasEntered(), 3000);
-      setTimeout(() => refetchHasEntered(), 6000);
-      setTimeout(() => refetchRound(), 5000);
-
+      // Wait and recheck
+      setTimeout(() => {
+        refetchHasEntered();
+        setRequirements(prev => ({ ...prev, lottery: true }));
+        setActiveAction(null);
+      }, 3000);
     } catch (err: any) {
-      console.error('Entry error:', err);
-      const errMsg = err.message || 'Failed to enter lottery';
-
-      // Check for "Already entered" error - grant access if so
-      if (errMsg.includes('Already entered') || errMsg.includes('416c726561647920656e7465726564')) {
-        console.log('User already entered in current round - granting access');
-        setGrantAccess(true);
-        setGrantedRoundId(currentRound?.roundId || null);
-        setIsEntering(false);
-        return;
-      }
-
-      setError(errMsg);
-      setIsEntering(false);
+      setError(err.message);
+      setActiveAction(null);
     }
   };
 
-  // Debug logging
-  useEffect(() => {
-    if (!roundLoading && !entryLoading && !contextLoading) {
-      console.log('🎰 Lottery Gate Status:', {
-        effectiveAddress,
-        hasEntered,
-        grantAccess,
-        grantedRoundId: grantedRoundId?.toString(),
-        currentRoundId: currentRound?.roundId?.toString(),
-        shouldShowGate: !hasEntered && !(grantAccess && grantedRoundId !== null && currentRound?.roundId === grantedRoundId)
-      });
-    }
-  }, [roundLoading, entryLoading, contextLoading, hasEntered, grantAccess, grantedRoundId, currentRound?.roundId, effectiveAddress]);
-
-  // Show loading while checking
-  if (roundLoading || entryLoading || contextLoading) {
+  // Show loading
+  if (isLoading || contextLoading) {
     return (
       <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
         <div className="text-center">
-          <div className="animate-spin text-6xl mb-4">🎰</div>
-          <p className="text-white text-lg">Checking lottery status...</p>
+          <div className="animate-spin text-6xl mb-4">🌍</div>
+          <p className="text-white text-lg">Checking access requirements...</p>
         </div>
       </div>
     );
   }
 
-  // ❌ REMOVED hasEnteredError BYPASS - Security Fix
-  // Users must have ACTUALLY entered or received explicit "Already entered" confirmation
-  // Contract errors should NOT grant automatic access
-  // 🔒 CRITICAL: Only grant access if user entered THIS round (prevents 24hr bypass)
-  const currentRoundMatches = grantedRoundId !== null && currentRound?.roundId === grantedRoundId;
-  if (hasEntered || (grantAccess && currentRoundMatches)) {
+  // All requirements met - grant access
+  if (allRequirementsMet) {
     return <>{children}</>;
   }
 
-  // Show error state if contract read fails - DO NOT grant access
-  if (hasEnteredError) {
-    return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-red-500/50 shadow-2xl p-8 max-w-md mx-4 text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-white mb-4">Connection Error</h2>
-          <p className="text-white/80 mb-6">
-            Unable to verify lottery status. Please check your connection and try again.
-          </p>
-          <button
-            onClick={() => {
-              refetchHasEntered();
-              refetchRound();
-            }}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
-          >
-            🔄 Retry
-          </button>
-          <p className="text-white/50 text-xs mt-4">
-            Error checking lottery contract
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Calculate progress
+  const completedCount = Object.values(requirements).filter(v => v === true).length;
+  const totalCount = 4;
 
-  // Calculate total prize pool
-  const totalPrizePool = currentRound
-    ? Number(formatEther(currentRound.prizePoolWmon)).toFixed(4)
-    : '0';
-
-  // Show lottery gate - FULL SCREEN CENTERED
+  // Show gate with requirements checklist
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 z-[9999] overflow-auto">
+    <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 z-[9999] overflow-auto">
       <div className="min-h-screen w-full flex items-center justify-center p-4 py-8">
         <div className="w-full max-w-md mx-auto">
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
 
             {/* Header */}
             <div className="text-center mb-6">
-              <div className="text-6xl mb-3">🎰</div>
-              <h1 className="text-3xl font-bold text-white mb-2">Daily Pass Lottery</h1>
+              <div className="text-6xl mb-3">🌍</div>
+              <h1 className="text-3xl font-bold text-white mb-2">EmpowerTours</h1>
               <p className="text-white/80 text-sm">
-                Enter once, access all day, win the pot!
+                Complete all requirements to access the app
               </p>
             </div>
 
-            {/* SUCCESS STATE - Show after TX */}
-            {txHash && (
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/50 rounded-2xl p-5 mb-6">
-                <div className="text-center mb-4">
-                  <div className="text-5xl mb-2">🎉</div>
-                  <h2 className="text-xl font-bold text-white">You're In!</h2>
-                  <p className="text-green-300 text-sm">Entry successful - redirecting...</p>
+            {/* Progress Bar */}
+            <div className="mb-6">
+              <div className="flex justify-between text-sm text-white/70 mb-2">
+                <span>Progress</span>
+                <span>{completedCount}/{totalCount} completed</span>
+              </div>
+              <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500"
+                  style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Requirements Checklist */}
+            <div className="space-y-3 mb-6">
+
+              {/* 1. Music Subscription */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                requirements.subscription
+                  ? 'bg-green-500/20 border-green-500/50'
+                  : 'bg-white/5 border-white/20'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{requirements.subscription ? '✅' : '🎵'}</span>
+                    <div>
+                      <p className="text-white font-medium">Music Subscription</p>
+                      <p className="text-white/60 text-xs">Subscribe to access music features</p>
+                    </div>
+                  </div>
+                  {!requirements.subscription && (
+                    <button
+                      onClick={handleSubscribe}
+                      disabled={activeAction === 'subscription'}
+                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
+                    >
+                      {activeAction === 'subscription' ? '...' : 'Subscribe'}
+                    </button>
+                  )}
                 </div>
+              </div>
 
-                <a
-                  href={`https://testnet.monadscan.com/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-center text-cyan-400 text-sm hover:text-cyan-300 underline mb-4"
-                >
-                  View TX: {txHash.slice(0, 10)}...{txHash.slice(-6)}
-                </a>
+              {/* 2. Follow unify34 */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                requirements.following
+                  ? 'bg-green-500/20 border-green-500/50'
+                  : 'bg-white/5 border-white/20'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{requirements.following ? '✅' : '👤'}</span>
+                    <div>
+                      <p className="text-white font-medium">Follow @unify34</p>
+                      <p className="text-white/60 text-xs">Follow the creator on Farcaster</p>
+                    </div>
+                  </div>
+                  {!requirements.following && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleFollow}
+                        className="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold rounded-xl transition-all"
+                      >
+                        Follow
+                      </button>
+                      <button
+                        onClick={verifyFollow}
+                        disabled={activeAction === 'following'}
+                        className="px-3 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
+                      >
+                        {activeAction === 'following' ? '...' : 'Verify'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => router.push('/discover')}
-                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-5 px-12 rounded-2xl transition-all shadow-lg shadow-green-500/30 text-xl"
-                  >
-                    🚀 Enter EmpowerTours
-                  </button>
+              {/* 3. Mint Passport */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                requirements.passport
+                  ? 'bg-green-500/20 border-green-500/50'
+                  : 'bg-white/5 border-white/20'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{requirements.passport ? '✅' : '🛂'}</span>
+                    <div>
+                      <p className="text-white font-medium">Mint Passport NFT</p>
+                      <p className="text-white/60 text-xs">Your travel identity on-chain</p>
+                    </div>
+                  </div>
+                  {!requirements.passport && (
+                    <button
+                      onClick={handleMintPassport}
+                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold rounded-xl transition-all"
+                    >
+                      Mint
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. Enter Lottery */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                requirements.lottery
+                  ? 'bg-green-500/20 border-green-500/50'
+                  : 'bg-white/5 border-white/20'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{requirements.lottery ? '✅' : '🎰'}</span>
+                    <div>
+                      <p className="text-white font-medium">Enter Daily Lottery</p>
+                      <p className="text-white/60 text-xs">
+                        {entryFee ? `${Number(formatEther(entryFee)).toFixed(2)} WMON` : '1 WMON'} entry • Win the pot!
+                      </p>
+                    </div>
+                  </div>
+                  {!requirements.lottery && (
+                    <button
+                      onClick={handleEnterLottery}
+                      disabled={activeAction === 'lottery'}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
+                    >
+                      {activeAction === 'lottery' ? '...' : 'Enter'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Lottery Info */}
+            {currentRound && (
+              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl p-4 mb-4 border border-purple-500/30">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white/70">Round #{currentRound.roundId?.toString()}</span>
+                  <span className="text-cyan-400 font-mono font-bold">{countdown}</span>
+                </div>
+                <div className="text-center mt-2">
+                  <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                    {Number(formatEther(currentRound.prizePoolWmon)).toFixed(4)} MON
+                  </p>
+                  <p className="text-white/50 text-xs">Prize Pool • {currentRound.participantCount?.toString() || '0'} participants</p>
                 </div>
               </div>
             )}
 
-            {/* Current Round Info */}
-            {!txHash && (
-              <>
-                <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl p-4 mb-6 border border-purple-500/30">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-white/70 text-sm">Round #{currentRound?.roundId?.toString() || '0'}</span>
-                    <div className="text-right">
-                      <span className="text-white/50 text-xs block">Payout in</span>
-                      <span className="text-cyan-400 font-mono text-lg font-bold">{countdown}</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-white/60 text-xs mb-1">Current Prize Pool</p>
-                    <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                      {totalPrizePool} MON
-                    </p>
-                    <p style={{ color: '#fdba74', backgroundColor: 'rgba(249, 115, 22, 0.3)', borderColor: 'rgba(251, 146, 60, 0.5)' }} className="text-sm font-bold mt-2 rounded-lg py-1.5 px-4 inline-block border">
-                      👥 {currentRound?.participantCount?.toString() || '0'} participants
-                    </p>
-                  </div>
-                </div>
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 bg-red-500/20 border border-red-400/50 rounded-xl p-3">
+                <p className="text-red-100 text-sm">{error}</p>
+              </div>
+            )}
 
-                {/* Entry Fee */}
-                <div className="bg-white/10 rounded-2xl p-4 mb-6 border border-white/10">
-                  <div className="bg-black/20 rounded-xl p-3 text-center">
-                    <p className="text-white text-lg font-bold">
-                      {entryFee ? Number(formatEther(entryFee)).toFixed(2) : '1'} WMON
-                    </p>
-                    <p className="text-white/50 text-xs">90% to prize pool, 10% to platform</p>
-                  </div>
-                </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="mb-4 bg-red-500/20 border border-red-400/50 rounded-xl p-3">
-                    <p className="text-red-100 text-sm">{error}</p>
-                  </div>
-                )}
-
-                {/* Status Message */}
-                {statusMessage && (
-                  <div className="mb-4 bg-blue-500/20 border border-blue-400/50 rounded-xl p-3">
-                    <p className="text-blue-100 text-sm flex items-center gap-2">
-                      <span className="animate-spin">⏳</span>
-                      {statusMessage}
-                    </p>
-                  </div>
-                )}
-
-                {/* Enter Button */}
-                <button
-                  onClick={handleEnterWithMon}
-                  disabled={isEntering || !effectiveAddress}
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-lg shadow-purple-500/30"
-                >
-                  {isEntering ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin">🎰</span>
-                      Entering Lottery...
-                    </span>
-                  ) : (
-                    <span>🚀 Enter Lottery (FREE Gas)</span>
-                  )}
-                </button>
-
-                <p className="text-white/50 text-xs text-center mt-2">
-                  Gasless transaction - we pay the network fees!
-                </p>
-
-                {/* How It Works */}
-                <div className="mt-6 pt-4 border-t border-white/10">
-                  <h4 className="text-white/80 text-sm font-semibold mb-3 text-center">How It Works</h4>
-                  <div className="space-y-2 text-xs text-white/60">
-                    <div className="flex items-start gap-2">
-                      <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">1</span>
-                      <p>Enter today's lottery with WMON</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">2</span>
-                      <p>Get full access to EmpowerTours for 24 hours</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">3</span>
-                      <p>Random winner drawn when countdown hits zero</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">4</span>
-                      <p>Winner claims entire prize pool!</p>
-                    </div>
-                  </div>
-                </div>
-              </>
+            {/* Status Message */}
+            {statusMessage && (
+              <div className="mb-4 bg-blue-500/20 border border-blue-400/50 rounded-xl p-3">
+                <p className="text-blue-100 text-sm">{statusMessage}</p>
+              </div>
             )}
 
             {/* Wallet Info */}
             {effectiveAddress && (
-              <p className="text-white/40 text-xs text-center mt-4">
+              <p className="text-white/40 text-xs text-center">
                 {effectiveAddress.slice(0, 6)}...{effectiveAddress.slice(-4)}
+                {user?.username && ` • @${user.username}`}
               </p>
             )}
 
-            {/* Full Lottery Page Link - opens in new tab */}
-            <div className="text-center mt-4">
+            {/* Collector Mode Link */}
+            <div className="text-center mt-4 pt-4 border-t border-white/10">
+              <p className="text-white/50 text-xs mb-2">Just want to collect NFTs?</p>
               <a
-                href="/lottery"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/nft"
                 className="text-purple-400 text-sm hover:text-purple-300 underline"
               >
-                View Full Lottery Dashboard ↗
+                Browse NFT Marketplace →
               </a>
             </div>
           </div>
