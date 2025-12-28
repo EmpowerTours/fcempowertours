@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
       'concierge_food',
       'concierge_ride',
       'music-subscribe',       // Daily gate requirement
+      'faucet_claim',          // WMON faucet claim
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -3720,6 +3721,60 @@ ${enjoyText}
           userAddress,
           tier: subTier,
           message: 'Music subscription activated!',
+        });
+
+      // ==================== WMON FAUCET CLAIM ====================
+      case 'faucet_claim':
+        console.log('💧 Action: faucet_claim');
+
+        const { fid: faucetFid } = params || {};
+
+        if (!faucetFid) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameter: fid' },
+            { status: 400 }
+          );
+        }
+
+        const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_WMON_FAUCET as Address;
+        if (!FAUCET_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'Faucet address not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('💧 Claiming from faucet:', {
+          user: userAddress,
+          fid: faucetFid,
+          faucet: FAUCET_ADDRESS,
+        });
+
+        // Call claim(fid) - WMON goes to msg.sender (the Safe)
+        const faucetCalls: Call[] = [
+          {
+            to: FAUCET_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claim(uint256 fid) external']),
+              functionName: 'claim',
+              args: [BigInt(faucetFid)],
+            }) as Hex,
+          },
+        ];
+
+        const faucetTxHash = await executeTransaction(faucetCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Faucet claim successful, TX:', faucetTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: faucetTxHash,
+          action,
+          userAddress,
+          amount: '20 WMON',
+          message: 'WMON claimed from faucet!',
         });
 
       // ==================== MAPS PAYMENT ====================

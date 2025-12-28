@@ -3,12 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useDailyLottery, usePassportNFT, useFaucet } from '@/src/hooks';
-import { formatEther, parseEther, parseAbi } from 'viem';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useDailyLottery, usePassportNFT } from '@/src/hooks';
+import { formatEther } from 'viem';
+import { useAccount } from 'wagmi';
 import { Address } from 'viem';
-
-const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
 
 interface DailyAccessGateProps {
   children: React.ReactNode;
@@ -16,17 +14,10 @@ interface DailyAccessGateProps {
 
 interface RequirementStatus {
   faucet: boolean | null;
-  safeFunded: boolean | null;
   subscription: boolean | null;
   following: boolean | null;
   passport: boolean | null;
   lottery: boolean | null;
-}
-
-interface SafeInfo {
-  safeAddress: string;
-  wmonBalance: string;
-  isFunded: boolean;
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
@@ -39,10 +30,6 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const { useBalanceOf } = usePassportNFT();
   const { data: passportBalance, isLoading: passportLoading } = useBalanceOf(effectiveAddress as Address);
 
-  // Faucet hook
-  const { claim: claimFaucet, useCanClaim, isPending: faucetPending, isConfirming: faucetConfirming, isSuccess: faucetSuccess, error: faucetError } = useFaucet();
-  const { data: canClaimData, isLoading: faucetLoading, refetch: refetchFaucet } = useCanClaim(effectiveAddress as Address, user?.fid);
-
   // Lottery hooks
   const {
     useGetCurrentRound,
@@ -51,7 +38,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     useGetEntryFee,
   } = useDailyLottery();
 
-  const { data: currentRound, isLoading: roundLoading, refetch: refetchRound } = useGetCurrentRound();
+  const { data: currentRound } = useGetCurrentRound();
   const { data: timeRemaining } = useGetTimeRemaining();
   const { data: hasEnteredLottery, isLoading: entryLoading, refetch: refetchHasEntered } = useHasEnteredToday(effectiveAddress);
   const { data: entryFee } = useGetEntryFee();
@@ -59,7 +46,6 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // Requirement states
   const [requirements, setRequirements] = useState<RequirementStatus>({
     faucet: null,
-    safeFunded: null,
     subscription: null,
     following: null,
     passport: null,
@@ -71,30 +57,12 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState<string>('--:--:--');
-  const [safeInfo, setSafeInfo] = useState<SafeInfo | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [transferAmount, setTransferAmount] = useState('20');
+  const [safeWmonBalance, setSafeWmonBalance] = useState<string>('0');
 
-  const FAUCET_AMOUNT = '20'; // 20 WMON from faucet
-
-  // WMON transfer to Safe
-  const { writeContract: transferWmon, data: transferHash, isPending: transferPending, error: transferError } = useWriteContract();
-  const { isLoading: transferConfirming, isSuccess: transferSuccess } = useWaitForTransactionReceipt({ hash: transferHash });
-
-  // Check faucet status (has user claimed before / can they claim now)
-  useEffect(() => {
-    if (!faucetLoading && canClaimData !== undefined) {
-      // canClaimData is [canClaim_, walletCooldown, fidCooldown]
-      // If they CAN'T claim, it means they already claimed (requirement met)
-      const [canClaim] = canClaimData as [boolean, bigint, bigint];
-      setRequirements(prev => ({ ...prev, faucet: !canClaim }));
-    }
-  }, [canClaimData, faucetLoading]);
-
-  // Fetch user's Safe info
-  const fetchSafeInfo = async () => {
+  // Check faucet status via Safe's WMON balance
+  const checkFaucetStatus = async () => {
     if (!effectiveAddress) {
-      setRequirements(prev => ({ ...prev, safeFunded: false }));
+      setRequirements(prev => ({ ...prev, faucet: false }));
       return;
     }
     try {
@@ -102,53 +70,21 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
       const data = await res.json();
       if (data.success) {
         const wmonBal = parseFloat(data.wmonBalance || '0');
-        setSafeInfo({
-          safeAddress: data.safeAddress,
-          wmonBalance: data.wmonBalance || '0',
-          isFunded: wmonBal >= 15,
-        });
-        setRequirements(prev => ({ ...prev, safeFunded: wmonBal >= 15 }));
+        setSafeWmonBalance(data.wmonBalance || '0');
+        // Faucet is claimed if Safe has WMON (faucet sends directly to Safe)
+        setRequirements(prev => ({ ...prev, faucet: wmonBal >= 15 }));
       } else {
-        setRequirements(prev => ({ ...prev, safeFunded: false }));
+        setRequirements(prev => ({ ...prev, faucet: false }));
       }
     } catch (err) {
-      console.error('Failed to fetch Safe info:', err);
-      setRequirements(prev => ({ ...prev, safeFunded: false }));
+      console.error('Failed to check Safe balance:', err);
+      setRequirements(prev => ({ ...prev, faucet: false }));
     }
   };
 
   useEffect(() => {
-    fetchSafeInfo();
+    checkFaucetStatus();
   }, [effectiveAddress]);
-
-  // Refetch faucet status after successful claim
-  useEffect(() => {
-    if (faucetSuccess) {
-      setTimeout(() => {
-        refetchFaucet();
-        setRequirements(prev => ({ ...prev, faucet: true }));
-        setActiveAction(null);
-      }, 2000);
-    }
-  }, [faucetSuccess, refetchFaucet]);
-
-  // Refetch Safe balance after successful WMON transfer
-  useEffect(() => {
-    if (transferSuccess) {
-      setTimeout(() => {
-        fetchSafeInfo();
-        setStatusMessage('WMON transferred to your Safe!');
-        setTimeout(() => setStatusMessage(''), 3000);
-      }, 2000);
-    }
-  }, [transferSuccess]);
-
-  // Handle transfer error
-  useEffect(() => {
-    if (transferError) {
-      setError(transferError.message || 'Transfer failed');
-    }
-  }, [transferError]);
 
   // Check subscription status
   useEffect(() => {
@@ -210,10 +146,10 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // Update loading state
   useEffect(() => {
     const allChecked = Object.values(requirements).every(v => v !== null);
-    if (allChecked && !contextLoading && !passportLoading && !entryLoading && !faucetLoading) {
+    if (allChecked && !contextLoading && !passportLoading && !entryLoading) {
       setIsLoading(false);
     }
-  }, [requirements, contextLoading, passportLoading, entryLoading, faucetLoading]);
+  }, [requirements, contextLoading, passportLoading, entryLoading]);
 
   // Update countdown
   useEffect(() => {
@@ -232,46 +168,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   }, [timeRemaining]);
 
   // Check if all requirements met
-  const allRequirementsMet = requirements.faucet && requirements.safeFunded && requirements.subscription && requirements.following && requirements.passport && requirements.lottery;
+  const allRequirementsMet = requirements.faucet && requirements.subscription && requirements.following && requirements.passport && requirements.lottery;
 
-  // Copy Safe address to clipboard
-  const copySafeAddress = () => {
-    if (safeInfo?.safeAddress) {
-      navigator.clipboard.writeText(safeInfo.safeAddress);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  // Refresh Safe balance
-  const refreshSafeBalance = () => {
-    setActiveAction('checking-safe');
-    fetchSafeInfo().then(() => setActiveAction(null));
-  };
-
-  // Transfer WMON to Safe
-  const handleTransferToSafe = () => {
-    if (!safeInfo?.safeAddress || !transferAmount || !WMON_ADDRESS) {
-      setError('Missing Safe address or amount');
-      return;
-    }
-
-    const amount = parseFloat(transferAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setError('Invalid amount');
-      return;
-    }
-
-    setError('');
-    transferWmon({
-      address: WMON_ADDRESS,
-      abi: parseAbi(['function transfer(address to, uint256 amount) returns (bool)']),
-      functionName: 'transfer',
-      args: [safeInfo.safeAddress as Address, parseEther(transferAmount)],
-    });
-  };
-
-  // Subscription tier prices (in wei)
+  // Subscription tier prices
   const SUBSCRIPTION_TIERS = [
     { tier: 0, name: 'Daily', price: '15000000000000000000', display: '15 WMON' },
     { tier: 1, name: 'Weekly', price: '75000000000000000000', display: '75 WMON' },
@@ -279,24 +178,42 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     { tier: 3, name: 'Yearly', price: '3000000000000000000000', display: '3000 WMON' },
   ];
 
-  // Handle faucet claim
-  const handleClaimFaucet = () => {
-    if (!user?.fid) {
+  // Handle faucet claim via execute-delegated (WMON goes directly to Safe)
+  const handleClaimFaucet = async () => {
+    if (!user?.fid || !effectiveAddress) {
       setError('Farcaster account required');
       return;
     }
     setActiveAction('faucet');
     setError('');
-    claimFaucet(user.fid);
-  };
 
-  // Handle faucet error
-  useEffect(() => {
-    if (faucetError) {
-      setError(faucetError.message || 'Faucet claim failed');
+    try {
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'faucet_claim',
+          params: { fid: user.fid }
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Faucet claim failed');
+      }
+
+      setStatusMessage('20 WMON claimed to your Safe!');
+      setTimeout(() => {
+        checkFaucetStatus();
+        setStatusMessage('');
+        setActiveAction(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message);
       setActiveAction(null);
     }
-  }, [faucetError]);
+  };
 
   // Handle subscribe action
   const handleSubscribe = async (tierIndex: number) => {
@@ -324,7 +241,6 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
         throw new Error(data.error || 'Subscription failed');
       }
 
-      // Wait and recheck
       setTimeout(async () => {
         const checkRes = await fetch(`/api/music/check-subscription?address=${effectiveAddress}`);
         const checkData = await checkRes.json();
@@ -423,9 +339,8 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   // Calculate progress
   const completedCount = Object.values(requirements).filter(v => v === true).length;
-  const totalCount = 6;
+  const totalCount = 5;
 
-  // Show gate with requirements checklist
   return (
     <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 z-[9999] overflow-auto">
       <div className="min-h-screen w-full flex items-center justify-center p-4 py-8">
@@ -469,96 +384,26 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <span className="text-2xl">{requirements.faucet ? '✅' : '💧'}</span>
                     <div>
                       <p className="text-white font-medium">Claim Testnet WMON</p>
-                      <p className="text-white/60 text-xs">Get 20 WMON to use the app</p>
+                      <p className="text-white/60 text-xs">
+                        {requirements.faucet
+                          ? `Safe has ${safeWmonBalance} WMON`
+                          : 'Get 20 WMON to your Safe wallet'}
+                      </p>
                     </div>
                   </div>
                   {!requirements.faucet && (
                     <button
                       onClick={handleClaimFaucet}
-                      disabled={faucetPending || faucetConfirming || activeAction === 'faucet'}
+                      disabled={activeAction === 'faucet'}
                       className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
                     >
-                      {faucetPending || faucetConfirming ? '...' : 'Claim'}
+                      {activeAction === 'faucet' ? '...' : 'Claim'}
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* 2. Fund Safe Wallet */}
-              <div className={`p-4 rounded-2xl border transition-all ${
-                requirements.safeFunded
-                  ? 'bg-green-500/20 border-green-500/50'
-                  : 'bg-white/5 border-white/20'
-              }`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">{requirements.safeFunded ? '✅' : '🏦'}</span>
-                  <div>
-                    <p className="text-white font-medium">Fund Your Safe Wallet</p>
-                    <p className="text-white/60 text-xs">
-                      {requirements.faucet
-                        ? `You received ${FAUCET_AMOUNT} WMON. Send it to your Safe.`
-                        : 'Claim WMON first, then fund your Safe'}
-                    </p>
-                  </div>
-                </div>
-                {!requirements.safeFunded && safeInfo && requirements.faucet && (
-                  <div className="space-y-3">
-                    <div className="bg-black/30 rounded-xl p-3">
-                      <p className="text-white/60 text-xs mb-1">Your Safe Address:</p>
-                      <div className="flex items-center gap-2">
-                        <code className="text-cyan-400 text-xs font-mono flex-1 break-all">
-                          {safeInfo.safeAddress}
-                        </code>
-                        <button
-                          onClick={copySafeAddress}
-                          className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs rounded-lg transition-all flex-shrink-0"
-                        >
-                          {copied ? 'Copied!' : 'Copy'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Transfer WMON to Safe */}
-                    <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-xl p-3">
-                      <p className="text-white/80 text-xs mb-2">Transfer WMON to your Safe:</p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          value={transferAmount}
-                          onChange={(e) => setTransferAmount(e.target.value)}
-                          placeholder="Amount"
-                          className="flex-1 bg-black/30 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500"
-                          min="0"
-                          step="0.1"
-                        />
-                        <span className="text-white/60 text-sm">WMON</span>
-                        <button
-                          onClick={handleTransferToSafe}
-                          disabled={transferPending || transferConfirming || !transferAmount}
-                          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-all"
-                        >
-                          {transferPending ? 'Confirm...' : transferConfirming ? 'Sending...' : 'Send'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <p className="text-white/60 text-xs">
-                        Safe Balance: <span className="text-white font-bold">{safeInfo.wmonBalance} WMON</span>
-                      </p>
-                      <button
-                        onClick={refreshSafeBalance}
-                        disabled={activeAction === 'checking-safe'}
-                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white text-xs rounded-lg transition-all"
-                      >
-                        {activeAction === 'checking-safe' ? 'Checking...' : 'Refresh'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 3. Music Subscription */}
+              {/* 2. Music Subscription */}
               <div className={`p-4 rounded-2xl border transition-all ${
                 requirements.subscription
                   ? 'bg-green-500/20 border-green-500/50'
@@ -577,7 +422,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                       <button
                         key={tier.tier}
                         onClick={() => handleSubscribe(idx)}
-                        disabled={activeAction === 'subscription' || !requirements.safeFunded}
+                        disabled={activeAction === 'subscription' || !requirements.faucet}
                         className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
                           idx === 0
                             ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
@@ -592,7 +437,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                 )}
               </div>
 
-              {/* 4. Follow unify34 */}
+              {/* 3. Follow unify34 */}
               <div className={`p-4 rounded-2xl border transition-all ${
                 requirements.following
                   ? 'bg-green-500/20 border-green-500/50'
@@ -626,7 +471,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                 </div>
               </div>
 
-              {/* 5. Mint Passport */}
+              {/* 4. Mint Passport */}
               <div className={`p-4 rounded-2xl border transition-all ${
                 requirements.passport
                   ? 'bg-green-500/20 border-green-500/50'
@@ -651,7 +496,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                 </div>
               </div>
 
-              {/* 6. Enter Lottery */}
+              {/* 5. Enter Lottery */}
               <div className={`p-4 rounded-2xl border transition-all ${
                 requirements.lottery
                   ? 'bg-green-500/20 border-green-500/50'
@@ -663,14 +508,14 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <div>
                       <p className="text-white font-medium">Enter Daily Lottery</p>
                       <p className="text-white/60 text-xs">
-                        {entryFee ? `${Number(formatEther(entryFee)).toFixed(2)} WMON` : '1 WMON'} entry • Win the pot!
+                        {entryFee ? `${Number(formatEther(entryFee)).toFixed(2)} WMON` : '1 WMON'} entry
                       </p>
                     </div>
                   </div>
                   {!requirements.lottery && (
                     <button
                       onClick={handleEnterLottery}
-                      disabled={activeAction === 'lottery' || !requirements.safeFunded}
+                      disabled={activeAction === 'lottery' || !requirements.faucet}
                       className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
                     >
                       {activeAction === 'lottery' ? '...' : 'Enter'}
@@ -691,7 +536,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                   <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
                     {Number(formatEther(currentRound.prizePoolWmon)).toFixed(4)} MON
                   </p>
-                  <p className="text-white/50 text-xs">Prize Pool • {currentRound.participantCount?.toString() || '0'} participants</p>
+                  <p className="text-white/50 text-xs">Prize Pool</p>
                 </div>
               </div>
             )}
