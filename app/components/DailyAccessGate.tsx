@@ -134,19 +134,34 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // Check if all requirements met
   const allRequirementsMet = requirements.subscription && requirements.following && requirements.passport && requirements.lottery;
 
+  // Subscription tier prices (in wei)
+  const SUBSCRIPTION_TIERS = [
+    { tier: 0, name: 'Daily', price: '15000000000000000000', display: '15 WMON' },
+    { tier: 1, name: 'Weekly', price: '75000000000000000000', display: '75 WMON' },
+    { tier: 2, name: 'Monthly', price: '300000000000000000000', display: '300 WMON' },
+    { tier: 3, name: 'Yearly', price: '3000000000000000000000', display: '3000 WMON' },
+  ];
+
+  const [selectedTier, setSelectedTier] = useState(0);
+
   // Handle subscribe action
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (tierIndex: number) => {
     setActiveAction('subscription');
     setError('');
     try {
+      const tier = SUBSCRIPTION_TIERS[tierIndex];
+
       const res = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: effectiveAddress,
-          userFid: user?.fid,
-          action: 'music_subscribe',
-          params: { tier: 0 } // Basic tier
+          action: 'music-subscribe',
+          params: {
+            userFid: user?.fid || 0,
+            tier: tier.tier,
+            amount: tier.price
+          }
         })
       });
 
@@ -297,24 +312,32 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                   ? 'bg-green-500/20 border-green-500/50'
                   : 'bg-white/5 border-white/20'
               }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{requirements.subscription ? '✅' : '🎵'}</span>
-                    <div>
-                      <p className="text-white font-medium">Music Subscription</p>
-                      <p className="text-white/60 text-xs">Subscribe to access music features</p>
-                    </div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">{requirements.subscription ? '✅' : '🎵'}</span>
+                  <div>
+                    <p className="text-white font-medium">Music Subscription</p>
+                    <p className="text-white/60 text-xs">Choose a plan to stream music</p>
                   </div>
-                  {!requirements.subscription && (
-                    <button
-                      onClick={handleSubscribe}
-                      disabled={activeAction === 'subscription'}
-                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
-                    >
-                      {activeAction === 'subscription' ? '...' : 'Subscribe'}
-                    </button>
-                  )}
                 </div>
+                {!requirements.subscription && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {SUBSCRIPTION_TIERS.map((tier, idx) => (
+                      <button
+                        key={tier.tier}
+                        onClick={() => handleSubscribe(idx)}
+                        disabled={activeAction === 'subscription'}
+                        className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
+                          idx === 0
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+                            : 'bg-white/10 hover:bg-white/20 border border-white/20'
+                        }`}
+                      >
+                        <p className="text-white text-xs font-bold">{tier.name}</p>
+                        <p className="text-white/80 text-xs">{tier.display}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 2. Follow unify34 */}

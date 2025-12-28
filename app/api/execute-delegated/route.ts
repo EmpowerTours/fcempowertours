@@ -80,7 +80,8 @@ export async function POST(req: NextRequest) {
       'lottery_enter_shmon',
       'concierge_custom',
       'concierge_food',
-      'concierge_ride'
+      'concierge_ride',
+      'music-subscribe',       // Daily gate requirement
     ];
     const requiresDelegation = !publicActions.includes(action);
 
