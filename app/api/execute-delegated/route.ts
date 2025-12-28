@@ -3767,9 +3767,14 @@ ${enjoyText}
 
         // IMPORTANT: Faucet claim uses PLATFORM Safe (gasless for user)
         // because user's Safe has no MON yet (chicken-egg problem)
+        // Flow:
         // 1. Platform Safe claims WMON (goes to Platform Safe as msg.sender)
-        // 2. Platform Safe transfers WMON to user's Safe
+        // 2. Unwrap 0.5 WMON to MON (for user's gas fees)
+        // 3. Transfer 19.5 WMON to user's Safe
+        // 4. Send 0.5 MON to user's Safe for gas
         const FAUCET_AMOUNT = parseEther('20'); // 20 WMON per claim
+        const GAS_AMOUNT = parseEther('0.5');   // 0.5 MON for gas
+        const WMON_TRANSFER = FAUCET_AMOUNT - GAS_AMOUNT; // 19.5 WMON
 
         const faucetCalls: Call[] = [
           // Step 1: Claim from faucet (WMON goes to Platform Safe)
@@ -3782,25 +3787,46 @@ ${enjoyText}
               args: [BigInt(faucetFid)],
             }) as Hex,
           },
-          // Step 2: Transfer WMON from Platform Safe to user's Safe
+          // Step 2: Unwrap 0.5 WMON to MON (for user's gas)
+          {
+            to: WMON_FOR_FAUCET,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function withdraw(uint256 amount) external']),
+              functionName: 'withdraw',
+              args: [GAS_AMOUNT],
+            }) as Hex,
+          },
+          // Step 3: Transfer 19.5 WMON to user's Safe
           {
             to: WMON_FOR_FAUCET,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function transfer(address to, uint256 amount) returns (bool)']),
               functionName: 'transfer',
-              args: [userSafeForFaucet, FAUCET_AMOUNT],
+              args: [userSafeForFaucet, WMON_TRANSFER],
             }) as Hex,
+          },
+          // Step 4: Send 0.5 MON (native) to user's Safe for gas
+          {
+            to: userSafeForFaucet,
+            value: GAS_AMOUNT,
+            data: '0x' as Hex,
           },
         ];
 
         // Use PLATFORM Safe directly (bypass executeTransaction which would use user Safe)
         console.log('🏢 Faucet: Using PLATFORM Safe for gasless claim + transfer to user Safe');
+        console.log('💰 Will send:', {
+          wmon: '19.5 WMON',
+          mon: '0.5 MON (for gas)',
+          recipient: userSafeForFaucet,
+        });
         const faucetTxHash = await sendSafeTransaction(faucetCalls);
         await incrementTransactionCount(userAddress);
 
         console.log('✅ Faucet claim successful, TX:', faucetTxHash);
-        console.log('✅ WMON sent to user Safe:', userSafeForFaucet);
+        console.log('✅ WMON + MON sent to user Safe:', userSafeForFaucet);
 
         return NextResponse.json({
           success: true,
@@ -3808,8 +3834,9 @@ ${enjoyText}
           action,
           userAddress,
           recipientSafe: userSafeForFaucet,
-          amount: '20 WMON',
-          message: 'WMON claimed and sent to your Safe wallet!',
+          wmonAmount: '19.5 WMON',
+          monAmount: '0.5 MON (for gas)',
+          message: 'WMON + MON claimed and sent to your Safe wallet!',
         });
 
       // ==================== MAPS PAYMENT ====================
