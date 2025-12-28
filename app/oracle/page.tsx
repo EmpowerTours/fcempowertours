@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, Home } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -10,6 +10,7 @@ import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
 import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
 import { ProfileModal } from '@/app/components/oracle/ProfileModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
+import { LandsModal } from '@/app/components/oracle/LandsModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useRouter } from 'next/navigation';
 
@@ -73,6 +74,7 @@ export default function OraclePage() {
   const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDAOModal, setShowDAOModal] = useState(false);
+  const [showLandsModal, setShowLandsModal] = useState(false);
 
   // Fetch NFT list
   useEffect(() => {
@@ -570,6 +572,13 @@ export default function OraclePage() {
                 {walletAddress && (
                   <>
                     <button
+                      onClick={() => setShowLandsModal(true)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-600/20 hover:from-amber-500/30 hover:to-orange-600/30 border border-amber-500/30 rounded-lg text-xs text-amber-400 font-semibold transition-all flex items-center gap-1"
+                    >
+                      <Home className="w-3 h-3" />
+                      Lands
+                    </button>
+                    <button
                       onClick={() => setShowDAOModal(true)}
                       className="px-3 py-1.5 bg-gradient-to-r from-indigo-500/20 to-purple-600/20 hover:from-indigo-500/30 hover:to-purple-600/30 border border-indigo-500/30 rounded-lg text-xs text-indigo-400 font-semibold transition-all flex items-center gap-1"
                     >
@@ -850,6 +859,11 @@ export default function OraclePage() {
           userAddress={walletAddress ?? undefined}
           onClose={() => setShowDAOModal(false)}
         />
+      )}
+
+      {/* Lands Modal */}
+      {showLandsModal && (
+        <LandsModal onClose={() => setShowLandsModal(false)} />
       )}
     </>
   );

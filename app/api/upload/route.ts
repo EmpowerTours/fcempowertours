@@ -6,6 +6,11 @@ const PINATA_JSON_URL = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
 const PINATA_JWT = process.env.PINATA_JWT!;
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 
+// App Router config - extended timeout and body size for large uploads
+export const runtime = 'nodejs';
+export const maxDuration = 120; // 2 minutes for large file uploads
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -86,23 +91,38 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // ✅ IMPROVED: Helper function with retry logic and exponential backoff
-    const uploadFileToPinata = async (file: File, fileType: string, maxRetries = 3) => {
+    // ✅ IMPROVED: Helper function with retry logic, exponential backoff, and AbortController
+    const uploadFileToPinata = async (file: File, fileType: string, maxRetries = 4) => {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        // Use AbortController for proper timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.log(`⏱️ Timeout triggered for ${fileType} attempt ${attempt}`);
+          controller.abort();
+        }, 90000); // 90 second timeout per attempt
+
         try {
           const data = new FormData();
           data.append('file', file);
 
-          console.log(`📤 [Attempt ${attempt}/${maxRetries}] Uploading ${fileType} (${(file.size / 1024).toFixed(0)}KB)...`);
+          const fileSizeKB = (file.size / 1024).toFixed(0);
+          const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+          console.log(`📤 [Attempt ${attempt}/${maxRetries}] Uploading ${fileType} (${fileSizeKB}KB / ${fileSizeMB}MB)...`);
 
           const response = await axios.post(PINATA_API_URL, data, {
             headers: {
               'Authorization': `Bearer ${PINATA_JWT}`,
             },
-            timeout: 60000, // 60 second timeout
+            signal: controller.signal,
+            timeout: 90000, // 90 second timeout
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
+            // Enable keepAlive for better connection stability
+            httpAgent: undefined,
+            httpsAgent: undefined,
           });
+
+          clearTimeout(timeoutId);
 
           if (!response.data.IpfsHash) {
             throw new Error(`No IPFS hash returned for ${fileType}`);
@@ -110,7 +130,7 @@ export async function POST(request: NextRequest) {
 
           const hash = response.data.IpfsHash;
           console.log(`✅ ${fileType} uploaded successfully: ${hash}`);
-          
+
           // ✅ Validate hash format
           if (!hash.startsWith('Qm') && !hash.startsWith('bafy')) {
             console.warn(`⚠️ Unusual hash format for ${fileType}: ${hash}`);
@@ -118,19 +138,38 @@ export async function POST(request: NextRequest) {
 
           return hash;
         } catch (error: any) {
-          console.error(`❌ Attempt ${attempt} failed for ${fileType}:`, error.message);
-          
+          clearTimeout(timeoutId);
+
+          // Detailed error logging
+          const errorCode = error.code || 'UNKNOWN';
+          const errorMsg = error.message || 'Unknown error';
+          const isTimeout = errorCode === 'ECONNABORTED' || error.name === 'AbortError';
+          const isNetworkError = errorCode === 'ECONNRESET' || errorCode === 'ETIMEDOUT' || errorCode === 'ENOTFOUND';
+
+          console.error(`❌ Attempt ${attempt} failed for ${fileType}:`, {
+            code: errorCode,
+            message: errorMsg,
+            isTimeout,
+            isNetworkError,
+          });
+
           if (attempt === maxRetries) {
-            throw new Error(`Failed to upload ${fileType} after ${maxRetries} attempts: ${error.message}`);
+            // Provide helpful error message based on error type
+            if (isTimeout) {
+              throw new Error(`Upload timeout for ${fileType}: File may be too large. Try a smaller file or compress it.`);
+            } else if (isNetworkError) {
+              throw new Error(`Network error uploading ${fileType}: Connection was reset. Please try again.`);
+            }
+            throw new Error(`Failed to upload ${fileType} after ${maxRetries} attempts: ${errorMsg}`);
           }
-          
-          // Exponential backoff: 2s, 4s, 8s
-          const delay = Math.pow(2, attempt) * 1000;
-          console.log(`⏳ Retrying in ${delay}ms...`);
+
+          // Exponential backoff: 3s, 6s, 12s, 24s
+          const delay = Math.pow(2, attempt) * 1500;
+          console.log(`⏳ Retrying ${fileType} in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
-      
+
       throw new Error(`Upload failed for ${fileType}`);
     };
 

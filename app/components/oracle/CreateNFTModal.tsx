@@ -300,12 +300,30 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       setProgressStage('Uploading to IPFS...');
       setProgressPercent(20);
 
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      // Create AbortController with 2 minute timeout for large uploads
+      const uploadController = new AbortController();
+      const uploadTimeout = setTimeout(() => {
+        uploadController.abort();
+      }, 120000); // 2 minute timeout
 
-      // Simulate progress during upload (actual progress would need streaming)
+      let uploadRes: Response;
+      try {
+        uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+          signal: uploadController.signal,
+          // keepalive helps prevent premature connection closing
+          keepalive: true,
+        });
+      } catch (fetchError: any) {
+        clearTimeout(uploadTimeout);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Upload timed out. Please try a smaller file.');
+        }
+        throw new Error(`Upload failed: ${fetchError.message}`);
+      }
+      clearTimeout(uploadTimeout);
+
       setProgressPercent(50);
       setProgressStage('Processing uploads...');
 

@@ -59,32 +59,40 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [countdown, setCountdown] = useState<string>('--:--:--');
   const [safeWmonBalance, setSafeWmonBalance] = useState<string>('0');
 
-  // Check faucet status via Safe's WMON balance
+  // Check faucet status via faucet contract's claim history
   const checkFaucetStatus = async () => {
-    if (!effectiveAddress) {
+    if (!user?.fid) {
       setRequirements(prev => ({ ...prev, faucet: false }));
       return;
     }
     try {
-      const res = await fetch(`/api/user-safe?address=${effectiveAddress}`);
+      // Check faucet contract directly to see if this FID has ever claimed
+      const res = await fetch(`/api/faucet/check-claimed?fid=${user.fid}&address=${effectiveAddress || ''}`);
       const data = await res.json();
       if (data.success) {
-        const wmonBal = parseFloat(data.wmonBalance || '0');
-        setSafeWmonBalance(data.wmonBalance || '0');
-        // Faucet is claimed if Safe has WMON (faucet sends directly to Safe)
-        setRequirements(prev => ({ ...prev, faucet: wmonBal >= 15 }));
+        // Faucet requirement is met if user has ever claimed (not based on current balance)
+        setRequirements(prev => ({ ...prev, faucet: data.hasClaimed === true }));
       } else {
-        setRequirements(prev => ({ ...prev, faucet: false }));
+        // Also check Safe balance as fallback
+        const safeRes = await fetch(`/api/user-safe?address=${effectiveAddress}`);
+        const safeData = await safeRes.json();
+        if (safeData.success) {
+          const wmonBal = parseFloat(safeData.wmonBalance || '0');
+          setSafeWmonBalance(safeData.wmonBalance || '0');
+          setRequirements(prev => ({ ...prev, faucet: wmonBal >= 15 }));
+        } else {
+          setRequirements(prev => ({ ...prev, faucet: false }));
+        }
       }
     } catch (err) {
-      console.error('Failed to check Safe balance:', err);
+      console.error('Failed to check faucet status:', err);
       setRequirements(prev => ({ ...prev, faucet: false }));
     }
   };
 
   useEffect(() => {
     checkFaucetStatus();
-  }, [effectiveAddress]);
+  }, [effectiveAddress, user?.fid]);
 
   // Check subscription status
   useEffect(() => {
