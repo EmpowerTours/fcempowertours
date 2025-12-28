@@ -93,28 +93,32 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   // Fetch user's Safe info
   const fetchSafeInfo = async () => {
-    if (!effectiveAddress) return;
+    if (!effectiveAddress) {
+      setRequirements(prev => ({ ...prev, safeFunded: false }));
+      return;
+    }
     try {
       const res = await fetch(`/api/user-safe?address=${effectiveAddress}`);
       const data = await res.json();
       if (data.success) {
+        const wmonBal = parseFloat(data.wmonBalance || '0');
         setSafeInfo({
           safeAddress: data.safeAddress,
           wmonBalance: data.wmonBalance || '0',
-          isFunded: parseFloat(data.wmonBalance || '0') >= 15, // Need at least 15 WMON for daily subscription
+          isFunded: wmonBal >= 15,
         });
-        // Safe is funded if it has enough WMON for subscription
-        setRequirements(prev => ({ ...prev, safeFunded: parseFloat(data.wmonBalance || '0') >= 15 }));
+        setRequirements(prev => ({ ...prev, safeFunded: wmonBal >= 15 }));
+      } else {
+        setRequirements(prev => ({ ...prev, safeFunded: false }));
       }
     } catch (err) {
       console.error('Failed to fetch Safe info:', err);
+      setRequirements(prev => ({ ...prev, safeFunded: false }));
     }
   };
 
   useEffect(() => {
-    if (effectiveAddress) {
-      fetchSafeInfo();
-    }
+    fetchSafeInfo();
   }, [effectiveAddress]);
 
   // Refetch faucet status after successful claim
@@ -206,10 +210,10 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // Update loading state
   useEffect(() => {
     const allChecked = Object.values(requirements).every(v => v !== null);
-    if (allChecked && !contextLoading && !passportLoading && !entryLoading && !faucetLoading && safeInfo) {
+    if (allChecked && !contextLoading && !passportLoading && !entryLoading && !faucetLoading) {
       setIsLoading(false);
     }
-  }, [requirements, contextLoading, passportLoading, entryLoading, faucetLoading, safeInfo]);
+  }, [requirements, contextLoading, passportLoading, entryLoading, faucetLoading]);
 
   // Update countdown
   useEffect(() => {
