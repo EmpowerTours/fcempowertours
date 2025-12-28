@@ -18,7 +18,6 @@ const steps = [
 ];
 
 export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
-  console.log('[CreateNFTModal] Component rendering');
   const { user, walletAddress, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
 
@@ -46,7 +45,6 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
   // Use portal to render at document body level
   useEffect(() => {
     setMounted(true);
-    console.log('[CreateNFTModal] Mounted, will use portal');
   }, []);
 
   const farcasterFid = user?.fid || 0;
@@ -300,29 +298,17 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
       setProgressStage('Uploading to IPFS...');
       setProgressPercent(20);
 
-      // Create AbortController with 2 minute timeout for large uploads
-      const uploadController = new AbortController();
-      const uploadTimeout = setTimeout(() => {
-        uploadController.abort();
-      }, 120000); // 2 minute timeout
-
+      // Upload with timeout handling
       let uploadRes: Response;
       try {
         uploadRes = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
-          signal: uploadController.signal,
-          // keepalive helps prevent premature connection closing
-          keepalive: true,
         });
       } catch (fetchError: any) {
-        clearTimeout(uploadTimeout);
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Upload timed out. Please try a smaller file.');
-        }
-        throw new Error(`Upload failed: ${fetchError.message}`);
+        console.error('[CreateNFTModal] Fetch error:', fetchError);
+        throw new Error(`Upload failed: ${fetchError.message || 'Network error'}`);
       }
-      clearTimeout(uploadTimeout);
 
       setProgressPercent(50);
       setProgressStage('Processing uploads...');

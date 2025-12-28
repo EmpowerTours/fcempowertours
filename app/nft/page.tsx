@@ -310,28 +310,17 @@ export default function MusicPage() {
       formData.append('fid', farcasterFid?.toString() || '0');
       formData.append('isArtOnly', isArtOnly.toString()); // Flag for backend
 
-      // Create AbortController with 2 minute timeout for large uploads
-      const uploadController = new AbortController();
-      const uploadTimeout = setTimeout(() => {
-        uploadController.abort();
-      }, 120000); // 2 minute timeout
-
+      // Upload files
       let uploadRes: Response;
       try {
         uploadRes = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
-          signal: uploadController.signal,
-          keepalive: true,
         });
       } catch (fetchError: any) {
-        clearTimeout(uploadTimeout);
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Upload timed out. Please try a smaller file.');
-        }
-        throw new Error(`Upload failed: ${fetchError.message}`);
+        console.error('[NFT Upload] Fetch error:', fetchError);
+        throw new Error(`Upload failed: ${fetchError.message || 'Network error'}`);
       }
-      clearTimeout(uploadTimeout);
 
       if (!uploadRes.ok) {
         const errorData = await uploadRes.json();
