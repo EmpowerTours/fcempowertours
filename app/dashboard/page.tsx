@@ -94,7 +94,6 @@ export default function DashboardPage() {
             licenseId
             masterTokenId
             licensee
-            expiry
             active
             createdAt
             txHash
@@ -502,18 +501,17 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {recentMusicPurchases.map((item, idx) => {
-                    const expiryDate = new Date(Number(item.expiry) * 1000);
-                    const isExpired = expiryDate < new Date();
+                    const isActive = item.active;
                     return (
                       <div
                         key={item.id || idx}
                         className={`p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 rounded-lg hover:border-orange-400 transition-all animate-slide-in ${
-                          isExpired ? 'border-gray-300 opacity-60' : 'border-orange-200'
+                          !isActive ? 'border-gray-300 opacity-60' : 'border-orange-200'
                         }`}
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
                         <div className="flex items-start gap-4">
-                          <div className="text-3xl">{isExpired ? '⏱️' : '🎧'}</div>
+                          <div className="text-3xl">{isActive ? '🎧' : '⏱️'}</div>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-orange-900">
                               License #{item.licenseId}
@@ -525,14 +523,14 @@ export default function DashboardPage() {
                             )}
                             {item.masterToken?.price && (
                               <p className="text-xs text-orange-600 font-semibold">
-                                💰 {(Number(item.masterToken.price) / 1e18).toFixed(2)} TOURS
+                                💰 {(Number(item.masterToken.price) / 1e18).toFixed(2)} WMON
                               </p>
                             )}
                             <p className="text-xs text-gray-500 mt-1">
                               Licensee: {String(item.licensee).slice(0, 6)}...{String(item.licensee).slice(-4)}
                             </p>
-                            <p className={`text-xs mt-1 ${isExpired ? 'text-red-600' : 'text-green-600'}`}>
-                              {isExpired ? '❌ Expired' : '✅ Active'} • Expires: {expiryDate.toLocaleDateString()}
+                            <p className={`text-xs mt-1 ${isActive ? 'text-green-600' : 'text-red-600'}`}>
+                              {isActive ? '✅ Active • Perpetual License' : '❌ Inactive'}
                             </p>
                           </div>
                           {item.txHash && (

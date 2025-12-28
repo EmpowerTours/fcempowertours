@@ -11,6 +11,7 @@ import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
 import { ProfileModal } from '@/app/components/oracle/ProfileModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { LandsModal } from '@/app/components/oracle/LandsModal';
+import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useRouter } from 'next/navigation';
 
@@ -865,6 +866,19 @@ export default function OraclePage() {
       {showLandsModal && (
         <LandsModal onClose={() => setShowLandsModal(false)} />
       )}
+
+      {/* Music Playlist Player */}
+      <MusicPlaylist
+        userAddress={walletAddress ?? undefined}
+        userFid={user?.fid}
+        clickedNFTs={clickedMusicNFTs}
+        onPlayingChange={(nftId, isPlaying) => {
+          setPlayingNFTId(isPlaying ? nftId : null);
+          // Find the tokenId for this NFT
+          const nft = nftList.find(n => n.id === nftId);
+          setPlayingTokenId(isPlaying && nft ? nft.tokenId : null);
+        }}
+      />
     </>
   );
 }

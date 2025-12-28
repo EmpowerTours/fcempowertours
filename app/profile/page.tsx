@@ -397,7 +397,6 @@ export default function ProfilePage() {
             licenseId
             masterTokenId
             licensee
-            expiry
             active
             purchasedAt
             txHash
@@ -1290,14 +1289,10 @@ export default function ProfilePage() {
                           {license.active ? (
                             <>
                               <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
-                              {license.expiry && (
-                                <p className="text-xs text-gray-600">
-                                  Expires: {new Date(Number(license.expiry) * 1000).toLocaleDateString()}
-                                </p>
-                              )}
+                              <p className="text-xs text-gray-600">Perpetual License</p>
                             </>
                           ) : (
-                            <p className="text-xs text-red-600 font-bold">❌ License Expired</p>
+                            <p className="text-xs text-red-600 font-bold">❌ License Inactive</p>
                           )}
                         </div>
                         <div className="flex gap-2">
