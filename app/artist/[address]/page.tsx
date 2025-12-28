@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useBotCommand } from '@/app/hooks/useBotCommand';
 import { isAddress } from 'viem';
@@ -58,10 +58,17 @@ interface GraphQLResponse {
 export default function ArtistProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const artistAddress = params.address as string;
   const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: commandLoading, error: commandError } = useBotCommand();
-  
+
+  // Check for autoplay params from frame
+  const autoplayTokenId = searchParams.get('tokenId');
+  const shouldAutoplay = searchParams.get('autoplay') === 'true';
+  const audioRefs = useRef<Record<number, HTMLAudioElement | null>>({});
+  const [hasAutoPlayed, setHasAutoPlayed] = useState(false);
+
   const [artistMusic, setArtistMusic] = useState<ArtistMusic[]>([]);
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,6 +108,31 @@ export default function ArtistProfilePage() {
     };
     // Re-run when Farcaster context loads (user/walletAddress)
   }, [artistAddress, user, walletAddress]);
+
+  // Autoplay effect - triggers when music loads and autoplay is requested
+  useEffect(() => {
+    if (shouldAutoplay && autoplayTokenId && artistMusic.length > 0 && !hasAutoPlayed) {
+      const tokenIdNum = parseInt(autoplayTokenId);
+      const audioEl = audioRefs.current[tokenIdNum];
+
+      if (audioEl) {
+        console.log('🎵 Autoplay triggered for token:', tokenIdNum);
+        // Small delay to ensure audio is ready
+        setTimeout(() => {
+          audioEl.play().then(() => {
+            console.log('✅ Autoplay started');
+            setHasAutoPlayed(true);
+            // Scroll to the playing track
+            audioEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }).catch((err) => {
+            console.log('⚠️ Autoplay blocked by browser:', err.message);
+            // Still mark as attempted to avoid retry loops
+            setHasAutoPlayed(true);
+          });
+        }, 500);
+      }
+    }
+  }, [artistMusic, shouldAutoplay, autoplayTokenId, hasAutoPlayed]);
 
   const loadArtistInfo = async (signal?: AbortSignal) => {
     try {
@@ -488,6 +520,7 @@ export default function ArtistProfilePage() {
                           </div>
                         )}
                         <audio
+                          ref={(el) => { audioRefs.current[music.tokenId] = el; }}
                           controls
                           preload="metadata"
                           crossOrigin="anonymous"

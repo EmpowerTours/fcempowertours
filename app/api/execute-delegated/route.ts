@@ -632,20 +632,21 @@ View profile and collection!
             const nftTypeText = isArt ? 'Art NFT' : 'Music NFT';
             const actionText = isArt ? 'View Gallery' : 'Listen & Buy';
 
-            // ✅ Single frame URL with proper OG tags + audio preview
+            // ✅ Single frame URL with proper OG tags + audio preview + autoplay
             const frameRoute = isArt ? 'art' : 'music';
-            const frameUrlWithParams = `${APP_URL}/api/frames/${frameRoute}/${extractedTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || '')}&title=${encodeURIComponent(params.songTitle || params.title || 'Untitled')}&price=${params.price}`;
+            const frameUrlWithParams = `${APP_URL}/api/frames/${frameRoute}/${extractedTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || '')}&title=${encodeURIComponent(params.songTitle || params.title || 'Untitled')}&price=${params.price}&artist=${userAddress}&autoplay=true`;
+
+            // Short artist address for display
+            const shortArtist = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
 
             const castText = `${nftTypeEmoji} New ${nftTypeText} Minted!
 
 "${params.songTitle || params.title || 'Untitled'}"
 💰 License: ${params.price} WMON
-
-👤 Artist: ${frameUrl}
-🔗 TX: https://testnet.monadscan.com/tx/${musicTxHash}
+👤 Artist: ${shortArtist}
 
 ⚡ Gasless minting by @empowertours
-👀 Tap to ${actionText}!`;
+👀 Tap the image to ${actionText}!`;
 
             console.log('📢 Posting NFT cast with frame embed...');
             console.log('🎬 Frame URL:', frameUrlWithParams);

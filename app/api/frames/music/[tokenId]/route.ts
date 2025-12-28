@@ -90,8 +90,10 @@ export async function GET(
     const directTitle = searchParams.get('title');
     const directPreview = searchParams.get('previewUrl');
     const directPrice = searchParams.get('price');
+    const directArtist = searchParams.get('artist');
+    const autoplay = searchParams.get('autoplay') === 'true';
 
-    console.log('🎬 Frame request for music token:', tokenId);
+    console.log('🎬 Frame request for music token:', tokenId, { directArtist, autoplay });
 
     // Get NFT data (from params or indexer)
     let nftData: NFTData | null = null;
@@ -101,16 +103,18 @@ export async function GET(
         name: directTitle,
         imageUrl: directImage,
         previewUrl: directPreview || '',
-        artist: 'Artist',
+        artist: directArtist || 'Artist',
         price: directPrice || '0'
       };
     } else {
       nftData = await getNFTData(tokenId);
     }
 
-    // Artist profile is the destination within the mini app
-    const artistAddress = nftData?.artist || '';
-    const artistProfileUrl = artistAddress ? `${APP_URL}/artist/${artistAddress}` : `${APP_URL}/oracle`;
+    // Artist profile is the destination within the mini app (with autoplay for music)
+    const artistAddress = directArtist || nftData?.artist || '';
+    const artistProfileUrl = artistAddress
+      ? `${APP_URL}/artist/${artistAddress}?tokenId=${tokenId}${autoplay ? '&autoplay=true' : ''}`
+      : `${APP_URL}/oracle`;
     const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}${directImage ? `&imageUrl=${encodeURIComponent(directImage)}` : ''}${directTitle ? `&title=${encodeURIComponent(directTitle)}` : ''}${directPrice ? `&price=${encodeURIComponent(directPrice)}` : ''}`;
 
     // Mini app frame data - launches directly to artist profile
