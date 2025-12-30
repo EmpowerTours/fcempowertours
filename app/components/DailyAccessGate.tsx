@@ -20,6 +20,13 @@ interface RequirementStatus {
   lottery: boolean | null;
 }
 
+interface FaucetStatus {
+  canClaimNow: boolean;
+  walletCooldownSeconds: number;
+  fidCooldownSeconds: number;
+  hasClaimed: boolean;
+}
+
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const router = useRouter();
   const { walletAddress, user, isLoading: contextLoading } = useFarcasterContext();
@@ -58,32 +65,51 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState<string>('--:--:--');
   const [safeWmonBalance, setSafeWmonBalance] = useState<string>('0');
+  const [faucetStatus, setFaucetStatus] = useState<FaucetStatus>({
+    canClaimNow: false,
+    walletCooldownSeconds: 0,
+    fidCooldownSeconds: 0,
+    hasClaimed: false,
+  });
+  const [faucetCooldown, setFaucetCooldown] = useState<string>('');
 
-  // Check faucet status via faucet contract's claim history
+  // Check faucet status via faucet contract AND Safe balance
   const checkFaucetStatus = async () => {
-    if (!user?.fid) {
+    if (!user?.fid || !effectiveAddress) {
       setRequirements(prev => ({ ...prev, faucet: false }));
       return;
     }
     try {
-      // Check faucet contract directly to see if this FID has ever claimed
-      const res = await fetch(`/api/faucet/check-claimed?fid=${user.fid}&address=${effectiveAddress || ''}`);
-      const data = await res.json();
-      if (data.success) {
-        // Faucet requirement is met if user has ever claimed (not based on current balance)
-        setRequirements(prev => ({ ...prev, faucet: data.hasClaimed === true }));
-      } else {
-        // Also check Safe balance as fallback
-        const safeRes = await fetch(`/api/user-safe?address=${effectiveAddress}`);
-        const safeData = await safeRes.json();
-        if (safeData.success) {
-          const wmonBal = parseFloat(safeData.wmonBalance || '0');
-          setSafeWmonBalance(safeData.wmonBalance || '0');
-          setRequirements(prev => ({ ...prev, faucet: wmonBal >= 15 }));
-        } else {
-          setRequirements(prev => ({ ...prev, faucet: false }));
-        }
+      // Fetch both faucet claim status AND Safe balance in parallel
+      const [faucetRes, safeRes] = await Promise.all([
+        fetch(`/api/faucet/check-claimed?fid=${user.fid}&address=${effectiveAddress}`),
+        fetch(`/api/user-safe?address=${effectiveAddress}`),
+      ]);
+
+      const faucetData = await faucetRes.json();
+      const safeData = await safeRes.json();
+
+      // Update Safe balance
+      const wmonBal = parseFloat(safeData.wmonBalance || '0');
+      setSafeWmonBalance(safeData.wmonBalance || '0');
+
+      // Update faucet status for cooldown display
+      if (faucetData.success) {
+        setFaucetStatus({
+          canClaimNow: faucetData.canClaimNow || false,
+          walletCooldownSeconds: faucetData.walletCooldownSeconds || 0,
+          fidCooldownSeconds: faucetData.fidCooldownSeconds || 0,
+          hasClaimed: faucetData.hasClaimed || false,
+        });
       }
+
+      // Faucet requirement logic:
+      // - If user has sufficient balance (>= 15 WMON for daily sub), requirement is met
+      // - OR if user is on cooldown (claimed recently), requirement is met
+      const hasEnoughBalance = wmonBal >= 15;
+      const isOnCooldown = faucetData.success && faucetData.hasClaimed && !faucetData.canClaimNow;
+
+      setRequirements(prev => ({ ...prev, faucet: hasEnoughBalance || isOnCooldown }));
     } catch (err) {
       console.error('Failed to check faucet status:', err);
       setRequirements(prev => ({ ...prev, faucet: false }));
@@ -159,7 +185,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     }
   }, [requirements, contextLoading, passportLoading, entryLoading]);
 
-  // Update countdown
+  // Update lottery countdown
   useEffect(() => {
     const updateCountdown = () => {
       if (timeRemaining) {
@@ -174,6 +200,34 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
   }, [timeRemaining]);
+
+  // Update faucet cooldown timer
+  useEffect(() => {
+    const maxCooldown = Math.max(faucetStatus.walletCooldownSeconds, faucetStatus.fidCooldownSeconds);
+    if (maxCooldown <= 0) {
+      setFaucetCooldown('');
+      return;
+    }
+
+    let remaining = maxCooldown;
+    const updateFaucetCooldown = () => {
+      if (remaining <= 0) {
+        setFaucetCooldown('');
+        // Refresh faucet status when cooldown expires
+        checkFaucetStatus();
+        return;
+      }
+      const hrs = Math.floor(remaining / 3600);
+      const mins = Math.floor((remaining % 3600) / 60);
+      const s = remaining % 60;
+      setFaucetCooldown(`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      remaining--;
+    };
+
+    updateFaucetCooldown();
+    const interval = setInterval(updateFaucetCooldown, 1000);
+    return () => clearInterval(interval);
+  }, [faucetStatus.walletCooldownSeconds, faucetStatus.fidCooldownSeconds]);
 
   // Check if all requirements met
   const allRequirementsMet = requirements.faucet && requirements.subscription && requirements.following && requirements.passport && requirements.lottery;
@@ -229,6 +283,13 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     setError('');
     try {
       const tier = SUBSCRIPTION_TIERS[tierIndex];
+      const tierPrice = parseFloat(tier.display.split(' ')[0]);
+      const currentBalance = parseFloat(safeWmonBalance);
+
+      // Validate balance before attempting transaction
+      if (currentBalance < tierPrice) {
+        throw new Error(`Insufficient balance. Need ${tierPrice} WMON but have ${currentBalance.toFixed(2)} WMON. Claim from faucet first.`);
+      }
 
       const res = await fetch('/api/execute-delegated', {
         method: 'POST',
@@ -250,9 +311,16 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
       }
 
       setTimeout(async () => {
-        const checkRes = await fetch(`/api/music/check-subscription?address=${effectiveAddress}`);
+        // Refresh both subscription status and balance
+        const [checkRes, safeRes] = await Promise.all([
+          fetch(`/api/music/check-subscription?address=${effectiveAddress}`),
+          fetch(`/api/user-safe?address=${effectiveAddress}`),
+        ]);
         const checkData = await checkRes.json();
+        const safeData = await safeRes.json();
+
         setRequirements(prev => ({ ...prev, subscription: checkData.hasSubscription || false }));
+        setSafeWmonBalance(safeData.wmonBalance || '0');
         setActiveAction(null);
       }, 3000);
     } catch (err: any) {
@@ -393,19 +461,21 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <div>
                       <p className="text-white font-medium">Claim Testnet WMON</p>
                       <p className="text-white/60 text-xs">
-                        {requirements.faucet
-                          ? `Safe has ${safeWmonBalance} WMON`
-                          : 'Get 20 WMON to your Safe wallet'}
+                        Safe: {parseFloat(safeWmonBalance).toFixed(2)} WMON
+                        {faucetCooldown && !faucetStatus.canClaimNow && (
+                          <span className="text-cyan-400 ml-2">• Next claim: {faucetCooldown}</span>
+                        )}
                       </p>
                     </div>
                   </div>
-                  {!requirements.faucet && (
+                  {/* Show claim button if: not enough balance OR can claim again (daily reset) */}
+                  {(!requirements.faucet || faucetStatus.canClaimNow) && (
                     <button
                       onClick={handleClaimFaucet}
-                      disabled={activeAction === 'faucet'}
+                      disabled={activeAction === 'faucet' || (!faucetStatus.canClaimNow && faucetStatus.hasClaimed)}
                       className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
                     >
-                      {activeAction === 'faucet' ? '...' : 'Claim'}
+                      {activeAction === 'faucet' ? '...' : faucetStatus.canClaimNow && faucetStatus.hasClaimed ? 'Claim Daily' : 'Claim'}
                     </button>
                   )}
                 </div>
@@ -421,26 +491,37 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                   <span className="text-2xl">{requirements.subscription ? '✅' : '🎵'}</span>
                   <div>
                     <p className="text-white font-medium">Music Subscription</p>
-                    <p className="text-white/60 text-xs">Choose a plan to stream music</p>
+                    <p className="text-white/60 text-xs">
+                      {!requirements.subscription && parseFloat(safeWmonBalance) < 15
+                        ? `Need 15+ WMON (have ${parseFloat(safeWmonBalance).toFixed(2)})`
+                        : 'Choose a plan to stream music'}
+                    </p>
                   </div>
                 </div>
                 {!requirements.subscription && (
                   <div className="grid grid-cols-2 gap-2">
-                    {SUBSCRIPTION_TIERS.map((tier, idx) => (
-                      <button
-                        key={tier.tier}
-                        onClick={() => handleSubscribe(idx)}
-                        disabled={activeAction === 'subscription' || !requirements.faucet}
-                        className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
-                          idx === 0
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                            : 'bg-white/10 hover:bg-white/20 border border-white/20'
-                        }`}
-                      >
-                        <p className="text-white text-xs font-bold">{tier.name}</p>
-                        <p className="text-white/80 text-xs">{tier.display}</p>
-                      </button>
-                    ))}
+                    {SUBSCRIPTION_TIERS.map((tier, idx) => {
+                      const tierPrice = parseFloat(tier.display.split(' ')[0]);
+                      const canAfford = parseFloat(safeWmonBalance) >= tierPrice;
+                      return (
+                        <button
+                          key={tier.tier}
+                          onClick={() => handleSubscribe(idx)}
+                          disabled={activeAction === 'subscription' || !canAfford}
+                          className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
+                            canAfford && idx === 0
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+                              : canAfford
+                                ? 'bg-white/10 hover:bg-white/20 border border-white/20'
+                                : 'bg-white/5 border border-white/10'
+                          }`}
+                          title={!canAfford ? `Need ${tierPrice} WMON` : ''}
+                        >
+                          <p className="text-white text-xs font-bold">{tier.name}</p>
+                          <p className={`text-xs ${canAfford ? 'text-white/80' : 'text-red-400'}`}>{tier.display}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
