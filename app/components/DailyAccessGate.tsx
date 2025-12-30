@@ -242,6 +242,10 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   // Handle faucet claim via execute-delegated (WMON goes directly to Safe)
   const handleClaimFaucet = async () => {
+    // Prevent double-clicks / duplicate submissions
+    if (activeAction === 'faucet') {
+      return;
+    }
     if (!user?.fid || !effectiveAddress) {
       setError('Farcaster account required');
       return;
@@ -265,20 +269,35 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
         throw new Error(data.error || 'Faucet claim failed');
       }
 
+      // Immediately mark as claimed to prevent double-claims
+      setFaucetStatus(prev => ({ ...prev, canClaimNow: false, hasClaimed: true }));
       setStatusMessage('20 WMON claimed to your Safe!');
+
+      // Refresh status after a delay
       setTimeout(() => {
         checkFaucetStatus();
         setStatusMessage('');
         setActiveAction(null);
       }, 3000);
     } catch (err: any) {
-      setError(err.message);
+      // Check if it's a cooldown error
+      const errorMsg = err.message || 'Faucet claim failed';
+      if (errorMsg.includes('cooldown') || errorMsg.includes('already claimed') || errorMsg.includes('revert')) {
+        setError('Already claimed today. Next claim available in 24 hours.');
+        setFaucetStatus(prev => ({ ...prev, canClaimNow: false, hasClaimed: true }));
+      } else {
+        setError(errorMsg);
+      }
       setActiveAction(null);
     }
   };
 
   // Handle subscribe action
   const handleSubscribe = async (tierIndex: number) => {
+    // Prevent double-clicks
+    if (activeAction === 'subscription') {
+      return;
+    }
     setActiveAction('subscription');
     setError('');
     try {
@@ -360,6 +379,10 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
   // Handle lottery entry
   const handleEnterLottery = async () => {
+    // Prevent double-clicks
+    if (activeAction === 'lottery') {
+      return;
+    }
     if (!effectiveAddress) return;
     setActiveAction('lottery');
     setError('');
