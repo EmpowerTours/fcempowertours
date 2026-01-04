@@ -634,7 +634,21 @@ View profile and collection!
 
             // ✅ Single frame URL with proper OG tags + audio preview + autoplay
             const frameRoute = isArt ? 'art' : 'music';
-            const frameUrlWithParams = `${APP_URL}/api/frames/${frameRoute}/${extractedTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || '')}&title=${encodeURIComponent(params.songTitle || params.title || 'Untitled')}&price=${params.price}&artist=${userAddress}&autoplay=true`;
+            let frameUrlWithParams = `${APP_URL}/api/frames/${frameRoute}/${extractedTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || '')}&title=${encodeURIComponent(params.songTitle || params.title || 'Untitled')}&price=${params.price}&artist=${userAddress}&autoplay=true`;
+
+            // ✅ Shorten frame URL if > 256 bytes (Farcaster limit)
+            if (frameUrlWithParams.length > 256) {
+              console.log(`⚠️ Frame URL exceeds 256 bytes (${frameUrlWithParams.length}), creating short URL...`);
+              const shortFrameId = await createShortUrl(frameUrlWithParams);
+              if (shortFrameId) {
+                frameUrlWithParams = `${APP_URL}/api/s/${shortFrameId}`;
+                console.log(`✅ Short frame URL created: ${frameUrlWithParams} (${frameUrlWithParams.length} bytes)`);
+              } else {
+                // Fallback: use simple URL without params
+                frameUrlWithParams = `${APP_URL}/api/frames/${frameRoute}/${extractedTokenId}`;
+                console.log(`⚠️ Fallback to simple frame URL: ${frameUrlWithParams}`);
+              }
+            }
 
             // Short artist address for display
             const shortArtist = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
