@@ -817,7 +817,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     <input
                       type="number"
                       step="1"
-                      min="1"
+                      min="35"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="Enter amount"
@@ -825,7 +825,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     />
                     <span className="text-cyan-400 font-bold text-lg whitespace-nowrap">WMON</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Minimum: 1 WMON</p>
+                  <p className="text-xs text-gray-500 mt-2">Minimum: 35 WMON</p>
                 </div>
 
                 <button
@@ -915,7 +915,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
             <ul className="text-sm text-gray-300 space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-cyan-400">•</span>
-                <span>Set your price in WMON (minimum 1 WMON)</span>
+                <span>Set your price in WMON (minimum 35 WMON)</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-cyan-400">•</span>
