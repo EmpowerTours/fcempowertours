@@ -24,6 +24,7 @@ interface NFTObject {
   price: string;
   contractAddress: string;
   tokenURI?: string;
+  artistUsername?: string;
 }
 
 interface MapsSource {
@@ -186,11 +187,12 @@ export default function OraclePage() {
     }
   }, [isThinking, messages]);
 
-  const handleConsult = async () => {
+  const handleConsult = async (directMessage?: string) => {
     console.log('[Oracle] handleConsult START');
-    if (!input.trim() || isThinking) return;
+    const messageToSend = directMessage || input.trim();
+    if (!messageToSend || isThinking) return;
 
-    const userMessage = input.trim();
+    const userMessage = messageToSend;
     console.log('[Oracle] User message:', userMessage);
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
@@ -660,7 +662,7 @@ export default function OraclePage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setInput(`Buy ${nft.type} NFT #${nft.tokenId}`);
+                                handleConsult(`Buy ${nft.type} NFT #${nft.tokenId}`);
                               }}
                               className="px-2 py-1 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-[10px] rounded-lg font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
                             >
@@ -716,11 +718,11 @@ export default function OraclePage() {
               <button
                 className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
                 onClick={() => {
-                  setInput(`Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`);
                   closeNFTModal();
+                  handleConsult(`Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`);
                 }}
               >
-                Ask Oracle to Purchase
+                Buy Now
               </button>
             </div>
           </div>

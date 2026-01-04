@@ -16,6 +16,7 @@ interface NFTObject {
   price: string;
   contractAddress: string;
   tokenURI?: string; // For music NFTs to fetch metadata
+  artistUsername?: string; // Farcaster username of the artist
 }
 
 // Utility function to resolve IPFS URLs with thumbnail optimization
@@ -97,6 +98,37 @@ export async function GET() {
     const musicNFTs = musicData.data?.MusicNFT || [];
     const experienceNFTs = experienceData.data?.Experience || [];
 
+    // Fetch Farcaster usernames for all unique artist addresses
+    const artistAddresses = [...new Set(musicNFTs.map((nft: any) => nft.artist).filter(Boolean))] as string[];
+    const artistUsernames: Record<string, string> = {};
+
+    if (artistAddresses.length > 0) {
+      try {
+        const neynarApiKey = process.env.NEYNAR_API_KEY;
+        if (neynarApiKey) {
+          const addressesParam = artistAddresses.join(',');
+          const neynarUrl = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${addressesParam}`;
+          const neynarResponse = await fetch(neynarUrl, {
+            headers: { 'x-api-key': neynarApiKey },
+          });
+
+          if (neynarResponse.ok) {
+            const neynarData = await neynarResponse.json();
+            // Map addresses to usernames
+            for (const address of artistAddresses) {
+              const users = neynarData[address.toLowerCase()];
+              if (users && users.length > 0) {
+                artistUsernames[address.toLowerCase()] = users[0].username;
+              }
+            }
+            console.log('[get-nfts] Fetched Farcaster usernames for', Object.keys(artistUsernames).length, 'artists');
+          }
+        }
+      } catch (err) {
+        console.error('[get-nfts] Failed to fetch artist usernames:', err);
+      }
+    }
+
     // Process Music/Art NFTs - fetch metadata for images
     const processedMusicNFTs: NFTObject[] = await Promise.all(
       musicNFTs.slice(0, 10).map(async (nft: any) => {
@@ -122,6 +154,9 @@ export async function GET() {
         // Price is in wei (18 decimals) - convert to WMON
         const priceInWMON = nft.price ? (Number(nft.price) / 1e18).toFixed(2) : '0';
 
+        // Get artist Farcaster username
+        const artistUsername = nft.artist ? artistUsernames[nft.artist.toLowerCase()] : undefined;
+
         return {
           id: `music-${nft.id}`,
           type: nft.isArt ? 'ART' : 'MUSIC',
@@ -131,6 +166,7 @@ export async function GET() {
           price: priceInWMON,
           contractAddress: process.env.NEXT_PUBLIC_NFT_ADDRESS || '',
           tokenURI: nft.tokenURI, // Include for fetching audio metadata
+          artistUsername, // Farcaster username of the artist
         };
       })
     );

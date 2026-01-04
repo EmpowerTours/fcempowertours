@@ -6,6 +6,7 @@ interface Song {
   tokenId: string;
   title: string;
   artist: string;
+  artistUsername?: string; // Farcaster username (e.g., @unify34)
   audioUrl: string;
   imageUrl: string;
   isPreview?: boolean; // True if user doesn't own this NFT
@@ -21,6 +22,7 @@ interface NFTObject {
   price: string;
   contractAddress: string;
   tokenURI?: string;
+  artistUsername?: string;
 }
 
 interface MusicPlaylistProps {
@@ -205,6 +207,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
               tokenId: nft.tokenId,
               title: nft.name || `Music NFT #${nft.tokenId}`,
               artist: 'Unknown Artist',
+              artistUsername: nft.artistUsername, // Farcaster username from API
               audioUrl: '', // Will try to fetch from metadata
               imageUrl: nft.imageUrl,
               isPreview: true,
@@ -579,8 +582,11 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
           <div className="sm:hidden">
             {/* Row 1: Song info + Controls + Queue */}
             <div className="flex items-center gap-2">
-              {/* Song title */}
+              {/* Artist + Song title */}
               <div className="flex-1 min-w-0">
+                {currentSong?.artistUsername && (
+                  <div className="text-cyan-400 text-[10px] truncate">@{currentSong.artistUsername}</div>
+                )}
                 <div className="text-white text-xs font-semibold truncate">{currentSong?.title || 'No song'}</div>
                 {currentSong?.isPreview && (
                   <span className="text-[9px] text-purple-300">PREVIEW</span>
@@ -635,6 +641,9 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
+                    {currentSong.artistUsername && (
+                      <div className="text-cyan-400 text-xs truncate">@{currentSong.artistUsername}</div>
+                    )}
                     <div className="flex items-center gap-2">
                       <div className="text-white text-sm font-semibold truncate">{currentSong.title}</div>
                       {currentSong.isPreview && (
@@ -643,7 +652,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
                         </span>
                       )}
                     </div>
-                    <div className="text-gray-400 text-xs truncate">{currentSong.artist}</div>
                   </div>
                 </>
               )}
