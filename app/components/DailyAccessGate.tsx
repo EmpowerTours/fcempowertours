@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useDailyLottery, usePassportNFT } from '@/src/hooks';
 import { formatEther } from 'viem';
 import { useAccount } from 'wagmi';
 import { Address } from 'viem';
+import { useGeolocation } from '@/lib/useGeolocation';
 
 interface DailyAccessGateProps {
   children: React.ReactNode;
@@ -28,8 +28,8 @@ interface FaucetStatus {
 }
 
 export default function DailyAccessGate({ children }: DailyAccessGateProps) {
-  const router = useRouter();
   const { walletAddress, user, isLoading: contextLoading } = useFarcasterContext();
+  const { location: geoLocation, loading: geoLoading } = useGeolocation();
   const { address: wagmiAddress } = useAccount();
   const effectiveAddress = (walletAddress || wagmiAddress) as `0x${string}` | undefined;
 
@@ -372,9 +372,65 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     setStatusMessage('');
   };
 
-  // Handle mint passport - use window.location for reliable navigation in Farcaster mini-app
-  const handleMintPassport = () => {
-    window.location.href = '/passport';
+  // Handle mint passport - direct API call via execute-delegated
+  const handleMintPassport = async () => {
+    // Prevent double-clicks
+    if (activeAction === 'passport') {
+      return;
+    }
+    if (!effectiveAddress) {
+      setError('Wallet address required');
+      return;
+    }
+
+    setActiveAction('passport');
+    setError('');
+    setStatusMessage('Minting passport...');
+
+    try {
+      // Use detected country from geolocation, fallback to US
+      const countryCode = geoLocation?.country || 'US';
+      const countryName = geoLocation?.countryName || 'United States';
+
+      console.log('[DailyGate] Minting passport for country:', countryCode, countryName);
+
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: effectiveAddress,
+          action: 'mint_passport',
+          params: {
+            countryCode,
+            countryName,
+            fid: user?.fid,
+          }
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Passport mint failed');
+      }
+
+      console.log('[DailyGate] Passport minted successfully:', data.txHash);
+      setStatusMessage(`✅ Passport minted for ${countryName}!`);
+
+      // Refresh passport status after a delay
+      setTimeout(() => {
+        // Re-check passport balance
+        setRequirements(prev => ({ ...prev, passport: true }));
+        setStatusMessage('');
+        setActiveAction(null);
+      }, 3000);
+
+    } catch (err: any) {
+      console.error('[DailyGate] Passport mint error:', err);
+      setError(err.message || 'Failed to mint passport');
+      setActiveAction(null);
+      setStatusMessage('');
+    }
   };
 
   // Handle lottery entry
@@ -594,15 +650,20 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     <span className="text-2xl">{requirements.passport ? '✅' : '🛂'}</span>
                     <div>
                       <p className="text-white font-medium">Mint Passport NFT</p>
-                      <p className="text-white/60 text-xs">Your travel identity on-chain</p>
+                      <p className="text-white/60 text-xs">
+                        {geoLoading ? 'Detecting location...' :
+                         geoLocation ? `${geoLocation.countryName} (${geoLocation.country})` :
+                         'Your travel identity on-chain'}
+                      </p>
                     </div>
                   </div>
                   {!requirements.passport && (
                     <button
                       onClick={handleMintPassport}
-                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold rounded-xl transition-all"
+                      disabled={activeAction === 'passport' || geoLoading}
+                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
                     >
-                      Mint
+                      {activeAction === 'passport' ? '...' : 'Mint'}
                     </button>
                   )}
                 </div>
