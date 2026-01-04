@@ -66,15 +66,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
     
-    // Parse price from string to wei
+    // Parse price from string to wei (minimum 35 WMON per contract)
+    const MIN_PRICE = 35;
+    let finalPrice = MIN_PRICE;
     let priceInWei: bigint;
     try {
-      priceInWei = parseEther(price?.toString() || '1');
+      const requestedPrice = parseFloat(price?.toString() || String(MIN_PRICE));
+      finalPrice = Math.max(requestedPrice, MIN_PRICE); // Allow higher, enforce minimum
+      priceInWei = parseEther(String(finalPrice));
     } catch (err) {
       console.error('Invalid price format:', price);
-      priceInWei = parseEther('1');
+      priceInWei = parseEther(String(MIN_PRICE));
     }
-    console.log('💰 Price in wei:', priceInWei.toString(), `(${price || '1'} TOURS)`);
+    console.log('💰 Price in wei:', priceInWei.toString(), `(${finalPrice} WMON)`);
     
     const provider = new JsonRpcProvider(MONAD_RPC);
     const deployer = new Wallet(DEPLOYER_PRIVATE_KEY, provider);
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
     console.log('   Artist:', recipient);
     console.log('   Song Title:', songTitle || 'Untitled');
     console.log('   Token URI:', finalTokenURI);
-    console.log('   License Price:', price || '1', 'TOURS');
+    console.log('   License Price:', finalPrice, 'WMON');
     
     const tx = await contract.mintMaster(
       recipient,
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
     console.log('✅ Music Master NFT minted!', {
       tokenId,
       txHash: tx.hash,
-      price: price || '1',
+      price: finalPrice,
       songTitle: songTitle || 'Untitled'
     });
     
@@ -133,7 +137,7 @@ export async function POST(req: NextRequest) {
         const castText = `🎵 New Music Master NFT Minted!
 
 "${songTitle || 'Untitled'}" - Token #${tokenId}
-💰 License Price: ${price || '1'} TOURS
+💰 License Price: ${finalPrice} WMON
 
 ⚡ Gasless minting powered by @empowertours
 🎶 Purchase license to stream full track
@@ -185,7 +189,7 @@ View: https://testnet.monadscan.com/tx/${tx.hash}
       recipient,
       tokenURI: finalTokenURI,
       songTitle: songTitle || 'Untitled',
-      price: price || '1',
+      price: finalPrice,
       // ✅ Also return OG image URL for client-side reference
       ogImageUrl: `${APP_URL}/api/og/music?tokenId=${tokenId}`,
     });
