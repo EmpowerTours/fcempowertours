@@ -206,7 +206,8 @@ Available Actions:
 6. EXECUTE - Execute blockchain transactions via delegation
    - swap_tokens(amount, from, to)
    - mint_nft(type, metadata)
-   - buy_item(contract, tokenId)
+   - buy_music(tokenId) - Purchase a music NFT license
+   - buy_art(tokenId) - Purchase an art NFT
    - transfer(to, amount)
 
 7. CHAT - Conversational response with travel advice
@@ -383,12 +384,46 @@ You MUST return ONLY valid JSON matching the specified schema.
     let txHash: string | null = null;
 
     if (action.type === 'execute' && action.transaction) {
-      // Execute delegated transaction
-      txHash = await executeDelegatedTransaction(
-        action.transaction,
-        userAddress,
-        userFid
-      );
+      // Check for special delegated actions that go through execute-delegated API
+      const funcName = action.transaction.function;
+      if ((funcName === 'buy_music' || funcName === 'buy_art') && userAddress && userFid) {
+        // Route buy_music/buy_art to execute-delegated API
+        const tokenId = action.transaction.args?.[0];
+        if (tokenId) {
+          try {
+            const buyResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/execute-delegated`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'buy_music', // Both use the same endpoint
+                userAddress,
+                fid: userFid,
+                params: { tokenId: tokenId.toString().replace('#', '') }
+              })
+            });
+            const buyData = await buyResponse.json();
+            if (buyData.success) {
+              txHash = buyData.txHash;
+              const nftType = funcName === 'buy_art' ? 'Art' : 'Music';
+              action.message = buyData.message || `Successfully purchased ${nftType} NFT #${tokenId}!`;
+            } else {
+              action.message = `Purchase failed: ${buyData.error}`;
+            }
+          } catch (buyError: any) {
+            console.error('Buy NFT error:', buyError);
+            action.message = `Purchase failed: ${buyError.message}`;
+          }
+        } else {
+          action.message = 'Missing token ID for purchase';
+        }
+      } else {
+        // Execute other delegated transactions directly
+        txHash = await executeDelegatedTransaction(
+          action.transaction,
+          userAddress,
+          userFid
+        );
+      }
     } else if (action.type === 'mint_passport' && action.passport && userAddress) {
       // Mint passport via execute-delegated API with auto-wrap
       const result = await mintPassportForUser(
