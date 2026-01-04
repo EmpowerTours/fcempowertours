@@ -575,9 +575,67 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
           </div>
         )}
         <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Mobile Layout - Stacked */}
+          <div className="sm:hidden">
+            {/* Row 1: Song info + Controls + Queue */}
+            <div className="flex items-center gap-2">
+              {/* Song thumbnail */}
+              {currentSong && (
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg overflow-hidden flex-shrink-0">
+                  {currentSong.imageUrl ? (
+                    <img src={currentSong.imageUrl} alt={currentSong.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <Music2 className="w-5 h-5 text-white m-auto" />
+                  )}
+                </div>
+              )}
+
+              {/* Song title */}
+              <div className="flex-1 min-w-0">
+                <div className="text-white text-xs font-semibold truncate">{currentSong?.title || 'No song'}</div>
+                {currentSong?.isPreview && (
+                  <span className="text-[9px] text-purple-300">PREVIEW</span>
+                )}
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center gap-1">
+                <button onClick={handlePrevious} disabled={currentSongIndex === 0} className="text-gray-400 hover:text-white disabled:opacity-30 p-1">
+                  <SkipBack className="w-4 h-4" />
+                </button>
+                <button onClick={handlePlayPause} className="w-8 h-8 bg-cyan-500 hover:bg-cyan-400 rounded-full flex items-center justify-center">
+                  {isPlaying ? <Pause className="w-4 h-4 text-black" fill="currentColor" /> : <Play className="w-4 h-4 text-black ml-0.5" fill="currentColor" />}
+                </button>
+                <button onClick={handleNext} disabled={currentSongIndex === songs.length - 1} className="text-gray-400 hover:text-white disabled:opacity-30 p-1">
+                  <SkipForward className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Queue */}
+              <button onClick={() => setShowQueue(!showQueue)} className="text-gray-400 hover:text-white text-xs px-1">
+                Q({songs.length})
+              </button>
+            </div>
+
+            {/* Row 2: Progress bar with times */}
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[10px] text-gray-400 w-8 text-right">{formatTime(currentTime)}</span>
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                value={currentTime}
+                onChange={handleSeek}
+                className="flex-1 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:rounded-full"
+              />
+              <span className="text-[10px] text-gray-400 w-8">{formatTime(duration)}</span>
+            </div>
+          </div>
+
+          {/* Desktop Layout - Original horizontal */}
+          <div className="hidden sm:flex items-center gap-4">
             {/* Current Song Info */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-1 sm:w-64 sm:flex-shrink-0 min-w-0">
+            <div className="flex items-center gap-3 w-64 flex-shrink-0 min-w-0">
               {currentSong && (
                 <>
                   <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg overflow-hidden flex items-center justify-center">
@@ -652,10 +710,9 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
             <div className="flex-shrink-0">
               <button
                 onClick={() => setShowQueue(!showQueue)}
-                className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-400 hover:text-white transition-colors whitespace-nowrap"
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors whitespace-nowrap"
               >
-                <span className="hidden sm:inline">Queue ({songs.length})</span>
-                <span className="sm:hidden">Q ({songs.length})</span>
+                Queue ({songs.length})
               </button>
             </div>
           </div>
