@@ -579,17 +579,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
           <div className="sm:hidden">
             {/* Row 1: Song info + Controls + Queue */}
             <div className="flex items-center gap-2">
-              {/* Song thumbnail */}
-              {currentSong && (
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg overflow-hidden flex-shrink-0">
-                  {currentSong.imageUrl ? (
-                    <img src={currentSong.imageUrl} alt={currentSong.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <Music2 className="w-5 h-5 text-white m-auto" />
-                  )}
-                </div>
-              )}
-
               {/* Song title */}
               <div className="flex-1 min-w-0">
                 <div className="text-white text-xs font-semibold truncate">{currentSong?.title || 'No song'}</div>
