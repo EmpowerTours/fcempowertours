@@ -3798,10 +3798,10 @@ ${enjoyText}
 
         // ✅ Pre-check: Verify USER'S Safe can claim for this FID
         // Using user's Safe (not Platform Safe) avoids wallet cooldown conflicts
-        const { createPublicClient, http } = await import('viem');
-        const faucetClient = createPublicClient({
+        const { createPublicClient: createFaucetClient, http: faucetHttp } = await import('viem');
+        const faucetClient = createFaucetClient({
           chain: { id: 10143, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }, rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'] } } },
-          transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
+          transport: faucetHttp(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
         });
 
         try {
