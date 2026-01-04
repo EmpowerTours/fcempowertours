@@ -713,13 +713,13 @@ export default function ArtistProfilePage() {
           <h3 className="font-bold text-gray-900 mb-3">💡 How Music Licenses Work:</h3>
           <ul className="space-y-2 text-sm text-gray-700">
             <li>🎧 <strong>Preview:</strong> Listen to 3s preview for free</li>
-            <li>💳 <strong>Buy License:</strong> Pay in TOURS tokens to access full track forever</li>
-            <li>💰 <strong>Artist Royalties:</strong> 10% royalties on all sales go to the artist</li>
+            <li>💳 <strong>Buy License:</strong> Pay in WMON to access full track forever</li>
+            <li>💰 <strong>Artist Royalties:</strong> 90% of sales go directly to the artist</li>
             <li>⚡ <strong>Instant Access:</strong> Full track unlocked immediately after purchase</li>
-            <li>🪙 <strong>Payment:</strong> Uses TOURS tokens (not ETH) - swap MON for TOURS in Market</li>
+            <li>🪙 <strong>Payment:</strong> Uses WMON (Wrapped MON) - wrap your MON in the Market tab</li>
           </ul>
           <p className="text-xs text-gray-600 mt-4">
-            💎 Tip: Support artists directly! All purchases go straight to the artist's wallet.
+            💎 Tip: Support artists directly! 90% of every purchase goes straight to the artist.
           </p>
         </div>
 
