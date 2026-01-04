@@ -372,9 +372,9 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     setStatusMessage('');
   };
 
-  // Handle mint passport
+  // Handle mint passport - use window.location for reliable navigation in Farcaster mini-app
   const handleMintPassport = () => {
-    router.push('/passport');
+    window.location.href = '/passport';
   };
 
   // Handle lottery entry
