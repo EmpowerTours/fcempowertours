@@ -3793,21 +3793,88 @@ ${enjoyText}
           recipientSafe: userSafeForFaucet,
           fid: faucetFid,
           faucet: FAUCET_ADDRESS,
+          platformSafe: SAFE_ACCOUNT,
         });
 
-        // IMPORTANT: Faucet claim uses PLATFORM Safe (gasless for user)
-        // because user's Safe has no MON yet (chicken-egg problem)
-        // Flow:
-        // 1. Platform Safe claims WMON (goes to Platform Safe as msg.sender)
-        // 2. Unwrap 0.5 WMON to MON (for user's gas fees)
-        // 3. Transfer 19.5 WMON to user's Safe
-        // 4. Send 0.5 MON to user's Safe for gas
-        const FAUCET_AMOUNT = parseEther('20'); // 20 WMON per claim
-        const GAS_AMOUNT = parseEther('0.5');   // 0.5 MON for gas
-        const WMON_TRANSFER = FAUCET_AMOUNT - GAS_AMOUNT; // 19.5 WMON
+        // ✅ Pre-check: Verify USER'S Safe can claim for this FID
+        // Using user's Safe (not Platform Safe) avoids wallet cooldown conflicts
+        const { createPublicClient, http } = await import('viem');
+        const faucetClient = createPublicClient({
+          chain: { id: 10143, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }, rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'] } } },
+          transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
+        });
 
-        const faucetCalls: Call[] = [
-          // Step 1: Claim from faucet (WMON goes to Platform Safe)
+        try {
+          const [canClaimResult, walletCooldown, fidCooldown] = await faucetClient.readContract({
+            address: FAUCET_ADDRESS,
+            abi: parseAbi(['function canClaim(address user, uint256 fid) view returns (bool canClaim_, uint256 walletCooldown, uint256 fidCooldown)']),
+            functionName: 'canClaim',
+            args: [userSafeForFaucet, BigInt(faucetFid)],
+          }) as [boolean, bigint, bigint];
+
+          console.log('💧 Faucet canClaim check:', {
+            canClaim: canClaimResult,
+            userSafe: userSafeForFaucet,
+            walletCooldownSeconds: Number(walletCooldown),
+            fidCooldownSeconds: Number(fidCooldown),
+          });
+
+          if (!canClaimResult) {
+            const walletCooldownHours = Math.ceil(Number(walletCooldown) / 3600);
+            const fidCooldownHours = Math.ceil(Number(fidCooldown) / 3600);
+
+            let cooldownMessage = 'Faucet claim not available yet.';
+            if (Number(fidCooldown) > 0) {
+              cooldownMessage = `Your Farcaster ID has already claimed recently. Please wait ${fidCooldownHours} hour${fidCooldownHours !== 1 ? 's' : ''} before claiming again.`;
+            } else if (Number(walletCooldown) > 0) {
+              cooldownMessage = `Your wallet has already claimed recently. Please wait ${walletCooldownHours} hour${walletCooldownHours !== 1 ? 's' : ''} before claiming again.`;
+            }
+
+            console.log('⚠️ Faucet claim blocked:', cooldownMessage);
+            return NextResponse.json({
+              success: false,
+              error: cooldownMessage,
+              cooldowns: {
+                walletCooldownSeconds: Number(walletCooldown),
+                fidCooldownSeconds: Number(fidCooldown),
+              },
+            }, { status: 429 });
+          }
+        } catch (canClaimError: any) {
+          console.error('⚠️ Could not check canClaim (proceeding anyway):', canClaimError.message);
+          // Continue with claim attempt - the transaction will fail if not claimable
+        }
+
+        // NEW FLOW: User's Safe claims directly from faucet
+        // This avoids Platform Safe wallet cooldown conflicts
+        // Step 1: Platform Safe sends MON to user's Safe for gas
+        // Step 2: User's Safe claims from faucet (WMON goes directly to user's Safe)
+        const GAS_FUNDING = parseEther('0.5'); // 0.5 MON for gas
+
+        console.log('🏢 Step 1: Platform Safe sending gas funding to user Safe...');
+        console.log('💰 Sending:', {
+          mon: '0.5 MON (for gas)',
+          recipient: userSafeForFaucet,
+        });
+
+        // Step 1: Platform Safe sends MON to user's Safe for gas
+        const gasFundingCalls: Call[] = [
+          {
+            to: userSafeForFaucet,
+            value: GAS_FUNDING,
+            data: '0x' as Hex,
+          },
+        ];
+
+        const gasFundingTxHash = await sendSafeTransaction(gasFundingCalls);
+        console.log('✅ Gas funding sent, TX:', gasFundingTxHash);
+
+        // Wait a moment for the tx to be indexed
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Step 2: User's Safe claims from faucet directly
+        console.log('🏠 Step 2: User Safe claiming from faucet...');
+        const faucetClaimCalls: Call[] = [
           {
             to: FAUCET_ADDRESS,
             value: 0n,
@@ -3817,56 +3884,24 @@ ${enjoyText}
               args: [BigInt(faucetFid)],
             }) as Hex,
           },
-          // Step 2: Unwrap 0.5 WMON to MON (for user's gas)
-          {
-            to: WMON_FOR_FAUCET,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function withdraw(uint256 amount) external']),
-              functionName: 'withdraw',
-              args: [GAS_AMOUNT],
-            }) as Hex,
-          },
-          // Step 3: Transfer 19.5 WMON to user's Safe
-          {
-            to: WMON_FOR_FAUCET,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function transfer(address to, uint256 amount) returns (bool)']),
-              functionName: 'transfer',
-              args: [userSafeForFaucet, WMON_TRANSFER],
-            }) as Hex,
-          },
-          // Step 4: Send 0.5 MON (native) to user's Safe for gas
-          {
-            to: userSafeForFaucet,
-            value: GAS_AMOUNT,
-            data: '0x' as Hex,
-          },
         ];
 
-        // Use PLATFORM Safe directly (bypass executeTransaction which would use user Safe)
-        console.log('🏢 Faucet: Using PLATFORM Safe for gasless claim + transfer to user Safe');
-        console.log('💰 Will send:', {
-          wmon: '19.5 WMON',
-          mon: '0.5 MON (for gas)',
-          recipient: userSafeForFaucet,
-        });
-        const faucetTxHash = await sendSafeTransaction(faucetCalls);
+        const faucetTxHash = await sendUserSafeTransaction(userAddress, faucetClaimCalls);
         await incrementTransactionCount(userAddress);
 
-        console.log('✅ Faucet claim successful, TX:', faucetTxHash);
-        console.log('✅ WMON + MON sent to user Safe:', userSafeForFaucet);
+        console.log('✅ Faucet claim successful, TX:', faucetTxHash.txHash);
+        console.log('✅ 20 WMON sent directly to user Safe:', userSafeForFaucet);
 
         return NextResponse.json({
           success: true,
-          txHash: faucetTxHash,
+          txHash: faucetTxHash.txHash,
+          gasFundingTxHash,
           action,
           userAddress,
           recipientSafe: userSafeForFaucet,
-          wmonAmount: '19.5 WMON',
+          wmonAmount: '20 WMON',
           monAmount: '0.5 MON (for gas)',
-          message: 'WMON + MON claimed and sent to your Safe wallet!',
+          message: 'WMON claimed directly to your Safe wallet!',
         });
 
       // ==================== MAPS PAYMENT ====================
