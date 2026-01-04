@@ -524,20 +524,20 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                 <p className="text-green-300">
                   <strong className="text-green-400">Price:</strong> {success.price} WMON per license
                 </p>
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-col gap-3 mt-4">
                   {success.txHash && (
                     <a
                       href={`https://testnet.monadscan.com/tx/${success.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-lg hover:from-cyan-400 hover:to-purple-500 font-medium transition-all"
+                      className="inline-block px-4 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-lg hover:from-cyan-400 hover:to-purple-500 font-medium transition-all text-center"
                     >
                       View on Monadscan
                     </a>
                   )}
                   <a
                     href="/profile"
-                    className="inline-block px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-400 hover:to-emerald-500 font-medium transition-all"
+                    className="inline-block px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-400 hover:to-emerald-500 font-medium transition-all text-center"
                   >
                     Go to Profile
                   </a>
