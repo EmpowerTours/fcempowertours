@@ -145,6 +145,7 @@ export async function hasPermission(
 
 /**
  * Increment transaction counter
+ * Silently returns if no delegation exists (for public actions that don't require delegation)
  */
 export async function incrementTransactionCount(userAddress: string): Promise<void> {
   try {
@@ -153,7 +154,8 @@ export async function incrementTransactionCount(userAddress: string): Promise<vo
 
     const delegation = parseDelegationData(data);
     if (!delegation) {
-      throw new Error('No active delegation found');
+      // No delegation found - this is expected for public actions, just return silently
+      return;
     }
 
     delegation.transactionsExecuted++;
@@ -165,8 +167,8 @@ export async function incrementTransactionCount(userAddress: string): Promise<vo
 
     console.log(`✅ Transaction count incremented: ${delegation.transactionsExecuted}/${delegation.config.maxTransactions}`);
   } catch (error) {
-    console.error('❌ Error incrementing transaction count:', error);
-    throw error;
+    // Log as warning instead of error - non-critical for public actions
+    console.warn('⚠️ Could not increment transaction count:', error);
   }
 }
 
