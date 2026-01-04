@@ -553,7 +553,7 @@ export default function OraclePage() {
                 disabled={isThinking}
               />
               <button
-                onClick={handleConsult}
+                onClick={() => handleConsult()}
                 disabled={isThinking || !input.trim()}
                 className="w-10 h-10 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all"
               >
