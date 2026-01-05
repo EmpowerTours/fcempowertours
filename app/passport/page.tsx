@@ -6,6 +6,15 @@ import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
 import FarcasterAppSetup from '@/app/components/FarcasterAppSetup';
 
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
+
+interface UserPassport {
+  tokenId: string;
+  countryCode: string;
+  countryName: string;
+  mintedAt: string;
+}
+
 export default function PassportPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
@@ -19,7 +28,11 @@ export default function PassportPage() {
   const [txHash, setTxHash] = useState('');
   const [userOpHash, setUserOpHash] = useState('');
 
-  // ✅ NEW: Check if Farcaster app setup is complete
+  // ✅ Passport collection tracking
+  const [userPassports, setUserPassports] = useState<UserPassport[]>([]);
+  const [loadingPassports, setLoadingPassports] = useState(false);
+
+  // ✅ Check if Farcaster app setup is complete
   const [setupComplete, setSetupComplete] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
@@ -45,6 +58,55 @@ export default function PassportPage() {
       setSelectedCountryCode(location.country);
     }
   }, [location, selectedCountryCode]);
+
+  // Fetch user's existing passports
+  useEffect(() => {
+    if (!walletAddress) return;
+
+    const fetchPassports = async () => {
+      setLoadingPassports(true);
+      try {
+        const query = `
+          query GetUserPassports($owner: String!) {
+            PassportNFT(where: { owner: { _eq: $owner } }, order_by: { mintedAt: desc }) {
+              tokenId
+              countryCode
+              countryName
+              mintedAt
+            }
+          }
+        `;
+
+        const response = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            variables: { owner: walletAddress.toLowerCase() }
+          })
+        });
+
+        const data = await response.json();
+        const passports = data?.data?.PassportNFT || [];
+        setUserPassports(passports);
+        console.log('🎫 Found', passports.length, 'passports for user');
+      } catch (err) {
+        console.error('Failed to fetch passports:', err);
+      } finally {
+        setLoadingPassports(false);
+      }
+    };
+
+    fetchPassports();
+  }, [walletAddress]);
+
+  // Check if user already has passport for selected country
+  const hasPassportForCountry = (countryCode: string) => {
+    return userPassports.some(p => p.countryCode === countryCode);
+  };
+
+  const collectedCountries = new Set(userPassports.map(p => p.countryCode));
+  const remainingCountries = ALL_COUNTRIES.length - collectedCountries.size;
 
   const handleMint = async () => {
     if (!walletAddress || !selectedCountryCode) {
@@ -178,6 +240,15 @@ export default function PassportPage() {
       setSuccess(`🎉 Passport minted (FREE)!
 ${selectedCountry.flag} ${selectedCountry.name}
 Token #${tokenId || 'pending'}`);
+
+      // Add to local state immediately for instant UI feedback
+      setUserPassports(prev => [{
+        tokenId: tokenId?.toString() || 'pending',
+        countryCode: selectedCountry.code,
+        countryName: selectedCountry.name,
+        mintedAt: new Date().toISOString()
+      }, ...prev]);
+
       setSelectedCountryCode('');
     } catch (err: any) {
       console.error('❌ Error:', err);
@@ -240,15 +311,17 @@ Token #${tokenId || 'pending'}`);
     );
   }
 
+  const selectedAlreadyMinted = selectedCountryCode && hasPassportForCountry(selectedCountryCode);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-blue-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 shadow-2xl p-8">
-        <div className="text-center mb-8">
+      <div className="w-full max-w-lg bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 shadow-2xl p-6">
+        <div className="text-center mb-6">
           {user?.pfpUrl && (
             <img
               src={user.pfpUrl}
               alt={user.username || 'User'}
-              className="rounded-full mx-auto mb-4 border-2 border-purple-500"
+              className="rounded-full mx-auto mb-3 border-2 border-purple-500"
               style={{
                 width: '40px',
                 height: '40px',
@@ -260,9 +333,48 @@ Token #${tokenId || 'pending'}`);
               }}
             />
           )}
-          <h1 className="text-4xl font-bold text-white mb-2">🌍 Travel Passport NFT</h1>
-          <p className="text-gray-400">@{user?.username || 'User'}</p>
+          <h1 className="text-3xl font-bold text-white mb-1">🌍 Travel Passport NFT</h1>
+          <p className="text-gray-400 text-sm">@{user?.username || 'User'}</p>
         </div>
+
+        {/* Collection Progress */}
+        <div className="mb-5 p-4 bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-xl border border-purple-500/30">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-white font-semibold">🗺️ Collection Progress</span>
+            <span className="text-purple-300 font-bold">{collectedCountries.size} / {ALL_COUNTRIES.length}</span>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-500"
+              style={{ width: `${(collectedCountries.size / ALL_COUNTRIES.length) * 100}%` }}
+            />
+          </div>
+          <p className="text-gray-400 text-xs mt-2">
+            {remainingCountries} countries remaining to collect
+          </p>
+        </div>
+
+        {/* Collected Passports */}
+        {userPassports.length > 0 && (
+          <div className="mb-5">
+            <p className="text-white text-sm font-medium mb-2">Your Passports:</p>
+            <div className="flex flex-wrap gap-2 max-h-20 overflow-y-auto">
+              {userPassports.map((passport) => {
+                const country = getCountryByCode(passport.countryCode);
+                return (
+                  <div
+                    key={passport.tokenId}
+                    className="px-2 py-1 bg-green-500/20 border border-green-500/50 rounded-lg text-xs flex items-center gap-1"
+                    title={`${passport.countryName} - Token #${passport.tokenId}`}
+                  >
+                    <span>{country?.flag || '🏳️'}</span>
+                    <span className="text-green-300">{passport.countryCode}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Location Detection Status */}
         <div className="mb-6">
@@ -345,11 +457,11 @@ Token #${tokenId || 'pending'}`);
           </div>
         )}
 
-        <div className="space-y-4 mb-6">
+        <div className="space-y-4 mb-5">
           <div>
             <label className="block text-white text-sm font-medium mb-2">
-              {location 
-                ? `Country (Auto-detected: ${location.country} 🎯)` 
+              {location
+                ? `Country (Auto-detected: ${location.country} 🎯)`
                 : 'Select Your Country'
               }
             </label>
@@ -360,34 +472,51 @@ Token #${tokenId || 'pending'}`);
               style={{ minHeight: '48px' }}
             >
               <option value="">Choose a country...</option>
-              {ALL_COUNTRIES.map((country) => (
-                <option key={country.code} value={country.code}>
-                  {country.flag} {country.name}
-                </option>
-              ))}
+              {ALL_COUNTRIES.map((country) => {
+                const alreadyHas = hasPassportForCountry(country.code);
+                return (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name} {alreadyHas ? '✅' : ''}
+                  </option>
+                );
+              })}
             </select>
-            <p className="text-gray-400 text-xs mt-2">
-              📍 {location 
-                ? `Based on your GPS location (${location.countryName})`
-                : 'Select from all 195 countries'
-              }
-            </p>
+            {selectedAlreadyMinted ? (
+              <p className="text-green-400 text-xs mt-2">
+                ✅ You already have a passport for this country!
+              </p>
+            ) : (
+              <p className="text-gray-400 text-xs mt-2">
+                📍 {location
+                  ? `Based on your GPS location (${location.countryName})`
+                  : 'Select from all 195 countries'
+                }
+              </p>
+            )}
           </div>
         </div>
 
-        <button
-          onClick={handleMint}
-          disabled={isLoading || !selectedCountryCode || !walletAddress}
-          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
-          style={{ minHeight: '56px' }}
-        >
-          {isLoading ? '⏳ Processing (2 steps)...' : '🎫 Mint Passport (FREE)'}
-        </button>
+        {selectedAlreadyMinted ? (
+          <div className="w-full bg-green-500/20 border border-green-500/50 text-green-300 py-4 rounded-lg font-bold text-lg text-center">
+            ✅ Passport Already Minted
+          </div>
+        ) : (
+          <button
+            onClick={handleMint}
+            disabled={isLoading || !selectedCountryCode || !walletAddress}
+            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
+            style={{ minHeight: '56px' }}
+          >
+            {isLoading ? '⏳ Processing (2 steps)...' : '🎫 Mint Passport (FREE)'}
+          </button>
+        )}
 
-        <p className="text-gray-500 text-xs text-center mt-4">
-          📍 {location 
-            ? `Minting passport for ${location.countryName} • Each wallet can mint one passport per country.`
-            : 'Free mint - we pay gas! Each wallet can mint one passport per country.'
+        <p className="text-gray-500 text-xs text-center mt-3">
+          {selectedAlreadyMinted
+            ? 'Select a different country to expand your collection!'
+            : location
+              ? `Minting passport for ${location.countryName} • One per country.`
+              : 'Free mint - we pay gas! One passport per country.'
           }
         </p>
 
