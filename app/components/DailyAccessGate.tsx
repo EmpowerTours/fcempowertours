@@ -72,6 +72,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     hasClaimed: false,
   });
   const [faucetCooldown, setFaucetCooldown] = useState<string>('');
+  const [skippedSubscription, setSkippedSubscription] = useState(false);
 
   // Check faucet status via faucet contract AND Safe balance
   const checkFaucetStatus = async () => {
@@ -229,8 +230,8 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     return () => clearInterval(interval);
   }, [faucetStatus.walletCooldownSeconds, faucetStatus.fidCooldownSeconds]);
 
-  // Check if all requirements met
-  const allRequirementsMet = requirements.faucet && requirements.subscription && requirements.following && requirements.passport && requirements.lottery;
+  // Check if all requirements met (subscription can be skipped)
+  const allRequirementsMet = requirements.faucet && (requirements.subscription || skippedSubscription) && requirements.following && requirements.passport && requirements.lottery;
 
   // Subscription tier prices
   const SUBSCRIPTION_TIERS = [
@@ -492,8 +493,10 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
     return <>{children}</>;
   }
 
-  // Calculate progress
-  const completedCount = Object.values(requirements).filter(v => v === true).length;
+  // Calculate progress (count skipped subscription as completed)
+  const completedCount = Object.entries(requirements).filter(([key, v]) =>
+    v === true || (key === 'subscription' && skippedSubscription)
+  ).length;
   const totalCount = 5;
 
   return (
@@ -562,46 +565,58 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
 
               {/* 2. Music Subscription */}
               <div className={`p-4 rounded-2xl border transition-all ${
-                requirements.subscription
+                requirements.subscription || skippedSubscription
                   ? 'bg-green-500/20 border-green-500/50'
                   : 'bg-white/5 border-white/20'
               }`}>
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">{requirements.subscription ? '✅' : '🎵'}</span>
+                  <span className="text-2xl">{requirements.subscription ? '✅' : skippedSubscription ? '⏭️' : '🎵'}</span>
                   <div>
                     <p className="text-white font-medium">Music Subscription</p>
                     <p className="text-white/60 text-xs">
-                      {!requirements.subscription && parseFloat(safeWmonBalance) < 15
-                        ? `Need 15+ WMON (have ${parseFloat(safeWmonBalance).toFixed(2)})`
-                        : 'Choose a plan to stream music'}
+                      {requirements.subscription
+                        ? 'Subscribed - Full music access'
+                        : skippedSubscription
+                          ? 'Skipped - Preview mode only (3 sec)'
+                          : !requirements.subscription && parseFloat(safeWmonBalance) < 15
+                            ? `Need 15+ WMON (have ${parseFloat(safeWmonBalance).toFixed(2)})`
+                            : 'Choose a plan to stream music'}
                     </p>
                   </div>
                 </div>
-                {!requirements.subscription && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {SUBSCRIPTION_TIERS.map((tier, idx) => {
-                      const tierPrice = parseFloat(tier.display.split(' ')[0]);
-                      const canAfford = parseFloat(safeWmonBalance) >= tierPrice;
-                      return (
-                        <button
-                          key={tier.tier}
-                          onClick={() => handleSubscribe(idx)}
-                          disabled={activeAction === 'subscription' || !canAfford}
-                          className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
-                            canAfford && idx === 0
-                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                              : canAfford
-                                ? 'bg-white/10 hover:bg-white/20 border border-white/20'
-                                : 'bg-white/5 border border-white/10'
-                          }`}
-                          title={!canAfford ? `Need ${tierPrice} WMON` : ''}
-                        >
-                          <p className="text-white text-xs font-bold">{tier.name}</p>
-                          <p className={`text-xs ${canAfford ? 'text-white/80' : 'text-red-400'}`}>{tier.display}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                {!requirements.subscription && !skippedSubscription && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {SUBSCRIPTION_TIERS.map((tier, idx) => {
+                        const tierPrice = parseFloat(tier.display.split(' ')[0]);
+                        const canAfford = parseFloat(safeWmonBalance) >= tierPrice;
+                        return (
+                          <button
+                            key={tier.tier}
+                            onClick={() => handleSubscribe(idx)}
+                            disabled={activeAction === 'subscription' || !canAfford}
+                            className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
+                              canAfford && idx === 0
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+                                : canAfford
+                                  ? 'bg-white/10 hover:bg-white/20 border border-white/20'
+                                  : 'bg-white/5 border border-white/10'
+                            }`}
+                            title={!canAfford ? `Need ${tierPrice} WMON` : ''}
+                          >
+                            <p className="text-white text-xs font-bold">{tier.name}</p>
+                            <p className={`text-xs ${canAfford ? 'text-white/80' : 'text-red-400'}`}>{tier.display}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setSkippedSubscription(true)}
+                      className="w-full py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white/70 text-xs rounded-xl transition-all"
+                    >
+                      Continue without subscription (preview mode)
+                    </button>
+                  </>
                 )}
               </div>
 
