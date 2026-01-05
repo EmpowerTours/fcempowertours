@@ -353,8 +353,11 @@ Return valid JSON only.`;
     let txHash: string | null = null;
 
     if (action.type === 'execute' && action.transaction) {
+      // Sanitize function name (Gemini sometimes adds trailing commas)
+      const funcName = action.transaction.function?.replace(/[,\s]+$/, '').trim() || '';
+      action.transaction.function = funcName; // Update in case it's used downstream
+
       // Check for special delegated actions that go through execute-delegated API
-      const funcName = action.transaction.function;
       if ((funcName === 'buy_music' || funcName === 'buy_art') && userAddress && userFid) {
         // Route buy_music/buy_art to execute-delegated API
         const tokenId = action.transaction.args?.[0];
