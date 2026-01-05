@@ -339,6 +339,15 @@ export default function ProfilePage() {
       const uniqueAddresses = [...new Set(addressesToQuery)].filter(a => a);
       setQueriedAddresses(uniqueAddresses);
 
+      console.log('[Profile] Querying addresses:', {
+        walletAddress,
+        safeAddress: (user as any)?.safeAddress,
+        smartAccountAddress: (user as any)?.smartAccountAddress,
+        verifiedAddresses: (user as any)?.verifiedAddresses?.eth_addresses,
+        custodyAddress: (user as any)?.custodyAddress,
+        uniqueAddresses,
+      });
+
       const query = `
         query GetUserData($addresses: [String!]!) {
           PassportNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
@@ -442,6 +451,16 @@ export default function ProfilePage() {
       const purchasedLicenses = result.data?.MusicLicense || [];
       const purchases = result.data?.ItineraryPurchase || [];
       const createdExps = result.data?.ExperienceNFT_ExperienceCreated || [];
+
+      console.log('[Profile] Envio results:', {
+        passports: passports.length,
+        createdNFTs: createdNFTs.length,
+        ownedNFTs: ownedNFTs.length,
+        purchasedLicenses: purchasedLicenses.length,
+        purchasedLicensesData: purchasedLicenses,
+        purchases: purchases.length,
+        createdExps: createdExps.length,
+      });
 
       passports = await Promise.all(
         passports.map(async (passport) => {
