@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
     // Fetch Farcaster usernames for all unique artist addresses
     const artistAddresses = [...new Set(musicNFTs.map((nft: any) => nft.artist).filter(Boolean))] as string[];
     const artistUsernames: Record<string, string> = {};
+    console.log('[get-user-licenses] Found', musicNFTs.length, 'NFTs with', artistAddresses.length, 'unique artists:', artistAddresses);
 
     if (artistAddresses.length > 0) {
       try {
@@ -83,13 +84,18 @@ export async function GET(req: NextRequest) {
 
         if (neynarRes.ok) {
           const neynarData = await neynarRes.json();
+          console.log('[get-user-licenses] Neynar response:', JSON.stringify(neynarData).substring(0, 500));
           // Response format: { "0xaddress": [{ username: "...", ... }], ... }
           for (const [addr, users] of Object.entries(neynarData)) {
+            console.log('[get-user-licenses] Processing addr:', addr, 'users:', Array.isArray(users) ? users.length : 'not array');
             if (Array.isArray(users) && users.length > 0 && (users[0] as any).username) {
               artistUsernames[addr.toLowerCase()] = (users[0] as any).username;
+              console.log('[get-user-licenses] Found username:', (users[0] as any).username, 'for', addr);
             }
           }
           console.log('[get-user-licenses] Fetched Farcaster usernames for', Object.keys(artistUsernames).length, 'artists');
+        } else {
+          console.warn('[get-user-licenses] Neynar API returned', neynarRes.status, await neynarRes.text().catch(() => 'no body'));
         }
       } catch (err) {
         console.warn('[get-user-licenses] Failed to fetch Farcaster usernames:', err);
