@@ -814,6 +814,8 @@ View profile and collection!
                 ? await getUserSafeAddress(userAddress as Address)
                 : SAFE_ACCOUNT;
 
+              console.log('🏠 Checking Safe for NFT purchase:', safeToCheck, 'derived from EOA:', userAddress);
+
               const WMON_FOR_BUY = process.env.NEXT_PUBLIC_WMON as Address;
               const safeWmonBalance = await client.readContract({
                 address: WMON_FOR_BUY,
@@ -822,24 +824,61 @@ View profile and collection!
                 args: [safeToCheck],
               }) as bigint;
 
-              console.log('💰 Safe WMON balance:', safeWmonBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
-              console.log('   Required for NFT purchase:', nftPrice.toString());
+              // Also check MON balance for potential auto-wrap
+              const safeMonBalance = await client.getBalance({ address: safeToCheck });
+              console.log('💰 Safe balances - WMON:', (Number(safeWmonBalance) / 1e18).toFixed(4), 'MON:', (Number(safeMonBalance) / 1e18).toFixed(4));
+              console.log('   Safe address:', safeToCheck, USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+              console.log('   Required for NFT purchase:', (Number(nftPrice) / 1e18).toFixed(4), 'WMON');
 
               if (safeWmonBalance < nftPrice) {
-                const currentWMON = (Number(safeWmonBalance) / 1e18).toFixed(4);
-                const requiredWMON = (Number(nftPrice) / 1e18).toFixed(4);
-                const shortfall = (Number(nftPrice - safeWmonBalance) / 1e18).toFixed(4);
+                // Check if user has enough MON to wrap
+                const wmonNeeded = nftPrice - safeWmonBalance;
+                const gasBuffer = parseEther('0.1'); // Keep some MON for gas
 
-                return NextResponse.json(
-                  {
-                    success: false,
-                    error: `Insufficient WMON in Safe. Safe has ${currentWMON} WMON, but this ${purchaseNFTType} costs ${requiredWMON} WMON. You need ${shortfall} more WMON. ${USE_USER_SAFES ? `Please fund your Safe at ${safeToCheck} with WMON tokens or claim from faucet.` : 'Your WMON may be in your wallet, not the Safe.'}`
-                  },
-                  { status: 400 }
-                );
+                if (safeMonBalance >= wmonNeeded + gasBuffer) {
+                  console.log('🔄 Auto-wrapping MON to WMON for NFT purchase...');
+                  console.log('   Need to wrap:', (Number(wmonNeeded) / 1e18).toFixed(4), 'MON');
+
+                  // Auto-wrap MON to WMON
+                  const wrapCalls = [{
+                    to: WMON_FOR_BUY,
+                    value: wmonNeeded,
+                    data: encodeFunctionData({
+                      abi: parseAbi(['function deposit() public payable']),
+                      functionName: 'deposit',
+                    }) as Hex,
+                  }];
+
+                  try {
+                    const wrapTxHash = await executeTransaction(wrapCalls, userAddress as Address);
+                    console.log('✅ MON wrapped to WMON:', wrapTxHash);
+                  } catch (wrapErr: any) {
+                    console.error('❌ Auto-wrap failed:', wrapErr.message);
+                    return NextResponse.json(
+                      {
+                        success: false,
+                        error: `Failed to auto-wrap MON to WMON: ${wrapErr.message}`
+                      },
+                      { status: 500 }
+                    );
+                  }
+                } else {
+                  const currentWMON = (Number(safeWmonBalance) / 1e18).toFixed(4);
+                  const currentMON = (Number(safeMonBalance) / 1e18).toFixed(4);
+                  const requiredWMON = (Number(nftPrice) / 1e18).toFixed(4);
+                  const shortfall = (Number(nftPrice - safeWmonBalance - safeMonBalance + gasBuffer) / 1e18).toFixed(4);
+
+                  return NextResponse.json(
+                    {
+                      success: false,
+                      error: `Insufficient funds in Safe. Safe has ${currentWMON} WMON and ${currentMON} MON, but this ${purchaseNFTType} costs ${requiredWMON} WMON plus gas. ${USE_USER_SAFES ? `Please fund your Safe at ${safeToCheck} with more MON or WMON.` : 'Please contact support.'}`
+                    },
+                    { status: 400 }
+                  );
+                }
               }
 
-              console.log('✅ Sufficient WMON balance confirmed');
+              console.log('✅ Sufficient WMON balance confirmed (or wrapped)');
             }
           }
         } catch (balanceErr: any) {
