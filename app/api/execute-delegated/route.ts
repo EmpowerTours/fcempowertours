@@ -62,7 +62,7 @@ function convertPriceFromWei(price: string | number | bigint): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, action, params } = await req.json();
+    const { userAddress, action, params, fid } = await req.json();
     if (!userAddress || !action) {
       return NextResponse.json(
         { success: false, error: 'Missing userAddress or action' },
@@ -888,6 +888,10 @@ View profile and collection!
 
         // Use WMON for NFT purchases (not TOURS)
         const WMON_FOR_PURCHASE = process.env.NEXT_PUBLIC_WMON as Address;
+        // Get user's FID for the license purchase (contract requires it)
+        const buyerFid = params?.fid || fid || 0;
+        console.log('🎫 Purchasing license with FID:', buyerFid);
+
         const buyCalls = [
           {
             to: WMON_FOR_PURCHASE,
@@ -903,10 +907,10 @@ View profile and collection!
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
-                'function purchaseLicenseFor(uint256 masterTokenId, address licensee) external'
+                'function purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) external'
               ]),
               functionName: 'purchaseLicenseFor',
-              args: [tokenId, userAddress as Address],
+              args: [tokenId, userAddress as Address, BigInt(buyerFid)],
             }) as Hex,
           },
         ];
