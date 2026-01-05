@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ClientProviders from './ClientProviders';
 import ClientNav from './components/ClientNav';
-import SimpleBotBar from './components/SimpleBotBar';
 import SDKProvider from './components/SDKProvider';
 import SwipeNavigation from './components/SwipeNavigation';
 import PassportGate from './components/PassportGate';
@@ -82,7 +81,6 @@ export default function RootLayout({
           <SDKProvider>
             <PassportGate>
               <ClientNav />
-              <SimpleBotBar />
               <SwipeNavigation>
                 <main className="flex-1">{children}</main>
               </SwipeNavigation>

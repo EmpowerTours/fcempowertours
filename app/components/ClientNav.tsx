@@ -27,7 +27,6 @@ export default function ClientNav() {
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/nft', label: 'Create', icon: '➕' },
     { path: '/lottery', label: 'Lottery', icon: '🎰' },
-    { path: '/swap', label: 'Swap', icon: '💱' },
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/passport', label: 'Mint', icon: '✈️' },
   ];
