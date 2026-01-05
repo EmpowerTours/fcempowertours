@@ -31,9 +31,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Address required' }, { status: 400 });
     }
 
-    // Query Envio for user's music NFTs
+    // Query Envio for user's purchased licenses AND owned master tokens
     const query = `
       query GetUserMusic($owner: String!) {
+        # User's purchased licenses (most common case)
+        MusicLicense(
+          where: {
+            licensee: {_eq: $owner},
+            active: {_eq: true}
+          },
+          order_by: {purchasedAt: desc}
+        ) {
+          id
+          licenseId
+          masterTokenId
+          licensee
+          masterToken {
+            id
+            tokenId
+            tokenURI
+            artist
+            name
+            imageUrl
+            fullAudioUrl
+            previewAudioUrl
+          }
+        }
+        # User's owned master NFTs (for artists)
         MusicNFT(
           where: {
             owner: {_eq: $owner},
@@ -47,6 +71,10 @@ export async function GET(req: NextRequest) {
           tokenURI
           artist
           owner
+          name
+          imageUrl
+          fullAudioUrl
+          previewAudioUrl
         }
       }
     `;
@@ -65,7 +93,39 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await response.json();
-    const musicNFTs = data.data?.MusicNFT || [];
+
+    // Combine purchased licenses and owned master tokens
+    const licenses = data.data?.MusicLicense || [];
+    const ownedMasters = data.data?.MusicNFT || [];
+
+    // Extract music NFTs from licenses (use the masterToken data)
+    const licensedNFTs = licenses.map((license: any) => ({
+      ...license.masterToken,
+      isLicense: true,
+      licenseId: license.licenseId
+    }));
+
+    // Combine both sources, deduplicating by tokenId
+    const seenTokenIds = new Set<string>();
+    const musicNFTs: any[] = [];
+
+    // Licenses first (user's purchased content)
+    for (const nft of licensedNFTs) {
+      if (nft && !seenTokenIds.has(nft.tokenId)) {
+        seenTokenIds.add(nft.tokenId);
+        musicNFTs.push(nft);
+      }
+    }
+
+    // Then owned masters (artist's own content)
+    for (const nft of ownedMasters) {
+      if (!seenTokenIds.has(nft.tokenId)) {
+        seenTokenIds.add(nft.tokenId);
+        musicNFTs.push(nft);
+      }
+    }
+
+    console.log('[get-user-licenses] Found', licenses.length, 'licenses and', ownedMasters.length, 'owned masters =', musicNFTs.length, 'total');
 
     // Fetch Farcaster usernames for all unique artist addresses
     const artistAddresses = [...new Set(musicNFTs.map((nft: any) => nft.artist).filter(Boolean))] as string[];
@@ -102,23 +162,39 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fetch metadata for each NFT to get song details
+    // Process each NFT - use cached data from Envio first, fallback to fetching metadata
     const songs: Song[] = await Promise.all(
       musicNFTs.map(async (nft: any) => {
+        const artistAddr = nft.artist?.toLowerCase();
+        const artistUsername = artistAddr ? artistUsernames[artistAddr] : undefined;
+
+        // Use cached data from Envio if available (faster, no extra fetch needed)
+        if (nft.name && (nft.fullAudioUrl || nft.previewAudioUrl)) {
+          return {
+            id: nft.id,
+            tokenId: nft.tokenId?.toString() || '',
+            title: nft.name,
+            artist: nft.artist,
+            artistUsername,
+            audioUrl: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl || ''),
+            imageUrl: resolveIPFS(nft.imageUrl || ''),
+          };
+        }
+
+        // Fallback: fetch metadata from tokenURI
         try {
           const metadataUrl = resolveIPFS(nft.tokenURI);
           const metadataRes = await fetch(metadataUrl);
 
           if (metadataRes.ok) {
             const metadata = await metadataRes.json();
-            const artistAddr = nft.artist?.toLowerCase();
 
             return {
               id: nft.id,
-              tokenId: nft.tokenId.toString(),
+              tokenId: nft.tokenId?.toString() || '',
               title: metadata.name || `Track #${nft.tokenId}`,
               artist: metadata.artist || nft.artist,
-              artistUsername: artistAddr ? artistUsernames[artistAddr] : undefined,
+              artistUsername,
               audioUrl: resolveIPFS(metadata.animation_url || ''),
               imageUrl: resolveIPFS(metadata.image || ''),
             };
@@ -127,14 +203,13 @@ export async function GET(req: NextRequest) {
           console.error(`Failed to fetch metadata for NFT ${nft.tokenId}:`, error);
         }
 
-        // Fallback if metadata fetch fails
-        const artistAddr = nft.artist?.toLowerCase();
+        // Final fallback
         return {
           id: nft.id,
-          tokenId: nft.tokenId.toString(),
+          tokenId: nft.tokenId?.toString() || '',
           title: `Track #${nft.tokenId}`,
           artist: nft.artist,
-          artistUsername: artistAddr ? artistUsernames[artistAddr] : undefined,
+          artistUsername,
           audioUrl: '',
           imageUrl: '',
         };
