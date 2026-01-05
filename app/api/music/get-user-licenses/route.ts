@@ -79,6 +79,33 @@ export async function GET(req: NextRequest) {
       }
     `;
 
+    console.log('[get-user-licenses] Querying Envio for address:', address.toLowerCase());
+
+    // Debug: Check if ANY licenses exist in the indexer
+    const debugQuery = `
+      query DebugLicenses {
+        MusicLicense(limit: 5, order_by: {purchasedAt: desc}) {
+          id
+          licenseId
+          masterTokenId
+          licensee
+          active
+          purchasedAt
+        }
+      }
+    `;
+    try {
+      const debugRes = await fetch(ENVIO_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: debugQuery })
+      });
+      const debugData = await debugRes.json();
+      console.log('[get-user-licenses] DEBUG - All recent licenses:', JSON.stringify(debugData?.data?.MusicLicense || []));
+    } catch (e) {
+      console.log('[get-user-licenses] DEBUG query failed:', e);
+    }
+
     const response = await fetch(ENVIO_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,6 +114,10 @@ export async function GET(req: NextRequest) {
         variables: { owner: address.toLowerCase() }
       }),
     });
+
+    // Debug: Log raw response
+    const rawText = await response.clone().text();
+    console.log('[get-user-licenses] Raw Envio response:', rawText.substring(0, 500));
 
     if (!response.ok) {
       throw new Error('Failed to fetch music from Envio');
