@@ -50,6 +50,11 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
   const [savedPlaylistOrder, setSavedPlaylistOrder] = useState<string[] | null>(null);
   const [playlistLoaded, setPlaylistLoaded] = useState(false);
 
+  // Play recording for artist royalties
+  const playStartTimeRef = useRef<number | null>(null);
+  const recordedPlaysRef = useRef<Set<string>>(new Set()); // Track which plays have been recorded this session
+  const MIN_PLAY_DURATION_FOR_RECORD = 30; // Minimum 30 seconds to count as a play
+
   // Load saved playlist order from API on mount
   useEffect(() => {
     if (!userFid) {
@@ -114,6 +119,62 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
       console.error('[MusicPlaylist] Failed to save playlist:', error);
     }
   }, [userFid]);
+
+  // Record play for artist royalties (only for non-preview plays >= 30 seconds)
+  const recordPlay = useCallback(async (song: Song, playDuration: number) => {
+    // Don't record preview plays
+    if (song.isPreview) {
+      console.log('[MusicPlaylist] Skipping record - preview mode');
+      return;
+    }
+
+    // Don't record if duration is too short
+    if (playDuration < MIN_PLAY_DURATION_FOR_RECORD) {
+      console.log('[MusicPlaylist] Skipping record - duration too short:', playDuration);
+      return;
+    }
+
+    // Don't record if no user address
+    if (!userAddress) {
+      console.log('[MusicPlaylist] Skipping record - no user address');
+      return;
+    }
+
+    // Create unique key for this play session
+    const playKey = `${song.tokenId}-${Date.now()}`;
+
+    // Don't double-record the same song in the same session
+    const sessionKey = `${song.tokenId}-${Math.floor(Date.now() / 60000)}`; // Per-minute key
+    if (recordedPlaysRef.current.has(sessionKey)) {
+      console.log('[MusicPlaylist] Skipping record - already recorded this minute');
+      return;
+    }
+
+    try {
+      console.log('[MusicPlaylist] Recording play:', song.title, 'duration:', Math.floor(playDuration), 'seconds');
+
+      const response = await fetch('/api/record-play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          masterTokenId: parseInt(song.tokenId),
+          duration: Math.floor(playDuration),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        recordedPlaysRef.current.add(sessionKey);
+        console.log('[MusicPlaylist] Play recorded successfully:', data.txHash);
+      } else {
+        console.warn('[MusicPlaylist] Failed to record play:', data.error);
+      }
+    } catch (error) {
+      console.error('[MusicPlaylist] Error recording play:', error);
+    }
+  }, [userAddress]);
 
   // Fetch user's purchased music NFTs
   useEffect(() => {
@@ -326,15 +387,23 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
     setCurrentTime(0);
 
     if (isPlaying) {
+      // Track play start time for recording
+      playStartTimeRef.current = Date.now();
       console.log('[MusicPlaylist] Playing:', currentSong.title);
       audio.play().catch(err => {
         console.error('[MusicPlaylist] Play failed:', err);
         setIsPlaying(false);
       });
     } else {
+      // When pausing, check if we should record the play
+      if (playStartTimeRef.current) {
+        const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
+        recordPlay(currentSong, playDuration);
+        playStartTimeRef.current = null;
+      }
       audio.pause();
     }
-  }, [isPlaying, currentSongIndex, songs]);
+  }, [isPlaying, currentSongIndex, songs, recordPlay]);
 
   // Audio event handlers
   useEffect(() => {
@@ -363,6 +432,14 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
     };
 
     const handleEnded = () => {
+      // Record the play when song ends naturally
+      const currentSong = songs[currentSongIndex];
+      if (currentSong && playStartTimeRef.current) {
+        const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
+        recordPlay(currentSong, playDuration);
+        playStartTimeRef.current = null;
+      }
+
       if (currentSongIndex < songs.length - 1) {
         setCurrentSongIndex(prev => prev + 1);
         setIsPlaying(true);
@@ -387,7 +464,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [currentSongIndex, songs]);
+  }, [currentSongIndex, songs, recordPlay]);
 
   const handlePlayPause = () => {
     const audio = audioRef.current;

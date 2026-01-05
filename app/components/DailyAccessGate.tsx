@@ -74,6 +74,20 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [faucetCooldown, setFaucetCooldown] = useState<string>('');
   const [skippedSubscription, setSkippedSubscription] = useState(false);
 
+  // Farcaster reputation (Sybil resistance)
+  const [reputation, setReputation] = useState<{
+    totalScore: number;
+    meetsMinimum: boolean;
+    breakdown: {
+      ageScore: number;
+      followerScore: number;
+      connectionScore: number;
+      activityScore: number;
+      penalties: number;
+    };
+  } | null>(null);
+  const [reputationLoading, setReputationLoading] = useState(true);
+
   // Check faucet status via faucet contract AND Safe balance
   const checkFaucetStatus = async () => {
     if (!user?.fid || !effectiveAddress) {
@@ -120,6 +134,47 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   useEffect(() => {
     checkFaucetStatus();
   }, [effectiveAddress, user?.fid]);
+
+  // Check Farcaster reputation (Sybil resistance)
+  useEffect(() => {
+    if (!user?.fid) {
+      setReputationLoading(false);
+      return;
+    }
+
+    const checkReputation = async () => {
+      try {
+        const res = await fetch(`/api/farcaster/reputation?fid=${user.fid}`);
+        const data = await res.json();
+
+        if (data.success && data.reputation) {
+          setReputation({
+            totalScore: data.reputation.totalScore,
+            meetsMinimum: data.reputation.meetsMinimum,
+            breakdown: data.reputation.breakdown,
+          });
+          console.log('[DailyGate] Reputation score:', data.reputation.totalScore, '/ 100');
+        } else {
+          // Default to minimum score if lookup fails
+          setReputation({
+            totalScore: 0,
+            meetsMinimum: false,
+            breakdown: { ageScore: 0, followerScore: 0, connectionScore: 0, activityScore: 0, penalties: 0 },
+          });
+        }
+      } catch (err) {
+        console.error('[DailyGate] Failed to fetch reputation:', err);
+        setReputation({
+          totalScore: 0,
+          meetsMinimum: false,
+          breakdown: { ageScore: 0, followerScore: 0, connectionScore: 0, activityScore: 0, penalties: 0 },
+        });
+      }
+      setReputationLoading(false);
+    };
+
+    checkReputation();
+  }, [user?.fid]);
 
   // Check subscription status
   useEffect(() => {
@@ -181,10 +236,10 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   // Update loading state
   useEffect(() => {
     const allChecked = Object.values(requirements).every(v => v !== null);
-    if (allChecked && !contextLoading && !passportLoading && !entryLoading) {
+    if (allChecked && !contextLoading && !passportLoading && !entryLoading && !reputationLoading) {
       setIsLoading(false);
     }
-  }, [requirements, contextLoading, passportLoading, entryLoading]);
+  }, [requirements, contextLoading, passportLoading, entryLoading, reputationLoading]);
 
   // Update lottery countdown
   useEffect(() => {
@@ -514,6 +569,58 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
               </p>
             </div>
 
+            {/* Farcaster Reputation Score (Sybil Resistance) */}
+            {reputation && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl border border-blue-400/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🛡️</span>
+                    <span className="text-white font-medium text-sm">Social Reputation</span>
+                  </div>
+                  <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                    reputation.totalScore >= 50 ? 'bg-green-500/30 text-green-300' :
+                    reputation.totalScore >= 20 ? 'bg-yellow-500/30 text-yellow-300' :
+                    'bg-red-500/30 text-red-300'
+                  }`}>
+                    {reputation.totalScore}/100
+                  </div>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      reputation.totalScore >= 50 ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
+                      reputation.totalScore >= 20 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+                      'bg-gradient-to-r from-red-400 to-pink-500'
+                    }`}
+                    style={{ width: `${reputation.totalScore}%` }}
+                  />
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[10px] text-white/60">
+                  <div className="text-center">
+                    <div className="text-white/80">{reputation.breakdown.ageScore.toFixed(0)}</div>
+                    <div>Age</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-white/80">{reputation.breakdown.followerScore.toFixed(0)}</div>
+                    <div>Followers</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-white/80">{reputation.breakdown.connectionScore.toFixed(0)}</div>
+                    <div>Connections</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-white/80">{reputation.breakdown.activityScore.toFixed(0)}</div>
+                    <div>Activity</div>
+                  </div>
+                </div>
+                {!reputation.meetsMinimum && (
+                  <div className="mt-2 text-xs text-red-300 text-center">
+                    Minimum score of 10 required to subscribe
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Progress Bar */}
             <div className="mb-6">
               <div className="flex justify-between text-sm text-white/70 mb-2">
@@ -594,7 +701,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                           <button
                             key={tier.tier}
                             onClick={() => handleSubscribe(idx)}
-                            disabled={activeAction === 'subscription' || !canAfford}
+                            disabled={activeAction === 'subscription' || !canAfford || (reputation !== null && !reputation.meetsMinimum)}
                             className={`p-2 rounded-xl text-center transition-all disabled:opacity-50 ${
                               canAfford && idx === 0
                                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
