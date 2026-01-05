@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
       'concierge_ride',
       'music-subscribe',       // Daily gate requirement
       'faucet_claim',          // WMON faucet claim
+      'mint_passport',         // Daily gate requirement
     ];
     const requiresDelegation = !publicActions.includes(action);
 
