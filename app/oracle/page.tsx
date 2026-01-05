@@ -874,6 +874,7 @@ export default function OraclePage() {
         userAddress={walletAddress ?? undefined}
         userFid={user?.fid}
         clickedNFTs={clickedMusicNFTs}
+        isSubscriber={hasSubscription}
         onPlayingChange={(nftId, isPlaying) => {
           setPlayingNFTId(isPlaying ? nftId : null);
           // Find the tokenId for this NFT

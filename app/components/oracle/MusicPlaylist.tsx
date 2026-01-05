@@ -31,9 +31,10 @@ interface MusicPlaylistProps {
   clickedNFTs?: NFTObject[];
   onPlayingChange?: (nftId: string | null, isPlaying: boolean) => void;
   onClose?: () => void;
+  isSubscriber?: boolean; // If true, user can listen to all songs (not just owned)
 }
 
-export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose }) => {
+export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose, isSubscriber = false }) => {
   const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
@@ -200,8 +201,12 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
               lastClickedTokenId = nft.tokenId;
             }
           } else if (!alreadyClicked) {
-            // User doesn't own this - add as preview
-            // Create a fallback preview song even if metadata fetch fails
+            // User doesn't own this NFT
+            // If subscriber, they can still listen to full song
+            // Otherwise, it's preview mode (3 seconds only)
+            const shouldBePreview = !isSubscriber;
+            console.log('[MusicPlaylist] Song access:', isSubscriber ? 'SUBSCRIBER (full access)' : 'PREVIEW (3 sec)');
+
             const fallbackSong: Song = {
               id: `preview-${nft.tokenId}`,
               tokenId: nft.tokenId,
@@ -210,7 +215,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
               artistUsername: nft.artistUsername, // Farcaster username from API
               audioUrl: '', // Will try to fetch from metadata
               imageUrl: nft.imageUrl,
-              isPreview: true,
+              isPreview: shouldBePreview, // Only preview if not subscriber
               contractAddress: nft.contractAddress,
             };
 
