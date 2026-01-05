@@ -35,16 +35,17 @@ export async function GET(
     const artTitle = directTitle || `Art NFT #${tokenId}`;
     const artPrice = directPrice || '0';
 
+    // Mini app frame data - launches directly to NFT view page
     const frameData = {
-      version: '1',
+      version: 'next',
       imageUrl: ogImageUrl,
       button: {
         title: '🎨 View & Buy',
         action: {
           type: 'launch_frame',
-          name: 'EmpowerTours Art',
+          name: 'EmpowerTours',
           url: miniAppUrl,
-          splashImageUrl: ogImageUrl,
+          splashImageUrl: `${APP_URL}/splash.png`,
           splashBackgroundColor: '#0f172a'
         }
       }
@@ -69,13 +70,11 @@ export async function GET(
           <meta name="twitter:title" content="${artTitle}">
           <meta name="twitter:image" content="${ogImageUrl}">
 
-          <!-- Farcaster Frame -->
-          <meta name="fc:frame" content="vNext">
-          <meta name="fc:frame:image" content="${ogImageUrl}">
-          <meta name="fc:frame:button:1" content="🎨 View & Buy">
-          <meta name="fc:frame:button:1:action" content="link">
-          <meta name="fc:frame:button:1:target" content="${miniAppUrl}">
-          <meta name="fc:miniapp" content='${JSON.stringify(frameData)}'>
+          <!-- Farcaster Frame with Mini App Launch (same as music frame) -->
+          <meta name="fc:frame" content='${JSON.stringify(frameData)}'>
+          <meta name="of:version" content="vNext">
+          <meta name="of:accepts:farcaster" content="vNext">
+          <meta name="of:image" content="${ogImageUrl}">
 
           <title>${artTitle} - EmpowerTours</title>
         </head>
