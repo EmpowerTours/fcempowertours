@@ -801,7 +801,7 @@ View profile and collection!
               const nftPrice = BigInt(nft.price);
               console.log('💰 NFT Price from Envio:', nftPrice.toString(), 'wei');
 
-              // Now check Safe's TOURS balance
+              // Now check Safe's WMON balance (using WMON for payments, not TOURS)
               const { createPublicClient, http } = await import('viem');
               const { monadTestnet } = await import('@/app/chains');
               const client = createPublicClient({
@@ -814,41 +814,44 @@ View profile and collection!
                 ? await getUserSafeAddress(userAddress as Address)
                 : SAFE_ACCOUNT;
 
-              const safeToursBalance = await client.readContract({
-                address: TOURS_TOKEN,
+              const WMON_FOR_BUY = process.env.NEXT_PUBLIC_WMON as Address;
+              const safeWmonBalance = await client.readContract({
+                address: WMON_FOR_BUY,
                 abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
                 functionName: 'balanceOf',
                 args: [safeToCheck],
               }) as bigint;
 
-              console.log('💰 Safe TOURS balance:', safeToursBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
+              console.log('💰 Safe WMON balance:', safeWmonBalance.toString(), USE_USER_SAFES ? '(User Safe)' : '(Platform Safe)');
               console.log('   Required for NFT purchase:', nftPrice.toString());
 
-              if (safeToursBalance < nftPrice) {
-                const currentTOURS = (Number(safeToursBalance) / 1e18).toFixed(4);
-                const requiredTOURS = (Number(nftPrice) / 1e18).toFixed(4);
-                const shortfall = (Number(nftPrice - safeToursBalance) / 1e18).toFixed(4);
+              if (safeWmonBalance < nftPrice) {
+                const currentWMON = (Number(safeWmonBalance) / 1e18).toFixed(4);
+                const requiredWMON = (Number(nftPrice) / 1e18).toFixed(4);
+                const shortfall = (Number(nftPrice - safeWmonBalance) / 1e18).toFixed(4);
 
                 return NextResponse.json(
                   {
                     success: false,
-                    error: `Insufficient TOURS in Safe. Safe has ${currentTOURS} TOURS, but this ${purchaseNFTType} costs ${requiredTOURS} TOURS. You need ${shortfall} more TOURS. ${USE_USER_SAFES ? `Please fund your Safe at ${safeToCheck} with TOURS tokens.` : 'Your TOURS may be in your wallet, not the Safe.'}`
+                    error: `Insufficient WMON in Safe. Safe has ${currentWMON} WMON, but this ${purchaseNFTType} costs ${requiredWMON} WMON. You need ${shortfall} more WMON. ${USE_USER_SAFES ? `Please fund your Safe at ${safeToCheck} with WMON tokens or claim from faucet.` : 'Your WMON may be in your wallet, not the Safe.'}`
                   },
                   { status: 400 }
                 );
               }
 
-              console.log('✅ Sufficient TOURS balance confirmed');
+              console.log('✅ Sufficient WMON balance confirmed');
             }
           }
         } catch (balanceErr: any) {
-          console.warn('⚠️ Could not verify Safe TOURS balance:', balanceErr.message);
+          console.warn('⚠️ Could not verify Safe WMON balance:', balanceErr.message);
           // Continue with purchase - balance check is a nice-to-have, not critical
         }
 
+        // Use WMON for NFT purchases (not TOURS)
+        const WMON_FOR_PURCHASE = process.env.NEXT_PUBLIC_WMON as Address;
         const buyCalls = [
           {
-            to: TOURS_TOKEN,
+            to: WMON_FOR_PURCHASE,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
