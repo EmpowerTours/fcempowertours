@@ -353,14 +353,34 @@ Return valid JSON only.`;
     let txHash: string | null = null;
 
     if (action.type === 'execute' && action.transaction) {
-      // Sanitize function name (Gemini sometimes adds trailing commas)
-      const funcName = action.transaction.function?.replace(/[,\s]+$/, '').trim() || '';
-      action.transaction.function = funcName; // Update in case it's used downstream
+      // Aggressively extract function name - Gemini often hallucinates extra text
+      let rawFunc = action.transaction.function || '';
+      let funcName = rawFunc.replace(/[,\s]+$/, '').trim();
+
+      // If function starts with buy_music or buy_art, extract just that
+      // This handles: "buy_music," "buy_music','args':[" "buy_music overjoyed with..."
+      if (rawFunc.toLowerCase().startsWith('buy_music')) {
+        funcName = 'buy_music';
+        console.log('[Oracle] Extracted buy_music from:', rawFunc.substring(0, 50));
+      } else if (rawFunc.toLowerCase().startsWith('buy_art')) {
+        funcName = 'buy_art';
+        console.log('[Oracle] Extracted buy_art from:', rawFunc.substring(0, 50));
+      }
+      action.transaction.function = funcName;
 
       // Check for special delegated actions that go through execute-delegated API
       if ((funcName === 'buy_music' || funcName === 'buy_art') && userAddress && userFid) {
         // Route buy_music/buy_art to execute-delegated API
-        const tokenId = action.transaction.args?.[0];
+        // Try to get tokenId from args, or extract from the original message
+        let tokenId = action.transaction.args?.[0];
+        if (!tokenId) {
+          // Gemini often malforms the JSON - try to extract tokenId from the user message
+          const tokenIdMatch = message.match(/#?(\d+)/);
+          if (tokenIdMatch) {
+            tokenId = tokenIdMatch[1];
+            console.log('[Oracle] Extracted tokenId from message:', tokenId);
+          }
+        }
         if (tokenId) {
           try {
             const buyResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/execute-delegated`, {

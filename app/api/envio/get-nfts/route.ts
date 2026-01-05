@@ -104,9 +104,11 @@ export async function GET() {
 
     if (artistAddresses.length > 0) {
       try {
-        const neynarApiKey = process.env.NEYNAR_API_KEY;
+        const neynarApiKey = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+        console.log('[get-nfts] Looking up usernames for artists:', artistAddresses);
         if (neynarApiKey) {
           const addressesParam = artistAddresses.join(',');
+          // Use same endpoint format as artist profile page
           const neynarUrl = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${addressesParam}`;
           const neynarResponse = await fetch(neynarUrl, {
             headers: { 'x-api-key': neynarApiKey },
@@ -114,15 +116,21 @@ export async function GET() {
 
           if (neynarResponse.ok) {
             const neynarData = await neynarResponse.json();
-            // Map addresses to usernames
+            console.log('[get-nfts] Neynar response keys:', Object.keys(neynarData));
+            // Map addresses to usernames - response is keyed by lowercase address
             for (const address of artistAddresses) {
               const users = neynarData[address.toLowerCase()];
               if (users && users.length > 0) {
                 artistUsernames[address.toLowerCase()] = users[0].username;
+                console.log('[get-nfts] Found username:', users[0].username, 'for', address);
               }
             }
             console.log('[get-nfts] Fetched Farcaster usernames for', Object.keys(artistUsernames).length, 'artists');
+          } else {
+            console.error('[get-nfts] Neynar API error:', neynarResponse.status);
           }
+        } else {
+          console.warn('[get-nfts] No NEYNAR_API_KEY configured');
         }
       } catch (err) {
         console.error('[get-nfts] Failed to fetch artist usernames:', err);
