@@ -8,6 +8,7 @@ interface Song {
   tokenId: string;
   title: string;
   artist: string;
+  artistUsername?: string; // Farcaster username (e.g., unify34)
   audioUrl: string;
   imageUrl: string;
 }
@@ -66,6 +67,35 @@ export async function GET(req: NextRequest) {
     const data = await response.json();
     const musicNFTs = data.data?.MusicNFT || [];
 
+    // Fetch Farcaster usernames for all unique artist addresses
+    const artistAddresses = [...new Set(musicNFTs.map((nft: any) => nft.artist).filter(Boolean))] as string[];
+    const artistUsernames: Record<string, string> = {};
+
+    if (artistAddresses.length > 0) {
+      try {
+        const addressesParam = artistAddresses.join(',');
+        const neynarUrl = `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${addressesParam}`;
+        const neynarRes = await fetch(neynarUrl, {
+          headers: {
+            'api_key': process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
+          }
+        });
+
+        if (neynarRes.ok) {
+          const neynarData = await neynarRes.json();
+          // Response format: { "0xaddress": [{ username: "...", ... }], ... }
+          for (const [addr, users] of Object.entries(neynarData)) {
+            if (Array.isArray(users) && users.length > 0 && (users[0] as any).username) {
+              artistUsernames[addr.toLowerCase()] = (users[0] as any).username;
+            }
+          }
+          console.log('[get-user-licenses] Fetched Farcaster usernames for', Object.keys(artistUsernames).length, 'artists');
+        }
+      } catch (err) {
+        console.warn('[get-user-licenses] Failed to fetch Farcaster usernames:', err);
+      }
+    }
+
     // Fetch metadata for each NFT to get song details
     const songs: Song[] = await Promise.all(
       musicNFTs.map(async (nft: any) => {
@@ -75,12 +105,14 @@ export async function GET(req: NextRequest) {
 
           if (metadataRes.ok) {
             const metadata = await metadataRes.json();
+            const artistAddr = nft.artist?.toLowerCase();
 
             return {
               id: nft.id,
               tokenId: nft.tokenId.toString(),
               title: metadata.name || `Track #${nft.tokenId}`,
               artist: metadata.artist || nft.artist,
+              artistUsername: artistAddr ? artistUsernames[artistAddr] : undefined,
               audioUrl: resolveIPFS(metadata.animation_url || ''),
               imageUrl: resolveIPFS(metadata.image || ''),
             };
@@ -90,11 +122,13 @@ export async function GET(req: NextRequest) {
         }
 
         // Fallback if metadata fetch fails
+        const artistAddr = nft.artist?.toLowerCase();
         return {
           id: nft.id,
           tokenId: nft.tokenId.toString(),
           title: `Track #${nft.tokenId}`,
           artist: nft.artist,
+          artistUsername: artistAddr ? artistUsernames[artistAddr] : undefined,
           audioUrl: '',
           imageUrl: '',
         };
