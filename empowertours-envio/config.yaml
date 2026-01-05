@@ -22,8 +22,8 @@ networks:
               transaction_fields:
                 - hash
 
-          # ✅ License purchase (perpetual - no expiry)
-          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, uint256 indexed licenseeFid, address buyer, bool isCollector)"
+          # ✅ License purchase (with expiry timestamp)
+          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, uint256 indexed licenseeFid, address buyer, uint256 expiry, bool isCollector)"
             field_selection:
               transaction_fields:
                 - hash

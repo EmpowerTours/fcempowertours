@@ -457,10 +457,27 @@ export default function ProfilePage() {
         createdNFTs: createdNFTs.length,
         ownedNFTs: ownedNFTs.length,
         purchasedLicenses: purchasedLicenses.length,
-        purchasedLicensesData: purchasedLicenses,
+        purchasedLicensesData: purchasedLicenses.map((l: any) => ({
+          id: l.id,
+          licenseId: l.licenseId,
+          masterTokenId: l.masterTokenId,
+          licensee: l.licensee,
+          txHash: l.txHash?.slice(0, 20) + '...'
+        })),
         purchases: purchases.length,
         createdExps: createdExps.length,
+        queriedAddresses: uniqueAddresses,
       });
+
+      // Debug: If no licenses found, check what addresses are being used
+      if (purchasedLicenses.length === 0) {
+        console.log('[Profile] No licenses found. Verifying addresses:', {
+          walletAddress: walletAddress?.toLowerCase(),
+          safeAddress: (user as any)?.safeAddress?.toLowerCase?.(),
+          custodyAddress: (user as any)?.custodyAddress?.toLowerCase?.(),
+          allQueriedAddresses: uniqueAddresses
+        });
+      }
 
       passports = await Promise.all(
         passports.map(async (passport) => {

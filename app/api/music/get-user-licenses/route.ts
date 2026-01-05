@@ -84,13 +84,19 @@ export async function GET(req: NextRequest) {
     // Debug: Check if ANY licenses exist in the indexer
     const debugQuery = `
       query DebugLicenses {
-        MusicLicense(limit: 5, order_by: {purchasedAt: desc}) {
+        MusicLicense(limit: 10, order_by: {purchasedAt: desc}) {
           id
           licenseId
           masterTokenId
           licensee
           active
           purchasedAt
+          txHash
+        }
+        GlobalStats(where: {id: {_eq: "global"}}) {
+          totalMusicLicensesPurchased
+          totalMusicNFTs
+          lastUpdated
         }
       }
     `;
@@ -101,7 +107,22 @@ export async function GET(req: NextRequest) {
         body: JSON.stringify({ query: debugQuery })
       });
       const debugData = await debugRes.json();
-      console.log('[get-user-licenses] DEBUG - All recent licenses:', JSON.stringify(debugData?.data?.MusicLicense || []));
+      const licenses = debugData?.data?.MusicLicense || [];
+      const stats = debugData?.data?.GlobalStats?.[0];
+      console.log('[get-user-licenses] DEBUG - Indexer stats:', JSON.stringify(stats));
+      console.log('[get-user-licenses] DEBUG - Total licenses in DB:', licenses.length);
+      console.log('[get-user-licenses] DEBUG - Recent licenses:', licenses.map((l: any) => ({
+        id: l.id,
+        licensee: l.licensee,
+        masterTokenId: l.masterTokenId,
+        txHash: l.txHash?.slice(0, 20) + '...'
+      })));
+
+      // Check if queried address matches any licensee
+      const matchingLicenses = licenses.filter((l: any) =>
+        l.licensee?.toLowerCase() === address.toLowerCase()
+      );
+      console.log('[get-user-licenses] DEBUG - Licenses matching query address:', matchingLicenses.length);
     } catch (e) {
       console.log('[get-user-licenses] DEBUG query failed:', e);
     }
