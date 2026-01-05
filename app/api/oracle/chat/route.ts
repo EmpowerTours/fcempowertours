@@ -92,8 +92,17 @@ export async function POST(req: NextRequest) {
     console.log('[Oracle] Received:', { message, userAddress, userLocation, confirmPayment });
 
     // Create GoogleGenAI instance with correct SDK
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      console.error('[Oracle] GEMINI_API_KEY is not set!');
+      return NextResponse.json({
+        success: false,
+        error: 'Oracle API key not configured',
+      }, { status: 500 });
+    }
+
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY!
+      apiKey: geminiKey
     });
 
     // Check for prohibited emergency/high-risk activities
@@ -112,11 +121,16 @@ export async function POST(req: NextRequest) {
     // Best Practice: Only enable Maps tool when query has clear geographical context
     const needsMapsGrounding = detectMapsQuery(message);
 
-    console.log('[Oracle] Needs Maps Grounding:', needsMapsGrounding);
+    console.log('[Oracle] Maps detection:', {
+      message: message.substring(0, 50),
+      needsMapsGrounding,
+      confirmPayment,
+      willRequirePayment: needsMapsGrounding && !confirmPayment
+    });
 
     // Best Practice: Inform user that Maps data will be used
     if (needsMapsGrounding && !confirmPayment) {
-      console.log('[Oracle] Location-based query detected, Maps tool will be enabled');
+      console.log('[Oracle] Returning payment required response (100 WMON)');
     }
 
     // Check territory restrictions for Maps Grounding

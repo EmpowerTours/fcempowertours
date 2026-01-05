@@ -691,7 +691,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                     </p>
                   </div>
                 </div>
-                {!requirements.subscription && !skippedSubscription && (
+                {!requirements.subscription && (
                   <>
                     <div className="grid grid-cols-2 gap-2 mb-3">
                       {SUBSCRIPTION_TIERS.map((tier, idx) => {
@@ -717,12 +717,19 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                         );
                       })}
                     </div>
-                    <button
-                      onClick={() => setSkippedSubscription(true)}
-                      className="w-full py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white/70 text-xs rounded-xl transition-all"
-                    >
-                      Continue without subscription (preview mode)
-                    </button>
+                    {!skippedSubscription && (
+                      <button
+                        onClick={() => setSkippedSubscription(true)}
+                        className="w-full py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white/70 text-xs rounded-xl transition-all"
+                      >
+                        Skip for now (preview mode only)
+                      </button>
+                    )}
+                    {skippedSubscription && (
+                      <div className="text-center text-xs text-yellow-400/80 mt-2">
+                        Skipped - You can still subscribe above for full access
+                      </div>
+                    )}
                   </>
                 )}
               </div>

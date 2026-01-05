@@ -343,7 +343,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
       {hoveredNFTDisplay && (
         <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-md border border-cyan-500/30 rounded-lg px-4 py-2 text-sm pointer-events-none z-50">
           <div className="text-cyan-400 font-bold">{hoveredNFTDisplay.name}</div>
-          <div className="text-gray-400 text-xs">{hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} TOURS</div>
+          <div className="text-gray-400 text-xs">{hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} WMON</div>
           <div className="text-gray-500 text-xs">Click to view</div>
         </div>
       )}
