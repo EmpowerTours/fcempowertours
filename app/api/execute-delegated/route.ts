@@ -84,6 +84,8 @@ export async function POST(req: NextRequest) {
       'music-subscribe',       // Daily gate requirement
       'faucet_claim',          // WMON faucet claim
       'mint_passport',         // Daily gate requirement
+      'buy_music',             // Purchase music NFT license
+      'buy_art',               // Purchase art NFT
     ];
     const requiresDelegation = !publicActions.includes(action);
 
