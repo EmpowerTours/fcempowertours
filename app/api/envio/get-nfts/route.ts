@@ -108,10 +108,11 @@ export async function GET() {
         console.log('[get-nfts] Looking up usernames for artists:', artistAddresses);
         if (neynarApiKey) {
           const addressesParam = artistAddresses.join(',');
-          // Use same endpoint format as artist profile page
-          const neynarUrl = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${addressesParam}`;
+          // Try with hyphen format and address_types parameter
+          const neynarUrl = `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${addressesParam}&address_types=custody_address,verified_address`;
+          console.log('[get-nfts] Neynar URL:', neynarUrl);
           const neynarResponse = await fetch(neynarUrl, {
-            headers: { 'x-api-key': neynarApiKey },
+            headers: { 'api_key': neynarApiKey },
           });
 
           if (neynarResponse.ok) {
@@ -123,11 +124,14 @@ export async function GET() {
               if (users && users.length > 0) {
                 artistUsernames[address.toLowerCase()] = users[0].username;
                 console.log('[get-nfts] Found username:', users[0].username, 'for', address);
+              } else {
+                console.log('[get-nfts] No Farcaster user found for address:', address);
               }
             }
             console.log('[get-nfts] Fetched Farcaster usernames for', Object.keys(artistUsernames).length, 'artists');
           } else {
-            console.error('[get-nfts] Neynar API error:', neynarResponse.status);
+            const errorText = await neynarResponse.text().catch(() => 'no body');
+            console.error('[get-nfts] Neynar API error:', neynarResponse.status, errorText.substring(0, 200));
           }
         } else {
           console.warn('[get-nfts] No NEYNAR_API_KEY configured');
