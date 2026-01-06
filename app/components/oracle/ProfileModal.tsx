@@ -12,6 +12,7 @@ interface ProfileModalProps {
   onClose: () => void;
   searchMode?: boolean; // If true, show search input
   onSearchUser?: (username: string) => void;
+  onViewUserProfile?: (address: string) => void; // Callback to view full user profile
 }
 
 interface AchievementStats {
@@ -35,7 +36,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   pfpUrl,
   onClose,
   searchMode = false,
-  onSearchUser
+  onSearchUser,
+  onViewUserProfile
 }) => {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<AchievementStats | null>(null);
@@ -288,7 +290,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <img
                   src={displayPfp}
                   alt={displayUsername || 'Profile'}
-                  className="w-12 h-12 rounded-full border-2 border-purple-500/50"
+                  className="w-12 h-12 rounded-full border-2 border-purple-500/50 object-cover flex-shrink-0"
                 />
               ) : (
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
@@ -468,14 +470,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               )}
 
-              {/* View Artist Page Link */}
-              {searchedUser.userType === 'artist' && searchedUser.walletAddress && (
-                <a
-                  href={`/artist/${searchedUser.walletAddress}`}
-                  className="block w-full py-3 text-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-medium transition-colors"
+              {/* View Full Profile Button */}
+              {searchedUser.walletAddress && (
+                <button
+                  onClick={() => {
+                    if (onViewUserProfile) {
+                      onViewUserProfile(searchedUser.walletAddress!);
+                    }
+                  }}
+                  className="block w-full py-3 text-center bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-xl font-medium transition-colors"
                 >
-                  View Full Artist Profile →
-                </a>
+                  View Full Profile →
+                </button>
               )}
             </div>
           ) : !displayWallet ? (

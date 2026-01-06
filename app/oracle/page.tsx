@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, Home, MapPin, CheckCircle2, Coins } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, Home, MapPin, CheckCircle2, Coins, BarChart3 } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -11,6 +11,8 @@ import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
 import { ProfileModal } from '@/app/components/oracle/ProfileModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { LandsModal } from '@/app/components/oracle/LandsModal';
+import { DashboardModal } from '@/app/components/oracle/DashboardModal';
+import { UserProfileModal } from '@/app/components/oracle/UserProfileModal';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
@@ -78,6 +80,10 @@ export default function OraclePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDAOModal, setShowDAOModal] = useState(false);
   const [showLandsModal, setShowLandsModal] = useState(false);
+  const [showDashboardModal, setShowDashboardModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [viewingUserAddress, setViewingUserAddress] = useState<string | null>(null);
+  const [userProfileSource, setUserProfileSource] = useState<'dashboard' | 'profile' | null>(null);
   const [itineraryCreating, setItineraryCreating] = useState(false);
   const [itineraryNotification, setItineraryNotification] = useState<{
     type: 'creating' | 'created' | 'recommended';
@@ -626,6 +632,13 @@ export default function OraclePage() {
                 {walletAddress && (
                   <>
                     <button
+                      onClick={() => setShowDashboardModal(true)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-green-500/20 to-emerald-600/20 hover:from-green-500/30 hover:to-emerald-600/30 border border-green-500/30 rounded-lg text-xs text-green-400 font-semibold transition-all flex items-center gap-1"
+                    >
+                      <BarChart3 className="w-3 h-3" />
+                      Stats
+                    </button>
+                    <button
                       onClick={() => setShowLandsModal(true)}
                       className="px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-600/20 hover:from-amber-500/30 hover:to-orange-600/30 border border-amber-500/30 rounded-lg text-xs text-amber-400 font-semibold transition-all flex items-center gap-1"
                     >
@@ -915,6 +928,12 @@ export default function OraclePage() {
               console.log('[OraclePage] ProfileModal onClose called');
               setShowProfileModal(false);
             }}
+            onViewUserProfile={(address) => {
+              setShowProfileModal(false);
+              setViewingUserAddress(address);
+              setUserProfileSource('profile');
+              setShowUserProfileModal(true);
+            }}
           />
         </>
       )}
@@ -930,6 +949,41 @@ export default function OraclePage() {
       {/* Lands Modal */}
       {showLandsModal && (
         <LandsModal onClose={() => setShowLandsModal(false)} />
+      )}
+
+      {/* Dashboard Modal */}
+      {showDashboardModal && (
+        <DashboardModal
+          onClose={() => setShowDashboardModal(false)}
+          onViewProfile={(address) => {
+            setViewingUserAddress(address);
+            setUserProfileSource('dashboard');
+            setShowUserProfileModal(true);
+            setShowDashboardModal(false);
+          }}
+        />
+      )}
+
+      {/* User Profile Modal - for viewing other users */}
+      {showUserProfileModal && viewingUserAddress && (
+        <UserProfileModal
+          walletAddress={viewingUserAddress}
+          onClose={() => {
+            setShowUserProfileModal(false);
+            setViewingUserAddress(null);
+            setUserProfileSource(null);
+          }}
+          onBack={() => {
+            setShowUserProfileModal(false);
+            setViewingUserAddress(null);
+            if (userProfileSource === 'dashboard') {
+              setShowDashboardModal(true);
+            } else if (userProfileSource === 'profile') {
+              setShowProfileModal(true);
+            }
+            setUserProfileSource(null);
+          }}
+        />
       )}
 
       {/* Itinerary Smart Contract Notification */}

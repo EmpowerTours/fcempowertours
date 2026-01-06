@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { PassportSVG } from '@/components/PassportSVG';
@@ -125,7 +126,13 @@ export default function ProfilePage() {
   });
   const [privacyLoading, setPrivacyLoading] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const ITEMS_PER_PAGE = 12;
+
+  // Set mounted state for portal rendering (SSR safety)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // IPFS URL Resolver Function
   const resolveIPFS = (url: string): string => {
@@ -1872,9 +1879,13 @@ export default function ProfilePage() {
         </motion.div>
       </div>
 
-      {/* Resale Listing Modal */}
-      {resaleModalOpen && selectedResaleLicense && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setResaleModalOpen(false)}>
+      {/* Resale Listing Modal - rendered via portal */}
+      {mounted && resaleModalOpen && selectedResaleLicense && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+          style={{ zIndex: 9999 }}
+          onClick={() => setResaleModalOpen(false)}
+        >
           <div
             className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -1900,7 +1911,7 @@ export default function ProfilePage() {
                 step="1"
                 value={resalePrice}
                 onChange={(e) => setResalePrice(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-lg font-medium"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-lg font-medium text-gray-900"
                 placeholder="50"
               />
               <p className="text-xs text-gray-500 mt-2">
@@ -1939,12 +1950,17 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Privacy Settings Modal */}
-      {showPrivacyModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowPrivacyModal(false)}>
+      {/* Privacy Settings Modal - rendered via portal */}
+      {mounted && showPrivacyModal && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+          style={{ zIndex: 9999 }}
+          onClick={() => setShowPrivacyModal(false)}
+        >
           <div
             className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -2038,7 +2054,8 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </PageTransition>
