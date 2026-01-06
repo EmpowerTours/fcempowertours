@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Trophy, MapPin, Music, Palette, Ticket, Globe, Star, TrendingUp, Search, Loader2, ArrowLeft } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -36,11 +37,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   searchMode = false,
   onSearchUser
 }) => {
+  const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<AchievementStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // For portal rendering
+  useEffect(() => {
+    setMounted(true);
+    console.log('[ProfileModal] Mounted');
+    return () => setMounted(false);
+  }, []);
   const [searchedUser, setSearchedUser] = useState<{
     fid: number;
     username: string;
@@ -250,8 +259,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setSearchError(null);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
+  // Don't render until mounted (for portal)
+  if (!mounted) return null;
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+      style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      onClick={onClose}
+    >
       <div
         className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-hidden shadow-2xl shadow-purple-500/10"
         onClick={(e) => e.stopPropagation()}
@@ -592,4 +608,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       </div>
     </div>
   );
+
+  // Render via portal to document.body
+  return createPortal(modalContent, document.body);
 };

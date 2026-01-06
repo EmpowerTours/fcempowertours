@@ -640,11 +640,14 @@ export default function OraclePage() {
                       DAO
                     </button>
                     <button
-                      onClick={() => {
-                        console.log('[OraclePage] Profile button clicked, walletAddress:', walletAddress);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[OraclePage] Profile button clicked!');
                         setShowProfileModal(true);
                       }}
-                      className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1"
+                      className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                      type="button"
                     >
                       <User className="w-3 h-3" />
                       Profile
