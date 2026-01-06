@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, Home } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, Home, MapPin, CheckCircle2, Coins } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -13,6 +13,7 @@ import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { LandsModal } from '@/app/components/oracle/LandsModal';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useGeolocation } from '@/lib/useGeolocation';
 import { useRouter } from 'next/navigation';
 
 interface NFTObject {
@@ -46,6 +47,7 @@ interface Message {
 export default function OraclePage() {
   const router = useRouter();
   const { user, walletAddress } = useFarcasterContext();
+  const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -61,7 +63,6 @@ export default function OraclePage() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
   const [showPassportMintModal, setShowPassportMintModal] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [paymentRequired, setPaymentRequired] = useState<{ message: string; estimatedCost: string } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string>('');
   const [showMapsResults, setShowMapsResults] = useState(false);
@@ -77,6 +78,13 @@ export default function OraclePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDAOModal, setShowDAOModal] = useState(false);
   const [showLandsModal, setShowLandsModal] = useState(false);
+  const [itineraryCreating, setItineraryCreating] = useState(false);
+  const [itineraryNotification, setItineraryNotification] = useState<{
+    type: 'creating' | 'created' | 'recommended';
+    title?: string;
+    txHash?: string;
+    price?: string;
+  } | null>(null);
 
   // Fetch NFT list
   useEffect(() => {
@@ -118,23 +126,17 @@ export default function OraclePage() {
     console.log('[OraclePage] showCreateNFTModal state changed to:', showCreateNFTModal);
   }, [showCreateNFTModal]);
 
-  // Detect user location
+  // Log geolocation status (from useGeolocation hook with IP fallback)
   useEffect(() => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-          console.log('[Oracle] Location detected:', position.coords.latitude, position.coords.longitude);
-        },
-        (error) => {
-          console.log('[Oracle] Geolocation error:', error.message);
-        }
-      );
+    if (!geoLoading && geoLocation) {
+      console.log('[Oracle] Location available:', {
+        city: geoLocation.city,
+        country: geoLocation.country,
+        lat: geoLocation.latitude,
+        lng: geoLocation.longitude
+      });
     }
-  }, []);
+  }, [geoLocation, geoLoading]);
 
   // Check subscription status and owned music
   useEffect(() => {
@@ -209,7 +211,12 @@ export default function OraclePage() {
           message: userMessage,
           userAddress: walletAddress,
           userFid: user?.fid,
-          userLocation,
+          userLocation: geoLocation ? {
+            latitude: geoLocation.latitude,
+            longitude: geoLocation.longitude,
+            city: geoLocation.city,
+            country: geoLocation.country
+          } : null,
         }),
       });
 
@@ -219,7 +226,11 @@ export default function OraclePage() {
 
       // Handle payment required for Maps query
       if (data.requiresPayment) {
-        console.log('[Oracle] Payment required for Maps query');
+        console.log('[Oracle] Payment required for Maps query:', {
+          message: data.message,
+          estimatedCost: data.estimatedCost,
+          userMessage
+        });
         setPendingMessage(userMessage);
         setPaymentRequired({
           message: data.message,
@@ -375,6 +386,7 @@ export default function OraclePage() {
     const queryMessage = pendingMessage;
     setPaymentRequired(null);
     setIsThinking(true);
+    setItineraryNotification({ type: 'creating' }); // Show creating indicator
 
     try {
       const response = await fetch('/api/oracle/chat', {
@@ -384,7 +396,12 @@ export default function OraclePage() {
           message: queryMessage,
           userAddress: walletAddress,
           userFid: user?.fid,
-          userLocation,
+          userLocation: geoLocation ? {
+            latitude: geoLocation.latitude,
+            longitude: geoLocation.longitude,
+            city: geoLocation.city,
+            country: geoLocation.country
+          } : null,
           confirmPayment: true,
         }),
       });
@@ -392,7 +409,29 @@ export default function OraclePage() {
       const data = await response.json();
 
       if (data.success) {
-        const { action, mapsSources, mapsWidgetToken, paymentTxHash } = data;
+        const { action, mapsSources, mapsWidgetToken, paymentTxHash, itineraryData, itineraryTxHash } = data;
+
+        // Handle itinerary creation notification
+        if (itineraryData) {
+          if (itineraryData.exists) {
+            // Found an existing itinerary
+            setItineraryNotification({
+              type: 'recommended',
+              title: itineraryData.title,
+              price: itineraryData.price
+            });
+          } else if (itineraryData.created) {
+            // Created a new itinerary
+            setItineraryNotification({
+              type: 'created',
+              txHash: itineraryTxHash
+            });
+          }
+          // Auto-dismiss after 5 seconds
+          setTimeout(() => setItineraryNotification(null), 5000);
+        } else {
+          setItineraryNotification(null);
+        }
 
         // Add a brief confirmation message with data to reopen modal
         setMessages(prev => [...prev, {
@@ -407,6 +446,11 @@ export default function OraclePage() {
 
         // Show the Maps Results Modal if we have sources
         if (mapsSources && mapsSources.length > 0) {
+          console.log('[Oracle] Showing Maps results modal:', {
+            sourcesCount: mapsSources.length,
+            query: queryMessage,
+            hasWidgetToken: !!mapsWidgetToken
+          });
           setMapsResultsData({
             sources: mapsSources,
             widgetToken: mapsWidgetToken,
@@ -415,6 +459,7 @@ export default function OraclePage() {
           });
           setShowMapsResults(true);
         } else {
+          console.log('[Oracle] No Maps sources returned, showing fallback message');
           // Fallback to inline message if no sources
           setMessages(prev => [...prev, {
             role: 'oracle',
@@ -427,6 +472,7 @@ export default function OraclePage() {
       }
     } catch (error: any) {
       console.error('[Oracle] Payment confirmation failed:', error);
+      setItineraryNotification(null);
       setMessages(prev => [...prev, {
         role: 'oracle',
         content: `❌ Payment failed: ${error.message}`
@@ -846,9 +892,9 @@ export default function OraclePage() {
       )}
 
       {/* Profile Modal */}
-      {showProfileModal && walletAddress && (
+      {showProfileModal && (
         <ProfileModal
-          walletAddress={walletAddress}
+          walletAddress={walletAddress || ''}
           userFid={user?.fid}
           username={user?.username}
           pfpUrl={user?.pfpUrl}
@@ -867,6 +913,63 @@ export default function OraclePage() {
       {/* Lands Modal */}
       {showLandsModal && (
         <LandsModal onClose={() => setShowLandsModal(false)} />
+      )}
+
+      {/* Itinerary Smart Contract Notification */}
+      {itineraryNotification && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fadeIn">
+          <div className={`px-4 py-3 rounded-xl border shadow-xl backdrop-blur-md flex items-center gap-3 ${
+            itineraryNotification.type === 'creating'
+              ? 'bg-blue-500/20 border-blue-500/50'
+              : itineraryNotification.type === 'created'
+              ? 'bg-green-500/20 border-green-500/50'
+              : 'bg-purple-500/20 border-purple-500/50'
+          }`}>
+            {itineraryNotification.type === 'creating' ? (
+              <>
+                <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                <div>
+                  <p className="text-blue-400 text-sm font-semibold">Creating Itinerary</p>
+                  <p className="text-xs text-gray-400">Smart contract interaction in progress...</p>
+                </div>
+              </>
+            ) : itineraryNotification.type === 'created' ? (
+              <>
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                <div>
+                  <p className="text-green-400 text-sm font-semibold">Itinerary Created!</p>
+                  <p className="text-xs text-gray-400">You'll earn 70% from sales</p>
+                </div>
+                {itineraryNotification.txHash && (
+                  <a
+                    href={`https://testnet.monadscan.com/tx/${itineraryNotification.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-green-400 hover:underline ml-2"
+                  >
+                    View TX
+                  </a>
+                )}
+              </>
+            ) : (
+              <>
+                <MapPin className="w-5 h-5 text-purple-400" />
+                <div>
+                  <p className="text-purple-400 text-sm font-semibold">Recommended Itinerary</p>
+                  <p className="text-xs text-gray-400">
+                    "{itineraryNotification.title}" - {itineraryNotification.price} WMON
+                  </p>
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setItineraryNotification(null)}
+              className="ml-2 text-gray-500 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Music Playlist Player */}

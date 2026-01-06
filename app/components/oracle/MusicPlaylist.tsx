@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X } from 'lucide-react';
 
 interface Song {
@@ -34,7 +34,7 @@ interface MusicPlaylistProps {
   isSubscriber?: boolean; // If true, user can listen to all songs (not just owned)
 }
 
-export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose, isSubscriber = false }) => {
+const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose, isSubscriber = false }) => {
   const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
@@ -178,25 +178,15 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
 
   // Fetch user's purchased music NFTs
   useEffect(() => {
-    if (!userAddress) {
-      console.log('[MusicPlaylist] No userAddress, skipping fetch');
-      return;
-    }
-
-    console.log('[MusicPlaylist] Fetching songs for address:', userAddress);
+    if (!userAddress) return;
 
     const fetchPurchasedSongs = async () => {
       try {
         const response = await fetch(`/api/music/get-user-licenses?address=${userAddress}`);
         const data = await response.json();
 
-        console.log('[MusicPlaylist] API response:', data);
-
         if (data.success) {
-          console.log('[MusicPlaylist] Loaded', data.songs.length, 'owned songs');
           setOwnedSongs(data.songs);
-        } else {
-          console.error('[MusicPlaylist] API returned success:false', data);
         }
       } catch (error) {
         console.error('[MusicPlaylist] Failed to fetch songs:', error);
@@ -209,8 +199,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
   // Process clicked NFTs - when user clicks an NFT, play ONLY that song
   useEffect(() => {
     const processClickedNFTs = async () => {
-      console.log('[MusicPlaylist] Processing', clickedNFTs.length, 'clicked NFTs');
-
       // Check if clickedNFTs actually changed (not just ownedSongs update)
       const currentClickedIds = clickedNFTs.map(n => n.tokenId).join(',');
       const clickedNFTsChanged = currentClickedIds !== clickedNFTsRef.current;
@@ -219,8 +207,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
       if (clickedNFTs.length === 0) {
         clickedNFTsRef.current = '';
         if (ownedSongs.length > 0 && songs.length === 0 && playlistLoaded) {
-          console.log('[MusicPlaylist] No clicked NFTs, setting songs to owned songs');
-
           // Apply saved playlist order if available
           if (savedPlaylistOrder && savedPlaylistOrder.length > 0) {
             const orderedSongs = [...ownedSongs].sort((a, b) => {
@@ -231,7 +217,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
               if (indexB === -1) return -1;
               return indexA - indexB;
             });
-            console.log('[MusicPlaylist] Applied saved playlist order');
             setSongs(orderedSongs);
           } else {
             setSongs(ownedSongs);
@@ -245,8 +230,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
 
       for (const nft of clickedNFTs) {
         try {
-          console.log('[MusicPlaylist] Processing NFT:', nft.name, nft.tokenId);
-
           // Check if user owns this NFT
           const isOwned = ownedSongs.some(s => s.tokenId === nft.tokenId);
           // Also check if we already added this as a clicked song
@@ -254,10 +237,8 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
 
           if (isOwned) {
             // User owns this NFT - add it to clickedSongs from ownedSongs
-            console.log('[MusicPlaylist] User owns this NFT');
             const ownedSong = ownedSongs.find(s => s.tokenId === nft.tokenId);
             if (ownedSong && !alreadyClicked) {
-              console.log('[MusicPlaylist] Adding owned song to clickedSongs:', ownedSong.title);
               clickedSongs.push(ownedSong);
               lastClickedTokenId = nft.tokenId;
             }
@@ -266,7 +247,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
             // If subscriber, they can still listen to full song
             // Otherwise, it's preview mode (3 seconds only)
             const shouldBePreview = !isSubscriber;
-            console.log('[MusicPlaylist] Song access:', isSubscriber ? 'SUBSCRIBER (full access)' : 'PREVIEW (3 sec)');
 
             const fallbackSong: Song = {
               id: `preview-${nft.tokenId}`,
@@ -292,41 +272,33 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
 
               try {
                 const metadataUrl = resolveIPFS(nft.tokenURI);
-                console.log('[MusicPlaylist] Fetching metadata from:', metadataUrl);
                 const metadataRes = await fetch(metadataUrl);
 
                 if (metadataRes.ok) {
                   const metadata = await metadataRes.json();
-                  console.log('[MusicPlaylist] Metadata:', metadata);
                   const audioUrl = resolveIPFS(metadata.animation_url || metadata.audio_url || '');
 
                   if (audioUrl) {
                     fallbackSong.audioUrl = audioUrl;
                     fallbackSong.title = metadata.name || fallbackSong.title;
                     fallbackSong.artist = metadata.artist || metadata.properties?.artist || 'Unknown Artist';
-                  } else {
-                    console.warn('[MusicPlaylist] No audio URL found in metadata');
                   }
-                } else {
-                  console.warn('[MusicPlaylist] Metadata fetch failed:', metadataRes.status);
                 }
               } catch (err) {
-                console.error(`[MusicPlaylist] Failed to fetch metadata for NFT ${nft.tokenId}:`, err);
+                // Silently fail - song will show but won't play
               }
             }
 
             // Add song even if audio URL is empty (will show in queue but can't play)
-            console.log('[MusicPlaylist] Adding preview song:', fallbackSong.title);
             clickedSongs.push(fallbackSong);
             lastClickedTokenId = nft.tokenId;
           }
         } catch (error) {
-          console.error('[MusicPlaylist] Failed to process clicked NFT:', error);
+          // Skip failed NFTs
         }
       }
 
       // clickedSongs already contains the correct songs (owned or preview)
-      console.log('[MusicPlaylist] Setting songs to clicked NFTs:', clickedSongs.length, 'songs');
       setSongs(clickedSongs);
 
       // Only auto-play if clickedNFTs actually changed AND we haven't already auto-played this token
@@ -337,15 +309,10 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
       if (shouldAutoPlay && lastClickedTokenId && clickedSongs.length > 0) {
         const newSongIndex = clickedSongs.findIndex(s => s.tokenId === lastClickedTokenId);
         if (newSongIndex !== -1) {
-          console.log('[MusicPlaylist] Auto-playing clicked song at index:', newSongIndex);
           setCurrentSongIndex(newSongIndex);
           setIsPlaying(true);
           lastAutoPlayedTokenIdRef.current = lastClickedTokenId;
-        } else {
-          console.warn('[MusicPlaylist] Could not find lastClickedTokenId in songs');
         }
-      } else if (!shouldAutoPlay && lastClickedTokenId) {
-        console.log('[MusicPlaylist] Skipping auto-play (already played or no change)');
       }
 
       // Update the ref to track current clicked NFTs
@@ -377,7 +344,6 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
 
     const currentSong = songs[currentSongIndex];
     if (!currentSong?.audioUrl) {
-      console.warn('[MusicPlaylist] No audio URL for current song');
       setIsPlaying(false);
       return;
     }
@@ -389,9 +355,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
     if (isPlaying) {
       // Track play start time for recording
       playStartTimeRef.current = Date.now();
-      console.log('[MusicPlaylist] Playing:', currentSong.title);
-      audio.play().catch(err => {
-        console.error('[MusicPlaylist] Play failed:', err);
+      audio.play().catch(() => {
         setIsPlaying(false);
       });
     } else {
@@ -448,8 +412,7 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
       }
     };
 
-    const handleError = (e: Event) => {
-      console.error('[MusicPlaylist] Audio error:', e);
+    const handleError = () => {
       setIsPlaying(false);
     };
 
@@ -562,16 +525,8 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
 
   // Render if we have songs (owned or clicked previews)
   if (songs.length === 0) {
-    console.log('[MusicPlaylist] Not rendering:', {
-      userAddress,
-      songsLength: songs.length,
-      ownedSongsLength: ownedSongs.length,
-      clickedNFTsLength: clickedNFTs.length
-    });
     return null;
   }
-
-  console.log('[MusicPlaylist] Rendering player with', songs.length, 'songs');
 
   const currentSong = songs[currentSongIndex];
 
@@ -800,3 +755,17 @@ export const MusicPlaylist: React.FC<MusicPlaylistProps> = ({ userAddress, userF
     </>
   );
 };
+
+// Memoize to prevent unnecessary re-renders from parent
+export const MusicPlaylist = memo(MusicPlaylistComponent, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if these actually change
+  return (
+    prevProps.userAddress === nextProps.userAddress &&
+    prevProps.userFid === nextProps.userFid &&
+    prevProps.isSubscriber === nextProps.isSubscriber &&
+    prevProps.onClose === nextProps.onClose &&
+    // Compare clickedNFTs by tokenId to avoid new array reference issues
+    prevProps.clickedNFTs?.map(n => n.tokenId).join(',') ===
+    nextProps.clickedNFTs?.map(n => n.tokenId).join(',')
+  );
+});

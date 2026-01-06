@@ -125,7 +125,8 @@ export async function POST(req: NextRequest) {
       message: message.substring(0, 50),
       needsMapsGrounding,
       confirmPayment,
-      willRequirePayment: needsMapsGrounding && !confirmPayment
+      willRequirePayment: needsMapsGrounding && !confirmPayment,
+      matchedKeywords: getMapsMatchedKeywords(message)
     });
 
     // Best Practice: Inform user that Maps data will be used
@@ -601,6 +602,26 @@ function isProhibitedActivity(message: string): boolean {
   return EMERGENCY_KEYWORDS.some(keyword => lowerMessage.includes(keyword));
 }
 
+// Helper to get matched Maps keywords for debugging
+function getMapsMatchedKeywords(message: string): string[] {
+  const lowerMessage = message.toLowerCase();
+  const mapsKeywords = [
+    'restaurant', 'cafe', 'coffee', 'food', 'dining',
+    'hotel', 'accommodation', 'stay', 'lodge',
+    'museum', 'attraction', 'tourist', 'visit',
+    'near me', 'nearby', 'around here', 'close by', 'walking distance',
+    'directions to', 'how to get to', 'route to',
+    'shop', 'store', 'shopping',
+    'bar', 'nightlife', 'club',
+    'park', 'beach', 'outdoor',
+    'top rated', 'recommended places',
+    'open now', 'what time',
+    'address of', 'where is the',
+    'find', 'looking for', 'search for'
+  ];
+  return mapsKeywords.filter(keyword => lowerMessage.includes(keyword));
+}
+
 // Detect if a query needs Google Maps grounding
 function detectMapsQuery(message: string): boolean {
   // First, check if it's a prohibited activity
@@ -631,7 +652,8 @@ function detectMapsQuery(message: string): boolean {
     'park', 'beach', 'outdoor',
     'top rated', 'recommended places',
     'open now', 'what time',
-    'address of', 'where is the'
+    'address of', 'where is the',
+    'find', 'looking for', 'search for'
   ];
 
   return mapsKeywords.some(keyword => lowerMessage.includes(keyword));

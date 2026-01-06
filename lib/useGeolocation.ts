@@ -135,7 +135,7 @@ export function useGeolocation() {
   return { location, loading, error };
 }
 
-// Fallback: IP-based geolocation
+// Fallback: IP-based geolocation with geocoding
 async function fetchIPBasedLocation(): Promise<GeolocationData | null> {
   try {
     console.log('🌐 Using IP-based geolocation fallback...');
@@ -146,11 +146,24 @@ async function fetchIPBasedLocation(): Promise<GeolocationData | null> {
 
       // Transform API response to GeolocationData format
       // API returns: { country: "US", country_name: "United States", city: "...", region: "..." }
+      let latitude = 0;
+      let longitude = 0;
+
+      // Geocode city to get approximate coordinates for Maps Grounding
+      if (data.city) {
+        const coords = await geocodeCity(data.city, data.country_name || data.country);
+        if (coords) {
+          latitude = coords.latitude;
+          longitude = coords.longitude;
+          console.log('✅ Geocoded city coordinates:', coords);
+        }
+      }
+
       const locationData: GeolocationData = {
         country: data.country || 'US',
         countryName: data.country_name || 'United States',
-        latitude: 0, // IP-based doesn't provide exact coordinates
-        longitude: 0,
+        latitude,
+        longitude,
         city: data.city,
         region: data.region,
       };
@@ -160,6 +173,37 @@ async function fetchIPBasedLocation(): Promise<GeolocationData | null> {
     }
   } catch (error) {
     console.error('❌ IP-based geolocation failed:', error);
+  }
+  return null;
+}
+
+// Geocode city name to coordinates using Nominatim
+async function geocodeCity(city: string, country?: string): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const query = country ? `${city}, ${country}` : city;
+    console.log('🔍 Geocoding city:', query);
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'EmpowerTours/1.0',
+        },
+      }
+    );
+
+    if (response.ok) {
+      const results = await response.json();
+      if (results && results.length > 0) {
+        return {
+          latitude: parseFloat(results[0].lat),
+          longitude: parseFloat(results[0].lon),
+        };
+      }
+    }
+  } catch (error) {
+    console.error('❌ Geocoding failed:', error);
   }
   return null;
 }

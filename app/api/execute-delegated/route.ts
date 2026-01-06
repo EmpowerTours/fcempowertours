@@ -2170,20 +2170,20 @@ ${enjoyText}
           message: `Music NFT #${params.tokenId} staked with ${params.monAmount} MON in YieldStrategy`,
         });
 
-      // ==================== CREATE ITINERARY ====================
-      case 'create_itinerary':
-        console.log('🗺️ Action: create_itinerary');
+      // ==================== CREATE SINGLE EXPERIENCE (Legacy - uses TOURS token) ====================
+      case 'create_single_experience':
+        console.log('🗺️ Action: create_single_experience');
         if (!params?.locationName || !params?.city || !params?.country || !params?.price || !params?.latitude || !params?.longitude) {
           return NextResponse.json(
-            { success: false, error: 'Missing required parameters for create_itinerary' },
+            { success: false, error: 'Missing required parameters for create_single_experience' },
             { status: 400 }
           );
         }
 
-        const ITINERARY_NFT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
-        const createItineraryPrice = parseEther(params.price.toString());
+        const SINGLE_EXPERIENCE_NFT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+        const singleExperiencePrice = parseEther(params.price.toString());
 
-        console.log('🗺️ Creating itinerary:', {
+        console.log('🗺️ Creating single experience:', {
           creator: userAddress,
           locationName: params.locationName,
           city: params.city,
@@ -2205,7 +2205,7 @@ ${enjoyText}
           imageHash: params.imageHash || '',
         };
 
-        const createItineraryCalls = [
+        const singleExperienceCalls = [
           // Approve TOURS for the contract if needed
           {
             to: TOURS_TOKEN,
@@ -2213,11 +2213,11 @@ ${enjoyText}
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [ITINERARY_NFT, createItineraryPrice],
+              args: [SINGLE_EXPERIENCE_NFT, singleExperiencePrice],
             }) as Hex,
           },
           {
-            to: ITINERARY_NFT,
+            to: SINGLE_EXPERIENCE_NFT,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
@@ -2230,7 +2230,7 @@ ${enjoyText}
                 params.country,
                 params.description || '',
                 params.experienceType || 'general',
-                createItineraryPrice,
+                singleExperiencePrice,
                 BigInt(Math.floor(params.latitude * 1e6)), // Store as integers with 6 decimal precision
                 BigInt(Math.floor(params.longitude * 1e6)),
                 BigInt(params.proximityRadius || 100),
@@ -2240,11 +2240,11 @@ ${enjoyText}
           },
         ];
 
-        const createItineraryTxHash = await executeTransaction(createItineraryCalls, userAddress as Address);
-        console.log('✅ Itinerary created, TX:', createItineraryTxHash);
+        const singleExperienceTxHash = await executeTransaction(singleExperienceCalls, userAddress as Address);
+        console.log('✅ Single experience created, TX:', singleExperienceTxHash);
 
-        // Extract itinerary ID from transaction receipt
-        let itineraryId = '0';
+        // Extract experience ID from transaction receipt
+        let singleExperienceId = '0';
         try {
           const { createPublicClient, http } = await import('viem');
           const { monadTestnet } = await import('@/app/chains');
@@ -2254,31 +2254,31 @@ ${enjoyText}
           });
 
           const receipt = await client.getTransactionReceipt({
-            hash: createItineraryTxHash as Hex,
+            hash: singleExperienceTxHash as Hex,
           });
 
           if (receipt?.logs && receipt.logs.length > 0) {
-            // Look for ItineraryCreated or ExperienceCreated event
+            // Look for ExperienceCreated event
             const createdLog = receipt.logs.find(
               log => log.topics[0] === '0x' + '...' // Event signature hash
             );
             if (createdLog && createdLog.topics[1]) {
-              itineraryId = BigInt(createdLog.topics[1]).toString();
-              console.log('🎫 Extracted itinerary ID:', itineraryId);
+              singleExperienceId = BigInt(createdLog.topics[1]).toString();
+              console.log('🎫 Extracted experience ID:', singleExperienceId);
             }
           }
         } catch (extractError: any) {
-          console.warn('⚠️ Could not extract itinerary ID:', extractError.message);
+          console.warn('⚠️ Could not extract experience ID:', extractError.message);
         }
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
-          txHash: createItineraryTxHash,
-          itineraryId,
+          txHash: singleExperienceTxHash,
+          experienceId: singleExperienceId,
           action,
           userAddress,
-          message: `Itinerary created successfully: ${params.locationName} in ${params.city}`,
+          message: `Experience created successfully: ${params.locationName} in ${params.city}`,
         });
 
       // ==================== MINT ITINERARY (SIMPLIFIED) ====================
@@ -4033,11 +4033,11 @@ ${enjoyText}
           );
         }
 
-        const ITINERARY_NFT_CREATE = process.env.ITINERARY_NFT_ADDRESS as Address;
+        const ITINERARY_NFT_CREATE = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
 
         if (!ITINERARY_NFT_CREATE) {
           return NextResponse.json(
-            { success: false, error: 'ItineraryNFT address not configured' },
+            { success: false, error: 'ItineraryNFT address not configured (NEXT_PUBLIC_ITINERARY_NFT)' },
             { status: 500 }
           );
         }

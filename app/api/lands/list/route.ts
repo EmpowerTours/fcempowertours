@@ -48,27 +48,33 @@ export async function GET(req: NextRequest) {
   try {
     // If ResonanceLands contract not deployed yet, return empty list
     if (!RESONANCE_LANDS_ADDRESS) {
+      console.log('[Lands] RESONANCE_LANDS_ADDRESS not configured');
       return NextResponse.json({
         success: true,
         lands: [],
-        message: 'ResonanceLands contract not deployed yet',
+        message: 'ResonanceLands feature coming soon - register your interest!',
       });
     }
 
     // Get total land count
     let landCount = 0n;
     try {
+      console.log('[Lands] Checking land count at:', RESONANCE_LANDS_ADDRESS);
       landCount = await publicClient.readContract({
         address: RESONANCE_LANDS_ADDRESS,
         abi: resonanceLandsAbi,
         functionName: 'landCount',
       }) as bigint;
-    } catch (err) {
-      console.log('[Lands] landCount check failed:', err);
+      console.log('[Lands] Found', landCount.toString(), 'lands');
+    } catch (err: any) {
+      // Contract might not be deployed or might be reverting
+      const errorMsg = err?.message || String(err);
+      const isRevert = errorMsg.includes('revert') || errorMsg.includes('execution reverted');
+      console.log('[Lands] landCount check failed:', isRevert ? 'Contract not ready' : errorMsg);
       return NextResponse.json({
         success: true,
         lands: [],
-        message: 'Failed to fetch land count',
+        message: 'ResonanceLands feature coming soon - register your interest!',
       });
     }
 

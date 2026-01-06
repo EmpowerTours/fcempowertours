@@ -65,31 +65,48 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
 
     const fetchData = async () => {
       try {
-        const provider = new ethers.JsonRpcProvider(
-          process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'
-        );
+        console.log('[DAOModal] Fetching data for:', userAddress);
+
+        // Create provider with explicit network configuration to avoid network detection issues
+        const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+        const provider = new ethers.JsonRpcProvider(rpcUrl, {
+          chainId: 10143,
+          name: 'monad-testnet'
+        });
 
         // Fetch TOURS balance
-        const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
-        const toursBal = await toursContract.balanceOf(userAddress);
-        setToursBalance(ethers.formatEther(toursBal));
+        try {
+          const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
+          const toursBal = await toursContract.balanceOf(userAddress);
+          setToursBalance(ethers.formatEther(toursBal));
+          console.log('[DAOModal] TOURS balance:', ethers.formatEther(toursBal));
+        } catch (toursErr) {
+          console.warn('[DAOModal] Failed to fetch TOURS balance:', toursErr);
+        }
 
         // Fetch vTOURS balance and voting power
         if (VTOURS_ADDRESS) {
-          const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, provider);
-          const vToursBal = await vToursContract.balanceOf(userAddress);
-          setVToursBalance(ethers.formatEther(vToursBal));
+          try {
+            const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, provider);
+            const vToursBal = await vToursContract.balanceOf(userAddress);
+            setVToursBalance(ethers.formatEther(vToursBal));
 
-          const votes = await vToursContract.getVotes(userAddress);
-          setVotingPower(ethers.formatEther(votes));
+            const votes = await vToursContract.getVotes(userAddress);
+            setVotingPower(ethers.formatEther(votes));
 
-          const delegate = await vToursContract.delegates(userAddress);
-          if (delegate !== ethers.ZeroAddress) {
-            setDelegatedTo(delegate);
+            const delegate = await vToursContract.delegates(userAddress);
+            if (delegate !== ethers.ZeroAddress) {
+              setDelegatedTo(delegate);
+            }
+            console.log('[DAOModal] vTOURS data loaded');
+          } catch (vtoursErr) {
+            console.warn('[DAOModal] vTOURS contract not available:', vtoursErr);
           }
+        } else {
+          console.log('[DAOModal] vTOURS address not configured');
         }
       } catch (err) {
-        console.error('Failed to fetch DAO data:', err);
+        console.error('[DAOModal] Failed to fetch DAO data:', err);
       }
     };
 

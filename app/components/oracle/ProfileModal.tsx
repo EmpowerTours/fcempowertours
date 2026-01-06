@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Trophy, MapPin, Music, Palette, Ticket, Globe, Star, TrendingUp } from 'lucide-react';
+import { X, Trophy, MapPin, Music, Palette, Ticket, Globe, Star, TrendingUp, Search, Loader2, ArrowLeft } from 'lucide-react';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -9,6 +9,8 @@ interface ProfileModalProps {
   username?: string;
   pfpUrl?: string;
   onClose: () => void;
+  searchMode?: boolean; // If true, show search input
+  onSearchUser?: (username: string) => void;
 }
 
 interface AchievementStats {
@@ -30,21 +32,71 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   userFid,
   username,
   pfpUrl,
-  onClose
+  onClose,
+  searchMode = false,
+  onSearchUser
 }) => {
   const [stats, setStats] = useState<AchievementStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchedUser, setSearchedUser] = useState<{
+    fid: number;
+    username: string;
+    displayName?: string;
+    pfpUrl?: string;
+    walletAddress?: string;
+    bio?: string;
+    followerCount?: number;
+    userType?: 'artist' | 'collector' | 'new';
+    isVerified?: boolean;
+    stats?: {
+      createdMusic?: number;
+      createdArt?: number;
+      purchasedMusic?: number;
+      purchasedArt?: number;
+      passports?: number;
+      experiences?: number;
+    };
+    createdNFTs?: Array<{
+      id: string;
+      tokenId: number;
+      name: string;
+      imageUrl?: string;
+      isArt: boolean;
+      price?: string;
+    }>;
+    passports?: Array<{
+      tokenId: number;
+      countryCode?: string;
+    }>;
+    isPrivate?: boolean;
+    privacyMessage?: string;
+  } | null>(null);
+
+  // Use searched user's data if available
+  const displayWallet = searchedUser?.walletAddress || walletAddress;
+  const displayUsername = searchedUser?.username || username;
+  const displayPfp = searchedUser?.pfpUrl || pfpUrl;
+  const displayFid = searchedUser?.fid || userFid;
 
   useEffect(() => {
+    console.log('[ProfileModal] Mounted, walletAddress:', displayWallet);
     loadStats();
-  }, [walletAddress]);
+  }, [displayWallet]);
 
   const loadStats = async () => {
-    if (!walletAddress) return;
+    if (!displayWallet) {
+      console.log('[ProfileModal] No wallet address, skipping stats load');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    console.log('[ProfileModal] Loading stats for:', displayWallet);
 
     try {
-      const addresses = [walletAddress.toLowerCase()];
+      const addresses = [displayWallet.toLowerCase()];
 
       const query = `
         query GetAchievements($addresses: [String!]!) {
@@ -95,7 +147,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         .reduce((sum: number, i: any) => sum + (i.totalPurchases || 0), 0);
       const estimatedEarnings = totalPurchases * 7; // 70% of 10 WMON average price
 
-      setStats({
+      const newStats = {
         passports: (data.PassportNFT || []).length,
         musicCreated: (data.CreatedMusic || []).length,
         artCreated: (data.CreatedArt || []).length,
@@ -105,9 +157,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         itinerariesCompleted: (data.ItineraryCompleted || []).length,
         totalEarnings: estimatedEarnings.toFixed(0),
         countries
-      });
+      };
+      console.log('[ProfileModal] Stats loaded:', newStats);
+      setStats(newStats);
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error('[ProfileModal] Failed to load stats:', error);
     } finally {
       setLoading(false);
     }
@@ -131,6 +185,71 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const levelInfo = getLevelTitle(achievementLevel);
 
+  // Search for Farcaster user using public profile API
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+
+    setSearchLoading(true);
+    setSearchError(null);
+
+    try {
+      console.log('[ProfileModal] Searching for user:', searchQuery);
+      // Use the public-profile API which respects privacy settings
+      const response = await fetch(`/api/user/public-profile?username=${encodeURIComponent(searchQuery.trim())}`);
+      const data = await response.json();
+
+      if (data.success && data.profile) {
+        const profile = data.profile;
+        console.log('[ProfileModal] Found user profile:', profile.username, 'Type:', profile.userType);
+
+        // Check if profile is private
+        if (!profile.privacySettings?.isPublicProfile) {
+          setSearchedUser({
+            fid: profile.fid,
+            username: profile.username,
+            displayName: profile.displayName,
+            pfpUrl: profile.pfpUrl,
+            isPrivate: true,
+            privacyMessage: profile.message || 'This user has set their profile to private'
+          });
+        } else {
+          setSearchedUser({
+            fid: profile.fid,
+            username: profile.username,
+            displayName: profile.displayName,
+            pfpUrl: profile.pfpUrl,
+            walletAddress: profile.walletAddress,
+            bio: profile.bio,
+            followerCount: profile.followerCount,
+            userType: profile.userType,
+            isVerified: profile.isVerified,
+            stats: profile.stats,
+            createdNFTs: profile.createdNFTs,
+            passports: profile.passports,
+            isPrivate: false
+          });
+        }
+        setSearchError(null);
+      } else {
+        setSearchError(data.error || 'User not found');
+        setSearchedUser(null);
+      }
+    } catch (error) {
+      console.error('[ProfileModal] Search error:', error);
+      setSearchError('Failed to search user');
+      setSearchedUser(null);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Clear search and show own profile
+  const clearSearch = () => {
+    setSearchedUser(null);
+    setSearchQuery('');
+    setSearchError(null);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
@@ -139,12 +258,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border-b border-purple-500/30 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              {pfpUrl ? (
+              {searchedUser && (
+                <button
+                  onClick={clearSearch}
+                  className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors mr-1"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+              {displayPfp ? (
                 <img
-                  src={pfpUrl}
-                  alt={username || 'Profile'}
+                  src={displayPfp}
+                  alt={displayUsername || 'Profile'}
                   className="w-12 h-12 rounded-full border-2 border-purple-500/50"
                 />
               ) : (
@@ -154,10 +281,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
               <div>
                 <h2 className="text-lg font-bold text-white">
-                  {username ? `@${username}` : 'Achievements'}
+                  {displayUsername ? `@${displayUsername}` : 'Achievements'}
                 </h2>
                 <p className="text-xs text-gray-400">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  {displayWallet ? `${displayWallet.slice(0, 6)}...${displayWallet.slice(-4)}` : 'No wallet connected'}
                 </p>
               </div>
             </div>
@@ -168,15 +295,186 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Search Input */}
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Search Farcaster username..."
+                className="w-full pl-9 pr-3 py-2 bg-black/40 border border-purple-500/30 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={searchLoading || !searchQuery.trim()}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+            >
+              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            </button>
+          </div>
+          {searchError && (
+            <p className="text-red-400 text-xs mt-2">{searchError}</p>
+          )}
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[calc(85vh-100px)]">
-          {loading ? (
+        <div className="p-4 overflow-y-auto max-h-[calc(85vh-180px)]">
+          {/* Private Profile View */}
+          {searchedUser?.isPrivate ? (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4">🔒</div>
+              <h3 className="text-lg font-bold text-white mb-2">Private Profile</h3>
+              <p className="text-gray-400 text-sm">{searchedUser.privacyMessage}</p>
+              {searchedUser.bio && (
+                <p className="text-gray-500 text-xs mt-4 italic">"{searchedUser.bio}"</p>
+              )}
+            </div>
+          ) : searchedUser && !searchedUser.isPrivate ? (
+            /* Searched User Public Profile - Role Based */
+            <div className="space-y-4">
+              {/* User Type Badge */}
+              <div className={`p-4 rounded-xl text-center ${
+                searchedUser.userType === 'artist'
+                  ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30'
+                  : searchedUser.userType === 'collector'
+                  ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30'
+                  : 'bg-gradient-to-r from-gray-500/20 to-gray-600/20 border border-gray-500/30'
+              }`}>
+                <div className="text-4xl mb-2">
+                  {searchedUser.userType === 'artist' ? '🎨' : searchedUser.userType === 'collector' ? '🏆' : '🌱'}
+                </div>
+                <h3 className="text-xl font-bold text-white capitalize">
+                  {searchedUser.userType === 'artist' ? 'Artist' : searchedUser.userType === 'collector' ? 'Collector' : 'New Explorer'}
+                </h3>
+                {searchedUser.isVerified && (
+                  <span className="inline-flex items-center gap-1 text-cyan-400 text-xs mt-1">
+                    ✓ Verified
+                  </span>
+                )}
+                {searchedUser.followerCount !== undefined && (
+                  <p className="text-gray-400 text-xs mt-1">{searchedUser.followerCount.toLocaleString()} followers</p>
+                )}
+              </div>
+
+              {/* Bio */}
+              {searchedUser.bio && (
+                <div className="bg-black/40 border border-gray-700/50 rounded-xl p-3">
+                  <p className="text-gray-300 text-sm">{searchedUser.bio}</p>
+                </div>
+              )}
+
+              {/* Stats Grid - Only if available */}
+              {searchedUser.stats && (
+                <div className="grid grid-cols-3 gap-3">
+                  {searchedUser.stats.createdMusic !== undefined && (
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 text-center">
+                      <Music className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                      <p className="text-2xl font-bold text-white">{searchedUser.stats.createdMusic}</p>
+                      <p className="text-xs text-gray-400">Music</p>
+                    </div>
+                  )}
+                  {searchedUser.stats.createdArt !== undefined && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+                      <Palette className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                      <p className="text-2xl font-bold text-white">{searchedUser.stats.createdArt}</p>
+                      <p className="text-xs text-gray-400">Art</p>
+                    </div>
+                  )}
+                  {searchedUser.stats.passports !== undefined && (
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3 text-center">
+                      <Globe className="w-5 h-5 text-purple-400 mx-auto mb-1" />
+                      <p className="text-2xl font-bold text-white">{searchedUser.stats.passports}</p>
+                      <p className="text-xs text-gray-400">Passports</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Created NFTs Preview - For Artists */}
+              {searchedUser.createdNFTs && searchedUser.createdNFTs.length > 0 && (
+                <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                  <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                    {searchedUser.userType === 'artist' ? <Music className="w-4 h-4 text-purple-400" /> : <Ticket className="w-4 h-4 text-cyan-400" />}
+                    Created Works
+                  </h4>
+                  <div className="grid grid-cols-4 gap-2">
+                    {searchedUser.createdNFTs.slice(0, 8).map((nft) => (
+                      <div key={nft.id} className="aspect-square rounded-lg overflow-hidden bg-gray-800">
+                        {nft.imageUrl ? (
+                          <img
+                            src={nft.imageUrl.startsWith('ipfs://') ? nft.imageUrl.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/') : nft.imageUrl}
+                            alt={nft.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-2xl">
+                            {nft.isArt ? '🎨' : '🎵'}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {searchedUser.createdNFTs.length > 8 && (
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      +{searchedUser.createdNFTs.length - 8} more
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Passports Preview */}
+              {searchedUser.passports && searchedUser.passports.length > 0 && (
+                <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                  <h4 className="font-bold text-white mb-2 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-purple-400" />
+                    Passport Collection
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {searchedUser.passports.slice(0, 10).map((p) => (
+                      <span
+                        key={p.tokenId}
+                        className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-lg"
+                      >
+                        {p.countryCode || `#${p.tokenId}`}
+                      </span>
+                    ))}
+                    {searchedUser.passports.length > 10 && (
+                      <span className="px-2 py-1 bg-gray-700/50 text-gray-400 text-xs rounded-lg">
+                        +{searchedUser.passports.length - 10}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* View Artist Page Link */}
+              {searchedUser.userType === 'artist' && searchedUser.walletAddress && (
+                <a
+                  href={`/artist/${searchedUser.walletAddress}`}
+                  className="block w-full py-3 text-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-medium transition-colors"
+                >
+                  View Full Artist Profile →
+                </a>
+              )}
+            </div>
+          ) : !displayWallet ? (
+            /* No wallet - prompt to search or connect */
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4">🔍</div>
+              <p className="text-gray-400">Search for a Farcaster user above or connect your wallet</p>
+            </div>
+          ) : loading ? (
+            /* Loading own stats */
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin text-4xl">🌍</div>
             </div>
           ) : stats ? (
+            /* Own Profile Stats */
             <div className="space-y-4">
               {/* Level Badge */}
               <div className={`bg-gradient-to-r ${levelInfo.color} p-4 rounded-xl text-center`}>

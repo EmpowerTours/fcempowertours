@@ -80,15 +80,21 @@ export function LandsModal({ onClose }: LandsModalProps) {
   useEffect(() => {
     const fetchLands = async () => {
       try {
+        console.log('[LandsModal] Fetching lands...');
         const res = await fetch('/api/lands/list');
         const data = await res.json();
+        console.log('[LandsModal] Response:', data);
         if (data.success && data.lands) {
           setLands(data.lands);
         } else {
           setLands([]);
+          // Show message if contract not deployed yet
+          if (data.message) {
+            console.log('[LandsModal] Status:', data.message);
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch lands:', err);
+        console.error('[LandsModal] Failed to fetch lands:', err);
         setLands([]);
       } finally {
         setLoading(false);
@@ -259,15 +265,20 @@ export function LandsModal({ onClose }: LandsModalProps) {
               </div>
             ) : lands.length === 0 ? (
               <div className="text-center py-12 bg-gray-800/30 rounded-2xl border border-gray-700">
-                <Home className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-white mb-2">No Lands Yet</h3>
-                <p className="text-gray-400 text-sm mb-4">Be the first to register!</p>
+                <Home className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">Coming Soon!</h3>
+                <p className="text-gray-400 text-sm mb-4 px-4">
+                  ResonanceLands tokenized leasing is launching soon. Register your interest to be notified!
+                </p>
                 <button
                   onClick={() => setView('register')}
                   className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold text-sm"
                 >
                   Register Your Land
                 </button>
+                <p className="text-xs text-gray-500 mt-4 px-4">
+                  Our team will contact you for verification once the feature is live.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
