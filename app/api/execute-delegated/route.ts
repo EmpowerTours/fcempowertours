@@ -4085,6 +4085,84 @@ ${enjoyText}
           message: `Itinerary "${itinTitle}" created! You earn 70% when others purchase.`,
         });
 
+      // ==================== BUY RESALE (Secondary Market) ====================
+      case 'buy_resale':
+        console.log('🔄 Action: buy_resale');
+
+        const { licenseId: resaleLicenseId, seller: resaleSeller, price: resalePrice, listingId: resaleListingId } = params || {};
+
+        if (!resaleLicenseId || !resaleSeller || !resalePrice) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required: licenseId, seller, price' },
+            { status: 400 }
+          );
+        }
+
+        const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
+
+        if (!NFT_CONTRACT) {
+          return NextResponse.json(
+            { success: false, error: 'NFT contract not configured (NEXT_PUBLIC_NFT_ADDRESS)' },
+            { status: 500 }
+          );
+        }
+
+        const resalePriceWei = parseEther(resalePrice.toString());
+
+        console.log('🔄 Executing resale purchase:', {
+          buyer: userAddress,
+          seller: resaleSeller,
+          licenseId: resaleLicenseId,
+          price: resalePrice
+        });
+
+        // executeSaleFor(seller, buyer, licenseId, salePrice)
+        const resaleAbi = parseAbi([
+          'function executeSaleFor(address seller, address buyer, uint256 licenseId, uint256 salePrice) external'
+        ]);
+
+        const resaleCalls: Call[] = [{
+          to: NFT_CONTRACT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: resaleAbi,
+            functionName: 'executeSaleFor',
+            args: [resaleSeller as Address, userAddress as Address, BigInt(resaleLicenseId), resalePriceWei],
+          }) as Hex,
+        }];
+
+        const resaleTxHash = await executeTransaction(resaleCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Resale purchase complete, TX:', resaleTxHash);
+
+        // Mark listing as inactive if listingId provided
+        if (resaleListingId) {
+          try {
+            const { redis } = await import('@/lib/redis');
+            const listingKey = `resale:listing:${resaleListingId}`;
+            const listing = await redis.get<any>(listingKey);
+            if (listing) {
+              listing.active = false;
+              listing.soldAt = new Date().toISOString();
+              listing.buyer = userAddress;
+              await redis.set(listingKey, listing);
+              console.log('📝 Marked listing as sold:', resaleListingId);
+            }
+          } catch (redisError) {
+            console.warn('Failed to update listing status:', redisError);
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          txHash: resaleTxHash,
+          action,
+          userAddress,
+          licenseId: resaleLicenseId,
+          message: `Successfully purchased license #${resaleLicenseId} for ${resalePrice} WMON!`,
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },

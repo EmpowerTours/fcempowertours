@@ -107,6 +107,24 @@ export default function ProfilePage() {
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
   const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
+  // Resale listing state
+  const [resaleModalOpen, setResaleModalOpen] = useState(false);
+  const [selectedResaleLicense, setSelectedResaleLicense] = useState<MusicNFTWithMetadata | null>(null);
+  const [resalePrice, setResalePrice] = useState('50');
+  const [resaleListing, setResaleListing] = useState(false);
+  const [resaleError, setResaleError] = useState<string | null>(null);
+  const [resaleSuccess, setResaleSuccess] = useState<string | null>(null);
+  // Privacy settings state
+  const [privacySettings, setPrivacySettings] = useState({
+    isPublicProfile: true,
+    showCreatedNFTs: true,
+    showPurchasedNFTs: false,
+    showPassports: true,
+    showBalances: false,
+    showAchievements: true,
+  });
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const ITEMS_PER_PAGE = 12;
 
   // IPFS URL Resolver Function
@@ -126,8 +144,62 @@ export default function ProfilePage() {
     if (walletAddress) {
       loadAllData();
       loadBalances();
+      loadPrivacySettings();
     }
   }, [walletAddress]);
+
+  // Load privacy settings
+  const loadPrivacySettings = async () => {
+    if (!user?.fid) return;
+    try {
+      const response = await fetch(`/api/user/privacy?fid=${user.fid}`);
+      const data = await response.json();
+      if (data.success && data.settings) {
+        setPrivacySettings({
+          isPublicProfile: data.settings.isPublicProfile ?? true,
+          showCreatedNFTs: data.settings.showCreatedNFTs ?? true,
+          showPurchasedNFTs: data.settings.showPurchasedNFTs ?? false,
+          showPassports: data.settings.showPassports ?? true,
+          showBalances: data.settings.showBalances ?? false,
+          showAchievements: data.settings.showAchievements ?? true,
+        });
+      }
+    } catch (error) {
+      console.error('[Profile] Failed to load privacy settings:', error);
+    }
+  };
+
+  // Save privacy settings
+  const savePrivacySettings = async (newSettings: typeof privacySettings) => {
+    if (!user?.fid) return;
+    setPrivacyLoading(true);
+    try {
+      const response = await fetch('/api/user/privacy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fid: user.fid,
+          walletAddress,
+          ...newSettings,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPrivacySettings(newSettings);
+      }
+    } catch (error) {
+      console.error('[Profile] Failed to save privacy settings:', error);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  // Toggle a single privacy setting
+  const togglePrivacySetting = (key: keyof typeof privacySettings) => {
+    const newSettings = { ...privacySettings, [key]: !privacySettings[key] };
+    setPrivacySettings(newSettings);
+    savePrivacySettings(newSettings);
+  };
 
   const handleAudioError = (id: string, audioUrl: string, error: any) => {
     console.error(`Audio failed to load for ${id}:`, {
@@ -629,7 +701,62 @@ export default function ProfilePage() {
   const copyArtistLink = () => {
     const link = `${window.location.origin}/artist/${walletAddress}`;
     navigator.clipboard.writeText(link);
-    alert('Artist profile link copied!\n\nShare this with fans so they can buy your music directly.');
+    alert('Artist profile link copied!\n\nShare this with fans so they can buy your NFTs directly.');
+  };
+
+  // Open resale modal for a license
+  const openResaleModal = (license: MusicNFTWithMetadata) => {
+    setSelectedResaleLicense(license);
+    setResalePrice('50');
+    setResaleError(null);
+    setResaleSuccess(null);
+    setResaleModalOpen(true);
+  };
+
+  // List license for resale
+  const listForResale = async () => {
+    if (!selectedResaleLicense || !walletAddress) return;
+
+    const priceNum = parseFloat(resalePrice);
+    if (isNaN(priceNum) || priceNum < 35) {
+      setResaleError('Minimum price is 35 WMON');
+      return;
+    }
+
+    setResaleListing(true);
+    setResaleError(null);
+
+    try {
+      const response = await fetch('/api/music/list-for-sale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          licenseId: selectedResaleLicense.licenseId,
+          price: resalePrice,
+          sellerAddress: walletAddress,
+          sellerFid: user?.fid,
+          nftName: selectedResaleLicense.metadata?.name || `License #${selectedResaleLicense.licenseId}`,
+          imageUrl: selectedResaleLicense.metadata?.image,
+          isArt: selectedResaleLicense.isArt,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setResaleSuccess(data.message);
+        setTimeout(() => {
+          setResaleModalOpen(false);
+          setResaleSuccess(null);
+        }, 3000);
+      } else {
+        setResaleError(data.error || 'Failed to list');
+      }
+    } catch (err: any) {
+      setResaleError(err.message || 'Failed to list');
+    } finally {
+      setResaleListing(false);
+    }
   };
 
   if (contextLoading) {
@@ -766,7 +893,7 @@ export default function ProfilePage() {
                     🎵 Your Artist Profile
                   </h3>
                   <p className="text-sm text-gray-700">
-                    Share this link with fans so they can buy your music directly!
+                    Share this link with fans so they can buy your NFTs directly!
                   </p>
                 </div>
               </div>
@@ -786,6 +913,27 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+
+          {/* Privacy Settings Section */}
+          <div className="mb-8 p-4 bg-gradient-to-r from-gray-50 to-slate-50 border-2 border-gray-200 rounded-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔒</span>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Privacy Settings</h3>
+                  <p className="text-xs text-gray-500">
+                    {privacySettings.isPublicProfile ? 'Profile is public' : 'Profile is private'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPrivacyModal(true)}
+                className="px-4 py-2 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-700 transition-all font-medium"
+              >
+                ⚙️ Manage
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-3 gap-4 mb-8">
             <motion.div
@@ -1342,6 +1490,14 @@ export default function ProfilePage() {
                               View TX
                             </a>
                           )}
+                          {license.active && (
+                            <button
+                              onClick={() => openResaleModal(license)}
+                              className="flex-1 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all text-center font-medium"
+                            >
+                              💰 Resell
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1717,6 +1873,175 @@ export default function ProfilePage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Resale Listing Modal */}
+      {resaleModalOpen && selectedResaleLicense && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setResaleModalOpen(false)}>
+          <div
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-4">💰 List for Resale</h3>
+
+            <div className="mb-4 p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
+              <p className="font-medium text-gray-900">
+                {selectedResaleLicense.metadata?.name || `License #${selectedResaleLicense.licenseId}`}
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                Master #{selectedResaleLicense.masterTokenId}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sale Price (WMON)
+              </label>
+              <input
+                type="number"
+                min="35"
+                step="1"
+                value={resalePrice}
+                onChange={(e) => setResalePrice(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-lg font-medium"
+                placeholder="50"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Minimum: 35 WMON • 50% royalty goes to original artist
+              </p>
+              <p className="text-sm text-green-600 font-medium mt-2">
+                You&apos;ll receive: {(parseFloat(resalePrice || '0') * 0.5).toFixed(2)} WMON
+              </p>
+            </div>
+
+            {resaleError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">❌ {resaleError}</p>
+              </div>
+            )}
+
+            {resaleSuccess && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-600">✅ {resaleSuccess}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setResaleModalOpen(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={listForResale}
+                disabled={resaleListing || !!resaleSuccess}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resaleListing ? '⏳ Listing...' : '💰 List for Sale'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Settings Modal */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowPrivacyModal(false)}>
+          <div
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-2">🔒 Privacy Settings</h3>
+            <p className="text-sm text-gray-500 mb-6">Control what others can see when they search for your profile</p>
+
+            <div className="space-y-4">
+              {/* Public Profile Toggle */}
+              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                <div>
+                  <p className="font-medium text-gray-900">Public Profile</p>
+                  <p className="text-xs text-gray-500">Allow others to find and view your profile</p>
+                </div>
+                <button
+                  onClick={() => togglePrivacySetting('isPublicProfile')}
+                  disabled={privacyLoading}
+                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.isPublicProfile ? 'bg-blue-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Show Created NFTs */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium text-gray-900">🎨 Created NFTs</p>
+                  <p className="text-xs text-gray-500">Show music/art you created</p>
+                </div>
+                <button
+                  onClick={() => togglePrivacySetting('showCreatedNFTs')}
+                  disabled={privacyLoading}
+                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showCreatedNFTs ? 'bg-purple-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Show Purchased NFTs */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium text-gray-900">🛒 Purchased NFTs</p>
+                  <p className="text-xs text-gray-500">Show NFTs you&apos;ve collected</p>
+                </div>
+                <button
+                  onClick={() => togglePrivacySetting('showPurchasedNFTs')}
+                  disabled={privacyLoading}
+                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showPurchasedNFTs ? 'bg-pink-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Show Passports */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium text-gray-900">🌍 Passports</p>
+                  <p className="text-xs text-gray-500">Show your passport collection</p>
+                </div>
+                <button
+                  onClick={() => togglePrivacySetting('showPassports')}
+                  disabled={privacyLoading}
+                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showPassports ? 'bg-green-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Show Achievements */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium text-gray-900">🏆 Stats & Achievements</p>
+                  <p className="text-xs text-gray-500">Show activity statistics</p>
+                </div>
+                <button
+                  onClick={() => togglePrivacySetting('showAchievements')}
+                  disabled={privacyLoading}
+                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showAchievements ? 'bg-amber-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="w-full px-4 py-3 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </PageTransition>
   );

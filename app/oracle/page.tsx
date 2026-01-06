@@ -126,6 +126,11 @@ export default function OraclePage() {
     console.log('[OraclePage] showCreateNFTModal state changed to:', showCreateNFTModal);
   }, [showCreateNFTModal]);
 
+  // Debug: Log showProfileModal state changes
+  useEffect(() => {
+    console.log('[OraclePage] showProfileModal state changed to:', showProfileModal);
+  }, [showProfileModal]);
+
   // Log geolocation status (from useGeolocation hook with IP fallback)
   useEffect(() => {
     if (!geoLoading && geoLocation) {
@@ -635,7 +640,10 @@ export default function OraclePage() {
                       DAO
                     </button>
                     <button
-                      onClick={() => setShowProfileModal(true)}
+                      onClick={() => {
+                        console.log('[OraclePage] Profile button clicked, walletAddress:', walletAddress);
+                        setShowProfileModal(true);
+                      }}
                       className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1"
                     >
                       <User className="w-3 h-3" />
@@ -893,13 +901,19 @@ export default function OraclePage() {
 
       {/* Profile Modal */}
       {showProfileModal && (
-        <ProfileModal
-          walletAddress={walletAddress || ''}
-          userFid={user?.fid}
-          username={user?.username}
-          pfpUrl={user?.pfpUrl}
-          onClose={() => setShowProfileModal(false)}
-        />
+        <>
+          {console.log('[OraclePage] Rendering ProfileModal, walletAddress:', walletAddress)}
+          <ProfileModal
+            walletAddress={walletAddress || ''}
+            userFid={user?.fid}
+            username={user?.username}
+            pfpUrl={user?.pfpUrl}
+            onClose={() => {
+              console.log('[OraclePage] ProfileModal onClose called');
+              setShowProfileModal(false);
+            }}
+          />
+        </>
       )}
 
       {/* DAO Modal */}
