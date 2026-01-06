@@ -1580,15 +1580,13 @@ export default function ProfilePage() {
                               View TX
                             </a>
                           )}
-                          {nft.tokenURI && (
-                            <a
-                              href={resolveIPFS(nft.tokenURI)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 px-3 py-2 bg-cyan-600 text-white text-xs rounded-lg hover:bg-cyan-700 transition-all text-center"
+                          {nft.licenseId && nft.active && (
+                            <button
+                              onClick={() => openResaleModal(nft)}
+                              className="flex-1 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all text-center font-medium"
                             >
-                              Metadata
-                            </a>
+                              💰 Resell
+                            </button>
                           )}
                         </div>
                       </div>
