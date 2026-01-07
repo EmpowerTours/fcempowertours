@@ -290,10 +290,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <img
                   src={displayPfp}
                   alt={displayUsername || 'Profile'}
-                  className="w-12 h-12 rounded-full border-2 border-purple-500/50 object-cover flex-shrink-0"
+                  className="rounded-full border-2 border-purple-500/50 object-cover flex-shrink-0"
+                  style={{ width: '48px', height: '48px', minWidth: '48px', maxWidth: '48px' }}
                 />
               ) : (
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
+                <div
+                  className="bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ width: '48px', height: '48px', minWidth: '48px' }}
+                >
                   <Trophy className="w-6 h-6 text-white" />
                 </div>
               )}
