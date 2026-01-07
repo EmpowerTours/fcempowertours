@@ -968,6 +968,8 @@ export default function OraclePage() {
       {showUserProfileModal && viewingUserAddress && (
         <UserProfileModal
           walletAddress={viewingUserAddress}
+          buyerAddress={walletAddress || undefined}
+          buyerFid={user?.fid}
           onClose={() => {
             setShowUserProfileModal(false);
             setViewingUserAddress(null);

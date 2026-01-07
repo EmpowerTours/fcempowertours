@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Music, Palette, Globe, ArrowLeft, User, ExternalLink } from 'lucide-react';
+import { X, Music, Palette, Globe, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserProfileModalProps {
   walletAddress: string;
   onClose: () => void;
   onBack?: () => void;
+  buyerAddress?: string; // Current user's wallet for purchasing
+  buyerFid?: number;
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
@@ -39,6 +41,21 @@ interface LicenseItem {
   masterName?: string;
   masterImage?: string;
   isArt?: boolean;
+  // Resale info
+  forSale?: boolean;
+  salePrice?: string;
+  listingId?: string;
+}
+
+interface ResaleListing {
+  listingId: string;
+  licenseId: number;
+  seller: string;
+  price: string;
+  nftName: string;
+  imageUrl?: string;
+  isArt: boolean;
+  active: boolean;
 }
 
 interface PassportItem {
@@ -61,7 +78,7 @@ const resolveIPFS = (url: string): string => {
   return url;
 };
 
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddress, onClose, onBack }) => {
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddress, onClose, onBack, buyerAddress, buyerFid }) => {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -69,6 +86,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   const [purchasedLicenses, setPurchasedLicenses] = useState<LicenseItem[]>([]);
   const [passports, setPassports] = useState<PassportItem[]>([]);
   const [activeTab, setActiveTab] = useState<'created' | 'purchased' | 'passports'>('purchased');
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
+
+  const canPurchase = buyerAddress && buyerAddress.toLowerCase() !== walletAddress.toLowerCase();
 
   useEffect(() => {
     setMounted(true);
@@ -118,12 +140,44 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
       if (result.data) {
         setCreatedNFTs(result.data.CreatedNFT || []);
-        setPurchasedLicenses((result.data.PurchasedLicenses || []).map((l: any) => ({
+
+        // Process purchased licenses
+        const licenses = (result.data.PurchasedLicenses || []).map((l: any) => ({
           ...l,
           masterName: l.masterToken?.name,
           masterImage: l.masterToken?.imageUrl,
           isArt: l.masterToken?.isArt,
-        })));
+        }));
+
+        // Fetch resale listings for this seller
+        try {
+          const resaleResponse = await fetch(`/api/music/list-for-sale?seller=${walletAddress}`);
+          const resaleData = await resaleResponse.json();
+
+          if (resaleData.success && resaleData.listings) {
+            // Map listings to licenses
+            const listingMap = new Map<number, ResaleListing>();
+            resaleData.listings.forEach((listing: ResaleListing) => {
+              if (listing.active) {
+                listingMap.set(listing.licenseId, listing);
+              }
+            });
+
+            // Merge resale info into licenses
+            licenses.forEach((license: LicenseItem) => {
+              const listing = listingMap.get(parseInt(license.licenseId));
+              if (listing) {
+                license.forSale = true;
+                license.salePrice = listing.price;
+                license.listingId = listing.listingId;
+              }
+            });
+          }
+        } catch (err) {
+          console.error('[UserProfileModal] Error fetching resale listings:', err);
+        }
+
+        setPurchasedLicenses(licenses);
         setPassports(result.data.PassportNFT || []);
 
         // Set default tab based on data
@@ -172,6 +226,51 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   };
 
   const userType = createdNFTs.length > 0 ? 'artist' : (purchasedLicenses.length > 0 ? 'collector' : 'explorer');
+
+  const handlePurchase = async (license: LicenseItem) => {
+    if (!buyerAddress || !license.forSale || !license.salePrice || !license.listingId) return;
+
+    setPurchasing(license.licenseId);
+    setPurchaseError(null);
+    setPurchaseSuccess(null);
+
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'buy_resale',
+          fid: buyerFid || 0,
+          params: {
+            licenseId: license.licenseId,
+            seller: walletAddress,
+            price: license.salePrice,
+            listingId: license.listingId
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPurchaseSuccess(`Successfully purchased for ${license.salePrice} WMON!`);
+        // Update the license to remove for sale status
+        setPurchasedLicenses(prev => prev.map(l =>
+          l.licenseId === license.licenseId
+            ? { ...l, forSale: false, salePrice: undefined, listingId: undefined }
+            : l
+        ));
+        // Clear success message after 5 seconds
+        setTimeout(() => setPurchaseSuccess(null), 5000);
+      } else {
+        setPurchaseError(data.error || 'Purchase failed');
+      }
+    } catch (error: any) {
+      setPurchaseError(error.message || 'Purchase failed');
+    } finally {
+      setPurchasing(null);
+    }
+  };
 
   if (!mounted) return null;
 
@@ -333,27 +432,71 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
                 <p className="text-gray-500 text-sm">No purchased NFTs</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {purchasedLicenses.map((license) => (
-                  <div key={license.id} className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg overflow-hidden">
-                    <div className="aspect-square">
-                      {license.masterImage ? (
-                        <img src={resolveIPFS(license.masterImage)} alt={license.masterName || ''} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-cyan-500/20 flex items-center justify-center text-2xl">
-                          {license.isArt ? '🖼️' : '🎧'}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-2">
-                      <p className="text-white text-xs font-medium truncate">{license.masterName || `License #${license.licenseId}`}</p>
-                      <span className={`inline-block mt-1 text-xs px-1.5 py-0.5 rounded ${license.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                        {license.active ? 'Active' : 'Expired'}
-                      </span>
-                    </div>
+              <>
+                {/* Purchase status messages */}
+                {purchaseSuccess && (
+                  <div className="mb-3 p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
+                    <p className="text-green-400 text-xs text-center">✅ {purchaseSuccess}</p>
                   </div>
-                ))}
-              </div>
+                )}
+                {purchaseError && (
+                  <div className="mb-3 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
+                    <p className="text-red-400 text-xs text-center">❌ {purchaseError}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {purchasedLicenses.map((license) => (
+                    <div key={license.id} className={`${license.forSale ? 'bg-green-500/10 border-green-500/30' : 'bg-cyan-500/10 border-cyan-500/20'} border rounded-lg overflow-hidden`}>
+                      <div className="aspect-square relative">
+                        {license.masterImage ? (
+                          <img src={resolveIPFS(license.masterImage)} alt={license.masterName || ''} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-cyan-500/20 flex items-center justify-center text-2xl">
+                            {license.isArt ? '🖼️' : '🎧'}
+                          </div>
+                        )}
+                        {/* For Sale Badge */}
+                        {license.forSale && (
+                          <div className="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                            FOR SALE
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-2">
+                        <p className="text-white text-xs font-medium truncate">{license.masterName || `License #${license.licenseId}`}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${license.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                            {license.active ? 'Active' : 'Expired'}
+                          </span>
+                          {license.forSale && license.salePrice && (
+                            <span className="text-green-400 text-xs font-bold">{license.salePrice} WMON</span>
+                          )}
+                        </div>
+                        {/* Buy Button */}
+                        {license.forSale && canPurchase && (
+                          <button
+                            onClick={() => handlePurchase(license)}
+                            disabled={purchasing === license.licenseId}
+                            className="w-full mt-2 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-xs rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                          >
+                            {purchasing === license.licenseId ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Buying...
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="w-3 h-3" />
+                                Buy {license.salePrice} WMON
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )
           ) : (
             passports.length === 0 ? (
