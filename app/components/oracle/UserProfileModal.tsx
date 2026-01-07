@@ -21,7 +21,6 @@ interface UserProfile {
   displayName?: string;
   pfpUrl?: string;
   bio?: string;
-  followerCount?: number;
 }
 
 interface NFTItem {
@@ -30,8 +29,6 @@ interface NFTItem {
   name?: string;
   imageUrl?: string;
   isArt: boolean;
-  price?: string;
-  txHash?: string;
 }
 
 interface LicenseItem {
@@ -39,8 +36,6 @@ interface LicenseItem {
   licenseId: string;
   masterTokenId: string;
   active: boolean;
-  createdAt: string;
-  txHash?: string;
   masterName?: string;
   masterImage?: string;
   isArt?: boolean;
@@ -50,28 +45,18 @@ interface PassportItem {
   id: string;
   tokenId: string;
   countryCode?: string;
-  mintedAt: string;
 }
 
-// Helper to get country flag emoji
 const getCountryFlag = (countryCode: string): string => {
   if (!countryCode || countryCode.length !== 2) return '🌍';
-  const codePoints = countryCode
-    .toUpperCase()
-    .split('')
-    .map(char => 127397 + char.charCodeAt(0));
+  const codePoints = countryCode.toUpperCase().split('').map(char => 127397 + char.charCodeAt(0));
   return String.fromCodePoint(...codePoints);
 };
 
-// IPFS URL Resolver
 const resolveIPFS = (url: string): string => {
   if (!url) return '';
   if (url.startsWith('ipfs://')) {
     return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
-  }
-  if (url.includes('/ipfs/')) {
-    const cid = url.split('/ipfs/')[1]?.split('?')[0];
-    return `https://harlequin-used-hare-224.mypinata.cloud/ipfs/${cid}`;
   }
   return url;
 };
@@ -95,7 +80,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   const loadUserProfile = async () => {
     setLoading(true);
     try {
-      // Load blockchain data
       const query = `
         query GetUserData($address: String!) {
           CreatedNFT: MusicNFT(where: {artist: {_eq: $address}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 50) {
@@ -104,16 +88,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
             name
             imageUrl
             isArt
-            price
-            txHash
           }
           PurchasedLicenses: MusicLicense(where: {licensee: {_eq: $address}}, order_by: {createdAt: desc}, limit: 50) {
             id
             licenseId
             masterTokenId
             active
-            createdAt
-            txHash
             masterToken {
               name
               imageUrl
@@ -124,7 +104,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
             id
             tokenId
             countryCode
-            mintedAt
           }
         }
       `;
@@ -132,10 +111,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          variables: { address: walletAddress.toLowerCase() }
-        }),
+        body: JSON.stringify({ query, variables: { address: walletAddress.toLowerCase() } }),
       });
 
       const result = await response.json();
@@ -150,17 +126,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         })));
         setPassports(result.data.PassportNFT || []);
 
-        // Determine which tab to show by default
+        // Set default tab based on data
         if (result.data.CreatedNFT?.length > 0) {
           setActiveTab('created');
         } else if (result.data.PurchasedLicenses?.length > 0) {
           setActiveTab('purchased');
-        } else if (result.data.PassportNFT?.length > 0) {
+        } else {
           setActiveTab('passports');
         }
       }
 
-      // Try to get Farcaster profile from wallet address
+      // Get Farcaster profile
       try {
         const fcResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${walletAddress}`,
@@ -177,7 +153,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
               displayName: fcUser.display_name,
               pfpUrl: fcUser.pfp_url,
               bio: fcUser.profile?.bio?.text,
-              followerCount: fcUser.follower_count,
             });
           } else {
             setProfile({ walletAddress });
@@ -185,12 +160,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         } else {
           setProfile({ walletAddress });
         }
-      } catch (err) {
-        console.error('[UserProfileModal] Farcaster lookup failed:', err);
+      } catch {
         setProfile({ walletAddress });
       }
     } catch (err) {
-      console.error('[UserProfileModal] Error loading profile:', err);
+      console.error('[UserProfileModal] Error:', err);
       setProfile({ walletAddress });
     } finally {
       setLoading(false);
@@ -203,22 +177,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl"
+        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border-b border-purple-500/30 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
+        {/* Header - Fixed */}
+        <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border-b border-purple-500/30 p-3 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
               {onBack && (
                 <button
                   onClick={onBack}
-                  className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors"
+                  className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
@@ -227,33 +201,34 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
                 <img
                   src={profile.pfpUrl}
                   alt={profile.username || 'Profile'}
-                  className="w-14 h-14 rounded-full border-2 border-purple-500/50 object-cover"
+                  className="rounded-full border-2 border-purple-500/50 object-cover flex-shrink-0"
+                  style={{ width: 48, height: 48, minWidth: 48, maxWidth: 48 }}
                 />
               ) : (
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
-                  <User className="w-7 h-7 text-white" />
+                <div
+                  className="bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ width: 48, height: 48, minWidth: 48 }}
+                >
+                  <User className="w-6 h-6 text-white" />
                 </div>
               )}
-              <div>
-                <h2 className="text-lg font-bold text-white">
-                  {profile?.displayName || profile?.username || 'Unknown User'}
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-white truncate">
+                  {profile?.displayName || profile?.username || 'User'}
                 </h2>
-                {profile?.username && (
-                  <p className="text-sm text-purple-400">@{profile.username}</p>
-                )}
-                <p className="text-xs text-gray-400 font-mono">
-                  {walletAddress.slice(0, 8)}...{walletAddress.slice(-6)}
+                <p className="text-xs text-gray-400 font-mono truncate">
+                  {walletAddress.slice(0, 10)}...{walletAddress.slice(-8)}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <a
                 href={`https://testnet.monadscan.com/address/${walletAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               >
-                <ExternalLink className="w-5 h-5" />
+                <ExternalLink className="w-4 h-4" />
               </a>
               <button
                 onClick={onClose}
@@ -265,103 +240,88 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
           </div>
 
           {/* User Type Badge */}
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-            userType === 'artist'
-              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-              : userType === 'collector'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-              : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
-          }`}>
-            {userType === 'artist' ? '🎨 Artist' : userType === 'collector' ? '🏆 Collector' : '🌱 Explorer'}
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+              userType === 'artist' ? 'bg-purple-500/20 text-purple-300' :
+              userType === 'collector' ? 'bg-cyan-500/20 text-cyan-300' :
+              'bg-gray-500/20 text-gray-300'
+            }`}>
+              {userType === 'artist' ? '🎨 Artist' : userType === 'collector' ? '🏆 Collector' : '🌱 Explorer'}
+            </span>
           </div>
-
-          {profile?.bio && (
-            <p className="text-sm text-gray-300 mt-3">{profile.bio}</p>
-          )}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 p-4 border-b border-gray-700/50">
+        {/* Stats Row - Fixed */}
+        <div className="grid grid-cols-3 gap-2 p-3 border-b border-gray-700/50 flex-shrink-0">
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">{createdNFTs.length}</p>
+            <p className="text-lg font-bold text-white">{createdNFTs.length}</p>
             <p className="text-xs text-gray-400">Created</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">{purchasedLicenses.length}</p>
+            <p className="text-lg font-bold text-white">{purchasedLicenses.length}</p>
             <p className="text-xs text-gray-400">Purchased</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">{passports.length}</p>
+            <p className="text-lg font-bold text-white">{passports.length}</p>
             <p className="text-xs text-gray-400">Passports</p>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-700/50">
+        {/* Tabs - Fixed */}
+        <div className="flex border-b border-gray-700/50 flex-shrink-0">
           <button
             onClick={() => setActiveTab('created')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'created'
-                ? 'text-purple-400 border-b-2 border-purple-400'
-                : 'text-gray-400 hover:text-white'
+            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'created' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white'
             }`}
           >
-            Created ({createdNFTs.length})
+            Created
           </button>
           <button
             onClick={() => setActiveTab('purchased')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'purchased'
-                ? 'text-cyan-400 border-b-2 border-cyan-400'
-                : 'text-gray-400 hover:text-white'
+            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'purchased' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white'
             }`}
           >
-            Purchased ({purchasedLicenses.length})
+            Purchased
           </button>
           <button
             onClick={() => setActiveTab('passports')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'passports'
-                ? 'text-pink-400 border-b-2 border-pink-400'
-                : 'text-gray-400 hover:text-white'
+            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'passports' ? 'text-pink-400 border-b-2 border-pink-400' : 'text-gray-400 hover:text-white'
             }`}
           >
-            Passports ({passports.length})
+            Passports
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[calc(90vh-350px)]">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-3">
           {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin text-4xl mb-3">🌍</div>
-              <p className="text-gray-400">Loading profile...</p>
+            <div className="text-center py-8">
+              <div className="animate-spin text-3xl mb-2">🌍</div>
+              <p className="text-gray-400 text-sm">Loading...</p>
             </div>
           ) : activeTab === 'created' ? (
             createdNFTs.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">No created NFTs</p>
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">No created NFTs</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {createdNFTs.map((nft) => (
-                  <div key={nft.id} className="bg-purple-500/10 border border-purple-500/20 rounded-xl overflow-hidden">
-                    {nft.imageUrl ? (
-                      <img
-                        src={resolveIPFS(nft.imageUrl)}
-                        alt={nft.name || `NFT #${nft.tokenId}`}
-                        className="w-full aspect-square object-cover"
-                      />
-                    ) : (
-                      <div className="w-full aspect-square bg-purple-500/20 flex items-center justify-center text-4xl">
-                        {nft.isArt ? '🎨' : '🎵'}
-                      </div>
-                    )}
-                    <div className="p-2">
-                      <p className="font-medium text-white text-sm truncate">{nft.name || `#${nft.tokenId}`}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded ${nft.isArt ? 'bg-cyan-500/20 text-cyan-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                        {nft.isArt ? 'Art' : 'Music'}
-                      </span>
+                  <div key={nft.id} className="bg-purple-500/10 border border-purple-500/20 rounded-lg overflow-hidden">
+                    <div className="aspect-square">
+                      {nft.imageUrl ? (
+                        <img src={resolveIPFS(nft.imageUrl)} alt={nft.name || ''} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-purple-500/20 flex items-center justify-center text-2xl">
+                          {nft.isArt ? '🎨' : '🎵'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-1.5">
+                      <p className="text-white text-xs font-medium truncate">{nft.name || `#${nft.tokenId}`}</p>
                     </div>
                   </div>
                 ))}
@@ -369,31 +329,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
             )
           ) : activeTab === 'purchased' ? (
             purchasedLicenses.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">No purchased NFTs</p>
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">No purchased NFTs</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {purchasedLicenses.map((license) => (
-                  <div key={license.id} className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl overflow-hidden">
-                    {license.masterImage ? (
-                      <img
-                        src={resolveIPFS(license.masterImage)}
-                        alt={license.masterName || `License #${license.licenseId}`}
-                        className="w-full aspect-square object-cover"
-                      />
-                    ) : (
-                      <div className="w-full aspect-square bg-cyan-500/20 flex items-center justify-center text-4xl">
-                        {license.isArt ? '🖼️' : '🎧'}
-                      </div>
-                    )}
+                  <div key={license.id} className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg overflow-hidden">
+                    <div className="aspect-square">
+                      {license.masterImage ? (
+                        <img src={resolveIPFS(license.masterImage)} alt={license.masterName || ''} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-cyan-500/20 flex items-center justify-center text-2xl">
+                          {license.isArt ? '🖼️' : '🎧'}
+                        </div>
+                      )}
+                    </div>
                     <div className="p-2">
-                      <p className="font-medium text-white text-sm truncate">{license.masterName || `License #${license.licenseId}`}</p>
-                      <div className="flex justify-between items-center mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded ${license.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                          {license.active ? 'Active' : 'Expired'}
-                        </span>
-                      </div>
+                      <p className="text-white text-xs font-medium truncate">{license.masterName || `License #${license.licenseId}`}</p>
+                      <span className={`inline-block mt-1 text-xs px-1.5 py-0.5 rounded ${license.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {license.active ? 'Active' : 'Expired'}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -401,20 +357,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
             )
           ) : (
             passports.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">No passports</p>
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">No passports</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 {passports.map((passport) => (
-                  <div key={passport.id} className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-4 text-center">
-                    <span className="text-4xl block mb-2">
-                      {passport.countryCode ? getCountryFlag(passport.countryCode) : '🌍'}
-                    </span>
-                    <p className="font-medium text-white text-sm">#{passport.tokenId}</p>
-                    {passport.countryCode && (
-                      <p className="text-xs text-pink-400">{passport.countryCode}</p>
-                    )}
+                  <div key={passport.id} className="bg-pink-500/10 border border-pink-500/20 rounded-lg p-2 text-center">
+                    <span className="text-2xl block">{passport.countryCode ? getCountryFlag(passport.countryCode) : '🌍'}</span>
+                    <p className="text-white text-xs mt-1">#{passport.tokenId}</p>
                   </div>
                 ))}
               </div>
@@ -422,14 +373,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
           )}
         </div>
 
-        {/* Footer - Link to Artist Page if applicable */}
+        {/* Footer - Fixed */}
         {userType === 'artist' && (
-          <div className="border-t border-gray-700/50 p-3">
+          <div className="border-t border-gray-700/50 p-3 flex-shrink-0">
             <Link
               href={`/artist/${walletAddress}`}
-              className="block w-full py-2 text-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-medium transition-colors"
+              className="block w-full py-2 text-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              View Full Artist Profile →
+              View Artist Page →
             </Link>
           </div>
         )}
