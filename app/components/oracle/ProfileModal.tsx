@@ -361,12 +361,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Footer */}
         <div className="border-t border-gray-700/50 p-3">
-          <a
-            href="/profile"
-            className="block w-full py-2 text-center text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
-          >
-            View Full Profile Page →
-          </a>
+          {searchedUser ? (
+            searchedUser.walletAddress ? (
+              <a
+                href={`/artist/${searchedUser.walletAddress}`}
+                className="block w-full py-2 text-center text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
+              >
+                View @{searchedUser.username}&apos;s Page →
+              </a>
+            ) : (
+              <p className="text-center text-gray-500 text-sm">No wallet linked</p>
+            )
+          ) : (
+            <a
+              href="/profile"
+              className="block w-full py-2 text-center text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
+            >
+              View My Full Profile →
+            </a>
+          )}
         </div>
       </div>
     </div>

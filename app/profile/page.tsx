@@ -1978,9 +1978,9 @@ export default function ProfilePage() {
                 <button
                   onClick={() => togglePrivacySetting('isPublicProfile')}
                   disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.isPublicProfile ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.isPublicProfile ? 'bg-blue-600' : 'bg-gray-300'}`}
                 >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
 
@@ -1993,9 +1993,9 @@ export default function ProfilePage() {
                 <button
                   onClick={() => togglePrivacySetting('showCreatedNFTs')}
                   disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showCreatedNFTs ? 'bg-purple-600' : 'bg-gray-300'}`}
+                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showCreatedNFTs ? 'bg-purple-600' : 'bg-gray-300'}`}
                 >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
 
@@ -2008,9 +2008,9 @@ export default function ProfilePage() {
                 <button
                   onClick={() => togglePrivacySetting('showPurchasedNFTs')}
                   disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showPurchasedNFTs ? 'bg-pink-600' : 'bg-gray-300'}`}
+                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showPurchasedNFTs ? 'bg-pink-600' : 'bg-gray-300'}`}
                 >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
 
@@ -2023,9 +2023,9 @@ export default function ProfilePage() {
                 <button
                   onClick={() => togglePrivacySetting('showPassports')}
                   disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showPassports ? 'bg-green-600' : 'bg-gray-300'}`}
+                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showPassports ? 'bg-green-600' : 'bg-gray-300'}`}
                 >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
 
@@ -2038,9 +2038,9 @@ export default function ProfilePage() {
                 <button
                   onClick={() => togglePrivacySetting('showAchievements')}
                   disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all ${privacySettings.showAchievements ? 'bg-amber-600' : 'bg-gray-300'}`}
+                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showAchievements ? 'bg-amber-600' : 'bg-gray-300'}`}
                 >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
             </div>

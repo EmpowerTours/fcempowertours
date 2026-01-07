@@ -597,22 +597,23 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
                 </div>
                 <div className="grid grid-cols-4 gap-1 text-[10px] text-white/60">
                   <div className="text-center">
-                    <div className="text-white/80">{reputation.breakdown.ageScore.toFixed(0)}</div>
-                    <div>Age</div>
+                    <div className="text-white/80">{reputation.breakdown.ageScore.toFixed(0)}/20</div>
+                    <div>Account</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-white/80">{reputation.breakdown.followerScore.toFixed(0)}</div>
-                    <div>Followers</div>
+                    <div className="text-white/80">{reputation.breakdown.followerScore.toFixed(0)}/30</div>
+                    <div>Social</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-white/80">{reputation.breakdown.connectionScore.toFixed(0)}</div>
-                    <div>Connections</div>
+                    <div className="text-white/80">{reputation.breakdown.connectionScore.toFixed(0)}/30</div>
+                    <div>Network</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-white/80">{reputation.breakdown.activityScore.toFixed(0)}</div>
-                    <div>Activity</div>
+                    <div className="text-white/80">{reputation.breakdown.activityScore.toFixed(0)}/20</div>
+                    <div>Verified</div>
                   </div>
                 </div>
+                <p className="text-[9px] text-white/40 text-center mt-1">Score breakdown (higher = more trusted)</p>
                 {!reputation.meetsMinimum && (
                   <div className="mt-2 text-xs text-red-300 text-center">
                     Minimum score of 10 required to subscribe
