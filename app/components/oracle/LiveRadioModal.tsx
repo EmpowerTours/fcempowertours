@@ -115,11 +115,17 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [selectedSong, setSelectedSong] = useState<any>(null);
   const [voiceNoteType, setVoiceNoteType] = useState<'shoutout' | 'ad' | null>(null);
-  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'uploading'>('idle');
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'uploading' | 'recorded'>('idle');
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [remainingTime, setRemainingTime] = useState(0);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
+  const [recordingTime, setRecordingTime] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -156,7 +162,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
             name
             artist
             artistFid
-            audioUrl
+            fullAudioUrl
             imageUrl
           }
         }
@@ -170,8 +176,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
       const data = await response.json();
       if (data.data?.MusicNFT) {
-        setAvailableSongs(data.data.MusicNFT);
-        console.log('[LiveRadio] Fetched', data.data.MusicNFT.length, 'songs');
+        // Map fullAudioUrl to audioUrl for compatibility
+        const songs = data.data.MusicNFT.map((song: any) => ({
+          ...song,
+          audioUrl: song.fullAudioUrl || song.audioUrl,
+        }));
+        setAvailableSongs(songs);
+        console.log('[LiveRadio] Fetched', songs.length, 'songs');
       }
     } catch (error) {
       console.error('[LiveRadio] Failed to fetch songs:', error);
@@ -379,19 +390,137 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     }
   };
 
-  // Handle voice shoutout
+  // Start voice recording
+  const startRecording = async (type: 'shoutout' | 'ad') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setRecordedAudioUrl(audioUrl);
+        setRecordedAudioBlob(audioBlob);
+        setRecordingStatus('recorded');
+
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      setVoiceNoteType(type);
+      setRecordingStatus('recording');
+      setRecordingTime(0);
+      mediaRecorder.start();
+
+      // Timer for recording duration
+      const maxDuration = type === 'shoutout' ? 5 : 30;
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => {
+          if (prev >= maxDuration) {
+            stopRecording();
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+
+      console.log('[LiveRadio] Recording started for', type);
+    } catch (error) {
+      console.error('[LiveRadio] Failed to start recording:', error);
+      alert('Could not access microphone. Please allow microphone permissions.');
+    }
+  };
+
+  // Stop voice recording
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  // Submit voice note
+  const submitVoiceNote = async () => {
+    if (!walletAddress || !recordedAudioBlob || !voiceNoteType) return;
+
+    setRecordingStatus('uploading');
+
+    try {
+      // Upload to IPFS via Pinata
+      const formData = new FormData();
+      formData.append('file', recordedAudioBlob, `voice-${voiceNoteType}-${Date.now()}.webm`);
+
+      const uploadRes = await fetch('/api/upload-to-ipfs', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success) {
+        throw new Error(uploadData.error || 'Upload failed');
+      }
+
+      // Submit to live radio
+      const action = voiceNoteType === 'shoutout' ? 'voice_note' : 'voice_ad';
+      const response = await fetch('/api/live-radio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          userAddress: walletAddress,
+          userFid: user?.fid,
+          username: user?.username,
+          audioUrl: uploadData.url,
+          duration: recordingTime,
+          txHash: 'demo-voice', // TODO: Integrate with actual WMON payment
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        console.log('[LiveRadio] Voice note submitted!');
+        resetRecording();
+        setShowVoiceNoteModal(false);
+      } else {
+        throw new Error(data.error || 'Submit failed');
+      }
+    } catch (error: any) {
+      console.error('[LiveRadio] Voice note submit failed:', error);
+      alert('Failed to submit: ' + error.message);
+      setRecordingStatus('recorded');
+    }
+  };
+
+  // Reset recording state
+  const resetRecording = () => {
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+    }
+    setRecordedAudioUrl(null);
+    setRecordedAudioBlob(null);
+    setRecordingStatus('idle');
+    setRecordingTime(0);
+    setVoiceNoteType(null);
+  };
+
+  // Handle voice shoutout button click
   const handleVoiceShoutout = async (type: 'shoutout' | 'ad') => {
-    if (!walletAddress) return;
-
-    setVoiceNoteType(type);
-    // For now, we'll just show a message about coming soon
-    // In production, this would open a recording interface
-    console.log('[LiveRadio] Voice', type, 'selected - WMON:', type === 'shoutout' ? pricing.voiceNote : pricing.voiceAd);
-
-    // TODO: Implement actual voice recording with MediaRecorder API
-    // Then upload to IPFS and submit to /api/live-radio with action: 'voice_note' or 'voice_ad'
-    alert(`Voice ${type === 'shoutout' ? 'Shoutout' : 'Ad'} recording coming soon! Cost: ${type === 'shoutout' ? pricing.voiceNote : pricing.voiceAd} WMON`);
-    setShowVoiceNoteModal(false);
+    if (!walletAddress) {
+      alert('Please connect your wallet first');
+      return;
+    }
+    startRecording(type);
   };
 
   // Claim rewards
@@ -749,54 +878,118 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
           style={{ zIndex: 10000 }}
-          onClick={() => setShowVoiceNoteModal(false)}
+          onClick={() => { if (recordingStatus === 'idle') { setShowVoiceNoteModal(false); resetRecording(); } }}
         >
           <div
             className="bg-gray-900 border border-pink-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-sm p-3 sm:p-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base sm:text-lg font-bold text-white mb-3">Voice Shoutout</h3>
-            <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
-              Record a shoutout or ad to play between songs
-            </p>
-            <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
-              <button
-                onClick={() => handleVoiceShoutout('shoutout')}
-                className="w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-pink-400 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm sm:text-base text-white font-semibold truncate">Quick Shoutout</p>
-                    <p className="text-xs text-gray-400 truncate">3-5 seconds • {pricing.voiceNote} WMON</p>
-                  </div>
-                  <div className="text-pink-400 text-xs font-bold bg-pink-500/20 px-2 py-1 rounded">
-                    {pricing.voiceNote} WMON
-                  </div>
+            <h3 className="text-base sm:text-lg font-bold text-white mb-3">
+              {recordingStatus === 'idle' ? 'Voice Shoutout' :
+               recordingStatus === 'recording' ? '🔴 Recording...' :
+               recordingStatus === 'recorded' ? 'Preview Recording' :
+               'Uploading...'}
+            </h3>
+
+            {/* Selection View */}
+            {recordingStatus === 'idle' && (
+              <>
+                <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
+                  Record a shoutout or ad to play between songs
+                </p>
+                <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
+                  <button
+                    onClick={() => handleVoiceShoutout('shoutout')}
+                    className="w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-pink-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm sm:text-base text-white font-semibold truncate">Quick Shoutout</p>
+                        <p className="text-xs text-gray-400 truncate">Up to 5 seconds</p>
+                      </div>
+                      <div className="text-pink-400 text-xs font-bold bg-pink-500/20 px-2 py-1 rounded">
+                        {pricing.voiceNote} WMON
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleVoiceShoutout('ad')}
+                    className="w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm sm:text-base text-white font-semibold truncate">Voice Ad</p>
+                        <p className="text-xs text-gray-400 truncate">Up to 30 seconds</p>
+                      </div>
+                      <div className="text-purple-400 text-xs font-bold bg-purple-500/20 px-2 py-1 rounded">
+                        {pricing.voiceAd} WMON
+                      </div>
+                    </div>
+                  </button>
                 </div>
-              </button>
-              <button
-                onClick={() => handleVoiceShoutout('ad')}
-                className="w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm sm:text-base text-white font-semibold truncate">Voice Ad</p>
-                    <p className="text-xs text-gray-400 truncate">30 seconds • Premium placement</p>
-                  </div>
-                  <div className="text-purple-400 text-xs font-bold bg-purple-500/20 px-2 py-1 rounded">
-                    {pricing.voiceAd} WMON
-                  </div>
+                <button
+                  onClick={() => setShowVoiceNoteModal(false)}
+                  className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {/* Recording View */}
+            {recordingStatus === 'recording' && (
+              <div className="text-center py-6">
+                <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-red-500/20 border-4 border-red-500 flex items-center justify-center animate-pulse">
+                  <Mic className="w-10 h-10 text-red-500" />
                 </div>
-              </button>
-            </div>
-            <button
-              onClick={() => setShowVoiceNoteModal(false)}
-              className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
-            >
-              Cancel
-            </button>
+                <p className="text-3xl font-bold text-white mb-2">{recordingTime}s</p>
+                <p className="text-sm text-gray-400 mb-4">
+                  {voiceNoteType === 'shoutout' ? `Max 5 seconds` : `Max 30 seconds`}
+                </p>
+                <button
+                  onClick={stopRecording}
+                  className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-all"
+                >
+                  Stop Recording
+                </button>
+              </div>
+            )}
+
+            {/* Preview View */}
+            {recordingStatus === 'recorded' && recordedAudioUrl && (
+              <div className="py-4">
+                <div className="bg-black/40 rounded-xl p-4 mb-4">
+                  <audio src={recordedAudioUrl} controls className="w-full" />
+                  <p className="text-xs text-gray-400 text-center mt-2">
+                    Duration: {recordingTime} seconds
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={resetRecording}
+                    className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
+                  >
+                    Re-record
+                  </button>
+                  <button
+                    onClick={submitVoiceNote}
+                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white rounded-lg font-semibold text-sm transition-all"
+                  >
+                    Submit ({voiceNoteType === 'shoutout' ? pricing.voiceNote : pricing.voiceAd} WMON)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Uploading View */}
+            {recordingStatus === 'uploading' && (
+              <div className="text-center py-8">
+                <Loader2 className="w-12 h-12 text-pink-400 animate-spin mx-auto mb-4" />
+                <p className="text-gray-400">Uploading your voice note...</p>
+              </div>
+            )}
           </div>
         </div>
       )}

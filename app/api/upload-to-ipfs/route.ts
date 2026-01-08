@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate file
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const validAudioTypes = ['audio/webm', 'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg'];
+    const validTypes = [...validImageTypes, ...validAudioTypes];
     if (!validTypes.includes(file.type)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid file type. Only images allowed.' },
+        { success: false, error: 'Invalid file type. Only images and audio allowed.' },
         { status: 400 }
       );
     }

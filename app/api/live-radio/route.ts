@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
               name
               artist
               artistFid
-              audioUrl
+              fullAudioUrl
               imageUrl
             }
           }
@@ -134,7 +134,13 @@ export async function GET(req: NextRequest) {
         });
 
         const data = await response.json();
-        const songs = data.data?.MusicNFT || [];
+        const rawSongs = data.data?.MusicNFT || [];
+
+        // Map fullAudioUrl to audioUrl for compatibility
+        const songs = rawSongs.map((song: any) => ({
+          ...song,
+          audioUrl: song.fullAudioUrl || song.audioUrl,
+        }));
 
         return NextResponse.json({
           success: true,

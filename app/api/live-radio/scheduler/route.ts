@@ -105,7 +105,7 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
           name
           artist
           artistFid
-          audioUrl
+          fullAudioUrl
           imageUrl
         }
       }
@@ -118,7 +118,13 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
     });
 
     const data = await response.json();
-    return data.data?.MusicNFT || [];
+    const songs = data.data?.MusicNFT || [];
+
+    // Map fullAudioUrl to audioUrl for compatibility
+    return songs.map((song: any) => ({
+      ...song,
+      audioUrl: song.fullAudioUrl || song.audioUrl,
+    }));
   } catch (error) {
     console.error('[RadioScheduler] Failed to fetch song pool:', error);
     return [];
