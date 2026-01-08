@@ -152,14 +152,14 @@ async function selectRandomSong(): Promise<QueuedSong | null> {
 async function getNextVoiceNote(): Promise<VoiceNote | null> {
   const noteJson = await redis.lpop(VOICE_NOTES_KEY);
   if (!noteJson) return null;
-  return typeof noteJson === 'string' ? JSON.parse(noteJson) : noteJson;
+  return typeof noteJson === 'string' ? JSON.parse(noteJson) as VoiceNote : noteJson as VoiceNote;
 }
 
 // Get next queued song
 async function getNextQueuedSong(): Promise<QueuedSong | null> {
   const songJson = await redis.lpop(RADIO_QUEUE_KEY);
   if (!songJson) return null;
-  return typeof songJson === 'string' ? JSON.parse(songJson) : songJson;
+  return typeof songJson === 'string' ? JSON.parse(songJson) as QueuedSong : songJson as QueuedSong;
 }
 
 export async function POST(req: NextRequest) {
