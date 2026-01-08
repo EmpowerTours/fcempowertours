@@ -4316,7 +4316,7 @@ ${enjoyText}
           );
         }
 
-        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON_TOKEN as Address;
+        const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || process.env.NEXT_PUBLIC_WMON_TOKEN) as Address;
         const RADIO_TREASURY = process.env.RADIO_TREASURY_ADDRESS as Address || SAFE_ACCOUNT;
 
         // Pricing: 0.5 WMON for shoutout, 2 WMON for ad
@@ -4356,7 +4356,7 @@ ${enjoyText}
       case 'radio_queue_song': {
         console.log('📻 Action: radio_queue_song');
 
-        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON_TOKEN as Address;
+        const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || process.env.NEXT_PUBLIC_WMON_TOKEN) as Address;
         const RADIO_TREASURY = process.env.RADIO_TREASURY_ADDRESS as Address || SAFE_ACCOUNT;
 
         // Pricing: 1 WMON to queue a song
