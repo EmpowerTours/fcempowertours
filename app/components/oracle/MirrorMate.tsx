@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle, Home } from 'lucide-react';
+import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle } from 'lucide-react';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, formatEther, type Abi } from 'viem';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
@@ -39,10 +39,6 @@ interface GuideProfile {
   totalBookings: number;
   completedBookings: number;
   hourlyRateWMON: string;
-  // Land ownership (from ResonanceLands)
-  isLandOwner?: boolean;
-  landCount?: number;
-  landNames?: string[];
 }
 
 interface GuideFormData {
@@ -192,33 +188,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           totalBookings: g.totalBookings || 0,
           completedBookings: g.completedBookings || 0,
           hourlyRateWMON: g.hourlyRateWMON || '0',
-          isLandOwner: false,
-          landCount: 0,
-          landNames: [],
         }));
-
-        // Check land ownership for each guide (async enrichment)
-        const enrichWithLandOwnership = async () => {
-          for (const guide of transformedGuides) {
-            try {
-              const landRes = await fetch(`/api/lands/check-ownership?fid=${guide.fid}`);
-              const landData = await landRes.json();
-              if (landData.success && landData.isLandOwner) {
-                guide.isLandOwner = true;
-                guide.landCount = landData.landCount || 0;
-                guide.landNames = landData.lands?.map((l: any) => l.name) || [];
-              }
-            } catch (err) {
-              // Land check failed, continue without land info
-            }
-          }
-        };
-
-        // Start land enrichment in background (don't block initial display)
-        enrichWithLandOwnership().then(() => {
-          // Re-render with land info
-          setGuides([...transformedGuides]);
-        });
 
         // Sort guides: nearby first, then others
         const sortedGuides = transformedGuides.sort((a, b) => {
@@ -895,13 +865,6 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                 <span className="text-[10px] text-green-400 font-bold">NEARBY</span>
               </div>
             )}
-            {/* Land Owner badge */}
-            {currentGuide.isLandOwner && (
-              <div className="flex items-center gap-1 bg-amber-500/20 border border-amber-500 rounded-full px-2 py-0.5">
-                <Home className="w-3 h-3 text-amber-400" />
-                <span className="text-[10px] text-amber-400 font-bold">LAND OWNER</span>
-              </div>
-            )}
           </div>
 
           {/* Guide Details */}
@@ -956,22 +919,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                   <span>{currentGuide.transport}</span>
                 </div>
               )}
-              {/* Land ownership info */}
-              {currentGuide.isLandOwner && currentGuide.landCount && currentGuide.landCount > 0 && (
-                <div className="flex items-center gap-1 text-amber-400 bg-amber-500/10 rounded-full px-2 py-0.5">
-                  <Home className="w-3 h-3" />
-                  <span>{currentGuide.landCount} {currentGuide.landCount === 1 ? 'property' : 'properties'}</span>
-                </div>
-              )}
             </div>
-
-            {/* Land details (if owner) */}
-            {currentGuide.isLandOwner && currentGuide.landNames && currentGuide.landNames.length > 0 && (
-              <div className="mt-2 p-2 bg-amber-500/5 border border-amber-500/20 rounded-lg">
-                <p className="text-amber-400 text-[10px] font-bold mb-1">🏡 Available for Lease:</p>
-                <p className="text-gray-300 text-[10px] line-clamp-1">{currentGuide.landNames.join(', ')}</p>
-              </div>
-            )}
           </div>
         </div>
       )}
