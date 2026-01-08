@@ -89,6 +89,9 @@ export async function POST(req: NextRequest) {
       'dao_wrap',              // Wrap TOURS to vTOURS for DAO voting
       'dao_unwrap',            // Unwrap vTOURS back to TOURS
       'dao_delegate',          // Delegate voting power
+      'radio_voice_note',      // Live radio voice shoutout/ad payment
+      'radio_queue_song',      // Live radio song queue payment
+      'radio_claim_rewards',   // Live radio TOURS rewards claim
     ];
     const requiresDelegation = !publicActions.includes(action);
 
