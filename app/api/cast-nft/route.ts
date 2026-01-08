@@ -243,6 +243,107 @@ TX: https://testnet.monadscan.com/tx/${txHash}
       console.log('📢 Lottery winner cast text:', castText);
     }
 
+    // ==================== PLAY RECORDED CAST ====================
+    else if (type === 'play_recorded') {
+      const { songName, artistName, duration, artistFid } = params || {};
+      const discoverUrl = `${APP_URL}/discover`;
+
+      // Get listener username
+      let listenerDisplay = 'Someone';
+      if (fid && NEYNAR_API_KEY) {
+        try {
+          const userResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+            headers: { 'api_key': NEYNAR_API_KEY }
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.users && userData.users.length > 0) {
+              listenerDisplay = `@${userData.users[0].username}`;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch listener username:', err);
+        }
+      }
+
+      // Get artist username if FID provided
+      let artistDisplay = artistName || 'Unknown Artist';
+      if (artistFid && NEYNAR_API_KEY) {
+        try {
+          const artistResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${artistFid}`, {
+            headers: { 'api_key': NEYNAR_API_KEY }
+          });
+          if (artistResponse.ok) {
+            const artistData = await artistResponse.json();
+            if (artistData.users && artistData.users.length > 0) {
+              artistDisplay = `@${artistData.users[0].username}`;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch artist username:', err);
+        }
+      }
+
+      const durationMins = Math.floor((duration || 0) / 60);
+      const durationSecs = (duration || 0) % 60;
+      const durationStr = durationMins > 0 ? `${durationMins}m ${durationSecs}s` : `${durationSecs}s`;
+
+      castText = `🎵 ${listenerDisplay} just streamed on @empowertours!
+
+"${songName || 'Untitled'}" by ${artistDisplay}
+⏱️ ${durationStr} listened
+
+🎶 Artists earn 70% of subscription revenue
+📈 Each play counts towards artist payouts
+
+Discover music: fcempowertours.xyz/discover
+
+@empowertours`;
+
+      embeds = [{ url: discoverUrl }];
+      console.log('📢 Play recorded cast text:', castText);
+    }
+
+    // ==================== TOP ARTIST CAST (Weekly/Daily Highlight) ====================
+    else if (type === 'top_artist') {
+      const { artistName, artistFid: topArtistFid, playCount, songCount, totalEarnings } = params || {};
+      const discoverUrl = `${APP_URL}/discover`;
+
+      // Get artist username if FID provided
+      let artistDisplay = artistName || 'Unknown Artist';
+      if (topArtistFid && NEYNAR_API_KEY) {
+        try {
+          const artistResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${topArtistFid}`, {
+            headers: { 'api_key': NEYNAR_API_KEY }
+          });
+          if (artistResponse.ok) {
+            const artistData = await artistResponse.json();
+            if (artistData.users && artistData.users.length > 0) {
+              artistDisplay = `@${artistData.users[0].username}`;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch top artist username:', err);
+        }
+      }
+
+      castText = `🔥 TRENDING ARTIST on @empowertours!
+
+${artistDisplay} is making waves!
+📊 ${playCount || 0} streams
+🎵 ${songCount || 0} songs
+💰 ${totalEarnings || '0'} WMON earned
+
+🎶 Support independent artists - stream their music!
+
+Discover: fcempowertours.xyz/discover
+
+@empowertours`;
+
+      embeds = [{ url: discoverUrl }];
+      console.log('📢 Top artist cast text:', castText);
+    }
+
     if (!castText) {
       return NextResponse.json(
         { success: false, error: `Unknown cast type: ${type}` },

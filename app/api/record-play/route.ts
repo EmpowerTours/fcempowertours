@@ -59,6 +59,10 @@ interface PlayRequest {
   userAddress: string;
   masterTokenId: number;
   duration: number;
+  userFid?: number;
+  songName?: string;
+  artistName?: string;
+  artistFid?: number;
 }
 
 // Simple rate limiting
@@ -83,9 +87,9 @@ async function checkRateLimit(userAddress: string): Promise<{ allowed: boolean; 
 export async function POST(req: NextRequest) {
   try {
     const body: PlayRequest = await req.json();
-    const { userAddress, masterTokenId, duration } = body;
+    const { userAddress, masterTokenId, duration, userFid, songName, artistName, artistFid } = body;
 
-    console.log('🎵 Record play request:', { userAddress, masterTokenId, duration });
+    console.log('🎵 Record play request:', { userAddress, masterTokenId, duration, userFid });
 
     // Basic validation
     if (!userAddress || !masterTokenId || duration === undefined) {
@@ -171,6 +175,27 @@ export async function POST(req: NextRequest) {
       }
 
       console.log('✅ Play recorded!');
+
+      // Cast to Farcaster (non-blocking, don't wait for result)
+      if (userFid) {
+        const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+        fetch(`${appUrl}/api/cast-nft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'play_recorded',
+            fid: userFid,
+            tokenId: masterTokenId,
+            txHash: tx.hash,
+            params: {
+              songName: songName || `Song #${masterTokenId}`,
+              artistName: artistName,
+              artistFid: artistFid,
+              duration: duration,
+            }
+          })
+        }).catch(err => console.log('Cast failed (non-blocking):', err.message));
+      }
 
       return NextResponse.json({
         success: true,

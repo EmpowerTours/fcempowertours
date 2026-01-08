@@ -7,6 +7,7 @@ interface Song {
   title: string;
   artist: string;
   artistUsername?: string; // Farcaster username (e.g., @unify34)
+  artistFid?: number; // Artist's Farcaster ID
   audioUrl: string;
   imageUrl: string;
   isPreview?: boolean; // True if user doesn't own this NFT
@@ -23,6 +24,7 @@ interface NFTObject {
   contractAddress: string;
   tokenURI?: string;
   artistUsername?: string;
+  artistFid?: number;
 }
 
 interface MusicPlaylistProps {
@@ -160,6 +162,10 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
           userAddress,
           masterTokenId: parseInt(song.tokenId),
           duration: Math.floor(playDuration),
+          userFid: userFid, // For Farcaster bot casting
+          songName: song.title,
+          artistName: song.artistUsername || song.artist,
+          artistFid: song.artistFid,
         }),
       });
 
@@ -174,7 +180,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
     } catch (error) {
       console.error('[MusicPlaylist] Error recording play:', error);
     }
-  }, [userAddress]);
+  }, [userAddress, userFid]);
 
   // Fetch user's purchased music NFTs
   useEffect(() => {
@@ -254,6 +260,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
               title: nft.name || `Music NFT #${nft.tokenId}`,
               artist: 'Unknown Artist',
               artistUsername: nft.artistUsername, // Farcaster username from API
+              artistFid: nft.artistFid, // Artist's Farcaster ID for bot casting
               audioUrl: '', // Will try to fetch from metadata
               imageUrl: nft.imageUrl,
               isPreview: shouldBePreview, // Only preview if not subscriber
