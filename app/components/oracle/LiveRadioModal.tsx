@@ -726,27 +726,27 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                 {/* Current Song */}
                 {radioState?.currentSong ? (
                   <div className="bg-black/40 rounded-2xl p-4 border border-purple-500/20">
-                    <div className="flex flex-row items-start gap-3 overflow-hidden">
-                      <div className="w-16 h-16 rounded-xl bg-purple-500/20 overflow-hidden flex-shrink-0">
-                        {radioState.currentSong.imageUrl ? (
-                          <img
-                            src={radioState.currentSong.imageUrl}
-                            alt={radioState.currentSong.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Music2 className="w-6 h-6 text-purple-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 overflow-hidden">
-                        <p className="text-white font-bold text-sm break-words">{radioState.currentSong.name}</p>
-                        <p className="text-xs text-gray-400 break-all">{radioState.currentSong.artist}</p>
-                        <p className="text-xs text-purple-400 mt-1">
-                          Queued by: {radioState.currentSong.queuedBy.slice(0, 6)}...
-                        </p>
-                      </div>
+                    {/* Album Art */}
+                    <div className="w-full aspect-square rounded-xl bg-purple-500/20 overflow-hidden mb-3">
+                      {radioState.currentSong.imageUrl ? (
+                        <img
+                          src={radioState.currentSong.imageUrl}
+                          alt={radioState.currentSong.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Music2 className="w-12 h-12 text-purple-400" />
+                        </div>
+                      )}
+                    </div>
+                    {/* Song Info */}
+                    <div className="text-center">
+                      <p className="text-white font-bold text-lg">{radioState.currentSong.name}</p>
+                      <p className="text-sm text-gray-400">{radioState.currentSong.artist}</p>
+                      <p className="text-xs text-purple-400 mt-1">
+                        Queued by: {radioState.currentSong.queuedBy.slice(0, 6)}...{radioState.currentSong.queuedBy.slice(-4)}
+                      </p>
                     </div>
 
                     {/* Audio Element */}
