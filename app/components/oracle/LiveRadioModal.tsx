@@ -64,6 +64,7 @@ interface VoiceNote {
   message?: string;
   createdAt: number;
   played: boolean;
+  isAd: boolean;
 }
 
 interface ListenerStats {
