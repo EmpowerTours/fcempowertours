@@ -1,27 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbiItem, formatEther, Address } from 'viem';
-import { monadTestnet } from '@/app/chains';
+import { formatEther } from 'viem';
 
 /**
  * Streaming Stats API
  *
- * Uses existing data sources:
- * 1. MusicLicense from Envio (purchases = artist payments)
- * 2. PlayRecorded events from PlayOracle contract (on-chain)
- * 3. MusicNFT data for song metadata
+ * Uses Envio indexer data:
+ * 1. MusicLicense = purchases (artist payments at 70%)
+ * 2. MusicNFT = song metadata
  */
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
-const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE as Address;
-const NFT_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
-
-const publicClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
-});
-
-// PlayRecorded event from PlayOracle
-const PlayRecordedEvent = parseAbiItem('event PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp)');
 
 interface StreamingStats {
   totalPlays: number;
@@ -68,99 +56,7 @@ export async function GET(req: NextRequest) {
       topArtists: [],
     };
 
-    // 1. Fetch recent plays from PlayOracle contract (on-chain)
-    if (PLAY_ORACLE_ADDRESS) {
-      try {
-        const currentBlock = await publicClient.getBlockNumber();
-        const BLOCK_RANGE = BigInt(5000); // RPC limits block range, use smaller chunks
-        const MAX_BLOCKS_BACK = BigInt(50000); // ~1 day of blocks
-        const startBlock = currentBlock > MAX_BLOCKS_BACK ? currentBlock - MAX_BLOCKS_BACK : 0n;
-
-        // Paginate through blocks in chunks to avoid RPC limits
-        const playLogs: any[] = [];
-        for (let from = startBlock; from < currentBlock; from += BLOCK_RANGE) {
-          const to = from + BLOCK_RANGE > currentBlock ? currentBlock : from + BLOCK_RANGE;
-          try {
-            const logs = await publicClient.getLogs({
-              address: PLAY_ORACLE_ADDRESS,
-              event: PlayRecordedEvent,
-              fromBlock: from,
-              toBlock: to,
-            });
-            playLogs.push(...logs);
-          } catch (e) {
-            console.error(`[StreamingStats] Error fetching blocks ${from}-${to}:`, e);
-          }
-        }
-
-        console.log(`[StreamingStats] Found ${playLogs.length} play events on-chain`);
-
-        const uniqueListeners = new Set<string>();
-        const songPlayCounts = new Map<string, number>();
-
-        // Collect token IDs for metadata fetch
-        const tokenIds = [...new Set(playLogs.map(log => log.args.masterTokenId?.toString() || ''))];
-
-        // Fetch metadata from Envio
-        const metadataMap = new Map<string, { name: string; artist: string }>();
-        if (tokenIds.length > 0) {
-          try {
-            const metaQuery = `
-              query GetMetadata($tokenIds: [String!]!) {
-                MusicNFT(where: {tokenId: {_in: $tokenIds}}) {
-                  tokenId
-                  name
-                  artist
-                }
-              }
-            `;
-            const metaResponse = await fetch(ENVIO_ENDPOINT, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ query: metaQuery, variables: { tokenIds } }),
-            });
-            const metaData = await metaResponse.json();
-            (metaData.data?.MusicNFT || []).forEach((nft: any) => {
-              metadataMap.set(nft.tokenId, { name: nft.name || `Song #${nft.tokenId}`, artist: nft.artist });
-            });
-          } catch (e) {
-            console.error('[StreamingStats] Metadata fetch error:', e);
-          }
-        }
-
-        // Process play logs
-        playLogs.slice(-limit * 2).reverse().forEach(log => {
-          const user = log.args.user as string;
-          const tokenId = log.args.masterTokenId?.toString() || '';
-          const duration = Number(log.args.duration || 0);
-          const timestamp = Number(log.args.timestamp || 0);
-          const metadata = metadataMap.get(tokenId);
-
-          uniqueListeners.add(user.toLowerCase());
-          songPlayCounts.set(tokenId, (songPlayCounts.get(tokenId) || 0) + 1);
-
-          if (stats.recentPlays.length < limit) {
-            stats.recentPlays.push({
-              user,
-              masterTokenId: tokenId,
-              duration,
-              timestamp,
-              txHash: log.transactionHash,
-              songName: metadata?.name,
-              artistAddress: metadata?.artist,
-            });
-          }
-        });
-
-        stats.totalPlays = playLogs.length;
-        stats.uniqueListeners = uniqueListeners.size;
-
-      } catch (error) {
-        console.error('[StreamingStats] Error fetching play events:', error);
-      }
-    }
-
-    // 2. Fetch sales data from Envio (MusicLicense = purchases = artist payments)
+    // Fetch all data from Envio (sales + NFTs)
     try {
       const salesQuery = `
         query GetSalesData {
@@ -282,8 +178,7 @@ export async function GET(req: NextRequest) {
       success: true,
       stats,
       sources: {
-        plays: PLAY_ORACLE_ADDRESS ? 'on-chain (PlayOracle)' : 'not configured',
-        sales: 'envio (MusicLicense)',
+        data: 'envio (MusicLicense, MusicNFT)',
       },
     });
 
