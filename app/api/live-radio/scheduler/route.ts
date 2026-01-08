@@ -26,7 +26,7 @@ const SCHEDULER_LOCK_KEY = 'live-radio:scheduler-lock';
 const PLAYBACK_PHASE_KEY = 'live-radio:playback-phase'; // 'song' | 'voice_note'
 
 const KEEPER_SECRET = process.env.KEEPER_SECRET || '';
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || '';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
 
 interface RadioState {
   isLive: boolean;

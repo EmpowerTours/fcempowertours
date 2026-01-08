@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw } from 'lucide-react';
+import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw, Wallet, ArrowDownToLine } from 'lucide-react';
 import { ethers } from 'ethers';
+import { useFarcasterContext } from '../../hooks/useFarcasterContext';
 
 interface DAOModalProps {
   userAddress?: string;
@@ -41,15 +42,19 @@ const DAO_ABI = [
 type TabType = 'overview' | 'wrap' | 'delegate';
 
 export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
+  const { sendTransaction } = useFarcasterContext();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(false);
-  const [toursBalance, setToursBalance] = useState('0');
+  const [toursBalance, setToursBalance] = useState('0'); // Wallet balance
+  const [safeToursBalance, setSafeToursBalance] = useState('0'); // Safe balance
+  const [safeAddress, setSafeAddress] = useState<string | null>(null);
   const [vToursBalance, setVToursBalance] = useState('0');
   const [votingPower, setVotingPower] = useState('0');
   const [delegatedTo, setDelegatedTo] = useState<string | null>(null);
   const [wrapAmount, setWrapAmount] = useState('');
   const [unwrapAmount, setUnwrapAmount] = useState('');
+  const [fundAmount, setFundAmount] = useState('');
   const [delegateAddress, setDelegateAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -61,6 +66,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     timelockDelay: '2 days',
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [fundingInProgress, setFundingInProgress] = useState(false);
 
   // Mount state for portal rendering (SSR safety)
   useEffect(() => {
@@ -81,36 +87,62 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
         name: 'monad-testnet'
       });
 
-      // Fetch TOURS balance
+      // Get User Safe address
+      let userSafeAddr: string | null = null;
       try {
-        const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
-        const toursBal = await toursContract.balanceOf(userAddress);
-        setToursBalance(ethers.formatEther(toursBal));
-        console.log('[DAOModal] TOURS balance:', ethers.formatEther(toursBal));
-      } catch (toursErr) {
-        console.warn('[DAOModal] Failed to fetch TOURS balance:', toursErr);
+        const safeRes = await fetch(`/api/get-user-safe?address=${userAddress}`);
+        const safeData = await safeRes.json();
+        if (safeData.success && safeData.safeAddress) {
+          userSafeAddr = safeData.safeAddress;
+          setSafeAddress(userSafeAddr);
+          console.log('[DAOModal] User Safe:', userSafeAddr);
+        }
+      } catch (safeErr) {
+        console.warn('[DAOModal] Failed to fetch Safe address:', safeErr);
       }
 
-      // Fetch vTOURS balance and voting power
-      if (VTOURS_ADDRESS) {
+      const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
+
+      // Fetch wallet TOURS balance
+      try {
+        const toursBal = await toursContract.balanceOf(userAddress);
+        setToursBalance(ethers.formatEther(toursBal));
+        console.log('[DAOModal] Wallet TOURS balance:', ethers.formatEther(toursBal));
+      } catch (toursErr) {
+        console.warn('[DAOModal] Failed to fetch wallet TOURS balance:', toursErr);
+      }
+
+      // Fetch Safe TOURS balance
+      if (userSafeAddr) {
+        try {
+          const safeToursBal = await toursContract.balanceOf(userSafeAddr);
+          setSafeToursBalance(ethers.formatEther(safeToursBal));
+          console.log('[DAOModal] Safe TOURS balance:', ethers.formatEther(safeToursBal));
+        } catch (safeToursErr) {
+          console.warn('[DAOModal] Failed to fetch Safe TOURS balance:', safeToursErr);
+        }
+      }
+
+      // Fetch vTOURS balance and voting power (from Safe, since delegation wraps to Safe)
+      if (VTOURS_ADDRESS && userSafeAddr) {
         try {
           const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, provider);
-          const vToursBal = await vToursContract.balanceOf(userAddress);
+          const vToursBal = await vToursContract.balanceOf(userSafeAddr);
           setVToursBalance(ethers.formatEther(vToursBal));
 
-          const votes = await vToursContract.getVotes(userAddress);
+          const votes = await vToursContract.getVotes(userSafeAddr);
           setVotingPower(ethers.formatEther(votes));
 
-          const delegate = await vToursContract.delegates(userAddress);
+          const delegate = await vToursContract.delegates(userSafeAddr);
           if (delegate !== ethers.ZeroAddress) {
             setDelegatedTo(delegate);
           }
-          console.log('[DAOModal] vTOURS data loaded, voting power:', ethers.formatEther(votes));
+          console.log('[DAOModal] Safe vTOURS data loaded, voting power:', ethers.formatEther(votes));
         } catch (vtoursErr) {
           console.warn('[DAOModal] vTOURS contract not available:', vtoursErr);
         }
       } else {
-        console.log('[DAOModal] vTOURS address not configured');
+        console.log('[DAOModal] vTOURS address not configured or no Safe');
       }
     } catch (err) {
       console.error('[DAOModal] Failed to fetch DAO data:', err);
@@ -127,6 +159,45 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     setRefreshing(true);
     await fetchData();
     setRefreshing(false);
+  };
+
+  // Fund Safe - transfer TOURS from wallet to Safe using Farcaster SDK
+  const handleFundSafe = async () => {
+    if (!userAddress || !safeAddress || !fundAmount || parseFloat(fundAmount) <= 0) return;
+    setFundingInProgress(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const amountWei = ethers.parseEther(fundAmount).toString();
+
+      // ERC20 transfer calldata
+      const transferData = new ethers.Interface([
+        'function transfer(address to, uint256 amount) external returns (bool)'
+      ]).encodeFunctionData('transfer', [safeAddress, amountWei]);
+
+      console.log('[DAOModal] Funding Safe with', fundAmount, 'TOURS');
+      console.log('[DAOModal] To:', safeAddress);
+
+      // Use Farcaster SDK to send transaction from user wallet
+      const result = await sendTransaction({
+        to: TOURS_ADDRESS,
+        data: transferData,
+        value: '0x0',
+      });
+
+      console.log('[DAOModal] Fund Safe result:', result);
+      setSuccess(`Transferred ${fundAmount} TOURS to your Safe! Refresh in a few seconds.`);
+      setFundAmount('');
+
+      // Refresh balances after delay
+      setTimeout(() => fetchData(), 3000);
+    } catch (err: any) {
+      console.error('[DAOModal] Fund Safe failed:', err);
+      setError(err.message || 'Failed to transfer TOURS to Safe');
+    } finally {
+      setFundingInProgress(false);
+    }
   };
 
   const handleWrap = async () => {
@@ -305,20 +376,35 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
         {/* Content */}
         <div className="p-6">
           {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="bg-gray-800/50 rounded-xl p-3 text-center">
-              <Coins className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
-              <p className="text-xs text-gray-400">TOURS</p>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-gray-800/50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Wallet className="w-4 h-4 text-yellow-400" />
+                <p className="text-xs text-gray-400">Wallet TOURS</p>
+              </div>
               <p className="text-lg font-bold text-white">{formatNumber(toursBalance)}</p>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-3 text-center">
-              <Shield className="w-5 h-5 text-purple-400 mx-auto mb-1" />
-              <p className="text-xs text-gray-400">vTOURS</p>
+            <div className="bg-gray-800/50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Shield className="w-4 h-4 text-blue-400" />
+                <p className="text-xs text-gray-400">Safe TOURS</p>
+              </div>
+              <p className="text-lg font-bold text-white">{formatNumber(safeToursBalance)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="bg-gray-800/50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Vote className="w-4 h-4 text-purple-400" />
+                <p className="text-xs text-gray-400">vTOURS</p>
+              </div>
               <p className="text-lg font-bold text-white">{formatNumber(vToursBalance)}</p>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-3 text-center">
-              <TrendingUp className="w-5 h-5 text-green-400 mx-auto mb-1" />
-              <p className="text-xs text-gray-400">Voting Power</p>
+            <div className="bg-gray-800/50 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="w-4 h-4 text-green-400" />
+                <p className="text-xs text-gray-400">Voting Power</p>
+              </div>
               <p className="text-lg font-bold text-white">{formatNumber(votingPower)}</p>
             </div>
           </div>
@@ -384,13 +470,55 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
 
           {activeTab === 'wrap' && (
             <div className="space-y-4">
+              {/* Fund Safe Section - only show if wallet has TOURS but Safe doesn't */}
+              {parseFloat(toursBalance) > 0 && (
+                <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                  <h3 className="text-sm font-medium text-blue-400 mb-2 flex items-center gap-2">
+                    <ArrowDownToLine className="w-4 h-4" />
+                    Step 1: Fund Your Safe
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-3">
+                    Transfer TOURS from your wallet to your Safe for gasless DAO operations.
+                  </p>
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        type="number"
+                        value={fundAmount}
+                        onChange={(e) => setFundAmount(e.target.value)}
+                        placeholder="Amount to transfer"
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => setFundAmount(toursBalance)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-400 hover:text-blue-300"
+                      >
+                        MAX
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleFundSafe}
+                      disabled={fundingInProgress || !fundAmount || !safeAddress}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors flex items-center gap-2"
+                    >
+                      {fundingInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Fund'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Wrap Section */}
               <div className="bg-gray-800/30 rounded-xl p-4">
                 <h3 className="text-sm font-medium text-purple-400 mb-3 flex items-center gap-2">
                   <ArrowRightLeft className="w-4 h-4" />
-                  Wrap TOURS → vTOURS
+                  {parseFloat(toursBalance) > 0 ? 'Step 2: ' : ''}Wrap TOURS → vTOURS
                 </h3>
-                <p className="text-xs text-gray-400 mb-3">Get voting power by wrapping TOURS. Auto-delegates to yourself.</p>
+                <p className="text-xs text-gray-400 mb-3">
+                  Get voting power by wrapping TOURS from your Safe. Auto-delegates to yourself.
+                  {parseFloat(safeToursBalance) === 0 && parseFloat(toursBalance) > 0 && (
+                    <span className="text-yellow-400 block mt-1">⚠️ Fund your Safe first to wrap tokens.</span>
+                  )}
+                </p>
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
                     <input
@@ -401,7 +529,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
                       className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                     />
                     <button
-                      onClick={() => setWrapAmount(toursBalance)}
+                      onClick={() => setWrapAmount(safeToursBalance)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-300"
                     >
                       MAX
@@ -409,7 +537,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
                   </div>
                   <button
                     onClick={handleWrap}
-                    disabled={loading || !wrapAmount}
+                    disabled={loading || !wrapAmount || parseFloat(safeToursBalance) === 0}
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors flex items-center gap-2"
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Wrap'}
