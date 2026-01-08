@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3 } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -13,6 +13,7 @@ import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { DashboardModal } from '@/app/components/oracle/DashboardModal';
 import { UserProfileModal } from '@/app/components/oracle/UserProfileModal';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
+import { LiveRadioModal } from '@/app/components/oracle/LiveRadioModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { useRouter } from 'next/navigation';
@@ -78,6 +79,7 @@ export default function OraclePage() {
   const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDAOModal, setShowDAOModal] = useState(false);
+  const [showRadioModal, setShowRadioModal] = useState(false);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [viewingUserAddress, setViewingUserAddress] = useState<string | null>(null);
@@ -644,6 +646,13 @@ export default function OraclePage() {
                       DAO
                     </button>
                     <button
+                      onClick={() => setShowRadioModal(true)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-pink-500/20 to-purple-600/20 hover:from-pink-500/30 hover:to-purple-600/30 border border-pink-500/30 rounded-lg text-xs text-pink-400 font-semibold transition-all flex items-center gap-1"
+                    >
+                      <Radio className="w-3 h-3" />
+                      Radio
+                    </button>
+                    <button
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -935,6 +944,11 @@ export default function OraclePage() {
           userAddress={walletAddress ?? undefined}
           onClose={() => setShowDAOModal(false)}
         />
+      )}
+
+      {/* Live Radio Modal */}
+      {showRadioModal && (
+        <LiveRadioModal onClose={() => setShowRadioModal(false)} />
       )}
 
       {/* Dashboard Modal */}

@@ -1,0 +1,529 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
+
+/**
+ * Live Radio API
+ *
+ * A simple jukebox + podcast style radio where:
+ * - Users pay WMON to queue songs
+ * - Users can record 3-5 second voice shoutouts during breaks
+ * - All listeners hear the same stream
+ *
+ * World Cup 2026 Feature: Tourism + Cultural Experience
+ */
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+const RADIO_STATE_KEY = 'live-radio:state';
+const RADIO_QUEUE_KEY = 'live-radio:queue';
+const VOICE_NOTES_KEY = 'live-radio:voice-notes';
+const LISTENER_STATS_KEY = 'live-radio:listener-stats';
+const ACTIVE_LISTENERS_KEY = 'live-radio:active-listeners';
+const DAILY_FIRST_LISTENER_KEY = 'live-radio:first-listener';
+const QUEUE_PRICE_WMON = 1; // 1 WMON to queue a song
+const VOICE_NOTE_PRICE_WMON = 0.5; // 0.5 WMON for a voice shoutout
+const VOICE_AD_PRICE_WMON = 2; // 2 WMON for 30-second ad
+const MAX_VOICE_NOTE_SECONDS = 5;
+const MAX_VOICE_AD_SECONDS = 30;
+const LISTENER_HEARTBEAT_EXPIRY = 60; // Seconds before listener is considered inactive
+const LISTEN_REWARD_TOURS = 0.1; // 0.1 TOURS per song listened
+const FIRST_LISTENER_BONUS_TOURS = 5; // 5 TOURS for first listener of day
+const STREAK_BONUS_TOURS = 10; // 10 TOURS for 7-day streak
+
+interface RadioState {
+  isLive: boolean;
+  currentSong: {
+    tokenId: string;
+    name: string;
+    artist: string;
+    artistAddress: string;
+    audioUrl: string;
+    imageUrl: string;
+    queuedBy: string;
+    queuedByFid: number;
+    startedAt: number;
+    duration: number;
+    isRandom: boolean;
+  } | null;
+  currentVoiceNote: {
+    id: string;
+    submitter: string;
+    username?: string;
+    audioUrl: string;
+    duration: number;
+    message?: string;
+    startedAt: number;
+    isAd: boolean;
+  } | null;
+  listenerCount: number;
+  lastUpdated: number;
+  totalSongsPlayed: number;
+  totalVoiceNotesPlayed: number;
+}
+
+interface QueuedSong {
+  id: string;
+  tokenId: string;
+  name: string;
+  artist: string;
+  artistAddress: string;
+  audioUrl: string;
+  imageUrl: string;
+  queuedBy: string;
+  queuedByFid: number;
+  queuedAt: number;
+  paidAmount: string;
+}
+
+interface VoiceNote {
+  id: string;
+  userAddress: string;
+  userFid: number;
+  username?: string;
+  audioUrl: string; // IPFS URL
+  duration: number;
+  message?: string;
+  createdAt: number;
+  played: boolean;
+  isAd: boolean;
+}
+
+interface ListenerStats {
+  totalSongsListened: number;
+  totalRewardsEarned: number;
+  pendingRewards: number;
+  lastListenDay: number; // Day number
+  currentStreak: number;
+  longestStreak: number;
+  voiceNotesSubmitted: number;
+  voiceNotesPlayed: number;
+  firstListenerBonuses: number;
+}
+
+// GET - Get current radio state
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get('action');
+
+    // Get queue
+    if (action === 'queue') {
+      const queue = await redis.lrange(RADIO_QUEUE_KEY, 0, 20);
+      return NextResponse.json({
+        success: true,
+        queue: queue.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item),
+      });
+    }
+
+    // Get voice notes (pending)
+    if (action === 'voice-notes') {
+      const notes = await redis.lrange(VOICE_NOTES_KEY, 0, 10);
+      return NextResponse.json({
+        success: true,
+        voiceNotes: notes.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item),
+      });
+    }
+
+    // Get listener stats
+    if (action === 'listener-stats') {
+      const userAddress = searchParams.get('address');
+      if (!userAddress) {
+        return NextResponse.json({ success: false, error: 'Address required' }, { status: 400 });
+      }
+
+      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userAddress.toLowerCase());
+      return NextResponse.json({
+        success: true,
+        stats: stats || {
+          totalSongsListened: 0,
+          totalRewardsEarned: 0,
+          pendingRewards: 0,
+          lastListenDay: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+          voiceNotesSubmitted: 0,
+          voiceNotesPlayed: 0,
+          firstListenerBonuses: 0,
+        },
+      });
+    }
+
+    // Get current state
+    const state = await redis.get<RadioState>(RADIO_STATE_KEY);
+
+    return NextResponse.json({
+      success: true,
+      state: state || {
+        isLive: false,
+        currentSong: null,
+        currentVoiceNote: null,
+        listenerCount: 0,
+        lastUpdated: Date.now(),
+        totalSongsPlayed: 0,
+        totalVoiceNotesPlayed: 0,
+      },
+      pricing: {
+        queueSong: QUEUE_PRICE_WMON,
+        voiceNote: VOICE_NOTE_PRICE_WMON,
+        voiceAd: VOICE_AD_PRICE_WMON,
+        maxVoiceNoteDuration: MAX_VOICE_NOTE_SECONDS,
+        maxVoiceAdDuration: MAX_VOICE_AD_SECONDS,
+      },
+      rewards: {
+        perSong: LISTEN_REWARD_TOURS,
+        firstListener: FIRST_LISTENER_BONUS_TOURS,
+        streak7Days: STREAK_BONUS_TOURS,
+      },
+    });
+  } catch (error: any) {
+    console.error('[LiveRadio] GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Queue a song or submit a voice note
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { action, userAddress, userFid } = body;
+
+    if (!userAddress) {
+      return NextResponse.json(
+        { success: false, error: 'User address required' },
+        { status: 400 }
+      );
+    }
+
+    // Queue a song (requires WMON payment)
+    if (action === 'queue_song') {
+      const { tokenId, name, artist, artistAddress, audioUrl, imageUrl, txHash } = body;
+
+      if (!tokenId || !audioUrl) {
+        return NextResponse.json(
+          { success: false, error: 'Missing song details' },
+          { status: 400 }
+        );
+      }
+
+      if (!txHash) {
+        return NextResponse.json(
+          { success: false, error: `Queueing songs requires ${QUEUE_PRICE_WMON} WMON payment. Please submit with txHash.` },
+          { status: 400 }
+        );
+      }
+
+      const queuedSong: QueuedSong = {
+        id: `${userAddress}-${tokenId}-${Date.now()}`,
+        tokenId,
+        name: name || `Song #${tokenId}`,
+        artist: artist || 'Unknown Artist',
+        artistAddress: artistAddress || artist || '',
+        audioUrl,
+        imageUrl: imageUrl || '',
+        queuedBy: userAddress,
+        queuedByFid: userFid || 0,
+        queuedAt: Date.now(),
+        paidAmount: `${QUEUE_PRICE_WMON}`,
+      };
+
+      await redis.rpush(RADIO_QUEUE_KEY, JSON.stringify(queuedSong));
+
+      console.log('[LiveRadio] Song queued:', name, 'by', userAddress);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Song added to queue!',
+        queuePosition: await redis.llen(RADIO_QUEUE_KEY),
+        song: queuedSong,
+      });
+    }
+
+    // Submit a voice note (requires WMON payment)
+    if (action === 'voice_note') {
+      const { audioUrl, duration, message, username, txHash } = body;
+
+      if (!audioUrl) {
+        return NextResponse.json(
+          { success: false, error: 'Audio URL required' },
+          { status: 400 }
+        );
+      }
+
+      if (!txHash) {
+        return NextResponse.json(
+          { success: false, error: `Voice notes require ${VOICE_NOTE_PRICE_WMON} WMON payment. Please submit with txHash.` },
+          { status: 400 }
+        );
+      }
+
+      if (duration > MAX_VOICE_NOTE_SECONDS) {
+        return NextResponse.json(
+          { success: false, error: `Voice notes must be ${MAX_VOICE_NOTE_SECONDS} seconds or less` },
+          { status: 400 }
+        );
+      }
+
+      const voiceNote: VoiceNote = {
+        id: `${userAddress}-${Date.now()}`,
+        userAddress,
+        userFid: userFid || 0,
+        username,
+        audioUrl,
+        duration: duration || 0,
+        message,
+        createdAt: Date.now(),
+        played: false,
+        isAd: false,
+      };
+
+      await redis.rpush(VOICE_NOTES_KEY, JSON.stringify(voiceNote));
+
+      // Update listener stats
+      const userKey = userAddress.toLowerCase();
+      let stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      if (stats) {
+        stats.voiceNotesSubmitted++;
+        await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
+      }
+
+      console.log('[LiveRadio] Voice note submitted by', username || userAddress);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Voice note submitted! It will play during the next break.',
+        voiceNote,
+      });
+    }
+
+    // Submit a voice ad (30 seconds, requires higher WMON payment)
+    if (action === 'voice_ad') {
+      const { audioUrl, message, username, txHash } = body;
+
+      if (!audioUrl) {
+        return NextResponse.json(
+          { success: false, error: 'Audio URL required' },
+          { status: 400 }
+        );
+      }
+
+      if (!txHash) {
+        return NextResponse.json(
+          { success: false, error: `Voice ads require ${VOICE_AD_PRICE_WMON} WMON payment. Please submit with txHash.` },
+          { status: 400 }
+        );
+      }
+
+      const voiceAd: VoiceNote = {
+        id: `ad-${userAddress}-${Date.now()}`,
+        userAddress,
+        userFid: userFid || 0,
+        username,
+        audioUrl,
+        duration: MAX_VOICE_AD_SECONDS,
+        message,
+        createdAt: Date.now(),
+        played: false,
+        isAd: true,
+      };
+
+      // Ads go to front of queue (after other ads)
+      await redis.rpush(VOICE_NOTES_KEY, JSON.stringify(voiceAd));
+
+      // Update listener stats
+      const userKey = userAddress.toLowerCase();
+      let stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      if (stats) {
+        stats.voiceNotesSubmitted++;
+        await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
+      }
+
+      console.log('[LiveRadio] Voice ad submitted by', username || userAddress);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Voice ad submitted! It will play during the next ad break.',
+        voiceAd,
+      });
+    }
+
+    // Start radio (admin only)
+    if (action === 'start_radio') {
+      const state: RadioState = {
+        isLive: true,
+        currentSong: null,
+        currentVoiceNote: null,
+        listenerCount: 0,
+        lastUpdated: Date.now(),
+        totalSongsPlayed: 0,
+        totalVoiceNotesPlayed: 0,
+      };
+      await redis.set(RADIO_STATE_KEY, state);
+
+      // Initialize playback phase
+      await redis.set('live-radio:playback-phase', 'song');
+
+      return NextResponse.json({
+        success: true,
+        message: 'Radio is now live! Call /api/live-radio/scheduler to start playback.',
+        state,
+      });
+    }
+
+    // Stop radio (admin only)
+    if (action === 'stop_radio') {
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY);
+      if (state) {
+        state.isLive = false;
+        state.currentSong = null;
+        state.currentVoiceNote = null;
+        state.lastUpdated = Date.now();
+        await redis.set(RADIO_STATE_KEY, state);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Radio stopped.',
+      });
+    }
+
+    // Play next song (admin/automated)
+    if (action === 'next_song') {
+      // Pop next song from queue
+      const nextSongJson = await redis.lpop(RADIO_QUEUE_KEY);
+      if (!nextSongJson) {
+        return NextResponse.json({
+          success: false,
+          error: 'Queue is empty',
+        });
+      }
+
+      const nextSong: QueuedSong = typeof nextSongJson === 'string' ? JSON.parse(nextSongJson) : nextSongJson;
+
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY) || {
+        isLive: true,
+        currentSong: null,
+        listenerCount: 0,
+        lastUpdated: Date.now(),
+      };
+
+      state.currentSong = {
+        ...nextSong,
+        startedAt: Date.now(),
+        duration: 180, // Default 3 minutes, should be passed from song metadata
+      };
+      state.lastUpdated = Date.now();
+
+      await redis.set(RADIO_STATE_KEY, state);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Now playing',
+        currentSong: state.currentSong,
+      });
+    }
+
+    // Heartbeat (listener tracking with rewards)
+    if (action === 'heartbeat') {
+      const { masterTokenId } = body;
+      const userKey = userAddress.toLowerCase();
+      const today = Math.floor(Date.now() / (24 * 60 * 60 * 1000)); // Day number
+
+      // Track active listener with expiry
+      await redis.setex(`${ACTIVE_LISTENERS_KEY}:${userKey}`, LISTENER_HEARTBEAT_EXPIRY, Date.now().toString());
+
+      // Count active listeners
+      const activeListenerKeys = await redis.keys(`${ACTIVE_LISTENERS_KEY}:*`);
+      const activeCount = activeListenerKeys.length;
+
+      // Update radio state listener count
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY);
+      if (state) {
+        state.listenerCount = activeCount;
+        state.lastUpdated = Date.now();
+        await redis.set(RADIO_STATE_KEY, state);
+      }
+
+      // Get or create listener stats
+      let stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey) || {
+        totalSongsListened: 0,
+        totalRewardsEarned: 0,
+        pendingRewards: 0,
+        lastListenDay: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        voiceNotesSubmitted: 0,
+        voiceNotesPlayed: 0,
+        firstListenerBonuses: 0,
+      };
+
+      let rewardEarned = 0;
+      let bonusType = '';
+
+      // Check for first listener of the day
+      const firstListenerKey = `${DAILY_FIRST_LISTENER_KEY}:${today}`;
+      const firstListener = await redis.get(firstListenerKey);
+      if (!firstListener) {
+        await redis.setex(firstListenerKey, 86400, userKey); // Expires in 24h
+        rewardEarned += FIRST_LISTENER_BONUS_TOURS;
+        stats.firstListenerBonuses++;
+        bonusType = 'first_listener';
+        console.log('[LiveRadio] First listener of day:', userKey, 'Bonus:', FIRST_LISTENER_BONUS_TOURS);
+      }
+
+      // Update streak
+      if (stats.lastListenDay === today - 1) {
+        // Consecutive day
+        stats.currentStreak++;
+        // Check for 7-day streak bonus
+        if (stats.currentStreak === 7) {
+          rewardEarned += STREAK_BONUS_TOURS;
+          bonusType = bonusType ? `${bonusType}+streak` : 'streak';
+          console.log('[LiveRadio] 7-day streak bonus for:', userKey);
+        }
+      } else if (stats.lastListenDay < today - 1) {
+        // Streak broken
+        stats.currentStreak = 1;
+      }
+      // Same day = no streak change
+
+      if (stats.currentStreak > stats.longestStreak) {
+        stats.longestStreak = stats.currentStreak;
+      }
+
+      // Listen reward (per heartbeat, limited to avoid abuse)
+      rewardEarned += LISTEN_REWARD_TOURS;
+      stats.totalSongsListened++;
+
+      stats.lastListenDay = today;
+      stats.pendingRewards += rewardEarned;
+      stats.totalRewardsEarned += rewardEarned;
+
+      await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
+
+      return NextResponse.json({
+        success: true,
+        listenerCount: activeCount,
+        stats,
+        rewardEarned,
+        bonusType: bonusType || 'listen',
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Unknown action' },
+      { status: 400 }
+    );
+  } catch (error: any) {
+    console.error('[LiveRadio] POST error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}

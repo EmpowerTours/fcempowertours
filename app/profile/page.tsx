@@ -1971,77 +1971,107 @@ export default function ProfilePage() {
             <div className="space-y-4">
               {/* Public Profile Toggle */}
               <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-                <div>
+                <div className="flex-1">
                   <p className="font-medium text-gray-900">Public Profile</p>
                   <p className="text-xs text-gray-500">Allow others to find and view your profile</p>
                 </div>
-                <button
-                  onClick={() => togglePrivacySetting('isPublicProfile')}
-                  disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.isPublicProfile ? 'bg-blue-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium ${privacySettings.isPublicProfile ? 'text-blue-600' : 'text-gray-400'}`}>
+                    {privacySettings.isPublicProfile ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    onClick={() => togglePrivacySetting('isPublicProfile')}
+                    disabled={privacyLoading}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${privacySettings.isPublicProfile ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label="Toggle public profile"
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Show Created NFTs */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="flex-1">
                   <p className="font-medium text-gray-900">🎨 Created NFTs</p>
                   <p className="text-xs text-gray-500">Show music/art you created</p>
                 </div>
-                <button
-                  onClick={() => togglePrivacySetting('showCreatedNFTs')}
-                  disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showCreatedNFTs ? 'bg-purple-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium ${privacySettings.showCreatedNFTs ? 'text-purple-600' : 'text-gray-400'}`}>
+                    {privacySettings.showCreatedNFTs ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    onClick={() => togglePrivacySetting('showCreatedNFTs')}
+                    disabled={privacyLoading}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 ${privacySettings.showCreatedNFTs ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label="Toggle show created NFTs"
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Show Purchased NFTs */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="flex-1">
                   <p className="font-medium text-gray-900">🛒 Purchased NFTs</p>
                   <p className="text-xs text-gray-500">Show NFTs you&apos;ve collected</p>
                 </div>
-                <button
-                  onClick={() => togglePrivacySetting('showPurchasedNFTs')}
-                  disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showPurchasedNFTs ? 'bg-pink-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium ${privacySettings.showPurchasedNFTs ? 'text-pink-600' : 'text-gray-400'}`}>
+                    {privacySettings.showPurchasedNFTs ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    onClick={() => togglePrivacySetting('showPurchasedNFTs')}
+                    disabled={privacyLoading}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 ${privacySettings.showPurchasedNFTs ? 'bg-pink-600 hover:bg-pink-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label="Toggle show purchased NFTs"
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Show Passports */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="flex-1">
                   <p className="font-medium text-gray-900">🌍 Passports</p>
                   <p className="text-xs text-gray-500">Show your passport collection</p>
                 </div>
-                <button
-                  onClick={() => togglePrivacySetting('showPassports')}
-                  disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showPassports ? 'bg-green-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium ${privacySettings.showPassports ? 'text-green-600' : 'text-gray-400'}`}>
+                    {privacySettings.showPassports ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    onClick={() => togglePrivacySetting('showPassports')}
+                    disabled={privacyLoading}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 ${privacySettings.showPassports ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label="Toggle show passports"
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Show Achievements */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="flex-1">
                   <p className="font-medium text-gray-900">🏆 Stats & Achievements</p>
                   <p className="text-xs text-gray-500">Show activity statistics</p>
                 </div>
-                <button
-                  onClick={() => togglePrivacySetting('showAchievements')}
-                  disabled={privacyLoading}
-                  className={`w-14 h-8 rounded-full transition-all cursor-pointer ${privacySettings.showAchievements ? 'bg-amber-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform pointer-events-none ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium ${privacySettings.showAchievements ? 'text-amber-600' : 'text-gray-400'}`}>
+                    {privacySettings.showAchievements ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    onClick={() => togglePrivacySetting('showAchievements')}
+                    disabled={privacyLoading}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 ${privacySettings.showAchievements ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label="Toggle show achievements"
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
             </div>
 
