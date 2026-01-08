@@ -565,6 +565,44 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Claim rewards (after successful TOURS transfer)
+    if (action === 'claim_rewards') {
+      const { txHash, amount } = body;
+      const userKey = userAddress.toLowerCase();
+
+      if (!txHash) {
+        return NextResponse.json(
+          { success: false, error: 'Transaction hash required for claim verification' },
+          { status: 400 }
+        );
+      }
+
+      // Get current stats
+      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      if (!stats || stats.pendingRewards <= 0) {
+        return NextResponse.json(
+          { success: false, error: 'No pending rewards to claim' },
+          { status: 400 }
+        );
+      }
+
+      const claimedAmount = stats.pendingRewards;
+
+      // Reset pending rewards
+      stats.pendingRewards = 0;
+      await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
+
+      console.log('[LiveRadio] Rewards claimed:', claimedAmount, 'TOURS by', userAddress, 'TX:', txHash);
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully claimed ${claimedAmount} TOURS!`,
+        claimedAmount,
+        txHash,
+        stats,
+      });
+    }
+
     return NextResponse.json(
       { success: false, error: 'Unknown action' },
       { status: 400 }

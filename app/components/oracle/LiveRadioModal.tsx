@@ -150,14 +150,15 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     }
   }, []);
 
-  // Fetch available songs from Envio
+  // Fetch available songs from Envio (only Music NFTs with audio)
   const fetchAvailableSongs = useCallback(async () => {
     setLoadingSongs(true);
     try {
       const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
+      // Only fetch NFTs that have fullAudioUrl (music NFTs, not art NFTs)
       const query = `
         query GetMusicNFTs {
-          MusicNFT(where: {isBurned: {_eq: false}}, limit: 50) {
+          MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 50) {
             tokenId
             name
             artist
@@ -176,13 +177,15 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
       const data = await response.json();
       if (data.data?.MusicNFT) {
-        // Map fullAudioUrl to audioUrl for compatibility
-        const songs = data.data.MusicNFT.map((song: any) => ({
-          ...song,
-          audioUrl: song.fullAudioUrl || song.audioUrl,
-        }));
+        // Map fullAudioUrl to audioUrl and filter out any without valid audio
+        const songs = data.data.MusicNFT
+          .filter((song: any) => song.fullAudioUrl && song.fullAudioUrl.length > 0)
+          .map((song: any) => ({
+            ...song,
+            audioUrl: song.fullAudioUrl,
+          }));
         setAvailableSongs(songs);
-        console.log('[LiveRadio] Fetched', songs.length, 'songs');
+        console.log('[LiveRadio] Fetched', songs.length, 'music NFTs (filtered out art NFTs)');
       }
     } catch (error) {
       console.error('[LiveRadio] Failed to fetch songs:', error);
@@ -204,12 +207,41 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     }
   }, []);
 
+  // Fetch pending voice notes
+  const fetchVoiceNotes = useCallback(async () => {
+    try {
+      const response = await fetch('/api/live-radio?action=voice-notes');
+      const data = await response.json();
+      if (data.success) {
+        setVoiceNotes(data.voiceNotes || []);
+      }
+    } catch (error) {
+      console.error('[LiveRadio] Failed to fetch voice notes:', error);
+    }
+  }, []);
+
+  // Fetch listener stats
+  const fetchListenerStats = useCallback(async () => {
+    if (!walletAddress) return;
+
+    try {
+      const response = await fetch(`/api/live-radio?action=listener-stats&address=${walletAddress}`);
+      const data = await response.json();
+      if (data.success && data.stats) {
+        setListenerStats(data.stats);
+        setPendingRewards(data.stats.pendingRewards?.toString() || '0');
+      }
+    } catch (error) {
+      console.error('[LiveRadio] Failed to fetch listener stats:', error);
+    }
+  }, [walletAddress]);
+
   // Send heartbeat
   const sendHeartbeat = useCallback(async () => {
     if (!walletAddress || !isPlaying || !radioState?.currentSong) return;
 
     try {
-      await fetch('/api/live-radio', {
+      const response = await fetch('/api/live-radio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -219,6 +251,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           masterTokenId: radioState.currentSong.tokenId,
         }),
       });
+
+      // Update stats from heartbeat response
+      const data = await response.json();
+      if (data.success && data.stats) {
+        setListenerStats(data.stats);
+        setPendingRewards(data.stats.pendingRewards?.toString() || '0');
+      }
     } catch (error) {
       console.error('[LiveRadio] Heartbeat failed:', error);
     }
@@ -228,17 +267,18 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchRadioState(), fetchQueue()]);
+      await Promise.all([fetchRadioState(), fetchQueue(), fetchVoiceNotes(), fetchListenerStats()]);
       setLoading(false);
     };
     init();
-  }, [fetchRadioState, fetchQueue]);
+  }, [fetchRadioState, fetchQueue, fetchVoiceNotes, fetchListenerStats]);
 
   // Poll for updates
   useEffect(() => {
     pollRef.current = setInterval(() => {
       fetchRadioState();
       fetchQueue();
+      fetchVoiceNotes();
     }, POLL_INTERVAL);
 
     return () => {
@@ -358,6 +398,27 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
     setQueueing(true);
     try {
+      // Step 1: Process WMON payment via delegated transaction
+      console.log('[LiveRadio] Processing payment to queue song:', song.name);
+      const paymentRes = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'radio_queue_song',
+          params: {},
+        }),
+      });
+
+      const paymentData = await paymentRes.json();
+      if (!paymentData.success) {
+        throw new Error(paymentData.error || 'Payment failed');
+      }
+
+      const txHash = paymentData.txHash;
+      console.log('[LiveRadio] Queue payment successful, TX:', txHash);
+
+      // Step 2: Add song to queue
       const response = await fetch('/api/live-radio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -370,7 +431,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           artist: song.artist,
           audioUrl: song.audioUrl,
           imageUrl: song.imageUrl,
-          txHash: 'demo-queue', // TODO: Integrate with actual WMON payment
+          txHash,
         }),
       });
 
@@ -380,11 +441,16 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         setShowQueueModal(false);
         setSelectedSong(null);
         console.log('[LiveRadio] Song queued:', song.name);
+
+        // Show success with tx hash link
+        const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
+        alert(`Song "${song.name}" queued successfully!\n\nTransaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n\nView on explorer: ${explorerUrl}`);
       } else {
-        console.error('[LiveRadio] Queue failed:', data.error);
+        throw new Error(data.error || 'Queue failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[LiveRadio] Queue failed:', error);
+      alert('Failed to queue song: ' + error.message);
     } finally {
       setQueueing(false);
     }
@@ -457,7 +523,27 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     setRecordingStatus('uploading');
 
     try {
-      // Upload to IPFS via Pinata
+      // Step 1: Process WMON payment via delegated transaction
+      console.log('[LiveRadio] Processing payment for', voiceNoteType);
+      const paymentRes = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'radio_voice_note',
+          params: { noteType: voiceNoteType },
+        }),
+      });
+
+      const paymentData = await paymentRes.json();
+      if (!paymentData.success) {
+        throw new Error(paymentData.error || 'Payment failed');
+      }
+
+      const txHash = paymentData.txHash;
+      console.log('[LiveRadio] Payment successful, TX:', txHash);
+
+      // Step 2: Upload audio to IPFS via Pinata
       const formData = new FormData();
       formData.append('file', recordedAudioBlob, `voice-${voiceNoteType}-${Date.now()}.webm`);
 
@@ -471,7 +557,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         throw new Error(uploadData.error || 'Upload failed');
       }
 
-      // Submit to live radio
+      // Step 3: Submit to live radio queue
       const action = voiceNoteType === 'shoutout' ? 'voice_note' : 'voice_ad';
       const response = await fetch('/api/live-radio', {
         method: 'POST',
@@ -483,7 +569,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           username: user?.username,
           audioUrl: uploadData.url,
           duration: recordingTime,
-          txHash: 'demo-voice', // TODO: Integrate with actual WMON payment
+          txHash,
         }),
       });
 
@@ -492,6 +578,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         console.log('[LiveRadio] Voice note submitted!');
         resetRecording();
         setShowVoiceNoteModal(false);
+
+        // Fetch updated voice notes to show in queue
+        await fetchVoiceNotes();
+
+        // Show success with tx hash link and queue info
+        const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
+        alert(`Voice ${voiceNoteType} submitted!\n\nYour shoutout will play after the current song ends.\nCheck "Pending Shoutouts" to see your position.\n\nTransaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n\nView on explorer: ${explorerUrl}`);
       } else {
         throw new Error(data.error || 'Submit failed');
       }
@@ -525,15 +618,60 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   // Claim rewards
   const handleClaimRewards = async () => {
-    if (!walletAddress || pendingRewards === '0') return;
+    if (!walletAddress || pendingRewards === '0' || parseFloat(pendingRewards) <= 0) return;
 
     setClaimingRewards(true);
     try {
-      // In production, this would call the smart contract
-      console.log('[LiveRadio] Claiming rewards:', pendingRewards);
-      setPendingRewards('0');
-    } catch (error) {
+      console.log('[LiveRadio] Claiming rewards:', pendingRewards, 'TOURS');
+
+      // Step 1: Execute TOURS transfer via delegated transaction
+      const paymentRes = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'radio_claim_rewards',
+          params: { amount: pendingRewards },
+        }),
+      });
+
+      const paymentData = await paymentRes.json();
+      if (!paymentData.success) {
+        throw new Error(paymentData.error || 'Claim failed');
+      }
+
+      const txHash = paymentData.txHash;
+      console.log('[LiveRadio] Rewards claim TX:', txHash);
+
+      // Step 2: Mark rewards as claimed in backend
+      const claimRes = await fetch('/api/live-radio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'claim_rewards',
+          userAddress: walletAddress,
+          txHash,
+          amount: pendingRewards,
+        }),
+      });
+
+      const claimData = await claimRes.json();
+      if (claimData.success) {
+        // Update local state
+        setPendingRewards('0');
+        if (claimData.stats) {
+          setListenerStats(claimData.stats);
+        }
+
+        // Show success with tx hash link
+        const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
+        alert(`Successfully claimed ${pendingRewards} TOURS!\n\nTransaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n\nView on explorer: ${explorerUrl}`);
+      } else {
+        throw new Error(claimData.error || 'Failed to mark rewards as claimed');
+      }
+    } catch (error: any) {
       console.error('[LiveRadio] Claim failed:', error);
+      alert('Failed to claim rewards: ' + error.message);
     } finally {
       setClaimingRewards(false);
     }
@@ -588,8 +726,8 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                 {/* Current Song */}
                 {radioState?.currentSong ? (
                   <div className="bg-black/40 rounded-2xl p-4 border border-purple-500/20">
-                    <div className="flex gap-4">
-                      <div className="w-20 h-20 rounded-xl bg-purple-500/20 overflow-hidden flex-shrink-0">
+                    <div className="flex flex-row items-start gap-3 overflow-hidden">
+                      <div className="w-16 h-16 rounded-xl bg-purple-500/20 overflow-hidden flex-shrink-0">
                         {radioState.currentSong.imageUrl ? (
                           <img
                             src={radioState.currentSong.imageUrl}
@@ -598,13 +736,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Music2 className="w-8 h-8 text-purple-400" />
+                            <Music2 className="w-6 h-6 text-purple-400" />
                           </div>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-bold truncate">{radioState.currentSong.name}</p>
-                        <p className="text-sm text-gray-400 truncate">{radioState.currentSong.artist}</p>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-white font-bold text-sm break-words">{radioState.currentSong.name}</p>
+                        <p className="text-xs text-gray-400 break-all">{radioState.currentSong.artist}</p>
                         <p className="text-xs text-purple-400 mt-1">
                           Queued by: {radioState.currentSong.queuedBy.slice(0, 6)}...
                         </p>
@@ -731,6 +869,48 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                 )}
               </div>
 
+              {/* Pending Voice Shoutouts */}
+              {voiceNotes.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Mic className="w-4 h-4 text-pink-400" />
+                      Pending Shoutouts
+                    </h3>
+                    <span className="text-xs text-pink-400">{voiceNotes.length} waiting</span>
+                  </div>
+                  <div className="space-y-2">
+                    {voiceNotes.slice(0, 5).map((note, index) => (
+                      <div
+                        key={note.id}
+                        className={`flex items-center gap-3 p-2 rounded-lg border ${
+                          note.userAddress?.toLowerCase() === walletAddress?.toLowerCase()
+                            ? 'bg-pink-500/20 border-pink-500/50'
+                            : 'bg-black/20 border-pink-500/10'
+                        }`}
+                      >
+                        <span className="text-xs text-gray-500 w-5">{index + 1}</span>
+                        <div className="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center flex-shrink-0">
+                          <Mic className="w-4 h-4 text-pink-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">
+                            {note.username || `${note.userAddress?.slice(0, 6)}...`}
+                            {note.userAddress?.toLowerCase() === walletAddress?.toLowerCase() && (
+                              <span className="text-pink-400 ml-1">(You)</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-400">{note.duration}s • {note.isAd ? 'Ad' : 'Shoutout'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Shoutouts play after each song ends
+                  </p>
+                </div>
+              )}
+
               {/* Rewards Section */}
               {walletAddress && (
                 <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-4">
@@ -760,15 +940,23 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                   </div>
                   <button
                     onClick={handleClaimRewards}
-                    disabled={claimingRewards || pendingRewards === '0'}
+                    disabled={claimingRewards || !pendingRewards || parseFloat(pendingRewards) <= 0}
                     className="w-full py-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-lg font-semibold text-sm transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {claimingRewards ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Claiming...
+                      </>
+                    ) : parseFloat(pendingRewards) > 0 ? (
+                      <>
+                        <Coins className="w-4 h-4" />
+                        Claim {pendingRewards} TOURS
+                      </>
                     ) : (
                       <>
                         <Coins className="w-4 h-4" />
-                        Claim TOURS Rewards
+                        No Rewards to Claim
                       </>
                     )}
                   </button>
@@ -849,6 +1037,22 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
               )}
             </div>
 
+            {/* Selected Song Preview */}
+            {selectedSong && (
+              <div className="mb-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                <p className="text-xs text-purple-400 mb-1">Selected:</p>
+                <p className="text-sm text-white font-semibold truncate">{selectedSong.name}</p>
+                <p className="text-xs text-gray-400">{selectedSong.artist}</p>
+              </div>
+            )}
+
+            {/* Payment Info */}
+            <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-xs text-yellow-400 text-center">
+                Payment: {pricing.queueSong} WMON via delegated transaction
+              </p>
+            </div>
+
             <div className="flex gap-2 pt-2 border-t border-purple-500/20">
               <button
                 onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
@@ -861,10 +1065,15 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                 disabled={queueing || !selectedSong}
                 className="flex-1 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white rounded-lg font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {queueing ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                {queueing ? (
                   <>
-                    <Plus className="w-4 h-4" />
-                    Queue
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Coins className="w-4 h-4" />
+                    Pay & Queue
                   </>
                 )}
               </button>

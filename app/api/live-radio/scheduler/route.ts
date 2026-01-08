@@ -95,12 +95,13 @@ interface SongFromEnvio {
   artistFid: number;
 }
 
-// Fetch songs from Envio for random selection
+// Fetch songs from Envio for random selection (only Music NFTs with audio)
 async function fetchSongPool(): Promise<SongFromEnvio[]> {
   try {
+    // Only fetch NFTs that have fullAudioUrl (music NFTs, not art NFTs)
     const query = `
       query GetMusicNFTs {
-        MusicNFT(where: {isBurned: {_eq: false}}, limit: 100) {
+        MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 100) {
           tokenId
           name
           artist
@@ -120,11 +121,13 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
     const data = await response.json();
     const songs = data.data?.MusicNFT || [];
 
-    // Map fullAudioUrl to audioUrl for compatibility
-    return songs.map((song: any) => ({
-      ...song,
-      audioUrl: song.fullAudioUrl || song.audioUrl,
-    }));
+    // Map fullAudioUrl to audioUrl and filter out any without valid audio
+    return songs
+      .filter((song: any) => song.fullAudioUrl && song.fullAudioUrl.length > 0)
+      .map((song: any) => ({
+        ...song,
+        audioUrl: song.fullAudioUrl,
+      }));
   } catch (error) {
     console.error('[RadioScheduler] Failed to fetch song pool:', error);
     return [];

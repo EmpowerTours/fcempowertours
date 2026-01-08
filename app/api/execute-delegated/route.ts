@@ -4302,6 +4302,137 @@ ${enjoyText}
         });
       }
 
+      // ==================== LIVE RADIO: VOICE NOTE PAYMENT ====================
+      case 'radio_voice_note': {
+        console.log('📻 Action: radio_voice_note');
+        const { noteType } = params || {};
+        if (!noteType || !['shoutout', 'ad'].includes(noteType)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid note type. Must be "shoutout" or "ad"' },
+            { status: 400 }
+          );
+        }
+
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON_TOKEN as Address;
+        const RADIO_TREASURY = process.env.RADIO_TREASURY_ADDRESS as Address || SAFE_ACCOUNT;
+
+        // Pricing: 0.5 WMON for shoutout, 2 WMON for ad
+        const amount = noteType === 'shoutout' ? '0.5' : '2';
+        const amountWei = parseEther(amount);
+
+        console.log('📻 Voice note payment:', { noteType, amount, WMON_ADDRESS, RADIO_TREASURY });
+
+        const radioVoiceCalls: Call[] = [
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [RADIO_TREASURY, amountWei],
+            }) as Hex,
+          },
+        ];
+
+        const radioVoiceTxHash = await executeTransaction(radioVoiceCalls, userAddress as Address);
+        console.log('✅ Voice note payment TX:', radioVoiceTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: radioVoiceTxHash,
+          action,
+          userAddress,
+          noteType,
+          amount,
+          message: `Paid ${amount} WMON for ${noteType}!`,
+        });
+      }
+
+      // ==================== LIVE RADIO: QUEUE SONG PAYMENT ====================
+      case 'radio_queue_song': {
+        console.log('📻 Action: radio_queue_song');
+
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON_TOKEN as Address;
+        const RADIO_TREASURY = process.env.RADIO_TREASURY_ADDRESS as Address || SAFE_ACCOUNT;
+
+        // Pricing: 1 WMON to queue a song
+        const amount = '1';
+        const amountWei = parseEther(amount);
+
+        console.log('📻 Queue song payment:', { amount, WMON_ADDRESS, RADIO_TREASURY });
+
+        const radioQueueCalls: Call[] = [
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [RADIO_TREASURY, amountWei],
+            }) as Hex,
+          },
+        ];
+
+        const radioQueueTxHash = await executeTransaction(radioQueueCalls, userAddress as Address);
+        console.log('✅ Queue song payment TX:', radioQueueTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: radioQueueTxHash,
+          action,
+          userAddress,
+          amount,
+          message: `Paid ${amount} WMON to queue song!`,
+        });
+      }
+
+      // ==================== LIVE RADIO: CLAIM LISTENER REWARDS ====================
+      case 'radio_claim_rewards': {
+        console.log('📻 Action: radio_claim_rewards');
+        const { amount: rewardAmount } = params || {};
+        if (!rewardAmount || parseFloat(rewardAmount) <= 0) {
+          return NextResponse.json(
+            { success: false, error: 'No rewards to claim' },
+            { status: 400 }
+          );
+        }
+
+        const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+        const rewardAmountWei = parseEther(rewardAmount.toString());
+
+        console.log('📻 Claiming radio rewards:', { amount: rewardAmount, TOURS_TOKEN, userAddress });
+
+        // Transfer TOURS from platform Safe to user
+        // Note: Platform Safe must have TOURS tokens to distribute rewards
+        const radioRewardCalls: Call[] = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [userAddress as Address, rewardAmountWei],
+            }) as Hex,
+          },
+        ];
+
+        // Use platform Safe for rewards distribution (not user Safe)
+        const radioRewardTxHash = await sendSafeTransaction(radioRewardCalls);
+        console.log('✅ Radio rewards claimed TX:', radioRewardTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: radioRewardTxHash,
+          action,
+          userAddress,
+          amount: rewardAmount,
+          message: `Claimed ${rewardAmount} TOURS listening rewards!`,
+        });
+      }
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
