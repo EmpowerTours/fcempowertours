@@ -8,7 +8,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 export async function POST(req: NextRequest) {
   try {
     const {
-      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours' | 'experience_created' | 'experience_purchased' | 'lottery_winner'
+      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours' | 'experience_created' | 'experience_purchased' | 'lottery_winner' | 'play_recorded' | 'top_artist'
       fid,            // Farcaster ID
       tokenId,        // NFT token ID
       txHash,         // Transaction hash
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
       monPrize,       // MON prize amount
       shMonPrize,     // shMON prize amount
       participantCount, // Number of participants
+      // Play recording / Top artist fields
+      params,         // Additional params object for play_recorded and top_artist
     } = await req.json();
 
     console.log('🎵 [CAST] Posting cast:', { type, fid, tokenId, countryCode, songTitle });
