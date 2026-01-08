@@ -416,6 +416,7 @@ export async function POST(req: NextRequest) {
         ...nextSong,
         startedAt: Date.now(),
         duration: 180, // Default 3 minutes, should be passed from song metadata
+        isRandom: false, // Queued song, not random
       };
       state.lastUpdated = Date.now();
 
