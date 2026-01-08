@@ -72,14 +72,26 @@ export async function GET(req: NextRequest) {
     if (PLAY_ORACLE_ADDRESS) {
       try {
         const currentBlock = await publicClient.getBlockNumber();
-        const startBlock = currentBlock - BigInt(100000); // ~2 days of blocks
+        const BLOCK_RANGE = BigInt(5000); // RPC limits block range, use smaller chunks
+        const MAX_BLOCKS_BACK = BigInt(50000); // ~1 day of blocks
+        const startBlock = currentBlock > MAX_BLOCKS_BACK ? currentBlock - MAX_BLOCKS_BACK : 0n;
 
-        const playLogs = await publicClient.getLogs({
-          address: PLAY_ORACLE_ADDRESS,
-          event: PlayRecordedEvent,
-          fromBlock: startBlock > 0n ? startBlock : 0n,
-          toBlock: currentBlock,
-        });
+        // Paginate through blocks in chunks to avoid RPC limits
+        const playLogs: any[] = [];
+        for (let from = startBlock; from < currentBlock; from += BLOCK_RANGE) {
+          const to = from + BLOCK_RANGE > currentBlock ? currentBlock : from + BLOCK_RANGE;
+          try {
+            const logs = await publicClient.getLogs({
+              address: PLAY_ORACLE_ADDRESS,
+              event: PlayRecordedEvent,
+              fromBlock: from,
+              toBlock: to,
+            });
+            playLogs.push(...logs);
+          } catch (e) {
+            console.error(`[StreamingStats] Error fetching blocks ${from}-${to}:`, e);
+          }
+        }
 
         console.log(`[StreamingStats] Found ${playLogs.length} play events on-chain`);
 
