@@ -373,6 +373,81 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
   );
 });
 
+// ✅ Handle LicenseSold event (resale/secondary market)
+EmpowerToursNFT.LicenseSold.handler(async ({ event, context }) => {
+  const { licenseId, masterTokenId, seller, buyer, salePrice, royaltyPaid, royaltyRecipient } = event.params;
+
+  const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Update existing license with new owner
+  const existingLicense = await context.MusicLicense.get(musicLicenseId);
+  if (existingLicense) {
+    await context.MusicLicense.set({
+      ...existingLicense,
+      licensee: buyer.toLowerCase(),
+      // Keep licenseeFid as unknown for resale buyers (they may not have FID)
+    });
+  }
+
+  // Update seller stats (decrease license count)
+  const sellerId = seller.toLowerCase();
+  const sellerStats = await context.UserStats.get(sellerId);
+  if (sellerStats) {
+    await context.UserStats.set({
+      ...sellerStats,
+      licensesOwned: Math.max(0, (sellerStats.licensesOwned || 1) - 1),
+      lastActive: timestamp,
+    });
+  }
+
+  // Update buyer stats (increase license count)
+  const buyerId = buyer.toLowerCase();
+  let buyerStats = await context.UserStats.get(buyerId);
+  const isNewUser = !buyerStats;
+
+  if (buyerStats) {
+    await context.UserStats.set({
+      ...buyerStats,
+      licensesOwned: (buyerStats.licensesOwned || 0) + 1,
+      lastActive: timestamp,
+    });
+  } else {
+    await context.UserStats.set({
+      id: buyerId,
+      address: buyer.toLowerCase(),
+      musicNFTCount: 0,
+      artNFTCount: 0,
+      passportNFTCount: 0,
+      itinerariesCreated: 0,
+      itinerariesPurchased: 0,
+      experiencesCreated: 0,
+      experiencesPurchased: 0,
+      totalNFTs: 0,
+      licensesOwned: 1,
+      eventsAttended: 0,
+      tandaGroupsJoined: 0,
+      lastActive: timestamp,
+    });
+  }
+
+  // Update global stats (new user if applicable)
+  if (isNewUser) {
+    const globalStats = await context.GlobalStats.get("global");
+    if (globalStats) {
+      await context.GlobalStats.set({
+        ...globalStats,
+        totalUsers: globalStats.totalUsers + 1,
+        lastUpdated: timestamp,
+      });
+    }
+  }
+
+  context.log.info(
+    `🔄 License #${licenseId} RESOLD: ${seller} → ${buyer} for ${salePrice} (Royalty: ${royaltyPaid} to ${royaltyRecipient})`
+  );
+});
+
 EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
