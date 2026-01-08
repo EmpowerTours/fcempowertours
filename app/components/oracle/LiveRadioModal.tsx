@@ -82,6 +82,13 @@ interface LiveRadioModalProps {
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
 const POLL_INTERVAL = 5000; // 5 seconds for state updates
 
+// Format seconds to mm:ss
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const { user, walletAddress } = useFarcasterContext();
   const [mounted, setMounted] = useState(false);
@@ -100,8 +107,17 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const [pricing, setPricing] = useState({
     queueSong: 1,
     voiceNote: 0.5,
+    voiceAd: 2,
     maxVoiceNoteDuration: 5,
+    maxVoiceAdDuration: 30,
   });
+  const [availableSongs, setAvailableSongs] = useState<any[]>([]);
+  const [loadingSongs, setLoadingSongs] = useState(false);
+  const [selectedSong, setSelectedSong] = useState<any>(null);
+  const [voiceNoteType, setVoiceNoteType] = useState<'shoutout' | 'ad' | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'uploading'>('idle');
+  const [playbackProgress, setPlaybackProgress] = useState(0);
+  const [remainingTime, setRemainingTime] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
@@ -119,10 +135,48 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       const data = await response.json();
       if (data.success) {
         setRadioState(data.state);
-        setPricing(data.pricing);
+        if (data.pricing) {
+          setPricing(prev => ({ ...prev, ...data.pricing }));
+        }
       }
     } catch (error) {
       console.error('[LiveRadio] Failed to fetch state:', error);
+    }
+  }, []);
+
+  // Fetch available songs from Envio
+  const fetchAvailableSongs = useCallback(async () => {
+    setLoadingSongs(true);
+    try {
+      const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
+      const query = `
+        query GetMusicNFTs {
+          MusicNFT(where: {isBurned: {_eq: false}}, limit: 50) {
+            tokenId
+            name
+            artist
+            artistFid
+            audioUrl
+            imageUrl
+          }
+        }
+      `;
+
+      const response = await fetch(ENVIO_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+
+      const data = await response.json();
+      if (data.data?.MusicNFT) {
+        setAvailableSongs(data.data.MusicNFT);
+        console.log('[LiveRadio] Fetched', data.data.MusicNFT.length, 'songs');
+      }
+    } catch (error) {
+      console.error('[LiveRadio] Failed to fetch songs:', error);
+    } finally {
+      setLoadingSongs(false);
     }
   }, []);
 
@@ -195,6 +249,77 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     };
   }, [isPlaying, sendHeartbeat]);
 
+  // Auto-sync and switch songs when radioState updates with new song
+  const lastSongIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!radioState?.currentSong || !audioRef.current) return;
+
+    const currentSongId = radioState.currentSong.tokenId;
+
+    // New song detected - update audio source and sync
+    if (lastSongIdRef.current !== currentSongId) {
+      console.log('[LiveRadio] New song detected:', radioState.currentSong.name);
+      lastSongIdRef.current = currentSongId;
+
+      // Update audio source
+      audioRef.current.src = radioState.currentSong.audioUrl;
+
+      // If already playing, sync to live position and continue
+      if (isPlaying) {
+        const now = Date.now();
+        const elapsedSeconds = (now - radioState.currentSong.startedAt) / 1000;
+        const duration = radioState.currentSong.duration || 180;
+
+        if (elapsedSeconds < duration && elapsedSeconds >= 0) {
+          audioRef.current.currentTime = elapsedSeconds;
+        }
+        audioRef.current.play().catch(e => console.warn('[LiveRadio] Autoplay blocked:', e));
+      }
+    }
+  }, [radioState?.currentSong, isPlaying]);
+
+  // Update progress bar every second
+  useEffect(() => {
+    if (!radioState?.currentSong) {
+      setPlaybackProgress(0);
+      setRemainingTime(0);
+      return;
+    }
+
+    const updateProgress = () => {
+      const now = Date.now();
+      const startedAt = radioState.currentSong!.startedAt;
+      const duration = radioState.currentSong!.duration || 180;
+      const elapsed = (now - startedAt) / 1000;
+      const progress = Math.min(100, Math.max(0, (elapsed / duration) * 100));
+      const remaining = Math.max(0, duration - elapsed);
+
+      setPlaybackProgress(progress);
+      setRemainingTime(Math.ceil(remaining));
+    };
+
+    updateProgress();
+    const interval = setInterval(updateProgress, 1000);
+
+    return () => clearInterval(interval);
+  }, [radioState?.currentSong]);
+
+  // Sync audio to live position based on server startedAt timestamp
+  const syncToLivePosition = useCallback(() => {
+    if (!audioRef.current || !radioState?.currentSong) return;
+
+    const now = Date.now();
+    const startedAt = radioState.currentSong.startedAt;
+    const elapsedSeconds = (now - startedAt) / 1000;
+    const duration = radioState.currentSong.duration || 180;
+
+    // If song should still be playing, seek to correct position
+    if (elapsedSeconds < duration && elapsedSeconds >= 0) {
+      audioRef.current.currentTime = elapsedSeconds;
+      console.log('[LiveRadio] Synced to position:', elapsedSeconds.toFixed(1), 'seconds');
+    }
+  }, [radioState?.currentSong]);
+
   // Handle audio play/pause
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -202,10 +327,12 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
+      // Sync to live position before playing
+      syncToLivePosition();
       audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
-  }, [isPlaying]);
+  }, [isPlaying, syncToLivePosition]);
 
   // Handle mute toggle
   const toggleMute = useCallback(() => {
@@ -215,8 +342,8 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   }, [isMuted]);
 
   // Queue a song
-  const handleQueueSong = async (masterTokenId: string, tipAmount: number = 0) => {
-    if (!walletAddress) return;
+  const handleQueueSong = async (song: any) => {
+    if (!walletAddress || !song) return;
 
     setQueueing(true);
     try {
@@ -227,8 +354,12 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           action: 'queue_song',
           userAddress: walletAddress,
           userFid: user?.fid,
-          tokenId: masterTokenId,
-          txHash: 'pending', // In production, would be actual tx hash
+          tokenId: song.tokenId,
+          name: song.name,
+          artist: song.artist,
+          audioUrl: song.audioUrl,
+          imageUrl: song.imageUrl,
+          txHash: 'demo-queue', // TODO: Integrate with actual WMON payment
         }),
       });
 
@@ -236,12 +367,31 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       if (data.success) {
         fetchQueue();
         setShowQueueModal(false);
+        setSelectedSong(null);
+        console.log('[LiveRadio] Song queued:', song.name);
+      } else {
+        console.error('[LiveRadio] Queue failed:', data.error);
       }
     } catch (error) {
       console.error('[LiveRadio] Queue failed:', error);
     } finally {
       setQueueing(false);
     }
+  };
+
+  // Handle voice shoutout
+  const handleVoiceShoutout = async (type: 'shoutout' | 'ad') => {
+    if (!walletAddress) return;
+
+    setVoiceNoteType(type);
+    // For now, we'll just show a message about coming soon
+    // In production, this would open a recording interface
+    console.log('[LiveRadio] Voice', type, 'selected - WMON:', type === 'shoutout' ? pricing.voiceNote : pricing.voiceAd);
+
+    // TODO: Implement actual voice recording with MediaRecorder API
+    // Then upload to IPFS and submit to /api/live-radio with action: 'voice_note' or 'voice_ad'
+    alert(`Voice ${type === 'shoutout' ? 'Shoutout' : 'Ad'} recording coming soon! Cost: ${type === 'shoutout' ? pricing.voiceNote : pricing.voiceAd} WMON`);
+    setShowVoiceNoteModal(false);
   };
 
   // Claim rewards
@@ -339,6 +489,22 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                       onEnded={() => setIsPlaying(false)}
                     />
 
+                    {/* Progress Bar */}
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                        <span>{formatTime(Math.floor((radioState.currentSong.duration || 180) * playbackProgress / 100))}</span>
+                        <span className="text-purple-400 font-medium">
+                          {remainingTime > 0 ? `-${formatTime(remainingTime)}` : 'Ending...'}
+                        </span>
+                      </div>
+                      <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-1000"
+                          style={{ width: `${playbackProgress}%` }}
+                        />
+                      </div>
+                    </div>
+
                     {/* Playback Controls */}
                     <div className="flex items-center justify-center gap-4 mt-4">
                       <button
@@ -378,12 +544,15 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
               {/* Quick Actions */}
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <button
-                  onClick={() => setShowQueueModal(true)}
+                  onClick={() => {
+                    setShowQueueModal(true);
+                    fetchAvailableSongs();
+                  }}
                   className="p-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-xl transition-all"
                 >
                   <Plus className="w-5 h-5 text-purple-400 mx-auto mb-1" />
                   <p className="text-sm text-white font-semibold">Queue Song</p>
-                  <p className="text-xs text-gray-400">{pricing.queueSong} WMON (or free w/ license)</p>
+                  <p className="text-xs text-gray-400">{pricing.queueSong} WMON</p>
                 </button>
                 <button
                   onClick={() => setShowVoiceNoteModal(true)}
@@ -496,40 +665,79 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
           style={{ zIndex: 10000 }}
-          onClick={() => setShowQueueModal(false)}
+          onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
         >
           <div
-            className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-sm p-3 sm:p-4 overflow-hidden"
+            className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base sm:text-lg font-bold text-white mb-3">Queue a Song</h3>
             <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
-              Select from your library or pay {pricing.queueSong} WMON to queue.
+              Select a song to add to the radio queue ({pricing.queueSong} WMON)
             </p>
-            {/* In production, this would show user's owned songs or searchable list */}
-            <div className="space-y-2 mb-3 sm:mb-4">
-              <div className="p-2 sm:p-3 bg-black/40 rounded-lg border border-purple-500/20 flex items-center gap-2 sm:gap-3">
-                <Music2 className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm text-white truncate">Your Licensed Songs</p>
-                  <p className="text-xs text-gray-400">Queue for free</p>
+
+            {/* Song List */}
+            <div className="flex-1 overflow-y-auto space-y-2 mb-3 sm:mb-4 max-h-[40vh]">
+              {loadingSongs ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
                 </div>
-                <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 flex-shrink-0" />
-              </div>
+              ) : availableSongs.length > 0 ? (
+                availableSongs.map((song) => (
+                  <button
+                    key={song.tokenId}
+                    onClick={() => setSelectedSong(song)}
+                    className={`w-full p-2 sm:p-3 rounded-lg border transition-all text-left flex items-center gap-2 sm:gap-3 ${
+                      selectedSong?.tokenId === song.tokenId
+                        ? 'bg-purple-500/20 border-purple-500'
+                        : 'bg-black/40 border-purple-500/20 hover:border-purple-500/50'
+                    }`}
+                  >
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
+                      {song.imageUrl ? (
+                        <img src={song.imageUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Music2 className="w-5 h-5 text-purple-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm text-white truncate font-medium">{song.name || `Song #${song.tokenId}`}</p>
+                      <p className="text-xs text-gray-400 truncate">{song.artist || 'Unknown Artist'}</p>
+                    </div>
+                    {selectedSong?.tokenId === song.tokenId && (
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />
+                    )}
+                  </button>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Music2 className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                  <p className="text-gray-400 text-sm">No songs available</p>
+                  <p className="text-gray-500 text-xs mt-1">Mint some Music NFTs first!</p>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
+
+            <div className="flex gap-2 pt-2 border-t border-purple-500/20">
               <button
-                onClick={() => setShowQueueModal(false)}
+                onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
                 className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleQueueSong('1')}
-                disabled={queueing}
-                className="flex-1 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white rounded-lg font-semibold text-sm transition-all disabled:opacity-50"
+                onClick={() => handleQueueSong(selectedSong)}
+                disabled={queueing || !selectedSong}
+                className="flex-1 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white rounded-lg font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {queueing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Queue'}
+                {queueing ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Queue
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -549,24 +757,36 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           >
             <h3 className="text-base sm:text-lg font-bold text-white mb-3">Voice Shoutout</h3>
             <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
-              Shoutout ({pricing.voiceNote} WMON) or 30s ad (2 WMON)
+              Record a shoutout or ad to play between songs
             </p>
             <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
-              <button className="w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left">
+              <button
+                onClick={() => handleVoiceShoutout('shoutout')}
+                className="w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
+              >
                 <div className="flex items-center gap-2 sm:gap-3">
                   <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-pink-400 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm sm:text-base text-white font-semibold truncate">Quick Shoutout</p>
-                    <p className="text-xs text-gray-400 truncate">3-5s • {pricing.voiceNote} WMON</p>
+                    <p className="text-xs text-gray-400 truncate">3-5 seconds • {pricing.voiceNote} WMON</p>
+                  </div>
+                  <div className="text-pink-400 text-xs font-bold bg-pink-500/20 px-2 py-1 rounded">
+                    {pricing.voiceNote} WMON
                   </div>
                 </div>
               </button>
-              <button className="w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left">
+              <button
+                onClick={() => handleVoiceShoutout('ad')}
+                className="w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
+              >
                 <div className="flex items-center gap-2 sm:gap-3">
                   <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm sm:text-base text-white font-semibold truncate">Voice Ad</p>
-                    <p className="text-xs text-gray-400 truncate">30s • 2 WMON</p>
+                    <p className="text-xs text-gray-400 truncate">30 seconds • Premium placement</p>
+                  </div>
+                  <div className="text-purple-400 text-xs font-bold bg-purple-500/20 px-2 py-1 rounded">
+                    {pricing.voiceAd} WMON
                   </div>
                 </div>
               </button>

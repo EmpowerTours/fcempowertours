@@ -103,11 +103,54 @@ interface ListenerStats {
   firstListenerBonuses: number;
 }
 
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
+
 // GET - Get current radio state
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action');
+
+    // Debug: Test Envio connection and fetch available songs
+    if (action === 'debug-songs') {
+      try {
+        const query = `
+          query GetMusicNFTs {
+            MusicNFT(where: {isBurned: {_eq: false}}, limit: 50) {
+              tokenId
+              name
+              artist
+              artistFid
+              audioUrl
+              imageUrl
+            }
+          }
+        `;
+
+        const response = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+
+        const data = await response.json();
+        const songs = data.data?.MusicNFT || [];
+
+        return NextResponse.json({
+          success: true,
+          envioEndpoint: ENVIO_ENDPOINT,
+          songsCount: songs.length,
+          songs: songs.slice(0, 10), // Return first 10 for debugging
+          rawResponse: data.errors ? { errors: data.errors } : undefined,
+        });
+      } catch (error: any) {
+        return NextResponse.json({
+          success: false,
+          envioEndpoint: ENVIO_ENDPOINT,
+          error: error.message,
+        });
+      }
+    }
 
     // Get queue
     if (action === 'queue') {

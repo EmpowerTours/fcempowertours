@@ -90,7 +90,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
       // Get User Safe address
       let userSafeAddr: string | null = null;
       try {
-        const safeRes = await fetch(`/api/get-user-safe?address=${userAddress}`);
+        const safeRes = await fetch(`/api/user-safe?address=${userAddress}`);
         const safeData = await safeRes.json();
         if (safeData.success && safeData.safeAddress) {
           userSafeAddr = safeData.safeAddress;
@@ -481,17 +481,17 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
                     Transfer TOURS from your wallet to your Safe for gasless DAO operations.
                   </p>
                   <div className="flex gap-2">
-                    <div className="flex-1 relative">
+                    <div className="flex-1 flex gap-1">
                       <input
                         type="number"
                         value={fundAmount}
                         onChange={(e) => setFundAmount(e.target.value)}
-                        placeholder="Amount to transfer"
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                        placeholder="Amount"
+                        className="flex-1 min-w-0 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                       />
                       <button
                         onClick={() => setFundAmount(toursBalance)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-400 hover:text-blue-300"
+                        className="px-2 py-2 bg-blue-900/50 border border-blue-700 rounded-lg text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/70 transition-colors"
                       >
                         MAX
                       </button>
@@ -520,17 +520,17 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
                   )}
                 </p>
                 <div className="flex gap-2">
-                  <div className="flex-1 relative">
+                  <div className="flex-1 flex gap-1">
                     <input
                       type="number"
                       value={wrapAmount}
                       onChange={(e) => setWrapAmount(e.target.value)}
                       placeholder="Amount"
-                      className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      className="flex-1 min-w-0 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                     />
                     <button
                       onClick={() => setWrapAmount(safeToursBalance)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-300"
+                      className="px-2 py-2 bg-purple-900/50 border border-purple-700 rounded-lg text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-900/70 transition-colors"
                     >
                       MAX
                     </button>
@@ -553,17 +553,17 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
                 </h3>
                 <p className="text-xs text-gray-400 mb-3">Convert vTOURS back to TOURS anytime.</p>
                 <div className="flex gap-2">
-                  <div className="flex-1 relative">
+                  <div className="flex-1 flex gap-1">
                     <input
                       type="number"
                       value={unwrapAmount}
                       onChange={(e) => setUnwrapAmount(e.target.value)}
                       placeholder="Amount"
-                      className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      className="flex-1 min-w-0 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                     />
                     <button
                       onClick={() => setUnwrapAmount(vToursBalance)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-300"
+                      className="px-2 py-2 bg-purple-900/50 border border-purple-700 rounded-lg text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-900/70 transition-colors"
                     >
                       MAX
                     </button>
