@@ -665,3 +665,66 @@ type TravelerStats @entity {
   averageRating: BigInt!
   lastActiveAt: Timestamp!
 }
+
+# ✅ NEW: Music Streaming Play Records (Jan 2026)
+type PlayRecord @entity {
+  id: ID!                                 # play-{chainId}-{txHash}-{logIndex}
+  user: String!
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  duration: BigInt!
+  timestamp: BigInt!
+  playedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: Artist Payouts from Streaming (Monthly distributions)
+type ArtistPayout @entity {
+  id: ID!                                 # payout-{chainId}-{monthId}-{artist}
+  monthId: String!
+  artist: String!
+  amount: BigInt!
+  amountFormatted: String!                # Human-readable WMON amount
+  playCount: BigInt!
+  paidAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: Royalty Payments from Sales
+type RoyaltyPayment @entity {
+  id: ID!                                 # royalty-{chainId}-{txHash}-{logIndex}
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  artist: String!
+  amount: BigInt!
+  amountFormatted: String!                # Human-readable WMON amount
+  paidAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: Streaming Stats per Song
+type SongStreamingStats @entity {
+  id: ID!                                 # stats-{chainId}-{masterTokenId}
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  totalPlays: Int!
+  totalDuration: BigInt!
+  uniqueListeners: Int!
+  totalRoyaltiesEarned: BigInt!
+  lastPlayedAt: Timestamp
+}
+
+# ✅ NEW: Artist Streaming Stats (Aggregate)
+type ArtistStreamingStats @entity {
+  id: ID!                                 # artist-stats-{chainId}-{address}
+  artist: String!
+  totalPlays: Int!
+  totalSongs: Int!
+  uniqueListeners: Int!
+  totalEarningsWMON: BigInt!
+  totalEarningsTOURS: BigInt!
+  lastPayoutAt: Timestamp
+}

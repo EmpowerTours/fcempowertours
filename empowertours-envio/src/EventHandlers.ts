@@ -10,6 +10,8 @@ import {
   DailyPassLotteryV3,
   MusicBeatMatchV2,
   CountryCollectorV2,
+  PlayOracle,
+  MusicSubscriptionV2,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -2005,4 +2007,192 @@ CountryCollectorV2.WeekFinalized.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🏁 Country Collector Week #${weekId} finalized - Total completions: ${totalCompletions}`);
+});
+
+// =============================================================================
+// ✅ PlayOracle Event Handlers (Music Streaming Stats)
+// =============================================================================
+
+PlayOracle.PlayRecorded.handler(async ({ event, context }) => {
+  const { user, masterTokenId, duration, timestamp } = event.params;
+
+  const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  // Create play record
+  await context.PlayRecord.set({
+    id: playId,
+    user: user.toLowerCase(),
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+    duration: duration,
+    timestamp: timestamp,
+    playedAt: new Date(Number(timestamp) * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update song streaming stats
+  const songStatsId = `stats-${event.chainId}-${masterTokenId.toString()}`;
+  let songStats = await context.SongStreamingStats.get(songStatsId);
+
+  if (!songStats) {
+    songStats = {
+      id: songStatsId,
+      masterTokenId: masterTokenId.toString(),
+      masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+      totalPlays: 0,
+      totalDuration: BigInt(0),
+      uniqueListeners: 0,
+      totalRoyaltiesEarned: BigInt(0),
+      lastPlayedAt: undefined,
+    };
+  }
+
+  await context.SongStreamingStats.set({
+    ...songStats,
+    totalPlays: songStats.totalPlays + 1,
+    totalDuration: songStats.totalDuration + duration,
+    lastPlayedAt: new Date(Number(timestamp) * 1000),
+  });
+
+  context.log.info(`🎵 Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId} for ${duration}s`);
+});
+
+// =============================================================================
+// ✅ MusicSubscriptionV2 Event Handlers (Artist Payouts & More Play Records)
+// =============================================================================
+
+MusicSubscriptionV2.PlayRecorded.handler(async ({ event, context }) => {
+  const { user, masterTokenId, duration, timestamp } = event.params;
+
+  // This may duplicate PlayOracle records, but creates from subscription contract too
+  const playId = `play-sub-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  await context.PlayRecord.set({
+    id: playId,
+    user: user.toLowerCase(),
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+    duration: duration,
+    timestamp: timestamp,
+    playedAt: new Date(Number(timestamp) * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🎵 [Sub] Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId}`);
+});
+
+MusicSubscriptionV2.ArtistPayout.handler(async ({ event, context }) => {
+  const { monthId, artist, amount, playCount } = event.params;
+
+  const payoutId = `payout-${event.chainId}-${monthId.toString()}-${artist.toLowerCase()}`;
+
+  // Format amount (assuming 18 decimals for WMON)
+  const amountFormatted = (Number(amount) / 1e18).toFixed(4);
+
+  await context.ArtistPayout.set({
+    id: payoutId,
+    monthId: monthId.toString(),
+    artist: artist.toLowerCase(),
+    amount: amount,
+    amountFormatted: amountFormatted,
+    playCount: playCount,
+    paidAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update artist streaming stats
+  const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
+  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+
+  if (!artistStats) {
+    artistStats = {
+      id: artistStatsId,
+      artist: artist.toLowerCase(),
+      totalPlays: 0,
+      totalSongs: 0,
+      uniqueListeners: 0,
+      totalEarningsWMON: BigInt(0),
+      totalEarningsTOURS: BigInt(0),
+      lastPayoutAt: undefined,
+    };
+  }
+
+  await context.ArtistStreamingStats.set({
+    ...artistStats,
+    totalPlays: artistStats.totalPlays + Number(playCount),
+    totalEarningsWMON: artistStats.totalEarningsWMON + amount,
+    lastPayoutAt: new Date(event.block.timestamp * 1000),
+  });
+
+  context.log.info(`💰 Artist payout: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for ${playCount} plays in month ${monthId}`);
+});
+
+MusicSubscriptionV2.ArtistToursReward.handler(async ({ event, context }) => {
+  const { monthId, artist, toursAmount } = event.params;
+
+  // Update artist stats with TOURS rewards
+  const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
+  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+
+  if (artistStats) {
+    await context.ArtistStreamingStats.set({
+      ...artistStats,
+      totalEarningsTOURS: artistStats.totalEarningsTOURS + toursAmount,
+    });
+  }
+
+  const toursFormatted = (Number(toursAmount) / 1e18).toFixed(2);
+  context.log.info(`🎁 TOURS reward: ${artist.slice(0, 8)}... received ${toursFormatted} TOURS for month ${monthId}`);
+});
+
+// =============================================================================
+// ✅ EmpowerToursNFT RoyaltyPaid Handler (Sales Royalties)
+// =============================================================================
+
+EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
+  const { masterTokenId, artist, amount } = event.params;
+
+  const royaltyId = `royalty-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  // Format amount (assuming 18 decimals for WMON)
+  const amountFormatted = (Number(amount) / 1e18).toFixed(4);
+
+  await context.RoyaltyPayment.set({
+    id: royaltyId,
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+    artist: artist.toLowerCase(),
+    amount: amount,
+    amountFormatted: amountFormatted,
+    paidAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update song streaming stats with royalty earnings
+  const songStatsId = `stats-${event.chainId}-${masterTokenId.toString()}`;
+  let songStats = await context.SongStreamingStats.get(songStatsId);
+
+  if (songStats) {
+    await context.SongStreamingStats.set({
+      ...songStats,
+      totalRoyaltiesEarned: songStats.totalRoyaltiesEarned + amount,
+    });
+  }
+
+  // Update artist streaming stats
+  const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
+  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+
+  if (artistStats) {
+    await context.ArtistStreamingStats.set({
+      ...artistStats,
+      totalEarningsWMON: artistStats.totalEarningsWMON + amount,
+    });
+  }
+
+  context.log.info(`💎 Royalty paid: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for song #${masterTokenId}`);
 });

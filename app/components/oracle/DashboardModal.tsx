@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, RefreshCw, Music, Palette, Ticket, Users, ShoppingBag, MapPin } from 'lucide-react';
+import { X, RefreshCw, Music, Palette, Ticket, Users, ShoppingBag, MapPin, Play, DollarSign, TrendingUp, Headphones, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardModalProps {
@@ -22,6 +22,41 @@ interface Stats {
   totalMusicLicensesPurchased: number;
 }
 
+interface StreamingStats {
+  totalPlays: number;
+  totalPaymentsWMON: string;
+  uniqueListeners: number;
+  uniqueArtistsPaid: number;
+  recentPlays: {
+    id: string;
+    user: string;
+    masterTokenId: string;
+    duration: string;
+    playedAt: string;
+    txHash: string;
+    songName?: string;
+    artistAddress?: string;
+  }[];
+  recentPayments: {
+    id: string;
+    masterTokenId: string;
+    artist: string;
+    amountFormatted: string;
+    paidAt: string;
+    txHash: string;
+    songName?: string;
+  }[];
+  topSongs: { tokenId: string; name: string; plays: number; artist: string; royalties: string }[];
+  topArtists: { address: string; totalEarnings: string; totalPlays: number }[];
+  artistPayouts: {
+    monthId: string;
+    artist: string;
+    amountFormatted: string;
+    playCount: string;
+    paidAt: string;
+  }[];
+}
+
 // Helper to get country flag emoji
 const getCountryFlag = (countryCode: string): string => {
   if (!countryCode || countryCode.length !== 2) return '🌍';
@@ -34,18 +69,27 @@ const getCountryFlag = (countryCode: string): string => {
 
 export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewProfile }) => {
   const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<'activity' | 'streaming'>('activity');
   const [stats, setStats] = useState<Stats | null>(null);
+  const [streamingStats, setStreamingStats] = useState<StreamingStats | null>(null);
   const [recentPassports, setRecentPassports] = useState<any[]>([]);
   const [recentMusic, setRecentMusic] = useState<any[]>([]);
   const [recentArt, setRecentArt] = useState<any[]>([]);
   const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [streamingLoading, setStreamingLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
     loadDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'streaming' && !streamingStats) {
+      loadStreamingStats();
+    }
+  }, [activeTab]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -145,6 +189,35 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
     }
   };
 
+  const loadStreamingStats = async () => {
+    setStreamingLoading(true);
+    try {
+      const response = await fetch('/api/streaming-stats?limit=15');
+      const data = await response.json();
+      if (data.success && data.stats) {
+        setStreamingStats(data.stats);
+      }
+    } catch (err: any) {
+      console.error('[DashboardModal] Streaming stats error:', err);
+    } finally {
+      setStreamingLoading(false);
+    }
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
   const handleAddressClick = (address: string) => {
     if (onViewProfile) {
       onViewProfile(address);
@@ -184,11 +257,11 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={loadDashboardData}
-                disabled={loading}
+                onClick={activeTab === 'streaming' ? loadStreamingStats : loadDashboardData}
+                disabled={loading || streamingLoading}
                 className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${(loading || streamingLoading) ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={onClose}
@@ -198,27 +271,55 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
               </button>
             </div>
           </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === 'activity'
+                  ? 'bg-purple-500/30 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Activity
+            </button>
+            <button
+              onClick={() => setActiveTab('streaming')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === 'streaming'
+                  ? 'bg-green-500/30 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Headphones className="w-4 h-4" />
+              Streaming & Payments
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+        <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
           {error && (
             <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
               <p className="text-red-400 text-sm">{error}</p>
             </div>
           )}
 
-          {/* Stats Grid */}
-          {stats && (
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-              <StatCard icon={<Music className="w-4 h-4" />} label="Music" value={stats.totalMusicNFTs} color="purple" />
-              <StatCard icon={<Palette className="w-4 h-4" />} label="Art" value={stats.totalArtNFTs} color="cyan" />
-              <StatCard icon={<Ticket className="w-4 h-4" />} label="Passports" value={stats.totalPassports} color="pink" />
-              <StatCard icon={<ShoppingBag className="w-4 h-4" />} label="Purchases" value={stats.totalMusicLicensesPurchased} color="amber" />
-              <StatCard icon={<MapPin className="w-4 h-4" />} label="Experiences" value={stats.totalExperiences} color="green" />
-              <StatCard icon={<Users className="w-4 h-4" />} label="Users" value={stats.totalUsers} color="indigo" />
-            </div>
-          )}
+          {activeTab === 'activity' ? (
+            <>
+              {/* Stats Grid */}
+              {stats && (
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+                  <StatCard icon={<Music className="w-4 h-4" />} label="Music" value={stats.totalMusicNFTs} color="purple" />
+                  <StatCard icon={<Palette className="w-4 h-4" />} label="Art" value={stats.totalArtNFTs} color="cyan" />
+                  <StatCard icon={<Ticket className="w-4 h-4" />} label="Passports" value={stats.totalPassports} color="pink" />
+                  <StatCard icon={<ShoppingBag className="w-4 h-4" />} label="Purchases" value={stats.totalMusicLicensesPurchased} color="amber" />
+                  <StatCard icon={<MapPin className="w-4 h-4" />} label="Experiences" value={stats.totalExperiences} color="green" />
+                  <StatCard icon={<Users className="w-4 h-4" />} label="Users" value={stats.totalUsers} color="indigo" />
+                </div>
+              )}
 
           {/* Activity Sections */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -290,6 +391,162 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
               View Full Dashboard →
             </Link>
           </div>
+            </>
+          ) : (
+            /* Streaming Stats Tab */
+            <div className="space-y-6">
+              {streamingLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin text-4xl mb-3">🎵</div>
+                  <p className="text-gray-400">Loading streaming stats...</p>
+                </div>
+              ) : streamingStats ? (
+                <>
+                  {/* Streaming Stats Overview */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <StatCard icon={<Play className="w-4 h-4" />} label="Total Plays" value={streamingStats.totalPlays} color="green" />
+                    <StatCard icon={<Headphones className="w-4 h-4" />} label="Listeners" value={streamingStats.uniqueListeners} color="cyan" />
+                    <StatCard icon={<DollarSign className="w-4 h-4" />} label="Artists Paid" value={streamingStats.uniqueArtistsPaid} color="amber" />
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 text-center">
+                      <DollarSign className="w-4 h-4 mx-auto mb-1 text-green-400" />
+                      <p className="text-xl font-bold text-white">{streamingStats.totalPaymentsWMON}</p>
+                      <p className="text-xs text-gray-400">WMON Paid</p>
+                    </div>
+                  </div>
+
+                  {/* Recent Plays and Payments */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Recent Plays */}
+                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                        <span>🎧</span> Recent Plays
+                        <span className="text-xs font-normal text-gray-500">({streamingStats.recentPlays.length})</span>
+                      </h4>
+                      {streamingStats.recentPlays.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-4">No plays recorded yet</p>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {streamingStats.recentPlays.map((play) => (
+                            <div key={play.id} className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                              <p className="font-medium text-white text-sm truncate">{play.songName || `Song #${play.masterTokenId}`}</p>
+                              <div className="flex justify-between items-center mt-1">
+                                <span className="text-xs text-gray-400">
+                                  <WalletLink address={play.user} /> • {Math.floor(Number(play.duration))}s
+                                </span>
+                                <span className="text-xs text-gray-500">{formatTimeAgo(play.playedAt)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recent Payments */}
+                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                        <span>💰</span> Artist Payments
+                        <span className="text-xs font-normal text-gray-500">({streamingStats.recentPayments.length})</span>
+                      </h4>
+                      {streamingStats.recentPayments.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-4">No payments recorded yet</p>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {streamingStats.recentPayments.map((payment) => (
+                            <div key={payment.id} className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                              <div className="flex justify-between items-start">
+                                <p className="font-medium text-white text-sm truncate flex-1">{payment.songName || `Song #${payment.masterTokenId}`}</p>
+                                <span className="text-green-400 text-sm font-bold ml-2">{payment.amountFormatted} WMON</span>
+                              </div>
+                              <div className="flex justify-between items-center mt-1">
+                                <span className="text-xs text-gray-400">To: <WalletLink address={payment.artist} /></span>
+                                <span className="text-xs text-gray-500">{formatTimeAgo(payment.paidAt)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Top Songs & Artists */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Top Songs */}
+                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-purple-400" />
+                        Top Songs
+                      </h4>
+                      {streamingStats.topSongs.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-4">No streaming data yet</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {streamingStats.topSongs.slice(0, 5).map((song, idx) => (
+                            <div key={song.tokenId} className="flex items-center gap-3 p-2 bg-purple-500/10 rounded-lg">
+                              <span className="text-lg font-bold text-purple-400">#{idx + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white text-sm font-medium truncate">{song.name}</p>
+                                <p className="text-xs text-gray-400">{song.plays} plays • {song.royalties} WMON earned</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Top Artists */}
+                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-amber-400" />
+                        Top Earning Artists
+                      </h4>
+                      {streamingStats.topArtists.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-4">No artist data yet</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {streamingStats.topArtists.slice(0, 5).map((artist, idx) => (
+                            <div key={artist.address} className="flex items-center gap-3 p-2 bg-amber-500/10 rounded-lg">
+                              <span className="text-lg font-bold text-amber-400">#{idx + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <WalletLink address={artist.address} />
+                                <p className="text-xs text-gray-400">{artist.totalPlays} plays • {artist.totalEarnings} WMON</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Monthly Payouts */}
+                  {streamingStats.artistPayouts.length > 0 && (
+                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                        <span>📅</span> Monthly Artist Payouts
+                      </h4>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {streamingStats.artistPayouts.map((payout, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+                            <div>
+                              <span className="text-xs text-gray-400">Month {payout.monthId}</span>
+                              <p className="text-sm text-white"><WalletLink address={payout.artist} /></p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-green-400 font-bold">{payout.amountFormatted} WMON</p>
+                              <p className="text-xs text-gray-400">{payout.playCount} plays</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-400">No streaming data available</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
