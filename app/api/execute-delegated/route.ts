@@ -86,6 +86,9 @@ export async function POST(req: NextRequest) {
       'mint_passport',         // Daily gate requirement
       'buy_music',             // Purchase music NFT license
       'buy_art',               // Purchase art NFT
+      'dao_wrap',              // Wrap TOURS to vTOURS for DAO voting
+      'dao_unwrap',            // Unwrap vTOURS back to TOURS
+      'dao_delegate',          // Delegate voting power
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -4162,6 +4165,142 @@ ${enjoyText}
           licenseId: resaleLicenseId,
           message: `Successfully purchased license #${resaleLicenseId} for ${resalePrice} WMON!`,
         });
+
+      // ==================== DAO: WRAP TOURS TO vTOURS ====================
+      case 'dao_wrap': {
+        console.log('🗳️ Action: dao_wrap');
+        const { amount } = params || {};
+        if (!amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for dao_wrap' },
+            { status: 400 }
+          );
+        }
+
+        const TOURS_DAO = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+        const VTOURS_DAO = process.env.NEXT_PUBLIC_VOTING_TOURS as Address;
+        const wrapAmountWei = parseEther(amount.toString());
+
+        console.log('🗳️ Wrapping TOURS to vTOURS:', { amount, TOURS_DAO, VTOURS_DAO });
+
+        // First approve TOURS spending, then wrap and delegate to self
+        const daoWrapCalls: Call[] = [
+          {
+            to: TOURS_DAO,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [VTOURS_DAO, wrapAmountWei],
+            }) as Hex,
+          },
+          {
+            to: VTOURS_DAO,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function wrapAndDelegate(uint256 amount, address delegatee) external']),
+              functionName: 'wrapAndDelegate',
+              args: [wrapAmountWei, userAddress as Address],
+            }) as Hex,
+          },
+        ];
+
+        const daoWrapTxHash = await executeTransaction(daoWrapCalls, userAddress as Address);
+        console.log('✅ TOURS wrapped to vTOURS, TX:', daoWrapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: daoWrapTxHash,
+          action,
+          userAddress,
+          amount,
+          message: `Wrapped ${amount} TOURS to vTOURS and delegated to yourself!`,
+        });
+      }
+
+      // ==================== DAO: UNWRAP vTOURS TO TOURS ====================
+      case 'dao_unwrap': {
+        console.log('🗳️ Action: dao_unwrap');
+        const { amount: unwrapAmount } = params || {};
+        if (!unwrapAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount for dao_unwrap' },
+            { status: 400 }
+          );
+        }
+
+        const VTOURS_UNWRAP = process.env.NEXT_PUBLIC_VOTING_TOURS as Address;
+        const unwrapAmountWei = parseEther(unwrapAmount.toString());
+
+        console.log('🗳️ Unwrapping vTOURS to TOURS:', { amount: unwrapAmount, VTOURS_UNWRAP });
+
+        const daoUnwrapCalls: Call[] = [
+          {
+            to: VTOURS_UNWRAP,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function unwrap(uint256 amount) external']),
+              functionName: 'unwrap',
+              args: [unwrapAmountWei],
+            }) as Hex,
+          },
+        ];
+
+        const daoUnwrapTxHash = await executeTransaction(daoUnwrapCalls, userAddress as Address);
+        console.log('✅ vTOURS unwrapped to TOURS, TX:', daoUnwrapTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: daoUnwrapTxHash,
+          action,
+          userAddress,
+          amount: unwrapAmount,
+          message: `Unwrapped ${unwrapAmount} vTOURS back to TOURS!`,
+        });
+      }
+
+      // ==================== DAO: DELEGATE VOTING POWER ====================
+      case 'dao_delegate': {
+        console.log('🗳️ Action: dao_delegate');
+        const { delegatee } = params || {};
+        if (!delegatee) {
+          return NextResponse.json(
+            { success: false, error: 'Missing delegatee address for dao_delegate' },
+            { status: 400 }
+          );
+        }
+
+        const VTOURS_DELEGATE = process.env.NEXT_PUBLIC_VOTING_TOURS as Address;
+
+        console.log('🗳️ Delegating voting power to:', { delegatee, VTOURS_DELEGATE });
+
+        const daoDelegateCalls: Call[] = [
+          {
+            to: VTOURS_DELEGATE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function delegate(address delegatee) external']),
+              functionName: 'delegate',
+              args: [delegatee as Address],
+            }) as Hex,
+          },
+        ];
+
+        const daoDelegateTxHash = await executeTransaction(daoDelegateCalls, userAddress as Address);
+        console.log('✅ Voting power delegated, TX:', daoDelegateTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: daoDelegateTxHash,
+          action,
+          userAddress,
+          delegatee,
+          message: `Delegated voting power to ${delegatee.slice(0, 6)}...${delegatee.slice(-4)}!`,
+        });
+      }
 
       default:
         return NextResponse.json(

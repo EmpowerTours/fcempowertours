@@ -494,27 +494,27 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       {/* Queue Song Sub-Modal */}
       {showQueueModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
           style={{ zIndex: 10000 }}
           onClick={() => setShowQueueModal(false)}
         >
           <div
-            className="bg-gray-900 border border-purple-500/30 rounded-2xl max-w-sm w-full p-4"
+            className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-sm p-3 sm:p-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-white mb-4">Queue a Song</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Select a song from your library or pay {pricing.queueSong} WMON to queue any song.
+            <h3 className="text-base sm:text-lg font-bold text-white mb-3">Queue a Song</h3>
+            <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
+              Select from your library or pay {pricing.queueSong} WMON to queue.
             </p>
             {/* In production, this would show user's owned songs or searchable list */}
-            <div className="space-y-2 mb-4">
-              <div className="p-3 bg-black/40 rounded-lg border border-purple-500/20 flex items-center gap-3">
-                <Music2 className="w-8 h-8 text-purple-400" />
-                <div className="flex-1">
-                  <p className="text-sm text-white">Your Licensed Songs</p>
+            <div className="space-y-2 mb-3 sm:mb-4">
+              <div className="p-2 sm:p-3 bg-black/40 rounded-lg border border-purple-500/20 flex items-center gap-2 sm:gap-3">
+                <Music2 className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm text-white truncate">Your Licensed Songs</p>
                   <p className="text-xs text-gray-400">Queue for free</p>
                 </div>
-                <Check className="w-5 h-5 text-green-400" />
+                <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 flex-shrink-0" />
               </div>
             </div>
             <div className="flex gap-2">
@@ -539,34 +539,34 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       {/* Voice Note Sub-Modal */}
       {showVoiceNoteModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
           style={{ zIndex: 10000 }}
           onClick={() => setShowVoiceNoteModal(false)}
         >
           <div
-            className="bg-gray-900 border border-pink-500/30 rounded-2xl max-w-sm w-full p-4"
+            className="bg-gray-900 border border-pink-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-sm p-3 sm:p-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-white mb-4">Voice Shoutout</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Record a 3-5 second shoutout for {pricing.voiceNote} WMON, or a 30-second ad for 2 WMON.
+            <h3 className="text-base sm:text-lg font-bold text-white mb-3">Voice Shoutout</h3>
+            <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
+              Shoutout ({pricing.voiceNote} WMON) or 30s ad (2 WMON)
             </p>
-            <div className="space-y-3 mb-4">
-              <button className="w-full p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left">
-                <div className="flex items-center gap-3">
-                  <Mic className="w-8 h-8 text-pink-400" />
-                  <div>
-                    <p className="text-white font-semibold">Quick Shoutout</p>
-                    <p className="text-xs text-gray-400">3-5 seconds • {pricing.voiceNote} WMON</p>
+            <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
+              <button className="w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-pink-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm sm:text-base text-white font-semibold truncate">Quick Shoutout</p>
+                    <p className="text-xs text-gray-400 truncate">3-5s • {pricing.voiceNote} WMON</p>
                   </div>
                 </div>
               </button>
-              <button className="w-full p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="w-8 h-8 text-purple-400" />
-                  <div>
-                    <p className="text-white font-semibold">Voice Ad</p>
-                    <p className="text-xs text-gray-400">30 seconds • 2 WMON</p>
+              <button className="w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm sm:text-base text-white font-semibold truncate">Voice Ad</p>
+                    <p className="text-xs text-gray-400 truncate">30s • 2 WMON</p>
                   </div>
                 </div>
               </button>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp } from 'lucide-react';
+import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw } from 'lucide-react';
 import { ethers } from 'ethers';
 
 interface DAOModalProps {
@@ -60,6 +60,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     quorum: '4%',
     timelockDelay: '2 days',
   });
+  const [refreshing, setRefreshing] = useState(false);
 
   // Mount state for portal rendering (SSR safety)
   useEffect(() => {
@@ -67,58 +68,66 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
   }, []);
 
   // Fetch balances and DAO info
-  useEffect(() => {
+  const fetchData = async () => {
     if (!userAddress) return;
 
-    const fetchData = async () => {
+    try {
+      console.log('[DAOModal] Fetching data for:', userAddress);
+
+      // Create provider with explicit network configuration to avoid network detection issues
+      const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+      const provider = new ethers.JsonRpcProvider(rpcUrl, {
+        chainId: 10143,
+        name: 'monad-testnet'
+      });
+
+      // Fetch TOURS balance
       try {
-        console.log('[DAOModal] Fetching data for:', userAddress);
-
-        // Create provider with explicit network configuration to avoid network detection issues
-        const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
-        const provider = new ethers.JsonRpcProvider(rpcUrl, {
-          chainId: 10143,
-          name: 'monad-testnet'
-        });
-
-        // Fetch TOURS balance
-        try {
-          const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
-          const toursBal = await toursContract.balanceOf(userAddress);
-          setToursBalance(ethers.formatEther(toursBal));
-          console.log('[DAOModal] TOURS balance:', ethers.formatEther(toursBal));
-        } catch (toursErr) {
-          console.warn('[DAOModal] Failed to fetch TOURS balance:', toursErr);
-        }
-
-        // Fetch vTOURS balance and voting power
-        if (VTOURS_ADDRESS) {
-          try {
-            const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, provider);
-            const vToursBal = await vToursContract.balanceOf(userAddress);
-            setVToursBalance(ethers.formatEther(vToursBal));
-
-            const votes = await vToursContract.getVotes(userAddress);
-            setVotingPower(ethers.formatEther(votes));
-
-            const delegate = await vToursContract.delegates(userAddress);
-            if (delegate !== ethers.ZeroAddress) {
-              setDelegatedTo(delegate);
-            }
-            console.log('[DAOModal] vTOURS data loaded');
-          } catch (vtoursErr) {
-            console.warn('[DAOModal] vTOURS contract not available:', vtoursErr);
-          }
-        } else {
-          console.log('[DAOModal] vTOURS address not configured');
-        }
-      } catch (err) {
-        console.error('[DAOModal] Failed to fetch DAO data:', err);
+        const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
+        const toursBal = await toursContract.balanceOf(userAddress);
+        setToursBalance(ethers.formatEther(toursBal));
+        console.log('[DAOModal] TOURS balance:', ethers.formatEther(toursBal));
+      } catch (toursErr) {
+        console.warn('[DAOModal] Failed to fetch TOURS balance:', toursErr);
       }
-    };
 
+      // Fetch vTOURS balance and voting power
+      if (VTOURS_ADDRESS) {
+        try {
+          const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, provider);
+          const vToursBal = await vToursContract.balanceOf(userAddress);
+          setVToursBalance(ethers.formatEther(vToursBal));
+
+          const votes = await vToursContract.getVotes(userAddress);
+          setVotingPower(ethers.formatEther(votes));
+
+          const delegate = await vToursContract.delegates(userAddress);
+          if (delegate !== ethers.ZeroAddress) {
+            setDelegatedTo(delegate);
+          }
+          console.log('[DAOModal] vTOURS data loaded, voting power:', ethers.formatEther(votes));
+        } catch (vtoursErr) {
+          console.warn('[DAOModal] vTOURS contract not available:', vtoursErr);
+        }
+      } else {
+        console.log('[DAOModal] vTOURS address not configured');
+      }
+    } catch (err) {
+      console.error('[DAOModal] Failed to fetch DAO data:', err);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
     fetchData();
   }, [userAddress]);
+
+  // Refresh handler
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   const handleWrap = async () => {
     if (!userAddress || !wrapAmount || parseFloat(wrapAmount) <= 0) return;
@@ -127,35 +136,27 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     setSuccess(null);
 
     try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const amount = ethers.parseEther(wrapAmount);
+      // Use delegated transaction API (gasless, no MetaMask popup)
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dao_wrap',
+          userAddress,
+          params: { amount: wrapAmount },
+        }),
+      });
 
-      // Approve TOURS spending
-      const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, signer);
-      const allowance = await toursContract.allowance(userAddress, VTOURS_ADDRESS);
-
-      if (allowance < amount) {
-        const approveTx = await toursContract.approve(VTOURS_ADDRESS, amount);
-        await approveTx.wait();
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to wrap TOURS');
       }
 
-      // Wrap and delegate to self
-      const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, signer);
-      const wrapTx = await vToursContract.wrapAndDelegate(amount, userAddress);
-      await wrapTx.wait();
-
-      setSuccess(`Wrapped ${wrapAmount} TOURS to vTOURS and delegated to yourself!`);
+      setSuccess(data.message || `Wrapped ${wrapAmount} TOURS to vTOURS!`);
       setWrapAmount('');
 
       // Refresh balances
-      const toursBal = await toursContract.balanceOf(userAddress);
-      setToursBalance(ethers.formatEther(toursBal));
-      const vToursBal = await vToursContract.balanceOf(userAddress);
-      setVToursBalance(ethers.formatEther(vToursBal));
-      const votes = await vToursContract.getVotes(userAddress);
-      setVotingPower(ethers.formatEther(votes));
-      setDelegatedTo(userAddress);
+      setTimeout(() => fetchData(), 2000);
     } catch (err: any) {
       console.error('Wrap failed:', err);
       setError(err.message || 'Failed to wrap TOURS');
@@ -171,25 +172,27 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     setSuccess(null);
 
     try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const amount = ethers.parseEther(unwrapAmount);
+      // Use delegated transaction API (gasless, no MetaMask popup)
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dao_unwrap',
+          userAddress,
+          params: { amount: unwrapAmount },
+        }),
+      });
 
-      const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, signer);
-      const unwrapTx = await vToursContract.unwrap(amount);
-      await unwrapTx.wait();
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to unwrap vTOURS');
+      }
 
-      setSuccess(`Unwrapped ${unwrapAmount} vTOURS back to TOURS!`);
+      setSuccess(data.message || `Unwrapped ${unwrapAmount} vTOURS back to TOURS!`);
       setUnwrapAmount('');
 
-      // Refresh balances
-      const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_MONAD_RPC));
-      const toursBal = await toursContract.balanceOf(userAddress);
-      setToursBalance(ethers.formatEther(toursBal));
-      const vToursBal = await vToursContract.balanceOf(userAddress);
-      setVToursBalance(ethers.formatEther(vToursBal));
-      const votes = await vToursContract.getVotes(userAddress);
-      setVotingPower(ethers.formatEther(votes));
+      // Refresh balances after a delay for chain confirmation
+      setTimeout(() => fetchData(), 2000);
     } catch (err: any) {
       console.error('Unwrap failed:', err);
       setError(err.message || 'Failed to unwrap vTOURS');
@@ -205,20 +208,28 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     setSuccess(null);
 
     try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
+      // Use delegated transaction API (gasless, no MetaMask popup)
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dao_delegate',
+          userAddress,
+          params: { delegatee: delegateAddress },
+        }),
+      });
 
-      const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, signer);
-      const delegateTx = await vToursContract.delegate(delegateAddress);
-      await delegateTx.wait();
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delegate');
+      }
 
-      setSuccess(`Delegated voting power to ${delegateAddress.slice(0, 6)}...${delegateAddress.slice(-4)}`);
+      setSuccess(data.message || `Delegated voting power to ${delegateAddress.slice(0, 6)}...${delegateAddress.slice(-4)}`);
       setDelegatedTo(delegateAddress);
       setDelegateAddress('');
 
-      // Refresh voting power
-      const votes = await vToursContract.getVotes(userAddress);
-      setVotingPower(ethers.formatEther(votes));
+      // Refresh balances after a delay for chain confirmation
+      setTimeout(() => fetchData(), 2000);
     } catch (err: any) {
       console.error('Delegate failed:', err);
       setError(err.message || 'Failed to delegate');
@@ -257,9 +268,19 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
               <p className="text-sm text-gray-400">Governance & Voting</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="text-gray-400 hover:text-purple-400 transition-colors disabled:opacity-50"
+              title="Refresh balances"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
