@@ -1,245 +1,278 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createPublicClient, http, parseAbiItem, formatEther, Address } from 'viem';
+import { monadTestnet } from '@/app/chains';
 
 /**
  * Streaming Stats API
  *
- * GET /api/streaming-stats
- * - Returns recent plays, artist payments, and aggregated stats
- * - Queries Envio indexer for PlayRecord, RoyaltyPayment, and ArtistPayout entities
+ * Uses existing data sources:
+ * 1. MusicLicense from Envio (purchases = artist payments)
+ * 2. PlayRecorded events from PlayOracle contract (on-chain)
+ * 3. MusicNFT data for song metadata
  */
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
+const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE as Address;
+const NFT_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_ADDRESS as Address;
+
+const publicClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
+});
+
+// PlayRecorded event from PlayOracle
+const PlayRecordedEvent = parseAbiItem('event PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp)');
 
 interface StreamingStats {
   totalPlays: number;
-  totalPaymentsWMON: string;
+  totalSalesWMON: string;
   uniqueListeners: number;
-  uniqueArtistsPaid: number;
+  uniqueArtists: number;
   recentPlays: {
-    id: string;
     user: string;
     masterTokenId: string;
-    duration: string;
-    playedAt: string;
+    duration: number;
+    timestamp: number;
     txHash: string;
     songName?: string;
     artistAddress?: string;
   }[];
-  recentPayments: {
-    id: string;
+  recentSales: {
+    licenseId: string;
     masterTokenId: string;
-    artist: string;
-    amount: string;
-    amountFormatted: string;
-    paidAt: string;
+    buyer: string;
+    price: string;
+    priceFormatted: string;
+    createdAt: string;
     txHash: string;
     songName?: string;
-    type: 'royalty' | 'payout';
+    artistAddress?: string;
   }[];
-  topSongs: { tokenId: string; name: string; plays: number; artist: string; royalties: string }[];
-  topArtists: { address: string; totalEarnings: string; totalPlays: number }[];
-  artistPayouts: {
-    monthId: string;
-    artist: string;
-    amount: string;
-    amountFormatted: string;
-    playCount: string;
-    paidAt: string;
-  }[];
+  topSongs: { tokenId: string; name: string; salesCount: number; artist: string; totalRevenue: string }[];
+  topArtists: { address: string; totalSales: string; songCount: number; licensesSold: number }[];
 }
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const artist = searchParams.get('artist');
-    const limit = parseInt(searchParams.get('limit') || '20');
-
-    // Build filter for artist if provided
-    const artistFilter = artist ? `, artist: {_eq: "${artist.toLowerCase()}"}` : '';
-    const userFilter = artist ? `, user: {_eq: "${artist.toLowerCase()}"}` : '';
-
-    const query = `
-      query GetStreamingStats($limit: Int!) {
-        # Recent plays
-        PlayRecord(limit: $limit, order_by: {playedAt: desc}${userFilter ? `, where: {${userFilter.slice(2)}}` : ''}) {
-          id
-          user
-          masterTokenId
-          duration
-          playedAt
-          txHash
-          masterToken {
-            name
-            artist
-          }
-        }
-
-        # Recent royalty payments
-        RoyaltyPayment(limit: $limit, order_by: {paidAt: desc}${artistFilter ? `, where: {${artistFilter.slice(2)}}` : ''}) {
-          id
-          masterTokenId
-          artist
-          amount
-          amountFormatted
-          paidAt
-          txHash
-          masterToken {
-            name
-          }
-        }
-
-        # Artist payouts (monthly)
-        ArtistPayout(limit: 10, order_by: {paidAt: desc}${artistFilter ? `, where: {${artistFilter.slice(2)}}` : ''}) {
-          id
-          monthId
-          artist
-          amount
-          amountFormatted
-          playCount
-          paidAt
-          txHash
-        }
-
-        # Song streaming stats (top songs)
-        SongStreamingStats(limit: 10, order_by: {totalPlays: desc}) {
-          id
-          masterTokenId
-          totalPlays
-          totalDuration
-          totalRoyaltiesEarned
-          lastPlayedAt
-          masterToken {
-            name
-            artist
-          }
-        }
-
-        # Artist streaming stats (top artists)
-        ArtistStreamingStats(limit: 10, order_by: {totalEarningsWMON: desc}) {
-          id
-          artist
-          totalPlays
-          totalSongs
-          totalEarningsWMON
-          totalEarningsTOURS
-          lastPayoutAt
-        }
-
-        # Aggregates
-        PlayRecord_aggregate {
-          aggregate {
-            count
-          }
-        }
-
-        RoyaltyPayment_aggregate {
-          aggregate {
-            count
-          }
-        }
-      }
-    `;
-
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables: { limit } }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Envio API returned ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (result.errors) {
-      console.error('[StreamingStats] GraphQL errors:', result.errors);
-      throw new Error(result.errors[0]?.message || 'Query failed');
-    }
-
-    const data = result.data || {};
-
-    // Process recent plays
-    const recentPlays = (data.PlayRecord || []).map((play: any) => ({
-      id: play.id,
-      user: play.user,
-      masterTokenId: play.masterTokenId,
-      duration: play.duration,
-      playedAt: play.playedAt,
-      txHash: play.txHash,
-      songName: play.masterToken?.name,
-      artistAddress: play.masterToken?.artist,
-    }));
-
-    // Process recent payments (royalties)
-    const recentPayments = (data.RoyaltyPayment || []).map((payment: any) => ({
-      id: payment.id,
-      masterTokenId: payment.masterTokenId,
-      artist: payment.artist,
-      amount: payment.amount,
-      amountFormatted: payment.amountFormatted,
-      paidAt: payment.paidAt,
-      txHash: payment.txHash,
-      songName: payment.masterToken?.name,
-      type: 'royalty' as const,
-    }));
-
-    // Process artist payouts
-    const artistPayouts = (data.ArtistPayout || []).map((payout: any) => ({
-      monthId: payout.monthId,
-      artist: payout.artist,
-      amount: payout.amount,
-      amountFormatted: payout.amountFormatted,
-      playCount: payout.playCount,
-      paidAt: payout.paidAt,
-    }));
-
-    // Process top songs
-    const topSongs = (data.SongStreamingStats || []).map((song: any) => ({
-      tokenId: song.masterTokenId,
-      name: song.masterToken?.name || `Song #${song.masterTokenId}`,
-      plays: song.totalPlays,
-      artist: song.masterToken?.artist || 'Unknown',
-      royalties: song.totalRoyaltiesEarned ? (Number(song.totalRoyaltiesEarned) / 1e18).toFixed(4) : '0',
-    }));
-
-    // Process top artists
-    const topArtists = (data.ArtistStreamingStats || []).map((artist: any) => ({
-      address: artist.artist,
-      totalEarnings: artist.totalEarningsWMON ? (Number(artist.totalEarningsWMON) / 1e18).toFixed(4) : '0',
-      totalPlays: artist.totalPlays,
-    }));
-
-    // Calculate totals
-    const totalPlays = data.PlayRecord_aggregate?.aggregate?.count || 0;
-    const uniqueListeners = new Set(recentPlays.map((p: any) => p.user)).size;
-    const uniqueArtistsPaid = new Set(recentPayments.map((p: any) => p.artist)).size;
-
-    // Calculate total payments
-    let totalPayments = BigInt(0);
-    (data.RoyaltyPayment || []).forEach((p: any) => {
-      if (p.amount) totalPayments += BigInt(p.amount);
-    });
-    (data.ArtistPayout || []).forEach((p: any) => {
-      if (p.amount) totalPayments += BigInt(p.amount);
-    });
+    const limit = parseInt(searchParams.get('limit') || '15');
 
     const stats: StreamingStats = {
-      totalPlays,
-      totalPaymentsWMON: (Number(totalPayments) / 1e18).toFixed(4),
-      uniqueListeners,
-      uniqueArtistsPaid,
-      recentPlays,
-      recentPayments,
-      topSongs,
-      topArtists,
-      artistPayouts,
+      totalPlays: 0,
+      totalSalesWMON: '0',
+      uniqueListeners: 0,
+      uniqueArtists: 0,
+      recentPlays: [],
+      recentSales: [],
+      topSongs: [],
+      topArtists: [],
     };
+
+    // 1. Fetch recent plays from PlayOracle contract (on-chain)
+    if (PLAY_ORACLE_ADDRESS) {
+      try {
+        const currentBlock = await publicClient.getBlockNumber();
+        const startBlock = currentBlock - BigInt(100000); // ~2 days of blocks
+
+        const playLogs = await publicClient.getLogs({
+          address: PLAY_ORACLE_ADDRESS,
+          event: PlayRecordedEvent,
+          fromBlock: startBlock > 0n ? startBlock : 0n,
+          toBlock: currentBlock,
+        });
+
+        console.log(`[StreamingStats] Found ${playLogs.length} play events on-chain`);
+
+        const uniqueListeners = new Set<string>();
+        const songPlayCounts = new Map<string, number>();
+
+        // Collect token IDs for metadata fetch
+        const tokenIds = [...new Set(playLogs.map(log => log.args.masterTokenId?.toString() || ''))];
+
+        // Fetch metadata from Envio
+        const metadataMap = new Map<string, { name: string; artist: string }>();
+        if (tokenIds.length > 0) {
+          try {
+            const metaQuery = `
+              query GetMetadata($tokenIds: [String!]!) {
+                MusicNFT(where: {tokenId: {_in: $tokenIds}}) {
+                  tokenId
+                  name
+                  artist
+                }
+              }
+            `;
+            const metaResponse = await fetch(ENVIO_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: metaQuery, variables: { tokenIds } }),
+            });
+            const metaData = await metaResponse.json();
+            (metaData.data?.MusicNFT || []).forEach((nft: any) => {
+              metadataMap.set(nft.tokenId, { name: nft.name || `Song #${nft.tokenId}`, artist: nft.artist });
+            });
+          } catch (e) {
+            console.error('[StreamingStats] Metadata fetch error:', e);
+          }
+        }
+
+        // Process play logs
+        playLogs.slice(-limit * 2).reverse().forEach(log => {
+          const user = log.args.user as string;
+          const tokenId = log.args.masterTokenId?.toString() || '';
+          const duration = Number(log.args.duration || 0);
+          const timestamp = Number(log.args.timestamp || 0);
+          const metadata = metadataMap.get(tokenId);
+
+          uniqueListeners.add(user.toLowerCase());
+          songPlayCounts.set(tokenId, (songPlayCounts.get(tokenId) || 0) + 1);
+
+          if (stats.recentPlays.length < limit) {
+            stats.recentPlays.push({
+              user,
+              masterTokenId: tokenId,
+              duration,
+              timestamp,
+              txHash: log.transactionHash,
+              songName: metadata?.name,
+              artistAddress: metadata?.artist,
+            });
+          }
+        });
+
+        stats.totalPlays = playLogs.length;
+        stats.uniqueListeners = uniqueListeners.size;
+
+      } catch (error) {
+        console.error('[StreamingStats] Error fetching play events:', error);
+      }
+    }
+
+    // 2. Fetch sales data from Envio (MusicLicense = purchases = artist payments)
+    try {
+      const salesQuery = `
+        query GetSalesData {
+          MusicLicense(limit: 50, order_by: {createdAt: desc}) {
+            id
+            licenseId
+            masterTokenId
+            licensee
+            createdAt
+            txHash
+            masterToken {
+              name
+              artist
+              price
+            }
+          }
+          MusicNFT(where: {isBurned: {_eq: false}}, limit: 100) {
+            tokenId
+            name
+            artist
+            price
+            totalSold
+          }
+        }
+      `;
+
+      const salesResponse = await fetch(ENVIO_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: salesQuery }),
+      });
+
+      const salesData = await salesResponse.json();
+
+      if (salesData.data) {
+        const licenses = salesData.data.MusicLicense || [];
+        const nfts = salesData.data.MusicNFT || [];
+
+        // Calculate total sales and artist stats
+        let totalSales = BigInt(0);
+        const artistStats = new Map<string, { sales: bigint; songs: Set<string>; licenses: number }>();
+        const songStats = new Map<string, { name: string; artist: string; salesCount: number; revenue: bigint }>();
+
+        // Process licenses (sales)
+        licenses.forEach((license: any) => {
+          const price = BigInt(license.masterToken?.price || '0');
+          const artistAddress = license.masterToken?.artist?.toLowerCase() || '';
+          const tokenId = license.masterTokenId;
+          const songName = license.masterToken?.name || `Song #${tokenId}`;
+
+          // Calculate artist payment (70% of price goes to artist)
+          const artistPayment = (price * BigInt(70)) / BigInt(100);
+          totalSales += artistPayment;
+
+          // Track artist stats
+          if (artistAddress) {
+            if (!artistStats.has(artistAddress)) {
+              artistStats.set(artistAddress, { sales: BigInt(0), songs: new Set(), licenses: 0 });
+            }
+            const stat = artistStats.get(artistAddress)!;
+            stat.sales += artistPayment;
+            stat.songs.add(tokenId);
+            stat.licenses++;
+          }
+
+          // Track song stats
+          if (!songStats.has(tokenId)) {
+            songStats.set(tokenId, { name: songName, artist: artistAddress, salesCount: 0, revenue: BigInt(0) });
+          }
+          const sstat = songStats.get(tokenId)!;
+          sstat.salesCount++;
+          sstat.revenue += artistPayment;
+        });
+
+        // Recent sales
+        stats.recentSales = licenses.slice(0, limit).map((license: any) => ({
+          licenseId: license.licenseId,
+          masterTokenId: license.masterTokenId,
+          buyer: license.licensee,
+          price: license.masterToken?.price || '0',
+          priceFormatted: formatEther(BigInt(license.masterToken?.price || '0')),
+          createdAt: license.createdAt,
+          txHash: license.txHash,
+          songName: license.masterToken?.name,
+          artistAddress: license.masterToken?.artist,
+        }));
+
+        stats.totalSalesWMON = formatEther(totalSales);
+        stats.uniqueArtists = artistStats.size;
+
+        // Top songs by sales
+        stats.topSongs = Array.from(songStats.entries())
+          .sort((a, b) => b[1].salesCount - a[1].salesCount)
+          .slice(0, 10)
+          .map(([tokenId, data]) => ({
+            tokenId,
+            name: data.name,
+            salesCount: data.salesCount,
+            artist: data.artist,
+            totalRevenue: formatEther(data.revenue),
+          }));
+
+        // Top artists by earnings
+        stats.topArtists = Array.from(artistStats.entries())
+          .sort((a, b) => Number(b[1].sales - a[1].sales))
+          .slice(0, 10)
+          .map(([address, data]) => ({
+            address,
+            totalSales: formatEther(data.sales),
+            songCount: data.songs.size,
+            licensesSold: data.licenses,
+          }));
+      }
+    } catch (error) {
+      console.error('[StreamingStats] Error fetching sales data:', error);
+    }
 
     return NextResponse.json({
       success: true,
       stats,
-      dataSource: 'envio',
+      sources: {
+        plays: PLAY_ORACLE_ADDRESS ? 'on-chain (PlayOracle)' : 'not configured',
+        sales: 'envio (MusicLicense)',
+      },
     });
 
   } catch (error: any) {

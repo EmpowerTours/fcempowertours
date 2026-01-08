@@ -24,37 +24,31 @@ interface Stats {
 
 interface StreamingStats {
   totalPlays: number;
-  totalPaymentsWMON: string;
+  totalSalesWMON: string;
   uniqueListeners: number;
-  uniqueArtistsPaid: number;
+  uniqueArtists: number;
   recentPlays: {
-    id: string;
     user: string;
     masterTokenId: string;
-    duration: string;
-    playedAt: string;
+    duration: number;
+    timestamp: number;
     txHash: string;
     songName?: string;
     artistAddress?: string;
   }[];
-  recentPayments: {
-    id: string;
+  recentSales: {
+    licenseId: string;
     masterTokenId: string;
-    artist: string;
-    amountFormatted: string;
-    paidAt: string;
+    buyer: string;
+    price: string;
+    priceFormatted: string;
+    createdAt: string;
     txHash: string;
     songName?: string;
+    artistAddress?: string;
   }[];
-  topSongs: { tokenId: string; name: string; plays: number; artist: string; royalties: string }[];
-  topArtists: { address: string; totalEarnings: string; totalPlays: number }[];
-  artistPayouts: {
-    monthId: string;
-    artist: string;
-    amountFormatted: string;
-    playCount: string;
-    paidAt: string;
-  }[];
+  topSongs: { tokenId: string; name: string; salesCount: number; artist: string; totalRevenue: string }[];
+  topArtists: { address: string; totalSales: string; songCount: number; licensesSold: number }[];
 }
 
 // Helper to get country flag emoji
@@ -406,11 +400,11 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard icon={<Play className="w-4 h-4" />} label="Total Plays" value={streamingStats.totalPlays} color="green" />
                     <StatCard icon={<Headphones className="w-4 h-4" />} label="Listeners" value={streamingStats.uniqueListeners} color="cyan" />
-                    <StatCard icon={<DollarSign className="w-4 h-4" />} label="Artists Paid" value={streamingStats.uniqueArtistsPaid} color="amber" />
+                    <StatCard icon={<Users className="w-4 h-4" />} label="Artists" value={streamingStats.uniqueArtists} color="amber" />
                     <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 text-center">
                       <DollarSign className="w-4 h-4 mx-auto mb-1 text-green-400" />
-                      <p className="text-xl font-bold text-white">{streamingStats.totalPaymentsWMON}</p>
-                      <p className="text-xs text-gray-400">WMON Paid</p>
+                      <p className="text-xl font-bold text-white">{streamingStats.totalSalesWMON}</p>
+                      <p className="text-xs text-gray-400">WMON Sales</p>
                     </div>
                   </div>
 
@@ -426,14 +420,14 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                         <p className="text-gray-500 text-sm text-center py-4">No plays recorded yet</p>
                       ) : (
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {streamingStats.recentPlays.map((play) => (
-                            <div key={play.id} className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                          {streamingStats.recentPlays.map((play, idx) => (
+                            <div key={`${play.txHash}-${idx}`} className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                               <p className="font-medium text-white text-sm truncate">{play.songName || `Song #${play.masterTokenId}`}</p>
                               <div className="flex justify-between items-center mt-1">
                                 <span className="text-xs text-gray-400">
-                                  <WalletLink address={play.user} /> • {Math.floor(Number(play.duration))}s
+                                  <WalletLink address={play.user} /> • {play.duration}s
                                 </span>
-                                <span className="text-xs text-gray-500">{formatTimeAgo(play.playedAt)}</span>
+                                <span className="text-xs text-gray-500">{formatTimeAgo(new Date(play.timestamp * 1000).toISOString())}</span>
                               </div>
                             </div>
                           ))}
@@ -441,25 +435,25 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                       )}
                     </div>
 
-                    {/* Recent Payments */}
+                    {/* Recent Sales (Artist Payments) */}
                     <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
                       <h4 className="font-bold text-white mb-3 flex items-center gap-2">
-                        <span>💰</span> Artist Payments
-                        <span className="text-xs font-normal text-gray-500">({streamingStats.recentPayments.length})</span>
+                        <span>💰</span> Recent Sales
+                        <span className="text-xs font-normal text-gray-500">({streamingStats.recentSales.length})</span>
                       </h4>
-                      {streamingStats.recentPayments.length === 0 ? (
-                        <p className="text-gray-500 text-sm text-center py-4">No payments recorded yet</p>
+                      {streamingStats.recentSales.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-4">No sales recorded yet</p>
                       ) : (
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {streamingStats.recentPayments.map((payment) => (
-                            <div key={payment.id} className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                          {streamingStats.recentSales.map((sale) => (
+                            <div key={sale.licenseId} className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                               <div className="flex justify-between items-start">
-                                <p className="font-medium text-white text-sm truncate flex-1">{payment.songName || `Song #${payment.masterTokenId}`}</p>
-                                <span className="text-green-400 text-sm font-bold ml-2">{payment.amountFormatted} WMON</span>
+                                <p className="font-medium text-white text-sm truncate flex-1">{sale.songName || `Song #${sale.masterTokenId}`}</p>
+                                <span className="text-green-400 text-sm font-bold ml-2">{sale.priceFormatted} WMON</span>
                               </div>
                               <div className="flex justify-between items-center mt-1">
-                                <span className="text-xs text-gray-400">To: <WalletLink address={payment.artist} /></span>
-                                <span className="text-xs text-gray-500">{formatTimeAgo(payment.paidAt)}</span>
+                                <span className="text-xs text-gray-400">Buyer: <WalletLink address={sale.buyer} /></span>
+                                <span className="text-xs text-gray-500">{formatTimeAgo(sale.createdAt)}</span>
                               </div>
                             </div>
                           ))}
@@ -474,10 +468,10 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                     <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
                       <h4 className="font-bold text-white mb-3 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-purple-400" />
-                        Top Songs
+                        Top Songs by Sales
                       </h4>
                       {streamingStats.topSongs.length === 0 ? (
-                        <p className="text-gray-500 text-sm text-center py-4">No streaming data yet</p>
+                        <p className="text-gray-500 text-sm text-center py-4">No sales data yet</p>
                       ) : (
                         <div className="space-y-2">
                           {streamingStats.topSongs.slice(0, 5).map((song, idx) => (
@@ -485,7 +479,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                               <span className="text-lg font-bold text-purple-400">#{idx + 1}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="text-white text-sm font-medium truncate">{song.name}</p>
-                                <p className="text-xs text-gray-400">{song.plays} plays • {song.royalties} WMON earned</p>
+                                <p className="text-xs text-gray-400">{song.salesCount} sales • {song.totalRevenue} WMON earned</p>
                               </div>
                             </div>
                           ))}
@@ -508,7 +502,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                               <span className="text-lg font-bold text-amber-400">#{idx + 1}</span>
                               <div className="flex-1 min-w-0">
                                 <WalletLink address={artist.address} />
-                                <p className="text-xs text-gray-400">{artist.totalPlays} plays • {artist.totalEarnings} WMON</p>
+                                <p className="text-xs text-gray-400">{artist.songCount} songs • {artist.licensesSold} sold • {artist.totalSales} WMON</p>
                               </div>
                             </div>
                           ))}
@@ -516,29 +510,6 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                       )}
                     </div>
                   </div>
-
-                  {/* Monthly Payouts */}
-                  {streamingStats.artistPayouts.length > 0 && (
-                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
-                      <h4 className="font-bold text-white mb-3 flex items-center gap-2">
-                        <span>📅</span> Monthly Artist Payouts
-                      </h4>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {streamingStats.artistPayouts.map((payout, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                            <div>
-                              <span className="text-xs text-gray-400">Month {payout.monthId}</span>
-                              <p className="text-sm text-white"><WalletLink address={payout.artist} /></p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-green-400 font-bold">{payout.amountFormatted} WMON</p>
-                              <p className="text-xs text-gray-400">{payout.playCount} plays</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               ) : (
                 <div className="text-center py-12">
