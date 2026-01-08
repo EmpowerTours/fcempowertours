@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp } from 'lucide-react';
 import { ethers } from 'ethers';
 
@@ -40,6 +41,7 @@ const DAO_ABI = [
 type TabType = 'overview' | 'wrap' | 'delegate';
 
 export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(false);
   const [toursBalance, setToursBalance] = useState('0');
@@ -58,6 +60,11 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     quorum: '4%',
     timelockDelay: '2 days',
   });
+
+  // Mount state for portal rendering (SSR safety)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch balances and DAO info
   useEffect(() => {
@@ -227,9 +234,18 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     return n.toFixed(2);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 rounded-2xl w-full max-w-lg border border-purple-500/30 shadow-2xl">
+  if (!mounted) return null;
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      style={{ zIndex: 9999 }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 rounded-2xl w-full max-w-lg border border-purple-500/30 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-purple-500/20">
           <div className="flex items-center gap-3">
@@ -508,6 +524,8 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default DAOModal;
