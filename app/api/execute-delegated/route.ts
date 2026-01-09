@@ -4438,29 +4438,68 @@ ${enjoyText}
 
         console.log('📻 Queue song on-chain:', { masterTokenId, userFid, totalAmount: totalAmount.toString(), tipAmount, LIVE_RADIO_ADDRESS });
 
-        // First approve WMON to LiveRadio contract, then call queueSong
-        const radioQueueCalls: Call[] = [
-          // Step 1: Approve WMON to LiveRadio contract
-          {
+        // Get user's Safe address (transactions are executed from Safe, not EOA)
+        const radioUserSafe = await getUserSafeAddress(userAddress as Address);
+        console.log('📻 User Safe address:', radioUserSafe);
+
+        // Check Safe's WMON balance to see if we need to wrap MON first
+        const safeWmonBalance = await publicClient.readContract({
+          address: WMON_ADDRESS,
+          abi: parseAbi(['function balanceOf(address account) external view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [radioUserSafe],
+        });
+
+        console.log('📻 Safe WMON balance:', safeWmonBalance.toString(), 'needed:', totalAmount.toString());
+
+        const radioQueueCalls: Call[] = [];
+
+        // If Safe doesn't have enough WMON, wrap MON to WMON first
+        if (safeWmonBalance < totalAmount) {
+          const wrapAmount = totalAmount - safeWmonBalance;
+          console.log('📻 Wrapping MON to WMON:', wrapAmount.toString());
+
+          // Check if Safe has enough MON to wrap
+          const safeMonBalance = await publicClient.getBalance({ address: radioUserSafe });
+          if (safeMonBalance < wrapAmount) {
+            return NextResponse.json(
+              { success: false, error: `Insufficient balance. Your Safe needs ${formatEther(wrapAmount)} MON to queue song.` },
+              { status: 400 }
+            );
+          }
+
+          // Step 1: Wrap MON to WMON
+          radioQueueCalls.push({
             to: WMON_ADDRESS,
-            value: 0n,
+            value: wrapAmount,
             data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [LIVE_RADIO_ADDRESS, totalAmount],
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
             }) as Hex,
-          },
-          // Step 2: Call queueSong on LiveRadio contract
-          {
-            to: LIVE_RADIO_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function queueSong(uint256 masterTokenId, uint256 userFid, uint256 tipAmount) external']),
-              functionName: 'queueSong',
-              args: [BigInt(masterTokenId), BigInt(userFid), tipAmountWei],
-            }) as Hex,
-          },
-        ];
+          });
+        }
+
+        // Step 2: Approve WMON to LiveRadio contract
+        radioQueueCalls.push({
+          to: WMON_ADDRESS,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+            functionName: 'approve',
+            args: [LIVE_RADIO_ADDRESS, totalAmount],
+          }) as Hex,
+        });
+
+        // Step 3: Call queueSong on LiveRadio contract
+        radioQueueCalls.push({
+          to: LIVE_RADIO_ADDRESS,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function queueSong(uint256 masterTokenId, uint256 userFid, uint256 tipAmount) external']),
+            functionName: 'queueSong',
+            args: [BigInt(masterTokenId), BigInt(userFid), tipAmountWei],
+          }) as Hex,
+        });
 
         const radioQueueTxHash = await executeTransaction(radioQueueCalls, userAddress as Address);
         console.log('✅ Queue song on-chain TX:', radioQueueTxHash);
