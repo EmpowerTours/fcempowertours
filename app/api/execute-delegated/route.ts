@@ -4444,9 +4444,11 @@ ${enjoyText}
 
         // Create public client for balance checks
         const { createPublicClient: createRadioClient, http: radioHttp } = await import('viem');
+        const { monadTestnet: radioMonadTestnet } = await import('@/app/chains');
+        const radioRpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
         const radioPublicClient = createRadioClient({
-          chain: monadTestnet,
-          transport: radioHttp(MONAD_RPC),
+          chain: radioMonadTestnet,
+          transport: radioHttp(radioRpcUrl),
         });
 
         // Check Safe's WMON balance to see if we need to wrap MON first

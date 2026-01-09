@@ -21,7 +21,8 @@ export async function GET(
 
     console.log('🎨 Frame request for art NFT token:', tokenId);
 
-    const miniAppUrl = `${APP_URL}/nft/${tokenId}`;
+    // ✅ Add ?type=art so the NFT page shows "Loading art..." instead of "Loading music..."
+    const miniAppUrl = `${APP_URL}/nft/${tokenId}?type=art`;
 
     // Build OG URL with direct params if available
     let ogImageUrl = `${APP_URL}/api/og/art?tokenId=${tokenId}`;

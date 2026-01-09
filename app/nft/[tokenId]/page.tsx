@@ -374,12 +374,16 @@ export default function NFTPage() {
     }
   };
 
+  // Check URL param for NFT type hint (from Farcaster casts)
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const isArtHint = searchParams?.get('type') === 'art';
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">🎵</div>
-          <p className="text-white text-xl">Loading music...</p>
+          <div className="text-6xl mb-4 animate-bounce">{isArtHint ? '🎨' : '🎵'}</div>
+          <p className="text-white text-xl">{isArtHint ? 'Loading art...' : 'Loading music...'}</p>
         </div>
       </div>
     );
