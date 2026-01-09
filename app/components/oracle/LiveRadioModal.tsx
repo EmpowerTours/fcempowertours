@@ -125,6 +125,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -137,6 +138,12 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     setMounted(true);
     return () => setMounted(false);
   }, []);
+
+  // Show toast notification (replaces alerts which don't work in Farcaster)
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   // Fetch radio state
   const fetchRadioState = useCallback(async () => {
@@ -448,13 +455,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
         // Show success with tx hash link
         const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
-        alert(`Song "${song.name}" queued successfully!\n\nTransaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n\nView on explorer: ${explorerUrl}`);
+        showToast(`Song "${song.name}" queued! TX: ${txHash.slice(0, 10)}...`, 'success');
       } else {
         throw new Error(data.error || 'Queue failed');
       }
     } catch (error: any) {
       console.error('[LiveRadio] Queue failed:', error);
-      alert('Failed to queue song: ' + error.message);
+      showToast('Failed to queue: ' + error.message, 'error');
     } finally {
       setQueueing(false);
     }
@@ -463,8 +470,30 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   // Start voice recording
   const startRecording = async (type: 'shoutout' | 'ad') => {
     try {
+      // Check for MediaRecorder support
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Audio recording not supported on this device');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+
+      // Detect supported MIME type (mobile compatibility)
+      let mimeType = 'audio/webm';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+        mimeType = 'audio/ogg';
+      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+        mimeType = 'audio/wav';
+      }
+
+      console.log('[LiveRadio] Using MIME type:', mimeType);
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -475,7 +504,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const audioUrl = URL.createObjectURL(audioBlob);
         setRecordedAudioUrl(audioUrl);
         setRecordedAudioBlob(audioBlob);
@@ -483,6 +512,12 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('[LiveRadio] MediaRecorder error:', event);
+        stream.getTracks().forEach(track => track.stop());
+        setRecordingStatus('idle');
       };
 
       setVoiceNoteType(type);
@@ -503,9 +538,17 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       }, 1000);
 
       console.log('[LiveRadio] Recording started for', type);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[LiveRadio] Failed to start recording:', error);
-      alert('Could not access microphone. Please allow microphone permissions.');
+      setRecordingStatus('idle');
+      setVoiceNoteType(null);
+      // Show error in UI (alert doesn't work in Farcaster)
+      const errorMessage = error.name === 'NotAllowedError'
+        ? 'Microphone access denied. Please allow microphone permissions.'
+        : error.name === 'NotFoundError'
+        ? 'No microphone found on this device.'
+        : error.message || 'Could not start recording. Please try again.';
+      console.error('[LiveRadio] Recording error:', errorMessage);
     }
   };
 
@@ -588,13 +631,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
         // Show success with tx hash link and queue info
         const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
-        alert(`Voice ${voiceNoteType} submitted!\n\nYour shoutout will play after the current song ends.\nCheck "Pending Shoutouts" to see your position.\n\nTransaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n\nView on explorer: ${explorerUrl}`);
+        showToast(`Voice ${voiceNoteType} submitted! Will play after current song.`, 'success');
       } else {
         throw new Error(data.error || 'Submit failed');
       }
     } catch (error: any) {
       console.error('[LiveRadio] Voice note submit failed:', error);
-      alert('Failed to submit: ' + error.message);
+      showToast('Failed to submit: ' + error.message, 'error');
       setRecordingStatus('recorded');
     }
   };
@@ -614,7 +657,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   // Handle voice shoutout button click
   const handleVoiceShoutout = async (type: 'shoutout' | 'ad') => {
     if (!walletAddress) {
-      alert('Please connect your wallet first');
+      showToast('Please connect your wallet first', 'error');
       return;
     }
     startRecording(type);
@@ -669,13 +712,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
         // Show success with tx hash link
         const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
-        alert(`Successfully claimed ${pendingRewards} TOURS!\n\nTransaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n\nView on explorer: ${explorerUrl}`);
+        showToast(`Claimed ${pendingRewards} TOURS! TX: ${txHash.slice(0, 10)}...`, 'success');
       } else {
         throw new Error(claimData.error || 'Failed to mark rewards as claimed');
       }
     } catch (error: any) {
       console.error('[LiveRadio] Claim failed:', error);
-      alert('Failed to claim rewards: ' + error.message);
+      showToast('Failed to claim: ' + error.message, 'error');
     } finally {
       setClaimingRewards(false);
     }
@@ -683,13 +726,10 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   if (!mounted) return null;
 
-  // Minimized Player Bar - floating at bottom
+  // Minimized - Small floating button in bottom-right corner
   if (isMinimized) {
     const minimizedContent = (
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-900 via-purple-900/30 to-gray-900 border-t border-purple-500/30 p-3 shadow-2xl"
-        style={{ zIndex: 9999 }}
-      >
+      <>
         {/* Hidden audio element - keeps playing */}
         {radioState?.currentSong && (
           <audio
@@ -699,94 +739,38 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           />
         )}
 
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          {/* Song Info */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-12 h-12 rounded-lg bg-purple-500/20 overflow-hidden flex-shrink-0">
-              {radioState?.currentSong?.imageUrl ? (
-                <img
-                  src={radioState.currentSong.imageUrl}
-                  alt={radioState.currentSong.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Music2 className="w-6 h-6 text-purple-400" />
-                </div>
-              )}
+        {/* Small floating button */}
+        <button
+          onClick={() => setIsMinimized(false)}
+          className="fixed bottom-4 right-4 w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg shadow-purple-500/30 flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
+          style={{ zIndex: 9999 }}
+        >
+          {/* Album art or radio icon */}
+          {radioState?.currentSong?.imageUrl ? (
+            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20">
+              <img
+                src={radioState.currentSong.imageUrl}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white font-semibold text-sm truncate">
-                {radioState?.currentSong?.name || 'No song playing'}
-              </p>
-              <p className="text-gray-400 text-xs truncate">
-                {radioState?.currentSong?.artist || 'Live Radio'}
-              </p>
+          ) : (
+            <Radio className="w-6 h-6 text-white" />
+          )}
+
+          {/* Live pulse indicator */}
+          {radioState?.isLive && isPlaying && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full animate-pulse border-2 border-gray-900" />
+          )}
+
+          {/* Play/Pause indicator */}
+          {!isPlaying && (
+            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+              <Play className="w-5 h-5 text-white ml-0.5" />
             </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-2">
-            {/* Live indicator */}
-            {radioState?.isLive && (
-              <div className="flex items-center gap-1 mr-2">
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-green-400 text-xs font-semibold">LIVE</span>
-              </div>
-            )}
-
-            {/* Volume */}
-            <button
-              onClick={toggleMute}
-              className="p-2 rounded-full hover:bg-purple-500/20 transition-colors"
-            >
-              {isMuted ? (
-                <VolumeX className="w-5 h-5 text-gray-400" />
-              ) : (
-                <Volume2 className="w-5 h-5 text-purple-400" />
-              )}
-            </button>
-
-            {/* Play/Pause */}
-            <button
-              onClick={togglePlay}
-              className="p-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 transition-all"
-            >
-              {isPlaying ? (
-                <Pause className="w-5 h-5 text-white" />
-              ) : (
-                <Play className="w-5 h-5 text-white ml-0.5" />
-              )}
-            </button>
-
-            {/* Maximize */}
-            <button
-              onClick={() => setIsMinimized(false)}
-              className="p-2 rounded-full hover:bg-purple-500/20 transition-colors"
-              title="Expand"
-            >
-              <Maximize2 className="w-5 h-5 text-purple-400" />
-            </button>
-
-            {/* Close */}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-full hover:bg-red-500/20 transition-colors"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-gray-400 hover:text-red-400" />
-            </button>
-          </div>
-        </div>
-
-        {/* Mini progress bar */}
-        <div className="h-1 bg-gray-700 rounded-full overflow-hidden mt-2 max-w-lg mx-auto">
-          <div
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-1000"
-            style={{ width: `${playbackProgress}%` }}
-          />
-        </div>
-      </div>
+          )}
+        </button>
+      </>
     );
     return createPortal(minimizedContent, document.body);
   }
@@ -797,6 +781,19 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl shadow-lg z-[10000] max-w-[90%] text-center ${
+            toast.type === 'success'
+              ? 'bg-green-600/90 text-white'
+              : 'bg-red-600/90 text-white'
+          }`}
+        >
+          <p className="text-sm font-medium">{toast.message}</p>
+        </div>
+      )}
+
       <div
         className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border border-purple-500/30 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
