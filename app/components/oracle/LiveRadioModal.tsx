@@ -21,6 +21,8 @@ import {
   Flame,
   Plus,
   Check,
+  Minus,
+  Maximize2,
 } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
@@ -93,6 +95,7 @@ const formatTime = (seconds: number): string => {
 export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const { user, walletAddress } = useFarcasterContext();
   const [mounted, setMounted] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [radioState, setRadioState] = useState<RadioState | null>(null);
   const [queue, setQueue] = useState<QueuedSong[]>([]);
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
@@ -680,6 +683,114 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   if (!mounted) return null;
 
+  // Minimized Player Bar - floating at bottom
+  if (isMinimized) {
+    const minimizedContent = (
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-900 via-purple-900/30 to-gray-900 border-t border-purple-500/30 p-3 shadow-2xl"
+        style={{ zIndex: 9999 }}
+      >
+        {/* Hidden audio element - keeps playing */}
+        {radioState?.currentSong && (
+          <audio
+            ref={audioRef}
+            src={radioState.currentSong.audioUrl}
+            onEnded={() => setIsPlaying(false)}
+          />
+        )}
+
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          {/* Song Info */}
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-12 h-12 rounded-lg bg-purple-500/20 overflow-hidden flex-shrink-0">
+              {radioState?.currentSong?.imageUrl ? (
+                <img
+                  src={radioState.currentSong.imageUrl}
+                  alt={radioState.currentSong.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Music2 className="w-6 h-6 text-purple-400" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-white font-semibold text-sm truncate">
+                {radioState?.currentSong?.name || 'No song playing'}
+              </p>
+              <p className="text-gray-400 text-xs truncate">
+                {radioState?.currentSong?.artist || 'Live Radio'}
+              </p>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-2">
+            {/* Live indicator */}
+            {radioState?.isLive && (
+              <div className="flex items-center gap-1 mr-2">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-green-400 text-xs font-semibold">LIVE</span>
+              </div>
+            )}
+
+            {/* Volume */}
+            <button
+              onClick={toggleMute}
+              className="p-2 rounded-full hover:bg-purple-500/20 transition-colors"
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5 text-gray-400" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-purple-400" />
+              )}
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={togglePlay}
+              className="p-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 transition-all"
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5 text-white" />
+              ) : (
+                <Play className="w-5 h-5 text-white ml-0.5" />
+              )}
+            </button>
+
+            {/* Maximize */}
+            <button
+              onClick={() => setIsMinimized(false)}
+              className="p-2 rounded-full hover:bg-purple-500/20 transition-colors"
+              title="Expand"
+            >
+              <Maximize2 className="w-5 h-5 text-purple-400" />
+            </button>
+
+            {/* Close */}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-red-500/20 transition-colors"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-gray-400 hover:text-red-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Mini progress bar */}
+        <div className="h-1 bg-gray-700 rounded-full overflow-hidden mt-2 max-w-lg mx-auto">
+          <div
+            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-1000"
+            style={{ width: `${playbackProgress}%` }}
+          />
+        </div>
+      </div>
+    );
+    return createPortal(minimizedContent, document.body);
+  }
+
   const modalContent = (
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
@@ -701,9 +812,18 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
               <p className="text-xs text-gray-400">World Cup 2026 Jukebox</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMinimized(true)}
+              className="text-gray-400 hover:text-purple-400 transition-colors"
+              title="Minimize"
+            >
+              <Minus className="w-6 h-6" />
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
