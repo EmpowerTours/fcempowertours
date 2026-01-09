@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { formatEther } from 'viem';
+import { Redis } from '@upstash/redis';
 
 /**
  * Streaming Stats API
@@ -7,9 +8,17 @@ import { formatEther } from 'viem';
  * Uses Envio indexer data:
  * 1. MusicLicense = purchases (artist payments at 70%)
  * 2. MusicNFT = song metadata
+ * 3. RadioPlay = radio plays (falls back to Redis if Envio not indexed)
  */
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+const PLAY_HISTORY_KEY = 'live-radio:play-history';
 
 interface StreamingStats {
   totalPlays: number;
@@ -56,7 +65,7 @@ export async function GET(req: NextRequest) {
       topArtists: [],
     };
 
-    // Fetch all data from Envio (sales + NFTs)
+    // Fetch all data from Envio (sales + NFTs + plays)
     try {
       const salesQuery = `
         query GetSalesData {
@@ -80,6 +89,18 @@ export async function GET(req: NextRequest) {
             price
             totalSold
           }
+          RadioPlay(limit: ${limit}, order_by: {playedAt: desc}) {
+            id
+            masterTokenId
+            listener
+            playedAt
+            duration
+            txHash
+            masterToken {
+              name
+              artist
+            }
+          }
         }
       `;
 
@@ -94,6 +115,28 @@ export async function GET(req: NextRequest) {
       if (salesData.data) {
         const licenses = salesData.data.MusicLicense || [];
         const nfts = salesData.data.MusicNFT || [];
+        const plays = salesData.data.RadioPlay || [];
+
+        // Process plays from LiveRadio
+        const uniqueListenersSet = new Set<string>();
+        plays.forEach((play: any) => {
+          if (play.listener) {
+            uniqueListenersSet.add(play.listener.toLowerCase());
+          }
+        });
+        stats.uniqueListeners = uniqueListenersSet.size;
+        stats.totalPlays = plays.length;
+
+        // Recent plays
+        stats.recentPlays = plays.slice(0, limit).map((play: any) => ({
+          user: play.listener,
+          masterTokenId: play.masterTokenId,
+          duration: play.duration || 180,
+          timestamp: Math.floor(new Date(play.playedAt).getTime() / 1000),
+          txHash: play.txHash || '',
+          songName: play.masterToken?.name,
+          artistAddress: play.masterToken?.artist,
+        }));
 
         // Calculate total sales and artist stats
         let totalSales = BigInt(0);
@@ -172,6 +215,31 @@ export async function GET(req: NextRequest) {
       }
     } catch (error) {
       console.error('[StreamingStats] Error fetching sales data:', error);
+    }
+
+    // Fallback: If no plays from Envio (not indexed yet), use Redis play history
+    if (stats.recentPlays.length === 0) {
+      try {
+        const redisPlays = await redis.lrange(PLAY_HISTORY_KEY, 0, limit - 1);
+        if (redisPlays && redisPlays.length > 0) {
+          stats.recentPlays = redisPlays.map((play: any) => {
+            const p = typeof play === 'string' ? JSON.parse(play) : play;
+            return {
+              user: p.queuedBy || 'radio',
+              masterTokenId: p.tokenId,
+              duration: 180,
+              timestamp: Math.floor(p.playedAt / 1000),
+              txHash: '',
+              songName: p.name,
+              artistAddress: p.artist,
+            };
+          });
+          stats.totalPlays = redisPlays.length;
+          console.log('[StreamingStats] Using Redis fallback for plays:', redisPlays.length);
+        }
+      } catch (redisError) {
+        console.error('[StreamingStats] Redis fallback error:', redisError);
+      }
     }
 
     return NextResponse.json({
