@@ -91,8 +91,9 @@ export async function POST(req: NextRequest) {
       'dao_delegate',          // Delegate voting power
       'dao_fund_safe',         // Fund user Safe with TOURS from platform
       'radio_voice_note',      // Live radio voice shoutout/ad payment
-      'radio_queue_song',      // Live radio song queue payment
+      'radio_queue_song',      // Live radio song queue on-chain
       'radio_claim_rewards',   // Live radio TOURS rewards claim
+      'radio_mark_played',     // Live radio mark song as played (scheduler)
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -4408,33 +4409,61 @@ ${enjoyText}
         });
       }
 
-      // ==================== LIVE RADIO: QUEUE SONG PAYMENT ====================
+      // ==================== LIVE RADIO: QUEUE SONG (ON-CHAIN) ====================
       case 'radio_queue_song': {
-        console.log('📻 Action: radio_queue_song');
+        console.log('📻 Action: radio_queue_song (on-chain)');
+
+        const { masterTokenId, tipAmount = '0' } = params || {};
+        if (!masterTokenId) {
+          return NextResponse.json(
+            { success: false, error: 'masterTokenId required' },
+            { status: 400 }
+          );
+        }
 
         const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || process.env.NEXT_PUBLIC_WMON_TOKEN) as Address;
-        const RADIO_TREASURY = process.env.RADIO_TREASURY_ADDRESS as Address || SAFE_ACCOUNT;
+        const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO as Address;
 
-        // Pricing: 1 WMON to queue a song
-        const amount = '1';
-        const amountWei = parseEther(amount);
+        if (!LIVE_RADIO_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'LiveRadio contract not configured' },
+            { status: 500 }
+          );
+        }
 
-        console.log('📻 Queue song payment:', { amount, WMON_ADDRESS, RADIO_TREASURY });
+        // Pricing: 1 WMON to queue a song (plus optional tip)
+        const baseAmount = parseEther('1');
+        const tipAmountWei = parseEther(tipAmount);
+        const totalAmount = baseAmount + tipAmountWei;
 
+        console.log('📻 Queue song on-chain:', { masterTokenId, totalAmount: totalAmount.toString(), tipAmount, LIVE_RADIO_ADDRESS });
+
+        // First approve WMON to LiveRadio contract, then call queueSong
         const radioQueueCalls: Call[] = [
+          // Step 1: Approve WMON to LiveRadio contract
           {
             to: WMON_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
-              functionName: 'transfer',
-              args: [RADIO_TREASURY, amountWei],
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [LIVE_RADIO_ADDRESS, totalAmount],
+            }) as Hex,
+          },
+          // Step 2: Call queueSong on LiveRadio contract
+          {
+            to: LIVE_RADIO_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function queueSong(uint256 masterTokenId, uint256 userFid, uint256 tipAmount) external']),
+              functionName: 'queueSong',
+              args: [BigInt(masterTokenId), BigInt(user?.fid || 0), tipAmountWei],
             }) as Hex,
           },
         ];
 
         const radioQueueTxHash = await executeTransaction(radioQueueCalls, userAddress as Address);
-        console.log('✅ Queue song payment TX:', radioQueueTxHash);
+        console.log('✅ Queue song on-chain TX:', radioQueueTxHash);
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -4442,8 +4471,57 @@ ${enjoyText}
           txHash: radioQueueTxHash,
           action,
           userAddress,
-          amount,
-          message: `Paid ${amount} WMON to queue song!`,
+          masterTokenId,
+          tipAmount,
+          message: `Song #${masterTokenId} queued on-chain!`,
+        });
+      }
+
+      // ==================== LIVE RADIO: MARK SONG PLAYED (ADMIN) ====================
+      case 'radio_mark_played': {
+        console.log('📻 Action: radio_mark_played');
+
+        const { queueIndex } = params || {};
+        if (queueIndex === undefined) {
+          return NextResponse.json(
+            { success: false, error: 'queueIndex required' },
+            { status: 400 }
+          );
+        }
+
+        const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO as Address;
+
+        if (!LIVE_RADIO_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'LiveRadio contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('📻 Marking song as played:', { queueIndex, LIVE_RADIO_ADDRESS });
+
+        // Call markSongPlayed via platform Safe (owner)
+        const markPlayedCalls: Call[] = [
+          {
+            to: LIVE_RADIO_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function markSongPlayed(uint256 queueIndex) external']),
+              functionName: 'markSongPlayed',
+              args: [BigInt(queueIndex)],
+            }) as Hex,
+          },
+        ];
+
+        const markPlayedTxHash = await sendSafeTransaction(markPlayedCalls);
+        console.log('✅ Mark played TX:', markPlayedTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: markPlayedTxHash,
+          action,
+          queueIndex,
+          message: `Song at queue index ${queueIndex} marked as played on-chain`,
         });
       }
 

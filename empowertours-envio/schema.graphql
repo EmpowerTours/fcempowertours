@@ -728,3 +728,108 @@ type ArtistStreamingStats @entity {
   totalEarningsTOURS: BigInt!
   lastPayoutAt: Timestamp
 }
+
+# ============================================
+# ✅ NEW: LiveRadio Entities (World Cup 2026 Jukebox)
+# ============================================
+
+# Radio play history - tracks every song played on the radio
+type RadioPlay @entity {
+  id: ID!                                 # play-{chainId}-{txHash}-{logIndex}
+  queueId: String!                        # 0 for random plays
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  artist: String!
+  artistPayout: BigInt!
+  wasRandom: Boolean!
+  playedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Songs queued by users
+type RadioQueuedSong @entity {
+  id: ID!                                 # queue-{chainId}-{queueId}
+  queueId: String!
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  queuedBy: String!
+  queuedByFid: String!
+  paidAmount: BigInt!
+  tipAmount: BigInt!
+  hadLicense: Boolean!
+  played: Boolean!
+  queuedAt: Timestamp!
+  playedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Voice notes submitted by users
+type RadioVoiceNote @entity {
+  id: ID!                                 # voicenote-{chainId}-{noteId}
+  noteId: String!
+  submitter: String!
+  duration: BigInt!
+  paidAmount: BigInt!
+  isAd: Boolean!
+  played: Boolean!
+  rewardPaid: BigInt
+  submittedAt: Timestamp!
+  playedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Listener stats and leaderboard
+type RadioListener @entity {
+  id: ID!                                 # listener-{chainId}-{address}
+  listener: String!
+  totalSongsListened: Int!
+  totalRewardsEarned: BigInt!
+  currentStreak: Int!
+  longestStreak: Int!
+  firstListenerBonuses: Int!
+  voiceNotesSubmitted: Int!
+  voiceNotesPlayed: Int!
+  tipsGiven: BigInt!
+  songsQueued: Int!
+  lastActiveAt: Timestamp!
+}
+
+# First listener of each day
+type RadioFirstListener @entity {
+  id: ID!                                 # firstlistener-{chainId}-{day}
+  day: BigInt!
+  listener: String!
+  bonusAmount: BigInt!
+  claimedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Tips received by artists
+type RadioTip @entity {
+  id: ID!                                 # tip-{chainId}-{txHash}-{logIndex}
+  masterTokenId: String!
+  artist: String!
+  tipper: String!
+  amount: BigInt!
+  tippedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Global radio stats
+type RadioGlobalStats @entity {
+  id: ID!                                 # radio-stats-{chainId}
+  isLive: Boolean!
+  totalSongsPlayed: Int!
+  totalQueuedSongs: Int!
+  totalRandomSongs: Int!
+  totalVoiceNotes: Int!
+  totalListeners: Int!
+  totalTipsWMON: BigInt!
+  totalRewardsPaidTOURS: BigInt!
+  lastUpdated: Timestamp!
+}

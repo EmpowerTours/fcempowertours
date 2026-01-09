@@ -23,6 +23,10 @@ import {
   Check,
   Minus,
   Maximize2,
+  Trophy,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
@@ -126,6 +130,9 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<{ address: string; totalSongsListened: number; currentStreak: number }[]>([]);
+  const [recentPlays, setRecentPlays] = useState<{ tokenId: string; name: string; artist: string; imageUrl: string; playedAt: number; queuedBy: string; isRandom: boolean }[]>([]);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -247,6 +254,32 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     }
   }, [walletAddress]);
 
+  // Fetch leaderboard
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const response = await fetch('/api/live-radio?action=leaderboard');
+      const data = await response.json();
+      if (data.success && data.leaderboard) {
+        setLeaderboard(data.leaderboard);
+      }
+    } catch (error) {
+      console.error('[LiveRadio] Failed to fetch leaderboard:', error);
+    }
+  }, []);
+
+  // Fetch recent plays
+  const fetchRecentPlays = useCallback(async () => {
+    try {
+      const response = await fetch('/api/live-radio?action=play-history&limit=10');
+      const data = await response.json();
+      if (data.success && data.plays) {
+        setRecentPlays(data.plays);
+      }
+    } catch (error) {
+      console.error('[LiveRadio] Failed to fetch recent plays:', error);
+    }
+  }, []);
+
   // Send heartbeat
   const sendHeartbeat = useCallback(async () => {
     if (!walletAddress || !isPlaying || !radioState?.currentSong) return;
@@ -278,11 +311,11 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchRadioState(), fetchQueue(), fetchVoiceNotes(), fetchListenerStats()]);
+      await Promise.all([fetchRadioState(), fetchQueue(), fetchVoiceNotes(), fetchListenerStats(), fetchLeaderboard(), fetchRecentPlays()]);
       setLoading(false);
     };
     init();
-  }, [fetchRadioState, fetchQueue, fetchVoiceNotes, fetchListenerStats]);
+  }, [fetchRadioState, fetchQueue, fetchVoiceNotes, fetchListenerStats, fetchLeaderboard, fetchRecentPlays]);
 
   // Poll for updates
   useEffect(() => {
@@ -290,6 +323,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       fetchRadioState();
       fetchQueue();
       fetchVoiceNotes();
+      fetchRecentPlays();
     }, POLL_INTERVAL);
 
     return () => {
@@ -409,15 +443,18 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
     setQueueing(true);
     try {
-      // Step 1: Process WMON payment via delegated transaction
-      console.log('[LiveRadio] Processing payment to queue song:', song.name);
+      // Step 1: Queue song ON-CHAIN via LiveRadio contract
+      console.log('[LiveRadio] Queueing song on-chain:', song.name, 'tokenId:', song.tokenId);
       const paymentRes = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'radio_queue_song',
-          params: {},
+          params: {
+            masterTokenId: song.tokenId,
+            tipAmount: '0', // No tip for now
+          },
         }),
       });
 
@@ -427,9 +464,9 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       }
 
       const txHash = paymentData.txHash;
-      console.log('[LiveRadio] Queue payment successful, TX:', txHash);
+      console.log('[LiveRadio] On-chain queue TX:', txHash);
 
-      // Step 2: Add song to queue
+      // Step 2: Also add to Redis queue for scheduler (until fully migrated)
       const response = await fetch('/api/live-radio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1083,6 +1120,105 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                   </p>
                 </div>
               )}
+
+              {/* Leaderboard & Recent Plays Section */}
+              <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowLeaderboard(!showLeaderboard)}
+                  className="w-full p-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+                >
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    Leaderboard & Recent Plays
+                  </h3>
+                  {showLeaderboard ? (
+                    <ChevronUp className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  )}
+                </button>
+
+                {showLeaderboard && (
+                  <div className="p-3 pt-0 space-y-4">
+                    {/* Top Listeners */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-400 mb-2 flex items-center gap-1">
+                        <Trophy className="w-3 h-3" /> Top Listeners
+                      </h4>
+                      {leaderboard.length === 0 ? (
+                        <p className="text-xs text-gray-500 text-center py-2">No listeners yet</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {leaderboard.slice(0, 5).map((entry, idx) => (
+                            <div
+                              key={entry.address}
+                              className={`flex items-center gap-2 p-2 rounded-lg ${
+                                idx === 0 ? 'bg-yellow-500/20' : idx === 1 ? 'bg-gray-400/20' : idx === 2 ? 'bg-orange-500/20' : 'bg-white/5'
+                              }`}
+                            >
+                              <span className={`w-5 text-xs font-bold ${
+                                idx === 0 ? 'text-yellow-400' : idx === 1 ? 'text-gray-300' : idx === 2 ? 'text-orange-400' : 'text-gray-500'
+                              }`}>
+                                #{idx + 1}
+                              </span>
+                              <span className="text-xs text-white font-mono truncate flex-1">
+                                {entry.address.slice(0, 6)}...{entry.address.slice(-4)}
+                              </span>
+                              <span className="text-xs text-purple-400 font-semibold">
+                                {entry.totalSongsListened} songs
+                              </span>
+                              {entry.currentStreak > 0 && (
+                                <span className="text-xs text-orange-400 flex items-center gap-0.5">
+                                  <Flame className="w-3 h-3" />
+                                  {entry.currentStreak}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recent Plays */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-400 mb-2 flex items-center gap-1">
+                        <History className="w-3 h-3" /> Recent Plays
+                      </h4>
+                      {recentPlays.length === 0 ? (
+                        <p className="text-xs text-gray-500 text-center py-2">No plays yet</p>
+                      ) : (
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {recentPlays.map((play, idx) => (
+                            <div
+                              key={`${play.tokenId}-${play.playedAt}`}
+                              className="flex items-center gap-2 p-2 bg-white/5 rounded-lg"
+                            >
+                              <div className="w-8 h-8 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
+                                {play.imageUrl ? (
+                                  <img src={play.imageUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Music2 className="w-4 h-4 text-purple-400" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-white truncate">{play.name || `Song #${play.tokenId}`}</p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {play.artist} • {play.isRandom ? 'Random' : 'Queued'}
+                                </p>
+                              </div>
+                              <span className="text-xs text-gray-500 flex-shrink-0">
+                                {formatTime(Math.floor((Date.now() - play.playedAt) / 1000))} ago
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

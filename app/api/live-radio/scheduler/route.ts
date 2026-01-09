@@ -24,6 +24,7 @@ const VOICE_NOTES_KEY = 'live-radio:voice-notes';
 const SONG_POOL_KEY = 'live-radio:song-pool';
 const SCHEDULER_LOCK_KEY = 'live-radio:scheduler-lock';
 const PLAYBACK_PHASE_KEY = 'live-radio:playback-phase'; // 'song' | 'voice_note'
+const PLAY_HISTORY_KEY = 'live-radio:play-history'; // Recent plays list
 
 const KEEPER_SECRET = process.env.KEEPER_SECRET || '';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
@@ -302,6 +303,21 @@ export async function POST(req: NextRequest) {
           action = 'song_started';
           details = { song: state.currentSong, isRandom };
           console.log('[RadioScheduler] Now playing:', nextSong.name, isRandom ? '(random)' : '(queued)');
+
+          // Log play to history for tracking and leaderboard
+          const playEntry = {
+            tokenId: nextSong.tokenId,
+            name: nextSong.name,
+            artist: nextSong.artist,
+            imageUrl: nextSong.imageUrl,
+            queuedBy: nextSong.queuedBy,
+            queuedByFid: nextSong.queuedByFid,
+            playedAt: now,
+            isRandom,
+          };
+          // Add to front of list, keep last 100 plays
+          await redis.lpush(PLAY_HISTORY_KEY, JSON.stringify(playEntry));
+          await redis.ltrim(PLAY_HISTORY_KEY, 0, 99);
         } else {
           action = 'no_songs_available';
           console.log('[RadioScheduler] No songs available to play');

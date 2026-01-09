@@ -12,6 +12,7 @@ import {
   CountryCollectorV2,
   PlayOracle,
   MusicSubscriptionV2,
+  LiveRadio,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -2270,4 +2271,441 @@ EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
   }
 
   context.log.info(`💎 Royalty paid: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for song #${masterTokenId}`);
+});
+
+// ============================================
+// LIVE RADIO EVENTS (World Cup 2026 Jukebox)
+// ============================================
+
+// Radio lifecycle events
+LiveRadio.RadioStarted.handler(async ({ event, context }) => {
+  const statsId = `radio-stats-${event.chainId}`;
+
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (!stats) {
+    stats = {
+      id: statsId,
+      isLive: true,
+      totalSongsPlayed: 0,
+      totalQueuedSongs: 0,
+      totalRandomSongs: 0,
+      totalVoiceNotes: 0,
+      totalListeners: 0,
+      totalTipsWMON: BigInt(0),
+      totalRewardsPaidTOURS: BigInt(0),
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    };
+  } else {
+    stats = {
+      ...stats,
+      isLive: true,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    };
+  }
+
+  await context.RadioGlobalStats.set(stats);
+  context.log.info(`📻 LiveRadio started at ${event.block.timestamp}`);
+});
+
+LiveRadio.RadioStopped.handler(async ({ event, context }) => {
+  const statsId = `radio-stats-${event.chainId}`;
+
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (stats) {
+    await context.RadioGlobalStats.set({
+      ...stats,
+      isLive: false,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`📻 LiveRadio stopped at ${event.block.timestamp}`);
+});
+
+// Song queuing
+LiveRadio.SongQueued.handler(async ({ event, context }) => {
+  const { queueId, masterTokenId, queuedBy, fid, paidAmount, tipAmount, hadLicense } = event.params;
+
+  const queuedSongId = `queue-${event.chainId}-${queueId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.RadioQueuedSong.set({
+    id: queuedSongId,
+    queueId: queueId.toString(),
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+    queuedBy: queuedBy.toLowerCase(),
+    queuedByFid: fid.toString(),
+    paidAmount: paidAmount,
+    tipAmount: tipAmount,
+    hadLicense: hadLicense,
+    played: false,
+    queuedAt: timestamp,
+    playedAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update listener stats
+  const listenerId = `listener-${event.chainId}-${queuedBy.toLowerCase()}`;
+  let listener = await context.RadioListener.get(listenerId);
+  if (!listener) {
+    listener = {
+      id: listenerId,
+      listener: queuedBy.toLowerCase(),
+      totalSongsListened: 0,
+      totalRewardsEarned: BigInt(0),
+      currentStreak: 0,
+      longestStreak: 0,
+      firstListenerBonuses: 0,
+      voiceNotesSubmitted: 0,
+      voiceNotesPlayed: 0,
+      tipsGiven: BigInt(0),
+      songsQueued: 1,
+      lastActiveAt: timestamp,
+    };
+  } else {
+    listener = {
+      ...listener,
+      songsQueued: listener.songsQueued + 1,
+      tipsGiven: listener.tipsGiven + tipAmount,
+      lastActiveAt: timestamp,
+    };
+  }
+  await context.RadioListener.set(listener);
+
+  // Update global stats
+  const statsId = `radio-stats-${event.chainId}`;
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (stats) {
+    await context.RadioGlobalStats.set({
+      ...stats,
+      totalQueuedSongs: stats.totalQueuedSongs + 1,
+      totalTipsWMON: stats.totalTipsWMON + tipAmount,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`🎵 Song #${masterTokenId} queued by ${queuedBy.slice(0, 8)}... (FID: ${fid}, paid: ${paidAmount})`);
+});
+
+// Song played (tracks all plays - queued and random)
+LiveRadio.SongPlayed.handler(async ({ event, context }) => {
+  const { queueId, masterTokenId, artist, artistPayout, wasRandom } = event.params;
+
+  const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create play record
+  await context.RadioPlay.set({
+    id: playId,
+    queueId: queueId.toString(),
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+    artist: artist.toLowerCase(),
+    artistPayout: artistPayout,
+    wasRandom: wasRandom,
+    playedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Mark queued song as played if it was queued
+  if (queueId > BigInt(0)) {
+    const queuedSongId = `queue-${event.chainId}-${queueId.toString()}`;
+    const queuedSong = await context.RadioQueuedSong.get(queuedSongId);
+    if (queuedSong) {
+      await context.RadioQueuedSong.set({
+        ...queuedSong,
+        played: true,
+        playedAt: timestamp,
+      });
+    }
+  }
+
+  // Update global stats
+  const statsId = `radio-stats-${event.chainId}`;
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (stats) {
+    await context.RadioGlobalStats.set({
+      ...stats,
+      totalSongsPlayed: stats.totalSongsPlayed + 1,
+      totalRandomSongs: wasRandom ? stats.totalRandomSongs + 1 : stats.totalRandomSongs,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`🎶 Song #${masterTokenId} played on radio (${wasRandom ? 'random' : 'queued'}) - artist: ${artist.slice(0, 8)}...`);
+});
+
+// Voice notes
+LiveRadio.VoiceNoteSubmitted.handler(async ({ event, context }) => {
+  const { noteId, submitter, duration, paidAmount, isAd } = event.params;
+
+  const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.RadioVoiceNote.set({
+    id: voiceNoteId,
+    noteId: noteId.toString(),
+    submitter: submitter.toLowerCase(),
+    duration: duration,
+    paidAmount: paidAmount,
+    isAd: isAd,
+    played: false,
+    rewardPaid: undefined,
+    submittedAt: timestamp,
+    playedAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update listener stats
+  const listenerId = `listener-${event.chainId}-${submitter.toLowerCase()}`;
+  let listener = await context.RadioListener.get(listenerId);
+  if (!listener) {
+    listener = {
+      id: listenerId,
+      listener: submitter.toLowerCase(),
+      totalSongsListened: 0,
+      totalRewardsEarned: BigInt(0),
+      currentStreak: 0,
+      longestStreak: 0,
+      firstListenerBonuses: 0,
+      voiceNotesSubmitted: 1,
+      voiceNotesPlayed: 0,
+      tipsGiven: BigInt(0),
+      songsQueued: 0,
+      lastActiveAt: timestamp,
+    };
+  } else {
+    listener = {
+      ...listener,
+      voiceNotesSubmitted: listener.voiceNotesSubmitted + 1,
+      lastActiveAt: timestamp,
+    };
+  }
+  await context.RadioListener.set(listener);
+
+  // Update global stats
+  const statsId = `radio-stats-${event.chainId}`;
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (stats) {
+    await context.RadioGlobalStats.set({
+      ...stats,
+      totalVoiceNotes: stats.totalVoiceNotes + 1,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`🎤 Voice ${isAd ? 'ad' : 'note'} submitted by ${submitter.slice(0, 8)}... (${duration}s, paid: ${paidAmount})`);
+});
+
+LiveRadio.VoiceNotePlayed.handler(async ({ event, context }) => {
+  const { noteId, submitter, rewardPaid } = event.params;
+
+  const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const voiceNote = await context.RadioVoiceNote.get(voiceNoteId);
+  if (voiceNote) {
+    await context.RadioVoiceNote.set({
+      ...voiceNote,
+      played: true,
+      rewardPaid: rewardPaid,
+      playedAt: timestamp,
+    });
+  }
+
+  // Update listener stats
+  const listenerId = `listener-${event.chainId}-${submitter.toLowerCase()}`;
+  let listener = await context.RadioListener.get(listenerId);
+  if (listener) {
+    await context.RadioListener.set({
+      ...listener,
+      voiceNotesPlayed: listener.voiceNotesPlayed + 1,
+      totalRewardsEarned: listener.totalRewardsEarned + rewardPaid,
+      lastActiveAt: timestamp,
+    });
+  }
+
+  context.log.info(`🎤 Voice note #${noteId} played - ${submitter.slice(0, 8)}... earned ${rewardPaid} TOURS`);
+});
+
+// Listener rewards
+LiveRadio.ListenerRewarded.handler(async ({ event, context }) => {
+  const { listener, amount, rewardType } = event.params;
+
+  const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  let listenerEntity = await context.RadioListener.get(listenerId);
+  if (!listenerEntity) {
+    listenerEntity = {
+      id: listenerId,
+      listener: listener.toLowerCase(),
+      totalSongsListened: 1,
+      totalRewardsEarned: amount,
+      currentStreak: 1,
+      longestStreak: 1,
+      firstListenerBonuses: 0,
+      voiceNotesSubmitted: 0,
+      voiceNotesPlayed: 0,
+      tipsGiven: BigInt(0),
+      songsQueued: 0,
+      lastActiveAt: timestamp,
+    };
+  } else {
+    listenerEntity = {
+      ...listenerEntity,
+      totalSongsListened: listenerEntity.totalSongsListened + 1,
+      totalRewardsEarned: listenerEntity.totalRewardsEarned + amount,
+      lastActiveAt: timestamp,
+    };
+  }
+  await context.RadioListener.set(listenerEntity);
+
+  // Update global stats
+  const statsId = `radio-stats-${event.chainId}`;
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (stats) {
+    await context.RadioGlobalStats.set({
+      ...stats,
+      totalRewardsPaidTOURS: stats.totalRewardsPaidTOURS + amount,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`🎧 Listener ${listener.slice(0, 8)}... rewarded ${amount} TOURS (${rewardType})`);
+});
+
+LiveRadio.StreakBonusClaimed.handler(async ({ event, context }) => {
+  const { listener, streakDays, bonusAmount } = event.params;
+
+  const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  let listenerEntity = await context.RadioListener.get(listenerId);
+  if (listenerEntity) {
+    const newLongestStreak = Number(streakDays) > listenerEntity.longestStreak
+      ? Number(streakDays)
+      : listenerEntity.longestStreak;
+
+    await context.RadioListener.set({
+      ...listenerEntity,
+      currentStreak: Number(streakDays),
+      longestStreak: newLongestStreak,
+      totalRewardsEarned: listenerEntity.totalRewardsEarned + bonusAmount,
+      lastActiveAt: timestamp,
+    });
+  }
+
+  context.log.info(`🔥 ${listener.slice(0, 8)}... claimed ${streakDays}-day streak bonus: ${bonusAmount} TOURS`);
+});
+
+LiveRadio.FirstListenerBonus.handler(async ({ event, context }) => {
+  const { listener, day, bonusAmount } = event.params;
+
+  const firstListenerId = `firstlistener-${event.chainId}-${day.toString()}`;
+  const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Record first listener for the day
+  await context.RadioFirstListener.set({
+    id: firstListenerId,
+    day: day,
+    listener: listener.toLowerCase(),
+    bonusAmount: bonusAmount,
+    claimedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update listener stats
+  let listenerEntity = await context.RadioListener.get(listenerId);
+  if (listenerEntity) {
+    await context.RadioListener.set({
+      ...listenerEntity,
+      firstListenerBonuses: listenerEntity.firstListenerBonuses + 1,
+      totalRewardsEarned: listenerEntity.totalRewardsEarned + bonusAmount,
+      lastActiveAt: timestamp,
+    });
+  }
+
+  context.log.info(`🌟 ${listener.slice(0, 8)}... is first listener of day ${day} - bonus: ${bonusAmount} TOURS`);
+});
+
+// Tips
+LiveRadio.TipReceived.handler(async ({ event, context }) => {
+  const { masterTokenId, artist, tipper, amount } = event.params;
+
+  const tipId = `tip-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.RadioTip.set({
+    id: tipId,
+    masterTokenId: masterTokenId.toString(),
+    artist: artist.toLowerCase(),
+    tipper: tipper.toLowerCase(),
+    amount: amount,
+    tippedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update tipper stats
+  const listenerId = `listener-${event.chainId}-${tipper.toLowerCase()}`;
+  let listener = await context.RadioListener.get(listenerId);
+  if (listener) {
+    await context.RadioListener.set({
+      ...listener,
+      tipsGiven: listener.tipsGiven + amount,
+      lastActiveAt: timestamp,
+    });
+  }
+
+  // Update global stats
+  const statsId = `radio-stats-${event.chainId}`;
+  let stats = await context.RadioGlobalStats.get(statsId);
+  if (stats) {
+    await context.RadioGlobalStats.set({
+      ...stats,
+      totalTipsWMON: stats.totalTipsWMON + amount,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`💸 Tip: ${tipper.slice(0, 8)}... tipped ${amount} WMON to artist ${artist.slice(0, 8)}... for song #${masterTokenId}`);
+});
+
+LiveRadio.RewardsClaimed.handler(async ({ event, context }) => {
+  const { user, amount } = event.params;
+
+  context.log.info(`💰 ${user.slice(0, 8)}... claimed ${amount} TOURS rewards`);
+});
+
+// Random song selection (Pyth Entropy)
+LiveRadio.RandomSongRequested.handler(async ({ event, context }) => {
+  const { sequenceNumber, requester } = event.params;
+
+  context.log.info(`🎲 Random song requested - sequence: ${sequenceNumber}, requester: ${requester.slice(0, 8)}...`);
+});
+
+LiveRadio.RandomSongSelected.handler(async ({ event, context }) => {
+  const { masterTokenId, randomValue } = event.params;
+
+  context.log.info(`🎲 Random song selected: #${masterTokenId} (random: ${randomValue})`);
+});
+
+// Song pool management
+LiveRadio.SongAddedToPool.handler(async ({ event, context }) => {
+  const { masterTokenId } = event.params;
+
+  context.log.info(`➕ Song #${masterTokenId} added to radio pool`);
+});
+
+LiveRadio.SongRemovedFromPool.handler(async ({ event, context }) => {
+  const { masterTokenId } = event.params;
+
+  context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
 });

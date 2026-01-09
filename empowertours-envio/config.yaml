@@ -1001,4 +1001,93 @@ networks:
               transaction_fields:
                 - hash
 
+      # ✅ NEW: LiveRadio Contract (World Cup 2026 Jukebox - Jan 2026)
+      - name: LiveRadio
+        address:
+          - "0xD185D0aF0744718fC8b6944FC4cD6fF44Fc8bBf6"
+        handler: src/EventHandlers.ts
+        events:
+          # Radio lifecycle
+          - event: "RadioStarted(uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RadioStopped(uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Song queuing
+          - event: "SongQueued(uint256 indexed queueId, uint256 indexed masterTokenId, address indexed queuedBy, uint256 fid, uint256 paidAmount, uint256 tipAmount, bool hadLicense)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Song played (tracks all plays - queued and random)
+          - event: "SongPlayed(uint256 indexed queueId, uint256 indexed masterTokenId, address indexed artist, uint256 artistPayout, bool wasRandom)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Voice notes
+          - event: "VoiceNoteSubmitted(uint256 indexed noteId, address indexed submitter, uint256 duration, uint256 paidAmount, bool isAd)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "VoiceNotePlayed(uint256 indexed noteId, address indexed submitter, uint256 rewardPaid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Listener rewards
+          - event: "ListenerRewarded(address indexed listener, uint256 amount, string rewardType)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "StreakBonusClaimed(address indexed listener, uint256 streakDays, uint256 bonusAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "FirstListenerBonus(address indexed listener, uint256 day, uint256 bonusAmount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Tips and rewards
+          - event: "TipReceived(uint256 indexed masterTokenId, address indexed artist, address indexed tipper, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardsClaimed(address indexed user, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Random song selection (Pyth Entropy)
+          - event: "RandomSongRequested(uint64 indexed sequenceNumber, address indexed requester)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RandomSongSelected(uint256 indexed masterTokenId, bytes32 randomValue)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Song pool management
+          - event: "SongAddedToPool(uint256 indexed masterTokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "SongRemovedFromPool(uint256 indexed masterTokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false

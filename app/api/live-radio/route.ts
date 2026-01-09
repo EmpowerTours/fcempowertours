@@ -23,6 +23,7 @@ const VOICE_NOTES_KEY = 'live-radio:voice-notes';
 const LISTENER_STATS_KEY = 'live-radio:listener-stats';
 const ACTIVE_LISTENERS_KEY = 'live-radio:active-listeners';
 const DAILY_FIRST_LISTENER_KEY = 'live-radio:first-listener';
+const PLAY_HISTORY_KEY = 'live-radio:play-history'; // Recent plays list
 const QUEUE_PRICE_WMON = 1; // 1 WMON to queue a song
 const VOICE_NOTE_PRICE_WMON = 0.5; // 0.5 WMON for a voice shoutout
 const VOICE_AD_PRICE_WMON = 2; // 2 WMON for 30-second ad
@@ -198,6 +199,74 @@ export async function GET(req: NextRequest) {
           firstListenerBonuses: 0,
         },
       });
+    }
+
+    // Get leaderboard - top listeners by songs listened
+    if (action === 'leaderboard') {
+      try {
+        // Get all listener stats from the hash
+        const allStats = await redis.hgetall<Record<string, ListenerStats>>(LISTENER_STATS_KEY);
+
+        if (!allStats || Object.keys(allStats).length === 0) {
+          return NextResponse.json({
+            success: true,
+            leaderboard: [],
+            totalListeners: 0,
+          });
+        }
+
+        // Convert to array and sort by totalSongsListened
+        const leaderboard = Object.entries(allStats)
+          .map(([address, stats]) => ({
+            address,
+            totalSongsListened: stats.totalSongsListened || 0,
+            totalRewardsEarned: stats.totalRewardsEarned || 0,
+            currentStreak: stats.currentStreak || 0,
+            longestStreak: stats.longestStreak || 0,
+            voiceNotesSubmitted: stats.voiceNotesSubmitted || 0,
+          }))
+          .filter(entry => entry.totalSongsListened > 0)
+          .sort((a, b) => b.totalSongsListened - a.totalSongsListened)
+          .slice(0, 20); // Top 20
+
+        return NextResponse.json({
+          success: true,
+          leaderboard,
+          totalListeners: Object.keys(allStats).length,
+        });
+      } catch (error: any) {
+        console.error('[LiveRadio] Leaderboard error:', error);
+        return NextResponse.json({
+          success: true,
+          leaderboard: [],
+          totalListeners: 0,
+        });
+      }
+    }
+
+    // Get recent play history
+    if (action === 'play-history') {
+      try {
+        const limit = parseInt(searchParams.get('limit') || '20');
+        const history = await redis.lrange(PLAY_HISTORY_KEY, 0, limit - 1);
+
+        const plays = history.map((item: any) =>
+          typeof item === 'string' ? JSON.parse(item) : item
+        );
+
+        return NextResponse.json({
+          success: true,
+          plays,
+          count: plays.length,
+        });
+      } catch (error: any) {
+        console.error('[LiveRadio] Play history error:', error);
+        return NextResponse.json({
+          success: true,
+          plays: [],
+          count: 0,
+        });
+      }
     }
 
     // Get current state
