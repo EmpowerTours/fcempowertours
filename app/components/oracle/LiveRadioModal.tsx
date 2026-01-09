@@ -777,35 +777,17 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           />
         )}
 
-        {/* Small floating button */}
+        {/* Tiny floating button - top right */}
         <button
           onClick={() => setIsMinimized(false)}
-          className="fixed bottom-4 right-4 w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg shadow-purple-500/30 flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
+          className="fixed top-2 right-2 w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 shadow-md flex items-center justify-center hover:scale-105 transition-transform active:scale-95"
           style={{ zIndex: 9999 }}
         >
-          {/* Album art or radio icon */}
-          {radioState?.currentSong?.imageUrl ? (
-            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20">
-              <img
-                src={radioState.currentSong.imageUrl}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <Radio className="w-6 h-6 text-white" />
-          )}
+          <Radio className="w-4 h-4 text-white" />
 
           {/* Live pulse indicator */}
           {radioState?.isLive && isPlaying && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full animate-pulse border-2 border-gray-900" />
-          )}
-
-          {/* Play/Pause indicator */}
-          {!isPlaying && (
-            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
-              <Play className="w-5 h-5 text-white ml-0.5" />
-            </div>
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse" />
           )}
         </button>
       </>
