@@ -4443,9 +4443,10 @@ ${enjoyText}
         console.log('📻 User Safe address:', radioUserSafe);
 
         // Create public client for balance checks
-        const radioPublicClient = createPublicClient({
+        const { createPublicClient: createRadioClient, http: radioHttp } = await import('viem');
+        const radioPublicClient = createRadioClient({
           chain: monadTestnet,
-          transport: http(MONAD_RPC),
+          transport: radioHttp(MONAD_RPC),
         });
 
         // Check Safe's WMON balance to see if we need to wrap MON first
