@@ -43,6 +43,14 @@ interface RadioState {
     startedAt: number;
     duration: number;
   } | null;
+  currentVoiceNote: {
+    id: string;
+    username?: string;
+    audioUrl: string;
+    duration: number;
+    isAd: boolean;
+    startedAt: number;
+  } | null;
   listenerCount: number;
   lastUpdated: number;
 }
@@ -345,10 +353,38 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     };
   }, [isPlaying, sendHeartbeat]);
 
-  // Auto-sync and switch songs when radioState updates with new song
+  // Auto-sync and switch between songs and voice notes
   const lastSongIdRef = useRef<string | null>(null);
+  const lastVoiceNoteIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!radioState?.currentSong || !audioRef.current) return;
+    if (!audioRef.current) return;
+
+    // Check if voice note is playing
+    if (radioState?.currentVoiceNote) {
+      const voiceNoteId = radioState.currentVoiceNote.id;
+
+      // New voice note detected - switch to voice note audio
+      if (lastVoiceNoteIdRef.current !== voiceNoteId) {
+        console.log('[LiveRadio] Playing voice note from:', radioState.currentVoiceNote.username || 'unknown');
+        lastVoiceNoteIdRef.current = voiceNoteId;
+        lastSongIdRef.current = null; // Reset song tracking
+
+        // Update audio source to voice note
+        audioRef.current.src = radioState.currentVoiceNote.audioUrl;
+
+        // Play from start
+        if (isPlaying) {
+          audioRef.current.currentTime = 0;
+          audioRef.current.play().catch(e => console.warn('[LiveRadio] Voice note autoplay blocked:', e));
+        }
+      }
+      return; // Don't process song while voice note is playing
+    }
+
+    // Clear voice note ref when no voice note
+    lastVoiceNoteIdRef.current = null;
+
+    if (!radioState?.currentSong) return;
 
     const currentSongId = radioState.currentSong.tokenId;
 
@@ -372,7 +408,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         audioRef.current.play().catch(e => console.warn('[LiveRadio] Autoplay blocked:', e));
       }
     }
-  }, [radioState?.currentSong, isPlaying]);
+  }, [radioState?.currentSong, radioState?.currentVoiceNote, isPlaying]);
 
   // Update progress bar every second
   useEffect(() => {

@@ -102,6 +102,7 @@ interface ListenerStats {
   voiceNotesSubmitted: number;
   voiceNotesPlayed: number;
   firstListenerBonuses: number;
+  lastRewardedSongId?: string; // Track last song rewarded to prevent duplicate rewards
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
@@ -615,13 +616,24 @@ export async function POST(req: NextRequest) {
         stats.longestStreak = stats.currentStreak;
       }
 
-      // Listen reward (per heartbeat, limited to avoid abuse)
-      rewardEarned += LISTEN_REWARD_TOURS;
-      stats.totalSongsListened++;
+      // Listen reward - only give once per song (not per heartbeat)
+      // Create unique song ID from token and start time to prevent duplicate rewards
+      const currentSongId = state?.currentSong
+        ? `${state.currentSong.tokenId}-${state.currentSong.startedAt}`
+        : masterTokenId;
+
+      if (currentSongId && stats.lastRewardedSongId !== currentSongId) {
+        rewardEarned += LISTEN_REWARD_TOURS;
+        stats.totalSongsListened++;
+        stats.lastRewardedSongId = currentSongId;
+        bonusType = bonusType ? `${bonusType}+listen` : 'listen';
+      }
 
       stats.lastListenDay = today;
-      stats.pendingRewards += rewardEarned;
-      stats.totalRewardsEarned += rewardEarned;
+      if (rewardEarned > 0) {
+        stats.pendingRewards += rewardEarned;
+        stats.totalRewardsEarned += rewardEarned;
+      }
 
       await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
 
