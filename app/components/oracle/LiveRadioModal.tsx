@@ -764,19 +764,23 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   if (!mounted) return null;
 
-  // Minimized - Small floating button in bottom-right corner
+  // Persistent audio element - ALWAYS rendered to keep playing across view switches
+  const persistentAudioPortal = createPortal(
+    radioState?.currentSong ? (
+      <audio
+        ref={audioRef}
+        src={radioState.currentSong.audioUrl}
+        onEnded={() => setIsPlaying(false)}
+        style={{ display: 'none' }}
+      />
+    ) : null,
+    document.body
+  );
+
+  // Minimized - Small floating button in top-right corner
   if (isMinimized) {
     const minimizedContent = (
       <>
-        {/* Hidden audio element - keeps playing */}
-        {radioState?.currentSong && (
-          <audio
-            ref={audioRef}
-            src={radioState.currentSong.audioUrl}
-            onEnded={() => setIsPlaying(false)}
-          />
-        )}
-
         {/* Tiny floating button - top right */}
         <button
           onClick={() => setIsMinimized(false)}
@@ -792,7 +796,12 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         </button>
       </>
     );
-    return createPortal(minimizedContent, document.body);
+    return (
+      <>
+        {persistentAudioPortal}
+        {createPortal(minimizedContent, document.body)}
+      </>
+    );
   }
 
   const modalContent = (
@@ -886,13 +895,6 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                         Queued by: {radioState.currentSong.queuedBy.slice(0, 6)}...{radioState.currentSong.queuedBy.slice(-4)}
                       </p>
                     </div>
-
-                    {/* Audio Element */}
-                    <audio
-                      ref={audioRef}
-                      src={radioState.currentSong.audioUrl}
-                      onEnded={() => setIsPlaying(false)}
-                    />
 
                     {/* Progress Bar */}
                     <div className="mt-4">
@@ -1442,5 +1444,10 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {persistentAudioPortal}
+      {createPortal(modalContent, document.body)}
+    </>
+  );
 }
