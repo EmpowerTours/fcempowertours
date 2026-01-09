@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw, Wallet, ArrowDownToLine } from 'lucide-react';
+import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw, Wallet, ArrowDownToLine, Gift } from 'lucide-react';
 import { ethers } from 'ethers';
-import { useFarcasterContext } from '../../hooks/useFarcasterContext';
 
 interface DAOModalProps {
   userAddress?: string;
@@ -42,7 +41,6 @@ const DAO_ABI = [
 type TabType = 'overview' | 'wrap' | 'delegate';
 
 export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
-  const { sendTransaction } = useFarcasterContext();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(false);
@@ -161,40 +159,53 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
     setRefreshing(false);
   };
 
-  // Fund Safe - transfer TOURS from wallet to Safe using Farcaster SDK
+  // Fund Safe - request TOURS from platform via delegated transaction
   const handleFundSafe = async () => {
     if (!userAddress || !safeAddress || !fundAmount || parseFloat(fundAmount) <= 0) return;
+
+    const amount = parseFloat(fundAmount);
+    if (amount > 10) {
+      setError('Maximum 10 TOURS per funding request');
+      return;
+    }
+
     setFundingInProgress(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const amountWei = ethers.parseEther(fundAmount).toString();
+      console.log('[DAOModal] Requesting Safe funding:', fundAmount, 'TOURS');
+      console.log('[DAOModal] Safe address:', safeAddress);
 
-      // ERC20 transfer calldata
-      const transferData = new ethers.Interface([
-        'function transfer(address to, uint256 amount) external returns (bool)'
-      ]).encodeFunctionData('transfer', [safeAddress, amountWei]);
-
-      console.log('[DAOModal] Funding Safe with', fundAmount, 'TOURS');
-      console.log('[DAOModal] To:', safeAddress);
-
-      // Use Farcaster SDK to send transaction from user wallet
-      const result = await sendTransaction({
-        to: TOURS_ADDRESS,
-        data: transferData,
-        value: '0x0',
+      // Use delegated transaction to fund Safe from platform
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          action: 'dao_fund_safe',
+          params: {
+            amount: fundAmount,
+            safeAddress,
+          },
+        }),
       });
 
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fund Safe');
+      }
+
       console.log('[DAOModal] Fund Safe result:', result);
-      setSuccess(`Transferred ${fundAmount} TOURS to your Safe! Refresh in a few seconds.`);
+      setSuccess(`Received ${fundAmount} TOURS in your Safe! TX: ${result.txHash?.slice(0, 10)}...`);
       setFundAmount('');
 
       // Refresh balances after delay
       setTimeout(() => fetchData(), 3000);
     } catch (err: any) {
       console.error('[DAOModal] Fund Safe failed:', err);
-      setError(err.message || 'Failed to transfer TOURS to Safe');
+      setError(err.message || 'Failed to fund Safe');
     } finally {
       setFundingInProgress(false);
     }
@@ -470,15 +481,15 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
 
           {activeTab === 'wrap' && (
             <div className="space-y-4">
-              {/* Fund Safe Section - only show if wallet has TOURS but Safe doesn't */}
-              {parseFloat(toursBalance) > 0 && (
-                <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
-                  <h3 className="text-sm font-medium text-blue-400 mb-2 flex items-center gap-2">
-                    <ArrowDownToLine className="w-4 h-4" />
-                    Step 1: Fund Your Safe
+              {/* Request TOURS Section - show if Safe needs TOURS for wrapping */}
+              {parseFloat(safeToursBalance) < 10 && (
+                <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-xl p-4">
+                  <h3 className="text-sm font-medium text-purple-400 mb-2 flex items-center gap-2">
+                    <Gift className="w-4 h-4" />
+                    Step 1: Get TOURS for Your Safe
                   </h3>
                   <p className="text-xs text-gray-400 mb-3">
-                    Transfer TOURS from your wallet to your Safe for gasless DAO operations.
+                    Request TOURS tokens to participate in DAO governance. Max 10 TOURS per request.
                   </p>
                   <div className="flex gap-2">
                     <div className="flex-1 flex gap-1">
@@ -486,22 +497,23 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
                         type="number"
                         value={fundAmount}
                         onChange={(e) => setFundAmount(e.target.value)}
-                        placeholder="Amount"
-                        className="flex-1 min-w-0 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                        placeholder="Amount (max 10)"
+                        max="10"
+                        className="flex-1 min-w-0 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                       />
                       <button
-                        onClick={() => setFundAmount(toursBalance)}
-                        className="px-2 py-2 bg-blue-900/50 border border-blue-700 rounded-lg text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/70 transition-colors"
+                        onClick={() => setFundAmount('10')}
+                        className="px-2 py-2 bg-purple-900/50 border border-purple-700 rounded-lg text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-900/70 transition-colors"
                       >
                         MAX
                       </button>
                     </div>
                     <button
                       onClick={handleFundSafe}
-                      disabled={fundingInProgress || !fundAmount || !safeAddress}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors flex items-center gap-2"
+                      disabled={fundingInProgress || !fundAmount || !safeAddress || parseFloat(fundAmount) > 10}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors flex items-center gap-2"
                     >
-                      {fundingInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Fund'}
+                      {fundingInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Request'}
                     </button>
                   </div>
                 </div>

@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
       'dao_wrap',              // Wrap TOURS to vTOURS for DAO voting
       'dao_unwrap',            // Unwrap vTOURS back to TOURS
       'dao_delegate',          // Delegate voting power
+      'dao_fund_safe',         // Fund user Safe with TOURS from platform
       'radio_voice_note',      // Live radio voice shoutout/ad payment
       'radio_queue_song',      // Live radio song queue payment
       'radio_claim_rewards',   // Live radio TOURS rewards claim
@@ -4168,6 +4169,61 @@ ${enjoyText}
           licenseId: resaleLicenseId,
           message: `Successfully purchased license #${resaleLicenseId} for ${resalePrice} WMON!`,
         });
+
+      // ==================== DAO: WRAP TOURS TO vTOURS ====================
+      // ==================== DAO: FUND USER SAFE ====================
+      case 'dao_fund_safe': {
+        console.log('🗳️ Action: dao_fund_safe');
+        const { amount, safeAddress } = params || {};
+        if (!amount || !safeAddress) {
+          return NextResponse.json(
+            { success: false, error: 'Missing amount or safeAddress for dao_fund_safe' },
+            { status: 400 }
+          );
+        }
+
+        // Limit funding to 10 TOURS max per request
+        const requestedAmount = parseFloat(amount);
+        if (requestedAmount > 10) {
+          return NextResponse.json(
+            { success: false, error: 'Maximum 10 TOURS per funding request' },
+            { status: 400 }
+          );
+        }
+
+        const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+        const fundAmountWei = parseEther(amount.toString());
+
+        console.log('🗳️ Funding user Safe with TOURS:', { amount, safeAddress, TOURS_TOKEN });
+
+        // Transfer TOURS from platform Safe to user's Safe
+        const fundCalls: Call[] = [
+          {
+            to: TOURS_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [safeAddress as Address, fundAmountWei],
+            }) as Hex,
+          },
+        ];
+
+        // Use platform Safe (not user Safe) to send the TOURS
+        const fundTxHash = await sendSafeTransaction(fundCalls);
+        console.log('✅ Safe funded with TOURS, TX:', fundTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: fundTxHash,
+          action,
+          userAddress,
+          safeAddress,
+          amount,
+          message: `Funded Safe with ${amount} TOURS!`,
+        });
+      }
 
       // ==================== DAO: WRAP TOURS TO vTOURS ====================
       case 'dao_wrap': {
