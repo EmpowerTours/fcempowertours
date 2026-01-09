@@ -4442,8 +4442,14 @@ ${enjoyText}
         const radioUserSafe = await getUserSafeAddress(userAddress as Address);
         console.log('📻 User Safe address:', radioUserSafe);
 
+        // Create public client for balance checks
+        const radioPublicClient = createPublicClient({
+          chain: monadTestnet,
+          transport: http(MONAD_RPC),
+        });
+
         // Check Safe's WMON balance to see if we need to wrap MON first
-        const safeWmonBalance = await publicClient.readContract({
+        const safeWmonBalance = await radioPublicClient.readContract({
           address: WMON_ADDRESS,
           abi: parseAbi(['function balanceOf(address account) external view returns (uint256)']),
           functionName: 'balanceOf',
@@ -4460,7 +4466,7 @@ ${enjoyText}
           console.log('📻 Wrapping MON to WMON:', wrapAmount.toString());
 
           // Check if Safe has enough MON to wrap
-          const safeMonBalance = await publicClient.getBalance({ address: radioUserSafe });
+          const safeMonBalance = await radioPublicClient.getBalance({ address: radioUserSafe });
           if (safeMonBalance < wrapAmount) {
             return NextResponse.json(
               { success: false, error: `Insufficient balance. Your Safe needs ${formatEther(wrapAmount)} MON to queue song.` },
