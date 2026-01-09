@@ -4413,7 +4413,7 @@ ${enjoyText}
       case 'radio_queue_song': {
         console.log('📻 Action: radio_queue_song (on-chain)');
 
-        const { masterTokenId, tipAmount = '0' } = params || {};
+        const { masterTokenId, tipAmount = '0', userFid = '0' } = params || {};
         if (!masterTokenId) {
           return NextResponse.json(
             { success: false, error: 'masterTokenId required' },
@@ -4436,7 +4436,7 @@ ${enjoyText}
         const tipAmountWei = parseEther(tipAmount);
         const totalAmount = baseAmount + tipAmountWei;
 
-        console.log('📻 Queue song on-chain:', { masterTokenId, totalAmount: totalAmount.toString(), tipAmount, LIVE_RADIO_ADDRESS });
+        console.log('📻 Queue song on-chain:', { masterTokenId, userFid, totalAmount: totalAmount.toString(), tipAmount, LIVE_RADIO_ADDRESS });
 
         // First approve WMON to LiveRadio contract, then call queueSong
         const radioQueueCalls: Call[] = [
@@ -4457,7 +4457,7 @@ ${enjoyText}
             data: encodeFunctionData({
               abi: parseAbi(['function queueSong(uint256 masterTokenId, uint256 userFid, uint256 tipAmount) external']),
               functionName: 'queueSong',
-              args: [BigInt(masterTokenId), BigInt(user?.fid || 0), tipAmountWei],
+              args: [BigInt(masterTokenId), BigInt(userFid), tipAmountWei],
             }) as Hex,
           },
         ];

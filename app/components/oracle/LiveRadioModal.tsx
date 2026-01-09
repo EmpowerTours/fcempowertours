@@ -453,6 +453,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           action: 'radio_queue_song',
           params: {
             masterTokenId: song.tokenId,
+            userFid: user?.fid?.toString() || '0',
             tipAmount: '0', // No tip for now
           },
         }),
