@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import https from 'https';
 
 const PINATA_API_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
+
+// Create HTTPS agent with keep-alive for better connection stability
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 10,
+  timeout: 120000,
+});
 const PINATA_JSON_URL = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
 const PINATA_JWT = process.env.PINATA_JWT!;
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
@@ -99,7 +108,7 @@ export async function POST(request: NextRequest) {
         const timeoutId = setTimeout(() => {
           console.log(`⏱️ Timeout triggered for ${fileType} attempt ${attempt}`);
           controller.abort();
-        }, 90000); // 90 second timeout per attempt
+        }, 120000); // 2 minute timeout per attempt
 
         try {
           const data = new FormData();
@@ -112,14 +121,14 @@ export async function POST(request: NextRequest) {
           const response = await axios.post(PINATA_API_URL, data, {
             headers: {
               'Authorization': `Bearer ${PINATA_JWT}`,
+              'Connection': 'keep-alive',
             },
             signal: controller.signal,
-            timeout: 90000, // 90 second timeout
+            timeout: 120000, // 2 minute timeout
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
             // Enable keepAlive for better connection stability
-            httpAgent: undefined,
-            httpsAgent: undefined,
+            httpsAgent: httpsAgent,
           });
 
           clearTimeout(timeoutId);
@@ -230,8 +239,10 @@ export async function POST(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${PINATA_JWT}`,
           'Content-Type': 'application/json',
+          'Connection': 'keep-alive',
         },
-        timeout: 30000, // 30 second timeout
+        timeout: 60000, // 60 second timeout
+        httpsAgent: httpsAgent,
       });
     } catch (error: any) {
       console.error('❌ Metadata upload failed:', error.message);
