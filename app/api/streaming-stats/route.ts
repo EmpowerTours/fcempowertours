@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch all data from Envio (sales + NFTs + plays)
     try {
+      // Query licenses and NFTs - RadioPlay has different schema, use Redis fallback
       const salesQuery = `
         query GetSalesData {
           MusicLicense(limit: 50, order_by: {createdAt: desc}) {
@@ -89,18 +90,6 @@ export async function GET(req: NextRequest) {
             price
             totalSold
           }
-          RadioPlay(limit: ${limit}, order_by: {playedAt: desc}) {
-            id
-            masterTokenId
-            listener
-            playedAt
-            duration
-            txHash
-            masterToken {
-              name
-              artist
-            }
-          }
         }
       `;
 
@@ -117,35 +106,12 @@ export async function GET(req: NextRequest) {
         hasData: !!salesData.data,
         licensesCount: salesData.data?.MusicLicense?.length || 0,
         nftsCount: salesData.data?.MusicNFT?.length || 0,
-        playsCount: salesData.data?.RadioPlay?.length || 0,
         errors: salesData.errors,
       });
 
       if (salesData.data) {
         const licenses = salesData.data.MusicLicense || [];
         const nfts = salesData.data.MusicNFT || [];
-        const plays = salesData.data.RadioPlay || [];
-
-        // Process plays from LiveRadio
-        const uniqueListenersSet = new Set<string>();
-        plays.forEach((play: any) => {
-          if (play.listener) {
-            uniqueListenersSet.add(play.listener.toLowerCase());
-          }
-        });
-        stats.uniqueListeners = uniqueListenersSet.size;
-        stats.totalPlays = plays.length;
-
-        // Recent plays
-        stats.recentPlays = plays.slice(0, limit).map((play: any) => ({
-          user: play.listener,
-          masterTokenId: play.masterTokenId,
-          duration: play.duration || 180,
-          timestamp: Math.floor(new Date(play.playedAt).getTime() / 1000),
-          txHash: play.txHash || '',
-          songName: play.masterToken?.name,
-          artistAddress: play.masterToken?.artist,
-        }));
 
         // Calculate total sales and artist stats
         let totalSales = BigInt(0);
