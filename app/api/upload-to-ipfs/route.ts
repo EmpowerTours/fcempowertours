@@ -22,13 +22,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate file
+    // Validate file type
+    // Note: Browsers may send MIME types with codecs (e.g., "audio/webm;codecs=opus")
+    // so we use startsWith for flexible matching
     const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const validAudioTypes = ['audio/webm', 'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg'];
-    const validTypes = [...validImageTypes, ...validAudioTypes];
-    if (!validTypes.includes(file.type)) {
+    const validAudioTypes = ['audio/webm', 'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4'];
+    const allValidTypes = [...validImageTypes, ...validAudioTypes];
+
+    const fileType = file.type.split(';')[0].trim(); // Strip codec info: "audio/webm;codecs=opus" -> "audio/webm"
+    if (!allValidTypes.includes(fileType)) {
+      console.log('[Upload] Invalid file type:', file.type, '-> parsed as:', fileType);
       return NextResponse.json(
-        { success: false, error: 'Invalid file type. Only images and audio allowed.' },
+        { success: false, error: `Invalid file type: ${file.type}. Only images and audio allowed.` },
         { status: 400 }
       );
     }

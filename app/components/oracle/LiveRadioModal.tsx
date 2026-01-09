@@ -1164,7 +1164,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                       )}
                     </div>
 
-                    {/* Recent Plays */}
+                    {/* Recent Plays - Grid layout with smaller covers and text below */}
                     <div>
                       <h4 className="text-xs font-semibold text-gray-400 mb-2 flex items-center gap-1">
                         <History className="w-3 h-3" /> Recent Plays
@@ -1172,13 +1172,14 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                       {recentPlays.length === 0 ? (
                         <p className="text-xs text-gray-500 text-center py-2">No plays yet</p>
                       ) : (
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                        <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                           {recentPlays.map((play, idx) => (
                             <div
                               key={`${play.tokenId}-${play.playedAt}`}
-                              className="flex items-center gap-2 p-2 bg-white/5 rounded-lg"
+                              className="flex flex-col items-center p-1.5 bg-white/5 rounded-lg"
                             >
-                              <div className="w-8 h-8 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
+                              {/* Smaller album art */}
+                              <div className="w-12 h-12 rounded bg-purple-500/20 overflow-hidden mb-1">
                                 {play.imageUrl ? (
                                   <img src={play.imageUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
@@ -1187,15 +1188,14 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-white truncate">{play.name || `Song #${play.tokenId}`}</p>
-                                <p className="text-xs text-gray-500 truncate">
-                                  {play.artist} • {play.isRandom ? 'Random' : 'Queued'}
-                                </p>
-                              </div>
-                              <span className="text-xs text-gray-500 flex-shrink-0">
-                                {formatTime(Math.floor((Date.now() - play.playedAt) / 1000))} ago
-                              </span>
+                              {/* Song name below cover */}
+                              <p className="text-[10px] text-white text-center truncate w-full leading-tight">
+                                {play.name || `#${play.tokenId}`}
+                              </p>
+                              {/* Artist/queuer below song name */}
+                              <p className="text-[9px] text-gray-500 text-center truncate w-full">
+                                {play.queuedBy ? `${play.queuedBy.slice(0, 4)}...${play.queuedBy.slice(-2)}` : play.artist?.slice(0, 6) || ''}
+                              </p>
                             </div>
                           ))}
                         </div>

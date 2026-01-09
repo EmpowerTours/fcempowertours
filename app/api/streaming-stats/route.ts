@@ -112,6 +112,15 @@ export async function GET(req: NextRequest) {
 
       const salesData = await salesResponse.json();
 
+      // Debug: Log what Envio returns
+      console.log('[StreamingStats] Envio response:', {
+        hasData: !!salesData.data,
+        licensesCount: salesData.data?.MusicLicense?.length || 0,
+        nftsCount: salesData.data?.MusicNFT?.length || 0,
+        playsCount: salesData.data?.RadioPlay?.length || 0,
+        errors: salesData.errors,
+      });
+
       if (salesData.data) {
         const licenses = salesData.data.MusicLicense || [];
         const nfts = salesData.data.MusicNFT || [];
