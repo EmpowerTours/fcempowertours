@@ -72,7 +72,7 @@ export default function EnvioDashboard() {
           }
         }
       `;
-      const response = await fetch('https://indexer.dev.hyperindex.xyz/157f9ed/v1/graphql', {
+      const response = await fetch('https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
