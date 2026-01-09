@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       'lottery_resolve',       // V4 Switchboard randomness
       'lottery_claim',
       'lottery_enter_mon',
-      'lottery_enter_shmon',
+      'lottery_enter_wmon',    // WMON lottery entry
       'concierge_custom',
       'concierge_food',
       'concierge_ride',

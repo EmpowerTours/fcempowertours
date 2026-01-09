@@ -356,18 +356,56 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   // Auto-sync and switch between songs and voice notes
   const lastSongIdRef = useRef<string | null>(null);
   const lastVoiceNoteIdRef = useRef<string | null>(null);
+  const isPlayingVoiceNoteRef = useRef<boolean>(false); // Track if voice note is actively playing
+
+  // Handle voice note end event - switch to song when voice note actually finishes on client
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleEnded = () => {
+      if (isPlayingVoiceNoteRef.current) {
+        console.log('[LiveRadio] Voice note audio ended on client');
+        isPlayingVoiceNoteRef.current = false;
+        lastVoiceNoteIdRef.current = null;
+
+        // Now switch to current song if available
+        if (radioState?.currentSong && audioRef.current) {
+          console.log('[LiveRadio] Switching to song after voice note:', radioState.currentSong.name);
+          lastSongIdRef.current = radioState.currentSong.tokenId;
+          audioRef.current.src = radioState.currentSong.audioUrl;
+
+          if (isPlaying) {
+            const now = Date.now();
+            const elapsedSeconds = (now - radioState.currentSong.startedAt) / 1000;
+            const duration = radioState.currentSong.duration || 180;
+            if (elapsedSeconds < duration && elapsedSeconds >= 0) {
+              audioRef.current.currentTime = elapsedSeconds;
+            }
+            audioRef.current.play().catch(e => console.warn('[LiveRadio] Autoplay blocked:', e));
+          }
+        }
+      }
+    };
+
+    audio.addEventListener('ended', handleEnded);
+    return () => audio.removeEventListener('ended', handleEnded);
+  }, [radioState?.currentSong, isPlaying]);
+
   useEffect(() => {
     if (!audioRef.current) return;
 
-    // Check if voice note is playing
+    // Check if voice note is playing (server says so OR client is still playing it)
     if (radioState?.currentVoiceNote) {
       const voiceNoteId = radioState.currentVoiceNote.id;
 
       // New voice note detected - switch to voice note audio
       if (lastVoiceNoteIdRef.current !== voiceNoteId) {
         console.log('[LiveRadio] Playing voice note from:', radioState.currentVoiceNote.username || 'unknown');
+        console.log('[LiveRadio] Voice note URL:', radioState.currentVoiceNote.audioUrl);
         lastVoiceNoteIdRef.current = voiceNoteId;
         lastSongIdRef.current = null; // Reset song tracking
+        isPlayingVoiceNoteRef.current = true; // Mark voice note as playing
 
         // Update audio source to voice note
         audioRef.current.src = radioState.currentVoiceNote.audioUrl;
@@ -378,7 +416,14 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           audioRef.current.play().catch(e => console.warn('[LiveRadio] Voice note autoplay blocked:', e));
         }
       }
-      return; // Don't process song while voice note is playing
+      return; // Don't process song while voice note is active on server
+    }
+
+    // If client is still playing voice note, don't switch to song yet
+    // Wait for audio 'ended' event to handle the switch
+    if (isPlayingVoiceNoteRef.current) {
+      console.log('[LiveRadio] Server cleared voice note, but client still playing - waiting for audio to end');
+      return;
     }
 
     // Clear voice note ref when no voice note
