@@ -441,7 +441,21 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   // Check if current user is already a registered guide
   useEffect(() => {
     const checkUserGuideStatus = async () => {
-      if (!publicClient || !user?.fid) return;
+      console.log('[MirrorMate] Checking guide status...', {
+        hasPublicClient: !!publicClient,
+        userFid: user?.fid,
+        registryAddress: REGISTRY_ADDRESS,
+      });
+
+      if (!publicClient || !user?.fid) {
+        console.log('[MirrorMate] Missing publicClient or user.fid');
+        return;
+      }
+
+      if (!REGISTRY_ADDRESS) {
+        console.error('[MirrorMate] REGISTRY_ADDRESS is not set!');
+        return;
+      }
 
       try {
         // Simple inline ABI for just the isRegisteredGuide function
@@ -453,6 +467,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           stateMutability: 'view'
         }] as const;
 
+        console.log('[MirrorMate] Calling isRegisteredGuide for FID:', user.fid);
         const isRegistered = await publicClient.readContract({
           address: REGISTRY_ADDRESS,
           abi: isRegisteredAbi,
@@ -504,6 +519,13 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   // Open edit form for existing guides
   const handleOpenEditForm = async () => {
+    console.log('[MirrorMate] Edit button clicked', {
+      currentUserGuideData,
+      userFid: user?.fid,
+      hasPublicClient: !!publicClient,
+      registryAddress: REGISTRY_ADDRESS,
+    });
+
     // If we have guide data from Envio, use it
     if (currentUserGuideData) {
       setFormData({

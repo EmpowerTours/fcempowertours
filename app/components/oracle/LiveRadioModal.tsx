@@ -95,7 +95,7 @@ interface LiveRadioModalProps {
 }
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
-const POLL_INTERVAL = 5000; // 5 seconds for state updates
+const POLL_INTERVAL = 2000; // 2 seconds for state updates (fast enough for 5s voice notes)
 
 // Format seconds to mm:ss
 const formatTime = (seconds: number): string => {
