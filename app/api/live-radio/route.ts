@@ -381,12 +381,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (duration > MAX_VOICE_NOTE_SECONDS) {
-        return NextResponse.json(
-          { success: false, error: `Voice notes must be ${MAX_VOICE_NOTE_SECONDS} seconds or less` },
-          { status: 400 }
-        );
-      }
+      // Ensure duration is a valid number, default to MAX if not provided
+      // This fixes issues where client state may not capture the exact recording time
+      const validDuration = typeof duration === 'number' && duration > 0
+        ? Math.min(duration, MAX_VOICE_NOTE_SECONDS)
+        : MAX_VOICE_NOTE_SECONDS;
+
+      console.log('[LiveRadio] Voice note duration:', { received: duration, using: validDuration });
 
       const voiceNote: VoiceNote = {
         id: `${userAddress}-${Date.now()}`,
@@ -394,7 +395,7 @@ export async function POST(req: NextRequest) {
         userFid: userFid || 0,
         username,
         audioUrl,
-        duration: duration || 0,
+        duration: validDuration,
         message,
         createdAt: Date.now(),
         played: false,
