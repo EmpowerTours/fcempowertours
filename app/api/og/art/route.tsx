@@ -397,7 +397,7 @@ export async function GET(request: NextRequest) {
                   display: 'flex',
                 }}
               >
-                {priceDisplay} TOURS
+                {priceDisplay} WMON
               </div>
 
               {/* CTA */}

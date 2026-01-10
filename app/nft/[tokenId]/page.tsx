@@ -325,7 +325,7 @@ export default function NFTPage() {
     try {
       console.log('💎 Starting purchase for token:', tokenId);
       console.log('🎵 Song:', nftData?.name);
-      console.log('💰 Price:', nftData?.price, 'TOURS');
+      console.log('💰 Price:', nftData?.price, 'WMON');
 
       const command = `buy_music ${tokenId}`;
       console.log('🤖 Executing command:', command);
@@ -340,7 +340,7 @@ export default function NFTPage() {
 
       if (result?.success === true) {
         setPurchaseStatus('success');
-        setPurchaseMessage(`🎉 License purchased!\n\n"${nftData?.name}"\n💰 ${nftData?.price} TOURS\n\nEnjoy your music!`);
+        setPurchaseMessage(`🎉 License purchased!\n\n"${nftData?.name}"\n💰 ${nftData?.price} WMON\n\nEnjoy your ${nftData?.isArt ? 'art' : 'music'}!`);
         console.log('✅ Purchase successful - alert should show');
 
         // Show success message for 5 seconds
@@ -533,7 +533,7 @@ export default function NFTPage() {
             <p className="text-gray-400 text-sm mb-2">LICENSE PRICE</p>
             <div className="flex items-baseline gap-2">
               <p className="text-5xl font-bold text-cyan-400">{priceNum}</p>
-              <p className="text-2xl text-cyan-400 font-semibold">TOURS</p>
+              <p className="text-2xl text-cyan-400 font-semibold">WMON</p>
             </div>
             <p className="text-gray-500 text-xs mt-2">
               {isArt ? 'Own this digital artwork' : 'Own the license to stream this track forever'}

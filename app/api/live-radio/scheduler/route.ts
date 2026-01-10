@@ -203,11 +203,22 @@ export async function POST(req: NextRequest) {
 
       // Check if voice note is playing and has ended
       if (state.currentVoiceNote) {
-        const voiceNoteEndTime = state.currentVoiceNote.startedAt + (state.currentVoiceNote.duration * 1000);
+        const voiceNoteDuration = state.currentVoiceNote.duration || 5;
+        const voiceNoteEndTime = state.currentVoiceNote.startedAt + (voiceNoteDuration * 1000);
+        const remainingMs = voiceNoteEndTime - now;
+
+        console.log('[RadioScheduler] Voice note check:', {
+          id: state.currentVoiceNote.id,
+          duration: voiceNoteDuration,
+          startedAt: state.currentVoiceNote.startedAt,
+          endTime: voiceNoteEndTime,
+          now,
+          remainingMs,
+        });
 
         if (now >= voiceNoteEndTime) {
           // Voice note ended, switch to song phase
-          console.log('[RadioScheduler] Voice note ended, switching to song');
+          console.log('[RadioScheduler] Voice note ended after', voiceNoteDuration, 's, switching to song');
           state.currentVoiceNote = null;
           state.totalVoiceNotesPlayed = (state.totalVoiceNotesPlayed || 0) + 1;
           phase = 'song';
@@ -252,19 +263,42 @@ export async function POST(req: NextRequest) {
         const voiceNote = await getNextVoiceNote();
 
         if (voiceNote) {
+          // Ensure duration is valid (default to 5 seconds if missing/invalid)
+          const validDuration = typeof voiceNote.duration === 'number' && voiceNote.duration > 0
+            ? voiceNote.duration
+            : 5;
+
           state.currentVoiceNote = {
             id: voiceNote.id,
             submitter: voiceNote.userAddress,
             username: voiceNote.username,
             audioUrl: voiceNote.audioUrl,
-            duration: voiceNote.duration,
+            duration: validDuration,
             message: voiceNote.message,
             startedAt: now,
             isAd: voiceNote.isAd,
           };
           action = 'voice_note_started';
           details = { voiceNote: state.currentVoiceNote };
-          console.log('[RadioScheduler] Playing voice note from:', voiceNote.username || voiceNote.userAddress);
+          console.log('[RadioScheduler] Playing voice note from:', voiceNote.username || voiceNote.userAddress, '| Duration:', validDuration, 's');
+
+          // Save state and return immediately - let next scheduler call handle playback check
+          state.lastUpdated = now;
+          await redis.set(RADIO_STATE_KEY, state);
+          await redis.del(SCHEDULER_LOCK_KEY);
+
+          return NextResponse.json({
+            success: true,
+            action,
+            details,
+            state: {
+              isLive: state.isLive,
+              currentSong: null,
+              currentVoiceNote: state.currentVoiceNote.id,
+              phase: 'voice_note',
+              durationMs: validDuration * 1000,
+            },
+          });
         } else {
           // No voice notes, skip to song phase
           phase = 'song';
