@@ -88,6 +88,7 @@ describe("EmpowerTours NFT Transfer", () => {
       tokenId: "1",
       contract: "0xAD403897CD7d465445aF0BD4fe40f18698655D4e",
       artist: artistAddress.toLowerCase(),
+      artistFid: "12345",
       owner: artistAddress.toLowerCase(),
       tokenURI: "ipfs://QmTest123",
       coverArt: "",
