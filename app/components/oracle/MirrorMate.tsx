@@ -518,33 +518,59 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       return;
     }
 
-    // If Envio hasn't synced yet, try fetching from API
-    if (user?.fid) {
+    // Fetch guide data directly from contract if Envio doesn't have it
+    if (user?.fid && publicClient && REGISTRY_ADDRESS) {
       try {
-        const response = await fetch(`/api/guides?fid=${user.fid}`);
-        const data = await response.json();
-        const userGuide = data.guides?.find((g: any) => Number(g.fid) === user.fid);
+        console.log('[MirrorMate] Fetching guide data from contract for FID:', user.fid);
 
-        if (userGuide) {
-          setFormData({
-            bio: userGuide.bio || '',
-            languages: userGuide.languages || '',
-            transport: userGuide.transport ? userGuide.transport.split(',').map((t: string) => t.trim()) : [],
-            hourlyRate: userGuide.hourlyRateWMON ? formatEther(BigInt(userGuide.hourlyRateWMON)) : '10',
-            location: userGuide.location || location?.city || '',
-          });
-        } else {
-          // Guide data not yet indexed - use defaults
-          setFormData({
-            bio: '',
-            languages: '',
-            transport: [],
-            hourlyRate: '10',
-            location: location?.city || '',
-          });
-        }
+        const guidesAbi = [{
+          name: 'guides',
+          type: 'function',
+          inputs: [{ name: 'guideFid', type: 'uint256' }],
+          outputs: [
+            { name: 'guideFid', type: 'uint256' },
+            { name: 'guideAddress', type: 'address' },
+            { name: 'passportTokenId', type: 'uint256' },
+            { name: 'hourlyRateWMON', type: 'uint256' },
+            { name: 'hourlyRateTOURS', type: 'uint256' },
+            { name: 'active', type: 'bool' },
+            { name: 'suspended', type: 'bool' },
+            { name: 'averageRating', type: 'uint256' },
+            { name: 'ratingCount', type: 'uint256' },
+            { name: 'totalBookings', type: 'uint256' },
+            { name: 'totalCompletedTours', type: 'uint256' },
+            { name: 'cancellationCount', type: 'uint256' },
+            { name: 'bio', type: 'string' },
+            { name: 'profileImageIPFS', type: 'string' },
+          ],
+          stateMutability: 'view'
+        }] as const;
+
+        const guideData = await publicClient.readContract({
+          address: REGISTRY_ADDRESS,
+          abi: guidesAbi,
+          functionName: 'guides',
+          args: [BigInt(user.fid)],
+        }) as any;
+
+        console.log('[MirrorMate] Contract guide data:', guideData);
+
+        // Parse bio for languages/transport info (format: "Bio | Languages: X | Transport: Y")
+        const bioText = guideData[12] || '';
+        const bioParts = bioText.split(' | ');
+        const mainBio = bioParts[0] || '';
+        const languagesMatch = bioText.match(/Languages:\s*([^|]+)/);
+        const transportMatch = bioText.match(/Transport:\s*([^|]+)/);
+
+        setFormData({
+          bio: mainBio.trim(),
+          languages: languagesMatch ? languagesMatch[1].trim() : '',
+          transport: transportMatch ? transportMatch[1].trim().split(',').map((t: string) => t.trim()) : [],
+          hourlyRate: guideData[3] ? formatEther(guideData[3]) : '10',
+          location: location?.city || '',
+        });
       } catch (error) {
-        console.error('[MirrorMate] Failed to fetch guide data:', error);
+        console.error('[MirrorMate] Failed to fetch guide data from contract:', error);
         setFormData({
           bio: '',
           languages: '',
@@ -553,6 +579,15 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           location: location?.city || '',
         });
       }
+    } else {
+      // Default form data
+      setFormData({
+        bio: '',
+        languages: '',
+        transport: [],
+        hourlyRate: '10',
+        location: location?.city || '',
+      });
     }
 
     setIsEditMode(true);
