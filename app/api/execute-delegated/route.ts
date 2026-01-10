@@ -94,6 +94,10 @@ export async function POST(req: NextRequest) {
       'radio_queue_song',      // Live radio song queue on-chain
       'radio_claim_rewards',   // Live radio TOURS rewards claim
       'radio_mark_played',     // Live radio mark song as played (scheduler)
+      'mirrormate_register',   // Register as tour guide
+      'mirrormate_update',     // Update guide profile
+      'mirrormate_skip',       // Skip guide in matching
+      'mirrormate_connect',    // Request connection with guide
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -4615,6 +4619,246 @@ ${enjoyText}
           userAddress,
           amount: rewardAmount,
           message: `Claimed ${rewardAmount} TOURS listening rewards!`,
+        });
+      }
+
+      // ==================== MIRRORMATE: REGISTER GUIDE ====================
+      case 'mirrormate_register': {
+        console.log('🧳 Action: mirrormate_register');
+
+        const { guideFid, passportTokenId, countries, hourlyRateWMON, hourlyRateTOURS, bio, profileImageIPFS } = params || {};
+        if (!guideFid || !passportTokenId || !countries || !bio) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required registration params' },
+            { status: 400 }
+          );
+        }
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        // Get user's Safe address for passport ownership check
+        const registrySafe = await getUserSafeAddress(userAddress as Address);
+        console.log('🧳 Registering guide via User Safe:', registrySafe);
+
+        const registerCalls: Call[] = [
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function registerGuideFor(address passportOwner, uint256 guideFid, uint256 passportTokenId, string[] countries, uint256 hourlyRateWMON, uint256 hourlyRateTOURS, string bio, string profileImageIPFS) external'
+              ]),
+              functionName: 'registerGuideFor',
+              args: [
+                registrySafe, // passportOwner is the Safe (which owns the passport)
+                BigInt(guideFid),
+                BigInt(passportTokenId),
+                countries as string[],
+                parseEther(hourlyRateWMON?.toString() || '10'),
+                parseEther(hourlyRateTOURS?.toString() || '100'),
+                bio,
+                profileImageIPFS || '',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const registerTxHash = await executeTransaction(registerCalls, userAddress as Address);
+        console.log('✅ Guide registration TX:', registerTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: registerTxHash,
+          action,
+          userAddress,
+          guideFid,
+          message: `Registered as tour guide!`,
+        });
+      }
+
+      // ==================== MIRRORMATE: UPDATE GUIDE ====================
+      case 'mirrormate_update': {
+        console.log('🧳 Action: mirrormate_update');
+
+        const { hourlyRateWMON: updateRate, hourlyRateTOURS: updateTours, bio: updateBio, profileImageIPFS: updateImage, active } = params || {};
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🧳 Updating guide profile via User Safe');
+
+        const updateCalls: Call[] = [
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function updateGuide(uint256 hourlyRateWMON, uint256 hourlyRateTOURS, string bio, string profileImageIPFS, bool active) external'
+              ]),
+              functionName: 'updateGuide',
+              args: [
+                parseEther(updateRate?.toString() || '10'),
+                parseEther(updateTours?.toString() || '100'),
+                updateBio || '',
+                updateImage || '',
+                active !== false, // default to true
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const updateTxHash = await executeTransaction(updateCalls, userAddress as Address);
+        console.log('✅ Guide update TX:', updateTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: updateTxHash,
+          action,
+          userAddress,
+          message: `Guide profile updated!`,
+        });
+      }
+
+      // ==================== MIRRORMATE: SKIP GUIDE ====================
+      case 'mirrormate_skip': {
+        console.log('🧳 Action: mirrormate_skip');
+
+        const { travelerFid, guideFid: skipGuideFid } = params || {};
+        if (!travelerFid || !skipGuideFid) {
+          return NextResponse.json(
+            { success: false, error: 'Missing travelerFid or guideFid' },
+            { status: 400 }
+          );
+        }
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+        const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || process.env.NEXT_PUBLIC_WMON_TOKEN) as Address;
+
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🧳 Skipping guide via User Safe:', { travelerFid, skipGuideFid });
+
+        // Get user's Safe address
+        const skipUserSafe = await getUserSafeAddress(userAddress as Address);
+
+        // Pre-approve WMON in case daily free skips are exhausted (5 WMON per paid skip)
+        const skipCalls: Call[] = [
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [TOUR_GUIDE_REGISTRY, parseEther('5')], // 5 WMON for paid skip
+            }) as Hex,
+          },
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function skipGuide(uint256 travelerFid, uint256 guideFid) external']),
+              functionName: 'skipGuide',
+              args: [BigInt(travelerFid), BigInt(skipGuideFid)],
+            }) as Hex,
+          },
+        ];
+
+        const skipTxHash = await executeTransaction(skipCalls, userAddress as Address);
+        console.log('✅ Skip guide TX:', skipTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: skipTxHash,
+          action,
+          userAddress,
+          guideFid: skipGuideFid,
+          message: `Skipped guide #${skipGuideFid}`,
+        });
+      }
+
+      // ==================== MIRRORMATE: REQUEST CONNECTION ====================
+      case 'mirrormate_connect': {
+        console.log('🧳 Action: mirrormate_connect');
+
+        const { travelerFid: connectTraveler, guideFid: connectGuide, meetupType, message: connectMsg } = params || {};
+        if (!connectTraveler || !connectGuide) {
+          return NextResponse.json(
+            { success: false, error: 'Missing travelerFid or guideFid' },
+            { status: 400 }
+          );
+        }
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+        const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || process.env.NEXT_PUBLIC_WMON_TOKEN) as Address;
+
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🧳 Requesting connection via User Safe:', { connectTraveler, connectGuide, meetupType });
+
+        // Pre-approve WMON in case daily free connections are exhausted (10 WMON per paid connection)
+        const connectCalls: Call[] = [
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [TOUR_GUIDE_REGISTRY, parseEther('10')], // 10 WMON for paid connection
+            }) as Hex,
+          },
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function requestConnection(uint256 travelerFid, uint256 guideFid, string meetupType, string message) external returns (uint256)'
+              ]),
+              functionName: 'requestConnection',
+              args: [
+                BigInt(connectTraveler),
+                BigInt(connectGuide),
+                meetupType || 'meetup',
+                connectMsg || 'Would love to connect!',
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const connectTxHash = await executeTransaction(connectCalls, userAddress as Address);
+        console.log('✅ Connection request TX:', connectTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: connectTxHash,
+          action,
+          userAddress,
+          guideFid: connectGuide,
+          message: `Connection request sent to guide #${connectGuide}!`,
         });
       }
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, encodeFunctionData, createPublicClient, http, parseEther } from 'viem';
+import { Address, encodeFunctionData, createPublicClient, http, parseEther, Hex } from 'viem';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { sendUserSafeTransaction, getUserSafeAddress, checkUserSafeBalance } from '@/lib/user-safe';
+import { USE_USER_SAFES } from '@/lib/safe-mode';
 
 const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
 const PASSPORT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
@@ -179,14 +181,18 @@ export async function POST(req: NextRequest) {
       transport ? `Transport: ${transport}` : '',
     ].filter(Boolean).join(' | ');
 
-    const tx = await sendSafeTransaction([{
+    // Get the correct passportOwner address based on Safe mode
+    let passportOwner: Address;
+    let tx: string;
+
+    const calls = [{
       to: REGISTRY_ADDRESS,
       value: 0n,
       data: encodeFunctionData({
         abi: registryAbi,
         functionName: 'registerGuideFor',
         args: [
-          walletAddress as Address,  // passportOwner - user's wallet that owns the passport
+          walletAddress as Address, // Will be updated for User Safe mode
           BigInt(fid),
           tokenId,
           [location || 'Global'],
@@ -195,8 +201,37 @@ export async function POST(req: NextRequest) {
           fullBio,                   // User-specified bio with languages/transport
           pfpUrl || '',
         ],
-      }) as `0x${string}`,
-    }]);
+      }) as Hex,
+    }];
+
+    if (USE_USER_SAFES) {
+      // User Safe mode - passport is owned by user's Safe wallet
+      const userSafeAddress = await getUserSafeAddress(walletAddress as Address);
+      console.log('[MirrorMate] Using User Safe:', userSafeAddress);
+
+      // Update the passportOwner in the call data to be the Safe address
+      calls[0].data = encodeFunctionData({
+        abi: registryAbi,
+        functionName: 'registerGuideFor',
+        args: [
+          userSafeAddress,  // passportOwner is the User Safe (which owns the passport)
+          BigInt(fid),
+          tokenId,
+          [location || 'Global'],
+          hourlyRateWMON,
+          0n,
+          fullBio,
+          pfpUrl || '',
+        ],
+      }) as Hex;
+
+      const result = await sendUserSafeTransaction(walletAddress as Address, calls);
+      tx = result.txHash;
+    } else {
+      // Platform Safe mode (original behavior)
+      console.log('[MirrorMate] Using Platform Safe');
+      tx = await sendSafeTransaction(calls);
+    }
 
     console.log('[MirrorMate] Guide registered on-chain:', tx);
 

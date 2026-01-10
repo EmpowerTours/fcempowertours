@@ -178,7 +178,7 @@ networks:
 
       - name: TourGuideRegistry
         address:
-          - "0xD290D8278A5c0159e5f358745B71976531533675"  # TourGuideRegistry with FID (Dec 21, 2025)
+          - "0xEC904988ec3B2f5f3610fd89bbb864D92F1cd94B"  # TourGuideRegistry v2 (Jan 2026)
         handler: src/EventHandlers.ts
         events:
           # Guide Registration

@@ -88,6 +88,50 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     location: '',
   });
 
+  // Hold-to-match gesture state
+  const holdTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const holdProgressRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [isHolding, setIsHolding] = useState(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const HOLD_DURATION = 600; // ms to hold for match
+
+  // Hold-to-match gesture handlers
+  const handleHoldStart = () => {
+    if (txState !== 'idle') return;
+
+    setIsHolding(true);
+    setHoldProgress(0);
+
+    // Progress animation (update every 20ms for smooth visual)
+    let progress = 0;
+    holdProgressRef.current = setInterval(() => {
+      progress += (20 / HOLD_DURATION) * 100;
+      setHoldProgress(Math.min(progress, 100));
+    }, 20);
+
+    // Trigger match after hold duration
+    holdTimerRef.current = setTimeout(() => {
+      setIsHolding(false);
+      setHoldProgress(0);
+      if (holdProgressRef.current) clearInterval(holdProgressRef.current);
+      handleMatch();
+    }, HOLD_DURATION);
+  };
+
+  const handleHoldEnd = () => {
+    setIsHolding(false);
+    setHoldProgress(0);
+
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdProgressRef.current) {
+      clearInterval(holdProgressRef.current);
+      holdProgressRef.current = null;
+    }
+  };
+
   // For portal rendering
   useEffect(() => {
     setMounted(true);
@@ -266,63 +310,32 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   }, [publicClient, user]);
 
   const handleSkip = async () => {
-    if (!walletClient || !walletAddress || !user || !user.fid || currentIndex >= guides.length) return;
+    if (!walletAddress || !user || !user.fid || currentIndex >= guides.length) return;
 
     const guide = guides[currentIndex];
-    setTxState('confirming');
+    setTxState('loading');
 
     try {
-      // Inline ABI for skipGuide
-      const skipGuideAbi = [{
-        name: 'skipGuide',
-        type: 'function',
-        inputs: [
-          { name: 'skipperFid', type: 'uint256' },
-          { name: 'guideFid', type: 'uint256' }
-        ],
-        outputs: [],
-        stateMutability: 'nonpayable'
-      }] as const;
-
-      // ERC20 approve ABI
-      const approveAbi = [{
-        name: 'approve',
-        type: 'function',
-        inputs: [
-          { name: 'spender', type: 'address' },
-          { name: 'amount', type: 'uint256' }
-        ],
-        outputs: [{ type: 'bool' }],
-        stateMutability: 'nonpayable'
-      }] as const;
-
-      // Check if user needs to pay (after 20 free skips)
-      const needsPayment = userStats.remainingFreeSkips === 0;
-
-      if (needsPayment) {
-        setTxState('confirming');
-        const approveTx = await walletClient.writeContract({
-          address: WMON_ADDRESS,
-          abi: approveAbi,
-          functionName: 'approve',
-          args: [REGISTRY_ADDRESS, parseEther('5')], // 5 WMON per skip
-        });
-
-        setTxState('loading');
-        await publicClient!.waitForTransactionReceipt({ hash: approveTx });
-      }
-
-      setTxState('confirming');
-      const skipTx = await walletClient.writeContract({
-        address: REGISTRY_ADDRESS,
-        abi: skipGuideAbi,
-        functionName: 'skipGuide',
-        args: [BigInt(user.fid), guide.fid],
+      // Use execute-delegated API with User Safe
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'mirrormate_skip',
+          params: {
+            travelerFid: user.fid,
+            guideFid: guide.fid.toString(),
+          },
+        }),
       });
 
-      setTxState('loading');
-      await publicClient!.waitForTransactionReceipt({ hash: skipTx });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Skip failed');
+      }
 
+      console.log('[MirrorMate] Skip TX:', result.txHash);
       setTxState('success');
 
       // Update stats
@@ -345,67 +358,34 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   };
 
   const handleMatch = async () => {
-    if (!walletClient || !walletAddress || !user || !user.fid || currentIndex >= guides.length) return;
+    if (!walletAddress || !user || !user.fid || currentIndex >= guides.length) return;
 
     const guide = guides[currentIndex];
-    setTxState('confirming');
+    setTxState('loading');
 
     try {
-      // Inline ABI for requestConnection
-      const requestConnectionAbi = [{
-        name: 'requestConnection',
-        type: 'function',
-        inputs: [
-          { name: 'requesterFid', type: 'uint256' },
-          { name: 'guideFid', type: 'uint256' },
-          { name: 'meetupType', type: 'string' },
-          { name: 'message', type: 'string' }
-        ],
-        outputs: [],
-        stateMutability: 'nonpayable'
-      }] as const;
-
-      // ERC20 approve ABI
-      const approveAbi = [{
-        name: 'approve',
-        type: 'function',
-        inputs: [
-          { name: 'spender', type: 'address' },
-          { name: 'amount', type: 'uint256' }
-        ],
-        outputs: [{ type: 'bool' }],
-        stateMutability: 'nonpayable'
-      }] as const;
-
-      // Approve 10 WMON just in case (contract will only charge if needed)
-      setTxState('confirming');
-      const approveTx = await walletClient.writeContract({
-        address: WMON_ADDRESS,
-        abi: approveAbi,
-        functionName: 'approve',
-        args: [REGISTRY_ADDRESS, parseEther('10')], // 10 WMON per paid connection
+      // Use execute-delegated API with User Safe
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'mirrormate_connect',
+          params: {
+            travelerFid: user.fid,
+            guideFid: guide.fid.toString(),
+            meetupType: 'meetup',
+            message: `Hi! I'd love to connect with you as my guide in ${guide.location || 'your city'}!`,
+          },
+        }),
       });
 
-      setTxState('loading');
-      await publicClient!.waitForTransactionReceipt({ hash: approveTx });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Connection failed');
+      }
 
-      // Request connection (free or paid based on daily limit)
-      setTxState('confirming');
-      const connectionTx = await walletClient.writeContract({
-        address: REGISTRY_ADDRESS,
-        abi: requestConnectionAbi,
-        functionName: 'requestConnection',
-        args: [
-          BigInt(user.fid),
-          guide.fid,
-          'meetup', // meetupType: coffee, advice, trial, etc.
-          `Hi! I'd love to connect with you as my guide in ${guide.location || 'your city'}!`,
-        ],
-      });
-
-      setTxState('loading');
-      await publicClient!.waitForTransactionReceipt({ hash: connectionTx });
-
+      console.log('[MirrorMate] Connect TX:', result.txHash);
       setTxState('success');
 
       // Open Warpcast DM with the guide
@@ -815,8 +795,20 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           <Heart className="w-4 h-4 text-cyan-400" />
           <span className="text-white font-bold text-sm">MirrorMate</span>
         </div>
-        <div className="text-right text-[10px] text-gray-400">
-          <p>Free skips: {userStats.remainingFreeSkips}/20</p>
+        <div className="flex items-center gap-2">
+          {/* Edit Profile Button - shown when user is a registered guide */}
+          {isUserRegisteredGuide && (
+            <button
+              onClick={handleOpenEditForm}
+              className="p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+              title="Edit Profile"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
+            </button>
+          )}
+          <div className="text-right text-[10px] text-gray-400">
+            <p>Free skips: {userStats.remainingFreeSkips}/20</p>
+          </div>
         </div>
       </div>
 
@@ -935,19 +927,48 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           <X className="w-5 h-5 text-red-500" />
         </button>
 
-        {/* Match Button (Request Connection) */}
-        <button
-          onClick={handleMatch}
-          disabled={txState !== 'idle'}
-          className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all shadow-xl hover:scale-105 active:scale-95"
-        >
-          <Heart className="w-6 h-6 text-white fill-current" />
-        </button>
+        {/* Match Button (Hold to Connect) */}
+        <div className="relative">
+          <button
+            onMouseDown={handleHoldStart}
+            onMouseUp={handleHoldEnd}
+            onMouseLeave={handleHoldEnd}
+            onTouchStart={handleHoldStart}
+            onTouchEnd={handleHoldEnd}
+            disabled={txState !== 'idle'}
+            className={`w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all shadow-xl ${isHolding ? 'scale-110' : 'hover:scale-105'} active:scale-95 select-none`}
+          >
+            <Heart className={`w-6 h-6 text-white fill-current transition-transform ${isHolding ? 'scale-125' : ''}`} />
+          </button>
+          {/* Hold Progress Ring */}
+          {isHolding && (
+            <svg className="absolute inset-0 w-14 h-14 -rotate-90 pointer-events-none" viewBox="0 0 56 56">
+              <circle
+                cx="28"
+                cy="28"
+                r="26"
+                fill="none"
+                stroke="rgba(255,255,255,0.3)"
+                strokeWidth="3"
+              />
+              <circle
+                cx="28"
+                cy="28"
+                r="26"
+                fill="none"
+                stroke="white"
+                strokeWidth="3"
+                strokeDasharray={`${(holdProgress / 100) * 163.36} 163.36`}
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
+        </div>
       </div>
 
       {/* Instructions */}
       <p className="text-gray-500 text-[10px] mt-2 text-center max-w-xs">
-        Skip to see next guide • Connect to request meeting
+        Tap to skip • Hold to connect
       </p>
 
       {/* Guide Registration/Edit Form Modal */}

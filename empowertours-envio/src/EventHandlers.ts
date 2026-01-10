@@ -13,6 +13,7 @@ import {
   PlayOracle,
   MusicSubscriptionV2,
   LiveRadio,
+  TourGuideRegistry,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -2708,4 +2709,559 @@ LiveRadio.SongRemovedFromPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
+});
+
+// ============================================
+// TourGuideRegistry Event Handlers
+// ============================================
+
+// ✅ Fetch Farcaster profile from Neynar API
+async function fetchNeynarProfile(fid: string, context: any): Promise<{
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  bio?: string;
+} | null> {
+  try {
+    const apiKey = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+    if (!apiKey) {
+      context.log.warn("No Neynar API key configured");
+      return null;
+    }
+
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      context.log.warn(`Neynar API returned ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json() as any;
+    const user = data.users?.[0];
+
+    if (user) {
+      return {
+        username: user.username,
+        displayName: user.display_name,
+        pfpUrl: user.pfp_url,
+        bio: user.profile?.bio?.text,
+      };
+    }
+  } catch (err: any) {
+    context.log.warn(`Failed to fetch Neynar profile: ${err.message}`);
+  }
+  return null;
+}
+
+// Guide Registration
+TourGuideRegistry.GuideRegistered.handler(async ({ event, context }) => {
+  const { guideFid, guideAddress, passportTokenId, countries } = event.params;
+
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Try to fetch Neynar profile for display info
+  const profile = await fetchNeynarProfile(guideFid.toString(), context);
+
+  await context.TourGuide.set({
+    id: guideId,
+    guideFid: guideFid.toString(),
+    guideAddress: guideAddress.toLowerCase(),
+    passportTokenId: passportTokenId.toString(),
+    countries: countries,
+    hourlyRateWMON: BigInt(0), // Will be updated by GuideUpdated event
+    hourlyRateTOURS: BigInt(0),
+    active: true,
+    suspended: false,
+    averageRating: BigInt(0),
+    ratingCount: 0,
+    totalBookings: 0,
+    completedBookings: 0,
+    registeredAt: timestamp,
+    lastUpdated: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+    // Profile info from Neynar (if available)
+    username: profile?.username,
+    displayName: profile?.displayName,
+    pfpUrl: profile?.pfpUrl,
+    bio: profile?.bio,
+    location: countries.length > 0 ? countries[0] : undefined,
+    languages: undefined,
+    transport: undefined,
+  });
+
+  context.log.info(`🧳 Guide registered: FID ${guideFid} (${profile?.username || 'unknown'}) - countries: ${countries.join(', ')}`);
+});
+
+// Guide Updated
+TourGuideRegistry.GuideUpdated.handler(async ({ event, context }) => {
+  const { guideFid, hourlyRateWMON, hourlyRateTOURS, active } = event.params;
+
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingGuide = await context.TourGuide.get(guideId);
+  if (existingGuide) {
+    await context.TourGuide.set({
+      ...existingGuide,
+      hourlyRateWMON: hourlyRateWMON,
+      hourlyRateTOURS: hourlyRateTOURS,
+      active: active,
+      lastUpdated: timestamp,
+    });
+
+    context.log.info(`✏️ Guide updated: FID ${guideFid} - rate: ${hourlyRateWMON} WMON, active: ${active}`);
+  }
+});
+
+// Guide Suspended
+TourGuideRegistry.GuideSuspended.handler(async ({ event, context }) => {
+  const { guideFid, reason } = event.params;
+
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingGuide = await context.TourGuide.get(guideId);
+  if (existingGuide) {
+    await context.TourGuide.set({
+      ...existingGuide,
+      suspended: true,
+      active: false,
+      lastUpdated: timestamp,
+    });
+
+    context.log.info(`⛔ Guide suspended: FID ${guideFid} - reason: ${reason}`);
+  }
+});
+
+// Guide Reinstated
+TourGuideRegistry.GuideReinstated.handler(async ({ event, context }) => {
+  const { guideFid } = event.params;
+
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingGuide = await context.TourGuide.get(guideId);
+  if (existingGuide) {
+    await context.TourGuide.set({
+      ...existingGuide,
+      suspended: false,
+      active: true,
+      lastUpdated: timestamp,
+    });
+
+    context.log.info(`✅ Guide reinstated: FID ${guideFid}`);
+  }
+});
+
+// Guide Application Submitted
+TourGuideRegistry.GuideApplicationSubmitted.handler(async ({ event, context }) => {
+  const { guideFid, applicant, creditScore } = event.params;
+
+  const applicationId = `application-${event.chainId}-${guideFid.toString()}`;
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.GuideApplication.set({
+    id: applicationId,
+    guide_id: guideId,
+    guideFid: guideFid.toString(),
+    applicant: applicant.toLowerCase(),
+    creditScore: creditScore,
+    approved: undefined,
+    rejected: undefined,
+    adminNotes: undefined,
+    rejectionReason: undefined,
+    submittedAt: timestamp,
+    reviewedAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`📝 Guide application: FID ${guideFid} - credit score: ${creditScore}`);
+});
+
+// Guide Application Approved
+TourGuideRegistry.GuideApplicationApproved.handler(async ({ event, context }) => {
+  const { guideFid, adminNotes } = event.params;
+
+  const applicationId = `application-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingApp = await context.GuideApplication.get(applicationId);
+  if (existingApp) {
+    await context.GuideApplication.set({
+      ...existingApp,
+      approved: true,
+      adminNotes: adminNotes,
+      reviewedAt: timestamp,
+    });
+
+    context.log.info(`✅ Guide application approved: FID ${guideFid}`);
+  }
+});
+
+// Guide Application Rejected
+TourGuideRegistry.GuideApplicationRejected.handler(async ({ event, context }) => {
+  const { guideFid, reason } = event.params;
+
+  const applicationId = `application-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingApp = await context.GuideApplication.get(applicationId);
+  if (existingApp) {
+    await context.GuideApplication.set({
+      ...existingApp,
+      rejected: true,
+      adminNotes: reason,
+      reviewedAt: timestamp,
+    });
+
+    context.log.info(`❌ Guide application rejected: FID ${guideFid} - reason: ${reason}`);
+  }
+});
+
+// Connection Requested
+TourGuideRegistry.ConnectionRequested.handler(async ({ event, context }) => {
+  const { connectionId, travelerFid, guideFid, meetupType } = event.params;
+
+  const connId = `connection-${event.chainId}-${connectionId.toString()}`;
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.GuideConnection.set({
+    id: connId,
+    connectionId: connectionId.toString(),
+    guide_id: guideId,
+    guideFid: guideFid.toString(),
+    travelerFid: travelerFid.toString(),
+    travelerAddress: undefined,
+    meetupType: meetupType,
+    message: undefined,
+    isPaid: false,
+    fee: undefined,
+    accepted: undefined,
+    declined: undefined,
+    requestedAt: timestamp,
+    respondedAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🤝 Connection requested: traveler ${travelerFid} -> guide ${guideFid} (${meetupType})`);
+});
+
+// Connection Accepted
+TourGuideRegistry.ConnectionAccepted.handler(async ({ event, context }) => {
+  const { connectionId, travelerFid, guideFid } = event.params;
+
+  const connId = `connection-${event.chainId}-${connectionId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingConn = await context.GuideConnection.get(connId);
+  if (existingConn) {
+    await context.GuideConnection.set({
+      ...existingConn,
+      accepted: true,
+      respondedAt: timestamp,
+    });
+
+    context.log.info(`✅ Connection accepted: guide ${guideFid} accepted traveler ${travelerFid}`);
+  }
+});
+
+// Connection Declined
+TourGuideRegistry.ConnectionDeclined.handler(async ({ event, context }) => {
+  const { connectionId, travelerFid, guideFid } = event.params;
+
+  const connId = `connection-${event.chainId}-${connectionId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingConn = await context.GuideConnection.get(connId);
+  if (existingConn) {
+    await context.GuideConnection.set({
+      ...existingConn,
+      declined: true,
+      respondedAt: timestamp,
+    });
+
+    context.log.info(`❌ Connection declined: guide ${guideFid} declined traveler ${travelerFid}`);
+  }
+});
+
+// Paid Connection Requested
+TourGuideRegistry.PaidConnectionRequested.handler(async ({ event, context }) => {
+  const { connectionId, travelerFid, fee } = event.params;
+
+  context.log.info(`💰 Paid connection: traveler ${travelerFid} paid ${fee} WMON (connection #${connectionId})`);
+});
+
+// Guide Skipped
+TourGuideRegistry.GuideSkipped.handler(async ({ event, context }) => {
+  const { travelerFid, guideFid, paidSkip } = event.params;
+
+  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
+  const skipId = `skip-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create skip event record
+  await context.GuideSkipEvent.set({
+    id: skipId,
+    travelerFid: travelerFid.toString(),
+    guideFid: guideFid.toString(),
+    paidSkip: paidSkip,
+    fee: undefined, // Will be updated by PaidSkipProcessed if paidSkip=true
+    timestamp: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update traveler stats
+  let traveler = await context.TravelerStats.get(travelerId);
+  if (!traveler) {
+    traveler = {
+      id: travelerId,
+      travelerFid: travelerFid.toString(),
+      freeSkipsUsedToday: paidSkip ? 0 : 1,
+      freeConnectionsUsedToday: 0,
+      totalBookings: 0,
+      completedBookings: 0,
+      totalSpent: BigInt(0),
+      averageRating: BigInt(0),
+      lastActiveAt: timestamp,
+    };
+  } else {
+    traveler = {
+      ...traveler,
+      freeSkipsUsedToday: paidSkip ? traveler.freeSkipsUsedToday : traveler.freeSkipsUsedToday + 1,
+      lastActiveAt: timestamp,
+    };
+  }
+  await context.TravelerStats.set(traveler);
+
+  context.log.info(`⏭️ Guide skipped: traveler ${travelerFid} skipped guide ${guideFid} (paid: ${paidSkip})`);
+});
+
+// Paid Skip Processed
+TourGuideRegistry.PaidSkipProcessed.handler(async ({ event, context }) => {
+  const { travelerFid, fee } = event.params;
+
+  context.log.info(`💰 Paid skip: traveler ${travelerFid} paid ${fee} WMON`);
+});
+
+// Booking Created
+TourGuideRegistry.BookingCreated.handler(async ({ event, context }) => {
+  const { bookingId, guideFid, travelerFid, traveler, hoursDuration, totalCost, paymentToken } = event.params;
+
+  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.GuideBooking.set({
+    id: bookId,
+    bookingId: bookingId.toString(),
+    guide_id: guideId,
+    guideFid: guideFid.toString(),
+    travelerFid: travelerFid.toString(),
+    traveler: traveler.toLowerCase(),
+    hoursDuration: hoursDuration,
+    totalCost: totalCost,
+    paymentToken: paymentToken.toLowerCase(),
+    status: "Pending",
+    rating: undefined,
+    autoCompleted: undefined,
+    proofIPFS: undefined,
+    markedCompleteAt: undefined,
+    completedAt: undefined,
+    cancelledAt: undefined,
+    cancelledBy: undefined,
+    cancellationReason: undefined,
+    createdAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update guide stats
+  const existingGuide = await context.TourGuide.get(guideId);
+  if (existingGuide) {
+    await context.TourGuide.set({
+      ...existingGuide,
+      totalBookings: existingGuide.totalBookings + 1,
+      lastUpdated: timestamp,
+    });
+  }
+
+  // Update traveler stats
+  let travelerStats = await context.TravelerStats.get(travelerId);
+  if (!travelerStats) {
+    travelerStats = {
+      id: travelerId,
+      travelerFid: travelerFid.toString(),
+      freeSkipsUsedToday: 0,
+      freeConnectionsUsedToday: 0,
+      totalBookings: 1,
+      completedBookings: 0,
+      totalSpent: totalCost,
+      averageRating: BigInt(0),
+      lastActiveAt: timestamp,
+    };
+  } else {
+    travelerStats = {
+      ...travelerStats,
+      totalBookings: travelerStats.totalBookings + 1,
+      totalSpent: travelerStats.totalSpent + totalCost,
+      lastActiveAt: timestamp,
+    };
+  }
+  await context.TravelerStats.set(travelerStats);
+
+  context.log.info(`📅 Booking created: #${bookingId} - traveler ${travelerFid} booked guide ${guideFid} for ${hoursDuration}h @ ${totalCost}`);
+});
+
+// Tour Marked Complete (by guide)
+TourGuideRegistry.TourMarkedComplete.handler(async ({ event, context }) => {
+  const { bookingId, guideFid, proofIPFS, timestamp: proofTimestamp } = event.params;
+
+  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingBooking = await context.GuideBooking.get(bookId);
+  if (existingBooking) {
+    await context.GuideBooking.set({
+      ...existingBooking,
+      proofIPFS: proofIPFS,
+      markedCompleteAt: timestamp,
+      // Don't mark completed yet - wait for traveler confirmation or auto-complete
+    });
+
+    context.log.info(`📸 Tour marked complete: booking #${bookingId} by guide ${guideFid} (proof: ${proofIPFS})`);
+  }
+});
+
+// Tour Completed (final)
+TourGuideRegistry.TourCompleted.handler(async ({ event, context }) => {
+  const { bookingId, guideFid, travelerFid, rating, autoCompleted } = event.params;
+
+  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingBooking = await context.GuideBooking.get(bookId);
+  if (existingBooking) {
+    await context.GuideBooking.set({
+      ...existingBooking,
+      status: "Completed",
+      rating: Number(rating),
+      autoCompleted: autoCompleted,
+      completedAt: timestamp,
+    });
+  }
+
+  // Update guide stats
+  const existingGuide = await context.TourGuide.get(guideId);
+  if (existingGuide) {
+    await context.TourGuide.set({
+      ...existingGuide,
+      completedBookings: existingGuide.completedBookings + 1,
+      lastUpdated: timestamp,
+    });
+  }
+
+  // Update traveler stats
+  const travelerStats = await context.TravelerStats.get(travelerId);
+  if (travelerStats) {
+    await context.TravelerStats.set({
+      ...travelerStats,
+      completedBookings: travelerStats.completedBookings + 1,
+      lastActiveAt: timestamp,
+    });
+  }
+
+  context.log.info(`✅ Tour completed: booking #${bookingId} - rating: ${rating}/5 (auto: ${autoCompleted})`);
+});
+
+// Guide Rated
+TourGuideRegistry.GuideRated.handler(async ({ event, context }) => {
+  const { guideFid, newAverageRating, ratingCount } = event.params;
+
+  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingGuide = await context.TourGuide.get(guideId);
+  if (existingGuide) {
+    await context.TourGuide.set({
+      ...existingGuide,
+      averageRating: newAverageRating,
+      ratingCount: Number(ratingCount),
+      lastUpdated: timestamp,
+    });
+
+    context.log.info(`⭐ Guide rated: FID ${guideFid} - new avg: ${newAverageRating}/5 (${ratingCount} ratings)`);
+  }
+});
+
+// Guide Reviewed Traveler
+TourGuideRegistry.GuideReviewedTraveler.handler(async ({ event, context }) => {
+  const { bookingId, travelerFid, rating } = event.params;
+
+  // Note: This event is for guide rating the traveler - update traveler stats
+  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const travelerStats = await context.TravelerStats.get(travelerId);
+  if (travelerStats) {
+    // Simple average update (note: proper weighted avg would need total count)
+    await context.TravelerStats.set({
+      ...travelerStats,
+      averageRating: BigInt(rating),
+      lastActiveAt: timestamp,
+    });
+  }
+
+  context.log.info(`⭐ Guide reviewed traveler: booking #${bookingId} - traveler ${travelerFid} got ${rating}/5`);
+});
+
+// Booking Cancelled
+TourGuideRegistry.BookingCancelled.handler(async ({ event, context }) => {
+  const { bookingId, cancelledBy, reason, timestamp: cancelTimestamp } = event.params;
+
+  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existingBooking = await context.GuideBooking.get(bookId);
+  if (existingBooking) {
+    await context.GuideBooking.set({
+      ...existingBooking,
+      status: "Cancelled",
+      cancelledAt: timestamp,
+      cancelledBy: cancelledBy.toLowerCase(),
+      cancellationReason: reason,
+    });
+
+    context.log.info(`❌ Booking cancelled: #${bookingId} by ${cancelledBy.slice(0, 8)}... - reason: ${reason}`);
+  }
+});
+
+// Admin events (just logging)
+TourGuideRegistry.CountryAdded.handler(async ({ event, context }) => {
+  const { guideFid, country } = event.params;
+  context.log.info(`🌍 Country added: guide ${guideFid} added ${country}`);
+});
+
+TourGuideRegistry.ApprovalOracleUpdated.handler(async ({ event, context }) => {
+  const { oldOracle, newOracle } = event.params;
+  context.log.info(`🔧 Approval oracle updated: ${oldOracle.slice(0, 8)}... -> ${newOracle.slice(0, 8)}...`);
+});
+
+TourGuideRegistry.PlatformWalletUpdated.handler(async ({ event, context }) => {
+  const { oldWallet, newWallet } = event.params;
+  context.log.info(`💼 Platform wallet updated: ${oldWallet.slice(0, 8)}... -> ${newWallet.slice(0, 8)}...`);
 });
