@@ -369,7 +369,7 @@ export async function POST(req: NextRequest) {
         state: {
           isLive: state.isLive,
           currentSong: state.currentSong?.name || null,
-          currentVoiceNote: state.currentVoiceNote ? state.currentVoiceNote.id : null,
+          currentVoiceNote: (state as RadioState).currentVoiceNote?.id ?? null,
           phase,
           totalSongsPlayed: state.totalSongsPlayed,
           totalVoiceNotesPlayed: state.totalVoiceNotesPlayed,
