@@ -358,69 +358,84 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const lastVoiceNoteIdRef = useRef<string | null>(null);
   const isPlayingVoiceNoteRef = useRef<boolean>(false); // Track if voice note is actively playing
 
-  // Handle voice note end event - switch to song when voice note actually finishes on client
+  // Handle audio end event - for both songs and voice notes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleEnded = () => {
+      console.log('[LiveRadio] Audio ended, isPlayingVoiceNote:', isPlayingVoiceNoteRef.current);
+
       if (isPlayingVoiceNoteRef.current) {
+        // Voice note just finished
         console.log('[LiveRadio] Voice note audio ended on client');
         isPlayingVoiceNoteRef.current = false;
         lastVoiceNoteIdRef.current = null;
 
-        // Now switch to current song if available
+        // Switch to current song if available
         if (radioState?.currentSong && audioRef.current) {
           console.log('[LiveRadio] Switching to song after voice note:', radioState.currentSong.name);
           lastSongIdRef.current = radioState.currentSong.tokenId;
           audioRef.current.src = radioState.currentSong.audioUrl;
 
-          if (isPlaying) {
-            const now = Date.now();
-            const elapsedSeconds = (now - radioState.currentSong.startedAt) / 1000;
-            const duration = radioState.currentSong.duration || 180;
-            if (elapsedSeconds < duration && elapsedSeconds >= 0) {
-              audioRef.current.currentTime = elapsedSeconds;
-            }
-            audioRef.current.play().catch(e => console.warn('[LiveRadio] Autoplay blocked:', e));
+          const now = Date.now();
+          const elapsedSeconds = (now - radioState.currentSong.startedAt) / 1000;
+          const duration = radioState.currentSong.duration || 180;
+          if (elapsedSeconds < duration && elapsedSeconds >= 0) {
+            audioRef.current.currentTime = elapsedSeconds;
           }
+          // Auto-play next song - don't check isPlaying since we want continuous playback
+          audioRef.current.play().catch(e => console.warn('[LiveRadio] Post-voice-note autoplay blocked:', e));
         }
+      } else {
+        // Song just finished naturally - wait for server to provide next song
+        // The polling will detect the new song and play it
+        console.log('[LiveRadio] Song ended naturally, waiting for next song from server');
+        // Don't set isPlaying to false - we want to keep playing when next song arrives
       }
     };
 
     audio.addEventListener('ended', handleEnded);
     return () => audio.removeEventListener('ended', handleEnded);
-  }, [radioState?.currentSong, isPlaying]);
+  }, [radioState?.currentSong]);
 
   useEffect(() => {
     if (!audioRef.current) return;
 
-    // Check if voice note is playing (server says so OR client is still playing it)
+    // Check if voice note is playing on server
     if (radioState?.currentVoiceNote) {
       const voiceNoteId = radioState.currentVoiceNote.id;
 
       // New voice note detected - switch to voice note audio
       if (lastVoiceNoteIdRef.current !== voiceNoteId) {
-        console.log('[LiveRadio] Playing voice note from:', radioState.currentVoiceNote.username || 'unknown');
-        console.log('[LiveRadio] Voice note URL:', radioState.currentVoiceNote.audioUrl);
+        console.log('[LiveRadio] 🎤 Voice note detected:', {
+          from: radioState.currentVoiceNote.username || 'unknown',
+          url: radioState.currentVoiceNote.audioUrl,
+          duration: radioState.currentVoiceNote.duration,
+          isPlaying,
+        });
         lastVoiceNoteIdRef.current = voiceNoteId;
         lastSongIdRef.current = null; // Reset song tracking
         isPlayingVoiceNoteRef.current = true; // Mark voice note as playing
 
         // Update audio source to voice note
         audioRef.current.src = radioState.currentVoiceNote.audioUrl;
+        audioRef.current.currentTime = 0;
 
-        // Play from start
+        // Play if user has playback enabled
         if (isPlaying) {
-          audioRef.current.currentTime = 0;
-          audioRef.current.play().catch(e => console.warn('[LiveRadio] Voice note autoplay blocked:', e));
+          console.log('[LiveRadio] 🎤 Starting voice note playback...');
+          audioRef.current.play()
+            .then(() => console.log('[LiveRadio] 🎤 Voice note playing!'))
+            .catch(e => console.warn('[LiveRadio] Voice note autoplay blocked:', e));
+        } else {
+          console.log('[LiveRadio] 🎤 Voice note loaded but isPlaying=false, waiting for user to play');
         }
       }
       return; // Don't process song while voice note is active on server
     }
 
     // If client is still playing voice note, don't switch to song yet
-    // Wait for audio 'ended' event to handle the switch
     if (isPlayingVoiceNoteRef.current) {
       console.log('[LiveRadio] Server cleared voice note, but client still playing - waiting for audio to end');
       return;
@@ -435,13 +450,13 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
     // New song detected - update audio source and sync
     if (lastSongIdRef.current !== currentSongId) {
-      console.log('[LiveRadio] New song detected:', radioState.currentSong.name);
+      console.log('[LiveRadio] 🎵 New song detected:', radioState.currentSong.name, { isPlaying });
       lastSongIdRef.current = currentSongId;
 
       // Update audio source
       audioRef.current.src = radioState.currentSong.audioUrl;
 
-      // If already playing, sync to live position and continue
+      // If playback is enabled, sync to live position and continue
       if (isPlaying) {
         const now = Date.now();
         const elapsedSeconds = (now - radioState.currentSong.startedAt) / 1000;
@@ -450,7 +465,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         if (elapsedSeconds < duration && elapsedSeconds >= 0) {
           audioRef.current.currentTime = elapsedSeconds;
         }
-        audioRef.current.play().catch(e => console.warn('[LiveRadio] Autoplay blocked:', e));
+        audioRef.current.play().catch(e => console.warn('[LiveRadio] Song autoplay blocked:', e));
       }
     }
   }, [radioState?.currentSong, radioState?.currentVoiceNote, isPlaying]);
@@ -846,15 +861,14 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   if (!mounted) return null;
 
   // Persistent audio element - ALWAYS rendered to keep playing across view switches
+  // Source is controlled by useEffect logic, not hardcoded here
   const persistentAudioPortal = createPortal(
-    radioState?.currentSong ? (
-      <audio
-        ref={audioRef}
-        src={radioState.currentSong.audioUrl}
-        onEnded={() => setIsPlaying(false)}
-        style={{ display: 'none' }}
-      />
-    ) : null,
+    <audio
+      ref={audioRef}
+      style={{ display: 'none' }}
+      // Don't set src here - let useEffect handle it
+      // Don't set onEnded here - it breaks continuous playback
+    />,
     document.body
   );
 
