@@ -281,6 +281,7 @@ export async function POST(req: NextRequest) {
           action = 'voice_note_started';
           details = { voiceNote: state.currentVoiceNote };
           console.log('[RadioScheduler] Playing voice note from:', voiceNote.username || voiceNote.userAddress, '| Duration:', validDuration, 's');
+          console.log('[RadioScheduler] Voice note audioUrl:', voiceNote.audioUrl);
 
           // Save state and return immediately - let next scheduler call handle playback check
           state.lastUpdated = now;
@@ -429,6 +430,9 @@ export async function GET(req: NextRequest) {
         currentVoiceNote: state?.currentVoiceNote ? {
           id: state.currentVoiceNote.id,
           username: state.currentVoiceNote.username,
+          audioUrl: state.currentVoiceNote.audioUrl,
+          message: state.currentVoiceNote.message,
+          duration: state.currentVoiceNote.duration,
           isAd: state.currentVoiceNote.isAd,
           timeRemainingMs: voiceNoteTimeRemaining,
           timeRemainingSeconds: Math.ceil(voiceNoteTimeRemaining / 1000),
