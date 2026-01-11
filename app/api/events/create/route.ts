@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         onChain: false,
       };
 
-      await redis.hset(EVENTS_KEY, eventId, JSON.stringify(event));
+      await redis.hset(EVENTS_KEY, { [eventId]: JSON.stringify(event) });
 
       return NextResponse.json({
         success: true,
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
       onChain: true,
     };
 
-    await redis.hset(EVENTS_KEY, eventId, JSON.stringify(event));
+    await redis.hset(EVENTS_KEY, { [eventId]: JSON.stringify(event) });
 
     return NextResponse.json({
       success: true,

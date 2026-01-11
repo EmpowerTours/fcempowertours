@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
           createdAt: Date.now(),
         };
 
-        await redis.hset(INVITES_KEY, code, JSON.stringify(invite));
+        await redis.hset(INVITES_KEY, { [code]: JSON.stringify(invite) });
         invites.push(invite);
       }
     }
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
           createdAt: Date.now(),
         };
 
-        await redis.hset(INVITES_KEY, code, JSON.stringify(invite));
+        await redis.hset(INVITES_KEY, { [code]: JSON.stringify(invite) });
         invites.push(invite);
       }
     }
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     const codes = invites.map(i => i.code);
     const existingCodes = await redis.hget(EVENT_INVITES_KEY, eventId) as string | null;
     const allCodes = existingCodes ? [...JSON.parse(existingCodes), ...codes] : codes;
-    await redis.hset(EVENT_INVITES_KEY, eventId, JSON.stringify(allCodes));
+    await redis.hset(EVENT_INVITES_KEY, { [eventId]: JSON.stringify(allCodes) });
 
     // Generate invite links
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://empowertours.xyz';
@@ -224,7 +224,7 @@ export async function PUT(req: NextRequest) {
     invite.status = 'accepted';
     invite.acceptedAt = Date.now();
 
-    await redis.hset(INVITES_KEY, code.toUpperCase(), JSON.stringify(invite));
+    await redis.hset(INVITES_KEY, { [code.toUpperCase()]: JSON.stringify(invite) });
 
     // If wallet provided and contract configured, also register on-chain
     if (walletAddress && EVENT_ORACLE_ADDRESS && DEPLOYER_KEY) {
