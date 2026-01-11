@@ -113,7 +113,17 @@ export async function POST(req: NextRequest) {
     await redis.set(checkInKey, JSON.stringify(checkIn));
 
     // Record claim
-    const claimRecord = {
+    const claimRecord: {
+      claimId: string;
+      eventId: string;
+      userAddress: string;
+      wmonAmount: string;
+      toursAmount: string;
+      stampTokenId: string;
+      stampName: string;
+      claimedAt: number;
+      txHash: string | null;
+    } = {
       claimId,
       eventId: body.eventId,
       userAddress: body.userAddress.toLowerCase(),
