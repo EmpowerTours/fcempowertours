@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { Redis } from '@upstash/redis';
 
 /**
@@ -74,8 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate stamp design using Gemini
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
     const prompt = `You are a creative designer specializing in travel stamps and event memorabilia.
 
@@ -118,8 +117,14 @@ Respond with a JSON object containing:
 
 Return ONLY the JSON object, no markdown formatting.`;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json'
+      }
+    });
+    const responseText = result.text?.trim() || '';
 
     // Parse the JSON response
     let stampDesign: StampDesign;
@@ -158,18 +163,11 @@ Return ONLY the JSON object, no markdown formatting.`;
     }
 
     // Generate actual image if requested
+    // Note: Image generation with new @google/genai SDK requires different approach
+    // For now, return design spec only - image can be generated separately
     if (body.generateImage) {
       try {
-        console.log('[GenerateStamp] Generating image with Gemini Imagen...');
-
-        // Use Gemini 2.0 Flash for image generation
-        const imageModel = genAI.getGenerativeModel({
-          model: 'gemini-2.0-flash-exp',
-          generationConfig: {
-            // @ts-ignore - responseModalities is supported in newer versions
-            responseModalities: ['Text', 'Image'],
-          },
-        });
+        console.log('[GenerateStamp] Image generation requested - returning design spec for external generation');
 
         const imagePrompt = `Generate a circular travel stamp design image:
 ${stampDesign.imagePrompt}
@@ -183,72 +181,11 @@ Requirements:
 - Colors: ${stampDesign.colors.join(', ')}
 - High quality, suitable for NFT`;
 
-        const imageResult = await imageModel.generateContent(imagePrompt);
-        const imageResponse = imageResult.response;
-
-        // Check for image parts in response
-        if (imageResponse.candidates && imageResponse.candidates[0]?.content?.parts) {
-          for (const part of imageResponse.candidates[0].content.parts) {
-            // @ts-ignore - inlineData exists for image responses
-            if (part.inlineData) {
-              // @ts-ignore
-              const imageData = part.inlineData.data;
-              // @ts-ignore
-              const mimeType = part.inlineData.mimeType || 'image/png';
-
-              console.log('[GenerateStamp] Image generated, uploading to IPFS...');
-
-              // Upload to IPFS via Pinata
-              const pinataApiKey = process.env.PINATA_API_KEY;
-              const pinataSecretKey = process.env.PINATA_SECRET_API_KEY;
-
-              if (pinataApiKey && pinataSecretKey) {
-                // Convert base64 to blob
-                const binaryData = Buffer.from(imageData, 'base64');
-                const blob = new Blob([binaryData], { type: mimeType });
-
-                const formData = new FormData();
-                formData.append('file', blob, `stamp-${body.eventId}.png`);
-                formData.append('pinataMetadata', JSON.stringify({
-                  name: `Travel Stamp - ${body.eventName}`,
-                  keyvalues: {
-                    eventId: body.eventId,
-                    eventName: body.eventName,
-                    city: body.city,
-                    country: body.country,
-                  }
-                }));
-
-                const pinataResponse = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-                  method: 'POST',
-                  headers: {
-                    'pinata_api_key': pinataApiKey,
-                    'pinata_secret_api_key': pinataSecretKey,
-                  },
-                  body: formData,
-                });
-
-                if (pinataResponse.ok) {
-                  const pinataData = await pinataResponse.json();
-                  stampDesign.imageIPFS = pinataData.IpfsHash;
-                  console.log('[GenerateStamp] Image uploaded to IPFS:', pinataData.IpfsHash);
-                } else {
-                  console.error('[GenerateStamp] Pinata upload failed:', await pinataResponse.text());
-                  // Store base64 as fallback
-                  stampDesign.imageBase64 = `data:${mimeType};base64,${imageData}`;
-                }
-              } else {
-                // No Pinata keys, store base64
-                stampDesign.imageBase64 = `data:${mimeType};base64,${imageData}`;
-                console.log('[GenerateStamp] No Pinata keys, stored base64 image');
-              }
-              break;
-            }
-          }
-        }
+        // Store the enhanced image prompt for external generation
+        stampDesign.imagePrompt = imagePrompt;
+        console.log('[GenerateStamp] Design spec created with image prompt for external generation');
       } catch (imageError: any) {
-        console.error('[GenerateStamp] Image generation failed:', imageError.message);
-        // Continue without image - design spec is still useful
+        console.error('[GenerateStamp] Image prompt generation failed:', imageError.message);
       }
     }
 
