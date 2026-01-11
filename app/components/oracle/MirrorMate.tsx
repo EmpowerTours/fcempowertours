@@ -213,6 +213,24 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
         console.log('[MirrorMate] Fetched guides from Envio:', data.guides.length);
 
+        // Helper to parse date string or timestamp to BigInt
+        const parseTimestamp = (value: any): bigint => {
+          if (!value) return BigInt(0);
+          // If it's already a number, use it directly
+          if (typeof value === 'number') return BigInt(Math.floor(value));
+          // If it's a string that looks like a date (contains '-' or 'T'), parse it
+          if (typeof value === 'string' && (value.includes('-') || value.includes('T'))) {
+            const date = new Date(value);
+            return BigInt(Math.floor(date.getTime() / 1000)); // Convert to seconds
+          }
+          // Otherwise try to convert directly
+          try {
+            return BigInt(value);
+          } catch {
+            return BigInt(0);
+          }
+        };
+
         // Transform Envio data to GuideProfile format
         const transformedGuides: GuideProfile[] = data.guides.map((g: any) => ({
           fid: BigInt(g.fid),
@@ -224,8 +242,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           location: g.location || '',
           languages: g.languages || '',
           transport: g.transport || '',
-          registeredAt: BigInt(g.registeredAt || 0),
-          lastUpdated: BigInt(g.lastUpdated || 0),
+          registeredAt: parseTimestamp(g.registeredAt),
+          lastUpdated: parseTimestamp(g.lastUpdated),
           exists: true,
           averageRating: Number(g.averageRating || 0),
           ratingCount: g.ratingCount || 0,
@@ -545,25 +563,30 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
       try {
         console.log('[MirrorMate] Fetching guide data from contract for FID:', user.fid);
 
+        // ABI matching actual TourGuide struct in contract
         const guidesAbi = [{
           name: 'guides',
           type: 'function',
           inputs: [{ name: 'guideFid', type: 'uint256' }],
           outputs: [
-            { name: 'guideFid', type: 'uint256' },
-            { name: 'guideAddress', type: 'address' },
-            { name: 'passportTokenId', type: 'uint256' },
-            { name: 'hourlyRateWMON', type: 'uint256' },
-            { name: 'hourlyRateTOURS', type: 'uint256' },
-            { name: 'active', type: 'bool' },
-            { name: 'suspended', type: 'bool' },
-            { name: 'averageRating', type: 'uint256' },
-            { name: 'ratingCount', type: 'uint256' },
-            { name: 'totalBookings', type: 'uint256' },
-            { name: 'totalCompletedTours', type: 'uint256' },
-            { name: 'cancellationCount', type: 'uint256' },
-            { name: 'bio', type: 'string' },
-            { name: 'profileImageIPFS', type: 'string' },
+            { name: 'guideFid', type: 'uint256' },           // 0
+            { name: 'guideAddress', type: 'address' },        // 1
+            { name: 'passportTokenId', type: 'uint256' },     // 2
+            { name: 'countries', type: 'string[]' },          // 3
+            { name: 'hourlyRateWMON', type: 'uint256' },      // 4
+            { name: 'hourlyRateTOURS', type: 'uint256' },     // 5
+            { name: 'bio', type: 'string' },                  // 6
+            { name: 'profileImageIPFS', type: 'string' },     // 7
+            { name: 'registeredAt', type: 'uint256' },        // 8
+            { name: 'totalBookings', type: 'uint256' },       // 9
+            { name: 'totalCompletedTours', type: 'uint256' }, // 10
+            { name: 'cancellationCount', type: 'uint256' },   // 11
+            { name: 'totalEarningsWMON', type: 'uint256' },   // 12
+            { name: 'totalEarningsTOURS', type: 'uint256' },  // 13
+            { name: 'active', type: 'bool' },                 // 14
+            { name: 'averageRating', type: 'uint256' },       // 15
+            { name: 'ratingCount', type: 'uint256' },         // 16
+            { name: 'suspended', type: 'bool' },              // 17
           ],
           stateMutability: 'view'
         }] as const;
@@ -577,8 +600,12 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
         console.log('[MirrorMate] Contract guide data:', guideData);
 
+        // Extract data from correct indices
+        const bioText = guideData[6] || '';  // bio is at index 6
+        const hourlyRateWMON = guideData[4]; // hourlyRateWMON is at index 4
+        const countries = guideData[3] || []; // countries array at index 3
+
         // Parse bio for languages/transport info (format: "Bio | Languages: X | Transport: Y")
-        const bioText = guideData[12] || '';
         const bioParts = bioText.split(' | ');
         const mainBio = bioParts[0] || '';
         const languagesMatch = bioText.match(/Languages:\s*([^|]+)/);
@@ -588,8 +615,8 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
           bio: mainBio.trim(),
           languages: languagesMatch ? languagesMatch[1].trim() : '',
           transport: transportMatch ? transportMatch[1].trim().split(',').map((t: string) => t.trim()) : [],
-          hourlyRate: guideData[3] ? formatEther(guideData[3]) : '10',
-          location: location?.city || '',
+          hourlyRate: hourlyRateWMON ? formatEther(hourlyRateWMON) : '10',
+          location: countries.length > 0 ? countries[0] : (location?.city || ''),
         });
       } catch (error) {
         console.error('[MirrorMate] Failed to fetch guide data from contract:', error);
