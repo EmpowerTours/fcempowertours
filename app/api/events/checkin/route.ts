@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
     if (invite && body.inviteCode) {
       invite.status = 'checked_in';
       invite.checkedInAt = Date.now();
-      await redis.hset(INVITES_KEY, body.inviteCode.toUpperCase(), JSON.stringify(invite));
+      await redis.hset(INVITES_KEY, { [body.inviteCode.toUpperCase()]: JSON.stringify(invite) });
       console.log('[EventsCheckin] Updated invite status to checked_in:', body.inviteCode);
     }
 
