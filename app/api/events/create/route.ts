@@ -34,20 +34,7 @@ const publicClient = createPublicClient({
 
 // EventOracleLite ABI
 const eventOracleAbi = parseAbi([
-  `function createEvent(
-    string memory name,
-    string memory description,
-    uint256 sponsorFid,
-    string memory sponsorName,
-    string memory sponsorLogoIPFS,
-    string memory city,
-    string memory country,
-    int256 latitude,
-    int256 longitude,
-    uint256 eventDate,
-    uint256 maxAttendees,
-    bool isOpenEvent
-  ) external returns (uint256)`,
+  'function createEvent(string name, string description, uint256 sponsorFid, string sponsorName, string sponsorLogoIPFS, string city, string country, int256 latitude, int256 longitude, uint256 eventDate, uint256 maxAttendees, bool isOpenEvent) external returns (uint256)',
   'function getEvent(uint256 eventId) external view returns (tuple(uint256 eventId, string name, string description, uint8 status, address sponsor, uint256 sponsorFid, string sponsorName, string sponsorLogoIPFS, string city, string country, int256 latitude, int256 longitude, uint256 eventDate, uint256 checkInStart, uint256 checkInEnd, uint256 maxAttendees, uint256 checkedInCount, string stampImageIPFS, bool isOpenEvent))',
 ]);
 
