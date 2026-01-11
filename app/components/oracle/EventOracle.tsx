@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Calendar, MapPin, Users, Upload, QrCode, Check, Clock, Gift, Sparkles, Camera, Navigation, Building } from 'lucide-react';
 import { useAccount } from 'wagmi';
-import { useMiniAppContext } from '@/app/hooks/use-miniapp-context';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import QRCode from 'qrcode';
 
 /**
@@ -68,8 +68,8 @@ type TabType = 'events' | 'create' | 'checkin' | 'manage';
 
 export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose }) => {
   const { address, isConnected } = useAccount();
-  const { context } = useMiniAppContext();
-  const userFid = context?.user?.fid || 0;
+  const { user } = useFarcasterContext();
+  const userFid = user?.fid || 0;
 
   const [activeTab, setActiveTab] = useState<TabType>('events');
   const [events, setEvents] = useState<SponsoredEvent[]>([]);
