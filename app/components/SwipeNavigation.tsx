@@ -22,6 +22,9 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
   // Normalize pathname - treat /discover as / (they show same content)
   const pathname = rawPathname === '/discover' ? '/' : rawPathname;
 
+  // Disable swipe navigation on oracle page - it has its own gesture controls
+  const isOraclePage = rawPathname === '/oracle';
+
   // Define page order - only use routes that actually exist
   const getPageOrder = () => {
     // / = Home (same as discover)
@@ -40,6 +43,9 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
     // Only enable on mobile/touch devices
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (!isTouchDevice) return;
+
+    // Disable on oracle page
+    if (isOraclePage) return;
 
     const handleTouchStart = (e: TouchEvent) => {
       // Ignore if touching input, textarea, or buttons
@@ -148,7 +154,7 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [pathname, router, user]);
+  }, [pathname, router, user, isOraclePage]);
 
   const pageOrder = getPageOrder();
   const currentIndex = pageOrder.indexOf(pathname);
@@ -157,9 +163,9 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
     <>
       {children}
 
-      {/* Swipe indicators - shown during swipe */}
+      {/* Swipe indicators - shown during swipe, hidden on oracle page */}
       <AnimatePresence>
-        {swipeProgress > 0.1 && swipeDirection && (
+        {!isOraclePage && swipeProgress > 0.1 && swipeDirection && (
           <>
             {/* Left arrow indicator */}
             {swipeDirection === 'right' && currentIndex > 0 && (

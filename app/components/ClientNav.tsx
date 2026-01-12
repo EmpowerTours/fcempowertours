@@ -1,15 +1,21 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 export default function ClientNav() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, walletAddress, isLoading, error, requestWallet } = useFarcasterContext();
   const farcasterUsername = user?.username;
   const [activeTab, setActiveTab] = useState('/');
+
+  // Hide navigation on oracle page - it has its own UI
+  if (pathname === '/oracle') {
+    return null;
+  }
 
   // Auto-request wallet when user loads
   useEffect(() => {
