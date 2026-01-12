@@ -71,6 +71,8 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose }) => 
   const { user } = useFarcasterContext();
   const userFid = user?.fid || 0;
 
+  console.log('[EventOracle] Rendering, isOpen:', isOpen, 'userFid:', userFid);
+
   const [activeTab, setActiveTab] = useState<TabType>('events');
   const [events, setEvents] = useState<SponsoredEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<SponsoredEvent | null>(null);

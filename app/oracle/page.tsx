@@ -655,8 +655,13 @@ export default function OraclePage() {
                       Radio
                     </button>
                     <button
-                      onClick={() => setShowEventOracleModal(true)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-orange-500/20 to-amber-600/20 hover:from-orange-500/30 hover:to-amber-600/30 border border-orange-500/30 rounded-lg text-xs text-orange-400 font-semibold transition-all flex items-center gap-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[OraclePage] Events button clicked!');
+                        setShowEventOracleModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-gradient-to-r from-orange-500/20 to-amber-600/20 hover:from-orange-500/30 hover:to-amber-600/30 border border-orange-500/30 rounded-lg text-xs text-orange-400 font-semibold transition-all flex items-center gap-1 cursor-pointer"
                     >
                       <Calendar className="w-3 h-3" />
                       Events
