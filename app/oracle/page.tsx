@@ -629,10 +629,14 @@ export default function OraclePage() {
                 <img
                   src={user.pfpUrl}
                   alt={user.username || 'User'}
-                  className="w-8 h-8 rounded-full object-cover border border-cyan-500/30"
+                  className="rounded-full object-cover border border-cyan-500/30"
+                  style={{ width: '32px', height: '32px', minWidth: '32px', maxWidth: '32px', minHeight: '32px', maxHeight: '32px' }}
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                <div
+                  className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold"
+                  style={{ width: '32px', height: '32px', minWidth: '32px', maxWidth: '32px' }}
+                >
                   {user.username?.charAt(0).toUpperCase() || '?'}
                 </div>
               )}
@@ -751,7 +755,51 @@ export default function OraclePage() {
                 <Send className="w-5 h-5 text-black" />
               </button>
             </div>
-            {/* Quick Actions removed - access features via Oracle chat commands */}
+            {/* Quick Actions */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-full text-xs text-purple-400 transition-all"
+              >
+                <User className="w-3 h-3" />
+                Profile
+              </button>
+              <button
+                onClick={() => setShowDashboardModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-full text-xs text-cyan-400 transition-all"
+              >
+                <BarChart3 className="w-3 h-3" />
+                Dashboard
+              </button>
+              <button
+                onClick={() => setShowRadioModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-full text-xs text-pink-400 transition-all"
+              >
+                <Radio className="w-3 h-3" />
+                Radio
+              </button>
+              <button
+                onClick={() => setShowEventOracleModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-full text-xs text-amber-400 transition-all"
+              >
+                <Calendar className="w-3 h-3" />
+                Events
+              </button>
+              <button
+                onClick={() => setShowDAOModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-full text-xs text-green-400 transition-all"
+              >
+                <Vote className="w-3 h-3" />
+                DAO
+              </button>
+              <button
+                onClick={() => setActiveGame('MIRROR')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 rounded-full text-xs text-rose-400 transition-all"
+              >
+                <MapPin className="w-3 h-3" />
+                MirrorMate
+              </button>
+            </div>
           </div>
         </div>
 
