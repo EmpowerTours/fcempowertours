@@ -157,7 +157,7 @@ async function selectRandomSong(): Promise<QueuedSong | null> {
     queuedByFid: 0,
     queuedAt: Date.now(),
     paidAmount: '0',
-    duration: song.duration || 180, // Use metadata duration or default 3 min
+    duration: song.duration || 600, // Use metadata duration or 10 min fallback (client reports actual end)
   };
 }
 
@@ -322,8 +322,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (nextSong) {
-          // Use song duration from queue/metadata, or default to 3 minutes
-          const duration = nextSong.duration || 180;
+          // Use song duration from queue/metadata, or default to 10 minutes as fallback
+          // Client will report actual song end via song_ended API, so this is just a safety net
+          const duration = nextSong.duration || 600; // 10 minutes max fallback
           console.log('[RadioScheduler] Song duration:', duration, 'seconds for:', nextSong.name);
 
           state.currentSong = {

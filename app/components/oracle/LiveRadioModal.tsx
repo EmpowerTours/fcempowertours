@@ -365,7 +365,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleEnded = () => {
+    const handleEnded = async () => {
       console.log('[LiveRadio] Audio ended, isPlayingVoiceNote:', isPlayingVoiceNoteRef.current);
 
       if (isPlayingVoiceNoteRef.current) {
@@ -390,16 +390,33 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           audioRef.current.play().catch(e => console.warn('[LiveRadio] Post-voice-note autoplay blocked:', e));
         }
       } else {
-        // Song just finished naturally - wait for server to provide next song
-        // The polling will detect the new song and play it
-        console.log('[LiveRadio] Song ended naturally, waiting for next song from server');
+        // Song just finished naturally - tell server so it can move to next song
+        console.log('[LiveRadio] Song ended naturally, reporting to server');
+
+        if (radioState?.currentSong && walletAddress) {
+          try {
+            // Report to server that song has ended
+            await fetch('/api/live-radio', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'song_ended',
+                userAddress: walletAddress,
+                tokenId: radioState.currentSong.tokenId,
+              }),
+            });
+            console.log('[LiveRadio] Reported song end to server:', radioState.currentSong.name);
+          } catch (error) {
+            console.error('[LiveRadio] Failed to report song end:', error);
+          }
+        }
         // Don't set isPlaying to false - we want to keep playing when next song arrives
       }
     };
 
     audio.addEventListener('ended', handleEnded);
     return () => audio.removeEventListener('ended', handleEnded);
-  }, [radioState?.currentSong]);
+  }, [radioState?.currentSong, walletAddress]);
 
   useEffect(() => {
     if (!audioRef.current) return;

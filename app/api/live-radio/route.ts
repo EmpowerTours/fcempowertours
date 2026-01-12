@@ -555,6 +555,38 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Report song ended (client tells server when audio actually finishes)
+    if (action === 'song_ended') {
+      const { songId, tokenId } = body;
+
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY);
+      if (!state) {
+        return NextResponse.json({ success: false, error: 'Radio not active' });
+      }
+
+      // Verify this is the current song
+      if (state.currentSong && state.currentSong.tokenId === tokenId) {
+        console.log('[LiveRadio] Client reported song ended:', state.currentSong.name);
+
+        // Clear current song - scheduler will pick next one
+        state.currentSong = null;
+        state.totalSongsPlayed = (state.totalSongsPlayed || 0) + 1;
+        state.lastUpdated = Date.now();
+
+        await redis.set(RADIO_STATE_KEY, state);
+
+        return NextResponse.json({
+          success: true,
+          message: 'Song marked as ended',
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Song already changed or not matching',
+      });
+    }
+
     // Heartbeat (listener tracking with rewards)
     if (action === 'heartbeat') {
       const { masterTokenId } = body;
