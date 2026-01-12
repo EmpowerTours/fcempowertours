@@ -77,6 +77,7 @@ interface QueuedSong {
   queuedByFid: number;
   queuedAt: number;
   paidAmount: string;
+  duration?: number; // Song duration in seconds (from audio metadata)
 }
 
 interface VoiceNote {
@@ -321,7 +322,7 @@ export async function POST(req: NextRequest) {
 
     // Queue a song (requires WMON payment)
     if (action === 'queue_song') {
-      const { tokenId, name, artist, artistAddress, audioUrl, imageUrl, txHash } = body;
+      const { tokenId, name, artist, artistAddress, audioUrl, imageUrl, txHash, duration } = body;
 
       if (!tokenId || !audioUrl) {
         return NextResponse.json(
@@ -337,6 +338,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Use provided duration or default to 180s (3 min)
+      const songDuration = typeof duration === 'number' && duration > 0 ? Math.round(duration) : 180;
+      console.log('[LiveRadio] Queueing song with duration:', songDuration, 'seconds');
+
       const queuedSong: QueuedSong = {
         id: `${userAddress}-${tokenId}-${Date.now()}`,
         tokenId,
@@ -349,6 +354,7 @@ export async function POST(req: NextRequest) {
         queuedByFid: userFid || 0,
         queuedAt: Date.now(),
         paidAmount: `${QUEUE_PRICE_WMON}`,
+        duration: songDuration,
       };
 
       await redis.rpush(RADIO_QUEUE_KEY, JSON.stringify(queuedSong));
@@ -535,7 +541,7 @@ export async function POST(req: NextRequest) {
       state.currentSong = {
         ...nextSong,
         startedAt: Date.now(),
-        duration: 180, // Default 3 minutes, should be passed from song metadata
+        duration: nextSong.duration || 180, // Use song duration or default 3 minutes
         isRandom: false, // Queued song, not random
       };
       state.lastUpdated = Date.now();

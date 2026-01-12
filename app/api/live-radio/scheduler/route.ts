@@ -72,6 +72,7 @@ interface QueuedSong {
   queuedByFid: number;
   queuedAt: number;
   paidAmount: string;
+  duration?: number; // Song duration in seconds
 }
 
 interface VoiceNote {
@@ -94,6 +95,7 @@ interface SongFromEnvio {
   audioUrl: string;
   imageUrl: string;
   artistFid: number;
+  duration?: number; // May not be available from Envio, will default to 180s
 }
 
 // Fetch songs from Envio for random selection (only Music NFTs with audio)
@@ -155,6 +157,7 @@ async function selectRandomSong(): Promise<QueuedSong | null> {
     queuedByFid: 0,
     queuedAt: Date.now(),
     paidAmount: '0',
+    duration: song.duration || 180, // Use metadata duration or default 3 min
   };
 }
 
@@ -319,8 +322,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (nextSong) {
-          // Default duration 3 minutes if not specified
-          const duration = 180;
+          // Use song duration from queue/metadata, or default to 3 minutes
+          const duration = nextSong.duration || 180;
+          console.log('[RadioScheduler] Song duration:', duration, 'seconds for:', nextSong.name);
 
           state.currentSong = {
             tokenId: nextSong.tokenId,

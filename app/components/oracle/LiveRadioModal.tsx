@@ -535,12 +535,37 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     setIsMuted(!isMuted);
   }, [isMuted]);
 
+  // Get audio duration from URL
+  const getAudioDuration = (audioUrl: string): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration;
+        audio.src = ''; // Clean up
+        console.log('[LiveRadio] Got audio duration:', duration, 'seconds');
+        resolve(Math.round(duration));
+      };
+      audio.onerror = () => {
+        console.log('[LiveRadio] Could not get duration, using default');
+        resolve(180); // Default 3 minutes
+      };
+      // Timeout after 5 seconds
+      setTimeout(() => resolve(180), 5000);
+      audio.src = audioUrl;
+    });
+  };
+
   // Queue a song
   const handleQueueSong = async (song: any) => {
     if (!walletAddress || !song) return;
 
     setQueueing(true);
     try {
+      // First, get the actual audio duration
+      const duration = await getAudioDuration(song.audioUrl);
+      console.log('[LiveRadio] Song duration for queue:', duration, 'seconds');
+
       // Step 1: Queue song ON-CHAIN via LiveRadio contract
       console.log('[LiveRadio] Queueing song on-chain:', song.name, 'tokenId:', song.tokenId);
       const paymentRes = await fetch('/api/execute-delegated', {
@@ -579,6 +604,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           audioUrl: song.audioUrl,
           imageUrl: song.imageUrl,
           txHash,
+          duration, // Include actual song duration
         }),
       });
 
