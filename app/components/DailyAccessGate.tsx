@@ -8,6 +8,9 @@ import { useAccount } from 'wagmi';
 import { Address } from 'viem';
 import { useGeolocation } from '@/lib/useGeolocation';
 
+// Check if we're on mainnet (no faucet on mainnet)
+const isMainnet = process.env.NEXT_PUBLIC_CHAIN_ID === '143';
+
 interface DailyAccessGateProps {
   children: React.ReactNode;
 }
@@ -89,13 +92,28 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
   const [reputationLoading, setReputationLoading] = useState(true);
 
   // Check faucet status via faucet contract AND Safe balance
+  // On mainnet: only check balance (no faucet)
+  // On testnet: check both faucet and balance
   const checkFaucetStatus = async () => {
     if (!user?.fid || !effectiveAddress) {
       setRequirements(prev => ({ ...prev, faucet: false }));
       return;
     }
     try {
-      // Fetch both faucet claim status AND Safe balance in parallel
+      // On mainnet, only check Safe balance (no faucet)
+      if (isMainnet) {
+        const safeRes = await fetch(`/api/user-safe?address=${effectiveAddress}`);
+        const safeData = await safeRes.json();
+        const wmonBal = parseFloat(safeData.wmonBalance || '0');
+        setSafeWmonBalance(safeData.wmonBalance || '0');
+
+        // On mainnet, just need sufficient balance
+        const hasEnoughBalance = wmonBal >= 1; // Minimal balance required
+        setRequirements(prev => ({ ...prev, faucet: hasEnoughBalance }));
+        return;
+      }
+
+      // Testnet: Fetch both faucet claim status AND Safe balance in parallel
       const [faucetRes, safeRes] = await Promise.all([
         fetch(`/api/faucet/check-claimed?fid=${user.fid}&address=${effectiveAddress}`),
         fetch(`/api/user-safe?address=${effectiveAddress}`),
@@ -639,7 +657,7 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
             {/* Requirements Checklist */}
             <div className="space-y-3 mb-6">
 
-              {/* 1. WMON Faucet */}
+              {/* 1. WMON Balance (Mainnet: Fund Safe, Testnet: Faucet) */}
               <div className={`p-4 rounded-2xl border transition-all ${
                 requirements.faucet
                   ? 'bg-green-500/20 border-green-500/50'
@@ -647,26 +665,37 @@ export default function DailyAccessGate({ children }: DailyAccessGateProps) {
               }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{requirements.faucet ? '✅' : '💧'}</span>
+                    <span className="text-2xl">{requirements.faucet ? '✅' : isMainnet ? '💰' : '💧'}</span>
                     <div>
-                      <p className="text-white font-medium">Claim Testnet WMON</p>
+                      <p className="text-white font-medium">
+                        {isMainnet ? 'Fund Your Safe' : 'Claim Testnet WMON'}
+                      </p>
                       <p className="text-white/60 text-xs">
-                        Safe: {parseFloat(safeWmonBalance).toFixed(2)} WMON
-                        {faucetCooldown && !faucetStatus.canClaimNow && (
+                        Safe: {parseFloat(safeWmonBalance).toFixed(2)} {isMainnet ? 'MON' : 'WMON'}
+                        {!isMainnet && faucetCooldown && !faucetStatus.canClaimNow && (
                           <span className="text-cyan-400 ml-2">• Next claim: {faucetCooldown}</span>
                         )}
                       </p>
                     </div>
                   </div>
-                  {/* Show claim button if: not enough balance OR can claim again (daily reset) */}
-                  {(!requirements.faucet || faucetStatus.canClaimNow) && (
-                    <button
-                      onClick={handleClaimFaucet}
-                      disabled={activeAction === 'faucet' || (!faucetStatus.canClaimNow && faucetStatus.hasClaimed)}
-                      className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
-                    >
-                      {activeAction === 'faucet' ? '...' : faucetStatus.canClaimNow && faucetStatus.hasClaimed ? 'Claim Daily' : 'Claim'}
-                    </button>
+                  {/* Mainnet: Show deposit info, Testnet: Show faucet claim button */}
+                  {isMainnet ? (
+                    !requirements.faucet && (
+                      <div className="text-right">
+                        <p className="text-yellow-400 text-xs">Deposit MON</p>
+                        <p className="text-white/50 text-[10px]">via Farcaster wallet</p>
+                      </div>
+                    )
+                  ) : (
+                    (!requirements.faucet || faucetStatus.canClaimNow) && (
+                      <button
+                        onClick={handleClaimFaucet}
+                        disabled={activeAction === 'faucet' || (!faucetStatus.canClaimNow && faucetStatus.hasClaimed)}
+                        className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
+                      >
+                        {activeAction === 'faucet' ? '...' : faucetStatus.canClaimNow && faucetStatus.hasClaimed ? 'Claim Daily' : 'Claim'}
+                      </button>
+                    )
                   )}
                 </div>
               </div>

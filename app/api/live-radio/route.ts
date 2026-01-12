@@ -338,8 +338,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Use provided duration or default to 180s (3 min)
-      const songDuration = typeof duration === 'number' && duration > 0 ? Math.round(duration) : 180;
+      // Use provided duration or default to 600s (10 min fallback - client reports actual end)
+      const songDuration = typeof duration === 'number' && duration > 0 ? Math.round(duration) : 600;
       console.log('[LiveRadio] Queueing song with duration:', songDuration, 'seconds');
 
       const queuedSong: QueuedSong = {
@@ -541,7 +541,7 @@ export async function POST(req: NextRequest) {
       state.currentSong = {
         ...nextSong,
         startedAt: Date.now(),
-        duration: nextSong.duration || 180, // Use song duration or default 3 minutes
+        duration: nextSong.duration || 600, // Use song duration or 10 min fallback
         isRandom: false, // Queued song, not random
       };
       state.lastUpdated = Date.now();

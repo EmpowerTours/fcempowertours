@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Calendar, MapPin, Users, Upload, QrCode, Check, Clock, Gift, Sparkles, Camera, Navigation, Building } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
@@ -367,8 +368,11 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose }) => 
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+  // Use portal to render modal at document body level to avoid z-index stacking issues
+  if (typeof document === 'undefined') return null;
+
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 rounded-2xl border border-purple-500/30 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-purple-500/30">
@@ -942,6 +946,8 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose }) => 
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default EventOracle;

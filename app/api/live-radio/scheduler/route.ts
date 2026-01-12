@@ -95,7 +95,7 @@ interface SongFromEnvio {
   audioUrl: string;
   imageUrl: string;
   artistFid: number;
-  duration?: number; // May not be available from Envio, will default to 180s
+  duration?: number; // May not be available from Envio, will default to 600s (client reports actual end)
 }
 
 // Fetch songs from Envio for random selection (only Music NFTs with audio)

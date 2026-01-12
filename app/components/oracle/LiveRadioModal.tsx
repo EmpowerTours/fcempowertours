@@ -122,6 +122,9 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const [claimingRewards, setClaimingRewards] = useState(false);
   const [lastClaimTxHash, setLastClaimTxHash] = useState<string | null>(null);
   const [queueing, setQueueing] = useState(false);
+  // Subscription requirement
+  const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
   const [pricing, setPricing] = useState({
     queueSong: 1,
     voiceNote: 0.5,
@@ -155,6 +158,28 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
     setMounted(true);
     return () => setMounted(false);
   }, []);
+
+  // Check subscription status - required to listen to radio
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!walletAddress) {
+        setCheckingSubscription(false);
+        setHasSubscription(false);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/music/check-subscription?address=${walletAddress}`);
+        const data = await response.json();
+        setHasSubscription(data.hasSubscription || false);
+      } catch (error) {
+        console.error('[LiveRadio] Failed to check subscription:', error);
+        setHasSubscription(false);
+      } finally {
+        setCheckingSubscription(false);
+      }
+    };
+    checkSubscription();
+  }, [walletAddress]);
 
   // Show toast notification (replaces alerts which don't work in Farcaster)
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -994,7 +1019,32 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
         {/* Content */}
         <div className="p-4 overflow-y-auto max-h-[calc(90vh-180px)]">
-          {loading ? (
+          {/* Subscription Gate */}
+          {checkingSubscription ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <span className="ml-3 text-gray-400">Checking subscription...</span>
+            </div>
+          ) : !hasSubscription ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-500/20 flex items-center justify-center">
+                <Music2 className="w-8 h-8 text-purple-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Subscription Required</h3>
+              <p className="text-gray-400 text-sm mb-4">
+                A music subscription is required to listen to Live Radio.
+              </p>
+              <p className="text-xs text-gray-500 mb-6">
+                Subscribe to enjoy unlimited music streaming, exclusive content, and earn TOURS rewards.
+              </p>
+              <button
+                onClick={onClose}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold rounded-xl transition-all"
+              >
+                Get Subscription
+              </button>
+            </div>
+          ) : loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
             </div>

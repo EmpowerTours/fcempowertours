@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -49,7 +49,7 @@ interface Message {
 
 export default function OraclePage() {
   const router = useRouter();
-  const { user, walletAddress } = useFarcasterContext();
+  const { user, walletAddress, sendTransaction } = useFarcasterContext();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
   const [input, setInput] = useState('');
@@ -93,6 +93,14 @@ export default function OraclePage() {
     txHash?: string;
     price?: string;
   } | null>(null);
+  // User Safe balance and deposit modal
+  const [userSafeBalance, setUserSafeBalance] = useState<{ wmonBalance: string; monBalance: string } | null>(null);
+  const [userSafeAddress, setUserSafeAddress] = useState<string | null>(null);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState('');
+  const [depositSuccess, setDepositSuccess] = useState('');
 
   // Fetch NFT list
   useEffect(() => {
@@ -150,6 +158,30 @@ export default function OraclePage() {
       });
     }
   }, [geoLocation, geoLoading]);
+
+  // Fetch user safe balance and address
+  useEffect(() => {
+    const fetchUserSafeBalance = async () => {
+      if (!walletAddress) return;
+      try {
+        const response = await fetch(`/api/user-safe?address=${walletAddress}`);
+        const data = await response.json();
+        if (data.success) {
+          setUserSafeBalance({
+            wmonBalance: data.wmonBalance || '0',
+            monBalance: data.balance || '0',
+          });
+          setUserSafeAddress(data.safeAddress || null);
+        }
+      } catch (error) {
+        console.error('[Oracle] Failed to fetch user safe balance:', error);
+      }
+    };
+    fetchUserSafeBalance();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchUserSafeBalance, 30000);
+    return () => clearInterval(interval);
+  }, [walletAddress]);
 
   // Check subscription status and owned music
   useEffect(() => {
@@ -505,6 +537,66 @@ export default function OraclePage() {
     }]);
   };
 
+  // Handle deposit to user safe
+  const handleDeposit = async () => {
+    if (!userSafeAddress || !depositAmount || !sendTransaction) {
+      setDepositError('Missing required information');
+      return;
+    }
+
+    const amount = parseFloat(depositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setDepositError('Please enter a valid amount');
+      return;
+    }
+
+    setDepositLoading(true);
+    setDepositError('');
+    setDepositSuccess('');
+
+    try {
+      // Convert amount to wei (hex)
+      const amountInWei = BigInt(Math.floor(amount * 1e18));
+      console.log('[Oracle] Depositing', amount, 'MON to Safe:', userSafeAddress);
+
+      // Send transaction using Farcaster wallet
+      const result = await sendTransaction({
+        to: userSafeAddress,
+        value: '0x' + amountInWei.toString(16),
+        chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '10143'),
+      });
+
+      const txHash = result?.transactionHash || result;
+      console.log('[Oracle] Deposit transaction sent:', txHash);
+      setDepositSuccess(`Deposited ${amount} MON! TX: ${typeof txHash === 'string' ? txHash.slice(0, 10) : ''}...`);
+      setDepositAmount('');
+
+      // Refresh balance after a delay
+      setTimeout(async () => {
+        const response = await fetch(`/api/user-safe?address=${walletAddress}`);
+        const data = await response.json();
+        if (data.success) {
+          setUserSafeBalance({
+            wmonBalance: data.wmonBalance || '0',
+            monBalance: data.balance || '0',
+          });
+        }
+      }, 3000);
+    } catch (error: any) {
+      console.error('[Oracle] Deposit failed:', error);
+      setDepositError(error.message || 'Deposit failed');
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
+  // Copy safe address to clipboard
+  const handleCopyAddress = () => {
+    if (userSafeAddress) {
+      navigator.clipboard.writeText(userSafeAddress);
+    }
+  };
+
   // Dynamic Crystal Ball classes based on state
   // When overlay is active (game, music, etc), Earth shrinks and blurs to background
   const getCrystalBallClasses = () => {
@@ -522,12 +614,52 @@ export default function OraclePage() {
     <>
       <div className="relative w-screen bg-black text-white overflow-hidden font-sans" style={{ height: '100dvh' }}>
         {/* Header */}
-        <div className="absolute top-6 left-6 z-50 flex items-center">
-          <Globe className="text-cyan-400 w-12 h-12 animate-[spin_60s_linear_infinite]" />
-          <div className="ml-3">
-            <span className="font-sans font-bold text-xl tracking-[0.2em]">EMPOWERTOURS</span>
-            <div className="text-xs text-gray-400">Global Guide Oracle</div>
+        <div className="absolute top-6 left-6 right-6 z-50 flex items-center justify-between">
+          <div className="flex items-center">
+            <Globe className="text-cyan-400 w-10 h-10 animate-[spin_60s_linear_infinite]" />
+            <div className="ml-2">
+              <span className="font-sans font-bold text-lg tracking-[0.15em]">EMPOWERTOURS</span>
+              <div className="text-xs text-gray-400">Global Guide Oracle</div>
+            </div>
           </div>
+          {/* User Info */}
+          {user && walletAddress && (
+            <div className="flex items-center gap-3 bg-black/40 backdrop-blur-md rounded-xl px-3 py-2 border border-gray-700/50">
+              {user.pfpUrl ? (
+                <img
+                  src={user.pfpUrl}
+                  alt={user.username || 'User'}
+                  className="w-8 h-8 rounded-full object-cover border border-cyan-500/30"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                  {user.username?.charAt(0).toUpperCase() || '?'}
+                </div>
+              )}
+              <div className="text-right">
+                {user.username && (
+                  <div className="text-sm font-medium text-white">@{user.username}</div>
+                )}
+                <div className="text-xs text-gray-400 font-mono">
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </div>
+                {userSafeBalance && (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] text-cyan-400 font-medium">
+                      Safe: {parseFloat(userSafeBalance.monBalance).toFixed(2)} MON
+                    </span>
+                    <button
+                      onClick={() => setShowDepositModal(true)}
+                      className="w-4 h-4 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 flex items-center justify-center transition-all"
+                      title="Deposit MON to Safe"
+                    >
+                      <Plus className="w-2.5 h-2.5 text-cyan-400" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-24 pb-40 overflow-y-auto">
@@ -619,66 +751,7 @@ export default function OraclePage() {
                 <Send className="w-5 h-5 text-black" />
               </button>
             </div>
-            {/* Quick Actions - Compact icon buttons */}
-            <div className="mt-3 flex items-center justify-center gap-1.5 flex-wrap">
-                <button
-                onClick={() => setShowSubscriptionModal(true)}
-                className="w-9 h-9 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-lg flex items-center justify-center transition-all"
-                title={hasSubscription ? 'Subscribed' : 'Subscribe to Music'}
-              >
-                <Music2 className={`w-4 h-4 ${hasSubscription ? 'text-cyan-300' : 'text-cyan-400'}`} />
-              </button>
-                {walletAddress && (
-                  <>
-                    <button
-                    onClick={() => setShowDashboardModal(true)}
-                    className="w-9 h-9 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg flex items-center justify-center transition-all"
-                    title="Stats Dashboard"
-                  >
-                    <BarChart3 className="w-4 h-4 text-green-400" />
-                  </button>
-                    <button
-                    onClick={() => setShowDAOModal(true)}
-                    className="w-9 h-9 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-lg flex items-center justify-center transition-all"
-                    title="DAO Governance"
-                  >
-                    <Vote className="w-4 h-4 text-indigo-400" />
-                  </button>
-                    <button
-                    onClick={() => setShowRadioModal(true)}
-                    className="w-9 h-9 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg flex items-center justify-center transition-all"
-                    title="Live Radio"
-                  >
-                    <Radio className="w-4 h-4 text-pink-400" />
-                  </button>
-                    <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('[OraclePage] Events button clicked!');
-                      setShowEventOracleModal(true);
-                    }}
-                    className="w-9 h-9 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
-                    title="Sponsored Events"
-                  >
-                    <Calendar className="w-4 h-4 text-orange-400" />
-                  </button>
-                    <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('[OraclePage] Profile button clicked!');
-                      setShowProfileModal(true);
-                    }}
-                    className="w-9 h-9 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
-                    title="Your Profile"
-                    type="button"
-                  >
-                    <User className="w-4 h-4 text-purple-400" />
-                  </button>
-                  </>
-                )}
-            </div>
+            {/* Quick Actions removed - access features via Oracle chat commands */}
           </div>
         </div>
 
@@ -967,6 +1040,121 @@ export default function OraclePage() {
           isOpen={showEventOracleModal}
           onClose={() => setShowEventOracleModal(false)}
         />
+      )}
+
+      {/* Deposit Modal */}
+      {showDepositModal && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100]"
+          onClick={() => setShowDepositModal(false)}
+        >
+          <div
+            className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border border-cyan-500/30 rounded-2xl max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center">
+                  <Wallet className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Deposit to Safe</h3>
+                  <p className="text-xs text-gray-400">Fund your User Safe</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDepositModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Safe Address */}
+            {userSafeAddress && (
+              <div className="mb-4 p-3 bg-black/30 rounded-xl border border-gray-700/50">
+                <p className="text-xs text-gray-400 mb-1">Safe Address</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs text-cyan-400 font-mono break-all">
+                    {userSafeAddress}
+                  </code>
+                  <button
+                    onClick={handleCopyAddress}
+                    className="shrink-0 p-1 hover:bg-white/10 rounded transition-all"
+                    title="Copy address"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Current Balance */}
+            <div className="mb-4 p-3 bg-black/30 rounded-xl border border-gray-700/50">
+              <p className="text-xs text-gray-400 mb-1">Current Balance</p>
+              <p className="text-lg font-bold text-white">
+                {userSafeBalance ? parseFloat(userSafeBalance.monBalance).toFixed(4) : '0'} MON
+              </p>
+            </div>
+
+            {/* Deposit Amount Input */}
+            <div className="mb-4">
+              <label className="text-xs text-gray-400 mb-1 block">Deposit Amount (MON)</label>
+              <input
+                type="number"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="0.0"
+                className="w-full px-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
+              />
+            </div>
+
+            {/* Quick Amounts */}
+            <div className="flex gap-2 mb-4">
+              {[1, 5, 10, 25].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => setDepositAmount(amt.toString())}
+                  className="flex-1 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-medium transition-all"
+                >
+                  {amt} MON
+                </button>
+              ))}
+            </div>
+
+            {/* Error/Success Messages */}
+            {depositError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                <p className="text-xs text-red-400">{depositError}</p>
+              </div>
+            )}
+            {depositSuccess && (
+              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
+                <p className="text-xs text-green-400">{depositSuccess}</p>
+              </div>
+            )}
+
+            {/* Deposit Button */}
+            <button
+              onClick={handleDeposit}
+              disabled={depositLoading || !depositAmount}
+              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              {depositLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Depositing...
+                </>
+              ) : (
+                <>
+                  <Wallet className="w-4 h-4" />
+                  Deposit via Farcaster Wallet
+                </>
+              )}
+            </button>
+
+            <p className="mt-3 text-[10px] text-gray-500 text-center">
+              Deposits go directly to your User Safe for gasless transactions
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Dashboard Modal */}
