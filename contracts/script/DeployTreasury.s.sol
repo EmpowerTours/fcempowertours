@@ -69,7 +69,7 @@ contract DeployDAOReserve is Script {
     address constant WMON_TESTNET = 0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541;
 
     // Monad Mainnet
-    address constant WMON_MAINNET = 0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701; // Update with actual address
+    address constant WMON_MAINNET = 0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

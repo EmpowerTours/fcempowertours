@@ -6,54 +6,40 @@
 @tailwind utilities;
 
 :root {
-  --foreground: #111827 !important; /* Dark gray */
-  --background: #f3f4f6 !important; /* Light gray */
-  --card: #f9fafb !important; /* Lighter gray for cards */
-  --card-foreground: #111827 !important;
-  --popover: #ffffff !important; /* White for popovers */
-  --popover-foreground: #111827 !important;
-  --primary: #2563eb !important; /* Blue */
-  --primary-foreground: #ffffff !important;
-  --secondary: #3b82f6 !important; /* Lighter blue */
-  --secondary-foreground: #111827 !important;
-  --muted: #e5e7eb !important; /* Light gray for muted */
-  --muted-foreground: #6b7280 !important; /* Gray */
-  --accent: #7e22ce !important; /* Purple */
-  --accent-foreground: #111827 !important;
-  --destructive: #dc2626 !important; /* Red */
-  --border: #d1d5db !important; /* Gray border */
-  --input: #ffffff !important; /* White for inputs */
-  --ring: #2563eb !important; /* Blue ring */
+  --foreground: #111827;
+  --background: #000000;
+  --card: #111827;
+  --card-foreground: #f9fafb;
+  --popover: #1f2937;
+  --popover-foreground: #f9fafb;
+  --primary: #06b6d4;
+  --primary-foreground: #000000;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #374151;
+  --muted-foreground: #9ca3af;
+  --accent: #7e22ce;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --border: #374151;
+  --input: #1f2937;
+  --ring: #06b6d4;
   --radius: 0.625rem;
 }
 
-html, body, div, h1, h2, h3, p, label, input, select, button, a {
-  background-color: var(--background) !important;
-  color: var(--foreground) !important;
+/* Reset only basic box model - DO NOT override colors */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
   padding: 0;
 }
 
-input, select {
-  background-color: var(--input) !important;
-  color: var(--foreground) !important;
-}
-
-button:not(nav button) {
-  background-color: var(--primary) !important;
-  color: var(--primary-foreground) !important;
-}
-
-nav button {
-  color: var(--secondary) !important;
-}
-
-.card {
-  background-color: var(--card) !important;
-}
-
+/* Optional utility classes that can be applied when needed */
 .cast-username {
-  color: var(--accent) !important;
+  color: var(--accent);
 }
 
 @layer utilities {

@@ -5,19 +5,23 @@ import {
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { createPublicClient, http, Address, Hex, parseAbi, parseEther } from 'viem';
 import { entryPoint07Address } from 'viem/account-abstraction';
-import { monadTestnet } from '@/app/chains';
+import { activeChain, monadTestnet, monadMainnet } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
 import { env } from '@/lib/env';
+
+// Determine which chain to use based on environment
+const isMainnet = env.CHAIN_ID === '143';
+const currentChain = isMainnet ? monadMainnet : monadTestnet;
 
 const PIMLICO_API_KEY = env.PIMLICO_API_KEY;
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
 const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
 
-// Public client for Monad
+// Public client for Monad (mainnet or testnet based on CHAIN_ID)
 export const publicClient = createPublicClient({
-  chain: monadTestnet,
+  chain: currentChain,
   transport: http(env.MONAD_RPC),
 });
 
@@ -68,7 +72,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
 
     const smartAccountClient = createSmartAccountClient({
       account: safeSmartAccount,
-      chain: monadTestnet,
+      chain: currentChain,
       bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 120000 }),
       paymaster: pimlicoClient,
       userOperation: {
@@ -206,7 +210,7 @@ export async function sendSafeTransaction(
     const entryPointCode = await publicClient.getCode({ address: ENTRYPOINT_ADDRESS });
     if (!entryPointCode || entryPointCode === '0x') {
       throw new Error(
-        `EntryPoint ${ENTRYPOINT_ADDRESS} is NOT deployed on chain ${monadTestnet.id}! ` +
+        `EntryPoint ${ENTRYPOINT_ADDRESS} is NOT deployed on chain ${currentChain.id}! ` +
         `ERC-4337 EntryPoint v0.7 must be deployed before using Account Abstraction. ` +
         `Either deploy the EntryPoint or use a different AA solution.`
       );

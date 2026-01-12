@@ -14,7 +14,8 @@ import "../src/DailyPassLotteryWMON.sol";
  * Platform Safe: 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20
  *
  * === Monad Mainnet Addresses ===
- * (To be determined when deploying to mainnet)
+ * WMON: 0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A
+ * Pyth Entropy: 0xd458261E832415CFD3BAE5E416FdF3230CE6F134
  */
 contract DeployDailyPassLotteryWMON is Script {
     // Monad Testnet addresses
@@ -23,11 +24,11 @@ contract DeployDailyPassLotteryWMON is Script {
     address constant ENTROPY_TESTNET = 0x825c0390f379C631f3Cf11A82a37D20BddF93c07;
     address constant PLATFORM_SAFE_TESTNET = 0x2217D0BD793fC38dc9f9D9bC46cEC91191ee4F20;
 
-    // Monad Mainnet addresses (placeholder)
-    address constant WMON_MAINNET = address(0); // Update when WMON is deployed
-    address constant TOURS_MAINNET = address(0); // Update when TOURS is deployed
-    address constant ENTROPY_MAINNET = address(0); // Update when available
-    address constant PLATFORM_SAFE_MAINNET = address(0); // Update when known
+    // Monad Mainnet addresses
+    address constant WMON_MAINNET = 0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A;
+    address constant TOURS_MAINNET = address(0); // Deploy TOURS token first
+    address constant ENTROPY_MAINNET = 0xd458261E832415CFD3BAE5E416FdF3230CE6F134;
+    address constant PLATFORM_SAFE_MAINNET = address(0); // Set after Safe deployment
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
