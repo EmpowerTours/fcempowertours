@@ -191,11 +191,11 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-black/40 rounded-lg p-3">
+          <div className="bg-gray-800 rounded-lg p-3">
             <div className="text-xs text-gray-400 mb-1">Days Remaining</div>
             <div className="text-2xl font-bold text-green-400">{subscriptionStatus.daysRemaining}</div>
           </div>
-          <div className="bg-black/40 rounded-lg p-3">
+          <div className="bg-gray-800 rounded-lg p-3">
             <div className="text-xs text-gray-400 mb-1">Total Plays</div>
             <div className="text-2xl font-bold text-cyan-400">{subscriptionStatus.totalPlays}</div>
           </div>
@@ -259,7 +259,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       </div>
 
       {/* Cost Summary */}
-      <div className="bg-black/40 rounded-lg p-4 mb-4 space-y-2">
+      <div className="bg-gray-800 rounded-lg p-4 mb-4 space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-400">Plan</span>
           <span className="text-sm font-semibold text-white">{selectedTierData.name} ({selectedTierData.duration})</span>

@@ -95,7 +95,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-cyan-500/30 rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl shadow-cyan-500/10"
         onClick={(e) => e.stopPropagation()}
@@ -114,7 +114,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
             </div>
             <div className="flex items-center gap-2">
               {/* View Toggle */}
-              <div className="flex bg-black/40 rounded-lg p-1">
+              <div className="flex bg-gray-800 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('list')}
                   className={`px-3 py-1 text-xs font-semibold rounded transition-colors ${
@@ -158,7 +158,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                     className={`p-4 rounded-xl cursor-pointer transition-all ${
                       isSelected
                         ? 'bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border-2 border-cyan-500/50'
-                        : 'bg-black/40 border border-gray-700/50 hover:border-cyan-500/30'
+                        : 'bg-gray-800 border border-gray-700/50 hover:border-cyan-500/30'
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -314,16 +314,16 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                 <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-4 md:hidden">
                   <button
                     onClick={() => setSelectedIndex(prev => (prev > 0 ? prev - 1 : sources.length - 1))}
-                    className="w-10 h-10 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white transition-colors"
+                    className="w-10 h-10 bg-gray-800 hover:bg-gray-800 rounded-full flex items-center justify-center text-white transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <div className="bg-black/60 px-3 py-1 rounded-full">
+                  <div className="bg-gray-800 px-3 py-1 rounded-full">
                     <span className="text-white text-sm font-semibold">{selectedIndex + 1} / {sources.length}</span>
                   </div>
                   <button
                     onClick={() => setSelectedIndex(prev => (prev < sources.length - 1 ? prev + 1 : 0))}
-                    className="w-10 h-10 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white transition-colors"
+                    className="w-10 h-10 bg-gray-800 hover:bg-gray-800 rounded-full flex items-center justify-center text-white transition-colors"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
@@ -333,7 +333,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
             {/* Selected Place Card */}
             {selectedSource && (
-              <div className="mt-4 bg-black/40 border border-cyan-500/20 rounded-xl p-4">
+              <div className="mt-4 bg-gray-800 border border-cyan-500/20 rounded-xl p-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-white font-bold text-lg">{selectedSource.title}</h3>

@@ -971,7 +971,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 bg-gray-950 flex items-center justify-center p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >
@@ -1062,7 +1062,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
                 {/* Current Song */}
                 {radioState?.currentSong ? (
-                  <div className="bg-black/40 rounded-2xl p-4 border border-purple-500/20">
+                  <div className="bg-gray-800 rounded-2xl p-4 border border-purple-500/20">
                     {/* Album Art */}
                     <div className="w-full aspect-square rounded-xl bg-purple-500/20 overflow-hidden mb-3">
                       {radioState.currentSong.imageUrl ? (
@@ -1130,7 +1130,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-black/40 rounded-2xl p-8 border border-purple-500/20 text-center">
+                  <div className="bg-gray-800 rounded-2xl p-8 border border-purple-500/20 text-center">
                     <Music2 className="w-12 h-12 text-gray-500 mx-auto mb-3" />
                     <p className="text-gray-400">No song playing</p>
                     <p className="text-xs text-gray-500 mt-1">Queue a song to start the party!</p>
@@ -1175,7 +1175,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                     {queue.slice(0, 5).map((song, index) => (
                       <div
                         key={song.id}
-                        className="flex items-center gap-3 p-2 bg-black/20 rounded-lg border border-purple-500/10"
+                        className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg border border-purple-500/10"
                       >
                         <span className="text-xs text-gray-500 w-5">{index + 1}</span>
                         <div className="w-10 h-10 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
@@ -1216,7 +1216,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                         className={`flex items-center gap-3 p-2 rounded-lg border ${
                           note.userAddress?.toLowerCase() === walletAddress?.toLowerCase()
                             ? 'bg-pink-500/20 border-pink-500/50'
-                            : 'bg-black/20 border-pink-500/10'
+                            : 'bg-gray-800 border-pink-500/10'
                         }`}
                       >
                         <span className="text-xs text-gray-500 w-5">{index + 1}</span>
@@ -1409,7 +1409,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-purple-500/20 bg-black/40">
+        <div className="p-3 border-t border-purple-500/20 bg-gray-800">
           <p className="text-xs text-gray-500 text-center">
             Powered by Pyth Entropy • Smart Contract on Monad
           </p>
@@ -1419,7 +1419,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       {/* Queue Song Sub-Modal */}
       {showQueueModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
+          className="fixed inset-0 bg-gray-800 flex items-center justify-center p-2 sm:p-4"
           style={{ zIndex: 10000 }}
           onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
         >
@@ -1446,7 +1446,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                     className={`w-full p-2 sm:p-3 rounded-lg border transition-all text-left flex items-center gap-2 sm:gap-3 ${
                       selectedSong?.tokenId === song.tokenId
                         ? 'bg-purple-500/20 border-purple-500'
-                        : 'bg-black/40 border-purple-500/20 hover:border-purple-500/50'
+                        : 'bg-gray-800 border-purple-500/20 hover:border-purple-500/50'
                     }`}
                   >
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
@@ -1524,7 +1524,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
       {/* Voice Note Sub-Modal */}
       {showVoiceNoteModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
+          className="fixed inset-0 bg-gray-800 flex items-center justify-center p-2 sm:p-4"
           style={{ zIndex: 10000 }}
           onClick={() => { if (recordingStatus === 'idle') { setShowVoiceNoteModal(false); resetRecording(); } }}
         >
@@ -1608,7 +1608,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
             {/* Preview View */}
             {recordingStatus === 'recorded' && recordedAudioUrl && (
               <div className="py-4">
-                <div className="bg-black/40 rounded-xl p-4 mb-4">
+                <div className="bg-gray-800 rounded-xl p-4 mb-4">
                   <audio src={recordedAudioUrl} controls className="w-full" />
                   <p className="text-xs text-gray-400 text-center mt-2">
                     Duration: {recordingTime} seconds

@@ -231,7 +231,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 bg-gray-950 flex items-center justify-center p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >
@@ -411,7 +411,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                   {/* Recent Plays and Payments */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Recent Plays */}
-                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                    <div className="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
                       <h4 className="font-bold text-white mb-3 flex items-center gap-2">
                         <span>🎧</span> Recent Plays
                         <span className="text-xs font-normal text-gray-500">({streamingStats.recentPlays.length})</span>
@@ -436,7 +436,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                     </div>
 
                     {/* Recent Sales (Artist Payments) */}
-                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                    <div className="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
                       <h4 className="font-bold text-white mb-3 flex items-center gap-2">
                         <span>💰</span> Recent Sales
                         <span className="text-xs font-normal text-gray-500">({streamingStats.recentSales.length})</span>
@@ -465,7 +465,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                   {/* Top Songs & Artists */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Top Songs */}
-                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                    <div className="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
                       <h4 className="font-bold text-white mb-3 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-purple-400" />
                         Top Songs by Sales
@@ -488,7 +488,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                     </div>
 
                     {/* Top Artists */}
-                    <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                    <div className="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
                       <h4 className="font-bold text-white mb-3 flex items-center gap-2">
                         <DollarSign className="w-4 h-4 text-amber-400" />
                         Top Earning Artists
@@ -548,7 +548,7 @@ const StatCard = ({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 // Activity Section Component
 const ActivitySection = ({ title, icon, items, loading, children }: { title: string; icon: string; items: any[]; loading: boolean; children: React.ReactNode }) => (
-  <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+  <div className="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
     <h4 className="font-bold text-white mb-3 flex items-center gap-2">
       <span>{icon}</span> {title}
       <span className="text-xs font-normal text-gray-500">({items.length})</span>

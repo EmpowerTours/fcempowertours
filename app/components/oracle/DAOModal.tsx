@@ -331,7 +331,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 bg-gray-950 flex items-center justify-center p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >

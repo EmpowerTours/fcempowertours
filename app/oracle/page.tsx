@@ -627,13 +627,27 @@ export default function OraclePage() {
   };
 
   // Dynamic Crystal Ball classes based on state
-  // When overlay is active (game, music, etc), Earth shrinks and blurs to background
+  // When any modal/overlay is active, Earth shrinks and blurs to background
   const getCrystalBallClasses = () => {
-    const hasActiveOverlay = activeGame !== null || messages.length > 0;
+    const hasActiveOverlay =
+      activeGame !== null ||
+      messages.length > 0 ||
+      showProfileModal ||
+      showDashboardModal ||
+      showRadioModal ||
+      showEventOracleModal ||
+      showDAOModal ||
+      showDepositModal ||
+      showSubscriptionModal ||
+      showCreateNFTModal ||
+      showPassportMintModal ||
+      showMapsResults ||
+      showUserProfileModal ||
+      selectedNFT !== null;
 
     if (hasActiveOverlay) {
       // Earth recedes: shrinks, moves up, fades, blurs
-      return 'scale-60 -translate-y-24 opacity-40 blur-[4px] grayscale-[50%]';
+      return 'scale-50 -translate-y-16 opacity-30 blur-[6px] grayscale-[60%]';
     }
     // Earth is full size and clear (home state)
     return 'scale-100 translate-y-0 opacity-100 blur-0 grayscale-0';
@@ -646,24 +660,24 @@ export default function OraclePage() {
         <div className="absolute top-4 left-4 right-4 z-50 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
-            <Globe className="text-cyan-500 w-8 h-8 animate-[spin_60s_linear_infinite]" />
+            <Globe className={`w-8 h-8 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
             <div className="ml-2">
-              <span className="font-bold text-base tracking-wide">EMPOWERTOURS</span>
-              <div className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Global Guide Oracle</div>
+              <span className={`font-bold text-base tracking-wide ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>EMPOWERTOURS</span>
+              <div className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Global Guide Oracle</div>
             </div>
           </div>
 
           {/* Dark Mode Toggle */}
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+            className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'}`}
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
         </div>
 
-        <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-24 pb-40 overflow-y-auto">
+        <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-16 pb-40 overflow-y-auto">
         {/* Crystal Ball - Shrinks and moves up when content loads */}
         <div className={`transition-all duration-700 ease-in-out ${getCrystalBallClasses()}`}>
           <CrystalBall state={oracleState} onNFTClick={handleNFTClick} />
@@ -835,7 +849,7 @@ export default function OraclePage() {
                       )}
                       {/* Animated Sound Wave Overlay for Playing Music */}
                       {isPlaying && nft.type === 'MUSIC' && (
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                        <div className="absolute inset-0 bg-gray-950 flex items-center justify-center">
                           <div className="flex gap-1 items-end h-10">
                             <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '30%', animationDelay: '0s' }}></div>
                             <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '80%', animationDelay: '0.1s' }}></div>
@@ -884,7 +898,7 @@ export default function OraclePage() {
 
       {/* NFT Modal */}
       {selectedNFT && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={closeNFTModal}>
+        <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center p-4" onClick={closeNFTModal}>
           <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -974,7 +988,7 @@ export default function OraclePage() {
 
       {/* Payment Confirmation Dialog */}
       {paymentRequired && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={handleCancelPayment}>
+        <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center p-4" onClick={handleCancelPayment}>
           <div className="bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl max-w-md w-full p-6 shadow-2xl shadow-cyan-500/20 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🗺️</div>
@@ -982,7 +996,7 @@ export default function OraclePage() {
               <p className="text-gray-400 text-sm">{paymentRequired.message}</p>
             </div>
 
-            <div className="bg-black/40 border border-cyan-500/30 rounded-2xl p-4 mb-6">
+            <div className="bg-gray-800 border border-cyan-500/30 rounded-2xl p-4 mb-6">
               {/* User Disclosure: Maps data usage */}
               <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-3">
                 <div className="flex items-start gap-2">
@@ -1092,11 +1106,11 @@ export default function OraclePage() {
       {/* Deposit Modal */}
       {showDepositModal && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100]"
+          className="fixed inset-0 bg-gray-950 flex items-center justify-center p-4 z-[100]"
           onClick={() => setShowDepositModal(false)}
         >
           <div
-            className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border border-cyan-500/30 rounded-2xl max-w-sm w-full p-6"
+            className="bg-gray-900 border border-gray-700 rounded-2xl max-w-sm w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -1116,7 +1130,7 @@ export default function OraclePage() {
 
             {/* Safe Address */}
             {userSafeAddress && (
-              <div className="mb-4 p-3 bg-black/30 rounded-xl border border-gray-700/50">
+              <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
                 <p className="text-xs text-gray-400 mb-1">Safe Address</p>
                 <div className="flex items-center gap-2">
                   <code className="text-xs text-cyan-400 font-mono break-all">
@@ -1124,7 +1138,7 @@ export default function OraclePage() {
                   </code>
                   <button
                     onClick={handleCopyAddress}
-                    className="shrink-0 p-1 hover:bg-white/10 rounded transition-all"
+                    className="shrink-0 p-1 hover:bg-gray-700 rounded transition-all"
                     title="Copy address"
                   >
                     <Copy className="w-3.5 h-3.5 text-gray-400" />
@@ -1134,7 +1148,7 @@ export default function OraclePage() {
             )}
 
             {/* Current Balance */}
-            <div className="mb-4 p-3 bg-black/30 rounded-xl border border-gray-700/50">
+            <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
               <p className="text-xs text-gray-400 mb-1">Current Balance</p>
               <p className="text-lg font-bold text-white">
                 {userSafeBalance ? parseFloat(userSafeBalance.monBalance).toFixed(4) : '0'} MON
@@ -1149,7 +1163,7 @@ export default function OraclePage() {
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(e.target.value)}
                 placeholder="0.0"
-                className="w-full px-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
               />
             </div>
 
@@ -1244,7 +1258,7 @@ export default function OraclePage() {
       {/* Itinerary Smart Contract Notification */}
       {itineraryNotification && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fadeIn">
-          <div className={`px-4 py-3 rounded-xl border shadow-xl backdrop-blur-md flex items-center gap-3 ${
+          <div className={`px-4 py-3 rounded-xl border shadow-xl  flex items-center gap-3 ${
             itineraryNotification.type === 'creating'
               ? 'bg-blue-500/20 border-blue-500/50'
               : itineraryNotification.type === 'created'

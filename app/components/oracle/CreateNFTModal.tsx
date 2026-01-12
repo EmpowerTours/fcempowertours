@@ -383,7 +383,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
     >
       {/* Circular Progress Overlay */}
       {(uploading || minting) && (
-        <div className="absolute inset-0 bg-black/80 z-[10000] flex flex-col items-center justify-center backdrop-blur-sm">
+        <div className="absolute inset-0 bg-gray-800 z-[10000] flex flex-col items-center justify-center ">
           <div className="relative">
             {/* Background circle */}
             <svg className="w-40 h-40 transform -rotate-90">
@@ -788,7 +788,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={nftType === 'music' ? 'e.g., Money Making Machine - Electronic Mix' : 'e.g., Sunset Over Mountains'}
                     maxLength={200}
-                    className="w-full px-6 py-4 text-lg bg-black/50 border-2 border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-4 focus:ring-purple-500/50 focus:border-transparent"
+                    className="w-full px-6 py-4 text-lg bg-gray-800 border-2 border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-4 focus:ring-purple-500/50 focus:border-transparent"
                   />
                   <p className="text-sm text-gray-400 mt-2">{title.length}/200 characters</p>
                 </div>
@@ -821,7 +821,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="Enter amount"
-                      className="flex-1 px-6 py-4 text-lg bg-black/50 border border-cyan-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                      className="flex-1 px-6 py-4 text-lg bg-gray-800 border border-cyan-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
                     />
                     <span className="text-cyan-400 font-bold text-lg whitespace-nowrap">WMON</span>
                   </div>
