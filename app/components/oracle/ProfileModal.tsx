@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, ExternalLink } from 'lucide-react';
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User } from 'lucide-react';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -55,6 +55,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
+  const [showFullProfile, setShowFullProfile] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -164,6 +165,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setSearchedUser(null);
     setSearchQuery('');
     setSearchError(null);
+    setShowFullProfile(false);
   };
 
   if (!mounted) return null;
@@ -173,7 +175,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       <img
         src={src}
         alt={alt}
-        className="rounded-full border-2 border-purple-500/50 object-cover flex-shrink-0"
+        className="rounded-full border-2 border-purple-500 object-cover flex-shrink-0"
         style={{ width: size, height: size, minWidth: size, maxWidth: size }}
       />
     ) : (
@@ -188,16 +190,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/95 flex items-center justify-center p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden shadow-2xl"
+        className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border-b border-purple-500/30 p-4">
+        <div className="bg-gray-800 border-b border-gray-700 p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <ProfilePicture
@@ -215,7 +217,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -231,13 +233,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search username..."
-                className="w-full pl-9 pr-3 py-2 bg-black/40 border border-purple-500/30 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                className="w-full pl-9 pr-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:outline-none"
               />
             </div>
             <button
               onClick={handleSearch}
               disabled={searchLoading || !searchQuery.trim()}
-              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 text-white rounded-lg text-sm transition-colors"
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-lg text-sm transition-colors"
             >
               {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
             </button>
@@ -269,9 +271,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <>
                   {/* User Type */}
                   <div className={`p-4 rounded-xl text-center ${
-                    searchedUser.userType === 'artist' ? 'bg-purple-500/20 border border-purple-500/30' :
-                    searchedUser.userType === 'collector' ? 'bg-cyan-500/20 border border-cyan-500/30' :
-                    'bg-gray-500/20 border border-gray-500/30'
+                    searchedUser.userType === 'artist' ? 'bg-purple-900 border border-purple-700' :
+                    searchedUser.userType === 'collector' ? 'bg-cyan-900 border border-cyan-700' :
+                    'bg-gray-800 border border-gray-700'
                   }`}>
                     <div className="text-3xl mb-1">
                       {searchedUser.userType === 'artist' ? '🎨' : searchedUser.userType === 'collector' ? '🏆' : '🌱'}
@@ -286,7 +288,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Bio */}
                   {searchedUser.bio && (
-                    <p className="text-sm text-gray-300 bg-black/40 rounded-lg p-3">{searchedUser.bio}</p>
+                    <p className="text-sm text-gray-300 bg-gray-800 rounded-lg p-3 border border-gray-700">{searchedUser.bio}</p>
                   )}
 
                   {/* Stats */}
@@ -298,13 +300,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
                   )}
 
-                  {/* View Full Profile Button */}
+                  {/* View Full Profile Button - opens in modal */}
                   {searchedUser.walletAddress && onViewUserProfile && (
                     <button
-                      onClick={() => onViewUserProfile(searchedUser.walletAddress!)}
-                      className="w-full py-3 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                      onClick={() => {
+                        setShowFullProfile(true);
+                        onViewUserProfile(searchedUser.walletAddress!);
+                      }}
+                      className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors"
                     >
-                      View Full Profile <ExternalLink className="w-4 h-4" />
+                      View Full Profile
                     </button>
                   )}
                 </>
@@ -328,14 +333,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Countries */}
               {stats.countries.length > 0 && (
-                <div className="bg-black/40 border border-gray-700/50 rounded-xl p-4">
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
                   <h4 className="font-medium text-white mb-2 flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-cyan-400" />
                     Countries Collected
                   </h4>
                   <div className="flex flex-wrap gap-2">
                     {stats.countries.map((code) => (
-                      <span key={code} className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-lg">
+                      <span key={code} className="px-2 py-1 bg-purple-900 text-purple-300 text-xs rounded-lg border border-purple-700">
                         {code}
                       </span>
                     ))}
@@ -345,7 +350,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Wallet Address */}
               {walletAddress && (
-                <div className="bg-black/40 border border-gray-700/50 rounded-xl p-3">
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
                   <p className="text-xs text-gray-400 mb-1">Wallet Address</p>
                   <p className="text-sm text-white font-mono break-all">{walletAddress}</p>
                 </div>
@@ -358,31 +363,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-700/50 p-3">
-          {searchedUser ? (
-            searchedUser.walletAddress && searchedUser.userType === 'artist' ? (
-              <a
-                href={`/artist/${searchedUser.walletAddress}`}
-                className="block w-full py-2 text-center text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
-              >
-                View @{searchedUser.username}&apos;s Artist Page →
-              </a>
-            ) : (
-              <p className="text-center text-gray-500 text-sm">
-                {searchedUser.userType === 'collector' ? 'Collector profile' : 'Explorer profile'}
-              </p>
-            )
-          ) : (
-            <a
-              href="/profile"
-              className="block w-full py-2 text-center text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
-            >
-              View My Full Profile →
-            </a>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -393,11 +373,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 // Stat Box Component
 const StatBox = ({ icon, value, label, color }: { icon: React.ReactNode; value: number; label: string; color: string }) => {
   const colors: Record<string, string> = {
-    purple: 'bg-purple-500/10 border-purple-500/30 text-purple-400',
-    blue: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
-    amber: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
-    pink: 'bg-pink-500/10 border-pink-500/30 text-pink-400',
-    cyan: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400',
+    purple: 'bg-purple-900 border-purple-700 text-purple-400',
+    blue: 'bg-blue-900 border-blue-700 text-blue-400',
+    amber: 'bg-amber-900 border-amber-700 text-amber-400',
+    pink: 'bg-pink-900 border-pink-700 text-pink-400',
+    cyan: 'bg-cyan-900 border-cyan-700 text-cyan-400',
   };
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -101,6 +101,35 @@ export default function OraclePage() {
   const [depositLoading, setDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState('');
   const [depositSuccess, setDepositSuccess] = useState('');
+
+  // Dark mode state
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  // Helper to close all modals before opening a new one
+  const closeAllModals = useCallback(() => {
+    setShowProfileModal(false);
+    setShowDAOModal(false);
+    setShowRadioModal(false);
+    setShowEventOracleModal(false);
+    setShowDashboardModal(false);
+    setShowUserProfileModal(false);
+    setShowDepositModal(false);
+    setShowSubscriptionModal(false);
+    setShowCreateNFTModal(false);
+    setShowPassportMintModal(false);
+    setShowMapsResults(false);
+    setSelectedNFT(null);
+    setPaymentRequired(null);
+  }, []);
 
   // Fetch NFT list
   useEffect(() => {
@@ -612,58 +641,26 @@ export default function OraclePage() {
 
   return (
     <>
-      <div className="relative w-screen bg-black text-white overflow-hidden font-sans" style={{ height: '100dvh' }}>
+      <div className={`relative w-screen overflow-hidden font-sans ${isDarkMode ? 'bg-black text-white' : 'bg-white text-gray-900'}`} style={{ height: '100dvh' }}>
         {/* Header */}
-        <div className="absolute top-6 left-6 right-6 z-50 flex items-center justify-between">
+        <div className="absolute top-4 left-4 right-4 z-50 flex items-center justify-between">
+          {/* Logo */}
           <div className="flex items-center">
-            <Globe className="text-cyan-400 w-10 h-10 animate-[spin_60s_linear_infinite]" />
+            <Globe className="text-cyan-500 w-8 h-8 animate-[spin_60s_linear_infinite]" />
             <div className="ml-2">
-              <span className="font-sans font-bold text-lg tracking-[0.15em]">EMPOWERTOURS</span>
-              <div className="text-xs text-gray-400">Global Guide Oracle</div>
+              <span className="font-bold text-base tracking-wide">EMPOWERTOURS</span>
+              <div className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Global Guide Oracle</div>
             </div>
           </div>
-          {/* User Info */}
-          {user && walletAddress && (
-            <div className="flex items-center gap-3 bg-black/40 backdrop-blur-md rounded-xl px-3 py-2 border border-gray-700/50">
-              {user.pfpUrl ? (
-                <img
-                  src={user.pfpUrl}
-                  alt={user.username || 'User'}
-                  className="rounded-full object-cover border border-cyan-500/30"
-                  style={{ width: '32px', height: '32px', minWidth: '32px', maxWidth: '32px', minHeight: '32px', maxHeight: '32px' }}
-                />
-              ) : (
-                <div
-                  className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold"
-                  style={{ width: '32px', height: '32px', minWidth: '32px', maxWidth: '32px' }}
-                >
-                  {user.username?.charAt(0).toUpperCase() || '?'}
-                </div>
-              )}
-              <div className="text-right">
-                {user.username && (
-                  <div className="text-sm font-medium text-white">@{user.username}</div>
-                )}
-                <div className="text-xs text-gray-400 font-mono">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                </div>
-                {userSafeBalance && (
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] text-cyan-400 font-medium">
-                      Safe: {parseFloat(userSafeBalance.monBalance).toFixed(2)} MON
-                    </span>
-                    <button
-                      onClick={() => setShowDepositModal(true)}
-                      className="w-4 h-4 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 flex items-center justify-center transition-all"
-                      title="Deposit MON to Safe"
-                    >
-                      <Plus className="w-2.5 h-2.5 text-cyan-400" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+
+          {/* Dark Mode Toggle */}
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
         </div>
 
         <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-24 pb-40 overflow-y-auto">
@@ -683,14 +680,16 @@ export default function OraclePage() {
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                     msg.role === 'user'
-                      ? 'bg-cyan-500 text-black'
-                      : 'bg-gray-900/80 backdrop-blur-lg border border-cyan-500/20 text-white'
+                      ? 'bg-cyan-500 text-white'
+                      : isDarkMode
+                        ? 'bg-gray-800 border border-gray-700 text-white'
+                        : 'bg-gray-100 border border-gray-300 text-gray-900'
                   }`}
                 >
                   {msg.role === 'oracle' && (
                     <div className="flex items-center gap-2 mb-1">
-                      <Sparkles className="w-4 h-4 text-cyan-400" />
-                      <span className="text-xs text-cyan-400 font-semibold">Oracle</span>
+                      <Sparkles className="w-4 h-4 text-cyan-500" />
+                      <span className="text-xs text-cyan-500 font-semibold">Oracle</span>
                     </div>
                   )}
                   <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
@@ -700,6 +699,7 @@ export default function OraclePage() {
                     <div className="mt-3">
                       <button
                         onClick={() => {
+                          closeAllModals();
                           setMapsResultsData({
                             sources: msg.mapsSources!,
                             widgetToken: msg.mapsWidgetToken,
@@ -708,14 +708,11 @@ export default function OraclePage() {
                           });
                           setShowMapsResults(true);
                         }}
-                        className="w-full py-2 px-4 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-sm text-cyan-400 font-semibold transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2 px-4 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
                       >
-                        <span>📍</span>
+                        <MapPin className="w-4 h-4" />
                         View {msg.mapsSources.length} Places
                       </button>
-                      <div className="text-xs text-gray-500 text-center mt-1">
-                        Powered by Google Maps
-                      </div>
                     </div>
                   )}
                 </div>
@@ -723,10 +720,10 @@ export default function OraclePage() {
             ))}
             {isThinking && (
               <div className="flex justify-start">
-                <div className="bg-gray-900/80 backdrop-blur-lg border border-cyan-500/20 rounded-2xl px-4 py-3">
+                <div className={`rounded-2xl px-4 py-3 ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-100 border border-gray-300'}`}>
                   <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-                    <span className="text-sm text-cyan-400">Oracle is thinking...</span>
+                    <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Oracle is thinking...</span>
                   </div>
                 </div>
               </div>
@@ -736,7 +733,7 @@ export default function OraclePage() {
 
         {/* Input Field - Below planet */}
         <div className="w-full max-w-2xl px-6 mt-8">
-          <div className="bg-black/90 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-4 shadow-2xl">
+          <div className={`rounded-2xl p-4 shadow-lg ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-300'}`}>
             <div className="flex items-center gap-3">
               <input
                 type="text"
@@ -744,57 +741,57 @@ export default function OraclePage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleConsult()}
                 placeholder="Ask the Oracle anything..."
-                className="flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm"
+                className={`flex-1 bg-transparent outline-none text-sm ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
                 disabled={isThinking}
               />
               <button
                 onClick={() => handleConsult()}
                 disabled={isThinking || !input.trim()}
-                className="w-10 h-10 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all"
+                className="w-10 h-10 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all"
               >
-                <Send className="w-5 h-5 text-black" />
+                <Send className="w-5 h-5 text-white" />
               </button>
             </div>
             {/* Quick Actions */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
               <button
-                onClick={() => setShowProfileModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-full text-xs text-purple-400 transition-all"
+                onClick={() => { closeAllModals(); setShowProfileModal(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-purple-900 hover:bg-purple-800 text-purple-300 border border-purple-700' : 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-300'}`}
               >
                 <User className="w-3 h-3" />
                 Profile
               </button>
               <button
-                onClick={() => setShowDashboardModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-full text-xs text-cyan-400 transition-all"
+                onClick={() => { closeAllModals(); setShowDashboardModal(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-cyan-900 hover:bg-cyan-800 text-cyan-300 border border-cyan-700' : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700 border border-cyan-300'}`}
               >
                 <BarChart3 className="w-3 h-3" />
                 Dashboard
               </button>
               <button
-                onClick={() => setShowRadioModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-full text-xs text-pink-400 transition-all"
+                onClick={() => { closeAllModals(); setShowRadioModal(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-pink-900 hover:bg-pink-800 text-pink-300 border border-pink-700' : 'bg-pink-100 hover:bg-pink-200 text-pink-700 border border-pink-300'}`}
               >
                 <Radio className="w-3 h-3" />
                 Radio
               </button>
               <button
-                onClick={() => setShowEventOracleModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-full text-xs text-amber-400 transition-all"
+                onClick={() => { closeAllModals(); setShowEventOracleModal(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-amber-900 hover:bg-amber-800 text-amber-300 border border-amber-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-300'}`}
               >
                 <Calendar className="w-3 h-3" />
                 Events
               </button>
               <button
-                onClick={() => setShowDAOModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-full text-xs text-green-400 transition-all"
+                onClick={() => { closeAllModals(); setShowDAOModal(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-green-900 hover:bg-green-800 text-green-300 border border-green-700' : 'bg-green-100 hover:bg-green-200 text-green-700 border border-green-300'}`}
               >
                 <Vote className="w-3 h-3" />
                 DAO
               </button>
               <button
-                onClick={() => setActiveGame('MIRROR')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 rounded-full text-xs text-rose-400 transition-all"
+                onClick={() => { closeAllModals(); setActiveGame('MIRROR'); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-rose-900 hover:bg-rose-800 text-rose-300 border border-rose-700' : 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300'}`}
               >
                 <MapPin className="w-3 h-3" />
                 MirrorMate
@@ -807,7 +804,7 @@ export default function OraclePage() {
         {/* NFT List - Easy access to all NFTs */}
         {!loadingNFTs && nftList.length > 0 && (
           <div className="w-full max-w-4xl px-6 mt-8 mb-16">
-            <h3 className="text-lg font-bold text-cyan-400 mb-4 flex items-center gap-2">
+            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
               <Sparkles className="w-5 h-5" />
               Available NFTs
             </h3>
@@ -817,8 +814,10 @@ export default function OraclePage() {
                 return (
                   <div
                     key={nft.id}
-                    className={`bg-gray-900/80 backdrop-blur-lg border rounded-xl overflow-hidden transition-all cursor-pointer group ${
-                      isPlaying ? 'border-cyan-500 shadow-lg shadow-cyan-500/50' : 'border-cyan-500/20 hover:border-cyan-500/50'
+                    className={`rounded-xl overflow-hidden transition-all cursor-pointer group ${
+                      isDarkMode
+                        ? `bg-gray-800 border ${isPlaying ? 'border-cyan-500 shadow-lg shadow-cyan-500/50' : 'border-gray-700 hover:border-gray-600'}`
+                        : `bg-white border ${isPlaying ? 'border-cyan-500 shadow-lg shadow-cyan-500/30' : 'border-gray-300 hover:border-gray-400'}`
                     }`}
                     onClick={() => handleNFTClick(nft)}
                   >

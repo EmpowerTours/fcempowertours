@@ -1,13 +1,36 @@
 @import "tw-animate-css";
 @plugin "tailwindcss-animate";
-@custom-variant dark (&:is(.dark *));
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Light mode (default) */
 :root {
+  --background: #ffffff;
   --foreground: #111827;
+  --card: #f9fafb;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #06b6d4;
+  --primary-foreground: #ffffff;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #7e22ce;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --border: #e5e7eb;
+  --input: #ffffff;
+  --ring: #06b6d4;
+  --radius: 0.625rem;
+}
+
+/* Dark mode */
+.dark {
   --background: #000000;
+  --foreground: #f9fafb;
   --card: #111827;
   --card-foreground: #f9fafb;
   --popover: #1f2937;
@@ -24,10 +47,9 @@
   --border: #374151;
   --input: #1f2937;
   --ring: #06b6d4;
-  --radius: 0.625rem;
 }
 
-/* Reset only basic box model - DO NOT override colors */
+/* Base styles */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -35,84 +57,40 @@
 html, body {
   margin: 0;
   padding: 0;
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
-/* Optional utility classes that can be applied when needed */
-.cast-username {
-  color: var(--accent);
-}
-
+/* Utility classes */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 }
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+/* Animation keyframes */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Bot Frame Animation */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
 
-/* Safe areas for Farcaster Mini App */
-.safe-area-inset-top {
-  height: env(safe-area-inset-top);
-}
-
-.safe-area-inset-bottom {
-  height: env(safe-area-inset-bottom);
-}
-
-/* Farcaster splash screen styles */
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
 .animate-bounce {
   animation: bounce 1s ease-in-out infinite;
 }
 
-/* Fix for Farcaster frame context */
+/* Safe areas for Farcaster Mini App */
+.safe-area-inset-top { height: env(safe-area-inset-top); }
+.safe-area-inset-bottom { height: env(safe-area-inset-bottom); }
+
 @supports (padding: env(safe-area-inset-top)) {
   .safe-area-container {
     padding-top: env(safe-area-inset-top);
@@ -121,42 +99,3 @@ html, body {
     padding-right: env(safe-area-inset-right);
   }
 }
-
-/* Animated Yield Progress Bar */
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes flow {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(200%);
-  }
-}
-
-@keyframes slide {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-/* Pulsing glow effect for yield progress */
-@keyframes glow-pulse {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(34, 197, 94, 0.8), 0 0 30px rgba(59, 130, 246, 0.5);
-  }
-}
-
