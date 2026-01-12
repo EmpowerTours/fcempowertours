@@ -667,14 +667,46 @@ export default function OraclePage() {
             </div>
           </div>
 
-          {/* Dark Mode Toggle */}
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'}`}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          {/* Right side: User Info + Dark Mode Toggle */}
+          <div className="flex items-center gap-3">
+            {/* User Info */}
+            {user && walletAddress && (
+              <div className={`flex items-center gap-2 rounded-lg px-2 py-1 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100 border border-gray-300'}`}>
+                {user.pfpUrl ? (
+                  <img
+                    src={user.pfpUrl}
+                    alt={user.username || 'User'}
+                    className="rounded-full object-cover border border-cyan-500"
+                    style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px', minHeight: '24px', maxHeight: '24px' }}
+                  />
+                ) : (
+                  <div
+                    className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold"
+                    style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px' }}
+                  >
+                    {user.username?.charAt(0).toUpperCase() || '?'}
+                  </div>
+                )}
+                <div className="text-right">
+                  {user.username && (
+                    <div className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>@{user.username}</div>
+                  )}
+                  <div className={`text-[10px] font-mono ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'}`}
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
         <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-16 pb-40 overflow-y-auto">
