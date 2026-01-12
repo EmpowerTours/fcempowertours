@@ -27,6 +27,7 @@ import {
   History,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
 } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
@@ -119,6 +120,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const [pendingRewards, setPendingRewards] = useState('0');
   const [listenerStats, setListenerStats] = useState<ListenerStats | null>(null);
   const [claimingRewards, setClaimingRewards] = useState(false);
+  const [lastClaimTxHash, setLastClaimTxHash] = useState<string | null>(null);
   const [queueing, setQueueing] = useState(false);
   const [pricing, setPricing] = useState({
     queueSong: 1,
@@ -844,9 +846,9 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
           setListenerStats(claimData.stats);
         }
 
-        // Show success with tx hash link
-        const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
-        showToast(`Claimed ${pendingRewards} TOURS! TX: ${txHash.slice(0, 10)}...`, 'success');
+        // Store tx hash for clickable link
+        setLastClaimTxHash(txHash);
+        showToast(`Claimed ${pendingRewards} TOURS!`, 'success');
       } else {
         throw new Error(claimData.error || 'Failed to mark rewards as claimed');
       }
@@ -1195,6 +1197,16 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
                       </>
                     )}
                   </button>
+                  {lastClaimTxHash && (
+                    <button
+                      onClick={() => window.open(`https://testnet.monadexplorer.com/tx/${lastClaimTxHash}`, '_blank')}
+                      className="w-full mt-2 py-1.5 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 text-green-400 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2"
+                    >
+                      <Check className="w-3 h-3" />
+                      Last Claim: {lastClaimTxHash.slice(0, 8)}...{lastClaimTxHash.slice(-6)}
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
                   <p className="text-xs text-gray-500 text-center mt-2">
                     Earn 0.1 TOURS/song • 10 TOURS for 7-day streak
                   </p>

@@ -619,69 +619,65 @@ export default function OraclePage() {
                 <Send className="w-5 h-5 text-black" />
               </button>
             </div>
-            <div className="mt-2 flex items-center justify-between">
-              <div className="text-xs text-gray-500">
-                Try: "Create NFT", "Find restaurants near me", "Play Tetris"
-              </div>
-              <div className="flex items-center gap-2">
+            {/* Quick Actions - Compact icon buttons */}
+            <div className="mt-3 flex items-center justify-center gap-1.5 flex-wrap">
                 <button
-                  onClick={() => setShowSubscriptionModal(true)}
-                  className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/20 hover:from-cyan-500/30 hover:to-purple-600/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-semibold transition-all flex items-center gap-1"
-                >
-                  <Music2 className="w-3 h-3" />
-                  {hasSubscription ? 'Subscribed ✓' : 'Subscribe'}
-                </button>
+                onClick={() => setShowSubscriptionModal(true)}
+                className="w-9 h-9 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-lg flex items-center justify-center transition-all"
+                title={hasSubscription ? 'Subscribed' : 'Subscribe to Music'}
+              >
+                <Music2 className={`w-4 h-4 ${hasSubscription ? 'text-cyan-300' : 'text-cyan-400'}`} />
+              </button>
                 {walletAddress && (
                   <>
                     <button
-                      onClick={() => setShowDashboardModal(true)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-green-500/20 to-emerald-600/20 hover:from-green-500/30 hover:to-emerald-600/30 border border-green-500/30 rounded-lg text-xs text-green-400 font-semibold transition-all flex items-center gap-1"
-                    >
-                      <BarChart3 className="w-3 h-3" />
-                      Stats
-                    </button>
+                    onClick={() => setShowDashboardModal(true)}
+                    className="w-9 h-9 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg flex items-center justify-center transition-all"
+                    title="Stats Dashboard"
+                  >
+                    <BarChart3 className="w-4 h-4 text-green-400" />
+                  </button>
                     <button
-                      onClick={() => setShowDAOModal(true)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-indigo-500/20 to-purple-600/20 hover:from-indigo-500/30 hover:to-purple-600/30 border border-indigo-500/30 rounded-lg text-xs text-indigo-400 font-semibold transition-all flex items-center gap-1"
-                    >
-                      <Vote className="w-3 h-3" />
-                      DAO
-                    </button>
+                    onClick={() => setShowDAOModal(true)}
+                    className="w-9 h-9 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-lg flex items-center justify-center transition-all"
+                    title="DAO Governance"
+                  >
+                    <Vote className="w-4 h-4 text-indigo-400" />
+                  </button>
                     <button
-                      onClick={() => setShowRadioModal(true)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-pink-500/20 to-purple-600/20 hover:from-pink-500/30 hover:to-purple-600/30 border border-pink-500/30 rounded-lg text-xs text-pink-400 font-semibold transition-all flex items-center gap-1"
-                    >
-                      <Radio className="w-3 h-3" />
-                      Radio
-                    </button>
+                    onClick={() => setShowRadioModal(true)}
+                    className="w-9 h-9 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg flex items-center justify-center transition-all"
+                    title="Live Radio"
+                  >
+                    <Radio className="w-4 h-4 text-pink-400" />
+                  </button>
                     <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('[OraclePage] Events button clicked!');
-                        setShowEventOracleModal(true);
-                      }}
-                      className="px-3 py-1.5 bg-gradient-to-r from-orange-500/20 to-amber-600/20 hover:from-orange-500/30 hover:to-amber-600/30 border border-orange-500/30 rounded-lg text-xs text-orange-400 font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <Calendar className="w-3 h-3" />
-                      Events
-                    </button>
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('[OraclePage] Events button clicked!');
+                      setShowEventOracleModal(true);
+                    }}
+                    className="w-9 h-9 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                    title="Sponsored Events"
+                  >
+                    <Calendar className="w-4 h-4 text-orange-400" />
+                  </button>
                     <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('[OraclePage] Profile button clicked!');
-                        setShowProfileModal(true);
-                      }}
-                      className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 hover:from-purple-500/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs text-purple-400 font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                      type="button"
-                    >
-                      <User className="w-3 h-3" />
-                      Profile
-                    </button>
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('[OraclePage] Profile button clicked!');
+                      setShowProfileModal(true);
+                    }}
+                    className="w-9 h-9 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                    title="Your Profile"
+                    type="button"
+                  >
+                    <User className="w-4 h-4 text-purple-400" />
+                  </button>
                   </>
                 )}
-              </div>
             </div>
           </div>
         </div>
