@@ -944,7 +944,6 @@ export default function OraclePage() {
       {/* NFT Modal - Different layouts for ART vs MUSIC */}
       {selectedNFT && (
         <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
-          {console.log('[OraclePage] RENDERING NFT MODAL for type:', selectedNFT.type)}
           {selectedNFT.type === 'ART' ? (
             /* Art NFT - Full screen art viewer with visible card */
             <div className={`relative max-w-3xl w-full rounded-2xl overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
