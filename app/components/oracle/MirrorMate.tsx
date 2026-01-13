@@ -51,11 +51,12 @@ interface GuideFormData {
 
 interface MirrorMateProps {
   onClose?: () => void;
+  isDarkMode?: boolean;
 }
 
 type TransactionState = 'idle' | 'confirming' | 'loading' | 'success' | 'error';
 
-export function MirrorMate({ onClose }: MirrorMateProps) {
+export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
   console.log('[MirrorMate] Component mounted');
   const { user, walletAddress } = useFarcasterContext();
   const { location } = useGeolocation();
@@ -756,10 +757,10 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   if (loading) {
     return renderInPortal(
-      <div className="fixed inset-0 bg-black modal-backdrop z-[9999] flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div className={`fixed inset-0 modal-backdrop z-[9999] flex items-center justify-center ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Loading guides...</p>
+          <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Loading guides...</p>
         </div>
       </div>
     );
@@ -771,19 +772,19 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     const notRegisteredNoGuides = !isUserRegisteredGuide && noGuides;
 
     return renderInPortal(
-      <div className="fixed inset-0 bg-black modal-backdrop z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-        <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md">
+      <div className={`fixed inset-0 modal-backdrop z-[9999] flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
+        <div className={`rounded-3xl p-8 text-center max-w-md ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`}>
           <div className="text-6xl mb-4">
             {isOnlyGuide ? '🌟' : noGuides ? '🧳' : '✨'}
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
+          <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             {isOnlyGuide
               ? "You're a Registered Guide!"
               : noGuides
               ? 'No Guides Yet'
               : 'No More Guides'}
           </h2>
-          <p className="text-gray-400 mb-6">
+          <p className={`mb-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             {isOnlyGuide
               ? "You're one of the first guides on MirrorMate! Share the app with other travel enthusiasts to grow your network."
               : notRegisteredNoGuides
@@ -793,7 +794,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
           {/* User's guide profile card if registered */}
           {isUserRegisteredGuide && (
-            <div className="bg-gradient-to-br from-cyan-500/10 to-purple-600/10 border border-cyan-500/30 rounded-xl p-4 mb-6">
+            <div className={`rounded-xl p-4 mb-6 ${isDarkMode ? 'bg-gradient-to-br from-cyan-500/10 to-purple-600/10 border border-cyan-500/30' : 'bg-gray-50 border border-gray-200'}`}>
               <div className="flex items-center gap-3">
                 {user?.pfpUrl ? (
                   <img
@@ -813,12 +814,12 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                   <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-xl">🧳</div>
                 )}
                 <div className="text-left flex-1">
-                  <p className="text-white font-bold">{user?.displayName || user?.username}</p>
+                  <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{user?.displayName || user?.username}</p>
                   <p className="text-cyan-400 text-sm">Registered Guide</p>
                 </div>
                 <button
                   onClick={handleOpenEditForm}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}
                   title="Edit Profile"
                 >
                   <Edit3 className="w-4 h-4 text-cyan-400" />
@@ -861,7 +862,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
             <button
               onClick={onClose}
               disabled={isRegistering}
-              className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
             >
               Close
             </button>
@@ -872,25 +873,25 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   }
 
   return renderInPortal(
-    <div className="fixed inset-0 bg-black modal-backdrop z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+    <div className={`fixed inset-0 modal-backdrop z-[9999] flex flex-col items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
       {/* Header */}
       <div className="w-full max-w-xs flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">
           <Heart className="w-4 h-4 text-cyan-400" />
-          <span className="text-white font-bold text-sm">MirrorMate</span>
+          <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>MirrorMate</span>
         </div>
         <div className="flex items-center gap-2">
           {/* Edit Profile Button - shown when user is a registered guide */}
           {isUserRegisteredGuide && (
             <button
               onClick={handleOpenEditForm}
-              className="p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}
               title="Edit Profile"
             >
               <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
             </button>
           )}
-          <div className="text-right text-[10px] text-gray-400">
+          <div className={`text-right text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             <p>Free skips: {userStats.remainingFreeSkips}/20</p>
           </div>
         </div>
@@ -898,9 +899,9 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       {/* Guide Card */}
       {currentGuide && (
-        <div className="w-full max-w-xs bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-xl overflow-hidden shadow-xl mb-2">
+        <div className={`w-full max-w-xs rounded-xl overflow-hidden shadow-xl mb-2 ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30' : 'bg-white border border-gray-200'}`}>
           {/* Profile Picture - Very compact */}
-          <div className="flex items-center gap-2 p-2 bg-gradient-to-br from-cyan-500/10 to-purple-600/10">
+          <div className={`flex items-center gap-2 p-2 ${isDarkMode ? 'bg-gradient-to-br from-cyan-500/10 to-purple-600/10' : 'bg-gray-50'}`}>
             {currentGuide.pfpUrl ? (
               <img
                 src={currentGuide.pfpUrl}
@@ -916,12 +917,12 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                 }}
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg border border-cyan-500/50">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border border-cyan-500/50 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                 🧳
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-white truncate">
+              <h3 className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 {currentGuide.displayName || currentGuide.username}
               </h3>
               <p className="text-cyan-400 text-[10px]">@{currentGuide.username}</p>
@@ -1057,15 +1058,15 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       {/* Guide Registration/Edit Form Modal */}
       {showGuideForm && (
-        <div className="fixed inset-0 bg-black modal-backdrop z-[10000] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000' }}>
-          <div className="bg-gray-900 border border-cyan-500/30 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className={`fixed inset-0 modal-backdrop z-[10000] flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
+          <div className={`rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">
+              <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 {isEditMode ? '✏️ Edit Profile' : '🧳 Become a Guide'}
               </h2>
               <button
                 onClick={() => { setShowGuideForm(false); setRegisterError(''); }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1074,45 +1075,45 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
             <div className="space-y-4">
               {/* Bio */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Bio *</label>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Bio *</label>
                 <textarea
                   value={formData.bio}
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   placeholder="Tell travelers about yourself, your expertise, and what makes your tours special..."
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
+                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none resize-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
                   rows={3}
                   maxLength={500}
                 />
-                <p className="text-xs text-gray-500 mt-1">{formData.bio.length}/500</p>
+                <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{formData.bio.length}/500</p>
               </div>
 
               {/* Location */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Location</label>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Location</label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   placeholder="e.g., Tokyo, Japan"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
                 />
               </div>
 
               {/* Languages */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Languages Spoken</label>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Languages Spoken</label>
                 <input
                   type="text"
                   value={formData.languages}
                   onChange={(e) => setFormData({ ...formData, languages: e.target.value })}
                   placeholder="e.g., English, Japanese, Spanish"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
                 />
               </div>
 
               {/* Transport Options */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Transport Options</label>
+                <label className={`block text-sm mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Transport Options</label>
                 <div className="flex flex-wrap gap-2">
                   {TRANSPORT_OPTIONS.map((option) => (
                     <button
@@ -1127,7 +1128,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                       className={`px-3 py-1.5 rounded-full text-sm transition-all ${
                         formData.transport.includes(option.id)
                           ? 'bg-cyan-500 text-white'
-                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                          : isDarkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                       }`}
                     >
                       {option.label}
@@ -1138,7 +1139,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
               {/* Hourly Rate */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Hourly Rate (WMON)</label>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Hourly Rate (WMON)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -1146,11 +1147,11 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
                     onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                     min="10"
                     max="10000"
-                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
+                    className={`flex-1 px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white' : 'bg-gray-50 border border-gray-300 text-gray-900'}`}
                   />
-                  <span className="text-gray-400">WMON/hr</span>
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>WMON/hr</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Min: 10 WMON • For paid tour bookings</p>
+                <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Min: 10 WMON • For paid tour bookings</p>
               </div>
 
               {/* Error Message */}

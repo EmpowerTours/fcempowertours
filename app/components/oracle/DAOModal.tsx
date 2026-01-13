@@ -333,7 +333,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
   const modalContent = (
     <div
       className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: 9999, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
       onClick={onClose}
     >
       <div

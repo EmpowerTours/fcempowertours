@@ -91,8 +91,12 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
     let mouseY = 0;
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      mouseX = e.clientX - rect.left;
-      mouseY = e.clientY - rect.top;
+      // Scale mouse coordinates to match canvas internal coordinates
+      // Canvas is 440x440 but may be displayed at different sizes
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      mouseX = (e.clientX - rect.left) * scaleX;
+      mouseY = (e.clientY - rect.top) * scaleY;
     };
 
     const handleClick = (e: MouseEvent) => {

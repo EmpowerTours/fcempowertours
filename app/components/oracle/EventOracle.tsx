@@ -373,7 +373,7 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose, isDar
   if (typeof document === 'undefined') return null;
 
   const modalContent = (
-    <div className={`fixed inset-0 z-[100] flex items-center justify-center ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
       <div className={`relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border border-purple-500/30' : 'bg-white border border-gray-200'}`}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-purple-500/30">

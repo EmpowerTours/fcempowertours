@@ -73,41 +73,12 @@ export async function GET() {
       return NextResponse.json({ success: true, events: cached, source: 'cache' });
     }
 
-    // Return demo event for testing
-    const demoEvent: SponsoredEvent = {
-      eventId: '1',
-      name: 'Rendez-vous Gala Mexico 2026',
-      description: 'Art gala featuring Latin American artists Ali Alvarez, José Andrés Aguilar, and Veronica Riedel. Includes silent auction and cultural performances.',
-      eventType: 'Gala',
-      status: 'Pending',
-      sponsor: '0x0000000000000000000000000000000000000000',
-      sponsorFid: 0,
-      sponsorName: 'La Mille',
-      sponsorLogoIPFS: '',
-      totalDeposit: '10000',
-      wmonRewardPerUser: '50',
-      toursRewardPerUser: '100',
-      venueName: 'Casa Seminario 12',
-      venueAddress: 'Seminario #12, Centro Historico, CDMX',
-      city: 'Mexico City',
-      country: 'Mexico',
-      latitude: 19432600, // 19.4326 * 1e6
-      longitude: -99133200, // -99.1332 * 1e6
-      googlePlaceId: '',
-      eventDate: Math.floor(new Date('2026-03-15T19:00:00').getTime() / 1000),
-      checkInStart: Math.floor(new Date('2026-03-15T18:00:00').getTime() / 1000),
-      checkInEnd: Math.floor(new Date('2026-03-16T01:00:00').getTime() / 1000),
-      maxAttendees: 120,
-      checkedInCount: 0,
-      stampImageIPFS: '',
-      stampName: 'Rendez-vous Gala Mexico 2026',
-    };
-
+    // No events found - return empty array
     return NextResponse.json({
       success: true,
-      events: [demoEvent],
-      source: 'demo',
-      message: 'Demo event - contract not yet deployed',
+      events: [],
+      source: 'none',
+      message: 'No sponsored events have been created yet',
     });
 
   } catch (error: any) {

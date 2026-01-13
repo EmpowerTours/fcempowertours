@@ -22,7 +22,7 @@ const walletClient = createWalletClient({
 });
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'concierge' | 'create_nft' | 'mint_passport' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -33,11 +33,6 @@ interface OracleAction {
   message?: string;
   requiresMapsGrounding?: boolean; // Whether this query needs Google Maps data
   estimatedCost?: string; // Cost in MON tokens
-  concierge?: {
-    serviceType: string; // TAXI, RESTAURANT_RESERVATION, ACTIVITY_BOOKING, etc.
-    details: string;
-    suggestedPrice: string; // in MON
-  };
   passport?: {
     countryCode: string;
     countryName: string;
@@ -209,7 +204,7 @@ Return valid JSON only.`;
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'concierge', 'create_nft', 'mint_passport'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport'],
             description: 'The type of action to perform'
           },
           destination: {
@@ -220,25 +215,6 @@ Return valid JSON only.`;
             type: Type.STRING,
             enum: ['TETRIS', 'TICTACTOE', 'MIRROR'],
             description: 'Game type if type is game'
-          },
-          concierge: {
-            type: Type.OBJECT,
-            properties: {
-              serviceType: {
-                type: Type.STRING,
-                enum: ['TAXI', 'RESTAURANT_RESERVATION', 'ACTIVITY_BOOKING', 'HOTEL_BOOKING', 'TOUR_GUIDE'],
-                description: 'Type of concierge service'
-              },
-              details: {
-                type: Type.STRING,
-                description: 'Service details and requirements'
-              },
-              suggestedPrice: {
-                type: Type.STRING,
-                description: 'Suggested price in MON tokens'
-              }
-            },
-            description: 'Concierge service details if type is concierge'
           },
           transaction: {
             type: Type.OBJECT,
@@ -272,7 +248,7 @@ Return valid JSON only.`;
           }
         },
         required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'concierge', 'transaction', 'passport']
+        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport']
       }
     };
 

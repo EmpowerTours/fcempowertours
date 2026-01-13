@@ -36,6 +36,7 @@ interface GuideObject {
   ratingCount: number;
   totalBookings: number;
   completedBookings: number;
+  hourlyRateWMON?: string;
 }
 
 export async function GET() {
@@ -159,8 +160,35 @@ async function fetchGuidesFromContract(): Promise<GuideObject[]> {
 
   const registryAbi = parseAbi([
     'function isRegisteredGuide(uint256 guideFid) view returns (bool)',
-    'function guides(uint256 guideFid) view returns (uint256 guideFid, address guideAddress, uint256 passportTokenId, uint256 hourlyRateWMON, uint256 hourlyRateTOURS, bool active, bool suspended, uint256 averageRating, uint256 ratingCount, uint256 totalBookings, uint256 totalCompletedTours, uint256 cancellationCount, string bio, string profileImageIPFS)',
   ]);
+
+  // Use a separate ABI for the guides function with correct struct layout
+  const guidesAbi = [{
+    name: 'guides',
+    type: 'function',
+    inputs: [{ name: 'guideFid', type: 'uint256' }],
+    outputs: [
+      { name: 'guideFid', type: 'uint256' },           // 0
+      { name: 'guideAddress', type: 'address' },        // 1
+      { name: 'passportTokenId', type: 'uint256' },     // 2
+      { name: 'countries', type: 'string[]' },          // 3
+      { name: 'hourlyRateWMON', type: 'uint256' },      // 4
+      { name: 'hourlyRateTOURS', type: 'uint256' },     // 5
+      { name: 'bio', type: 'string' },                  // 6
+      { name: 'profileImageIPFS', type: 'string' },     // 7
+      { name: 'registeredAt', type: 'uint256' },        // 8
+      { name: 'totalBookings', type: 'uint256' },       // 9
+      { name: 'totalCompletedTours', type: 'uint256' }, // 10
+      { name: 'cancellationCount', type: 'uint256' },   // 11
+      { name: 'totalEarningsWMON', type: 'uint256' },   // 12
+      { name: 'totalEarningsTOURS', type: 'uint256' },  // 13
+      { name: 'active', type: 'bool' },                 // 14
+      { name: 'averageRating', type: 'uint256' },       // 15
+      { name: 'ratingCount', type: 'uint256' },         // 16
+      { name: 'suspended', type: 'bool' },              // 17
+    ],
+    stateMutability: 'view'
+  }] as const;
 
   try {
     // Get GuideRegistered events from the contract (last 50000 blocks ~= a few days)
@@ -204,17 +232,17 @@ async function fetchGuidesFromContract(): Promise<GuideObject[]> {
 
         if (!isRegistered) continue;
 
-        // Get guide details
+        // Get guide details using the correct ABI
         const guideData = await publicClient.readContract({
           address: REGISTRY_ADDRESS,
-          abi: registryAbi,
+          abi: guidesAbi,
           functionName: 'guides',
           args: [fid],
         }) as any;
 
-        // Skip if suspended or inactive
-        if (guideData[6]) continue; // suspended
-        if (!guideData[5]) continue; // not active
+        // Skip if suspended (index 17) or inactive (index 14)
+        if (guideData[17]) continue; // suspended
+        if (!guideData[14]) continue; // not active
 
         // Fetch Farcaster profile
         let username = 'unknown';
@@ -239,23 +267,28 @@ async function fetchGuidesFromContract(): Promise<GuideObject[]> {
           console.warn('Failed to fetch Farcaster profile for FID:', fidStr);
         }
 
+        // Extract location from countries array (index 3)
+        const countries = guideData[3] as string[] || [];
+        const locationFromContract = countries.length > 0 ? countries[0] : '';
+
         guides.push({
           fid: fidStr,
           username,
           displayName,
           pfpUrl,
-          bio: guideData[12] || '',
-          location: '',
+          bio: guideData[6] || '',                          // index 6
+          location: locationFromContract,
           languages: '',
           transport: '',
-          registeredAt: '0',
+          registeredAt: guideData[8]?.toString() || '0',    // index 8
           lastUpdated: '0',
-          active: guideData[5],
-          suspended: guideData[6],
-          averageRating: guideData[7]?.toString() || '0',
-          ratingCount: Number(guideData[8]) || 0,
-          totalBookings: Number(guideData[9]) || 0,
-          completedBookings: Number(guideData[10]) || 0,
+          active: guideData[14],                            // index 14
+          suspended: guideData[17],                         // index 17
+          averageRating: guideData[15]?.toString() || '0',  // index 15
+          ratingCount: Number(guideData[16]) || 0,          // index 16
+          totalBookings: Number(guideData[9]) || 0,         // index 9
+          completedBookings: Number(guideData[10]) || 0,    // index 10
+          hourlyRateWMON: guideData[4]?.toString() || '0',  // index 4
         });
 
         console.log(`✅ Added guide: ${username} (FID: ${fidStr})`);

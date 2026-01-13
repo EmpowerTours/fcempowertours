@@ -45,6 +45,8 @@ interface Message {
   mapsWidgetToken?: string;
   mapsQuery?: string;
   mapsPaymentTxHash?: string;
+  txHash?: string;
+  explorerUrl?: string;
 }
 
 export default function OraclePage() {
@@ -381,25 +383,15 @@ export default function OraclePage() {
             console.log('[Oracle] EXECUTE case triggered');
             let executeMessage = action.message;
             if (txHash) {
-              executeMessage += `\n\n✅ Transaction executed!\n🔗 ${explorer}`;
+              // Don't include full URL - just indicate success
+              executeMessage += `\n\n✅ Transaction executed!`;
             }
             setMessages(prev => [...prev, {
               role: 'oracle',
               content: executeMessage,
-              action
-            }]);
-            break;
-
-          case 'concierge':
-            console.log('[Oracle] CONCIERGE case triggered');
-            let conciergeMessage = action.message;
-            if (requestId) {
-              conciergeMessage += `\n\n✅ Service request created!\n📝 Request ID: ${requestId}\n🔗 ${explorer}`;
-            }
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: conciergeMessage,
-              action
+              action,
+              txHash,
+              explorerUrl: explorer
             }]);
             break;
 
@@ -743,6 +735,31 @@ export default function OraclePage() {
                   )}
                   <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
 
+                  {/* Transaction Link - Show clickable "View TX" button */}
+                  {msg.explorerUrl && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => {
+                          // Open in external browser using Farcaster SDK or window.open
+                          if (typeof window !== 'undefined' && (window as any).farcaster?.openUrl) {
+                            (window as any).farcaster.openUrl(msg.explorerUrl);
+                          } else {
+                            window.open(msg.explorerUrl, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                        className="w-full py-2 px-4 bg-emerald-500 hover:bg-emerald-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View Transaction
+                        {msg.txHash && (
+                          <span className="text-emerald-200 text-xs">
+                            ({msg.txHash.slice(0, 6)}...{msg.txHash.slice(-4)})
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Google Maps Sources - Show "View Places" button */}
                   {msg.mapsSources && msg.mapsSources.length > 0 && (
                     <div className="mt-3">
@@ -938,14 +955,14 @@ export default function OraclePage() {
 
       {/* NFT Modal */}
       {selectedNFT && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} onClick={closeNFTModal}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
           <div className={`rounded-3xl max-w-md w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`} onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">{selectedNFT.name}</h2>
-                <p className="text-cyan-400 text-sm">{selectedNFT.type} NFT</p>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.name}</h2>
+                <p className="text-cyan-500 text-sm">{selectedNFT.type} NFT</p>
               </div>
-              <button onClick={closeNFTModal} className="text-gray-400 hover:text-white">
+              <button onClick={closeNFTModal} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -956,17 +973,17 @@ export default function OraclePage() {
 
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Type</span>
-                <span className="text-white font-bold">{selectedNFT.type}</span>
+                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Type</span>
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.type}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Token ID</span>
-                <span className="text-white">#{selectedNFT.tokenId}</span>
+                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Token ID</span>
+                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>#{selectedNFT.tokenId}</span>
               </div>
               {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Price</span>
-                  <span className="text-white font-bold">{selectedNFT.price} WMON</span>
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Price</span>
+                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.price} WMON</span>
                 </div>
               )}
               <button
@@ -987,7 +1004,7 @@ export default function OraclePage() {
 
       {/* MirrorMate Game */}
       {activeGame === 'MIRROR' && (
-        <MirrorMate onClose={() => setActiveGame(null)} />
+        <MirrorMate onClose={() => setActiveGame(null)} isDarkMode={isDarkMode} />
       )}
 
 

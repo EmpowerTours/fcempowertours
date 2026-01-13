@@ -209,24 +209,12 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
       const currentClickedIds = clickedNFTs.map(n => n.tokenId).join(',');
       const clickedNFTsChanged = currentClickedIds !== clickedNFTsRef.current;
 
-      // If no clicked NFTs, show owned songs (with saved order if available)
+      // If no clicked NFTs, don't show the player (user must click a music NFT to play)
       if (clickedNFTs.length === 0) {
         clickedNFTsRef.current = '';
-        if (ownedSongs.length > 0 && songs.length === 0 && playlistLoaded) {
-          // Apply saved playlist order if available
-          if (savedPlaylistOrder && savedPlaylistOrder.length > 0) {
-            const orderedSongs = [...ownedSongs].sort((a, b) => {
-              const indexA = savedPlaylistOrder.indexOf(a.tokenId);
-              const indexB = savedPlaylistOrder.indexOf(b.tokenId);
-              // Songs not in saved order go to end
-              if (indexA === -1) return 1;
-              if (indexB === -1) return -1;
-              return indexA - indexB;
-            });
-            setSongs(orderedSongs);
-          } else {
-            setSongs(ownedSongs);
-          }
+        // Clear songs so player hides - only show when user actively clicks a music NFT
+        if (songs.length > 0) {
+          setSongs([]);
         }
         return;
       }
