@@ -657,7 +657,7 @@ export default function OraclePage() {
     <>
       <div className={`relative w-screen overflow-hidden font-sans ${isDarkMode ? 'bg-black text-white' : 'bg-white text-gray-900'}`} style={{ height: '100dvh' }}>
         {/* Header Bar - Full width with items on each end */}
-        <header className="fixed top-0 left-0 right-0 w-full z-50 px-4 py-3">
+        <header className="fixed top-0 left-0 right-0 w-full z-50 h-14" style={{ width: '100%' }}>
           {/* Logo Left - absolute positioned */}
           <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center">
             <Globe className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
