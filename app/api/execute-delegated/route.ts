@@ -3069,10 +3069,22 @@ ${enjoyText}
           user: userAddress,
           amount: mapsAmount,
           treasury: TREASURY,
+          wmon: WMON_MAPS,
         });
 
-        // Transfer WMON from user to treasury
+        // First wrap MON to WMON, then transfer WMON to treasury
         const mapsPaymentCalls: Call[] = [
+          // Step 1: Wrap native MON to WMON
+          {
+            to: WMON_MAPS,
+            value: mapsAmountWei,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          },
+          // Step 2: Transfer WMON to treasury
           {
             to: WMON_MAPS,
             value: 0n,
@@ -3084,7 +3096,7 @@ ${enjoyText}
           },
         ];
 
-        const mapsPaymentTxHash = await executeTransaction(mapsPaymentCalls, userAddress as Address, 0n);
+        const mapsPaymentTxHash = await executeTransaction(mapsPaymentCalls, userAddress as Address, mapsAmountWei);
         await incrementTransactionCount(userAddress);
 
         console.log('✅ Maps payment successful, TX:', mapsPaymentTxHash);
