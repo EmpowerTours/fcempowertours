@@ -756,7 +756,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
   if (loading) {
     return renderInPortal(
-      <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div className="fixed inset-0 bg-black modal-backdrop z-[9999] flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading guides...</p>
@@ -771,7 +771,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
     const notRegisteredNoGuides = !isUserRegisteredGuide && noGuides;
 
     return renderInPortal(
-      <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div className="fixed inset-0 bg-black modal-backdrop z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
         <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl p-8 text-center max-w-md">
           <div className="text-6xl mb-4">
             {isOnlyGuide ? '🌟' : noGuides ? '🧳' : '✨'}
@@ -872,7 +872,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
   }
 
   return renderInPortal(
-    <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+    <div className="fixed inset-0 bg-black modal-backdrop z-[9999] flex flex-col items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
       {/* Header */}
       <div className="w-full max-w-xs flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">
@@ -1057,7 +1057,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       {/* Guide Registration/Edit Form Modal */}
       {showGuideForm && (
-        <div className="fixed inset-0 bg-black z-[10000] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000' }}>
+        <div className="fixed inset-0 bg-black modal-backdrop z-[10000] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000' }}>
           <div className="bg-gray-900 border border-cyan-500/30 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">

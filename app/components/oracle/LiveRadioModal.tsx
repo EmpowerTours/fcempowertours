@@ -93,6 +93,7 @@ interface ListenerStats {
 
 interface LiveRadioModalProps {
   onClose: () => void;
+  isDarkMode?: boolean;
 }
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
@@ -105,7 +106,7 @@ const formatTime = (seconds: number): string => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
+export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalProps) {
   const { user, walletAddress } = useFarcasterContext();
   const [mounted, setMounted] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -971,8 +972,8 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black flex items-center justify-center p-4"
-      style={{ zIndex: 9999, backgroundColor: "#000000" }}
+      className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       {/* Toast Notification */}

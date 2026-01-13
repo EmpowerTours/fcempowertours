@@ -95,7 +95,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center p-4" style={{ backgroundColor: '#000000' }} onClick={onClose}>
+    <div className="fixed inset-0 bg-black modal-backdrop z-50 flex items-center justify-center p-4" style={{ backgroundColor: '#000000' }} onClick={onClose}>
       <div
         className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-cyan-500/30 rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl shadow-cyan-500/10"
         onClick={(e) => e.stopPropagation()}

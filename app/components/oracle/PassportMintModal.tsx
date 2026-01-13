@@ -151,7 +151,7 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ backgroundColor: '#000000' }}>
+    <div className="fixed inset-0 bg-black modal-backdrop z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ backgroundColor: '#000000' }}>
       <div className="w-full max-w-lg bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl shadow-2xl shadow-cyan-500/20">
         <div className="p-6">
           {/* Header */}

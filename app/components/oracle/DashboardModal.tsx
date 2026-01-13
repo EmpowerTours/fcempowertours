@@ -8,6 +8,7 @@ import Link from 'next/link';
 interface DashboardModalProps {
   onClose: () => void;
   onViewProfile?: (address: string) => void;
+  isDarkMode?: boolean;
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
@@ -61,7 +62,7 @@ const getCountryFlag = (countryCode: string): string => {
   return String.fromCodePoint(...codePoints);
 };
 
-export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewProfile }) => {
+export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewProfile, isDarkMode = true }) => {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'activity' | 'streaming'>('activity');
   const [stats, setStats] = useState<Stats | null>(null);
@@ -231,12 +232,12 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black flex items-center justify-center p-4"
-      style={{ zIndex: 9999, backgroundColor: "#000000" }}
+      className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl"
+        className={`rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30' : 'bg-white border border-gray-200'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

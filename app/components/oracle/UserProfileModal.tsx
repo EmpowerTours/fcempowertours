@@ -11,6 +11,7 @@ interface UserProfileModalProps {
   onBack?: () => void;
   buyerAddress?: string; // Current user's wallet for purchasing
   buyerFid?: number;
+  isDarkMode?: boolean;
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
@@ -78,7 +79,7 @@ const resolveIPFS = (url: string): string => {
   return url;
 };
 
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddress, onClose, onBack, buyerAddress, buyerFid }) => {
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddress, onClose, onBack, buyerAddress, buyerFid, isDarkMode = true }) => {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -276,12 +277,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black flex items-center justify-center p-2 sm:p-4"
-      style={{ zIndex: 9999, backgroundColor: "#000000" }}
+      className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+        className={`rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30' : 'bg-white border border-gray-200'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - Fixed */}

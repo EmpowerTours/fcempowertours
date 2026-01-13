@@ -11,6 +11,7 @@ interface ProfileModalProps {
   pfpUrl?: string;
   onClose: () => void;
   onViewUserProfile?: (address: string) => void;
+  isDarkMode?: boolean;
 }
 
 interface UserStats {
@@ -46,7 +47,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   username,
   pfpUrl,
   onClose,
-  onViewUserProfile
+  onViewUserProfile,
+  isDarkMode = true
 }) => {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -188,15 +190,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     )
   );
 
-  // Modal with fully opaque black background - no transparency
+  // Modal with theme-aware background
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black flex items-center justify-center p-4"
-      style={{ zIndex: 9999, backgroundColor: '#000000' }}
+      className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden shadow-2xl"
+        className={`rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden shadow-2xl ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

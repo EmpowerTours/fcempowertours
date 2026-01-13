@@ -938,8 +938,8 @@ export default function OraclePage() {
 
       {/* NFT Modal */}
       {selectedNFT && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center p-4" style={{ backgroundColor: '#000000' }} onClick={closeNFTModal}>
-          <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} onClick={closeNFTModal}>
+          <div className={`rounded-3xl max-w-md w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`} onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h2 className="text-2xl font-bold text-white">{selectedNFT.name}</h2>
@@ -1028,8 +1028,8 @@ export default function OraclePage() {
 
       {/* Payment Confirmation Dialog */}
       {paymentRequired && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center p-4" style={{ backgroundColor: '#000000' }} onClick={handleCancelPayment}>
-          <div className="bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl max-w-md w-full p-6 shadow-2xl shadow-cyan-500/20 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} onClick={handleCancelPayment}>
+          <div className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🗺️</div>
               <h2 className="text-2xl font-bold text-white mb-2">Google Maps Query</h2>
@@ -1108,6 +1108,7 @@ export default function OraclePage() {
             userFid={user?.fid}
             username={user?.username}
             pfpUrl={user?.pfpUrl}
+            isDarkMode={isDarkMode}
             onClose={() => {
               console.log('[OraclePage] ProfileModal onClose called');
               setShowProfileModal(false);
@@ -1127,12 +1128,13 @@ export default function OraclePage() {
         <DAOModal
           userAddress={walletAddress ?? undefined}
           onClose={() => setShowDAOModal(false)}
+          isDarkMode={isDarkMode}
         />
       )}
 
       {/* Live Radio Modal */}
       {showRadioModal && (
-        <LiveRadioModal onClose={() => setShowRadioModal(false)} />
+        <LiveRadioModal onClose={() => setShowRadioModal(false)} isDarkMode={isDarkMode} />
       )}
 
       {/* Event Oracle Modal */}
@@ -1140,17 +1142,18 @@ export default function OraclePage() {
         <EventOracle
           isOpen={showEventOracleModal}
           onClose={() => setShowEventOracleModal(false)}
+          isDarkMode={isDarkMode}
         />
       )}
 
       {/* Deposit Modal */}
       {showDepositModal && (
         <div
-          className="fixed inset-0 bg-black flex items-center justify-center p-4 z-[100]" style={{ backgroundColor: '#000000' }}
+          className={`fixed inset-0 flex items-center justify-center p-4 z-[100] ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           onClick={() => setShowDepositModal(false)}
         >
           <div
-            className="bg-gray-900 border border-gray-700 rounded-2xl max-w-sm w-full p-6"
+            className={`rounded-2xl max-w-sm w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200 shadow-lg'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -1262,6 +1265,7 @@ export default function OraclePage() {
       {showDashboardModal && (
         <DashboardModal
           onClose={() => setShowDashboardModal(false)}
+          isDarkMode={isDarkMode}
           onViewProfile={(address) => {
             setViewingUserAddress(address);
             setUserProfileSource('dashboard');
@@ -1277,6 +1281,7 @@ export default function OraclePage() {
           walletAddress={viewingUserAddress}
           buyerAddress={walletAddress || undefined}
           buyerFid={user?.fid}
+          isDarkMode={isDarkMode}
           onClose={() => {
             setShowUserProfileModal(false);
             setViewingUserAddress(null);

@@ -8,6 +8,7 @@ import { ethers } from 'ethers';
 interface DAOModalProps {
   userAddress?: string;
   onClose: () => void;
+  isDarkMode?: boolean;
 }
 
 const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95d5185f39C760c5FA754491d0';
@@ -40,7 +41,7 @@ const DAO_ABI = [
 
 type TabType = 'overview' | 'wrap' | 'delegate';
 
-export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
+export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDarkMode = true }) => {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(false);
@@ -331,12 +332,12 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose }) => {
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black flex items-center justify-center p-4"
-      style={{ zIndex: 9999, backgroundColor: "#000000" }}
+      className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 rounded-2xl w-full max-w-lg border border-purple-500/30 shadow-2xl"
+        className={`rounded-2xl w-full max-w-lg shadow-2xl ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border border-purple-500/30' : 'bg-white border border-gray-200'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
