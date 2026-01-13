@@ -372,7 +372,7 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose }) => 
   if (typeof document === 'undefined') return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 rounded-2xl border border-purple-500/30 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-purple-500/30">

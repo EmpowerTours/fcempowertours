@@ -231,7 +231,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-gray-950 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >

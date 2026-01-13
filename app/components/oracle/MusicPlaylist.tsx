@@ -548,7 +548,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
       {/* Queue Panel */}
       {showQueue && (
         <div className="fixed bottom-24 left-0 right-0 max-w-2xl mx-auto px-4 z-[110]">
-          <div className="bg-black/95 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-4 max-h-96 overflow-y-auto">
+          <div className="bg-black/60 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-4 max-h-96 overflow-y-auto">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-white font-semibold">Queue ({songs.length})</h3>
               <button onClick={() => setShowQueue(false)} className="text-gray-400 hover:text-white">
@@ -604,7 +604,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
       )}
 
       {/* Player Bar - Glass Panel Centered */}
-      <div className="w-full bg-black/95 backdrop-blur-xl border-4 border-cyan-500 rounded-2xl shadow-2xl shadow-cyan-500/50">
+      <div className="w-full bg-black/60 backdrop-blur-xl border-4 border-cyan-500 rounded-2xl shadow-2xl shadow-cyan-500/50">
         {/* Close Button - Inside Player */}
         {onClose && (
           <div className="flex justify-between items-center px-4 pt-3 pb-2 border-b border-gray-800">
