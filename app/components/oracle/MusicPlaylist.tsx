@@ -532,13 +532,13 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
 
   const currentSong = songs[currentSongIndex];
 
+  // Render as portal at bottom center of screen
   const modalContent = (
     <div
-      className="fixed inset-0 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="fixed inset-x-0 bottom-24 flex justify-center px-4"
       style={{ zIndex: 9998 }}
-      onClick={onClose}
     >
-      <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg">
         {/* Audio element */}
         <audio
           ref={audioRef}

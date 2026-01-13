@@ -426,14 +426,16 @@ export default function OraclePage() {
 
   const handleNFTClick = useCallback((nft: NFTObject) => {
     console.log('[OraclePage] handleNFTClick called with:', nft);
-    // For music NFTs, set them in clickedMusicNFTs for the player
     if (nft.type === 'MUSIC') {
+      // For music NFTs, open the music player (not the modal)
       console.log('[OraclePage] Setting music NFT for player');
       setClickedMusicNFTs([nft]);
+      // Don't set selectedNFT for music - MusicPlaylist handles it
+    } else {
+      // For ART and other NFTs, show the modal
+      console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
+      setSelectedNFT(nft);
     }
-    // Show modal for all NFT types
-    console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
-    setSelectedNFT(nft);
   }, []);
 
   // Debug: Log clickedMusicNFTs changes
@@ -1384,7 +1386,7 @@ export default function OraclePage() {
         </div>
       )}
 
-      {/* Music Playlist Player */}
+      {/* Music Playlist Player - positioned at bottom center */}
       <MusicPlaylist
         userAddress={walletAddress ?? undefined}
         userFid={user?.fid}
@@ -1392,10 +1394,10 @@ export default function OraclePage() {
         isSubscriber={hasSubscription}
         onPlayingChange={(nftId, isPlaying) => {
           setPlayingNFTId(isPlaying ? nftId : null);
-          // Find the tokenId for this NFT
           const nft = nftList.find(n => n.id === nftId);
           setPlayingTokenId(isPlaying && nft ? nft.tokenId : null);
         }}
+        onClose={() => setClickedMusicNFTs([])}
       />
     </>
   );
