@@ -300,7 +300,7 @@ export default function OraclePage() {
       const data = await response.json();
       console.log('[Oracle] Full API response data:', JSON.stringify(data, null, 2));
 
-      // Handle payment required for Maps query
+      // Handle payment required for Maps query - show confirmation dialog
       if (data.requiresPayment) {
         console.log('[Oracle] Payment required for Maps query:', {
           message: data.message,
@@ -445,14 +445,15 @@ export default function OraclePage() {
     setSelectedNFT(null);
   };
 
+  // Handle Maps payment confirmation - charges via user safe delegation
   const handleConfirmPayment = async () => {
     if (!pendingMessage) return;
 
-    console.log('[Oracle] Confirming payment for Maps query');
+    console.log('[Oracle] Confirming payment for Maps query via delegation');
     const queryMessage = pendingMessage;
     setPaymentRequired(null);
     setIsThinking(true);
-    setItineraryNotification({ type: 'creating' }); // Show creating indicator
+    setItineraryNotification({ type: 'creating' });
 
     try {
       const response = await fetch('/api/oracle/chat', {
@@ -480,26 +481,23 @@ export default function OraclePage() {
         // Handle itinerary creation notification
         if (itineraryData) {
           if (itineraryData.exists) {
-            // Found an existing itinerary
             setItineraryNotification({
               type: 'recommended',
               title: itineraryData.title,
               price: itineraryData.price
             });
           } else if (itineraryData.created) {
-            // Created a new itinerary
             setItineraryNotification({
               type: 'created',
               txHash: itineraryTxHash
             });
           }
-          // Auto-dismiss after 5 seconds
           setTimeout(() => setItineraryNotification(null), 5000);
         } else {
           setItineraryNotification(null);
         }
 
-        // Add a brief confirmation message with data to reopen modal
+        // Add message with Maps data
         setMessages(prev => [...prev, {
           role: 'oracle',
           content: `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
@@ -510,13 +508,8 @@ export default function OraclePage() {
           mapsPaymentTxHash: paymentTxHash
         }]);
 
-        // Show the Maps Results Modal if we have sources
+        // Show the Maps Results Modal
         if (mapsSources && mapsSources.length > 0) {
-          console.log('[Oracle] Showing Maps results modal:', {
-            sourcesCount: mapsSources.length,
-            query: queryMessage,
-            hasWidgetToken: !!mapsWidgetToken
-          });
           setMapsResultsData({
             sources: mapsSources,
             widgetToken: mapsWidgetToken,
@@ -525,8 +518,6 @@ export default function OraclePage() {
           });
           setShowMapsResults(true);
         } else {
-          console.log('[Oracle] No Maps sources returned, showing fallback message');
-          // Fallback to inline message if no sources
           setMessages(prev => [...prev, {
             role: 'oracle',
             content: action.message || 'No places found for your query.',
@@ -537,11 +528,11 @@ export default function OraclePage() {
         throw new Error(data.error);
       }
     } catch (error: any) {
-      console.error('[Oracle] Payment confirmation failed:', error);
+      console.error('[Oracle] Payment failed:', error);
       setItineraryNotification(null);
       setMessages(prev => [...prev, {
         role: 'oracle',
-        content: `❌ Payment failed: ${error.message}`
+        content: `❌ Payment failed: ${error.message}. Please ensure your Safe has sufficient WMON balance.`
       }]);
     } finally {
       setIsThinking(false);
@@ -554,7 +545,7 @@ export default function OraclePage() {
     setPendingMessage('');
     setMessages(prev => [...prev, {
       role: 'oracle',
-      content: '❌ Maps query cancelled. Ask me anything else!'
+      content: '❌ Maps query cancelled.'
     }]);
   };
 
@@ -1067,42 +1058,37 @@ export default function OraclePage() {
         />
       )}
 
-      {/* Payment Confirmation Dialog */}
+      {/* Payment Confirmation Dialog - Shows cost before charging via delegation */}
       {paymentRequired && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} onClick={handleCancelPayment}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black/90' : 'bg-white/90'}`} onClick={handleCancelPayment}>
           <div className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🗺️</div>
-              <h2 className="text-2xl font-bold text-white mb-2">Google Maps Query</h2>
-              <p className="text-gray-400 text-sm">{paymentRequired.message}</p>
+              <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Google Maps Search</h2>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{paymentRequired.message}</p>
             </div>
 
-            <div className="bg-gray-800 border border-cyan-500/30 rounded-2xl p-4 mb-6">
-              {/* User Disclosure: Maps data usage */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-3">
+            <div className={`rounded-2xl p-4 mb-6 ${isDarkMode ? 'bg-gray-800 border border-cyan-500/30' : 'bg-gray-50 border border-gray-200'}`}>
+              <div className={`rounded-lg p-3 mb-3 ${isDarkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
                 <div className="flex items-start gap-2">
                   <span className="text-blue-400 text-lg">ℹ️</span>
                   <div className="flex-1">
-                    <p className="text-xs text-blue-300 font-semibold mb-1">Google Maps Data</p>
-                    <p className="text-xs text-gray-300">
-                      This query will use real-time location data from Google Maps to provide personalized recommendations based on your location.
+                    <p className={`text-xs font-semibold mb-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>Real-time Location Data</p>
+                    <p className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      This query uses Google Maps to find nearby places based on your location.
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-400 text-sm">Service Cost</span>
-                <span className="text-white font-bold">{paymentRequired.estimatedCost} MON</span>
+                <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Service Cost</span>
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{paymentRequired.estimatedCost} WMON</span>
               </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-400 text-sm">Google Maps + AI</span>
-                <span className="text-gray-500 text-xs">~$0.028 per query</span>
-              </div>
-              <div className="border-t border-gray-700 mt-2 pt-2">
+              <div className={`border-t mt-2 pt-2 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-cyan-400 text-sm font-semibold">Total</span>
-                  <span className="text-cyan-400 font-bold text-lg">{paymentRequired.estimatedCost} MON</span>
+                  <span className="text-cyan-500 text-sm font-semibold">Total (from Safe)</span>
+                  <span className="text-cyan-500 font-bold text-lg">{paymentRequired.estimatedCost} WMON</span>
                 </div>
               </div>
             </div>
@@ -1116,25 +1102,25 @@ export default function OraclePage() {
                 {isThinking ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
+                    Searching...
                   </>
                 ) : (
                   <>
-                    💳 Confirm & Pay {paymentRequired.estimatedCost} MON
+                    ✅ Confirm & Search ({paymentRequired.estimatedCost} WMON)
                   </>
                 )}
               </button>
               <button
                 onClick={handleCancelPayment}
                 disabled={isThinking}
-                className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
               >
                 Cancel
               </button>
             </div>
 
-            <p className="text-xs text-gray-500 text-center mt-4">
-              This query requires real-time location data from Google Maps. Payment ensures access to premium location services.
+            <p className={`text-xs text-center mt-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              Payment will be deducted from your Safe wallet via delegation.
             </p>
           </div>
         </div>
