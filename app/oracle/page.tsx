@@ -906,9 +906,9 @@ export default function OraclePage() {
                       )}
                     </div>
                     <div className="p-2">
-                      <p className="text-white text-xs font-semibold truncate">{nft.name}</p>
+                      <p className={`text-xs font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{nft.name}</p>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="text-[10px] text-gray-400">{nft.type}</span>
+                        <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{nft.type}</span>
                         {isPlaying && (
                           <span className="text-[10px] text-cyan-400 animate-pulse">Playing</span>
                         )}

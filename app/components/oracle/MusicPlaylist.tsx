@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X, GripHorizontal } from 'lucide-react';
 
 interface Song {
   id: string;
@@ -54,10 +54,69 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
   const [savedPlaylistOrder, setSavedPlaylistOrder] = useState<string[] | null>(null);
   const [playlistLoaded, setPlaylistLoaded] = useState(false);
 
+  // Drag state for modal position
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const modalRef = useRef<HTMLDivElement>(null);
+
   // Mount state for portal rendering
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Modal drag handlers
+  const handleModalDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Don't start drag if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, [draggable="true"]')) return;
+
+    setIsDragging(true);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    dragStartRef.current = {
+      x: clientX,
+      y: clientY,
+      posX: modalPosition.x,
+      posY: modalPosition.y,
+    };
+  }, [modalPosition]);
+
+  const handleModalDrag = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const deltaX = clientX - dragStartRef.current.x;
+    const deltaY = clientY - dragStartRef.current.y;
+
+    setModalPosition({
+      x: dragStartRef.current.posX + deltaX,
+      y: dragStartRef.current.posY + deltaY,
+    });
+  }, [isDragging]);
+
+  const handleModalDragEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Attach global mouse/touch move/up listeners when dragging
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleModalDrag);
+      window.addEventListener('mouseup', handleModalDragEnd);
+      window.addEventListener('touchmove', handleModalDrag, { passive: false });
+      window.addEventListener('touchend', handleModalDragEnd);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleModalDrag);
+      window.removeEventListener('mouseup', handleModalDragEnd);
+      window.removeEventListener('touchmove', handleModalDrag);
+      window.removeEventListener('touchend', handleModalDragEnd);
+    };
+  }, [isDragging, handleModalDrag, handleModalDragEnd]);
 
   // Play recording for artist royalties
   const playStartTimeRef = useRef<number | null>(null);
@@ -535,10 +594,20 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
   // Render as portal at bottom center of screen (above input bar)
   const modalContent = (
     <div
+      ref={modalRef}
       className="fixed left-0 right-0 flex justify-center px-4"
-      style={{ zIndex: 9998, bottom: '140px' }}
+      style={{
+        zIndex: 9998,
+        bottom: '140px',
+        transform: `translate(${modalPosition.x}px, ${modalPosition.y}px)`,
+        transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+      }}
     >
-      <div className="w-full max-w-lg">
+      <div
+        className={`w-full max-w-lg ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onMouseDown={handleModalDragStart}
+        onTouchStart={handleModalDragStart}
+      >
         {/* Audio element */}
         <audio
           ref={audioRef}
@@ -605,12 +674,15 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
 
         {/* Player Bar - Glass Panel Centered */}
       <div className="w-full bg-black/60 backdrop-blur-xl border-4 border-cyan-500 rounded-2xl shadow-2xl shadow-cyan-500/50">
-        {/* Close Button - Inside Player */}
+        {/* Drag Handle + Close Button - Inside Player */}
         {onClose && (
           <div className="flex justify-between items-center px-4 pt-3 pb-2 border-b border-gray-800">
             <div className="flex items-center gap-2">
+              {/* Drag handle indicator */}
+              <GripHorizontal className="w-4 h-4 text-gray-500 cursor-grab" />
               <Music2 className="w-5 h-5 text-cyan-400" />
               <span className="text-sm font-mono text-cyan-400 tracking-widest">MUSIC PLAYER</span>
+              <span className="text-[10px] text-gray-600 hidden sm:inline">(drag to move)</span>
             </div>
             <button
               onClick={onClose}
