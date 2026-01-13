@@ -946,35 +946,44 @@ export default function OraclePage() {
         <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
           {console.log('[OraclePage] RENDERING NFT MODAL for type:', selectedNFT.type)}
           {selectedNFT.type === 'ART' ? (
-            /* Art NFT - Full screen art viewer */
-            <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
-              <button onClick={closeNFTModal} className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors">
+            /* Art NFT - Full screen art viewer with visible card */
+            <div className={`relative max-w-3xl w-full rounded-2xl overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
+              {/* Close button */}
+              <button onClick={closeNFTModal} className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-colors ${isDarkMode ? 'bg-black/50 hover:bg-black/70 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
                 <X className="w-6 h-6" />
               </button>
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-                <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-auto max-h-[85vh] object-contain" />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold text-white">{selectedNFT.name}</h2>
-                      <p className="text-cyan-400 text-sm">#{selectedNFT.tokenId}</p>
-                      {selectedNFT.artistUsername && (
-                        <p className="text-gray-300 text-sm mt-1">by @{selectedNFT.artistUsername}</p>
-                      )}
-                      {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
-                        <p className="text-white font-bold mt-1">{selectedNFT.price} WMON</p>
-                      )}
-                    </div>
-                    <button
-                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all shadow-lg"
-                      onClick={() => {
-                        closeNFTModal();
-                        handleConsult(`Buy ART NFT #${selectedNFT.tokenId}`);
-                      }}
-                    >
-                      Buy Now
-                    </button>
+
+              {/* Art image */}
+              <div className={`w-full flex items-center justify-center min-h-[200px] ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                {selectedNFT.imageUrl ? (
+                  <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-auto max-h-[70vh] object-contain" />
+                ) : (
+                  <div className={`text-6xl p-12 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>🎨</div>
+                )}
+              </div>
+
+              {/* Info section */}
+              <div className={`p-6 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+                <div className="flex items-end justify-between gap-4">
+                  <div className="flex-1">
+                    <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.name}</h2>
+                    <p className="text-cyan-500 text-sm">Art NFT #{selectedNFT.tokenId}</p>
+                    {selectedNFT.artistUsername && (
+                      <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>by @{selectedNFT.artistUsername}</p>
+                    )}
+                    {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
+                      <p className={`font-bold mt-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.price} WMON</p>
+                    )}
                   </div>
+                  <button
+                    className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all shadow-lg whitespace-nowrap"
+                    onClick={() => {
+                      closeNFTModal();
+                      handleConsult(`Buy ART NFT #${selectedNFT.tokenId}`);
+                    }}
+                  >
+                    Buy Now
+                  </button>
                 </div>
               </div>
             </div>
