@@ -429,11 +429,12 @@ export default function OraclePage() {
     if (nft.type === 'MUSIC') {
       // For music NFTs, open the music player (not the modal)
       console.log('[OraclePage] Setting music NFT for player');
+      setSelectedNFT(null); // Close any open modal
       setClickedMusicNFTs([nft]);
-      // Don't set selectedNFT for music - MusicPlaylist handles it
     } else {
       // For ART and other NFTs, show the modal
       console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
+      setClickedMusicNFTs([]); // Close music player
       setSelectedNFT(nft);
     }
   }, []);
@@ -933,10 +934,9 @@ export default function OraclePage() {
         )}
       </main>
 
-      {/* NFT Modal */}
       {/* NFT Modal - Different layouts for ART vs MUSIC */}
       {selectedNFT && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
           {selectedNFT.type === 'ART' ? (
             /* Art NFT - Full screen art viewer */
             <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
