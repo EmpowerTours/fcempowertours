@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
@@ -106,6 +107,12 @@ export default function OraclePage() {
 
   // Dark mode state
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Portal mount state for modals
+  const [portalMounted, setPortalMounted] = useState(false);
+  useEffect(() => {
+    setPortalMounted(true);
+  }, []);
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -906,9 +913,9 @@ export default function OraclePage() {
                       )}
                     </div>
                     <div className="p-2">
-                      <p className={`text-xs font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{nft.name}</p>
+                      <p className="text-xs font-semibold truncate text-white">{nft.name}</p>
                       <div className="flex items-center justify-between mt-1">
-                        <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{nft.type}</span>
+                        <span className="text-[10px] text-gray-400">{nft.type}</span>
                         {isPlaying && (
                           <span className="text-[10px] text-cyan-400 animate-pulse">Playing</span>
                         )}
@@ -942,8 +949,8 @@ export default function OraclePage() {
       </main>
 
       {/* NFT Modal - Different layouts for ART vs MUSIC */}
-      {selectedNFT && (
-        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
+      {selectedNFT && portalMounted && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)' }} onClick={closeNFTModal}>
           {selectedNFT.type === 'ART' ? (
             /* Art NFT - Full screen art viewer with visible card */
             <div className={`relative max-w-3xl w-full rounded-2xl overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
@@ -1030,7 +1037,8 @@ export default function OraclePage() {
               </div>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       </div>
@@ -1063,7 +1071,7 @@ export default function OraclePage() {
       )}
 
       {/* Maps Results Modal */}
-      {showMapsResults && mapsResultsData && (
+      {showMapsResults && mapsResultsData && portalMounted && createPortal(
         <MapsResultsModal
           sources={mapsResultsData.sources}
           widgetToken={mapsResultsData.widgetToken}
@@ -1073,12 +1081,13 @@ export default function OraclePage() {
             setShowMapsResults(false);
             setMapsResultsData(null);
           }}
-        />
+        />,
+        document.body
       )}
 
       {/* Payment Confirmation Dialog - Shows cost before charging via delegation */}
-      {paymentRequired && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black/90' : 'bg-white/90'}`} onClick={handleCancelPayment}>
+      {paymentRequired && portalMounted && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10001, backgroundColor: isDarkMode ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)' }} onClick={handleCancelPayment}>
           <div className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🗺️</div>
@@ -1141,7 +1150,8 @@ export default function OraclePage() {
               Payment will be deducted from your Safe wallet via delegation.
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Profile Modal */}
