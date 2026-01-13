@@ -61,6 +61,19 @@ html, body {
   color: var(--foreground);
 }
 
+/* Fix input text color in dark mode */
+.dark input,
+.dark textarea {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280 !important;
+  -webkit-text-fill-color: #6b7280 !important;
+}
+
 /* Utility classes */
 @layer utilities {
   .text-balance {

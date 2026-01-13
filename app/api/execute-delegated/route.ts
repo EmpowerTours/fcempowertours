@@ -737,14 +737,16 @@ View profile and collection!
 
         const tokenId = BigInt(params.tokenId);
 
-        // ✅ Check if it's an art NFT first for proper logging
+        // ✅ Check if it's an art NFT first for proper logging + self-purchase prevention
         let isPurchaseArtNFT = false;
+        let nftArtistAddress: string | null = null;
         try {
           const typeCheckQuery = `
             query CheckPurchaseNFTType($tokenId: String!) {
               MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
                 tokenId
                 isArt
+                artist
               }
             }
           `;
@@ -763,10 +765,20 @@ View profile and collection!
             const nft = typeCheckData.data?.MusicNFT?.[0];
             if (nft) {
               isPurchaseArtNFT = nft.isArt === true;
+              nftArtistAddress = nft.artist?.toLowerCase() || null;
             }
           }
         } catch (err) {
           console.warn('Could not check purchase NFT type, assuming music');
+        }
+
+        // ✅ Prevent self-purchase - users cannot buy their own NFTs
+        if (nftArtistAddress && userAddress && nftArtistAddress === userAddress.toLowerCase()) {
+          console.log('🚫 Self-purchase blocked: User is the artist/owner of this NFT');
+          return NextResponse.json(
+            { success: false, error: 'You cannot purchase your own NFT' },
+            { status: 400 }
+          );
         }
 
         const purchaseNFTType = isPurchaseArtNFT ? 'Art NFT' : 'Music License';

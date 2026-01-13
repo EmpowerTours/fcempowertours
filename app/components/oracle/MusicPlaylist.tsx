@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X } from 'lucide-react';
 
 interface Song {
@@ -37,6 +38,7 @@ interface MusicPlaylistProps {
 }
 
 const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose, isSubscriber = false }) => {
+  const [mounted, setMounted] = useState(false);
   const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
@@ -51,6 +53,11 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
   const clickedNFTsRef = useRef<string>(''); // Track serialized clickedNFTs to detect actual changes
   const [savedPlaylistOrder, setSavedPlaylistOrder] = useState<string[] | null>(null);
   const [playlistLoaded, setPlaylistLoaded] = useState(false);
+
+  // Mount state for portal rendering
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Play recording for artist royalties
   const playStartTimeRef = useRef<number | null>(null);
@@ -519,24 +526,29 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
   };
 
   // Render if we have songs (owned or clicked previews)
-  if (songs.length === 0) {
+  if (songs.length === 0 || !mounted) {
     return null;
   }
 
   const currentSong = songs[currentSongIndex];
 
-  return (
-    <>
-      {/* Audio element */}
-      <audio
-        ref={audioRef}
-        src={currentSong?.audioUrl}
-      />
+  const modalContent = (
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      style={{ zIndex: 9998 }}
+      onClick={onClose}
+    >
+      <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        {/* Audio element */}
+        <audio
+          ref={audioRef}
+          src={currentSong?.audioUrl}
+        />
 
-      {/* Queue Panel */}
-      {showQueue && (
-        <div className="fixed bottom-24 left-0 right-0 max-w-2xl mx-auto px-4 z-[110]">
-          <div className="bg-black/60 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-4 max-h-96 overflow-y-auto">
+        {/* Queue Panel */}
+        {showQueue && (
+          <div className="mb-4">
+            <div className="bg-black/90 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-4 max-h-64 overflow-y-auto">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-white font-semibold">Queue ({songs.length})</h3>
               <button onClick={() => setShowQueue(false)} className="text-gray-400 hover:text-white">
@@ -587,11 +599,11 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
                 </div>
               ))}
             </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Player Bar - Glass Panel Centered */}
+        {/* Player Bar - Glass Panel Centered */}
       <div className="w-full bg-black/60 backdrop-blur-xl border-4 border-cyan-500 rounded-2xl shadow-2xl shadow-cyan-500/50">
         {/* Close Button - Inside Player */}
         {onClose && (
@@ -746,9 +758,12 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </>
+    </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 // Memoize to prevent unnecessary re-renders from parent

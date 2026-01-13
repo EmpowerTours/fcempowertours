@@ -809,6 +809,7 @@ export default function OraclePage() {
                 onKeyPress={(e) => e.key === 'Enter' && handleConsult()}
                 placeholder="Ask the Oracle..."
                 className={`flex-1 bg-transparent outline-none text-sm ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
+                style={{ color: isDarkMode ? '#ffffff' : '#111827' }}
                 disabled={isThinking}
               />
               <button
@@ -954,49 +955,86 @@ export default function OraclePage() {
       </main>
 
       {/* NFT Modal */}
+      {/* NFT Modal - Different layouts for ART vs MUSIC */}
       {selectedNFT && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
-          <div className={`rounded-3xl max-w-md w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`} onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.name}</h2>
-                <p className="text-cyan-500 text-sm">{selectedNFT.type} NFT</p>
-              </div>
-              <button onClick={closeNFTModal} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
+          {selectedNFT.type === 'ART' ? (
+            /* Art NFT - Full screen art viewer */
+            <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+              <button onClick={closeNFTModal} className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
-            </div>
-
-            <div className="w-full h-64 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-2xl overflow-hidden mb-4">
-              <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-full object-cover" />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Type</span>
-                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.type}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Token ID</span>
-                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>#{selectedNFT.tokenId}</span>
-              </div>
-              {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
-                <div className="flex justify-between items-center">
-                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Price</span>
-                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.price} WMON</span>
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+                <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-auto max-h-[85vh] object-contain" />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-white">{selectedNFT.name}</h2>
+                      <p className="text-cyan-400 text-sm">#{selectedNFT.tokenId}</p>
+                      {selectedNFT.artistUsername && (
+                        <p className="text-gray-300 text-sm mt-1">by @{selectedNFT.artistUsername}</p>
+                      )}
+                      {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
+                        <p className="text-white font-bold mt-1">{selectedNFT.price} WMON</p>
+                      )}
+                    </div>
+                    <button
+                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all shadow-lg"
+                      onClick={() => {
+                        closeNFTModal();
+                        handleConsult(`Buy ART NFT #${selectedNFT.tokenId}`);
+                      }}
+                    >
+                      Buy Now
+                    </button>
+                  </div>
                 </div>
-              )}
-              <button
-                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
-                onClick={() => {
-                  closeNFTModal();
-                  handleConsult(`Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`);
-                }}
-              >
-                Buy Now
-              </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Music/Other NFT - Standard purchase modal */
+            <div className={`rounded-3xl max-w-md w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`} onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.name}</h2>
+                  <p className="text-cyan-500 text-sm">{selectedNFT.type} NFT</p>
+                </div>
+                <button onClick={closeNFTModal} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="w-full h-64 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-2xl overflow-hidden mb-4">
+                <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-full object-cover" />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Type</span>
+                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.type}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Token ID</span>
+                  <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>#{selectedNFT.tokenId}</span>
+                </div>
+                {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
+                  <div className="flex justify-between items-center">
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Price</span>
+                    <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.price} WMON</span>
+                  </div>
+                )}
+                <button
+                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
+                  onClick={() => {
+                    closeNFTModal();
+                    handleConsult(`Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`);
+                  }}
+                >
+                  Buy Now
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

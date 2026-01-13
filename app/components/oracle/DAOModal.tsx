@@ -39,7 +39,7 @@ const DAO_ABI = [
   'function quorumNumerator() external view returns (uint256)',
 ];
 
-type TabType = 'overview' | 'wrap' | 'delegate';
+type TabType = 'overview' | 'wrap' | 'delegate' | 'proposals';
 
 export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDarkMode = true }) => {
   const [mounted, setMounted] = useState(false);
@@ -368,7 +368,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
 
         {/* Tabs */}
         <div className="flex border-b border-purple-500/20">
-          {(['overview', 'wrap', 'delegate'] as TabType[]).map((tab) => (
+          {(['overview', 'wrap', 'delegate', 'proposals'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -379,8 +379,9 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
               }`}
             >
               {tab === 'overview' && 'Overview'}
-              {tab === 'wrap' && 'Wrap/Unwrap'}
+              {tab === 'wrap' && 'Wrap'}
               {tab === 'delegate' && 'Delegate'}
+              {tab === 'proposals' && 'Vote'}
             </button>
           ))}
         </div>
@@ -652,6 +653,109 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Proposals Tab */}
+          {activeTab === 'proposals' && (
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              <div className="bg-gray-800/30 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-purple-400 mb-3 flex items-center gap-2">
+                  <Vote className="w-4 h-4" />
+                  DAO Governance
+                </h3>
+                <p className="text-xs text-gray-400 mb-3">
+                  Create and vote on proposals to shape the future of EmpowerTours. You need at least {daoInfo.proposalThreshold} vTOURS to create a proposal.
+                </p>
+                <div className="space-y-2 text-xs text-gray-400">
+                  <p>• Voting Delay: {daoInfo.votingDelay} after proposal</p>
+                  <p>• Voting Period: {daoInfo.votingPeriod}</p>
+                  <p>• Quorum Required: {daoInfo.quorum}</p>
+                </div>
+              </div>
+
+              {/* Voting Power Status */}
+              <div className={`rounded-xl p-4 ${parseFloat(votingPower) > 0 ? 'bg-green-900/20 border border-green-500/30' : 'bg-gray-800/30 border border-gray-700'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">Your Voting Power</p>
+                    <p className={`text-lg font-bold ${parseFloat(votingPower) > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                      {formatNumber(votingPower)} vTOURS
+                    </p>
+                  </div>
+                  {parseFloat(votingPower) === 0 && (
+                    <button
+                      onClick={() => setActiveTab('delegate')}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs text-white"
+                    >
+                      Activate Voting
+                    </button>
+                  )}
+                </div>
+                {parseFloat(votingPower) === 0 && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Delegate vTOURS to yourself to activate voting power
+                  </p>
+                )}
+              </div>
+
+              {/* View Proposals Link */}
+              <a
+                href={`https://testnet.monadscan.com/address/${DAO_ADDRESS}#readProxyContract`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block bg-gray-800/30 rounded-xl p-4 hover:bg-gray-800/50 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">View Proposals</p>
+                    <p className="text-xs text-gray-400">See active proposals on Monadscan</p>
+                  </div>
+                  <TrendingUp className="w-5 h-5 text-purple-400" />
+                </div>
+              </a>
+
+              {/* Create Proposal Section */}
+              <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                <h4 className="text-sm font-medium text-purple-400 mb-2">Create Proposal</h4>
+                <p className="text-xs text-gray-400 mb-3">
+                  {parseFloat(votingPower) >= parseFloat(daoInfo.proposalThreshold)
+                    ? 'You have enough voting power to create a proposal!'
+                    : `You need ${daoInfo.proposalThreshold} vTOURS to create a proposal. Wrap and delegate more TOURS.`}
+                </p>
+                <button
+                  disabled={parseFloat(votingPower) < parseFloat(daoInfo.proposalThreshold)}
+                  onClick={() => window.open(`https://testnet.monadscan.com/address/${DAO_ADDRESS}#writeProxyContract`, '_blank')}
+                  className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-white text-sm font-medium transition-colors"
+                >
+                  {parseFloat(votingPower) >= parseFloat(daoInfo.proposalThreshold)
+                    ? 'Create Proposal on Explorer'
+                    : `Need ${daoInfo.proposalThreshold} vTOURS`}
+                </button>
+              </div>
+
+              {/* How Voting Works */}
+              <div className="bg-gray-800/30 rounded-xl p-4">
+                <h4 className="text-sm font-medium text-purple-400 mb-2">How Voting Works</h4>
+                <ol className="space-y-2 text-xs text-gray-400">
+                  <li className="flex items-start gap-2">
+                    <span className="bg-purple-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">1</span>
+                    <span>Wrap TOURS to vTOURS and delegate to yourself</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-purple-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">2</span>
+                    <span>View active proposals on the blockchain explorer</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-purple-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">3</span>
+                    <span>Cast your vote: For, Against, or Abstain</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-purple-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">4</span>
+                    <span>If passed and quorum met, proposal executes after timelock</span>
+                  </li>
+                </ol>
+              </div>
             </div>
           )}
 

@@ -238,6 +238,12 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose, isDar
       return;
     }
 
+    // Validate required fields
+    if (!createForm.name || !createForm.city || !createForm.eventDate) {
+      alert('Please fill in all required fields: Event Name, City, and Event Date');
+      return;
+    }
+
     setLoading(true);
     try {
       // Upload logo to IPFS first
@@ -854,7 +860,7 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose, isDar
 
               <button
                 onClick={handleCreateEvent}
-                disabled={loading || !createForm.name || !createForm.eventDate}
+                disabled={loading || !createForm.name || !createForm.eventDate || !createForm.city}
                 className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 rounded-xl text-white font-medium transition-colors"
               >
                 {loading ? 'Creating Event...' : 'Create Event'}
