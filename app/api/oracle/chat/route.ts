@@ -173,6 +173,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Build system prompt - include Maps instructions if grounding is enabled
+    const mapsInstructions = needsMapsGrounding ? `
+For location queries (restaurants, hotels, attractions, places near me, etc.):
+- Use the Google Maps grounding tool to find real places
+- Return type:"chat" with a helpful message about the places found
+- Include place names, ratings, and addresses in your response
+- User location: ${userLocation?.city || 'unknown'}, ${userLocation?.country || 'unknown'}
+` : '';
+
     const systemPrompt = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
 
 CRITICAL: Function names MUST be exactly as listed. No variations.
@@ -185,7 +194,7 @@ Actions:
 - type:"navigate" + destination:"/path" - Navigate to page
 - type:"game" + game:"MIRROR" - Launch game
 - type:"chat" - Conversational response
-
+${mapsInstructions}
 For "Buy MUSIC NFT #X" requests:
 {"type":"execute","message":"Purchasing Music NFT #X","transaction":{"function":"buy_music","args":["X"],"contract":"music"}}
 
