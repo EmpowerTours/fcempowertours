@@ -687,7 +687,7 @@ export default function OraclePage() {
                     {user.username?.charAt(0).toUpperCase() || '?'}
                   </div>
                 )}
-                <div className="text-right hidden sm:block">
+                <div className="text-right">
                   {user.username && (
                     <div className={`text-[11px] font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>@{user.username}</div>
                   )}
@@ -935,7 +935,7 @@ export default function OraclePage() {
 
       {/* NFT Modal */}
       {selectedNFT && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={closeNFTModal}>
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={closeNFTModal}>
           <div className="bg-gray-900 border border-cyan-500/30 rounded-3xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -1025,7 +1025,7 @@ export default function OraclePage() {
 
       {/* Payment Confirmation Dialog */}
       {paymentRequired && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={handleCancelPayment}>
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={handleCancelPayment}>
           <div className="bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl max-w-md w-full p-6 shadow-2xl shadow-cyan-500/20 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🗺️</div>
@@ -1143,7 +1143,7 @@ export default function OraclePage() {
       {/* Deposit Modal */}
       {showDepositModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]"
+          className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[100]"
           onClick={() => setShowDepositModal(false)}
         >
           <div
