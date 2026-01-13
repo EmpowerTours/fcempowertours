@@ -656,55 +656,54 @@ export default function OraclePage() {
   return (
     <>
       <div className={`relative w-screen overflow-hidden font-sans ${isDarkMode ? 'bg-black text-white' : 'bg-white text-gray-900'}`} style={{ height: '100dvh' }}>
-        {/* Header - Logo Left */}
-        <div className="fixed top-4 left-4 z-50 flex items-center">
-          <Globe className={`w-8 h-8 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
-          <div className="ml-2">
-            <span className={`font-bold text-base tracking-wide ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>EMPOWERTOURS</span>
-            <div className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Global Guide Oracle</div>
+        {/* Header Bar - Full width with items on each end */}
+        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between">
+          {/* Logo Left */}
+          <div className="flex items-center flex-shrink-0">
+            <Globe className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
+            <div className="ml-2">
+              <span className={`font-bold text-sm tracking-wide ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>EMPOWERTOURS</span>
+              <div className={`text-[9px] ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Oracle Guide</div>
+            </div>
           </div>
-        </div>
 
-        {/* Header - User Info + Toggle Right */}
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-          {/* User Info */}
-          {user && walletAddress && (
-            <div className={`flex items-center gap-2 rounded-lg px-2 py-1 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100 border border-gray-300'}`}>
-              {user.pfpUrl ? (
-                <img
-                  src={user.pfpUrl}
-                  alt={user.username || 'User'}
-                  className="rounded-full object-cover border border-cyan-500"
-                  style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px', minHeight: '24px', maxHeight: '24px' }}
-                />
-              ) : (
-                <div
-                  className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold"
-                  style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px' }}
-                >
-                  {user.username?.charAt(0).toUpperCase() || '?'}
-                </div>
-              )}
-              <div className="text-right">
-                {user.username && (
-                  <div className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>@{user.username}</div>
+          {/* User Info + Toggle Right */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* User Info */}
+            {user && walletAddress && (
+              <div className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? 'bg-gray-800/80' : 'bg-gray-100/80 border border-gray-200'}`}>
+                {user.pfpUrl ? (
+                  <img
+                    src={user.pfpUrl}
+                    alt={user.username || 'User'}
+                    className="w-6 h-6 rounded-full object-cover border border-cyan-500/50"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
+                    {user.username?.charAt(0).toUpperCase() || '?'}
+                  </div>
                 )}
-                <div className={`text-[10px] font-mono ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
+                <div className="text-right hidden sm:block">
+                  {user.username && (
+                    <div className={`text-[11px] font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>@{user.username}</div>
+                  )}
+                  <div className={`text-[9px] font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Dark Mode Toggle */}
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'}`}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
-        </div>
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800/80 hover:bg-gray-700 text-yellow-400' : 'bg-gray-100/80 hover:bg-gray-200 text-gray-700 border border-gray-200'}`}
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+          </div>
+        </header>
 
         <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-16 pb-40 overflow-y-auto">
         {/* Crystal Ball - Shrinks and moves up when content loads */}
@@ -774,75 +773,80 @@ export default function OraclePage() {
           </div>
         )}
 
-        {/* Input Field - Below planet */}
-        <div className="w-full max-w-2xl px-6 mt-8">
-          <div className={`rounded-2xl p-4 shadow-lg ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-300'}`}>
-            <div className="flex items-center gap-3">
+        {/* Input Field - Sleek floating design */}
+        <div className="w-full max-w-xl px-6 mt-8">
+          <div className={`relative rounded-full p-1 ${isDarkMode ? 'bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20' : 'bg-gradient-to-r from-cyan-200/50 via-purple-200/50 to-cyan-200/50'}`}>
+            <div className={`flex items-center gap-2 rounded-full px-4 py-2 ${isDarkMode ? 'bg-black/80' : 'bg-white/90'}`}>
+              <Sparkles className={`w-4 h-4 ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleConsult()}
-                placeholder="Ask the Oracle anything..."
+                placeholder="Ask the Oracle..."
                 className={`flex-1 bg-transparent outline-none text-sm ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
                 disabled={isThinking}
               />
               <button
                 onClick={() => handleConsult()}
                 disabled={isThinking || !input.trim()}
-                className="w-10 h-10 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all"
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                  isThinking || !input.trim()
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400'
+                }`}
               >
-                <Send className="w-5 h-5 text-white" />
-              </button>
-            </div>
-            {/* Quick Actions */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-              <button
-                onClick={() => { closeAllModals(); setShowProfileModal(true); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-purple-900 hover:bg-purple-800 text-purple-300 border border-purple-700' : 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-300'}`}
-              >
-                <User className="w-3 h-3" />
-                Profile
-              </button>
-              <button
-                onClick={() => { closeAllModals(); setShowDashboardModal(true); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-cyan-900 hover:bg-cyan-800 text-cyan-300 border border-cyan-700' : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700 border border-cyan-300'}`}
-              >
-                <BarChart3 className="w-3 h-3" />
-                Dashboard
-              </button>
-              <button
-                onClick={() => { closeAllModals(); setShowRadioModal(true); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-pink-900 hover:bg-pink-800 text-pink-300 border border-pink-700' : 'bg-pink-100 hover:bg-pink-200 text-pink-700 border border-pink-300'}`}
-              >
-                <Radio className="w-3 h-3" />
-                Radio
-              </button>
-              <button
-                onClick={() => { closeAllModals(); setShowEventOracleModal(true); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-amber-900 hover:bg-amber-800 text-amber-300 border border-amber-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-300'}`}
-              >
-                <Calendar className="w-3 h-3" />
-                Events
-              </button>
-              <button
-                onClick={() => { closeAllModals(); setShowDAOModal(true); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-green-900 hover:bg-green-800 text-green-300 border border-green-700' : 'bg-green-100 hover:bg-green-200 text-green-700 border border-green-300'}`}
-              >
-                <Vote className="w-3 h-3" />
-                DAO
-              </button>
-              <button
-                onClick={() => { closeAllModals(); setActiveGame('MIRROR'); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${isDarkMode ? 'bg-rose-900 hover:bg-rose-800 text-rose-300 border border-rose-700' : 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300'}`}
-              >
-                <MapPin className="w-3 h-3" />
-                MirrorMate
+                <Send className="w-4 h-4 text-white" />
               </button>
             </div>
           </div>
-        </div>
 
+          {/* Quick Actions - Minimal floating pills */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+            <button
+              onClick={() => { closeAllModals(); setShowProfileModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
+            >
+              <User className="w-3.5 h-3.5" />
+              Profile
+            </button>
+            <button
+              onClick={() => { closeAllModals(); setShowDashboardModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => { closeAllModals(); setShowRadioModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-pink-400 hover:bg-pink-500/10' : 'text-gray-500 hover:text-pink-600 hover:bg-pink-50'}`}
+            >
+              <Radio className="w-3.5 h-3.5" />
+              Radio
+            </button>
+            <button
+              onClick={() => { closeAllModals(); setShowEventOracleModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-amber-400 hover:bg-amber-500/10' : 'text-gray-500 hover:text-amber-600 hover:bg-amber-50'}`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Events
+            </button>
+            <button
+              onClick={() => { closeAllModals(); setShowDAOModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-green-400 hover:bg-green-500/10' : 'text-gray-500 hover:text-green-600 hover:bg-green-50'}`}
+            >
+              <Vote className="w-3.5 h-3.5" />
+              DAO
+            </button>
+            <button
+              onClick={() => { closeAllModals(); setActiveGame('MIRROR'); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-rose-400 hover:bg-rose-500/10' : 'text-gray-500 hover:text-rose-600 hover:bg-rose-50'}`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              MirrorMate
+            </button>
+          </div>
+        </div>
 
         {/* NFT List - Easy access to all NFTs */}
         {!loadingNFTs && nftList.length > 0 && (
