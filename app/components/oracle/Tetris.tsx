@@ -206,7 +206,7 @@ export const Tetris: React.FC<TetrisProps> = ({ onClose }) => {
 
       {/* Game Over Overlay */}
       {gameOver && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-20 rounded-lg">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-20 rounded-lg">
           <h3 className="text-3xl text-red-500 font-bold mb-2">GAME OVER</h3>
           <p className="text-gray-400 text-lg mb-1">Final Score: {score}</p>
           <button

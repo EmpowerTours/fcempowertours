@@ -971,7 +971,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/90 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black flex items-center justify-center p-4"
       style={{ zIndex: 9999 }}
       onClick={onClose}
     >

@@ -1057,7 +1057,7 @@ export function MirrorMate({ onClose }: MirrorMateProps) {
 
       {/* Guide Registration/Edit Form Modal */}
       {showGuideForm && (
-        <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+        <div className="fixed inset-0 bg-black z-[10000] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
           <div className="bg-gray-900 border border-cyan-500/30 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">
