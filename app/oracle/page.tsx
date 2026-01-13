@@ -707,7 +707,7 @@ export default function OraclePage() {
         <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-16 pb-40 overflow-y-auto">
         {/* Crystal Ball - Shrinks and moves up when content loads */}
         <div className={`transition-all duration-700 ease-in-out ${getCrystalBallClasses()}`}>
-          <CrystalBall state={oracleState} onNFTClick={handleNFTClick} />
+          <CrystalBall state={oracleState} onNFTClick={handleNFTClick} isDarkMode={isDarkMode} />
         </div>
 
         {/* Messages Container */}

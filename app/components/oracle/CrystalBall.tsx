@@ -21,9 +21,10 @@ interface NFTObject {
 interface CrystalBallProps {
   state: OracleState;
   onNFTClick?: (nft: NFTObject) => void;
+  isDarkMode?: boolean;
 }
 
-export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) => {
+export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isDarkMode = true }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoveredNFTRef = useRef<NFTObject | null>(null);
   const [hoveredNFTDisplay, setHoveredNFTDisplay] = useState<NFTObject | null>(null);
@@ -345,10 +346,10 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick }) =
 
       {/* NFT Tooltip on Hover */}
       {hoveredNFTDisplay && (
-        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-md border border-cyan-500/30 rounded-lg px-4 py-2 text-sm pointer-events-none z-50">
-          <div className="text-cyan-400 font-bold">{hoveredNFTDisplay.name}</div>
-          <div className="text-gray-400 text-xs">{hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} WMON</div>
-          <div className="text-gray-500 text-xs">Click to view</div>
+        <div className={`absolute -bottom-16 left-1/2 -translate-x-1/2 backdrop-blur-md border rounded-lg px-4 py-2 text-sm pointer-events-none z-50 ${isDarkMode ? 'bg-black/90 border-cyan-500/30' : 'bg-white/95 border-gray-300 shadow-lg'}`}>
+          <div className="text-cyan-500 font-bold">{hoveredNFTDisplay.name}</div>
+          <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} WMON</div>
+          <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Click to view</div>
         </div>
       )}
     </div>

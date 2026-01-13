@@ -956,7 +956,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                       className={`w-3 h-3 ${
                         star <= Math.round(currentGuide.averageRating / 100)
                           ? 'text-yellow-400 fill-yellow-400'
-                          : 'text-gray-600'
+                          : isDarkMode ? 'text-gray-600' : 'text-gray-300'
                       }`}
                     />
                   ))}
@@ -964,34 +964,34 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                 <span className="text-yellow-400 text-xs font-medium">
                   {(currentGuide.averageRating / 100).toFixed(1)}
                 </span>
-                <span className="text-gray-500 text-xs">
+                <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                   ({currentGuide.ratingCount} {currentGuide.ratingCount === 1 ? 'review' : 'reviews'})
                 </span>
                 {currentGuide.completedBookings > 0 && (
-                  <span className="text-gray-500 text-xs">• {currentGuide.completedBookings} tours</span>
+                  <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>• {currentGuide.completedBookings} tours</span>
                 )}
               </div>
             )}
 
             {currentGuide.bio && (
-              <p className="text-gray-300 text-[11px] mb-2 line-clamp-2">{currentGuide.bio}</p>
+              <p className={`text-[11px] mb-2 line-clamp-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{currentGuide.bio}</p>
             )}
 
             <div className="flex flex-wrap gap-2 text-xs">
               {currentGuide.location && (
-                <div className="flex items-center gap-1 text-gray-400 bg-gray-800 rounded-full px-2 py-0.5">
+                <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${isDarkMode ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-gray-100'}`}>
                   <MapPin className="w-3 h-3" />
                   <span>{currentGuide.location}</span>
                 </div>
               )}
               {currentGuide.languages && (
-                <div className="flex items-center gap-1 text-gray-400 bg-gray-800 rounded-full px-2 py-0.5">
+                <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${isDarkMode ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-gray-100'}`}>
                   <Languages className="w-3 h-3" />
                   <span>{currentGuide.languages}</span>
                 </div>
               )}
               {currentGuide.transport && (
-                <div className="flex items-center gap-1 text-gray-400 bg-gray-800 rounded-full px-2 py-0.5">
+                <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${isDarkMode ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-gray-100'}`}>
                   <Car className="w-3 h-3" />
                   <span>{currentGuide.transport}</span>
                 </div>

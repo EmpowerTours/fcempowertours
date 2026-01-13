@@ -191,11 +191,11 @@ async function fetchGuidesFromContract(): Promise<GuideObject[]> {
   }] as const;
 
   try {
-    // Get GuideRegistered events from the contract (last 50000 blocks ~= a few days)
+    // Get GuideRegistered events from the contract (last 500000 blocks to capture older registrations)
     const currentBlock = await publicClient.getBlockNumber();
-    const fromBlock = currentBlock > 50000n ? currentBlock - 50000n : 0n;
+    const fromBlock = currentBlock > 500000n ? currentBlock - 500000n : 0n;
 
-    console.log(`Fetching GuideRegistered events from block ${fromBlock} to ${currentBlock}`);
+    console.log(`[get-guides] Fetching GuideRegistered events from block ${fromBlock} to ${currentBlock}`);
 
     const logs = await publicClient.getLogs({
       address: REGISTRY_ADDRESS,
