@@ -657,7 +657,7 @@ export default function OraclePage() {
     <>
       <div className={`relative w-screen overflow-hidden font-sans ${isDarkMode ? 'bg-black text-white' : 'bg-white text-gray-900'}`} style={{ height: '100dvh' }}>
         {/* Header Bar - Full width with items on each end */}
-        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between">
+        <header className="fixed top-0 left-0 right-0 w-full z-50 px-4 py-3 flex items-center">
           {/* Logo Left */}
           <div className="flex items-center flex-shrink-0">
             <Globe className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
@@ -667,8 +667,8 @@ export default function OraclePage() {
             </div>
           </div>
 
-          {/* User Info + Toggle Right */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* User Info + Toggle Right - ml-auto pushes to far right */}
+          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
             {/* User Info */}
             {user && walletAddress && (
               <div className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? 'bg-gray-800/80' : 'bg-gray-100/80 border border-gray-200'}`}>
