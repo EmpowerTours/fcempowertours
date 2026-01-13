@@ -425,7 +425,8 @@ export default function OraclePage() {
   };
 
   const handleNFTClick = useCallback((nft: NFTObject) => {
-    console.log('[OraclePage] handleNFTClick called with:', nft);
+    console.log('[OraclePage] handleNFTClick called with:', JSON.stringify(nft, null, 2));
+    console.log('[OraclePage] NFT type:', nft.type, '| Is ART?:', nft.type === 'ART', '| Is MUSIC?:', nft.type === 'MUSIC');
     if (nft.type === 'MUSIC') {
       // For music NFTs, open the music player (not the modal)
       console.log('[OraclePage] Setting music NFT for player');
@@ -433,9 +434,10 @@ export default function OraclePage() {
       setClickedMusicNFTs([nft]);
     } else {
       // For ART and other NFTs, show the modal
-      console.log('[OraclePage] Showing modal for', nft.type, 'NFT');
+      console.log('[OraclePage] Showing modal for', nft.type, 'NFT - setting selectedNFT');
       setClickedMusicNFTs([]); // Close music player
       setSelectedNFT(nft);
+      console.log('[OraclePage] selectedNFT should now be set');
     }
   }, []);
 
@@ -443,6 +445,11 @@ export default function OraclePage() {
   useEffect(() => {
     console.log('[OraclePage] clickedMusicNFTs updated, count:', clickedMusicNFTs.length, clickedMusicNFTs);
   }, [clickedMusicNFTs]);
+
+  // Debug: Log selectedNFT changes
+  useEffect(() => {
+    console.log('[OraclePage] selectedNFT updated:', selectedNFT ? JSON.stringify(selectedNFT, null, 2) : 'null');
+  }, [selectedNFT]);
 
   const closeNFTModal = () => {
     setSelectedNFT(null);
@@ -937,6 +944,7 @@ export default function OraclePage() {
       {/* NFT Modal - Different layouts for ART vs MUSIC */}
       {selectedNFT && (
         <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }} onClick={closeNFTModal}>
+          {console.log('[OraclePage] RENDERING NFT MODAL for type:', selectedNFT.type)}
           {selectedNFT.type === 'ART' ? (
             /* Art NFT - Full screen art viewer */
             <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>

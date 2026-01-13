@@ -113,8 +113,45 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       }
     };
 
+    // Touch event handlers for mobile
+    const updateTouchPosition = (touch: Touch) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      mouseX = (touch.clientX - rect.left) * scaleX;
+      mouseY = (touch.clientY - rect.top) * scaleY;
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        updateTouchPosition(e.touches[0]);
+        console.log('[CrystalBall] Touch start at:', mouseX, mouseY);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        updateTouchPosition(e.touches[0]);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      // Small delay to allow the render loop to update hoveredNFTRef
+      setTimeout(() => {
+        const currentHovered = hoveredNFTRef.current;
+        console.log('[CrystalBall] Touch ended, hoveredNFT:', currentHovered);
+        if (currentHovered && onNFTClick) {
+          console.log('[CrystalBall] Calling onNFTClick from touch with:', currentHovered.type, currentHovered.name);
+          onNFTClick(currentHovered);
+        }
+      }, 50);
+    };
+
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('click', handleClick);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     const render = () => {
       time += 0.005;
@@ -326,6 +363,9 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       cancelAnimationFrame(animationFrameId);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
     };
   }, [state, nftObjects, onNFTClick]);
 
