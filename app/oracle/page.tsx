@@ -1038,7 +1038,7 @@ export default function OraclePage() {
 
       {/* Create NFT Modal */}
       {showCreateNFTModal && (
-        <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} />
+        <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} isDarkMode={isDarkMode} />
       )}
 
       {/* Passport Mint Modal */}

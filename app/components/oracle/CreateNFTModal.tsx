@@ -8,6 +8,7 @@ import { useBotCommand } from '@/app/hooks/useBotCommand';
 
 interface CreateNFTModalProps {
   onClose: () => void;
+  isDarkMode?: boolean;
 }
 
 const steps = [
@@ -17,7 +18,7 @@ const steps = [
   { number: 4, title: 'Review & Mint', icon: '🚀' },
 ];
 
-export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
+export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalProps) {
   const { user, walletAddress, requestWallet } = useFarcasterContext();
   const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
 
@@ -378,12 +379,12 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-2 overflow-y-auto"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
     >
       {/* Circular Progress Overlay */}
       {(uploading || minting) && (
-        <div className="absolute inset-0 bg-gray-800 z-[10000] flex flex-col items-center justify-center ">
+        <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center" style={{ backgroundColor: isDarkMode ? '#1f2937' : '#f3f4f6' }}>
           <div className="relative">
             {/* Background circle */}
             <svg className="w-40 h-40 transform -rotate-90">
@@ -418,28 +419,26 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
             </svg>
             {/* Percentage number in center */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-4xl font-bold text-white">{progressPercent}</span>
+              <span className={`text-4xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{progressPercent}</span>
             </div>
           </div>
           {/* Stage text */}
-          <p className="mt-6 text-cyan-400 font-medium text-lg">{progressStage}</p>
-          <p className="mt-2 text-gray-500 text-sm">Please wait, do not close this window...</p>
+          <p className={`mt-6 font-medium text-lg ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{progressStage}</p>
+          <p className={`mt-2 text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Please wait, do not close this window...</p>
         </div>
       )}
 
-      <div className="w-full max-w-lg bg-gradient-to-br from-gray-900 via-purple-900/20 to-black border border-cyan-500/30 rounded-2xl shadow-2xl my-4 relative overflow-hidden">
-        {/* Animated gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-purple-500/5 to-pink-500/5 opacity-50" />
+      <div className={`w-full max-w-lg rounded-2xl shadow-2xl my-4 relative overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-300'}`}>
         <div className="relative p-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-xl font-bold text-white">Create NFT</h1>
-              <p className="text-gray-400 text-xs">Upload and mint on Monad</p>
+              <h1 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Create NFT</h1>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Upload and mint on Monad</p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className={`transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
             >
               <X className="w-6 h-6" />
             </button>
@@ -460,7 +459,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                       className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold transition-all ${
                         currentStep >= step.number
                           ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-110 shadow-lg'
-                          : 'bg-gray-800 text-gray-500'
+                          : isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-200 text-gray-400'
                       }`}
                     >
                       {step.icon}
@@ -468,7 +467,9 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                     <div className="mt-2 text-center">
                       <p
                         className={`text-xs font-medium ${
-                          currentStep >= step.number ? 'text-cyan-400' : 'text-gray-500'
+                          currentStep >= step.number
+                            ? isDarkMode ? 'text-cyan-400' : 'text-cyan-600'
+                            : isDarkMode ? 'text-gray-500' : 'text-gray-400'
                         }`}
                       >
                         {step.title}
@@ -480,7 +481,7 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                       className={`h-1 flex-1 mx-2 rounded transition-all ${
                         currentStep > step.number
                           ? 'bg-gradient-to-r from-cyan-500 to-purple-600'
-                          : 'bg-gray-800'
+                          : isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                       }`}
                     />
                   )}
@@ -555,19 +556,19 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
             {/* STEP 1: Choose NFT Type */}
             {currentStep === 1 && (
               <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-white mb-4">What would you like to create?</h2>
+                <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>What would you like to create?</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <button
                     onClick={() => {
                       setNftType('music');
                       setCurrentStep(2);
                     }}
-                    className="p-8 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500 hover:scale-105 transition-all"
+                    className={`p-8 rounded-2xl border-2 hover:scale-105 transition-all ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-500/30 hover:border-purple-500' : 'bg-purple-50 border-purple-200 hover:border-purple-500'}`}
                   >
                     <div className="text-6xl mb-4">🎵</div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Music NFT</h3>
-                    <p className="text-gray-400">Upload cover art + audio files</p>
-                    <div className="mt-4 text-sm text-purple-400 font-medium">Cover + Preview + Full Track →</div>
+                    <h3 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Music NFT</h3>
+                    <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Upload cover art + audio files</p>
+                    <div className="mt-4 text-sm text-purple-500 font-medium">Cover + Preview + Full Track →</div>
                   </button>
 
                   <button
@@ -575,12 +576,12 @@ export function CreateNFTModal({ onClose }: CreateNFTModalProps) {
                       setNftType('art');
                       setCurrentStep(2);
                     }}
-                    className="p-8 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl border-2 border-blue-500/30 hover:border-blue-500 hover:scale-105 transition-all"
+                    className={`p-8 rounded-2xl border-2 hover:scale-105 transition-all ${isDarkMode ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 hover:border-blue-500' : 'bg-blue-50 border-blue-200 hover:border-blue-500'}`}
                   >
                     <div className="text-6xl mb-4">🎨</div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Art NFT</h3>
-                    <p className="text-gray-400">Upload only cover art</p>
-                    <div className="mt-4 text-sm text-blue-400 font-medium">Cover Art Only →</div>
+                    <h3 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Art NFT</h3>
+                    <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Upload only cover art</p>
+                    <div className="mt-4 text-sm text-blue-500 font-medium">Cover Art Only →</div>
                   </button>
                 </div>
               </div>
