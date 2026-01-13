@@ -850,25 +850,11 @@ export default function OraclePage() {
               Radio
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowEventOracleModal(true); }}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-amber-400 hover:bg-amber-500/10' : 'text-gray-500 hover:text-amber-600 hover:bg-amber-50'}`}
+              onClick={() => { closeAllModals(); setShowCreateNFTModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-500 hover:text-emerald-600 hover:bg-emerald-50'}`}
             >
-              <Calendar className="w-3.5 h-3.5" />
-              Events
-            </button>
-            <button
-              onClick={() => { closeAllModals(); setShowDAOModal(true); }}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-green-400 hover:bg-green-500/10' : 'text-gray-500 hover:text-green-600 hover:bg-green-50'}`}
-            >
-              <Vote className="w-3.5 h-3.5" />
-              DAO
-            </button>
-            <button
-              onClick={() => { closeAllModals(); setActiveGame('MIRROR'); }}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-rose-400 hover:bg-rose-500/10' : 'text-gray-500 hover:text-rose-600 hover:bg-rose-50'}`}
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              MirrorMate
+              <Plus className="w-3.5 h-3.5" />
+              Create NFT
             </button>
           </div>
         </div>
