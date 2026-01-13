@@ -188,10 +188,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     )
   );
 
+  // Modal with fully opaque black background - no transparency
   const modalContent = (
     <div
       className="fixed inset-0 bg-black flex items-center justify-center p-4"
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: 9999, backgroundColor: '#000000' }}
       onClick={onClose}
     >
       <div

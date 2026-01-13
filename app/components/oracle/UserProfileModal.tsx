@@ -277,7 +277,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   const modalContent = (
     <div
       className="fixed inset-0 bg-black flex items-center justify-center p-2 sm:p-4"
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: 9999, backgroundColor: "#000000" }}
       onClick={onClose}
     >
       <div

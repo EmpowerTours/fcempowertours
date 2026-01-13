@@ -950,7 +950,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
         <button
           onClick={() => setIsMinimized(false)}
           className="fixed top-2 right-2 w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 shadow-md flex items-center justify-center hover:scale-105 transition-transform active:scale-95"
-          style={{ zIndex: 9999 }}
+          style={{ zIndex: 9999, backgroundColor: "#000000" }}
         >
           <Radio className="w-4 h-4 text-white" />
 
@@ -972,7 +972,7 @@ export function LiveRadioModal({ onClose }: LiveRadioModalProps) {
   const modalContent = (
     <div
       className="fixed inset-0 bg-black flex items-center justify-center p-4"
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: 9999, backgroundColor: "#000000" }}
       onClick={onClose}
     >
       {/* Toast Notification */}
