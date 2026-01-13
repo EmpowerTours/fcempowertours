@@ -676,10 +676,14 @@ export default function OraclePage() {
                   <img
                     src={user.pfpUrl}
                     alt={user.username || 'User'}
-                    className="w-6 h-6 rounded-full object-cover border border-cyan-500/50"
+                    className="rounded-full object-cover border border-cyan-500/50"
+                    style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px', minHeight: '24px', maxHeight: '24px' }}
                   />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
+                  <div
+                    className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold"
+                    style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px' }}
+                  >
                     {user.username?.charAt(0).toUpperCase() || '?'}
                   </div>
                 )}
