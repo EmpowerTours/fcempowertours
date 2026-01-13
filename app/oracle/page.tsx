@@ -662,7 +662,7 @@ export default function OraclePage() {
           <div className="flex items-center flex-shrink-0">
             <Globe className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
             <div className="ml-2">
-              <span className={`font-bold text-sm tracking-wide ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>EMPOWERTOURS</span>
+              <span className={`font-bold text-sm tracking-wide ${isDarkMode ? 'text-cyan-400' : 'text-gray-800'}`}>EMPOWERTOURS</span>
               <div className={`text-[9px] ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Oracle Guide</div>
             </div>
           </div>
@@ -692,7 +692,7 @@ export default function OraclePage() {
                 )}
                 <div className="text-right">
                   {user.username && (
-                    <div className={`text-[11px] font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>@{user.username}</div>
+                    <div className={`text-[11px] font-medium ${isDarkMode ? 'text-cyan-400' : 'text-gray-800'}`}>@{user.username}</div>
                   )}
                   <div className={`text-[9px] font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                     {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
