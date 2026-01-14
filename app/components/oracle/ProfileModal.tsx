@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User } from 'lucide-react';
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink } from 'lucide-react';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -20,6 +20,12 @@ interface UserStats {
   artCreated: number;
   musicPurchased: number;
   countries: string[];
+}
+
+interface SafeBalance {
+  safeAddress: string;
+  monBalance: string;
+  wmonBalance: string;
 }
 
 interface SearchedUser {
@@ -58,6 +64,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
   const [showFullProfile, setShowFullProfile] = useState(false);
+  const [safeBalance, setSafeBalance] = useState<SafeBalance | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -66,10 +74,33 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   useEffect(() => {
     if (walletAddress) {
       loadStats(walletAddress);
+      loadSafeBalance(walletAddress);
     } else {
       setLoading(false);
     }
   }, [walletAddress]);
+
+  const loadSafeBalance = async (address: string) => {
+    try {
+      const response = await fetch(`/api/user-safe?address=${address}`);
+      const data = await response.json();
+      if (data.success) {
+        setSafeBalance({
+          safeAddress: data.safeAddress || '',
+          monBalance: data.balance || '0',
+          wmonBalance: data.wmonBalance || '0'
+        });
+      }
+    } catch (error) {
+      console.error('[ProfileModal] Safe balance load error:', error);
+    }
+  };
+
+  const copyAddress = (address: string) => {
+    navigator.clipboard.writeText(address);
+    setCopiedAddress(true);
+    setTimeout(() => setCopiedAddress(false), 2000);
+  };
 
   const loadStats = async (address: string) => {
     setLoading(true);
@@ -351,10 +382,61 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               )}
 
+              {/* Safe Wallet Balance */}
+              {safeBalance && (
+                <div className="bg-gradient-to-br from-cyan-900/50 to-purple-900/50 border border-cyan-700/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-white flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-cyan-400" />
+                      Safe Wallet
+                    </h4>
+                    <a
+                      href={`https://testnet.monadscan.com/address/${safeBalance.safeAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                    >
+                      View <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Balances */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">MON</p>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">WMON</p>
+                    </div>
+                  </div>
+
+                  {/* Safe Address */}
+                  <div className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2">
+                    <p className="text-xs text-gray-400 font-mono truncate flex-1">{safeBalance.safeAddress}</p>
+                    <button
+                      onClick={() => copyAddress(safeBalance.safeAddress)}
+                      className="text-gray-400 hover:text-white transition-colors"
+                      title="Copy Safe address"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {copiedAddress && (
+                    <p className="text-xs text-green-400 mt-1 text-center">Copied!</p>
+                  )}
+
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Fund this Safe to use Maps & other services
+                  </p>
+                </div>
+              )}
+
               {/* Wallet Address */}
               {walletAddress && (
                 <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 mb-1">Wallet Address</p>
+                  <p className="text-xs text-gray-400 mb-1">Connected Wallet</p>
                   <p className="text-sm text-white font-mono break-all">{walletAddress}</p>
                 </div>
               )}
