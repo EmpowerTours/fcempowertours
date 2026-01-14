@@ -263,8 +263,15 @@ Return valid JSON only.`;
 
     // Add Maps grounding tool if needed
     // Best Practice: Only enable when query has geographical context (off by default)
+    // IMPORTANT: Maps grounding is incompatible with structured JSON output
+    // When using Maps, we must disable responseSchema and parse text manually
     if (needsMapsGrounding) {
       console.log('[Oracle] Enabling Google Maps grounding tool');
+
+      // Remove structured output - incompatible with Maps grounding
+      delete config.responseMimeType;
+      delete config.responseSchema;
+
       config.tools = [{ googleMaps: { enableWidget: true } }];
 
       // Best Practice: Always provide user location for most relevant responses
@@ -307,23 +314,7 @@ Return valid JSON only.`;
 
     const responseText = response.text || '';
 
-    // Parse JSON response
-    let action: OracleAction;
-    try {
-      action = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', responseText);
-      throw new Error('Invalid JSON response from AI');
-    }
-
-    console.log('[Oracle] Parsed action:', JSON.stringify(action, null, 2));
-
-    // Validate required fields
-    if (!action.type || !action.message) {
-      throw new Error('Invalid response structure from AI');
-    }
-
-    // Extract Maps grounding sources if present
+    // Extract Maps grounding sources if present (do this before parsing)
     let mapsSources: MapsGroundingSource[] = [];
     let mapsWidgetToken: string | null = null;
 
@@ -347,6 +338,35 @@ Return valid JSON only.`;
       }
 
       console.log('[Oracle] Maps sources:', mapsSources.length);
+      console.log('[Oracle] Maps widget token:', mapsWidgetToken ? 'present' : 'absent');
+    }
+
+    // Parse response - different handling for Maps vs structured output
+    let action: OracleAction;
+
+    if (needsMapsGrounding) {
+      // Maps grounding returns plain text, not JSON
+      // Convert to chat action with the text response
+      console.log('[Oracle] Maps response (text):', responseText.substring(0, 200));
+      action = {
+        type: 'chat',
+        message: responseText
+      };
+    } else {
+      // Non-maps: parse JSON structured output
+      try {
+        action = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', responseText);
+        throw new Error('Invalid JSON response from AI');
+      }
+    }
+
+    console.log('[Oracle] Parsed action:', JSON.stringify(action, null, 2));
+
+    // Validate required fields
+    if (!action.type || !action.message) {
+      throw new Error('Invalid response structure from AI');
     }
 
     // Execute action
