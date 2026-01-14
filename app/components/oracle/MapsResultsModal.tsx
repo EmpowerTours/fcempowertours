@@ -1,7 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Navigation, Star, Clock, ExternalLink, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+
+// Declare google maps types
+declare global {
+  interface Window {
+    google?: any;
+    initMapsWidget?: () => void;
+  }
+}
 
 interface MapsSource {
   uri: string;
@@ -38,35 +46,116 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [widgetError, setWidgetError] = useState<string | null>(null);
+  const widgetRef = useRef<HTMLDivElement>(null);
+
+  // Google Maps API key from environment variable
+  const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  // Load Google Maps JavaScript API and render widget
+  useEffect(() => {
+    if (!widgetToken || !mapsApiKey) {
+      if (!mapsApiKey) {
+        console.log('[MapsWidget] No API key configured');
+      }
+      return;
+    }
+
+    // Check if already loaded
+    if (window.google?.maps) {
+      setMapsLoaded(true);
+      return;
+    }
+
+    // Define callback
+    window.initMapsWidget = () => {
+      console.log('[MapsWidget] Google Maps loaded');
+      setMapsLoaded(true);
+    };
+
+    // Check if script already exists
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existingScript) {
+      // Script exists, wait for it to load
+      const checkInterval = setInterval(() => {
+        if (window.google?.maps) {
+          setMapsLoaded(true);
+          clearInterval(checkInterval);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(checkInterval), 5000);
+      return;
+    }
+
+    // Load script
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&callback=initMapsWidget`;
+    script.async = true;
+    script.defer = true;
+    script.onerror = () => {
+      console.error('[MapsWidget] Failed to load Google Maps');
+      setWidgetError('Failed to load Google Maps');
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      window.initMapsWidget = undefined;
+    };
+  }, [widgetToken, mapsApiKey]);
+
+  // Render widget when maps is loaded
+  useEffect(() => {
+    if (!mapsLoaded || !widgetToken || !widgetRef.current) return;
+
+    const renderWidget = async () => {
+      try {
+        console.log('[MapsWidget] Attempting to render with token:', widgetToken.substring(0, 30) + '...');
+
+        // Clear previous content
+        if (widgetRef.current) {
+          widgetRef.current.innerHTML = '';
+        }
+
+        // Try to use the Places contextual widget if available
+        // Note: The exact API depends on Google's implementation
+        if (window.google?.maps?.places?.PlaceContextualWidget) {
+          const widget = new window.google.maps.places.PlaceContextualWidget({
+            contextToken: widgetToken,
+          });
+          widget.setContainer(widgetRef.current);
+          console.log('[MapsWidget] Widget rendered');
+        } else {
+          // Fallback message - widget API may not be available
+          console.log('[MapsWidget] Contextual widget API not available');
+          setWidgetError('Interactive widget not available');
+        }
+      } catch (error: any) {
+        console.error('[MapsWidget] Render error:', error);
+        setWidgetError(error.message || 'Widget render failed');
+      }
+    };
+
+    renderWidget();
+  }, [mapsLoaded, widgetToken]);
 
   // Fetch additional place details for each source
   useEffect(() => {
-    const fetchPlaceDetails = async () => {
-      if (!sources.length) return;
+    if (!sources.length) return;
 
-      setLoadingDetails(true);
-      const details: Record<string, PlaceDetails> = {};
+    setLoadingDetails(true);
+    const details: Record<string, PlaceDetails> = {};
 
-      for (const source of sources) {
-        if (source.placeId) {
-          try {
-            // Note: In production, you would call a backend API to fetch place details
-            // to keep the API key secure. For now, we use basic info from the source.
-            details[source.placeId] = {
-              name: source.title,
-              // Additional details would come from Places API
-            };
-          } catch (error) {
-            console.error('Failed to fetch place details:', error);
-          }
-        }
+    for (const source of sources) {
+      if (source.placeId) {
+        details[source.placeId] = {
+          name: source.title,
+        };
       }
+    }
 
-      setPlaceDetails(details);
-      setLoadingDetails(false);
-    };
-
-    fetchPlaceDetails();
+    setPlaceDetails(details);
+    setLoadingDetails(false);
   }, [sources]);
 
   const handleNavigateToPlace = (uri: string) => {
@@ -256,24 +345,40 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
             {/* Map Placeholder */}
             <div className="flex-1 bg-gray-900/50 rounded-xl border border-cyan-500/20 overflow-hidden relative">
               {widgetToken ? (
-                <div className="w-full h-full flex items-center justify-center">
-                  {/* Google Maps Contextual Widget */}
-                  <div className="text-center p-6">
-                    <div className="text-6xl mb-4">🗺️</div>
-                    <h3 className="text-white font-semibold mb-2">Interactive Map</h3>
-                    <p className="text-gray-400 text-sm mb-4">
-                      Context Token: {widgetToken.substring(0, 20)}...
-                    </p>
-                    <a
-                      href={selectedSource?.uri || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-lg transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Open in Google Maps
-                    </a>
-                  </div>
+                <div className="w-full h-full flex flex-col">
+                  {/* Google Maps Widget Container */}
+                  <div ref={widgetRef} className="flex-1 min-h-[200px]" />
+
+                  {/* Loading/Error/Fallback States */}
+                  {!mapsLoaded && !widgetError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
+                      <div className="text-center p-6">
+                        <Loader2 className="w-8 h-8 text-cyan-500 animate-spin mx-auto mb-3" />
+                        <p className="text-gray-400 text-sm">Loading Google Maps...</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {(widgetError || (mapsLoaded && !mapsApiKey)) && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center p-6">
+                        <div className="text-6xl mb-4">🗺️</div>
+                        <h3 className="text-white font-semibold mb-2">{selectedSource?.title || 'Places Found'}</h3>
+                        <p className="text-gray-400 text-sm mb-4">
+                          {widgetError || 'Map widget unavailable'}
+                        </p>
+                        <a
+                          href={selectedSource?.uri || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-lg transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Open in Google Maps
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

@@ -330,6 +330,12 @@ Return valid JSON only.`;
           console.log('[Oracle] GroundingMetadata keys:', Object.keys(response.candidates[0].groundingMetadata as any));
         }
       }
+      // Log config that was sent to help debug
+      console.log('[Oracle] Config sent to Gemini:', JSON.stringify({
+        tools: config.tools,
+        toolConfig: config.toolConfig,
+        hasResponseSchema: !!config.responseSchema
+      }));
     }
 
     // Extract Maps grounding sources if present (do this before parsing)
