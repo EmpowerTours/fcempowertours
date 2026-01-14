@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Star, Clock, ExternalLink, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 // Declare google maps types
 declare global {
@@ -22,9 +22,11 @@ interface PlaceDetails {
   rating?: number;
   userRatingsTotal?: number;
   vicinity?: string;
+  address?: string;
   types?: string[];
   openNow?: boolean;
   photoUrl?: string;
+  location?: { lat: number; lng: number };
 }
 
 interface MapsResultsModalProps {
@@ -44,26 +46,31 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
-  const [loadingDetails, setLoadingDetails] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [mapsLoaded, setMapsLoaded] = useState(false);
-  const [widgetError, setWidgetError] = useState<string | null>(null);
-  const widgetRef = useRef<HTMLDivElement>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const infoWindowRef = useRef<any>(null);
+  const placesServiceRef = useRef<any>(null);
 
   // Google Maps API key from environment variable
   const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  // Load Google Maps JavaScript API and render widget
+  // Load Google Maps JavaScript API
   useEffect(() => {
-    if (!widgetToken || !mapsApiKey) {
-      if (!mapsApiKey) {
-        console.log('[MapsWidget] No API key configured');
-      }
+    if (!mapsApiKey) {
+      console.log('[MapsWidget] No API key configured');
+      setMapError('Google Maps API key not configured');
       return;
     }
 
     // Check if already loaded
     if (window.google?.maps) {
+      console.log('[MapsWidget] Google Maps already loaded');
       setMapsLoaded(true);
       return;
     }
@@ -77,93 +84,224 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     // Check if script already exists
     const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existingScript) {
-      // Script exists, wait for it to load
       const checkInterval = setInterval(() => {
         if (window.google?.maps) {
           setMapsLoaded(true);
           clearInterval(checkInterval);
         }
       }, 100);
-      setTimeout(() => clearInterval(checkInterval), 5000);
+      setTimeout(() => clearInterval(checkInterval), 10000);
       return;
     }
 
-    // Load script
+    // Load script with places library
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&callback=initMapsWidget`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places,marker&callback=initMapsWidget`;
     script.async = true;
     script.defer = true;
     script.onerror = () => {
       console.error('[MapsWidget] Failed to load Google Maps');
-      setWidgetError('Failed to load Google Maps');
+      setMapError('Failed to load Google Maps');
     };
     document.head.appendChild(script);
 
     return () => {
       window.initMapsWidget = undefined;
     };
-  }, [widgetToken, mapsApiKey]);
+  }, [mapsApiKey]);
 
-  // Render widget when maps is loaded
+  // Initialize map when Google Maps is loaded
   useEffect(() => {
-    if (!mapsLoaded || !widgetToken || !widgetRef.current) return;
+    if (!mapsLoaded || !mapRef.current || mapInstanceRef.current) return;
 
-    const renderWidget = async () => {
-      try {
-        console.log('[MapsWidget] Attempting to render with token:', widgetToken.substring(0, 30) + '...');
+    try {
+      console.log('[MapsWidget] Initializing map');
 
-        // Clear previous content
-        if (widgetRef.current) {
-          widgetRef.current.innerHTML = '';
+      // Default center (will be updated when we get place details)
+      const defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC as fallback
+
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: defaultCenter,
+        zoom: 12,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        styles: [
+          { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#8892b0' }] },
+          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2d3748' }] },
+          { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8892b0' }] },
+          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1a2b' }] },
+          { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+          { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a3a2a' }] },
+        ],
+      });
+
+      mapInstanceRef.current = map;
+      placesServiceRef.current = new window.google.maps.places.PlacesService(map);
+      infoWindowRef.current = new window.google.maps.InfoWindow();
+
+      setMapReady(true);
+      console.log('[MapsWidget] Map initialized');
+    } catch (error: any) {
+      console.error('[MapsWidget] Map init error:', error);
+      setMapError(error.message || 'Failed to initialize map');
+    }
+  }, [mapsLoaded]);
+
+  // Fetch place details for sources with placeIds
+  useEffect(() => {
+    if (!mapReady || !placesServiceRef.current || sources.length === 0) return;
+
+    const fetchPlaceDetails = async () => {
+      const details: Record<string, PlaceDetails> = {};
+      const bounds = new window.google.maps.LatLngBounds();
+      let hasValidLocations = false;
+
+      for (const source of sources) {
+        if (source.placeId) {
+          try {
+            const placeResult = await new Promise<any>((resolve, reject) => {
+              placesServiceRef.current.getDetails(
+                {
+                  placeId: source.placeId,
+                  fields: ['name', 'geometry', 'formatted_address', 'rating', 'user_ratings_total', 'types', 'opening_hours', 'photos']
+                },
+                (result: any, status: string) => {
+                  if (status === 'OK' && result) {
+                    resolve(result);
+                  } else {
+                    reject(new Error(status));
+                  }
+                }
+              );
+            });
+
+            const location = placeResult.geometry?.location;
+            if (location) {
+              details[source.placeId] = {
+                name: placeResult.name || source.title,
+                rating: placeResult.rating,
+                userRatingsTotal: placeResult.user_ratings_total,
+                address: placeResult.formatted_address,
+                types: placeResult.types,
+                openNow: placeResult.opening_hours?.isOpen?.(),
+                photoUrl: placeResult.photos?.[0]?.getUrl({ maxWidth: 400 }),
+                location: { lat: location.lat(), lng: location.lng() }
+              };
+              bounds.extend(location);
+              hasValidLocations = true;
+            }
+          } catch (error) {
+            console.log(`[MapsWidget] Could not get details for ${source.placeId}:`, error);
+            // Still add basic info
+            details[source.placeId] = { name: source.title };
+          }
         }
+      }
 
-        // Try to use the Places contextual widget if available
-        // Note: The exact API depends on Google's implementation
-        if (window.google?.maps?.places?.PlaceContextualWidget) {
-          const widget = new window.google.maps.places.PlaceContextualWidget({
-            contextToken: widgetToken,
-          });
-          widget.setContainer(widgetRef.current);
-          console.log('[MapsWidget] Widget rendered');
-        } else {
-          // Fallback message - widget API may not be available
-          console.log('[MapsWidget] Contextual widget API not available');
-          setWidgetError('Interactive widget not available');
-        }
-      } catch (error: any) {
-        console.error('[MapsWidget] Render error:', error);
-        setWidgetError(error.message || 'Widget render failed');
+      setPlaceDetails(details);
+
+      // Fit map to bounds if we have locations
+      if (hasValidLocations && mapInstanceRef.current) {
+        mapInstanceRef.current.fitBounds(bounds);
+        // Don't zoom in too much
+        const listener = window.google.maps.event.addListener(mapInstanceRef.current, 'idle', () => {
+          if (mapInstanceRef.current.getZoom() > 16) {
+            mapInstanceRef.current.setZoom(16);
+          }
+          window.google.maps.event.removeListener(listener);
+        });
       }
     };
 
-    renderWidget();
-  }, [mapsLoaded, widgetToken]);
+    fetchPlaceDetails();
+  }, [mapReady, sources]);
 
-  // Fetch additional place details for each source
+  // Create markers when place details are loaded
   useEffect(() => {
-    if (!sources.length) return;
+    if (!mapReady || !mapInstanceRef.current || Object.keys(placeDetails).length === 0) return;
 
-    setLoadingDetails(true);
-    const details: Record<string, PlaceDetails> = {};
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
 
-    for (const source of sources) {
-      if (source.placeId) {
-        details[source.placeId] = {
-          name: source.title,
-        };
-      }
+    // Create markers for each place with a location
+    sources.forEach((source, index) => {
+      const details = source.placeId ? placeDetails[source.placeId] : null;
+      if (!details?.location) return;
+
+      const marker = new window.google.maps.Marker({
+        position: details.location,
+        map: mapInstanceRef.current,
+        title: source.title,
+        label: {
+          text: String(index + 1),
+          color: '#000000',
+          fontWeight: 'bold',
+        },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: index === selectedIndex ? '#06b6d4' : '#8b5cf6',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
+      });
+
+      marker.addListener('click', () => {
+        setSelectedIndex(index);
+        showInfoWindow(marker, source, details);
+      });
+
+      markersRef.current.push(marker);
+    });
+  }, [mapReady, placeDetails, sources]);
+
+  // Update marker colors when selection changes
+  useEffect(() => {
+    markersRef.current.forEach((marker, index) => {
+      marker.setIcon({
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: index === selectedIndex ? '#06b6d4' : '#8b5cf6',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+      });
+    });
+
+    // Pan to selected marker
+    const selectedSource = sources[selectedIndex];
+    const details = selectedSource?.placeId ? placeDetails[selectedSource.placeId] : null;
+    if (details?.location && mapInstanceRef.current) {
+      mapInstanceRef.current.panTo(details.location);
     }
+  }, [selectedIndex, placeDetails, sources]);
 
-    setPlaceDetails(details);
-    setLoadingDetails(false);
-  }, [sources]);
+  const showInfoWindow = useCallback((marker: any, source: MapsSource, details: PlaceDetails) => {
+    if (!infoWindowRef.current) return;
+
+    const content = `
+      <div style="padding: 8px; max-width: 250px;">
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold; color: #1a1a1a;">${details.name}</h3>
+        ${details.rating ? `<div style="margin-bottom: 4px; font-size: 12px;">⭐ ${details.rating} (${details.userRatingsTotal || 0} reviews)</div>` : ''}
+        ${details.address ? `<div style="font-size: 11px; color: #666; margin-bottom: 8px;">${details.address}</div>` : ''}
+        <a href="${source.uri}" target="_blank" rel="noopener noreferrer" style="color: #0891b2; font-size: 12px; text-decoration: none;">View on Google Maps →</a>
+      </div>
+    `;
+
+    infoWindowRef.current.setContent(content);
+    infoWindowRef.current.open(mapInstanceRef.current, marker);
+  }, []);
 
   const handleNavigateToPlace = (uri: string) => {
     window.open(uri, '_blank', 'noopener,noreferrer');
   };
 
   const handleGetDirections = (source: MapsSource) => {
-    // Open Google Maps directions in a new tab
     const directionsUrl = source.placeId
       ? `https://www.google.com/maps/dir/?api=1&destination_place_id=${source.placeId}`
       : source.uri.replace('/maps/place/', '/maps/dir/?api=1&destination=');
@@ -171,8 +309,9 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   };
 
   const selectedSource = sources[selectedIndex];
+  const selectedDetails = selectedSource?.placeId ? placeDetails[selectedSource.placeId] : null;
 
-  // Extract type tags from title (e.g., "Restaurant", "Cafe")
+  // Extract type tags from title
   const getPlaceType = (title: string): string => {
     const types = ['Restaurant', 'Cafe', 'Bar', 'Hotel', 'Museum', 'Park', 'Shop', 'Store', 'Beach', 'Club'];
     for (const type of types) {
@@ -239,6 +378,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
               {sources.map((source, index) => {
                 const isSelected = index === selectedIndex;
                 const placeType = getPlaceType(source.title);
+                const details = source.placeId ? placeDetails[source.placeId] : null;
 
                 return (
                   <div
@@ -260,16 +400,24 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
                       <div className="flex-1 min-w-0">
                         <h3 className="text-white font-semibold truncate">{source.title}</h3>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full">
                             {placeType}
                           </span>
-                          {source.placeId && (
-                            <span className="text-xs text-gray-500">
-                              ID: {source.placeId.substring(0, 12)}...
+                          {details?.rating && (
+                            <span className="text-xs text-yellow-400">
+                              ⭐ {details.rating}
+                            </span>
+                          )}
+                          {details?.openNow !== undefined && (
+                            <span className={`text-xs ${details.openNow ? 'text-green-400' : 'text-red-400'}`}>
+                              {details.openNow ? '● Open' : '● Closed'}
                             </span>
                           )}
                         </div>
+                        {details?.address && (
+                          <p className="text-xs text-gray-500 mt-1 truncate">{details.address}</p>
+                        )}
                       </div>
                     </div>
 
@@ -307,7 +455,6 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
             <div className="mt-4 pt-4 border-t border-gray-700/50">
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>{sources.length} places found</span>
-                {/* Google Maps Text Attribution - Following Google Guidelines */}
                 <span
                   translate="no"
                   className="flex items-center gap-1.5"
@@ -326,13 +473,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                     <path fill="#fbbc04" d="M46.2 63.8c-9.8 0-17.7-7.9-17.7-17.7 0-4.3 1.6-8.3 4.2-11.4L4.6 68.1C11.5 81.9 24.5 98 36.6 114.2 43.3 101 51.3 88 59.6 74.9c-3.3 3.8-8.1 6.3-13.4 6.3"/>
                     <path fill="#34a853" d="M59.6 74.9c11.4-16.2 24.6-32.2 32.7-46.6 0 0-12.8 15.3-27.5 32.7 8.5 11.4 18.4 24 24.8 38.5 5.1-12.3 2.7-26.1 2.7-26.1-5.5 10.6-19.4 31.4-37.6 58.9 0 0 12.3-21.2 19.4-35.1-6.4-10.8-13.5-21.1-14.5-22.3"/>
                   </svg>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      letterSpacing: '0.2px',
-                      color: '#9aa0a6'
-                    }}
-                  >
+                  <span style={{ fontSize: '11px', letterSpacing: '0.2px', color: '#9aa0a6' }}>
                     Google Maps
                   </span>
                 </span>
@@ -342,75 +483,75 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
           {/* Map View / Selected Place Details */}
           <div className={`${viewMode === 'list' ? 'hidden md:block' : ''} flex-1 p-4 flex flex-col`}>
-            {/* Map Placeholder */}
+            {/* Map Container */}
             <div className="flex-1 bg-gray-900/50 rounded-xl border border-cyan-500/20 overflow-hidden relative">
-              {widgetToken ? (
-                <div className="w-full h-full flex flex-col">
-                  {/* Google Maps Widget Container */}
-                  <div ref={widgetRef} className="flex-1 min-h-[200px]" />
+              {mapsApiKey ? (
+                <>
+                  {/* Google Maps Container */}
+                  <div ref={mapRef} className="w-full h-full min-h-[300px]" />
 
-                  {/* Loading/Error/Fallback States */}
-                  {!mapsLoaded && !widgetError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
+                  {/* Loading State */}
+                  {!mapReady && !mapError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/90">
                       <div className="text-center p-6">
                         <Loader2 className="w-8 h-8 text-cyan-500 animate-spin mx-auto mb-3" />
-                        <p className="text-gray-400 text-sm">Loading Google Maps...</p>
+                        <p className="text-gray-400 text-sm">Loading map...</p>
                       </div>
                     </div>
                   )}
 
-                  {(widgetError || (mapsLoaded && !mapsApiKey)) && (
-                    <div className="absolute inset-0 flex items-center justify-center">
+                  {/* Error State */}
+                  {mapError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/90">
                       <div className="text-center p-6">
-                        <div className="text-6xl mb-4">🗺️</div>
-                        <h3 className="text-white font-semibold mb-2">{selectedSource?.title || 'Places Found'}</h3>
-                        <p className="text-gray-400 text-sm mb-4">
-                          {widgetError || 'Map widget unavailable'}
-                        </p>
+                        <div className="text-5xl mb-3">🗺️</div>
+                        <p className="text-red-400 text-sm mb-4">{mapError}</p>
                         <a
                           href={selectedSource?.uri || '#'}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-lg transition-colors"
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <MapPin className="w-4 h-4" />
                           Open in Google Maps
                         </a>
                       </div>
                     </div>
                   )}
-                </div>
+                </>
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-center p-6">
-                    <div className="text-6xl mb-4">📍</div>
-                    <h3 className="text-white font-semibold mb-2">{selectedSource?.title || 'Select a Place'}</h3>
-                    {selectedSource && (
-                      <>
-                        <p className="text-gray-400 text-sm mb-4">
-                          Click to view location details on Google Maps
-                        </p>
-                        <div className="flex flex-col gap-2">
-                          <a
-                            href={selectedSource.uri}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-lg transition-colors"
-                          >
-                            <MapPin className="w-4 h-4" />
-                            View on Google Maps
-                          </a>
-                          <button
-                            onClick={() => handleGetDirections(selectedSource)}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition-colors"
-                          >
-                            <Navigation className="w-4 h-4" />
-                            Get Directions
-                          </button>
-                        </div>
-                      </>
-                    )}
+                /* No API Key Fallback */
+                <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                  <div className="text-center mb-4">
+                    <div className="text-5xl mb-2">📍</div>
+                    <h3 className="text-white font-bold text-lg">{selectedSource?.title || 'Select a Place'}</h3>
+                    <p className="text-cyan-400 text-sm">{getPlaceType(selectedSource?.title || '')}</p>
                   </div>
+
+                  {selectedSource && (
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                      <a
+                        href={selectedSource.uri}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3 px-4 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                      >
+                        <MapPin className="w-5 h-5" />
+                        View on Google Maps
+                      </a>
+                      <button
+                        onClick={() => handleGetDirections(selectedSource)}
+                        className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Navigation className="w-5 h-5" />
+                        Get Directions
+                      </button>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-500 mt-4 text-center">
+                    Powered by Google Maps Grounding
+                  </p>
                 </div>
               )}
 
@@ -419,7 +560,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                 <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-4 md:hidden">
                   <button
                     onClick={() => setSelectedIndex(prev => (prev > 0 ? prev - 1 : sources.length - 1))}
-                    className="w-10 h-10 bg-gray-800 hover:bg-gray-800 rounded-full flex items-center justify-center text-white transition-colors"
+                    className="w-10 h-10 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -428,7 +569,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                   </div>
                   <button
                     onClick={() => setSelectedIndex(prev => (prev < sources.length - 1 ? prev + 1 : 0))}
-                    className="w-10 h-10 bg-gray-800 hover:bg-gray-800 rounded-full flex items-center justify-center text-white transition-colors"
+                    className="w-10 h-10 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
@@ -440,27 +581,47 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
             {selectedSource && (
               <div className="mt-4 bg-gray-800 border border-cyan-500/20 rounded-xl p-4">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-white font-bold text-lg">{selectedSource.title}</h3>
-                    <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white font-bold text-lg truncate">{selectedSource.title}</h3>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full">
                         {getPlaceType(selectedSource.title)}
                       </span>
+                      {selectedDetails?.rating && (
+                        <span className="text-xs text-yellow-400">
+                          ⭐ {selectedDetails.rating} ({selectedDetails.userRatingsTotal || 0})
+                        </span>
+                      )}
                     </div>
+                    {selectedDetails?.address && (
+                      <p className="text-xs text-gray-500 mt-2 line-clamp-2">{selectedDetails.address}</p>
+                    )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right ml-3">
                     <div className="text-2xl font-bold text-cyan-400">#{selectedIndex + 1}</div>
                     <div className="text-xs text-gray-500">of {sources.length}</div>
                   </div>
                 </div>
 
-                {selectedSource.placeId && (
-                  <div className="mt-3 pt-3 border-t border-gray-700/50">
-                    <div className="text-xs text-gray-500">
-                      Place ID: <span className="text-gray-400">{selectedSource.placeId}</span>
-                    </div>
-                  </div>
-                )}
+                {/* Quick Actions */}
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-700/50">
+                  <a
+                    href={selectedSource.uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    View on Maps
+                  </a>
+                  <button
+                    onClick={() => handleGetDirections(selectedSource)}
+                    className="flex-1 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Navigation className="w-3 h-3" />
+                    Directions
+                  </button>
+                </div>
               </div>
             )}
           </div>
