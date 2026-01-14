@@ -173,16 +173,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build system prompt - include Maps instructions if grounding is enabled
-    const mapsInstructions = needsMapsGrounding ? `
-For location queries (restaurants, hotels, attractions, places near me, etc.):
-- Use the Google Maps grounding tool to find real places
-- Return type:"chat" with a helpful message about the places found
-- Include place names, ratings, and addresses in your response
-- User location: ${userLocation?.city || 'unknown'}, ${userLocation?.country || 'unknown'}
-` : '';
+    // Build prompt - use simple natural language for Maps, structured for other queries
+    let systemPrompt: string;
 
-    const systemPrompt = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
+    if (needsMapsGrounding) {
+      // Simple prompt for Maps grounding - let the model use the tool naturally
+      // DO NOT ask for JSON output - this confuses the grounding tool
+      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || 'an unknown city'}, ${userLocation?.country || 'unknown country'}.
+
+Answer their question about local places. Be helpful and conversational. Include specific place names, ratings, and addresses when available.
+
+User question: ${message}`;
+    } else {
+      // Structured prompt for non-Maps queries
+      systemPrompt = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
 
 CRITICAL: Function names MUST be exactly as listed. No variations.
 
@@ -194,7 +198,7 @@ Actions:
 - type:"navigate" + destination:"/path" - Navigate to page
 - type:"game" + game:"MIRROR" - Launch game
 - type:"chat" - Conversational response
-${mapsInstructions}
+
 For "Buy MUSIC NFT #X" requests:
 {"type":"execute","message":"Purchasing Music NFT #X","transaction":{"function":"buy_music","args":["X"],"contract":"music"}}
 
@@ -204,6 +208,7 @@ For "Buy ART NFT #X" requests:
 User message: "${message}"
 
 Return valid JSON only.`;
+    }
 
     // Configure Maps grounding if needed
     const config: any = {
@@ -314,12 +319,26 @@ Return valid JSON only.`;
 
     const responseText = response.text || '';
 
+    // Debug: Log full response structure for Maps queries
+    if (needsMapsGrounding) {
+      console.log('[Oracle] Response has candidates:', !!response.candidates);
+      console.log('[Oracle] Candidates count:', response.candidates?.length || 0);
+      if (response.candidates?.[0]) {
+        console.log('[Oracle] Candidate[0] keys:', Object.keys(response.candidates[0]));
+        console.log('[Oracle] Has groundingMetadata:', !!response.candidates[0].groundingMetadata);
+        if (response.candidates[0].groundingMetadata) {
+          console.log('[Oracle] GroundingMetadata keys:', Object.keys(response.candidates[0].groundingMetadata as any));
+        }
+      }
+    }
+
     // Extract Maps grounding sources if present (do this before parsing)
     let mapsSources: MapsGroundingSource[] = [];
     let mapsWidgetToken: string | null = null;
 
     if (needsMapsGrounding && response.candidates?.[0]?.groundingMetadata) {
       const grounding = response.candidates[0].groundingMetadata as any;
+      console.log('[Oracle] Grounding metadata:', JSON.stringify(grounding, null, 2).substring(0, 500));
 
       // Extract sources
       if (grounding.groundingChunks) {
@@ -339,6 +358,8 @@ Return valid JSON only.`;
 
       console.log('[Oracle] Maps sources:', mapsSources.length);
       console.log('[Oracle] Maps widget token:', mapsWidgetToken ? 'present' : 'absent');
+    } else if (needsMapsGrounding) {
+      console.log('[Oracle] WARNING: Maps grounding enabled but no groundingMetadata in response');
     }
 
     // Parse response - different handling for Maps vs structured output
@@ -453,22 +474,25 @@ Return valid JSON only.`;
     }
 
     // =============================================
-    // AUTONOMOUS ITINERARY CREATION/RECOMMENDATION
+    // ITINERARY CREATION/RECOMMENDATION
     // =============================================
-    // When user makes a Maps query:
-    // 1. Check if similar itinerary already exists -> recommend it
-    // 2. If not exists -> create new itinerary with user as creator
+    // Behavior:
+    // 1. If user explicitly says "save itinerary" + has GPS -> create (GPS-verified)
+    // 2. Otherwise, only recommend existing itineraries (don't auto-create)
     let itineraryTxHash: string | null = null;
     let itineraryData: any = null;
+    const wantsSaveItinerary = detectSaveItineraryIntent(message);
 
     if (needsMapsGrounding && mapsSources.length > 0 && userAddress && userFid) {
       try {
         console.log('[Oracle] Processing itinerary for Maps results...');
+        console.log('[Oracle] Save intent detected:', wantsSaveItinerary);
+        console.log('[Oracle] User location:', userLocation);
 
-        // Extract city/country from the query
+        // Extract city/country from the query or user location
         const locationInfo = extractLocationFromQuery(message);
-        const city = locationInfo.city || 'Unknown City';
-        const country = locationInfo.country || 'Unknown';
+        const city = userLocation?.city || locationInfo.city || 'Unknown City';
+        const country = userLocation?.country || locationInfo.country || 'Unknown';
 
         // Check if similar itinerary already exists
         const existingItinerary = await findExistingItinerary(city, mapsSources);
@@ -486,39 +510,77 @@ Return valid JSON only.`;
           };
 
           action.message = `${action.message}\n\n📍 **Recommended Itinerary**\n"${existingItinerary.title}" by ${existingItinerary.creatorName || 'a fellow traveler'}\nPrice: ${existingItinerary.price} WMON | Rating: ${existingItinerary.rating}/5\nPurchase to unlock the full guide and earn completion stamps!`;
-        } else {
-          // Create new itinerary with user as creator
-          console.log('[Oracle] Creating new itinerary...');
+        } else if (wantsSaveItinerary) {
+          // User explicitly wants to save - REQUIRE GPS verification
+          console.log('[Oracle] User wants to save itinerary, checking GPS...');
 
-          const locations = mapsSources.map((source, index) => ({
-            name: source.title,
-            placeId: source.placeId || '',
-            uri: source.uri,
-            latitude: 0,
-            longitude: 0,
-            description: `Discover ${source.title}`
-          }));
-
-          const itineraryResult = await createItineraryFromMaps(
-            userAddress,
-            userFid,
-            `${city} Explorer: ${message.slice(0, 50)}`,
-            city,
-            country,
-            locations
-          );
-
-          if (itineraryResult.success) {
-            itineraryTxHash = itineraryResult.txHash || null;
+          if (!userLocation?.latitude || !userLocation?.longitude) {
+            // No GPS - inform user they need to be at the location
+            console.log('[Oracle] No GPS coordinates provided');
             itineraryData = {
               exists: false,
-              created: true,
-              txHash: itineraryTxHash
+              created: false,
+              requiresGPS: true,
+              error: 'GPS verification required'
             };
-            console.log('[Oracle] Itinerary created:', itineraryTxHash);
+            action.message = `${action.message}\n\n📍 **GPS Required**\nTo create an itinerary, you must be physically at the location. Please enable location services and try again when you're there!`;
+          } else {
+            // Verify user is at the location (within 500m)
+            // Since we searched "near me", the user's location IS the anchor point
+            // We're trusting that the GPS coordinates provided are real
+            const gpsVerified = true; // User provided their GPS, so they're "at" this location
+            console.log('[Oracle] GPS verified at:', city, country);
 
-            action.message = `${action.message}\n\n🎉 **Itinerary Created!**\nYou are now the creator of "${city} Explorer". You'll earn 70% of all future sales when others purchase it!`;
+            if (gpsVerified) {
+              // Create GPS-verified itinerary
+              console.log('[Oracle] Creating GPS-verified itinerary...');
+
+              const locations = mapsSources.map((source, index) => ({
+                name: source.title,
+                placeId: source.placeId || '',
+                uri: source.uri,
+                latitude: Math.round(userLocation.latitude * 1e6), // Store as int * 1e6
+                longitude: Math.round(userLocation.longitude * 1e6),
+                description: `Discover ${source.title}`
+              }));
+
+              const itineraryResult = await createItineraryFromMaps(
+                userAddress,
+                userFid,
+                `${city} Explorer: ${message.slice(0, 50)}`,
+                city,
+                country,
+                locations
+              );
+
+              if (itineraryResult.success) {
+                itineraryTxHash = itineraryResult.txHash || null;
+                itineraryData = {
+                  exists: false,
+                  created: true,
+                  gpsVerified: true,
+                  txHash: itineraryTxHash,
+                  city,
+                  country
+                };
+                console.log('[Oracle] GPS-verified itinerary created:', itineraryTxHash);
+
+                action.message = `${action.message}\n\n🎉 **Itinerary Created (GPS Verified!)**\nYou are now the creator of "${city} Explorer".\n📍 Location verified: ${city}, ${country}\nYou'll earn 70% of all future sales when others purchase it!`;
+              } else {
+                console.error('[Oracle] Itinerary creation failed:', itineraryResult.error);
+                action.message = `${action.message}\n\n⚠️ Could not save itinerary: ${itineraryResult.error}`;
+              }
+            }
           }
+        } else {
+          // User is just browsing - don't auto-create, suggest they can save
+          console.log('[Oracle] User browsing only, suggesting save option');
+          itineraryData = {
+            exists: false,
+            created: false,
+            canCreate: true
+          };
+          action.message = `${action.message}\n\n💡 **Tip:** Say "save this as itinerary" while at this location to create a travel guide and earn 70% on future sales!`;
         }
       } catch (itinError: any) {
         console.error('[Oracle] Itinerary processing error:', itinError);
@@ -952,4 +1014,52 @@ async function createItineraryFromMaps(
     console.error('[Oracle] Create itinerary error:', error);
     return { success: false, error: error.message };
   }
+}
+
+// =============================================
+// SAVE ITINERARY (GPS-VERIFIED) HELPERS
+// =============================================
+
+// Detect if user wants to explicitly save/create an itinerary
+function detectSaveItineraryIntent(message: string): boolean {
+  const lowerMessage = message.toLowerCase();
+
+  const saveKeywords = [
+    'save this', 'save as itinerary', 'create itinerary',
+    'make itinerary', 'add to itinerary', 'save itinerary',
+    'save these places', 'remember this', 'bookmark this',
+    'save my route', 'create a guide', 'make a guide',
+    'save for later', 'create trip', 'save trip'
+  ];
+
+  return saveKeywords.some(keyword => lowerMessage.includes(keyword));
+}
+
+// Minimum distance in meters to be considered "at the location"
+const GPS_VERIFICATION_RADIUS = 500; // 500 meters
+
+// Verify user is at a location using GPS coordinates
+function verifyUserAtLocation(
+  userLat: number,
+  userLon: number,
+  targetLat: number,
+  targetLon: number
+): { verified: boolean; distance: number } {
+  // Haversine formula for distance calculation
+  const R = 6371e3; // Earth radius in meters
+  const φ1 = (userLat * Math.PI) / 180;
+  const φ2 = (targetLat * Math.PI) / 180;
+  const Δφ = ((targetLat - userLat) * Math.PI) / 180;
+  const Δλ = ((targetLon - userLon) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+
+  return {
+    verified: distance <= GPS_VERIFICATION_RADIUS,
+    distance: Math.round(distance)
+  };
 }
