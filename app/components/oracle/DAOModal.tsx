@@ -128,26 +128,62 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
         }
       }
 
-      // Fetch vTOURS balance and voting power (from Safe, since delegation wraps to Safe)
-      if (VTOURS_ADDRESS && userSafeAddr) {
+      // Fetch vTOURS balance and voting power from BOTH wallet and Safe
+      if (VTOURS_ADDRESS) {
         try {
           const vToursContract = new ethers.Contract(VTOURS_ADDRESS, VTOURS_ABI, provider);
-          const vToursBal = await vToursContract.balanceOf(userSafeAddr);
-          setVToursBalance(ethers.formatEther(vToursBal));
 
-          const votes = await vToursContract.getVotes(userSafeAddr);
-          setVotingPower(ethers.formatEther(votes));
+          // Check wallet vTOURS balance and voting power
+          let walletVTours = 0n;
+          let walletVotes = 0n;
+          try {
+            walletVTours = await vToursContract.balanceOf(userAddress);
+            walletVotes = await vToursContract.getVotes(userAddress);
+            console.log('[DAOModal] Wallet vTOURS:', ethers.formatEther(walletVTours), 'votes:', ethers.formatEther(walletVotes));
 
-          const delegate = await vToursContract.delegates(userSafeAddr);
-          if (delegate !== ethers.ZeroAddress) {
-            setDelegatedTo(delegate);
+            // Check wallet delegation
+            const walletDelegate = await vToursContract.delegates(userAddress);
+            if (walletDelegate !== ethers.ZeroAddress) {
+              setDelegatedTo(walletDelegate);
+            }
+          } catch (e) {
+            console.warn('[DAOModal] Failed to fetch wallet vTOURS:', e);
           }
-          console.log('[DAOModal] Safe vTOURS data loaded, voting power:', ethers.formatEther(votes));
+
+          // Check Safe vTOURS balance and voting power (if Safe exists)
+          let safeVTours = 0n;
+          let safeVotes = 0n;
+          if (userSafeAddr) {
+            try {
+              safeVTours = await vToursContract.balanceOf(userSafeAddr);
+              safeVotes = await vToursContract.getVotes(userSafeAddr);
+              console.log('[DAOModal] Safe vTOURS:', ethers.formatEther(safeVTours), 'votes:', ethers.formatEther(safeVotes));
+
+              // Check Safe delegation if no wallet delegation found
+              if (!delegatedTo) {
+                const safeDelegate = await vToursContract.delegates(userSafeAddr);
+                if (safeDelegate !== ethers.ZeroAddress) {
+                  setDelegatedTo(safeDelegate);
+                }
+              }
+            } catch (e) {
+              console.warn('[DAOModal] Failed to fetch Safe vTOURS:', e);
+            }
+          }
+
+          // Combine totals (wallet + Safe)
+          const totalVTours = walletVTours + safeVTours;
+          const totalVotes = walletVotes + safeVotes;
+
+          setVToursBalance(ethers.formatEther(totalVTours));
+          setVotingPower(ethers.formatEther(totalVotes));
+
+          console.log('[DAOModal] Total vTOURS:', ethers.formatEther(totalVTours), 'Total voting power:', ethers.formatEther(totalVotes));
         } catch (vtoursErr) {
           console.warn('[DAOModal] vTOURS contract not available:', vtoursErr);
         }
       } else {
-        console.log('[DAOModal] vTOURS address not configured or no Safe');
+        console.log('[DAOModal] vTOURS address not configured');
       }
     } catch (err) {
       console.error('[DAOModal] Failed to fetch DAO data:', err);
