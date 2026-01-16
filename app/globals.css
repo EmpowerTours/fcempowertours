@@ -100,10 +100,8 @@ html, body {
   animation: bounce 1s ease-in-out infinite;
 }
 
-/* Modal backdrop - force fully opaque black */
+/* Modal backdrop - ensure fully opaque (background set via inline styles for dark/light mode) */
 .modal-backdrop {
-  background-color: #000000 !important;
-  background: #000000 !important;
   opacity: 1 !important;
 }
 

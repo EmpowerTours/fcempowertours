@@ -893,7 +893,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                     value={formData.bio}
                     onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                     placeholder="Tell travelers about yourself, your expertise, and what makes your tours special..."
-                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none resize-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none resize-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                    style={{
+                      backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                      color: isDarkMode ? '#ffffff' : '#111827'
+                    }}
                     rows={3}
                     maxLength={500}
                   />
@@ -908,7 +912,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     placeholder="e.g., Tokyo, Japan"
-                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                    style={{
+                      backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                      color: isDarkMode ? '#ffffff' : '#111827'
+                    }}
                   />
                 </div>
 
@@ -920,7 +928,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                     value={formData.languages}
                     onChange={(e) => setFormData({ ...formData, languages: e.target.value })}
                     placeholder="e.g., English, Japanese, Spanish"
-                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                    style={{
+                      backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                      color: isDarkMode ? '#ffffff' : '#111827'
+                    }}
                   />
                 </div>
 
@@ -960,7 +972,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                       onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                       min="10"
                       max="10000"
-                      className={`flex-1 px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white' : 'bg-gray-50 border border-gray-300 text-gray-900'}`}
+                      className={`flex-1 px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none border ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}
+                      style={{
+                        backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                        color: isDarkMode ? '#ffffff' : '#111827'
+                      }}
                     />
                     <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>WMON/hr</span>
                   </div>
@@ -1203,7 +1219,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                   value={formData.bio}
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   placeholder="Tell travelers about yourself, your expertise, and what makes your tours special..."
-                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none resize-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none resize-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
                   rows={3}
                   maxLength={500}
                 />
@@ -1218,7 +1238,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   placeholder="e.g., Tokyo, Japan"
-                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
                 />
               </div>
 
@@ -1230,7 +1254,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                   value={formData.languages}
                   onChange={(e) => setFormData({ ...formData, languages: e.target.value })}
                   placeholder="e.g., English, Japanese, Spanish"
-                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                  className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
                 />
               </div>
 
@@ -1270,7 +1298,11 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                     onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                     min="10"
                     max="10000"
-                    className={`flex-1 px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white' : 'bg-gray-50 border border-gray-300 text-gray-900'}`}
+                    className={`flex-1 px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none border ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}
+                    style={{
+                      backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                      color: isDarkMode ? '#ffffff' : '#111827'
+                    }}
                   />
                   <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>WMON/hr</span>
                 </div>
