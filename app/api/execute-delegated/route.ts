@@ -3949,6 +3949,176 @@ ${enjoyText}
         });
       }
 
+      // ==================== MIRRORMATE: BOOK GUIDE ====================
+      case 'book_guide': {
+        console.log('🧳 Action: book_guide');
+
+        const { travelerFid: bookTraveler, guideFid: bookGuide, hoursDuration, paymentToken, totalCost } = params || {};
+        if (!bookTraveler || !bookGuide || !hoursDuration || !totalCost) {
+          return NextResponse.json(
+            { success: false, error: 'Missing booking parameters' },
+            { status: 400 }
+          );
+        }
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+        const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || paymentToken) as Address;
+
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🧳 Creating booking via User Safe:', { bookTraveler, bookGuide, hoursDuration, totalCost });
+
+        // Approve WMON and then book guide
+        const bookCalls: Call[] = [
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [TOUR_GUIDE_REGISTRY, BigInt(totalCost)],
+            }) as Hex,
+          },
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function bookGuideFor(address beneficiary, uint256 travelerFid, uint256 guideFid, uint256 hoursDuration, address paymentToken) external returns (uint256)'
+              ]),
+              functionName: 'bookGuideFor',
+              args: [
+                userAddress as Address,
+                BigInt(bookTraveler),
+                BigInt(bookGuide),
+                BigInt(hoursDuration),
+                WMON_ADDRESS,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const bookTxHash = await executeTransaction(bookCalls, userAddress as Address);
+        console.log('✅ Booking TX:', bookTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: bookTxHash,
+          action,
+          userAddress,
+          guideFid: bookGuide,
+          hours: hoursDuration,
+          message: `Successfully booked guide #${bookGuide} for ${hoursDuration} hours!`,
+        });
+      }
+
+      // ==================== MIRRORMATE: MARK TOUR COMPLETE ====================
+      case 'mark_tour_complete': {
+        console.log('🧳 Action: mark_tour_complete');
+
+        const { bookingId: completeBookingId, proofIPFS } = params || {};
+        if (!completeBookingId || !proofIPFS) {
+          return NextResponse.json(
+            { success: false, error: 'Missing bookingId or proofIPFS' },
+            { status: 400 }
+          );
+        }
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🧳 Marking tour complete:', { completeBookingId, proofIPFS });
+
+        const completeCalls: Call[] = [
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function markTourComplete(uint256 bookingId, string memory proofIPFS) external'
+              ]),
+              functionName: 'markTourComplete',
+              args: [BigInt(completeBookingId), proofIPFS],
+            }) as Hex,
+          },
+        ];
+
+        const completeTxHash = await executeTransaction(completeCalls, userAddress as Address);
+        console.log('✅ Mark complete TX:', completeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: completeTxHash,
+          action,
+          bookingId: completeBookingId,
+          message: 'Tour marked as complete! Waiting for traveler confirmation.',
+        });
+      }
+
+      // ==================== MIRRORMATE: CONFIRM AND RATE ====================
+      case 'confirm_and_rate': {
+        console.log('🧳 Action: confirm_and_rate');
+
+        const { bookingId: rateBookingId, rating: rateRating, reviewIPFS } = params || {};
+        if (!rateBookingId || rateRating === undefined) {
+          return NextResponse.json(
+            { success: false, error: 'Missing bookingId or rating' },
+            { status: 400 }
+          );
+        }
+
+        const TOUR_GUIDE_REGISTRY = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
+
+        if (!TOUR_GUIDE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'TourGuideRegistry not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🧳 Confirming and rating:', { rateBookingId, rateRating, reviewIPFS });
+
+        const rateCalls: Call[] = [
+          {
+            to: TOUR_GUIDE_REGISTRY,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function confirmAndRate(uint256 bookingId, uint256 rating, string memory reviewIPFS) external'
+              ]),
+              functionName: 'confirmAndRate',
+              args: [BigInt(rateBookingId), BigInt(rateRating), reviewIPFS || ''],
+            }) as Hex,
+          },
+        ];
+
+        const rateTxHash = await executeTransaction(rateCalls, userAddress as Address);
+        console.log('✅ Confirm & rate TX:', rateTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: rateTxHash,
+          action,
+          bookingId: rateBookingId,
+          rating: rateRating,
+          message: 'Tour confirmed and rated successfully!',
+        });
+      }
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },

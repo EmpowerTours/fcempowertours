@@ -266,7 +266,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search username..."
-                className="w-full pl-3 pr-9 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                className="w-full pl-3 pr-9 py-2 rounded-lg text-sm focus:outline-none"
+                style={{
+                  backgroundColor: '#111827',
+                  color: '#ffffff',
+                  border: '1px solid #4b5563',
+                }}
               />
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             </div>

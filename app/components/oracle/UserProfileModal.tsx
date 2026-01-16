@@ -241,6 +241,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'buy_resale',
+          userAddress: buyerAddress,
           fid: buyerFid || 0,
           params: {
             licenseId: license.licenseId,

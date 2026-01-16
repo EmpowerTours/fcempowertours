@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle } from 'lucide-react';
+import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle, User, Plane, Calendar, Clock, DollarSign, CheckCircle, XCircle, List, Camera } from 'lucide-react';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, formatEther, type Abi } from 'viem';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
@@ -49,6 +49,51 @@ interface GuideFormData {
   location: string;
 }
 
+interface TouristProfile {
+  languages: string;
+  interests: string[];
+  travelingTo: string;
+  travelDates: string;
+  groupSize: string;
+  notes: string;
+}
+
+interface Booking {
+  bookingId: number;
+  guideFid: number;
+  travelerFid: number;
+  guideAddress: string;
+  travelerAddress: string;
+  hoursDuration: number;
+  totalCost: string;
+  paymentToken: string;
+  createdAt: number;
+  completed: boolean;
+  cancelled: boolean;
+  guideMarkedComplete: boolean;
+  guideMarkedAt: number;
+  travelerRating: number;
+  autoCompleted: boolean;
+  // Enriched data
+  guideUsername?: string;
+  guideDisplayName?: string;
+  guidePfpUrl?: string;
+}
+
+type MirrorMateTab = 'discover' | 'bookings';
+
+// Interest options for tourists
+const INTEREST_OPTIONS = [
+  { id: 'food', label: '🍜 Food & Cuisine' },
+  { id: 'history', label: '🏛️ History & Culture' },
+  { id: 'nature', label: '🌳 Nature & Outdoors' },
+  { id: 'nightlife', label: '🎉 Nightlife' },
+  { id: 'shopping', label: '🛍️ Shopping' },
+  { id: 'art', label: '🎨 Art & Museums' },
+  { id: 'adventure', label: '🧗 Adventure' },
+  { id: 'photography', label: '📸 Photography' },
+];
+
 interface MirrorMateProps {
   onClose?: () => void;
   isDarkMode?: boolean;
@@ -88,6 +133,39 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
     hourlyRate: '10',
     location: '',
   });
+
+  // Tourist profile state (everyone is a tourist by default)
+  const [showTouristForm, setShowTouristForm] = useState(false);
+  const [touristProfile, setTouristProfile] = useState<TouristProfile>({
+    languages: '',
+    interests: [],
+    travelingTo: '',
+    travelDates: '',
+    groupSize: '1',
+    notes: '',
+  });
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<MirrorMateTab>('discover');
+
+  // Booking state
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedGuideForBooking, setSelectedGuideForBooking] = useState<GuideProfile | null>(null);
+  const [bookingHours, setBookingHours] = useState(2);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+
+  // My Bookings state
+  const [myBookings, setMyBookings] = useState<Booking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+
+  // Completion/Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedBookingForRating, setSelectedBookingForRating] = useState<Booking | null>(null);
+  const [rating, setRating] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [isCompletingTour, setIsCompletingTour] = useState(false);
+  const [proofIPFS, setProofIPFS] = useState('');
 
   // Hold-to-match gesture state
   const holdTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -407,9 +485,25 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
       console.log('[MirrorMate] Connect TX:', result.txHash);
       setTxState('success');
 
+      // Build DM message with tourist profile info
+      const tripDetails = [];
+      if (touristProfile.travelingTo) tripDetails.push(`📍 Visiting: ${touristProfile.travelingTo}`);
+      if (touristProfile.travelDates) tripDetails.push(`📅 Dates: ${touristProfile.travelDates}`);
+      if (touristProfile.groupSize && touristProfile.groupSize !== '1') tripDetails.push(`👥 Group: ${touristProfile.groupSize}`);
+      if (touristProfile.languages) tripDetails.push(`🗣️ Languages: ${touristProfile.languages}`);
+      if (touristProfile.interests.length > 0) {
+        const interestLabels = touristProfile.interests.map(id =>
+          INTEREST_OPTIONS.find(o => o.id === id)?.label || id
+        ).join(', ');
+        tripDetails.push(`✨ Interests: ${interestLabels}`);
+      }
+
+      const tripInfo = tripDetails.length > 0 ? `\n\n${tripDetails.join('\n')}` : '';
+      const notesInfo = touristProfile.notes ? `\n\n💬 ${touristProfile.notes}` : '';
+
       // Open Warpcast DM with the guide
       const dmMessage = encodeURIComponent(
-        `Hey @${guide.username}! 👋 I just sent you a connection request on MirrorMate. I'd love to connect with you as my guide in ${guide.location || 'your city'}! 🧳✨`
+        `Hey @${guide.username}! 👋 I just sent you a connection request on MirrorMate. I'd love to connect with you as my guide!${tripInfo}${notesInfo}\n\n🧳✨`
       );
       const warpcastDmUrl = `https://warpcast.com/~/inbox/create/${guide.fid}?text=${dmMessage}`;
 
@@ -534,6 +628,213 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
     });
     setIsEditMode(false);
     setShowGuideForm(true);
+  };
+
+  // Open tourist profile form (for all users)
+  const handleOpenTouristForm = () => {
+    // Pre-fill with detected location if traveling somewhere
+    setTouristProfile(prev => ({
+      ...prev,
+      travelingTo: prev.travelingTo || location?.city || '',
+    }));
+    setShowTouristForm(true);
+  };
+
+  // Save tourist profile (stored locally for now, could be sent to guide on match)
+  const handleSaveTouristProfile = () => {
+    // Store in localStorage for persistence
+    if (user?.fid) {
+      localStorage.setItem(`tourist_profile_${user.fid}`, JSON.stringify(touristProfile));
+    }
+    setShowTouristForm(false);
+  };
+
+  // Load tourist profile from localStorage on mount
+  useEffect(() => {
+    if (user?.fid) {
+      const saved = localStorage.getItem(`tourist_profile_${user.fid}`);
+      if (saved) {
+        try {
+          setTouristProfile(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to load tourist profile:', e);
+        }
+      }
+    }
+  }, [user?.fid]);
+
+  // ============================================
+  // BOOKING FUNCTIONS
+  // ============================================
+
+  // Open booking modal for a specific guide
+  const handleOpenBookingModal = (guide: GuideProfile) => {
+    setSelectedGuideForBooking(guide);
+    setBookingHours(2);
+    setBookingError('');
+    setShowBookingModal(true);
+  };
+
+  // Calculate total cost for booking
+  const calculateBookingCost = (hours: number, hourlyRate: string): string => {
+    try {
+      const rateWei = BigInt(hourlyRate || '0');
+      const totalWei = rateWei * BigInt(hours);
+      return formatEther(totalWei);
+    } catch {
+      return '0';
+    }
+  };
+
+  // Create a booking
+  const handleCreateBooking = async () => {
+    if (!walletAddress || !user?.fid || !selectedGuideForBooking) return;
+
+    setIsBooking(true);
+    setBookingError('');
+
+    try {
+      const totalCost = BigInt(selectedGuideForBooking.hourlyRateWMON || '0') * BigInt(bookingHours);
+
+      // Use execute-delegated API to create booking
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'book_guide',
+          params: {
+            travelerFid: user.fid,
+            guideFid: selectedGuideForBooking.fid.toString(),
+            hoursDuration: bookingHours,
+            paymentToken: WMON_ADDRESS,
+            totalCost: totalCost.toString(),
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Booking failed');
+      }
+
+      console.log('[MirrorMate] Booking created:', result);
+
+      // Close modal and refresh bookings
+      setShowBookingModal(false);
+      setSelectedGuideForBooking(null);
+      fetchMyBookings();
+
+      // Open Warpcast DM to confirm with guide
+      const dmMessage = encodeURIComponent(
+        `Hey @${selectedGuideForBooking.username}! 🎉 I just booked you for ${bookingHours} hours on MirrorMate! Looking forward to our tour! 📍`
+      );
+      window.open(`https://warpcast.com/~/inbox/create/${selectedGuideForBooking.fid}?text=${dmMessage}`, '_blank');
+
+    } catch (error: any) {
+      console.error('[MirrorMate] Booking failed:', error);
+      setBookingError(error.message || 'Failed to create booking');
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  // Fetch user's bookings
+  const fetchMyBookings = async () => {
+    if (!user?.fid) return;
+
+    setLoadingBookings(true);
+    try {
+      // Fetch bookings from API (which queries the contract)
+      const response = await fetch(`/api/tour-guide/bookings?fid=${user.fid}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMyBookings(data.bookings || []);
+      }
+    } catch (error) {
+      console.error('[MirrorMate] Failed to fetch bookings:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  // Load bookings when tab changes to bookings
+  useEffect(() => {
+    if (activeTab === 'bookings' && user?.fid) {
+      fetchMyBookings();
+    }
+  }, [activeTab, user?.fid]);
+
+  // Guide marks tour as complete
+  const handleMarkTourComplete = async (booking: Booking) => {
+    if (!walletAddress || !proofIPFS) return;
+
+    setIsCompletingTour(true);
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'mark_tour_complete',
+          params: {
+            bookingId: booking.bookingId,
+            proofIPFS: proofIPFS,
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to mark complete');
+      }
+
+      setProofIPFS('');
+      fetchMyBookings();
+    } catch (error: any) {
+      console.error('[MirrorMate] Mark complete failed:', error);
+      setBookingError(error.message);
+    } finally {
+      setIsCompletingTour(false);
+    }
+  };
+
+  // Tourist confirms and rates
+  const handleConfirmAndRate = async () => {
+    if (!walletAddress || !selectedBookingForRating) return;
+
+    setIsCompletingTour(true);
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'confirm_and_rate',
+          params: {
+            bookingId: selectedBookingForRating.bookingId,
+            rating: rating * 100, // Convert to basis points (5 stars = 500)
+            reviewIPFS: reviewText ? `review:${reviewText}` : '',
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to confirm');
+      }
+
+      setShowRatingModal(false);
+      setSelectedBookingForRating(null);
+      setRating(5);
+      setReviewText('');
+      fetchMyBookings();
+    } catch (error: any) {
+      console.error('[MirrorMate] Confirm failed:', error);
+      setBookingError(error.message);
+    } finally {
+      setIsCompletingTour(false);
+    }
   };
 
   // Open edit form for existing guides
@@ -1019,24 +1320,69 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
           <Heart className="w-4 h-4 text-cyan-400" />
           <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>MirrorMate</span>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Edit Profile Button - shown when user is a registered guide */}
-          {isUserRegisteredGuide && (
-            <button
-              onClick={handleOpenEditForm}
-              className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}
-              title="Edit Profile"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
-            </button>
-          )}
-          <div className={`text-right text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            <p>Free skips: {userStats.remainingFreeSkips}/20</p>
-          </div>
+        <div className="flex items-center gap-1">
+          {/* Tourist Profile Button - available to everyone */}
+          <button
+            onClick={handleOpenTouristForm}
+            className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}
+            title="Tourist Profile"
+          >
+            <Plane className="w-3.5 h-3.5 text-purple-400" />
+            <span className={`text-[10px] ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Tourist</span>
+          </button>
+          {/* Guide Profile Button - Edit for guides, Register for non-guides */}
+          <button
+            onClick={isUserRegisteredGuide ? handleOpenEditForm : handleOpenRegisterForm}
+            className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}
+            title={isUserRegisteredGuide ? "Edit Guide Profile" : "Become a Guide"}
+          >
+            <User className="w-3.5 h-3.5 text-cyan-400" />
+            <span className={`text-[10px] ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              {isUserRegisteredGuide ? 'Guide' : 'Be Guide'}
+            </span>
+          </button>
         </div>
       </div>
+      {/* Tab Navigation */}
+      <div className="w-full max-w-xs flex gap-2 mb-3">
+        <button
+          onClick={() => setActiveTab('discover')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            activeTab === 'discover'
+              ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white'
+              : isDarkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+          }`}
+        >
+          <Heart className="w-3 h-3" />
+          Discover
+        </button>
+        <button
+          onClick={() => setActiveTab('bookings')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            activeTab === 'bookings'
+              ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white'
+              : isDarkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+          }`}
+        >
+          <List className="w-3 h-3" />
+          My Bookings
+          {myBookings.filter(b => !b.completed && !b.cancelled).length > 0 && (
+            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+              {myBookings.filter(b => !b.completed && !b.cancelled).length}
+            </span>
+          )}
+        </button>
+      </div>
 
-      {/* Guide Card */}
+      {/* DISCOVER TAB */}
+      {activeTab === 'discover' && (
+        <>
+          {/* Free skips indicator */}
+          <div className={`w-full max-w-xs text-right text-[10px] mb-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+            Free skips today: {userStats.remainingFreeSkips}/20
+          </div>
+
+          {/* Guide Card */}
       {currentGuide && (
         <div className={`w-full max-w-xs rounded-xl overflow-hidden shadow-xl mb-2 ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30' : 'bg-white border border-gray-200'}`}>
           {/* Profile Picture - Very compact */}
@@ -1136,6 +1482,28 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                 </div>
               )}
             </div>
+
+            {/* Hourly Rate & Book Now */}
+            {currentGuide.hourlyRateWMON && BigInt(currentGuide.hourlyRateWMON) > 0n && (
+              <div className={`mt-3 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-green-400" />
+                    <span className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {formatEther(BigInt(currentGuide.hourlyRateWMON))} WMON
+                    </span>
+                    <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>/hr</span>
+                  </div>
+                  <button
+                    onClick={() => handleOpenBookingModal(currentGuide)}
+                    className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold rounded-lg hover:from-green-400 hover:to-emerald-500 transition-all flex items-center gap-1"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    Book Now
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1194,6 +1562,135 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
       <p className="text-gray-500 text-[10px] mt-2 text-center max-w-xs">
         Tap to skip • Hold to connect
       </p>
+        </>
+      )}
+
+      {/* BOOKINGS TAB */}
+      {activeTab === 'bookings' && (
+        <div className="w-full max-w-xs flex-1 overflow-y-auto">
+          {loadingBookings ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+            </div>
+          ) : myBookings.length === 0 ? (
+            <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">No bookings yet</p>
+              <p className="text-sm mt-1">Book a guide to get started!</p>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className="mt-4 px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-sm font-bold rounded-lg"
+              >
+                Find Guides
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myBookings.map((booking) => {
+                const isGuide = user?.fid === booking.guideFid;
+                const isPending = !booking.completed && !booking.cancelled && !booking.guideMarkedComplete;
+                const isAwaitingConfirm = booking.guideMarkedComplete && !booking.completed && !booking.cancelled;
+                const isComplete = booking.completed;
+                const isCancelled = booking.cancelled;
+
+                return (
+                  <div
+                    key={booking.bookingId}
+                    className={`rounded-xl p-3 ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center gap-2 mb-2">
+                      {booking.guidePfpUrl ? (
+                        <img src={booking.guidePfpUrl} alt="" className="w-8 h-8 rounded-full" />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>🧳</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {isGuide ? 'Tourist Booking' : (booking.guideDisplayName || booking.guideUsername || 'Guide')}
+                        </p>
+                        <p className="text-[10px] text-cyan-400">
+                          @{isGuide ? `FID ${booking.travelerFid}` : (booking.guideUsername || 'unknown')}
+                        </p>
+                      </div>
+                      {/* Status Badge */}
+                      <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        isCancelled ? 'bg-red-500/20 text-red-400' :
+                        isComplete ? 'bg-green-500/20 text-green-400' :
+                        isAwaitingConfirm ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-cyan-500/20 text-cyan-400'
+                      }`}>
+                        {isCancelled ? 'Cancelled' :
+                         isComplete ? 'Completed' :
+                         isAwaitingConfirm ? 'Awaiting Confirm' :
+                         'Active'}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="flex items-center gap-3 text-xs mb-2">
+                      <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <Clock className="w-3 h-3" />
+                        {booking.hoursDuration}h
+                      </div>
+                      <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <DollarSign className="w-3 h-3" />
+                        {formatEther(BigInt(booking.totalCost))} WMON
+                      </div>
+                    </div>
+
+                    {/* Actions based on role and status */}
+                    {isPending && isGuide && (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="IPFS proof URL (photo/video)"
+                          value={proofIPFS}
+                          onChange={(e) => setProofIPFS(e.target.value)}
+                          className={`w-full px-2 py-1.5 rounded-lg text-xs border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'}`}
+                        />
+                        <button
+                          onClick={() => handleMarkTourComplete(booking)}
+                          disabled={!proofIPFS || isCompletingTour}
+                          className="w-full py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-1"
+                        >
+                          {isCompletingTour ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                          Mark Tour Complete
+                        </button>
+                      </div>
+                    )}
+
+                    {isAwaitingConfirm && !isGuide && (
+                      <button
+                        onClick={() => {
+                          setSelectedBookingForRating(booking);
+                          setShowRatingModal(true);
+                        }}
+                        className="w-full py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1"
+                      >
+                        <Star className="w-3 h-3" />
+                        Confirm & Rate
+                      </button>
+                    )}
+
+                    {isComplete && booking.travelerRating > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your rating:</span>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3 h-3 ${star <= Math.round(booking.travelerRating / 100) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-500'}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Guide Registration/Edit Form Modal */}
       {showGuideForm && (
@@ -1330,6 +1827,326 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tourist Profile Form Modal */}
+      {showTouristForm && (
+        <div className={`fixed inset-0 modal-backdrop z-[10000] flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
+          <div className={`rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-gray-900 border border-purple-500/30' : 'bg-white border border-gray-200 shadow-lg'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <Plane className="w-5 h-5 text-purple-400" />
+                Tourist Profile
+              </h2>
+              <button
+                onClick={() => setShowTouristForm(false)}
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Tell guides about your trip so they can better assist you!
+            </p>
+
+            <div className="space-y-4">
+              {/* Traveling To */}
+              <div>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Where are you traveling?</label>
+                <input
+                  type="text"
+                  value={touristProfile.travelingTo}
+                  onChange={(e) => setTouristProfile({ ...touristProfile, travelingTo: e.target.value })}
+                  placeholder="e.g., Tokyo, Japan"
+                  className={`w-full px-3 py-2 rounded-lg focus:border-purple-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                />
+              </div>
+
+              {/* Travel Dates */}
+              <div>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>When are you traveling?</label>
+                <input
+                  type="text"
+                  value={touristProfile.travelDates}
+                  onChange={(e) => setTouristProfile({ ...touristProfile, travelDates: e.target.value })}
+                  placeholder="e.g., March 15-22, 2026"
+                  className={`w-full px-3 py-2 rounded-lg focus:border-purple-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                />
+              </div>
+
+              {/* Group Size */}
+              <div>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Group Size</label>
+                <select
+                  value={touristProfile.groupSize}
+                  onChange={(e) => setTouristProfile({ ...touristProfile, groupSize: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-lg focus:border-purple-500 focus:outline-none border ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                >
+                  <option value="1">Solo traveler</option>
+                  <option value="2">Couple (2)</option>
+                  <option value="3-4">Small group (3-4)</option>
+                  <option value="5-8">Medium group (5-8)</option>
+                  <option value="9+">Large group (9+)</option>
+                </select>
+              </div>
+
+              {/* Languages */}
+              <div>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Languages you speak</label>
+                <input
+                  type="text"
+                  value={touristProfile.languages}
+                  onChange={(e) => setTouristProfile({ ...touristProfile, languages: e.target.value })}
+                  placeholder="e.g., English, Spanish"
+                  className={`w-full px-3 py-2 rounded-lg focus:border-purple-500 focus:outline-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                />
+              </div>
+
+              {/* Interests */}
+              <div>
+                <label className={`block text-sm mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>What interests you?</label>
+                <div className="flex flex-wrap gap-2">
+                  {INTEREST_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        const newInterests = touristProfile.interests.includes(option.id)
+                          ? touristProfile.interests.filter(i => i !== option.id)
+                          : [...touristProfile.interests, option.id];
+                        setTouristProfile({ ...touristProfile, interests: newInterests });
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                        touristProfile.interests.includes(option.id)
+                          ? 'bg-purple-500 text-white'
+                          : isDarkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Additional notes for guides</label>
+                <textarea
+                  value={touristProfile.notes}
+                  onChange={(e) => setTouristProfile({ ...touristProfile, notes: e.target.value })}
+                  placeholder="Any special requests, accessibility needs, or things you'd like to experience..."
+                  className={`w-full px-3 py-2 rounded-lg focus:border-purple-500 focus:outline-none resize-none border ${isDarkMode ? 'border-gray-700 placeholder-gray-500' : 'border-gray-300 placeholder-gray-400'}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                  rows={3}
+                  maxLength={500}
+                />
+                <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{touristProfile.notes.length}/500</p>
+              </div>
+
+              {/* Save Button */}
+              <button
+                onClick={handleSaveTouristProfile}
+                className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold hover:from-purple-400 hover:to-pink-400 transition-all flex items-center justify-center gap-2"
+              >
+                Save Tourist Profile
+              </button>
+
+              <p className={`text-xs text-center ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                Your profile info will be shared with guides when you connect
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Booking Modal */}
+      {showBookingModal && selectedGuideForBooking && (
+        <div className={`fixed inset-0 modal-backdrop z-[10000] flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
+          <div className={`rounded-2xl p-6 max-w-md w-full ${isDarkMode ? 'bg-gray-900 border border-green-500/30' : 'bg-white border border-gray-200 shadow-lg'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <Calendar className="w-5 h-5 text-green-400" />
+                Book Guide
+              </h2>
+              <button
+                onClick={() => { setShowBookingModal(false); setSelectedGuideForBooking(null); setBookingError(''); }}
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Guide Info */}
+            <div className={`flex items-center gap-3 p-3 rounded-xl mb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+              {selectedGuideForBooking.pfpUrl ? (
+                <img src={selectedGuideForBooking.pfpUrl} alt="" className="w-12 h-12 rounded-full" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl">🧳</div>
+              )}
+              <div>
+                <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedGuideForBooking.displayName}</p>
+                <p className="text-cyan-400 text-sm">@{selectedGuideForBooking.username}</p>
+              </div>
+            </div>
+
+            {/* Hours Selection */}
+            <div className="mb-4">
+              <label className={`block text-sm mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tour Duration</label>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setBookingHours(Math.max(1, bookingHours - 1))}
+                  className={`w-10 h-10 rounded-lg font-bold text-xl ${isDarkMode ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`}
+                >
+                  -
+                </button>
+                <div className={`flex-1 text-center py-2 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                  <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bookingHours}</span>
+                  <span className={`text-sm ml-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>hours</span>
+                </div>
+                <button
+                  onClick={() => setBookingHours(Math.min(24, bookingHours + 1))}
+                  className={`w-10 h-10 rounded-lg font-bold text-xl ${isDarkMode ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Cost Breakdown */}
+            <div className={`p-4 rounded-xl mb-4 ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-100 border border-gray-200'}`}>
+              <div className="flex justify-between mb-2">
+                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Hourly Rate</span>
+                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>{formatEther(BigInt(selectedGuideForBooking.hourlyRateWMON || '0'))} WMON</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Duration</span>
+                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>× {bookingHours} hours</span>
+              </div>
+              <div className={`border-t pt-2 mt-2 flex justify-between ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Total</span>
+                <span className="font-bold text-green-400">
+                  {calculateBookingCost(bookingHours, selectedGuideForBooking.hourlyRateWMON || '0')} WMON
+                </span>
+              </div>
+            </div>
+
+            <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              90% goes to the guide • 10% platform fee
+            </p>
+
+            {bookingError && (
+              <p className="text-red-400 text-sm mb-4">{bookingError}</p>
+            )}
+
+            <button
+              onClick={handleCreateBooking}
+              disabled={isBooking}
+              className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:from-green-400 hover:to-emerald-500 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+            >
+              {isBooking ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <DollarSign className="w-4 h-4" />
+                  Pay & Book
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {showRatingModal && selectedBookingForRating && (
+        <div className={`fixed inset-0 modal-backdrop z-[10000] flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
+          <div className={`rounded-2xl p-6 max-w-md w-full ${isDarkMode ? 'bg-gray-900 border border-yellow-500/30' : 'bg-white border border-gray-200 shadow-lg'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <Star className="w-5 h-5 text-yellow-400" />
+                Rate Your Tour
+              </h2>
+              <button
+                onClick={() => { setShowRatingModal(false); setSelectedBookingForRating(null); }}
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              How was your experience with this guide?
+            </p>
+
+            {/* Star Rating */}
+            <div className="flex justify-center gap-2 mb-6">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  className="p-1 transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={`w-10 h-10 ${star <= rating ? 'text-yellow-400 fill-yellow-400' : isDarkMode ? 'text-gray-600' : 'text-gray-300'}`}
+                  />
+                </button>
+              ))}
+            </div>
+
+            {/* Review Text */}
+            <div className="mb-4">
+              <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Review (optional)</label>
+              <textarea
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                placeholder="Share your experience..."
+                className={`w-full px-3 py-2 rounded-lg focus:border-yellow-500 focus:outline-none resize-none border ${isDarkMode ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500' : 'border-gray-300 bg-gray-50 placeholder-gray-400'}`}
+                rows={3}
+                maxLength={280}
+              />
+            </div>
+
+            <button
+              onClick={handleConfirmAndRate}
+              disabled={isCompletingTour}
+              className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl font-bold hover:from-yellow-400 hover:to-orange-400 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+            >
+              {isCompletingTour ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Confirm & Submit Rating
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

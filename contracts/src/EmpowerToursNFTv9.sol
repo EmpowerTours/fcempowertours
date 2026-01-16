@@ -90,6 +90,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
     mapping(address => bool) public authorizedBurners;
     address public platformOperator; // Can register User Safes as burners
+    address public daoTimelock; // DAO Timelock that can execute governance actions (burn stolen content)
 
     mapping(uint256 => MasterToken) public masterTokens;
     mapping(uint256 => License) public licenses;
@@ -97,6 +98,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
     mapping(uint256 => uint256[]) public fidLicenses;        // FID => license IDs
     mapping(uint256 => uint256[]) public artistFidMasters;   // FID => master token IDs
     mapping(address => mapping(string => bool)) public artistSongs;
+    mapping(uint256 => string) public masterTitles; // tokenId => title (for cleanup on burn)
 
     address public treasury;
     uint256 public licensePeriod = 30 days;
@@ -132,6 +134,8 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
         uint256 royaltyPaid,
         address royaltyRecipient
     );
+    event StolenContentBurned(uint256 indexed tokenId, address indexed originalOwner, string reason, uint256 timestamp);
+    event DAOTimelockUpdated(address indexed oldTimelock, address indexed newTimelock);
 
     constructor(
         address _treasury,
@@ -188,6 +192,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
         _setTokenRoyalty(masterTokenId, artist, royalty);
         artistSongs[artist][title] = true;
+        masterTitles[masterTokenId] = title;
         artistFidMasters[artistFid].push(masterTokenId);
 
         emit MasterMinted(masterTokenId, artist, artistFid, tokenURI, price, nftType, royalty);
@@ -237,6 +242,7 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
         _setTokenRoyalty(masterTokenId, artist, royalty);
         artistSongs[artist][title] = true;
+        masterTitles[masterTokenId] = title;
         artistFidMasters[artistFid].push(masterTokenId);
 
         emit MasterMinted(masterTokenId, artist, artistFid, tokenURI, standardPrice, nftType, royalty);
@@ -697,6 +703,76 @@ contract EmpowerToursNFTv9 is ERC721URIStorage, ERC2981, Ownable, ReentrancyGuar
 
     function withdrawTreasury(address to, uint256 amount) external onlyOwner {
         require(wmonToken.transfer(to, amount), "Transfer failed");
+    }
+
+    function setDAOTimelock(address _daoTimelock) external onlyOwner {
+        address oldTimelock = daoTimelock;
+        daoTimelock = _daoTimelock;
+        emit DAOTimelockUpdated(oldTimelock, _daoTimelock);
+    }
+
+    /**
+     * @notice Admin or DAO function to burn stolen/infringing content without owner permission
+     * @dev Burns any NFT (master or license) that contains stolen content
+     * @dev Can be called by contract owner (admin) OR by DAO Timelock after successful governance vote
+     * @param tokenId The token ID to burn
+     * @param reason The reason for burning (e.g., "Copyright infringement", "Stolen content")
+     */
+    function burnStolenContent(uint256 tokenId, string memory reason) external nonReentrant {
+        require(msg.sender == owner() || msg.sender == daoTimelock, "Only owner or DAO can burn stolen content");
+        address originalOwner = ownerOf(tokenId);
+
+        // Force unstake if staked
+        if (stakingInfo[tokenId].isStaked) {
+            address staker = stakingInfo[tokenId].staker;
+
+            // Remove from staker's array
+            uint256 index = stakedTokenIndex[tokenId];
+            uint256 lastIndex = userStakedTokens[staker].length - 1;
+
+            if (index != lastIndex) {
+                uint256 lastTokenId = userStakedTokens[staker][lastIndex];
+                userStakedTokens[staker][index] = lastTokenId;
+                stakedTokenIndex[lastTokenId] = index;
+            }
+
+            userStakedTokens[staker].pop();
+            delete stakedTokenIndex[tokenId];
+            delete stakingInfo[tokenId];
+            totalStaked--;
+        }
+
+        // Handle master token cleanup
+        if (tokenId <= _masterTokenCounter && masterTokens[tokenId].originalArtist != address(0)) {
+            MasterToken storage master = masterTokens[tokenId];
+
+            // Clear artistSongs so the title can be reused by legitimate artist
+            string memory title = masterTitles[tokenId];
+            if (bytes(title).length > 0) {
+                artistSongs[master.originalArtist][title] = false;
+                delete masterTitles[tokenId];
+            }
+
+            delete masterTokens[tokenId];
+        } else if (licenses[tokenId].masterTokenId != 0) {
+            // Handle license cleanup
+            License storage license = licenses[tokenId];
+            uint256 masterTokenId = license.masterTokenId;
+            MasterToken storage master = masterTokens[masterTokenId];
+
+            if (license.active && master.activeLicenses > 0) {
+                master.activeLicenses--;
+            }
+
+            license.active = false;
+        }
+
+        _resetTokenRoyalty(tokenId);
+        _burn(tokenId);
+        totalBurned++;
+
+        emit StolenContentBurned(tokenId, originalOwner, reason, block.timestamp);
+        emit NFTBurned(tokenId, originalOwner, 0, block.timestamp, "STOLEN_CONTENT");
     }
 
     // ============================================
