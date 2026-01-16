@@ -176,12 +176,11 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
     metadataFetched: !!metadata,
     isArt: isArt,
 
-    // ✅ V5: Initialize staking & burning fields
-    isStaked: false,
-    stakedAt: BigInt(0),
-    staker: "",
+    // ✅ V10: Initialize burning fields
     isBurned: false,
     burnedAt: BigInt(0),
+    burnReason: undefined,
+    burnType: undefined,
 
     mintedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
@@ -227,6 +226,7 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
       licensesOwned: 0,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
+      stolenContentBurns: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -331,6 +331,7 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
       licensesOwned: 1,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
+      stolenContentBurns: 0,
       lastActive: timestamp,
     });
   }
@@ -429,6 +430,7 @@ EmpowerToursNFT.LicenseSold.handler(async ({ event, context }) => {
       licensesOwned: 1,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
+      stolenContentBurns: 0,
       lastActive: timestamp,
     });
   }
@@ -470,7 +472,7 @@ EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {
 });
 
 // ============================================
-// MUSIC NFT V5: BURNING EVENTS
+// EMPOWERTOURSNFT V10: BURNING EVENTS
 // ============================================
 
 EmpowerToursNFT.NFTBurned.handler(async ({ event, context }) => {
@@ -626,6 +628,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
       licensesOwned: 0,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
+      stolenContentBurns: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -824,6 +827,7 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
       licensesOwned: 0,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
+      stolenContentBurns: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
@@ -919,6 +923,7 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
       licensesOwned: 0,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
+      stolenContentBurns: 0,
       lastActive: new Date(event.block.timestamp * 1000),
     });
   }
