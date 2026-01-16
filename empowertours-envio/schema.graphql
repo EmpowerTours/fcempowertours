@@ -23,10 +23,7 @@ type MusicNFT @entity {
   metadataFetched: Boolean!    # Track if metadata was successfully fetched
   isArt: Boolean!              # True if no audio URLs present (art-only NFT)
 
-  # ✅ V5: Staking & Burning fields
-  isStaked: Boolean            # Whether NFT is currently staked
-  stakedAt: BigInt             # Timestamp when staked
-  staker: String               # Address that staked this NFT
+  # ✅ V5: Burning fields
   isBurned: Boolean            # Whether NFT has been burned
   burnedAt: BigInt             # Timestamp when burned
   burnReason: String           # ✅ V10: Reason for burn (e.g., stolen content report)

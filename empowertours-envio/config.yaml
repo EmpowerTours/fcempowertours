@@ -7,7 +7,7 @@ networks:
     contracts:
       - name: EmpowerToursNFT
         address:
-          - "0x957F10BC6EE140FfbCe64184864bc4C9C7652477"  # ✅ EmpowerToursNFTv9 with platformOperator (Dec 28, 2025)
+          - "0x05B8F1178E08f07e4209908D037DEc2A15228588"  # ✅ EmpowerToursNFTv10 with DAO Timelock governance (Jan 15, 2026)
         handler: src/EventHandlers.ts
         events:
           # Master NFT minting (with artistFid and royalty)
@@ -52,22 +52,6 @@ networks:
               transaction_fields:
                 - hash
 
-          # NFT staking events
-          - event: "NFTStaked(uint256 indexed tokenId, address indexed staker, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "NFTUnstaked(uint256 indexed tokenId, address indexed staker, uint256 rewardsClaimed, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "RewardsClaimed(uint256 indexed tokenId, address indexed staker, uint256 amount, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
           # NFT burning events
           - event: "NFTBurned(uint256 indexed tokenId, address indexed burner, uint256 rewardReceived, uint256 timestamp, string burnType)"
             field_selection:
@@ -75,11 +59,6 @@ networks:
                 - hash
 
           - event: "BurnRewardUpdated(string rewardType, uint256 newReward, uint256 timestamp)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-          - event: "RewardRateUpdated(uint256 newRate, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash

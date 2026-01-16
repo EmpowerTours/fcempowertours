@@ -470,48 +470,8 @@ EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {
 });
 
 // ============================================
-// MUSIC NFT V5: STAKING & BURNING EVENTS
+// MUSIC NFT V5: BURNING EVENTS
 // ============================================
-
-EmpowerToursNFT.NFTStaked.handler(async ({ event, context }) => {
-  const { tokenId, staker, timestamp } = event.params;
-
-  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
-  const musicNFT = await context.MusicNFT.get(musicNFTId);
-
-  if (musicNFT) {
-    await context.MusicNFT.set({
-      ...musicNFT,
-      isStaked: true,
-      stakedAt: timestamp,
-      staker: staker.toLowerCase(),
-    });
-    context.log.info(`🎵 Music NFT #${tokenId} staked by ${staker}`);
-  }
-});
-
-EmpowerToursNFT.NFTUnstaked.handler(async ({ event, context }) => {
-  const { tokenId, staker, rewardsClaimed, timestamp } = event.params;
-
-  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
-  const musicNFT = await context.MusicNFT.get(musicNFTId);
-
-  if (musicNFT) {
-    await context.MusicNFT.set({
-      ...musicNFT,
-      isStaked: false,
-      stakedAt: BigInt(0),
-      staker: "",
-    });
-    context.log.info(`🎵 Music NFT #${tokenId} unstaked by ${staker}, rewards: ${rewardsClaimed}`);
-  }
-});
-
-EmpowerToursNFT.RewardsClaimed.handler(async ({ event, context }) => {
-  const { tokenId, staker, amount, timestamp } = event.params;
-
-  context.log.info(`💰 Music NFT #${tokenId} rewards claimed by ${staker}: ${amount} TOURS`);
-});
 
 EmpowerToursNFT.NFTBurned.handler(async ({ event, context }) => {
   const { tokenId, burner, rewardReceived, timestamp } = event.params;
@@ -550,12 +510,6 @@ EmpowerToursNFT.BurnRewardUpdated.handler(async ({ event, context }) => {
   const { newReward, timestamp } = event.params;
 
   context.log.info(`🔥 Burn reward updated to ${newReward} TOURS at ${timestamp}`);
-});
-
-EmpowerToursNFT.RewardRateUpdated.handler(async ({ event, context }) => {
-  const { newRate, timestamp } = event.params;
-
-  context.log.info(`💰 Staking reward rate updated to ${newRate} TOURS/day at ${timestamp}`);
 });
 
 // ✅ NEW: DAO Governance - Stolen Content Removal
