@@ -29,6 +29,8 @@ type MusicNFT @entity {
   staker: String               # Address that staked this NFT
   isBurned: Boolean            # Whether NFT has been burned
   burnedAt: BigInt             # Timestamp when burned
+  burnReason: String           # ✅ V10: Reason for burn (e.g., stolen content report)
+  burnType: String             # ✅ V10: Type of burn (e.g., "stolen_content", "user_burn")
 
   mintedAt: Timestamp!
   blockNumber: BigInt!
@@ -376,6 +378,7 @@ type UserStats @entity {
   licensesOwned: Int!          # Licenses purchased by user
   eventsAttended: Int!         # ✅ NEW
   tandaGroupsJoined: Int!      # ✅ NEW
+  stolenContentBurns: Int      # ✅ V10: NFTs burned due to stolen content
   totalNFTs: Int!
   lastActive: Timestamp!
 }

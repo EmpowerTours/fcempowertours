@@ -558,6 +558,49 @@ EmpowerToursNFT.RewardRateUpdated.handler(async ({ event, context }) => {
   context.log.info(`💰 Staking reward rate updated to ${newRate} TOURS/day at ${timestamp}`);
 });
 
+// ✅ NEW: DAO Governance - Stolen Content Removal
+EmpowerToursNFT.StolenContentBurned.handler(async ({ event, context }) => {
+  const { tokenId, originalOwner, reason, timestamp } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+
+  if (musicNFT) {
+    // Mark NFT as burned due to stolen content
+    await context.MusicNFT.set({
+      ...musicNFT,
+      isBurned: true,
+      burnedAt: timestamp,
+      burnReason: reason,
+      burnType: 'stolen_content',
+    });
+
+    // Update user stats - decrement NFT counts
+    const userId = musicNFT.owner.toLowerCase();
+    let userStats = await context.UserStats.get(userId);
+
+    if (userStats) {
+      await context.UserStats.set({
+        ...userStats,
+        musicNFTCount: musicNFT.isArt ? userStats.musicNFTCount : Math.max(0, userStats.musicNFTCount - 1),
+        artNFTCount: musicNFT.isArt ? Math.max(0, userStats.artNFTCount - 1) : userStats.artNFTCount,
+        totalNFTs: Math.max(0, userStats.totalNFTs - 1),
+        stolenContentBurns: (userStats.stolenContentBurns || 0) + 1,
+        lastActive: new Date(event.block.timestamp * 1000),
+      });
+    }
+
+    context.log.info(`🚨 STOLEN CONTENT BURNED: NFT #${tokenId} owned by ${originalOwner} - Reason: ${reason}`);
+  }
+});
+
+// ✅ NEW: Artist Song Cleared (allows reminting after burn)
+EmpowerToursNFT.ArtistSongCleared.handler(async ({ event, context }) => {
+  const { artist, title, timestamp } = event.params;
+
+  context.log.info(`🎵 Artist song cleared for reminting - Artist: ${artist}, Title: "${title}" at ${timestamp}`);
+});
+
 // ============================================
 // PASSPORT NFT EVENTS
 // ============================================
