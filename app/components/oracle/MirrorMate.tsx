@@ -868,6 +868,129 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
             </button>
           </div>
         </div>
+
+        {/* Guide Registration/Edit Form Modal */}
+        {showGuideForm && (
+          <div className={`fixed inset-0 modal-backdrop z-[10000] flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}>
+            <div className={`rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {isEditMode ? '✏️ Edit Profile' : '🧳 Become a Guide'}
+                </h2>
+                <button
+                  onClick={() => { setShowGuideForm(false); setRegisterError(''); }}
+                  className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Bio */}
+                <div>
+                  <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Bio *</label>
+                  <textarea
+                    value={formData.bio}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    placeholder="Tell travelers about yourself, your expertise, and what makes your tours special..."
+                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none resize-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                    rows={3}
+                    maxLength={500}
+                  />
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{formData.bio.length}/500</p>
+                </div>
+
+                {/* Location */}
+                <div>
+                  <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Location</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="e.g., Tokyo, Japan"
+                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                  />
+                </div>
+
+                {/* Languages */}
+                <div>
+                  <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Languages Spoken</label>
+                  <input
+                    type="text"
+                    value={formData.languages}
+                    onChange={(e) => setFormData({ ...formData, languages: e.target.value })}
+                    placeholder="e.g., English, Japanese, Spanish"
+                    className={`w-full px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                  />
+                </div>
+
+                {/* Transport Options */}
+                <div>
+                  <label className={`block text-sm mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Transport Options</label>
+                  <div className="flex flex-wrap gap-2">
+                    {TRANSPORT_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          const newTransport = formData.transport.includes(option.id)
+                            ? formData.transport.filter(t => t !== option.id)
+                            : [...formData.transport, option.id];
+                          setFormData({ ...formData, transport: newTransport });
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                          formData.transport.includes(option.id)
+                            ? 'bg-cyan-500 text-white'
+                            : isDarkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hourly Rate */}
+                <div>
+                  <label className={`block text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Hourly Rate (WMON)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={formData.hourlyRate}
+                      onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                      min="10"
+                      max="10000"
+                      className={`flex-1 px-3 py-2 rounded-lg focus:border-cyan-500 focus:outline-none ${isDarkMode ? 'bg-gray-800 border border-gray-700 text-white' : 'bg-gray-50 border border-gray-300 text-gray-900'}`}
+                    />
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>WMON/hr</span>
+                  </div>
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Min: 10 WMON • For paid tour bookings</p>
+                </div>
+
+                {/* Error Message */}
+                {registerError && (
+                  <p className="text-red-400 text-sm">{registerError}</p>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  onClick={handleFormSubmit}
+                  disabled={isRegistering || !formData.bio.trim()}
+                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {isRegistering ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {isEditMode ? 'Updating...' : 'Registering...'}
+                    </>
+                  ) : (
+                    isEditMode ? 'Update Profile' : 'Register as Guide'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
