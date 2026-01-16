@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
       'dao_unwrap',            // Unwrap vTOURS back to TOURS
       'dao_delegate',          // Delegate voting power
       'dao_fund_safe',         // Fund user Safe with TOURS from platform
+      'dao_create_burn_proposal', // Create proposal to burn stolen/infringing NFT
       'radio_voice_note',      // Live radio voice shoutout/ad payment
       'radio_queue_song',      // Live radio song queue on-chain
       'radio_claim_rewards',   // Live radio TOURS rewards claim
@@ -3450,6 +3451,75 @@ ${enjoyText}
           userAddress,
           delegatee,
           message: `Delegated voting power to ${delegatee.slice(0, 6)}...${delegatee.slice(-4)}!`,
+        });
+      }
+
+      // ==================== DAO: CREATE BURN PROPOSAL ====================
+      case 'dao_create_burn_proposal': {
+        console.log('🔥 Action: dao_create_burn_proposal');
+        const { tokenId, reason, nftContract } = params || {};
+        if (!tokenId || !reason) {
+          return NextResponse.json(
+            { success: false, error: 'Missing tokenId or reason for burn proposal' },
+            { status: 400 }
+          );
+        }
+
+        const DAO_CONTRACT = process.env.NEXT_PUBLIC_DAO as Address;
+        const NFT_CONTRACT = (nftContract || process.env.NEXT_PUBLIC_NFT_CONTRACT || process.env.NEXT_PUBLIC_NFT_ADDRESS) as Address;
+
+        if (!DAO_CONTRACT) {
+          return NextResponse.json(
+            { success: false, error: 'DAO contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🔥 Creating burn proposal:', { tokenId, reason, DAO_CONTRACT, NFT_CONTRACT });
+
+        // Encode the burnStolenContent call that will be executed if proposal passes
+        const burnCalldata = encodeFunctionData({
+          abi: parseAbi(['function burnStolenContent(uint256 tokenId, string memory reason) external']),
+          functionName: 'burnStolenContent',
+          args: [BigInt(tokenId), reason],
+        });
+
+        // Create proposal description
+        const proposalDescription = `Burn Stolen/Infringing NFT #${tokenId}\n\nReason: ${reason}\n\nThis proposal will burn token #${tokenId} from the EmpowerTours NFT contract if it passes the governance vote.`;
+
+        // Create the propose call
+        // Governor.propose(targets[], values[], calldatas[], description)
+        const proposeCalls: Call[] = [
+          {
+            to: DAO_CONTRACT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function propose(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, string memory description) external returns (uint256)'
+              ]),
+              functionName: 'propose',
+              args: [
+                [NFT_CONTRACT],  // targets
+                [0n],            // values (no ETH)
+                [burnCalldata],  // calldatas
+                proposalDescription,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const proposeTxHash = await executeTransaction(proposeCalls, userAddress as Address);
+        console.log('✅ Burn proposal created, TX:', proposeTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: proposeTxHash,
+          action,
+          userAddress,
+          tokenId,
+          reason,
+          message: `Burn proposal created for token #${tokenId}! The DAO will vote on this proposal.`,
         });
       }
 

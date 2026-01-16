@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw, Wallet, ArrowDownToLine, Gift } from 'lucide-react';
+import { Vote, Coins, Users, Clock, ArrowRightLeft, CheckCircle2, X, Loader2, Shield, TrendingUp, RefreshCw, Wallet, ArrowDownToLine, Gift, Flame, AlertTriangle } from 'lucide-react';
 import { ethers } from 'ethers';
 
 interface DAOModalProps {
@@ -15,6 +15,7 @@ const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95
 const VTOURS_ADDRESS = process.env.NEXT_PUBLIC_VOTING_TOURS || '';
 const DAO_ADDRESS = process.env.NEXT_PUBLIC_DAO || '';
 const TIMELOCK_ADDRESS = process.env.NEXT_PUBLIC_TIMELOCK || '';
+const NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || process.env.NEXT_PUBLIC_NFT_ADDRESS || '';
 
 const TOURS_ABI = [
   'function balanceOf(address account) external view returns (uint256)',
@@ -39,7 +40,7 @@ const DAO_ABI = [
   'function quorumNumerator() external view returns (uint256)',
 ];
 
-type TabType = 'overview' | 'wrap' | 'delegate' | 'proposals';
+type TabType = 'overview' | 'wrap' | 'delegate' | 'proposals' | 'burn';
 
 export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDarkMode = true }) => {
   const [mounted, setMounted] = useState(false);
@@ -66,6 +67,11 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
   });
   const [refreshing, setRefreshing] = useState(false);
   const [fundingInProgress, setFundingInProgress] = useState(false);
+
+  // Burn proposal state
+  const [burnTokenId, setBurnTokenId] = useState('');
+  const [burnReason, setBurnReason] = useState('');
+  const [burnProposalLoading, setBurnProposalLoading] = useState(false);
 
   // Mount state for portal rendering (SSR safety)
   useEffect(() => {
@@ -321,6 +327,44 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
     }
   };
 
+  const handleCreateBurnProposal = async () => {
+    if (!userAddress || !burnTokenId || !burnReason) return;
+    setBurnProposalLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Use delegated transaction API to create a burn proposal
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dao_create_burn_proposal',
+          userAddress,
+          params: {
+            tokenId: burnTokenId,
+            reason: burnReason,
+            nftContract: NFT_ADDRESS,
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create burn proposal');
+      }
+
+      setSuccess(data.message || `Burn proposal created! Token #${burnTokenId} will be voted on by the DAO.`);
+      setBurnTokenId('');
+      setBurnReason('');
+    } catch (err: any) {
+      console.error('Create burn proposal failed:', err);
+      setError(err.message || 'Failed to create burn proposal');
+    } finally {
+      setBurnProposalLoading(false);
+    }
+  };
+
   const formatNumber = (num: string) => {
     const n = parseFloat(num);
     if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
@@ -367,14 +411,14 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-purple-500/20">
-          {(['overview', 'wrap', 'delegate', 'proposals'] as TabType[]).map((tab) => (
+        <div className="flex border-b border-purple-500/20 overflow-x-auto">
+          {(['overview', 'wrap', 'delegate', 'proposals', 'burn'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
+              className={`flex-1 py-3 text-sm font-medium transition-colors whitespace-nowrap px-2 ${
                 activeTab === tab
-                  ? 'text-purple-400 border-b-2 border-purple-400'
+                  ? tab === 'burn' ? 'text-red-400 border-b-2 border-red-400' : 'text-purple-400 border-b-2 border-purple-400'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -382,6 +426,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
               {tab === 'wrap' && 'Wrap'}
               {tab === 'delegate' && 'Delegate'}
               {tab === 'proposals' && 'Vote'}
+              {tab === 'burn' && 'Report'}
             </button>
           ))}
         </div>
@@ -755,6 +800,121 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                     <span>If passed and quorum met, proposal executes after timelock</span>
                   </li>
                 </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Burn/Report Tab - Report stolen/infringing content for DAO review */}
+          {activeTab === 'burn' && (
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-red-400 mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Report Stolen/Infringing Content
+                </h3>
+                <p className="text-xs text-gray-400 mb-3">
+                  If you believe an NFT contains stolen content, copyright infringement, or violates platform rules, you can create a DAO proposal to burn it. The community will vote on whether to remove the content.
+                </p>
+              </div>
+
+              {/* Voting Power Check */}
+              {parseFloat(votingPower) < parseFloat(daoInfo.proposalThreshold) ? (
+                <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-yellow-400" />
+                    <p className="text-sm font-medium text-yellow-400">Voting Power Required</p>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    You need at least {daoInfo.proposalThreshold} vTOURS to create a burn proposal.
+                    Go to the Wrap tab to get voting power.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('wrap')}
+                    className="mt-3 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-white text-sm font-medium transition-colors"
+                  >
+                    Get Voting Power
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-gray-800/30 rounded-xl p-4">
+                  <h4 className="text-sm font-medium text-red-400 mb-3 flex items-center gap-2">
+                    <Flame className="w-4 h-4" />
+                    Create Burn Proposal
+                  </h4>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Token ID to Report</label>
+                      <input
+                        type="number"
+                        value={burnTokenId}
+                        onChange={(e) => setBurnTokenId(e.target.value)}
+                        placeholder="Enter NFT token ID"
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Reason for Burn</label>
+                      <textarea
+                        value={burnReason}
+                        onChange={(e) => setBurnReason(e.target.value)}
+                        placeholder="Explain why this NFT should be burned (e.g., 'Copyright infringement - original artwork by @artist')"
+                        rows={3}
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleCreateBurnProposal}
+                      disabled={burnProposalLoading || !burnTokenId || !burnReason}
+                      className="w-full py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {burnProposalLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Creating Proposal...
+                        </>
+                      ) : (
+                        <>
+                          <Flame className="w-4 h-4" />
+                          Create Burn Proposal
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* How It Works */}
+              <div className="bg-gray-800/30 rounded-xl p-4">
+                <h4 className="text-sm font-medium text-purple-400 mb-2">How Burn Proposals Work</h4>
+                <ol className="space-y-2 text-xs text-gray-400">
+                  <li className="flex items-start gap-2">
+                    <span className="bg-red-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">1</span>
+                    <span>Submit a proposal with the token ID and reason</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-red-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">2</span>
+                    <span>DAO members vote during the voting period ({daoInfo.votingPeriod})</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-red-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">3</span>
+                    <span>If approved with quorum ({daoInfo.quorum}), it enters timelock</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-red-600/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">4</span>
+                    <span>After timelock ({daoInfo.timelockDelay}), the NFT is burned</span>
+                  </li>
+                </ol>
+              </div>
+
+              {/* Warning */}
+              <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-4">
+                <p className="text-xs text-gray-500">
+                  <strong className="text-yellow-400">Note:</strong> Burn proposals are serious governance actions.
+                  False reports may damage your reputation in the community. Only report content you genuinely believe violates platform rules.
+                </p>
               </div>
             </div>
           )}

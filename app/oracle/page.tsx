@@ -865,6 +865,17 @@ export default function OraclePage() {
               Create NFT
             </button>
           </div>
+
+          {/* DAO Governance - Separate row */}
+          <div className="flex justify-center mt-2">
+            <button
+              onClick={() => { closeAllModals(); setShowDAOModal(true); }}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50'}`}
+            >
+              <Vote className="w-3.5 h-3.5" />
+              DAO Governance
+            </button>
+          </div>
         </div>
 
         {/* NFT List - Easy access to all NFTs */}

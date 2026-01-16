@@ -963,11 +963,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
 
     try {
       if (isEditMode) {
-        // For updates, call contract directly with user's wallet (requires msg.sender = guide address)
-        if (!walletClient || !publicClient) {
-          throw new Error('Wallet not connected. Please connect your wallet to update profile.');
-        }
-
+        // For updates, use execute-delegated API (Farcaster wallet)
         // Build full bio with languages and transport
         const fullBio = [
           formData.bio,
@@ -977,42 +973,33 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
 
         // Parse hourly rate
         const hourlyRateWMON = parseFloat(formData.hourlyRate) >= 10
-          ? parseEther(formData.hourlyRate)
-          : parseEther('10');
+          ? formData.hourlyRate
+          : '10';
 
-        // Update guide ABI
-        const updateGuideAbi = [{
-          name: 'updateGuide',
-          type: 'function',
-          inputs: [
-            { name: 'hourlyRateWMON', type: 'uint256' },
-            { name: 'hourlyRateTOURS', type: 'uint256' },
-            { name: 'bio', type: 'string' },
-            { name: 'profileImageIPFS', type: 'string' },
-            { name: 'active', type: 'bool' },
-          ],
-          outputs: [],
-          stateMutability: 'nonpayable'
-        }] as const;
+        console.log('[MirrorMate] Updating guide via execute-delegated API');
 
-        const txHash = await walletClient.writeContract({
-          address: REGISTRY_ADDRESS,
-          abi: updateGuideAbi,
-          functionName: 'updateGuide',
-          args: [
-            hourlyRateWMON,
-            0n, // TOURS rate
-            fullBio,
-            user.pfpUrl || '',
-            true, // active
-          ],
+        const response = await fetch('/api/execute-delegated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'mirrormate_update',
+            params: {
+              hourlyRateWMON,
+              hourlyRateTOURS: '100', // Default TOURS rate
+              bio: fullBio,
+              profileImageIPFS: user.pfpUrl || '',
+              active: true,
+            },
+          }),
         });
 
-        console.log('[MirrorMate] Update transaction sent:', txHash);
+        const data = await response.json();
 
-        // Wait for confirmation
-        await publicClient.waitForTransactionReceipt({ hash: txHash });
-        console.log('[MirrorMate] Update confirmed');
+        if (!data.success) {
+          throw new Error(data.error || 'Update failed');
+        }
+
+        console.log('[MirrorMate] Update successful:', data.txHash);
 
       } else {
         // For registration, use the API (Safe AA wallet)
