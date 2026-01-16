@@ -88,25 +88,62 @@ export async function GET() {
 
     console.log(`✅ Fetched ${guides.length} active tour guides from Envio`);
 
-    // Transform to expected format
-    const processedGuides: GuideObject[] = guides.map((guide: any) => ({
-      fid: guide.guideFid,
-      username: guide.username || 'unknown',
-      displayName: guide.displayName || guide.username || 'Unknown Guide',
-      pfpUrl: guide.pfpUrl || '',
-      bio: guide.bio || '',
-      location: guide.location || '',
-      languages: guide.languages || '',
-      transport: guide.transport || '',
-      registeredAt: guide.registeredAt || '0',
-      lastUpdated: guide.lastUpdated || '0',
-      active: guide.active,
-      suspended: guide.suspended,
-      averageRating: guide.averageRating || '0',
-      ratingCount: guide.ratingCount || 0,
-      totalBookings: guide.totalBookings || 0,
-      completedBookings: guide.completedBookings || 0,
-    }));
+    // Collect FIDs that need Farcaster profile data
+    const fidsNeedingProfiles = guides
+      .filter((g: any) => !g.username || g.username === 'unknown' || !g.displayName || !g.pfpUrl)
+      .map((g: any) => g.guideFid);
+
+    // Fetch Farcaster profiles from Neynar for guides missing profile data
+    let farcasterProfiles: Record<string, { username: string; displayName: string; pfpUrl: string }> = {};
+
+    if (fidsNeedingProfiles.length > 0 && NEYNAR_API_KEY) {
+      try {
+        console.log(`🔄 Fetching Farcaster profiles for ${fidsNeedingProfiles.length} guides...`);
+        const neynarResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fidsNeedingProfiles.join(',')}`,
+          { headers: { 'api_key': NEYNAR_API_KEY } }
+        );
+
+        if (neynarResponse.ok) {
+          const neynarData = await neynarResponse.json();
+          for (const user of neynarData.users || []) {
+            farcasterProfiles[user.fid.toString()] = {
+              username: user.username || 'unknown',
+              displayName: user.display_name || user.username || 'Unknown Guide',
+              pfpUrl: user.pfp_url || '',
+            };
+          }
+          console.log(`✅ Fetched ${Object.keys(farcasterProfiles).length} Farcaster profiles`);
+        }
+      } catch (neynarError) {
+        console.warn('Failed to fetch Farcaster profiles:', neynarError);
+      }
+    }
+
+    // Transform to expected format, enriching with Farcaster data
+    const processedGuides: GuideObject[] = guides.map((guide: any) => {
+      const fidStr = guide.guideFid?.toString();
+      const fcProfile = farcasterProfiles[fidStr];
+
+      return {
+        fid: guide.guideFid,
+        username: guide.username || fcProfile?.username || 'unknown',
+        displayName: guide.displayName || fcProfile?.displayName || guide.username || fcProfile?.username || 'Unknown Guide',
+        pfpUrl: guide.pfpUrl || fcProfile?.pfpUrl || '',
+        bio: guide.bio || '',
+        location: guide.location || '',
+        languages: guide.languages || '',
+        transport: guide.transport || '',
+        registeredAt: guide.registeredAt || '0',
+        lastUpdated: guide.lastUpdated || '0',
+        active: guide.active,
+        suspended: guide.suspended,
+        averageRating: guide.averageRating || '0',
+        ratingCount: guide.ratingCount || 0,
+        totalBookings: guide.totalBookings || 0,
+        completedBookings: guide.completedBookings || 0,
+      };
+    });
 
     return NextResponse.json({
       success: true,
