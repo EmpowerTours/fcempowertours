@@ -69,7 +69,7 @@ export async function GET(request: Request) {
         abi: registryAbi,
         functionName: 'bookings',
         args: [bookingId],
-      }) as any[];
+      }) as unknown as any[];
 
       return {
         bookingId: Number(data[0]),
