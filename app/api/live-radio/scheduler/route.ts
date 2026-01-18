@@ -4,19 +4,31 @@ import { Redis } from '@upstash/redis';
 /**
  * Live Radio Scheduler
  *
- * Called by cron job every 5-10 seconds to orchestrate playback:
+ * Called by cron job every 30-60 seconds to orchestrate playback.
+ * OPTIMIZED for Redis usage (target: <500k commands/month)
+ *
  * 1. Check if current song has ended
  * 2. Play voice note between songs (if any pending)
  * 3. Play next queued song OR random song
  *
  * Playback Order:
  * Song → Voice Note → Song → Voice Note → ...
+ *
+ * Redis Optimization Strategy:
+ * - Use in-memory cache for state to avoid repeated reads
+ * - Early exit if song/voice note still has time remaining
+ * - Batch Redis operations where possible
  */
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+
+// In-memory cache to reduce Redis reads
+let cachedState: { data: RadioState | null; timestamp: number } = { data: null, timestamp: 0 };
+let cachedPhase: { data: string; timestamp: number } = { data: 'song', timestamp: 0 };
+const CACHE_TTL_MS = 10000; // 10 second cache (scheduler runs every 30-60s anyway)
 
 const RADIO_STATE_KEY = 'live-radio:state';
 const RADIO_QUEUE_KEY = 'live-radio:queue';
@@ -183,26 +195,69 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Acquire lock to prevent concurrent scheduling
+    const now = Date.now();
+
+    // OPTIMIZATION: Check cached state first to see if we need to do anything
+    // This avoids hitting Redis if we know the song is still playing
+    if (cachedState.data && (now - cachedState.timestamp) < CACHE_TTL_MS) {
+      const state = cachedState.data;
+      if (state.isLive && state.currentSong) {
+        const songEndTime = state.currentSong.startedAt + (state.currentSong.duration * 1000);
+        const remainingMs = songEndTime - now;
+        // If song has more than 30 seconds left, skip Redis entirely
+        if (remainingMs > 30000) {
+          return NextResponse.json({
+            success: true,
+            message: 'Song still playing (cached)',
+            song: state.currentSong.name,
+            remainingMs,
+            cached: true,
+          });
+        }
+      }
+      if (state.isLive && state.currentVoiceNote) {
+        const vnEndTime = state.currentVoiceNote.startedAt + (state.currentVoiceNote.duration * 1000);
+        const remainingMs = vnEndTime - now;
+        if (remainingMs > 5000) {
+          return NextResponse.json({
+            success: true,
+            message: 'Voice note still playing (cached)',
+            remainingMs,
+            cached: true,
+          });
+        }
+      }
+    }
+
+    // Acquire lock to prevent concurrent scheduling (1 Redis command)
     const lockAcquired = await redis.set(SCHEDULER_LOCK_KEY, Date.now(), { nx: true, ex: 30 });
     if (!lockAcquired) {
       return NextResponse.json({ success: true, message: 'Scheduler already running' });
     }
 
     try {
-      // Get current state
+      // Get current state (1 Redis command)
       let state = await redis.get<RadioState>(RADIO_STATE_KEY);
 
+      // Update cache
+      cachedState = { data: state, timestamp: now };
+
       if (!state || !state.isLive) {
+        await redis.del(SCHEDULER_LOCK_KEY);
         return NextResponse.json({ success: true, message: 'Radio not live' });
       }
 
-      const now = Date.now();
       let action = 'none';
       let details: any = {};
 
-      // Get current playback phase
-      let phase = await redis.get<string>(PLAYBACK_PHASE_KEY) || 'song';
+      // Get current playback phase (1 Redis command - but check cache first)
+      let phase: string;
+      if (cachedPhase.timestamp > 0 && (now - cachedPhase.timestamp) < CACHE_TTL_MS) {
+        phase = cachedPhase.data;
+      } else {
+        phase = await redis.get<string>(PLAYBACK_PHASE_KEY) || 'song';
+        cachedPhase = { data: phase, timestamp: now };
+      }
 
       // Check if voice note is playing and has ended
       if (state.currentVoiceNote) {
@@ -226,6 +281,7 @@ export async function POST(req: NextRequest) {
           state.totalVoiceNotesPlayed = (state.totalVoiceNotesPlayed || 0) + 1;
           phase = 'song';
           await redis.set(PLAYBACK_PHASE_KEY, 'song');
+          cachedPhase = { data: 'song', timestamp: now };
         } else {
           // Voice note still playing
           return NextResponse.json({
@@ -249,6 +305,7 @@ export async function POST(req: NextRequest) {
           // Switch to voice note phase (play voice note between songs)
           phase = 'voice_note';
           await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
+          cachedPhase = { data: 'voice_note', timestamp: now };
         } else {
           // Song still playing
           return NextResponse.json({
@@ -289,6 +346,7 @@ export async function POST(req: NextRequest) {
           // Save state and return immediately - let next scheduler call handle playback check
           state.lastUpdated = now;
           await redis.set(RADIO_STATE_KEY, state);
+          cachedState = { data: state, timestamp: now };
           await redis.del(SCHEDULER_LOCK_KEY);
 
           return NextResponse.json({
@@ -307,6 +365,7 @@ export async function POST(req: NextRequest) {
           // No voice notes, skip to song phase
           phase = 'song';
           await redis.set(PLAYBACK_PHASE_KEY, 'song');
+          cachedPhase = { data: 'song', timestamp: now };
         }
       }
 
@@ -367,6 +426,7 @@ export async function POST(req: NextRequest) {
       // Update state
       state.lastUpdated = now;
       await redis.set(RADIO_STATE_KEY, state);
+      cachedState = { data: state, timestamp: now };
 
       return NextResponse.json({
         success: true,

@@ -2,17 +2,23 @@
  * Live Radio Cron Service
  *
  * Deploy as a separate Railway service to call the radio scheduler
- * every 5 seconds to advance playback.
+ * to advance playback.
+ *
+ * REDIS OPTIMIZATION NOTE:
+ * - Default interval changed from 5s to 30s to reduce Redis usage
+ * - The scheduler uses in-memory caching and early-exit when song is still playing
+ * - At 30s interval: ~86k calls/month × 4 commands = ~344k Redis commands
+ * - This leaves room for heartbeats and other API calls
  *
  * Environment Variables:
  * - APP_URL: Your main app URL (e.g., https://fcempowertours-production-6551.up.railway.app)
  * - KEEPER_SECRET: The secret key for authentication
- * - SCHEDULER_INTERVAL: Interval in ms (default: 5000)
+ * - SCHEDULER_INTERVAL: Interval in ms (default: 30000 = 30 seconds)
  */
 
 const APP_URL = process.env.APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
 const KEEPER_SECRET = process.env.KEEPER_SECRET || '';
-const SCHEDULER_INTERVAL = parseInt(process.env.SCHEDULER_INTERVAL || '5000', 10);
+const SCHEDULER_INTERVAL = parseInt(process.env.SCHEDULER_INTERVAL || '30000', 10);
 
 console.log('🎵 Live Radio Cron Service Starting...');
 console.log(`   App URL: ${APP_URL}`);

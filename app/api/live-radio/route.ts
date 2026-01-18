@@ -21,7 +21,8 @@ const RADIO_STATE_KEY = 'live-radio:state';
 const RADIO_QUEUE_KEY = 'live-radio:queue';
 const VOICE_NOTES_KEY = 'live-radio:voice-notes';
 const LISTENER_STATS_KEY = 'live-radio:listener-stats';
-const ACTIVE_LISTENERS_KEY = 'live-radio:active-listeners';
+const ACTIVE_LISTENERS_KEY = 'live-radio:active-listeners'; // Legacy - individual keys
+const ACTIVE_LISTENERS_ZSET = 'live-radio:active-listeners-zset'; // ZSET for efficient counting
 const DAILY_FIRST_LISTENER_KEY = 'live-radio:first-listener';
 const PLAY_HISTORY_KEY = 'live-radio:play-history'; // Recent plays list
 const QUEUE_PRICE_WMON = 1; // 1 WMON to queue a song
@@ -591,14 +592,19 @@ export async function POST(req: NextRequest) {
     if (action === 'heartbeat') {
       const { masterTokenId } = body;
       const userKey = userAddress.toLowerCase();
-      const today = Math.floor(Date.now() / (24 * 60 * 60 * 1000)); // Day number
+      const now = Date.now();
+      const today = Math.floor(now / (24 * 60 * 60 * 1000)); // Day number
 
-      // Track active listener with expiry
-      await redis.setex(`${ACTIVE_LISTENERS_KEY}:${userKey}`, LISTENER_HEARTBEAT_EXPIRY, Date.now().toString());
+      // OPTIMIZED: Use ZSET instead of individual keys + KEYS scan
+      // Add listener to ZSET with timestamp as score (1 Redis command)
+      await redis.zadd(ACTIVE_LISTENERS_ZSET, { score: now, member: userKey });
 
-      // Count active listeners
-      const activeListenerKeys = await redis.keys(`${ACTIVE_LISTENERS_KEY}:*`);
-      const activeCount = activeListenerKeys.length;
+      // Remove listeners older than LISTENER_HEARTBEAT_EXPIRY seconds (1 Redis command)
+      const cutoffTime = now - (LISTENER_HEARTBEAT_EXPIRY * 1000);
+      await redis.zremrangebyscore(ACTIVE_LISTENERS_ZSET, 0, cutoffTime);
+
+      // Count active listeners efficiently with ZCARD (1 Redis command)
+      const activeCount = await redis.zcard(ACTIVE_LISTENERS_ZSET);
 
       // Update radio state listener count
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
