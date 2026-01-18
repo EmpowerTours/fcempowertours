@@ -379,7 +379,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto"
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto ${isDarkMode ? 'dark' : ''}`}
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
     >
       {/* Circular Progress Overlay */}
@@ -591,12 +591,12 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             {currentStep === 2 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-white">
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     Upload Your {nftType === 'music' ? 'Music' : 'Art'} Files
                   </h2>
                   <button
                     onClick={() => setCurrentStep(1)}
-                    className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -769,18 +769,18 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             {currentStep === 3 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-white">Set NFT Details</h2>
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Set NFT Details</h2>
                   <button
                     onClick={() => setCurrentStep(2)}
-                    className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
                   </button>
                 </div>
 
-                <div className="p-6 bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-2xl border-2 border-purple-500/30">
-                  <label className="block text-xl font-bold text-white mb-4">
+                <div className={`p-6 rounded-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-500/30' : 'bg-purple-50 border-purple-200'}`}>
+                  <label className={`block text-xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {nftType === 'music' ? '🎵 Song Title' : '🎨 Art Title'}
                   </label>
                   <input
@@ -789,14 +789,19 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={nftType === 'music' ? 'e.g., Money Making Machine - Electronic Mix' : 'e.g., Sunset Over Mountains'}
                     maxLength={200}
-                    className="w-full px-6 py-4 text-lg bg-gray-800 border-2 border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-4 focus:ring-purple-500/50 focus:border-transparent"
+                    className={`w-full px-6 py-4 text-lg rounded-xl border-2 focus:ring-4 focus:ring-purple-500/50 focus:border-transparent ${
+                      isDarkMode
+                        ? 'bg-gray-800 border-purple-500/30 text-white placeholder-gray-500'
+                        : 'bg-white border-purple-300 text-gray-900 placeholder-gray-400'
+                    }`}
+                    style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
                   />
-                  <p className="text-sm text-gray-400 mt-2">{title.length}/200 characters</p>
+                  <p className={`text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{title.length}/200 characters</p>
                 </div>
 
-                <div className="p-6 bg-gradient-to-br from-cyan-900/30 to-blue-900/30 rounded-2xl border border-cyan-500/30">
-                  <label className="block text-xl font-bold text-white mb-2">💰 License Price</label>
-                  <p className="text-sm text-gray-400 mb-4">Set your price in WMON</p>
+                <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'}`}>
+                  <label className={`block text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💰 License Price</label>
+                  <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Set your price in WMON</p>
 
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     {['50', '100', '300'].map((p) => (
@@ -806,7 +811,9 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                         className={`px-4 py-3 rounded-xl font-bold text-base transition-all ${
                           price === p
                             ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-105 shadow-lg shadow-cyan-500/30'
-                            : 'bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50'
+                            : isDarkMode
+                              ? 'bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50'
+                              : 'bg-white text-gray-700 hover:scale-105 border border-gray-300 hover:border-cyan-500/50'
                         }`}
                       >
                         {p} WMON
@@ -822,11 +829,16 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="Enter amount"
-                      className="flex-1 px-6 py-4 text-lg bg-gray-800 border border-cyan-500/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                      className={`flex-1 px-6 py-4 text-lg rounded-xl border focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 ${
+                        isDarkMode
+                          ? 'bg-gray-800 border-cyan-500/30 text-white placeholder-gray-500'
+                          : 'bg-white border-cyan-300 text-gray-900 placeholder-gray-400'
+                      }`}
+                      style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
                     />
-                    <span className="text-cyan-400 font-bold text-lg whitespace-nowrap">WMON</span>
+                    <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>WMON</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Minimum: 35 WMON</p>
+                  <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Minimum: 35 WMON</p>
                 </div>
 
                 <button
@@ -843,10 +855,10 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             {currentStep === 4 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-white">Review Your NFT</h2>
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Review Your NFT</h2>
                   <button
                     onClick={() => setCurrentStep(3)}
-                    className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
