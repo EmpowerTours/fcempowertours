@@ -1,10 +1,14 @@
 import { getCountryByCode, getFlagEmoji } from './countries';
 
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
+
 export interface PassportStamp {
   locationName: string;
   city: string;
   country: string;
   stampedAt: number;
+  stampImageIPFS?: string; // AI-generated stamp image from Nano Banana
+  experienceType?: string;
 }
 
 // Generate SVG passport image with country info and optional stamps
@@ -86,68 +90,156 @@ export function generatePassportSVG(
     Earn Rewards
   </text>
 
-  <!-- Bottom Info -->
-  <rect x="20" y="440" width="360" height="140" fill="#1e40af" rx="8" opacity="0.3"/>
-  <text x="200" y="470" font-family="Arial, sans-serif" font-size="14" fill="#93c5fd" text-anchor="middle">
-    Token ID: ${tokenId}
+  <!-- Decorative Line -->
+  <line x1="40" y1="425" x2="360" y2="425" stroke="#3b82f6" stroke-width="2" opacity="0.5"/>
+
+  <!-- Stamps Section (Dynamic) -->
+  ${generateStampsSection(stamps)}
+
+  <!-- Bottom Footer -->
+  <rect x="20" y="565" width="360" height="25" fill="#1e40af" rx="4" opacity="0.5"/>
+  <text x="110" y="582" font-family="Arial, sans-serif" font-size="9" fill="#93c5fd" text-anchor="middle">
+    #${tokenId} • ${continent}
   </text>
-  <text x="200" y="492" font-family="Arial, sans-serif" font-size="12" fill="#60a5fa" text-anchor="middle">
-    ${continent} • Stakeable NFT
-  </text>
-  <text x="200" y="515" font-family="Arial, sans-serif" font-size="11" fill="#10b981" text-anchor="middle">
-    💎 Collect Stamps • Build Credit Score
-  </text>
-  <text x="200" y="540" font-family="Arial, sans-serif" font-size="11" fill="#3b82f6" text-anchor="middle">
+  <text x="290" y="582" font-family="Arial, sans-serif" font-size="9" fill="#60a5fa" text-anchor="middle">
     Monad Testnet
   </text>
-  <text x="200" y="560" font-family="Arial, sans-serif" font-size="10" fill="#93c5fd" text-anchor="middle">
-    ${new Date().toLocaleDateString()}
-  </text>
-  
-  <!-- Decorative Line -->
-  <line x1="40" y1="430" x2="360" y2="430" stroke="#3b82f6" stroke-width="2" opacity="0.5"/>
-
-  ${generateStampsSection(stamps)}
 </svg>`;
 
   return svg.trim();
 }
 
-// Generate stamps section for passport SVG
+// Generate stamps section for passport SVG - appears on "visa pages" section
 function generateStampsSection(stamps: PassportStamp[]): string {
-  if (stamps.length === 0) return '';
+  if (stamps.length === 0) {
+    // Show empty stamp area prompt
+    return `
+    <!-- Empty Stamps Prompt -->
+    <g transform="translate(30, 455)">
+      <rect width="340" height="110" fill="#1e3a5f" rx="8" opacity="0.5"/>
+      <text x="170" y="40" font-family="Arial, sans-serif" font-size="14" fill="#60a5fa" text-anchor="middle">
+        No stamps yet
+      </text>
+      <text x="170" y="60" font-family="Arial, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">
+        Purchase experiences &amp; check-in to earn stamps
+      </text>
+      <text x="170" y="80" font-family="Arial, sans-serif" font-size="20" text-anchor="middle" opacity="0.3">
+        ✈️
+      </text>
+    </g>`;
+  }
 
   const maxStampsDisplay = 6;
   const stampsToShow = stamps.slice(0, maxStampsDisplay);
 
-  let stampsHTML = '';
+  // Stamp colors for variety
+  const stampColors = [
+    { bg: '#10b981', text: '#6ee7b7' }, // green
+    { bg: '#ef4444', text: '#fca5a5' }, // red
+    { bg: '#8b5cf6', text: '#c4b5fd' }, // purple
+    { bg: '#f59e0b', text: '#fcd34d' }, // amber
+    { bg: '#06b6d4', text: '#67e8f9' }, // cyan
+    { bg: '#ec4899', text: '#f9a8d4' }, // pink
+  ];
+
+  let stampsHTML = `
+    <!-- Stamps Section Header -->
+    <g transform="translate(30, 445)">
+      <text x="0" y="10" font-family="Arial, sans-serif" font-size="10" fill="#60a5fa" font-weight="bold">
+        STAMPS (${stamps.length})
+      </text>
+    </g>`;
 
   stampsToShow.forEach((stamp, index) => {
-    const x = 60 + (index % 3) * 90;
-    const y = 460 + Math.floor(index / 3) * 55;
-    const flagEmoji = getFlagEmoji(stamp.country.substring(0, 2).toUpperCase()) || '';
-    const date = new Date(stamp.stampedAt * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    const x = 45 + col * 110;
+    const y = 465 + row * 55;
+    const color = stampColors[index % stampColors.length];
 
-    stampsHTML += `
-    <!-- Stamp ${index + 1} -->
-    <g transform="translate(${x}, ${y})">
-      <circle cx="30" cy="30" r="28" fill="#10b981" opacity="0.2"/>
-      <circle cx="30" cy="30" r="28" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="4,2"/>
-      <text x="30" y="25" font-size="16" text-anchor="middle">${flagEmoji}</text>
-      <text x="30" y="40" font-family="Arial, sans-serif" font-size="7" font-weight="bold" fill="#10b981" text-anchor="middle">
-        ${stamp.city.substring(0, 8)}
+    // Randomize stamp rotation slightly for authentic look
+    const rotation = (index * 7 - 10) % 15;
+
+    // Check if stamp has AI-generated image from Nano Banana
+    if (stamp.stampImageIPFS) {
+      // Render AI-generated stamp image
+      const stampImageUrl = stamp.stampImageIPFS.startsWith('ipfs://')
+        ? `https://${PINATA_GATEWAY}/ipfs/${stamp.stampImageIPFS.replace('ipfs://', '')}`
+        : stamp.stampImageIPFS.startsWith('http')
+        ? stamp.stampImageIPFS
+        : `https://${PINATA_GATEWAY}/ipfs/${stamp.stampImageIPFS}`;
+
+      stampsHTML += `
+    <!-- AI Stamp ${index + 1}: ${stamp.locationName} -->
+    <g transform="translate(${x}, ${y}) rotate(${rotation}, 45, 25)">
+      <!-- Circular clip path for stamp image -->
+      <defs>
+        <clipPath id="stampClip${index}">
+          <circle cx="45" cy="25" r="24"/>
+        </clipPath>
+      </defs>
+      <!-- AI-generated stamp image -->
+      <image
+        href="${stampImageUrl}"
+        x="21" y="1"
+        width="48" height="48"
+        clip-path="url(#stampClip${index})"
+        preserveAspectRatio="xMidYMid slice"
+      />
+      <!-- Subtle border overlay -->
+      <circle cx="45" cy="25" r="24" fill="none" stroke="${color.bg}" stroke-width="1" opacity="0.5"/>
+    </g>`;
+    } else {
+      // Fallback: text-based stamp
+      let flagOrIcon = '📍';
+      try {
+        const countryCodeGuess = stamp.country.substring(0, 2).toUpperCase();
+        const maybeFlag = getFlagEmoji(countryCodeGuess);
+        if (maybeFlag && maybeFlag !== countryCodeGuess) {
+          flagOrIcon = maybeFlag;
+        }
+      } catch {}
+
+      const date = new Date(stamp.stampedAt * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const cityTruncated = stamp.city.length > 10 ? stamp.city.substring(0, 9) + '.' : stamp.city;
+      const locationTruncated = stamp.locationName.length > 12 ? stamp.locationName.substring(0, 11) + '.' : stamp.locationName;
+
+      stampsHTML += `
+    <!-- Text Stamp ${index + 1}: ${stamp.locationName} -->
+    <g transform="translate(${x}, ${y}) rotate(${rotation}, 45, 25)">
+      <!-- Stamp background circle -->
+      <circle cx="45" cy="25" r="24" fill="${color.bg}" opacity="0.15"/>
+      <!-- Stamp border (dashed for vintage look) -->
+      <circle cx="45" cy="25" r="24" fill="none" stroke="${color.bg}" stroke-width="2" stroke-dasharray="3,2"/>
+      <!-- Inner decorative ring -->
+      <circle cx="45" cy="25" r="18" fill="none" stroke="${color.bg}" stroke-width="1" opacity="0.5"/>
+      <!-- Flag/Icon -->
+      <text x="45" y="20" font-size="14" text-anchor="middle">${flagOrIcon}</text>
+      <!-- Location name -->
+      <text x="45" y="35" font-family="Arial, sans-serif" font-size="6" font-weight="bold" fill="${color.bg}" text-anchor="middle">
+        ${locationTruncated.toUpperCase()}
       </text>
-      <text x="30" y="48" font-family="Arial, sans-serif" font-size="6" fill="#6ee7b7" text-anchor="middle">
+      <!-- City -->
+      <text x="45" y="43" font-family="Arial, sans-serif" font-size="5" fill="${color.text}" text-anchor="middle">
+        ${cityTruncated}
+      </text>
+      <!-- Date at bottom edge -->
+      <text x="45" y="50" font-family="Arial, sans-serif" font-size="5" fill="${color.bg}" text-anchor="middle" opacity="0.7">
         ${date}
       </text>
     </g>`;
+    }
   });
 
+  // Show count of additional stamps if more than displayed
   if (stamps.length > maxStampsDisplay) {
     stampsHTML += `
-    <text x="330" y="550" font-family="Arial, sans-serif" font-size="10" fill="#60a5fa" text-anchor="end">
-      +${stamps.length - maxStampsDisplay} more
-    </text>`;
+    <g transform="translate(330, 555)">
+      <rect x="-30" y="-12" width="60" height="18" fill="#3b82f6" rx="4" opacity="0.8"/>
+      <text x="0" y="2" font-family="Arial, sans-serif" font-size="10" fill="white" text-anchor="middle" font-weight="bold">
+        +${stamps.length - maxStampsDisplay} more
+      </text>
+    </g>`;
   }
 
   return stampsHTML;

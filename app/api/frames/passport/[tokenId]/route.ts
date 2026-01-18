@@ -12,8 +12,8 @@ export async function GET(
 ) {
   const { tokenId } = await params;
 
-  // Frame image - could be dynamic passport image in future
-  const imageUrl = `${APP_URL}/images/og-image.png`;
+  // Dynamic passport image with stamps from indexer
+  const imageUrl = `${APP_URL}/api/passport/image/${tokenId}`;
 
   // Target URL when frame button is clicked - opens mini app to profile
   const targetUrl = `${APP_URL}/profile`;

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 // Declare google maps types
 declare global {
@@ -57,8 +58,29 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const infoWindowRef = useRef<any>(null);
   const placesServiceRef = useRef<any>(null);
 
+  // Get Farcaster SDK for opening external URLs
+  const { sdk } = useFarcasterContext();
+
   // Google Maps API key from environment variable
   const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  // Helper to open URL in external browser (works in Farcaster mini app)
+  const openExternalUrl = useCallback((url: string) => {
+    try {
+      // Try Farcaster SDK method first (opens in external browser)
+      if (sdk?.actions?.openUrl) {
+        console.log('[MapsWidget] Opening URL via Farcaster SDK:', url);
+        sdk.actions.openUrl({ url });
+        return;
+      }
+      // Fallback for non-Farcaster environment
+      console.log('[MapsWidget] Opening URL via window.open:', url);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('[MapsWidget] Failed to open URL:', err);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }, [sdk]);
 
   // Load Google Maps JavaScript API
   useEffect(() => {
@@ -298,14 +320,14 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   }, []);
 
   const handleNavigateToPlace = (uri: string) => {
-    window.open(uri, '_blank', 'noopener,noreferrer');
+    openExternalUrl(uri);
   };
 
   const handleGetDirections = (source: MapsSource) => {
     const directionsUrl = source.placeId
       ? `https://www.google.com/maps/dir/?api=1&destination_place_id=${source.placeId}`
       : source.uri.replace('/maps/place/', '/maps/dir/?api=1&destination=');
-    window.open(directionsUrl, '_blank', 'noopener,noreferrer');
+    openExternalUrl(directionsUrl);
   };
 
   const selectedSource = sources[selectedIndex];
@@ -506,15 +528,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                       <div className="text-center p-6">
                         <div className="text-5xl mb-3">🗺️</div>
                         <p className="text-red-400 text-sm mb-4">{mapError}</p>
-                        <a
-                          href={selectedSource?.uri || '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => selectedSource?.uri && openExternalUrl(selectedSource.uri)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-lg transition-colors"
                         >
                           <MapPin className="w-4 h-4" />
                           Open in Google Maps
-                        </a>
+                        </button>
                       </div>
                     </div>
                   )}
@@ -530,15 +550,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
                   {selectedSource && (
                     <div className="flex flex-col gap-3 w-full max-w-xs">
-                      <a
-                        href={selectedSource.uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => openExternalUrl(selectedSource.uri)}
                         className="w-full py-3 px-4 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
                       >
                         <MapPin className="w-5 h-5" />
                         View on Google Maps
-                      </a>
+                      </button>
                       <button
                         onClick={() => handleGetDirections(selectedSource)}
                         className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -605,15 +623,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
                 {/* Quick Actions */}
                 <div className="flex gap-2 mt-3 pt-3 border-t border-gray-700/50">
-                  <a
-                    href={selectedSource.uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => openExternalUrl(selectedSource.uri)}
                     className="flex-1 py-2 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
                   >
                     <ExternalLink className="w-3 h-3" />
                     View on Maps
-                  </a>
+                  </button>
                   <button
                     onClick={() => handleGetDirections(selectedSource)}
                     className="flex-1 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
@@ -632,15 +648,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
           <div className="border-t border-cyan-500/20 p-3 bg-green-500/10">
             <div className="flex items-center justify-between text-xs">
               <span className="text-green-400 font-semibold">✅ Payment confirmed</span>
-              <a
-                href={`https://testnet.monadscan.com/tx/${paymentTxHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => openExternalUrl(`https://testnet.monadscan.com/tx/${paymentTxHash}`)}
                 className="text-gray-400 hover:text-cyan-400 transition-colors flex items-center gap-1"
               >
                 View transaction
                 <ExternalLink className="w-3 h-3" />
-              </a>
+              </button>
             </div>
           </div>
         )}
