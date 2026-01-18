@@ -22,7 +22,7 @@ const walletClient = createWalletClient({
 });
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'sponsorship' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -36,6 +36,11 @@ interface OracleAction {
   passport?: {
     countryCode: string;
     countryName: string;
+  };
+  sponsorship?: {
+    action: 'list_open' | 'check_status' | 'checkin' | 'vote';
+    id?: number;
+    vote?: boolean;
   };
 }
 
@@ -197,6 +202,10 @@ Actions:
 - type:"mint_passport" - Open passport minting modal
 - type:"navigate" + destination:"/path" - Navigate to page
 - type:"game" + game:"MIRROR" - Launch game
+- type:"sponsorship" + sponsorship.action:"list_open" - Show open sponsorship offers/requests
+- type:"sponsorship" + sponsorship.action:"check_status" + sponsorship.id:<id> - Check sponsorship status
+- type:"sponsorship" + sponsorship.action:"checkin" + sponsorship.id:<id> - Check-in to sponsored event
+- type:"sponsorship" + sponsorship.action:"vote" + sponsorship.id:<id> + sponsorship.vote:<true/false> - Vote on sponsorship
 - type:"chat" - Conversational response
 
 For "Buy MUSIC NFT #X" requests:
@@ -218,7 +227,7 @@ Return valid JSON only.`;
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'sponsorship'],
             description: 'The type of action to perform'
           },
           destination: {
@@ -256,13 +265,32 @@ Return valid JSON only.`;
             },
             description: 'Passport minting details if type is mint_passport'
           },
+          sponsorship: {
+            type: Type.OBJECT,
+            properties: {
+              action: {
+                type: Type.STRING,
+                enum: ['list_open', 'check_status', 'checkin', 'vote'],
+                description: 'Sponsorship action type'
+              },
+              id: {
+                type: Type.NUMBER,
+                description: 'Sponsorship ID for status/checkin/vote actions'
+              },
+              vote: {
+                type: Type.BOOLEAN,
+                description: 'true=sponsor was mentioned, false=not mentioned'
+              }
+            },
+            description: 'Sponsorship action details if type is sponsorship'
+          },
           message: {
             type: Type.STRING,
             description: 'Response message to user'
           }
         },
         required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport']
+        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship']
       }
     };
 
@@ -476,6 +504,20 @@ Return valid JSON only.`;
         action.message = result.error;
       } else {
         action.message = `Passport minted successfully! ${action.passport.countryName} - Token #${result.tokenId || 'pending'}`;
+      }
+    } else if (action.type === 'sponsorship' && action.sponsorship) {
+      // Handle sponsorship actions
+      const sponsorshipResult = await handleSponsorshipAction(
+        action.sponsorship,
+        userAddress,
+        userLocation
+      );
+      if (sponsorshipResult.txHash) {
+        txHash = sponsorshipResult.txHash;
+      }
+      action.message = sponsorshipResult.message;
+      if (sponsorshipResult.data) {
+        (action as any).sponsorshipData = sponsorshipResult.data;
       }
     }
 
@@ -1068,4 +1110,171 @@ function verifyUserAtLocation(
     verified: distance <= GPS_VERIFICATION_RADIUS,
     distance: Math.round(distance)
   };
+}
+
+// =============================================
+// SPONSORSHIP ACTIONS
+// =============================================
+
+interface SponsorshipActionResult {
+  message: string;
+  txHash?: string;
+  data?: any;
+}
+
+async function handleSponsorshipAction(
+  sponsorship: { action: string; id?: number; vote?: boolean },
+  userAddress?: string,
+  userLocation?: { latitude?: number; longitude?: number; city?: string; country?: string }
+): Promise<SponsorshipActionResult> {
+  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+
+  try {
+    switch (sponsorship.action) {
+      case 'list_open': {
+        // List open sponsorship offers and requests
+        const response = await fetch(`${baseUrl}/api/sponsorship/open`);
+        const data = await response.json();
+
+        if (!data.success) {
+          return { message: `Failed to fetch sponsorships: ${data.error}` };
+        }
+
+        const { offers, requests } = data;
+
+        if (offers.count === 0 && requests.count === 0) {
+          return {
+            message: '📋 **No open sponsorships found**\n\nThere are currently no open sponsorship offers or requests. Check back later or create your own!',
+            data: { offers: [], requests: [] }
+          };
+        }
+
+        let message = '📋 **Open Sponsorships**\n\n';
+
+        if (offers.count > 0) {
+          message += `🎁 **Sponsor Offers** (${offers.count})\n`;
+          offers.sponsorships.slice(0, 3).forEach((s: any) => {
+            message += `• #${s.id}: ${s.eventName} (${s.city}) - ${s.amountFormatted} WMON\n`;
+          });
+          if (offers.count > 3) message += `  ...and ${offers.count - 3} more\n`;
+          message += '\n';
+        }
+
+        if (requests.count > 0) {
+          message += `🙋 **Host Requests** (${requests.count})\n`;
+          requests.sponsorships.slice(0, 3).forEach((s: any) => {
+            message += `• #${s.id}: ${s.eventName} (${s.city}) - Seeking ${s.amountFormatted} WMON\n`;
+          });
+          if (requests.count > 3) message += `  ...and ${requests.count - 3} more\n`;
+        }
+
+        return { message, data };
+      }
+
+      case 'check_status': {
+        if (!sponsorship.id) {
+          return { message: 'Please provide a sponsorship ID to check. Example: "check sponsorship #1"' };
+        }
+
+        const response = await fetch(`${baseUrl}/api/sponsorship/${sponsorship.id}${userAddress ? `?user=${userAddress}` : ''}`);
+        const data = await response.json();
+
+        if (!data.success) {
+          return { message: `Sponsorship #${sponsorship.id} not found.` };
+        }
+
+        const s = data.sponsorship;
+        const userStatus = data.userStatus;
+
+        let message = `📊 **Sponsorship #${s.id}**\n\n`;
+        message += `📍 ${s.eventName}\n`;
+        message += `📌 ${s.city}, ${s.country}\n`;
+        message += `💰 ${s.amountFormatted} WMON\n`;
+        message += `📈 Status: ${s.status}\n`;
+        message += `👥 Check-ins: ${s.checkedInCount}/${s.expectedGuests}\n`;
+        message += `🗳️ Votes: ${s.yesVotes} yes / ${s.noVotes} no\n`;
+
+        if (s.eventDate > 0) {
+          message += `📅 Event: ${new Date(s.eventDate * 1000).toLocaleDateString()}\n`;
+        }
+
+        if (userStatus) {
+          message += `\n**Your Status:**\n`;
+          message += `✅ Checked in: ${userStatus.isCheckedIn ? 'Yes' : 'No'}\n`;
+          message += `🗳️ Voted: ${userStatus.hasVoted ? 'Yes' : 'No'}\n`;
+        }
+
+        return { message, data: s };
+      }
+
+      case 'checkin': {
+        if (!sponsorship.id) {
+          return { message: 'Please provide a sponsorship ID to check in. Example: "check in to sponsorship #1"' };
+        }
+        if (!userAddress) {
+          return { message: 'Please connect your wallet to check in to events.' };
+        }
+
+        const response = await fetch(`${baseUrl}/api/sponsorship/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sponsorshipId: sponsorship.id,
+            guestAddress: userAddress,
+            latitude: userLocation?.latitude,
+            longitude: userLocation?.longitude,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          return { message: `❌ Check-in failed: ${data.error}` };
+        }
+
+        return {
+          message: `✅ Successfully checked in to sponsorship #${sponsorship.id}!\n\nYou can now vote on whether the sponsor was mentioned at the event after check-in closes.`,
+          txHash: data.txHash,
+          data,
+        };
+      }
+
+      case 'vote': {
+        if (!sponsorship.id) {
+          return { message: 'Please provide a sponsorship ID to vote on. Example: "vote yes on sponsorship #1"' };
+        }
+        if (!userAddress) {
+          return { message: 'Please connect your wallet to vote.' };
+        }
+
+        const response = await fetch(`${baseUrl}/api/sponsorship/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sponsorshipId: sponsorship.id,
+            voterAddress: userAddress,
+            vote: sponsorship.vote ?? true,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          return { message: `❌ Vote failed: ${data.error}` };
+        }
+
+        const voteText = sponsorship.vote ? 'YES (sponsor was mentioned)' : 'NO (sponsor was NOT mentioned)';
+        return {
+          message: `🗳️ Vote prepared: ${voteText}\n\nSubmit the transaction to complete your vote on sponsorship #${sponsorship.id}.`,
+          data,
+        };
+      }
+
+      default:
+        return { message: `Unknown sponsorship action: ${sponsorship.action}` };
+    }
+  } catch (error: any) {
+    console.error('[Oracle] Sponsorship action error:', error);
+    return { message: `Sponsorship error: ${error.message}` };
+  }
 }
