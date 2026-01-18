@@ -164,7 +164,7 @@ The stamp should feel like a collectible travel souvenir that captures the essen
       for (const part of imageResult.candidates[0].content.parts) {
         if (part.text) {
           stampDescription = part.text;
-        } else if (part.inlineData) {
+        } else if (part.inlineData?.data) {
           stampImageBase64 = part.inlineData.data;
         }
       }
