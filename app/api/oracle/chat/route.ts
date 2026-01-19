@@ -22,7 +22,7 @@ const walletClient = createWalletClient({
 });
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'sponsorship' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'sponsorship' | 'admin' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -41,6 +41,11 @@ interface OracleAction {
     action: 'list_open' | 'check_status' | 'checkin' | 'vote';
     id?: number;
     vote?: boolean;
+  };
+  admin?: {
+    action: 'burn_nft' | 'lookup_nft';
+    tokenId?: number;
+    reason?: string;
   };
 }
 
@@ -206,6 +211,8 @@ Actions:
 - type:"sponsorship" + sponsorship.action:"check_status" + sponsorship.id:<id> - Check sponsorship status
 - type:"sponsorship" + sponsorship.action:"checkin" + sponsorship.id:<id> - Check-in to sponsored event
 - type:"sponsorship" + sponsorship.action:"vote" + sponsorship.id:<id> + sponsorship.vote:<true/false> - Vote on sponsorship
+- type:"admin" + admin.action:"burn_nft" + admin.tokenId:<id> + admin.reason:"<reason>" - Burn stolen/infringing NFT (admin only)
+- type:"admin" + admin.action:"lookup_nft" + admin.tokenId:<id> - Lookup NFT info before burning
 - type:"chat" - Conversational response
 
 For "Buy MUSIC NFT #X" requests:
@@ -227,7 +234,7 @@ Return valid JSON only.`;
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'sponsorship'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'sponsorship', 'admin'],
             description: 'The type of action to perform'
           },
           destination: {
@@ -284,13 +291,32 @@ Return valid JSON only.`;
             },
             description: 'Sponsorship action details if type is sponsorship'
           },
+          admin: {
+            type: Type.OBJECT,
+            properties: {
+              action: {
+                type: Type.STRING,
+                enum: ['burn_nft', 'lookup_nft'],
+                description: 'Admin action type'
+              },
+              tokenId: {
+                type: Type.NUMBER,
+                description: 'NFT token ID to burn or lookup'
+              },
+              reason: {
+                type: Type.STRING,
+                description: 'Reason for burning (required for burn_nft)'
+              }
+            },
+            description: 'Admin action details if type is admin'
+          },
           message: {
             type: Type.STRING,
             description: 'Response message to user'
           }
         },
         required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship']
+        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship', 'admin']
       }
     };
 
@@ -518,6 +544,16 @@ Return valid JSON only.`;
       action.message = sponsorshipResult.message;
       if (sponsorshipResult.data) {
         (action as any).sponsorshipData = sponsorshipResult.data;
+      }
+    } else if (action.type === 'admin' && action.admin) {
+      // Handle admin actions (burn NFT, etc.)
+      const adminResult = await handleAdminAction(action.admin, userAddress);
+      if (adminResult.txHash) {
+        txHash = adminResult.txHash;
+      }
+      action.message = adminResult.message;
+      if (adminResult.data) {
+        (action as any).adminData = adminResult.data;
       }
     }
 
@@ -1276,5 +1312,98 @@ async function handleSponsorshipAction(
   } catch (error: any) {
     console.error('[Oracle] Sponsorship action error:', error);
     return { message: `Sponsorship error: ${error.message}` };
+  }
+}
+
+/**
+ * Handle admin actions (burn stolen NFTs, etc.)
+ */
+async function handleAdminAction(
+  admin: { action: string; tokenId?: number; reason?: string },
+  userAddress?: string
+): Promise<{ message: string; txHash?: string; data?: any }> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+  // Admin addresses that can perform admin actions
+  const ADMIN_ADDRESSES = [
+    '0x6d11A83fEeFa14eF1B38Dce97Be3995441c9fEc3', // Treasury
+    '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533', // Platform Safe
+  ].map(a => a.toLowerCase());
+
+  try {
+    switch (admin.action) {
+      case 'lookup_nft': {
+        if (!admin.tokenId) {
+          return { message: 'Please provide a token ID to lookup. Example: "lookup NFT #1"' };
+        }
+
+        const response = await fetch(`${baseUrl}/api/admin/burn-stolen?tokenId=${admin.tokenId}`);
+        const data = await response.json();
+
+        if (!data.success) {
+          return { message: `❌ ${data.error}` };
+        }
+
+        return {
+          message: `🔍 **NFT #${data.tokenId} Info**\n\n` +
+            `**Owner:** \`${data.owner.slice(0, 6)}...${data.owner.slice(-4)}\`\n` +
+            `**Contract:** \`${data.contract.slice(0, 6)}...${data.contract.slice(-4)}\`\n` +
+            (data.tokenURI ? `**Token URI:** ${data.tokenURI.slice(0, 50)}...\n` : '') +
+            `\nTo burn this NFT, say: "burn NFT #${data.tokenId} reason: [your reason]"`,
+          data,
+        };
+      }
+
+      case 'burn_nft': {
+        if (!admin.tokenId) {
+          return { message: 'Please provide a token ID to burn. Example: "burn NFT #1 reason: stolen content"' };
+        }
+
+        if (!admin.reason || admin.reason.length < 10) {
+          return { message: 'Please provide a reason for burning (at least 10 characters). Example: "burn NFT #1 reason: Copyright infringement - DMCA takedown"' };
+        }
+
+        if (!userAddress) {
+          return { message: 'Please connect your wallet to perform admin actions.' };
+        }
+
+        // Check if user is admin
+        if (!ADMIN_ADDRESSES.includes(userAddress.toLowerCase())) {
+          return { message: '⛔ You are not authorized to perform admin actions. Only platform admins can burn NFTs.' };
+        }
+
+        const response = await fetch(`${baseUrl}/api/admin/burn-stolen`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tokenId: admin.tokenId,
+            reason: admin.reason,
+            adminAddress: userAddress,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          return { message: `❌ Burn failed: ${data.error}` };
+        }
+
+        return {
+          message: `🔥 **NFT #${admin.tokenId} Burned Successfully**\n\n` +
+            `**Previous Owner:** \`${data.previousOwner.slice(0, 6)}...${data.previousOwner.slice(-4)}\`\n` +
+            `**Reason:** ${admin.reason}\n` +
+            `**Block:** ${data.blockNumber}\n\n` +
+            `[View Transaction](https://testnet.monadscan.com/tx/${data.txHash})`,
+          txHash: data.txHash,
+          data,
+        };
+      }
+
+      default:
+        return { message: `Unknown admin action: ${admin.action}. Available: lookup_nft, burn_nft` };
+    }
+  } catch (error: any) {
+    console.error('[Oracle] Admin action error:', error);
+    return { message: `Admin action error: ${error.message}` };
   }
 }
