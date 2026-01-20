@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, RefreshCw, Music, Palette, Ticket, Users, ShoppingBag, MapPin, Play, DollarSign, TrendingUp, Headphones, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
+import { getExplorerUrl } from '@/app/chains';
 
 interface DashboardModalProps {
   onClose: () => void;
@@ -326,7 +327,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                   <div className="flex justify-between items-center mt-1">
                     <span className="text-xs text-gray-400">Artist: <WalletLink address={item.artist} /></span>
                     {item.txHash && (
-                      <a href={`https://testnet.monadscan.com/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:text-purple-300">TX →</a>
+                      <a href={getExplorerUrl(item.txHash)} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:text-purple-300">TX →</a>
                     )}
                   </div>
                 </div>
@@ -341,7 +342,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
                   <div className="flex justify-between items-center mt-1">
                     <span className="text-xs text-gray-400">Artist: <WalletLink address={item.artist} /></span>
                     {item.txHash && (
-                      <a href={`https://testnet.monadscan.com/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:text-cyan-300">TX →</a>
+                      <a href={getExplorerUrl(item.txHash)} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:text-cyan-300">TX →</a>
                     )}
                   </div>
                 </div>

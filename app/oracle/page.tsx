@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, Vote, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -10,7 +10,6 @@ import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
 import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
 import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
 import { ProfileModal } from '@/app/components/oracle/ProfileModal';
-import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { DashboardModal } from '@/app/components/oracle/DashboardModal';
 import { UserProfileModal } from '@/app/components/oracle/UserProfileModal';
 import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
@@ -82,7 +81,6 @@ export default function OraclePage() {
   const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
   const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showDAOModal, setShowDAOModal] = useState(false);
   const [showRadioModal, setShowRadioModal] = useState(false);
   const [showEventOracleModal, setShowEventOracleModal] = useState(false);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
@@ -126,7 +124,6 @@ export default function OraclePage() {
   // Helper to close all modals before opening a new one
   const closeAllModals = useCallback(() => {
     setShowProfileModal(false);
-    setShowDAOModal(false);
     setShowRadioModal(false);
     setShowEventOracleModal(false);
     setShowDashboardModal(false);
@@ -636,7 +633,6 @@ export default function OraclePage() {
       showDashboardModal ||
       showRadioModal ||
       showEventOracleModal ||
-      showDAOModal ||
       showDepositModal ||
       showSubscriptionModal ||
       showCreateNFTModal ||
@@ -866,16 +862,6 @@ export default function OraclePage() {
             </button>
           </div>
 
-          {/* DAO Governance - Separate row */}
-          <div className="flex justify-center mt-2">
-            <button
-              onClick={() => { closeAllModals(); setShowDAOModal(true); }}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50'}`}
-            >
-              <Vote className="w-3.5 h-3.5" />
-              DAO Governance
-            </button>
-          </div>
         </div>
 
         {/* NFT List - Easy access to all NFTs */}
@@ -1187,15 +1173,6 @@ export default function OraclePage() {
             }}
           />
         </>
-      )}
-
-      {/* DAO Modal */}
-      {showDAOModal && (
-        <DAOModal
-          userAddress={walletAddress ?? undefined}
-          onClose={() => setShowDAOModal(false)}
-          isDarkMode={isDarkMode}
-        />
       )}
 
       {/* Live Radio Modal */}

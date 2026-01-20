@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink } from 'lucide-react';
+import { getAddressExplorerUrl } from '@/app/chains';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -396,7 +397,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       Safe Wallet
                     </h4>
                     <a
-                      href={`https://testnet.monadscan.com/address/${safeBalance.safeAddress}`}
+                      href={getAddressExplorerUrl(safeBalance.safeAddress)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
