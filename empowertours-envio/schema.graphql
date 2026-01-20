@@ -729,6 +729,31 @@ type ArtistStreamingStats @entity {
   lastPayoutAt: Timestamp
 }
 
+# ✅ NEW: Music Subscription Entities
+type Subscription @entity {
+  id: ID!                                 # sub-{chainId}-{userAddress}
+  user: String!
+  userFid: String!
+  tier: Int!
+  expiry: BigInt!
+  paidAmount: BigInt!
+  active: Boolean!
+  subscribedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type MonthlyDistribution @entity {
+  id: ID!                                 # distribution-{chainId}-{monthId}
+  monthId: String!
+  totalRevenue: BigInt!
+  totalPlays: BigInt!
+  artistPool: BigInt!
+  finalizedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
 # ============================================
 # ✅ NEW: LiveRadio Entities (World Cup 2026 Jukebox)
 # ============================================

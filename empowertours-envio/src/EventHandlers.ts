@@ -1,19 +1,10 @@
 import {
   EmpowerToursNFT,
   PassportNFT,
-  ExperienceNFT,
-  YieldStrategy,
-  DemandSignalEngine,
-  SmartEventManifest,
-  TandaYieldGroup,
-  CreditScoreCalculator,
-  DailyPassLotteryV3,
-  MusicBeatMatchV2,
-  CountryCollectorV2,
+  ItineraryNFT,
   PlayOracle,
   MusicSubscriptionV2,
   LiveRadio,
-  TourGuideRegistry,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -51,49 +42,49 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
   previewAudioUrl: string;
   fullAudioUrl: string;
 } | null> {
-  
+
   // Try each gateway in sequence
   for (let gatewayIndex = 0; gatewayIndex < GATEWAYS.length; gatewayIndex++) {
     try {
       const metadataUrl = resolveIPFS(tokenURI, gatewayIndex);
       const gateway = GATEWAYS[gatewayIndex];
-      
+
       context.log.info(`📦 [Gateway ${gatewayIndex + 1}/${GATEWAYS.length}] Fetching from ${gateway}...`);
       context.log.info(`   URL: ${metadataUrl}`);
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
+
       const response = await fetch(metadataUrl, {
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
         },
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         context.log.warn(`⚠️ Gateway ${gateway} returned HTTP ${response.status}`);
         continue; // Try next gateway
       }
-      
+
       const metadata = await response.json() as MusicMetadata;
-      
+
       context.log.info(`✅ Metadata fetched from ${gateway}:`, {
         name: metadata.name,
         hasImage: !!metadata.image,
         hasAnimationUrl: !!metadata.animation_url,
         hasExternalUrl: !!metadata.external_url,
       });
-      
+
       // ✅ CRITICAL: Log the raw URLs before resolving
       context.log.info(`📝 Raw metadata URLs:`, {
         image: metadata.image,
         animation_url: metadata.animation_url,
         external_url: metadata.external_url,
       });
-      
+
       const result = {
         name: metadata.name || "",
         description: metadata.description || "",
@@ -101,12 +92,12 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
         previewAudioUrl: resolveIPFS(metadata.animation_url || "", gatewayIndex),
         fullAudioUrl: resolveIPFS(metadata.external_url || metadata.animation_url || "", gatewayIndex),
       };
-      
+
       // ✅ CRITICAL: Log the resolved URLs
       context.log.info(`🔗 Resolved URLs:`, result);
-      
+
       return result;
-      
+
     } catch (error: any) {
       context.log.warn(`❌ Gateway ${GATEWAYS[gatewayIndex]} failed: ${error.message}`);
       if (error.name === 'AbortError') {
@@ -115,7 +106,7 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
       // Continue to next gateway
     }
   }
-  
+
   // All gateways failed
   context.log.error(`❌ All gateways failed to fetch metadata for: ${tokenURI}`);
   return null;
@@ -265,6 +256,14 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
   }
 
   context.log.info(`✅ Music NFT #${tokenId} minted by ${artist} - "${metadata?.name || 'Untitled'}"`);
+});
+
+// ✅ Handle CollectorMasterMinted event
+EmpowerToursNFT.CollectorMasterMinted.handler(async ({ event, context }) => {
+  const { tokenId, artist, artistFid, maxEditions, collectorPrice } = event.params;
+
+  context.log.info(`🎵 CollectorMaster #${tokenId} minted by ${artist} (FID: ${artistFid})`);
+  context.log.info(`   Max Editions: ${maxEditions}, Collector Price: ${collectorPrice}`);
 });
 
 // ✅ Handle LicensePurchased event (with expiry timestamp)
@@ -514,7 +513,7 @@ EmpowerToursNFT.BurnRewardUpdated.handler(async ({ event, context }) => {
   context.log.info(`🔥 Burn reward updated to ${newReward} TOURS at ${timestamp}`);
 });
 
-// ✅ NEW: DAO Governance - Stolen Content Removal
+// ✅ DAO Governance - Stolen Content Removal
 EmpowerToursNFT.StolenContentBurned.handler(async ({ event, context }) => {
   const { tokenId, originalOwner, reason, timestamp } = event.params;
 
@@ -550,11 +549,74 @@ EmpowerToursNFT.StolenContentBurned.handler(async ({ event, context }) => {
   }
 });
 
-// ✅ NEW: Artist Song Cleared (allows reminting after burn)
+// ✅ Artist Song Cleared (allows reminting after burn)
 EmpowerToursNFT.ArtistSongCleared.handler(async ({ event, context }) => {
   const { artist, title, timestamp } = event.params;
 
   context.log.info(`🎵 Artist song cleared for reminting - Artist: ${artist}, Title: "${title}" at ${timestamp}`);
+});
+
+// ✅ Royalty tracking
+EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
+  const { masterTokenId, artist, amount } = event.params;
+
+  const royaltyId = `royalty-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  // Format amount (assuming 18 decimals for WMON)
+  const amountFormatted = (Number(amount) / 1e18).toFixed(4);
+
+  await context.RoyaltyPayment.set({
+    id: royaltyId,
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
+    artist: artist.toLowerCase(),
+    amount: amount,
+    amountFormatted: amountFormatted,
+    paidAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update song streaming stats with royalty earnings
+  const songStatsId = `stats-${event.chainId}-${masterTokenId.toString()}`;
+  let songStats = await context.SongStreamingStats.get(songStatsId);
+
+  if (songStats) {
+    await context.SongStreamingStats.set({
+      ...songStats,
+      totalRoyaltiesEarned: songStats.totalRoyaltiesEarned + amount,
+    });
+  }
+
+  // Update artist streaming stats
+  const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
+  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+
+  if (artistStats) {
+    await context.ArtistStreamingStats.set({
+      ...artistStats,
+      totalEarningsWMON: artistStats.totalEarningsWMON + amount,
+    });
+  }
+
+  context.log.info(`💎 Royalty paid: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for song #${masterTokenId}`);
+});
+
+// ✅ Price update tracking
+EmpowerToursNFT.PriceUpdated.handler(async ({ event, context }) => {
+  const { masterTokenId, newPrice } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      price: newPrice,
+    });
+  }
+
+  context.log.info(`💰 Price updated for Music NFT #${masterTokenId}: ${newPrice}`);
 });
 
 // ============================================
@@ -690,45 +752,34 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
   }
 });
 
-// ❌ DISABLED: PassportStaked event not in config.yaml
-// PassportNFT.PassportStaked.handler(async ({ event, context }) => {
-//   const { tokenId, monAmount, positionId } = event.params;
-//
-//   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
-//   const passportStakeId = `passport-stake-${event.block.number}-${event.logIndex}`;
-//
-//   // Create passport stake event
-//   const passportStake = {
-//     id: passportStakeId,
-//     passport_id: passportNFTId,
-//     tokenId: tokenId.toString(),
-//     amount: monAmount,
-//     positionId: positionId,
-//     stakedAt: new Date(event.block.timestamp * 1000),
-//     blockNumber: BigInt(event.block.number),
-//     txHash: event.transaction.hash,
-//   };
-//
-//   await context.PassportStake.set(passportStake);
-//
-//   // Update passport staked amount and credit score
-//   const passportNFT = await context.PassportNFT.get(passportNFTId);
-//   if (passportNFT) {
-//     const newStakedAmount = passportNFT.stakedAmount + monAmount;
-//     const stakedUnits = Number(newStakedAmount) / 1e18;
-//     const stampBonus = passportNFT.stampCount * 10;
-//     const verifiedBonus = passportNFT.verifiedStampCount * 5;
-//     const newCreditScore = 100 + Math.floor(stakedUnits) + stampBonus + verifiedBonus;
-//
-//     await context.PassportNFT.set({
-//       ...passportNFT,
-//       stakedAmount: newStakedAmount,
-//       creditScore: newCreditScore,
-//     });
-//
-//     context.log.info(`💰 Passport #${tokenId} staked ${monAmount.toString()} MON (position: ${positionId.toString()}). New credit score: ${newCreditScore}`);
-//   }
-// });
+// ✅ Verification flow handlers
+PassportNFT.VerificationRequested.handler(async ({ event, context }) => {
+  const { tokenId, owner, photoProofIPFS } = event.params;
+
+  context.log.info(`📸 Verification requested for Passport #${tokenId} by ${owner} - proof: ${photoProofIPFS}`);
+});
+
+PassportNFT.VerificationApproved.handler(async ({ event, context }) => {
+  const { tokenId, oracle } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+
+  if (passportNFT) {
+    await context.PassportNFT.set({
+      ...passportNFT,
+      verified: true,
+    });
+  }
+
+  context.log.info(`✅ Passport #${tokenId} verification APPROVED by oracle ${oracle}`);
+});
+
+PassportNFT.VerificationRejected.handler(async ({ event, context }) => {
+  const { tokenId, oracle, reason } = event.params;
+
+  context.log.info(`❌ Passport #${tokenId} verification REJECTED by oracle ${oracle} - reason: ${reason}`);
+});
 
 // ✅ Venue stamp handler (venueName, creditAdded)
 PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
@@ -770,37 +821,51 @@ PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
   }
 });
 
-// ============================================
-// MARKETPLACE/ITINERARY EVENTS
-// ============================================
-// NOTE: ItineraryNFT/ExperienceNFT events are handled by ExperienceNFT contract
+// ✅ Itinerary stamp handler
+PassportNFT.ItineraryStampAdded.handler(async ({ event, context }) => {
+  const { tokenId, itineraryId, creditAdded } = event.params;
+
+  const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
+
+  // Update passport credit score
+  const passportNFT = await context.PassportNFT.get(passportNFTId);
+  if (passportNFT) {
+    const newCreditScore = passportNFT.creditScore + Number(creditAdded);
+
+    await context.PassportNFT.set({
+      ...passportNFT,
+      creditScore: newCreditScore,
+    });
+
+    context.log.info(`🗺️ Itinerary stamp added to Passport #${tokenId} for itinerary #${itineraryId} (+${creditAdded} credit). New score: ${newCreditScore}`);
+  }
+});
 
 // ============================================
-// EXPERIENCE NFT EVENTS (GPS-gated travel experiences)
+// ITINERARY NFT EVENTS
 // ============================================
 
-ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
-  const { experienceId, creator, title, city, country, price } = event.params;
+ItineraryNFT.ItineraryCreated.handler(async ({ event, context }) => {
+  const { itineraryId, creator, creatorFid, title, city, country, price } = event.params;
 
-  const experienceEntityId = `experience-${event.chainId}-${experienceId.toString()}`;
+  const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
   const userId = creator.toLowerCase();
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Create experience entity
-  const experience = {
-    id: experienceEntityId,
-    experienceId: experienceId.toString(),
+  // Create itinerary entity (using existing schema fields)
+  const itinerary = {
+    id: itineraryEntityId,
+    itineraryId: itineraryId.toString(),
     creator: userId,
-    title: title,
-    city: city,
-    country: country,
+    description: `${title} - ${city}, ${country}`, // Store title/city/country in description
     price: price,
     active: true,
-    createdAt: new Date(event.block.timestamp * 1000),
+    createdAt: timestamp,
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   };
 
-  await context.Experience.set(experience);
+  await context.Itinerary.set(itinerary);
 
   // Update user stats
   let userStats = await context.UserStats.get(userId);
@@ -809,8 +874,8 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
   if (userStats) {
     await context.UserStats.set({
       ...userStats,
-      experiencesCreated: userStats.experiencesCreated + 1,
-      lastActive: new Date(event.block.timestamp * 1000),
+      itinerariesCreated: userStats.itinerariesCreated + 1,
+      lastActive: timestamp,
     });
   } else {
     await context.UserStats.set({
@@ -819,84 +884,74 @@ ExperienceNFT.ExperienceCreated.handler(async ({ event, context }) => {
       musicNFTCount: 0,
       artNFTCount: 0,
       passportNFTCount: 0,
-      itinerariesCreated: 0,
+      itinerariesCreated: 1,
       itinerariesPurchased: 0,
-      experiencesCreated: 1,
+      experiencesCreated: 0,
       experiencesPurchased: 0,
       totalNFTs: 0,
       licensesOwned: 0,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
       stolenContentBurns: 0,
-      lastActive: new Date(event.block.timestamp * 1000),
+      lastActive: timestamp,
     });
   }
 
   // Update global stats
   let globalStats = await context.GlobalStats.get("global");
+
   if (globalStats) {
     await context.GlobalStats.set({
       ...globalStats,
-      totalExperiences: globalStats.totalExperiences + 1,
+      totalItineraries: globalStats.totalItineraries + 1,
       totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
-      lastUpdated: new Date(event.block.timestamp * 1000),
+      lastUpdated: timestamp,
+    });
+  } else {
+    await context.GlobalStats.set({
+      id: "global",
+      totalMusicNFTs: 0,
+      totalPassports: 0,
+      totalItineraries: 1,
+      totalItineraryPurchases: 0,
+      totalExperiences: 0,
+      totalExperiencePurchases: 0,
+      totalMusicLicensesPurchased: 0,
+      totalStaked: BigInt(0),
+      totalStakers: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalTandaGroups: 0,
+      totalDemandSignals: 0,
+      totalLotteryRounds: 0,
+      totalLotteryEntries: 0,
+      totalLotteryPrizePool: BigInt(0),
+      totalUsers: 1,
+      lastUpdated: timestamp,
     });
   }
 
-  context.log.info(`🗺️ Experience #${experienceId} created: "${title}" in ${city}, ${country} by ${creator}`);
-
-  // ✅ Announce on Farcaster
-  try {
-    const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-    const priceInWmon = (Number(price) / 1e18).toFixed(2);
-
-    const response = await fetch(`${appUrl}/api/cast-nft`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'experience_created',
-        experienceId: experienceId.toString(),
-        title: title,
-        city: city,
-        country: country,
-        price: priceInWmon,
-        txHash: event.transaction.hash,
-        creatorAddress: creator,
-        fid: undefined, // Will be looked up by address if available
-      }),
-    });
-
-    if (response.ok) {
-      const result = await response.json() as any;
-      context.log.info(`📢 Experience creation announced on Farcaster: ${result.castHash}`);
-    } else {
-      context.log.warn(`⚠️ Failed to announce experience creation on Farcaster`);
-    }
-  } catch (error: any) {
-    context.log.warn(`⚠️ Error announcing experience creation: ${error.message}`);
-  }
+  context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator} (FID: ${creatorFid}) - "${title}" in ${city}, ${country}`);
 });
 
-ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
-  const { experienceId, buyer, price } = event.params;
+ItineraryNFT.ItineraryPurchased.handler(async ({ event, context }) => {
+  const { itineraryId, buyer, buyerFid, price } = event.params;
 
-  const experienceEntityId = `experience-${event.chainId}-${experienceId.toString()}`;
-  const purchaseId = `experience-purchase-${event.block.number}-${event.logIndex}`;
+  const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
+  const purchaseId = `purchase-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
   const userId = buyer.toLowerCase();
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Create purchase entity
-  const purchase = {
+  // Create purchase record (using existing schema fields)
+  await context.ItineraryPurchase.set({
     id: purchaseId,
-    experience_id: experienceEntityId,
-    experienceId: experienceId.toString(),
+    itinerary_id: itineraryEntityId,
+    itineraryId: itineraryId.toString(),
     buyer: userId,
-    price: price,
-    purchasedAt: new Date(event.block.timestamp * 1000),
+    timestamp: timestamp,
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
-  };
-
-  await context.ExperiencePurchase.set(purchase);
+  });
 
   // Update user stats
   let userStats = await context.UserStats.get(userId);
@@ -905,8 +960,8 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
   if (userStats) {
     await context.UserStats.set({
       ...userStats,
-      experiencesPurchased: userStats.experiencesPurchased + 1,
-      lastActive: new Date(event.block.timestamp * 1000),
+      itinerariesPurchased: userStats.itinerariesPurchased + 1,
+      lastActive: timestamp,
     });
   } else {
     await context.UserStats.set({
@@ -916,1176 +971,56 @@ ExperienceNFT.ExperiencePurchased.handler(async ({ event, context }) => {
       artNFTCount: 0,
       passportNFTCount: 0,
       itinerariesCreated: 0,
-      itinerariesPurchased: 0,
+      itinerariesPurchased: 1,
       experiencesCreated: 0,
-      experiencesPurchased: 1,
+      experiencesPurchased: 0,
       totalNFTs: 0,
       licensesOwned: 0,
       eventsAttended: 0,
       tandaGroupsJoined: 0,
       stolenContentBurns: 0,
-      lastActive: new Date(event.block.timestamp * 1000),
+      lastActive: timestamp,
     });
   }
 
   // Update global stats
   let globalStats = await context.GlobalStats.get("global");
+
   if (globalStats) {
     await context.GlobalStats.set({
       ...globalStats,
-      totalExperiencePurchases: globalStats.totalExperiencePurchases + 1,
+      totalItineraryPurchases: globalStats.totalItineraryPurchases + 1,
       totalUsers: isNewUser ? globalStats.totalUsers + 1 : globalStats.totalUsers,
-      lastUpdated: new Date(event.block.timestamp * 1000),
+      lastUpdated: timestamp,
     });
   }
 
-  context.log.info(`🛒 Experience #${experienceId} purchased by ${buyer} for ${price.toString()}`);
-
-  // ✅ Get experience details for announcement
-  const experience = await context.Experience.get(experienceEntityId);
-
-  if (experience) {
-    // ✅ Announce on Farcaster
-    try {
-      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-      const priceInWmon = (Number(price) / 1e18).toFixed(2);
-
-      const response = await fetch(`${appUrl}/api/cast-nft`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'experience_purchased',
-          experienceId: experienceId.toString(),
-          title: experience.title,
-          city: experience.city,
-          country: experience.country,
-          price: priceInWmon,
-          txHash: event.transaction.hash,
-          buyerAddress: buyer,
-          fid: undefined, // Will be looked up by address if available
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json() as any;
-        context.log.info(`📢 Experience purchase announced on Farcaster: ${result.castHash}`);
-      } else {
-        context.log.warn(`⚠️ Failed to announce experience purchase on Farcaster`);
-      }
-    } catch (error: any) {
-      context.log.warn(`⚠️ Error announcing experience purchase: ${error.message}`);
-    }
-  }
+  context.log.info(`🎫 Itinerary #${itineraryId} purchased by ${buyer} (FID: ${buyerFid}) for ${price}`);
 });
 
-ExperienceNFT.ExperienceCompleted.handler(async ({ event, context }) => {
-  const { experienceId, user, photoProofHash, rewardAmount } = event.params;
+ItineraryNFT.LocationCompleted.handler(async ({ event, context }) => {
+  const { itineraryId, user, locationIndex, photoProofIPFS } = event.params;
 
-  const experienceEntityId = `experience-${event.chainId}-${experienceId.toString()}`;
-  const completionId = `experience-completion-${event.block.number}-${event.logIndex}`;
-  const userId = user.toLowerCase();
-
-  // Create completion entity
-  const completion = {
-    id: completionId,
-    experience_id: experienceEntityId,
-    experienceId: experienceId.toString(),
-    user: userId,
-    photoProofHash: photoProofHash,
-    rewardAmount: rewardAmount,
-    completedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.ExperienceCompletion.set(completion);
-
-  context.log.info(`✅ Experience #${experienceId} completed by ${user} - Reward: ${rewardAmount.toString()} TOURS`);
+  // Just log - no entity for this in current schema
+  context.log.info(`📍 Location ${locationIndex} completed for Itinerary #${itineraryId} by ${user.slice(0, 8)}... - proof: ${photoProofIPFS}`);
 });
 
-ExperienceNFT.TransportationRequested.handler(async ({ event, context }) => {
-  const { experienceId, user, fromLat, fromLon, toLat, toLon } = event.params;
+ItineraryNFT.ItineraryRated.handler(async ({ event, context }) => {
+  const { itineraryId, user, rating, reviewIPFS } = event.params;
 
-  const transportRequestId = `transport-request-${event.block.number}-${event.logIndex}`;
-  const userId = user.toLowerCase();
-
-  // Create transportation request entity
-  const transportRequest = {
-    id: transportRequestId,
-    experienceId: experienceId.toString(),
-    user: userId,
-    fromLat: fromLat,
-    fromLon: fromLon,
-    toLat: toLat,
-    toLon: toLon,
-    requestedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.TransportationRequest.set(transportRequest);
-
-  context.log.info(`🚗 Transportation requested for Experience #${experienceId} by ${user}`);
+  // Just log - no entity for this in current schema
+  context.log.info(`⭐ Itinerary #${itineraryId} rated ${rating}/5 by ${user.slice(0, 8)}... - review: ${reviewIPFS}`);
 });
 
-// ============================================
-// YIELD STRATEGY V9 (NFT-GATED STAKING WITH KINTSU)
-// ============================================
+ItineraryNFT.Transfer.handler(async ({ event, context }) => {
+  const { from, to, tokenId } = event.params;
 
-YieldStrategy.StakingPositionCreated.handler(async ({ event, context }) => {
-  // V9: Uses monAmount and kintsuShares (Kintsu vault integration)
-  const { positionId, nftAddress, nftTokenId, owner, beneficiary, monAmount, kintsuShares, timestamp } = event.params;
-
-  const stakingPositionId = positionId.toString();
-  const beneficiaryId = beneficiary.toLowerCase();
-
-  // Create staking position
-  const stakingPosition = {
-    id: stakingPositionId,
-    positionId: stakingPositionId,
-    nftAddress: nftAddress.toLowerCase(),
-    nftTokenId: nftTokenId.toString(),
-    owner: owner.toLowerCase(),
-    beneficiary: beneficiaryId,
-    toursAmount: monAmount, // V8 uses MON instead of TOURS
-    monAmount: monAmount,
-    active: true,
-    createdAt: new Date(Number(timestamp) * 1000),
-    closedAt: undefined,
-    toursRefund: undefined,
-    yieldShare: undefined,
-    createdTxHash: event.transaction.hash,
-    closedTxHash: undefined,
-    createdBlockNumber: BigInt(event.block.number),
-    closedBlockNumber: undefined,
-  };
-
-  await context.StakingPosition.set(stakingPosition);
-
-  // Update user staking stats
-  let userStakingStats = await context.UserStakingStats.get(beneficiaryId);
-
-  if (userStakingStats) {
-    await context.UserStakingStats.set({
-      ...userStakingStats,
-      activePositions: userStakingStats.activePositions + 1,
-      totalPositionsCreated: userStakingStats.totalPositionsCreated + 1,
-      totalToursStaked: userStakingStats.totalToursStaked + monAmount,
-      lastStakeTime: new Date(Number(timestamp) * 1000),
-    });
-  } else {
-    await context.UserStakingStats.set({
-      id: beneficiaryId,
-      user: beneficiaryId,
-      activePositions: 1,
-      totalPositionsCreated: 1,
-      totalPositionsClosed: 0,
-      totalToursStaked: monAmount,
-      totalYieldEarned: BigInt(0),
-      lastStakeTime: new Date(Number(timestamp) * 1000),
-      lastWithdrawTime: undefined,
-    });
+  // Skip mint events
+  if (from === "0x0000000000000000000000000000000000000000") {
+    return;
   }
 
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    const isNewStaker = !userStakingStats;
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalStaked: (globalStats.totalStaked || BigInt(0)) + monAmount,
-      totalStakers: isNewStaker ? (globalStats.totalStakers || 0) + 1 : (globalStats.totalStakers || 0),
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`💰 Staking position #${positionId} created for ${beneficiary} - ${monAmount.toString()} MON (${kintsuShares.toString()} Kintsu shares) (NFT: ${nftAddress}#${nftTokenId})`);
-});
-
-YieldStrategy.StakingPositionClosed.handler(async ({ event, context }) => {
-  // V9: user, monRedeemed, yieldShare, netRefund (Kintsu redemption with fees)
-  const { positionId, user, monRedeemed, yieldShare, netRefund, timestamp } = event.params;
-
-  const stakingPositionId = positionId.toString();
-  const userId = user.toLowerCase();
-
-  // Update staking position
-  const stakingPosition = await context.StakingPosition.get(stakingPositionId);
-
-  if (stakingPosition) {
-    await context.StakingPosition.set({
-      ...stakingPosition,
-      active: false,
-      closedAt: new Date(Number(timestamp) * 1000),
-      toursRefund: monRedeemed, // V9: Store monRedeemed as toursRefund
-      yieldShare: yieldShare,
-      closedTxHash: event.transaction.hash,
-      closedBlockNumber: BigInt(event.block.number),
-    });
-
-    // Update user staking stats
-    let userStakingStats = await context.UserStakingStats.get(userId);
-
-    if (userStakingStats) {
-      await context.UserStakingStats.set({
-        ...userStakingStats,
-        activePositions: userStakingStats.activePositions > 0 ? userStakingStats.activePositions - 1 : 0,
-        totalPositionsClosed: userStakingStats.totalPositionsClosed + 1,
-        totalYieldEarned: userStakingStats.totalYieldEarned + yieldShare,
-        lastWithdrawTime: new Date(Number(timestamp) * 1000),
-      });
-    }
-
-    // Update global stats
-    let globalStats = await context.GlobalStats.get("global");
-    if (globalStats) {
-      const newGlobalStaked = (globalStats.totalStaked || BigInt(0)) - stakingPosition.toursAmount;
-      await context.GlobalStats.set({
-        ...globalStats,
-        totalStaked: newGlobalStaked >= BigInt(0) ? newGlobalStaked : BigInt(0),
-        lastUpdated: new Date(event.block.timestamp * 1000),
-      });
-    }
-
-    context.log.info(`💸 Staking position #${positionId} closed for ${user} - MON Redeemed: ${monRedeemed.toString()}, Yield: ${yieldShare.toString()}, Net Refund: ${netRefund.toString()}`);
-  }
-});
-
-// V9 NEW: Unstake request tracking
-YieldStrategy.UnstakeRequested.handler(async ({ event, context }) => {
-  const { positionId, user, shares, expectedSpotValue, estimatedReadyTime, timestamp } = event.params;
-
-  context.log.info(`⏳ Unstake requested for position #${positionId} by ${user} - ${shares.toString()} Kintsu shares (est. ${expectedSpotValue.toString()} MON)`);
-});
-
-// V9 NEW: Unstake cancellation
-YieldStrategy.UnstakeCancelled.handler(async ({ event, context }) => {
-  const { positionId, user, sharesReturned, timestamp } = event.params;
-
-  context.log.info(`🔄 Unstake cancelled for position #${positionId} by ${user} - ${sharesReturned.toString()} shares returned`);
-});
-
-YieldStrategy.NFTWhitelisted.handler(async ({ event, context }) => {
-  const { nftAddress, accepted } = event.params;
-
-  const whitelistEventId = `whitelist-${event.block.number}-${event.logIndex}`;
-
-  // Create NFT whitelist event
-  const nftWhitelistEvent = {
-    id: whitelistEventId,
-    nftAddress: nftAddress.toLowerCase(),
-    accepted: accepted,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.NFTWhitelistEvent.set(nftWhitelistEvent);
-
-  context.log.info(`${accepted ? '✅' : '❌'} NFT ${nftAddress} ${accepted ? 'whitelisted' : 'removed from whitelist'}`);
-});
-
-YieldStrategy.YieldHarvested.handler(async ({ event, context }) => {
-  // V9: Simplified - just yieldMon and currentValue
-  const { yieldMon, currentValue, timestamp } = event.params;
-
-  context.log.info(`🌾 Yield harvested - ${yieldMon.toString()} MON (current value: ${currentValue.toString()} MON)`);
-});
-
-// ============================================
-// DEMAND SIGNAL ENGINE EVENTS
-// ============================================
-
-DemandSignalEngine.DemandSubmitted.handler(async ({ event, context }) => {
-  const { user, eventId, amount } = event.params;
-
-  const demandSignalId = `demand-${event.chainId}-${eventId.toString()}-${user.toLowerCase()}-${event.block.number}`;
-  const userId = user.toLowerCase();
-  const eventIdStr = eventId.toString();
-
-  // Create demand signal
-  const demandSignal = {
-    id: demandSignalId,
-    eventId: eventIdStr,
-    user: userId,
-    amount: amount,
-    active: true,
-    submittedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.DemandSignal.set(demandSignal);
-
-  // Update event demand stats
-  let eventStats = await context.EventDemandStats.get(eventIdStr);
-  if (eventStats) {
-    await context.EventDemandStats.set({
-      ...eventStats,
-      totalDemand: eventStats.totalDemand + amount,
-      signalCount: eventStats.signalCount + 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  } else {
-    await context.EventDemandStats.set({
-      id: eventIdStr,
-      eventId: eventIdStr,
-      totalDemand: amount,
-      signalCount: 1,
-      uniqueUsers: 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalDemandSignals: (globalStats.totalDemandSignals || 0) + 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`📊 User ${user} submitted ${amount.toString()} demand for event #${eventId}`);
-});
-
-DemandSignalEngine.DemandWithdrawn.handler(async ({ event, context }) => {
-  const { user, eventId, amount } = event.params;
-
-  const userId = user.toLowerCase();
-  const eventIdStr = eventId.toString();
-
-  // Update event demand stats
-  let eventStats = await context.EventDemandStats.get(eventIdStr);
-  if (eventStats) {
-    const newTotalDemand = eventStats.totalDemand - amount;
-    await context.EventDemandStats.set({
-      ...eventStats,
-      totalDemand: newTotalDemand >= BigInt(0) ? newTotalDemand : BigInt(0),
-      signalCount: eventStats.signalCount > 0 ? eventStats.signalCount - 1 : 0,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`📉 User ${user} withdrew ${amount.toString()} demand from event #${eventId}`);
-});
-
-// ============================================
-// SMART EVENT MANIFEST EVENTS
-// ============================================
-
-SmartEventManifest.EventCreated.handler(async ({ event, context }) => {
-  const { eventId, name, location, startDate } = event.params;
-
-  const smartEventId = `event-${event.chainId}-${eventId.toString()}`;
-
-  // Create smart event
-  const smartEvent = {
-    id: smartEventId,
-    eventId: eventId.toString(),
-    name: name,
-    location: location,
-    startDate: startDate,
-    endDate: undefined,
-    capacity: BigInt(1000), // Default capacity
-    ticketsSold: 0,
-    price: BigInt(0),
-    active: true,
-    cancelled: false,
-    createdAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.SmartEvent.set(smartEvent);
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalEvents: (globalStats.totalEvents || 0) + 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`🎉 Event #${eventId} created: ${name} at ${location} on ${new Date(Number(startDate) * 1000).toISOString()}`);
-});
-
-SmartEventManifest.TicketPurchased.handler(async ({ event, context }) => {
-  const { eventId, buyer, quantity } = event.params;
-
-  const ticketId = `ticket-${event.block.number}-${event.logIndex}`;
-  const smartEventId = `event-${event.chainId}-${eventId.toString()}`;
-  const userId = buyer.toLowerCase();
-
-  // Get event to calculate total price
-  const smartEvent = await context.SmartEvent.get(smartEventId);
-  const totalPrice = smartEvent ? smartEvent.price * BigInt(quantity) : BigInt(0);
-
-  // Create ticket purchase
-  const ticketPurchase = {
-    id: ticketId,
-    event_id: smartEventId,
-    eventId: eventId.toString(),
-    buyer: userId,
-    quantity: Number(quantity), // ✅ Convert bigint to number
-    totalPrice: totalPrice,
-    purchasedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.TicketPurchase.set(ticketPurchase);
-
-  // Update event tickets sold
-  if (smartEvent) {
-    await context.SmartEvent.set({
-      ...smartEvent,
-      ticketsSold: smartEvent.ticketsSold + Number(quantity), // ✅ Convert bigint to number
-    });
-  }
-
-  // Update user stats
-  let userStats = await context.UserStats.get(userId);
-  if (userStats) {
-    await context.UserStats.set({
-      ...userStats,
-      eventsAttended: (userStats.eventsAttended || 0) + 1,
-      lastActive: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalTicketsSold: (globalStats.totalTicketsSold || 0) + Number(quantity), // ✅ Convert bigint to number
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`🎫 User ${buyer} purchased ${quantity} tickets for event #${eventId}`);
-});
-
-SmartEventManifest.EventCancelled.handler(async ({ event, context }) => {
-  const { eventId } = event.params;
-
-  const smartEventId = `event-${event.chainId}-${eventId.toString()}`;
-  const smartEvent = await context.SmartEvent.get(smartEventId);
-
-  if (smartEvent) {
-    await context.SmartEvent.set({
-      ...smartEvent,
-      cancelled: true,
-      active: false,
-    });
-
-    context.log.info(`❌ Event #${eventId} cancelled: ${smartEvent.name}`);
-  }
-});
-
-// ============================================
-// TANDA YIELD GROUP EVENTS
-// ============================================
-
-TandaYieldGroup.GroupCreated.handler(async ({ event, context }) => {
-  const { groupId, creator, name } = event.params;
-
-  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
-
-  // Create tanda group
-  const tandaGroup = {
-    id: tandaGroupId,
-    groupId: groupId.toString(),
-    name: name,
-    creator: creator.toLowerCase(),
-    contributionAmount: BigInt(0),
-    maxMembers: 0,
-    currentMembers: 0,
-    currentRound: 0,
-    totalPool: BigInt(0),
-    active: true,
-    createdAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.TandaGroup.set(tandaGroup);
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalTandaGroups: (globalStats.totalTandaGroups || 0) + 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`🤝 Tanda Group #${groupId} created by ${creator}: ${name}`);
-});
-
-TandaYieldGroup.MemberJoined.handler(async ({ event, context }) => {
-  const { groupId, member } = event.params;
-
-  const memberId = `tandamember-${event.chainId}-${groupId.toString()}-${member.toLowerCase()}`;
-  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
-  const userId = member.toLowerCase();
-
-  // Create tanda member
-  const tandaMember = {
-    id: memberId,
-    group_id: tandaGroupId,
-    groupId: groupId.toString(),
-    member: userId,
-    joinedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.TandaMember.set(tandaMember);
-
-  // Update tanda group
-  const tandaGroup = await context.TandaGroup.get(tandaGroupId);
-  if (tandaGroup) {
-    await context.TandaGroup.set({
-      ...tandaGroup,
-      currentMembers: tandaGroup.currentMembers + 1,
-    });
-  }
-
-  // Update user stats
-  let userStats = await context.UserStats.get(userId);
-  if (userStats) {
-    await context.UserStats.set({
-      ...userStats,
-      tandaGroupsJoined: (userStats.tandaGroupsJoined || 0) + 1,
-      lastActive: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`👥 Member ${member} joined Tanda Group #${groupId}`);
-});
-
-TandaYieldGroup.ContributionMade.handler(async ({ event, context }) => {
-  const { groupId, member, amount } = event.params;
-
-  const contributionId = `contribution-${event.block.number}-${event.logIndex}`;
-  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
-  const userId = member.toLowerCase();
-
-  // Get tanda group to get current round
-  const tandaGroup = await context.TandaGroup.get(tandaGroupId);
-  const currentRound = tandaGroup ? tandaGroup.currentRound : 0;
-
-  // Create contribution
-  const contribution = {
-    id: contributionId,
-    group_id: tandaGroupId,
-    groupId: groupId.toString(),
-    member: userId,
-    amount: amount,
-    round: currentRound,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.TandaContribution.set(contribution);
-
-  // Update tanda group pool
-  if (tandaGroup) {
-    await context.TandaGroup.set({
-      ...tandaGroup,
-      totalPool: tandaGroup.totalPool + amount,
-    });
-  }
-
-  context.log.info(`💵 Member ${member} contributed ${amount.toString()} to Tanda Group #${groupId}`);
-});
-
-TandaYieldGroup.PayoutClaimed.handler(async ({ event, context }) => {
-  const { groupId, member, amount } = event.params;
-
-  const payoutId = `payout-${event.block.number}-${event.logIndex}`;
-  const tandaGroupId = `tanda-${event.chainId}-${groupId.toString()}`;
-  const userId = member.toLowerCase();
-
-  // Get tanda group to get current round
-  const tandaGroup = await context.TandaGroup.get(tandaGroupId);
-  const currentRound = tandaGroup ? tandaGroup.currentRound : 0;
-
-  // Create payout
-  const payout = {
-    id: payoutId,
-    group_id: tandaGroupId,
-    groupId: groupId.toString(),
-    member: userId,
-    amount: amount,
-    round: currentRound,
-    claimedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.TandaPayout.set(payout);
-
-  context.log.info(`💰 Member ${member} claimed ${amount.toString()} payout from Tanda Group #${groupId}`);
-});
-
-// ============================================
-// CREDIT SCORE CALCULATOR EVENTS
-// ============================================
-
-CreditScoreCalculator.ScoreUpdated.handler(async ({ event, context }) => {
-  const { user, oldScore, newScore } = event.params;
-
-  const userId = user.toLowerCase();
-
-  // Get or create credit score
-  let creditScore = await context.CreditScore.get(userId);
-
-  if (creditScore) {
-    await context.CreditScore.set({
-      ...creditScore,
-      score: newScore,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-      blockNumber: BigInt(event.block.number),
-      txHash: event.transaction.hash,
-    });
-  } else {
-    await context.CreditScore.set({
-      id: userId,
-      user: userId,
-      score: newScore,
-      tier: undefined,
-      paymentHistory: BigInt(0),
-      stakeAmount: BigInt(0),
-      tandaParticipation: BigInt(0),
-      eventAttendance: BigInt(0),
-      lastUpdated: new Date(event.block.timestamp * 1000),
-      blockNumber: BigInt(event.block.number),
-      txHash: event.transaction.hash,
-    });
-  }
-
-  context.log.info(`⭐ Credit score updated for ${user}: ${oldScore.toString()} -> ${newScore.toString()}`);
-});
-
-CreditScoreCalculator.PaymentRecorded.handler(async ({ event, context }) => {
-  const { user, amount, onTime } = event.params;
-
-  const paymentId = `payment-${event.block.number}-${event.logIndex}`;
-  const userId = user.toLowerCase();
-
-  // Create payment record
-  const paymentRecord = {
-    id: paymentId,
-    user: userId,
-    amount: amount,
-    onTime: onTime,
-    recordedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.PaymentRecord.set(paymentRecord);
-
-  // Update credit score payment history
-  let creditScore = await context.CreditScore.get(userId);
-  if (creditScore) {
-    await context.CreditScore.set({
-      ...creditScore,
-      paymentHistory: creditScore.paymentHistory + BigInt(1),
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`💳 Payment recorded for ${user}: ${amount.toString()} TOURS (${onTime ? 'on time' : 'late'})`);
-});
-
-// ============================================
-// DAILY PASS LOTTERY EVENTS
-// ============================================
-
-DailyPassLotteryV3.RoundStarted.handler(async ({ event, context }) => {
-  const { roundId, startTime, endTime } = event.params;
-
-  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
-
-  const lotteryRound = {
-    id: lotteryRoundId,
-    roundId: roundId.toString(),
-    startTime: startTime,
-    endTime: endTime,
-    prizePoolMon: BigInt(0),
-    prizePoolShMon: BigInt(0),
-    participantCount: 0,
-    status: "Active",
-    winner: undefined,
-    winnerIndex: undefined,
-    monPrize: undefined,
-    shMonPrize: undefined,
-    randomHash: undefined,
-    finalizedAt: undefined,
-    announcedOnFarcaster: false,
-    announcementCastHash: undefined,
-    createdAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.LotteryRound.set(lotteryRound);
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalLotteryRounds: (globalStats.totalLotteryRounds || 0) + 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`🎰 Lottery Round #${roundId} started - ends at ${new Date(Number(endTime) * 1000).toISOString()}`);
-});
-
-DailyPassLotteryV3.DailyPassPurchased.handler(async ({ event, context }) => {
-  const { roundId, beneficiary, payer, entryIndex, paidWithShMon, amount } = event.params;
-
-  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
-  const lotteryEntryId = `entry-${event.chainId}-${roundId.toString()}-${entryIndex.toString()}`;
-  const userId = beneficiary.toLowerCase();
-
-  // Create lottery entry
-  const lotteryEntry = {
-    id: lotteryEntryId,
-    round_id: lotteryRoundId,
-    roundId: roundId.toString(),
-    holder: userId,
-    entryIndex: Number(entryIndex),
-    paidWithShMon: paidWithShMon,
-    amount: amount,
-    enteredAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.LotteryEntry.set(lotteryEntry);
-
-  // Update lottery round
-  const lotteryRound = await context.LotteryRound.get(lotteryRoundId);
-  if (lotteryRound) {
-    await context.LotteryRound.set({
-      ...lotteryRound,
-      prizePoolMon: paidWithShMon ? lotteryRound.prizePoolMon : lotteryRound.prizePoolMon + amount,
-      prizePoolShMon: paidWithShMon ? lotteryRound.prizePoolShMon + amount : lotteryRound.prizePoolShMon,
-      participantCount: lotteryRound.participantCount + 1,
-    });
-  }
-
-  // Update user lottery stats
-  let userLotteryStats = await context.UserLotteryStats.get(userId);
-  if (userLotteryStats) {
-    await context.UserLotteryStats.set({
-      ...userLotteryStats,
-      totalEntriesMon: paidWithShMon ? userLotteryStats.totalEntriesMon : userLotteryStats.totalEntriesMon + 1,
-      totalEntriesShMon: paidWithShMon ? userLotteryStats.totalEntriesShMon + 1 : userLotteryStats.totalEntriesShMon,
-      totalSpentMon: paidWithShMon ? userLotteryStats.totalSpentMon : userLotteryStats.totalSpentMon + amount,
-      totalSpentShMon: paidWithShMon ? userLotteryStats.totalSpentShMon + amount : userLotteryStats.totalSpentShMon,
-      lastEntryAt: new Date(event.block.timestamp * 1000),
-    });
-  } else {
-    await context.UserLotteryStats.set({
-      id: userId,
-      user: userId,
-      totalEntriesMon: paidWithShMon ? 0 : 1,
-      totalEntriesShMon: paidWithShMon ? 1 : 0,
-      totalSpentMon: paidWithShMon ? BigInt(0) : amount,
-      totalSpentShMon: paidWithShMon ? amount : BigInt(0),
-      wins: 0,
-      totalWonMon: BigInt(0),
-      totalWonShMon: BigInt(0),
-      lastEntryAt: new Date(event.block.timestamp * 1000),
-      lastWinAt: undefined,
-    });
-  }
-
-  // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
-  if (globalStats) {
-    await context.GlobalStats.set({
-      ...globalStats,
-      totalLotteryEntries: (globalStats.totalLotteryEntries || 0) + 1,
-      totalLotteryPrizePool: (globalStats.totalLotteryPrizePool || BigInt(0)) + amount,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`🎫 Lottery entry #${entryIndex} for round ${roundId} - ${beneficiary} (paid by ${payer}) ${amount.toString()} ${paidWithShMon ? 'shMON' : 'MON'}`);
-});
-
-DailyPassLotteryV3.RandomnessCommitted.handler(async ({ event, context }) => {
-  const { roundId, commitBlock, commitHash, caller, reward } = event.params;
-
-  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
-
-  // Update lottery round
-  const lotteryRound = await context.LotteryRound.get(lotteryRoundId);
-  if (lotteryRound) {
-    await context.LotteryRound.set({
-      ...lotteryRound,
-      status: "RevealPending",
-    });
-  }
-
-  context.log.info(`🔐 Randomness committed for round ${roundId} at block ${commitBlock} by ${caller} (reward: ${reward.toString()})`);
-});
-
-DailyPassLotteryV3.WinnerRevealed.handler(async ({ event, context }) => {
-  const { roundId, winner, winnerIndex, monPrize, shMonPrize, caller, reward } = event.params;
-
-  const lotteryRoundId = `round-${event.chainId}-${roundId.toString()}`;
-  const winnerHistoryId = `winner-${event.chainId}-${roundId.toString()}`;
-  const userId = winner.toLowerCase();
-
-  // Update lottery round
-  const lotteryRound = await context.LotteryRound.get(lotteryRoundId);
-  if (lotteryRound) {
-    await context.LotteryRound.set({
-      ...lotteryRound,
-      status: "Finalized",
-      winner: userId,
-      winnerIndex: Number(winnerIndex),
-      monPrize: monPrize,
-      shMonPrize: shMonPrize,
-      randomHash: undefined, // Not included in new event signature
-      finalizedAt: new Date(event.block.timestamp * 1000),
-    });
-
-    // Create winner history entry
-    const winnerHistory = {
-      id: winnerHistoryId,
-      roundId: roundId.toString(),
-      winner: userId,
-      winnerFid: undefined,
-      winnerUsername: undefined,
-      monPrize: monPrize,
-      shMonPrize: shMonPrize,
-      totalPrize: monPrize + shMonPrize,
-      participantCount: lotteryRound.participantCount,
-      randomHash: undefined, // Not included in new event signature
-      claimed: false,
-      claimedAt: undefined,
-      finalizedAt: new Date(event.block.timestamp * 1000),
-      blockNumber: BigInt(event.block.number),
-      txHash: event.transaction.hash,
-    };
-
-    await context.LotteryWinnerHistory.set(winnerHistory);
-  }
-
-  // Update user lottery stats
-  let userLotteryStats = await context.UserLotteryStats.get(userId);
-  if (userLotteryStats) {
-    await context.UserLotteryStats.set({
-      ...userLotteryStats,
-      wins: userLotteryStats.wins + 1,
-      totalWonMon: userLotteryStats.totalWonMon + monPrize,
-      totalWonShMon: userLotteryStats.totalWonShMon + shMonPrize,
-      lastWinAt: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`🏆 WINNER for Round #${roundId}: ${winner} (revealed by ${caller}, reward: ${reward.toString()}) - Prize: ${monPrize.toString()} MON + ${shMonPrize.toString()} shMON`);
-
-  // ✅ Announce lottery winner on Farcaster
-  if (lotteryRound) {
-    try {
-      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-      const monPrizeInMon = (Number(monPrize) / 1e18).toFixed(4);
-      const shMonPrizeInShMon = (Number(shMonPrize) / 1e18).toFixed(4);
-
-      const response = await fetch(`${appUrl}/api/cast-nft`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'lottery_winner',
-          roundId: roundId.toString(),
-          winnerAddress: winner,
-          monPrize: monPrizeInMon,
-          shMonPrize: shMonPrizeInShMon,
-          participantCount: lotteryRound.participantCount,
-          txHash: event.transaction.hash,
-          fid: undefined, // Will be looked up by address if available
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json() as any;
-        context.log.info(`📢 Lottery winner announced on Farcaster: ${result.castHash}`);
-
-        // Mark as announced in the round
-        await context.LotteryRound.set({
-          ...lotteryRound,
-          status: "Finalized",
-          winner: userId,
-          winnerIndex: Number(winnerIndex),
-          monPrize: monPrize,
-          shMonPrize: shMonPrize,
-          randomHash: undefined,
-          finalizedAt: new Date(event.block.timestamp * 1000),
-          announcedOnFarcaster: true,
-          announcementCastHash: result.castHash,
-        });
-      } else {
-        context.log.warn(`⚠️ Failed to announce lottery winner on Farcaster`);
-      }
-    } catch (error: any) {
-      context.log.warn(`⚠️ Error announcing lottery winner: ${error.message}`);
-    }
-  }
-});
-
-DailyPassLotteryV3.PrizeClaimed.handler(async ({ event, context }) => {
-  const { roundId, winner, monAmount, shMonAmount } = event.params;
-
-  const winnerHistoryId = `winner-${event.chainId}-${roundId.toString()}`;
-
-  // Update winner history
-  const winnerHistory = await context.LotteryWinnerHistory.get(winnerHistoryId);
-  if (winnerHistory) {
-    await context.LotteryWinnerHistory.set({
-      ...winnerHistory,
-      claimed: true,
-      claimedAt: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`💰 Prize claimed for Round #${roundId} by ${winner}: ${monAmount.toString()} MON + ${shMonAmount.toString()} shMON`);
-});
-
-DailyPassLotteryV3.EscrowExpired.handler(async ({ event, context }) => {
-  const { roundId } = event.params;
-
-  context.log.info(`⏰ Escrow expired for Round #${roundId} - unclaimed prize returned to platform`);
-});
-
-// ============================================
-// MUSIC BEAT MATCH V2 EVENTS
-// ============================================
-
-MusicBeatMatchV2.DailyChallengeCreated.handler(async ({ event, context }) => {
-  const { challengeId, artistId, songTitle, artistUsername, ipfsAudioHash, startTime, endTime } = event.params;
-
-  const beatMatchChallengeId = `challenge-${event.chainId}-${challengeId.toString()}`;
-
-  const challenge = {
-    id: beatMatchChallengeId,
-    challengeId: challengeId.toString(),
-    artistId: artistId.toString(),
-    songTitle: songTitle,
-    artistUsername: artistUsername,
-    ipfsAudioHash: ipfsAudioHash,
-    startTime: startTime,
-    endTime: endTime,
-    active: true,
-    finalized: false,
-    winner: undefined,
-    rewardAmount: undefined,
-    totalGuesses: 0,
-    createdAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.BeatMatchChallenge.set(challenge);
-
-  context.log.info(`🎵 Beat Match Challenge #${challengeId} created: "${songTitle}" by @${artistUsername} (Artist ID: ${artistId})`);
-});
-
-MusicBeatMatchV2.GuessSubmitted.handler(async ({ event, context }) => {
-  const { challengeId, player, guessedArtistId, guessedSongTitle, guessedUsername } = event.params;
-
-  const beatMatchChallengeId = `challenge-${event.chainId}-${challengeId.toString()}`;
-  const guessId = `guess-${event.chainId}-${challengeId.toString()}-${player.toLowerCase()}`;
-
-  const guess = {
-    id: guessId,
-    challenge_id: beatMatchChallengeId,
-    challengeId: challengeId.toString(),
-    player: player.toLowerCase(),
-    guessedArtistId: guessedArtistId.toString(),
-    guessedSongTitle: guessedSongTitle,
-    guessedUsername: guessedUsername,
-    correct: undefined, // Will be determined when finalized
-    submittedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.BeatMatchGuess.set(guess);
-
-  // Update challenge guess count
-  const challenge = await context.BeatMatchChallenge.get(beatMatchChallengeId);
-  if (challenge) {
-    await context.BeatMatchChallenge.set({
-      ...challenge,
-      totalGuesses: challenge.totalGuesses + 1,
-    });
-  }
-
-  context.log.info(`🎯 Guess submitted for Challenge #${challengeId} by ${player}: "${guessedSongTitle}" by @${guessedUsername} (ID: ${guessedArtistId})`);
-});
-
-MusicBeatMatchV2.ChallengeFinalized.handler(async ({ event, context }) => {
-  const { challengeId, winner, rewardAmount } = event.params;
-
-  const beatMatchChallengeId = `challenge-${event.chainId}-${challengeId.toString()}`;
-
-  // Update challenge
-  const challenge = await context.BeatMatchChallenge.get(beatMatchChallengeId);
-  if (challenge) {
-    await context.BeatMatchChallenge.set({
-      ...challenge,
-      active: false,
-      finalized: true,
-      winner: winner === "0x0000000000000000000000000000000000000000" ? undefined : winner.toLowerCase(),
-      rewardAmount: rewardAmount,
-    });
-  }
-
-  context.log.info(`🏆 Beat Match Challenge #${challengeId} finalized - Winner: ${winner}, Reward: ${rewardAmount.toString()} TOURS`);
-});
-
-// ============================================
-// COUNTRY COLLECTOR V2 EVENTS
-// ============================================
-
-CountryCollectorV2.WeeklyChallengeCreated.handler(async ({ event, context }) => {
-  const { weekId, country, countryCode, artistIds, startTime, endTime } = event.params;
-
-  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
-
-  const challenge = {
-    id: countryChallengeId,
-    weekId: weekId.toString(),
-    country: country,
-    countryCode: countryCode,
-    artistIds: artistIds.map((id: bigint) => id.toString()),
-    startTime: startTime,
-    endTime: endTime,
-    active: true,
-    finalized: false,
-    totalCompletions: 0,
-    rewardAmount: undefined,
-    createdAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.CountryChallenge.set(challenge);
-
-  context.log.info(`🌍 Country Collector Week #${weekId} created: ${country} (${countryCode}) - Artists: [${artistIds.join(', ')}]`);
-});
-
-CountryCollectorV2.ArtistCompleted.handler(async ({ event, context }) => {
-  const { weekId, player, artistIndex, artistId } = event.params;
-
-  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
-  const completionId = `completion-${event.chainId}-${weekId.toString()}-${player.toLowerCase()}-${artistIndex.toString()}`;
-  const progressId = `progress-${event.chainId}-${weekId.toString()}-${player.toLowerCase()}`;
-
-  // Create artist completion
-  const completion = {
-    id: completionId,
-    challenge_id: countryChallengeId,
-    weekId: weekId.toString(),
-    player: player.toLowerCase(),
-    artistIndex: Number(artistIndex),
-    artistId: artistId.toString(),
-    completedAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  };
-
-  await context.ArtistCompletion.set(completion);
-
-  // Update or create player progress
-  let progress = await context.CountryPlayerProgress.get(progressId);
-  if (progress) {
-    await context.CountryPlayerProgress.set({
-      ...progress,
-      completedArtists: progress.completedArtists + 1,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  } else {
-    await context.CountryPlayerProgress.set({
-      id: progressId,
-      challenge_id: countryChallengeId,
-      weekId: weekId.toString(),
-      player: player.toLowerCase(),
-      completedArtists: 1,
-      allCompleted: false,
-      rewardClaimed: false,
-      rewardAmount: undefined,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  context.log.info(`✅ Player ${player} completed artist #${artistIndex} (ID: ${artistId}) in Week #${weekId}`);
-});
-
-CountryCollectorV2.ChallengeCompleted.handler(async ({ event, context }) => {
-  const { weekId, player, rewardAmount } = event.params;
-
-  const progressId = `progress-${event.chainId}-${weekId.toString()}-${player.toLowerCase()}`;
-
-  // Update player progress
-  const progress = await context.CountryPlayerProgress.get(progressId);
-  if (progress) {
-    await context.CountryPlayerProgress.set({
-      ...progress,
-      allCompleted: true,
-      rewardClaimed: true,
-      rewardAmount: rewardAmount,
-      lastUpdated: new Date(event.block.timestamp * 1000),
-    });
-  }
-
-  // Update challenge completion count
-  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
-  const challenge = await context.CountryChallenge.get(countryChallengeId);
-  if (challenge) {
-    await context.CountryChallenge.set({
-      ...challenge,
-      totalCompletions: challenge.totalCompletions + 1,
-    });
-  }
-
-  context.log.info(`🎉 Player ${player} completed all artists in Week #${weekId} - Reward: ${rewardAmount.toString()} TOURS`);
-});
-
-CountryCollectorV2.WeekFinalized.handler(async ({ event, context }) => {
-  const { weekId, totalCompletions } = event.params;
-
-  const countryChallengeId = `week-${event.chainId}-${weekId.toString()}`;
-
-  // Update challenge
-  const challenge = await context.CountryChallenge.get(countryChallengeId);
-  if (challenge) {
-    await context.CountryChallenge.set({
-      ...challenge,
-      active: false,
-      finalized: true,
-      totalCompletions: Number(totalCompletions),
-    });
-  }
-
-  context.log.info(`🏁 Country Collector Week #${weekId} finalized - Total completions: ${totalCompletions}`);
+  context.log.info(`🗺️ Itinerary NFT #${tokenId} transferred from ${from} to ${to}`);
 });
 
 // =============================================================================
@@ -2137,9 +1072,57 @@ PlayOracle.PlayRecorded.handler(async ({ event, context }) => {
   context.log.info(`🎵 Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId} for ${duration}s`);
 });
 
+PlayOracle.OperatorAdded.handler(async ({ event, context }) => {
+  const { operator } = event.params;
+  context.log.info(`➕ PlayOracle operator added: ${operator}`);
+});
+
+PlayOracle.OperatorRemoved.handler(async ({ event, context }) => {
+  const { operator } = event.params;
+  context.log.info(`➖ PlayOracle operator removed: ${operator}`);
+});
+
 // =============================================================================
 // ✅ MusicSubscriptionV2 Event Handlers (Artist Payouts & More Play Records)
 // =============================================================================
+
+MusicSubscriptionV2.Subscribed.handler(async ({ event, context }) => {
+  const { user, userFid, tier, expiry, paidAmount } = event.params;
+
+  const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.Subscription.set({
+    id: subscriptionId,
+    user: user.toLowerCase(),
+    userFid: userFid.toString(),
+    tier: Number(tier),
+    expiry: expiry,
+    paidAmount: paidAmount,
+    active: true,
+    subscribedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🎵 User ${user.slice(0, 8)}... subscribed (FID: ${userFid}, Tier: ${tier}, Expiry: ${new Date(Number(expiry) * 1000).toISOString()})`);
+});
+
+MusicSubscriptionV2.SubscriptionRenewed.handler(async ({ event, context }) => {
+  const { user, newExpiry } = event.params;
+
+  const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
+  const subscription = await context.Subscription.get(subscriptionId);
+
+  if (subscription) {
+    await context.Subscription.set({
+      ...subscription,
+      expiry: newExpiry,
+    });
+  }
+
+  context.log.info(`🔄 Subscription renewed for ${user.slice(0, 8)}... - new expiry: ${new Date(Number(newExpiry) * 1000).toISOString()}`);
+});
 
 MusicSubscriptionV2.PlayRecorded.handler(async ({ event, context }) => {
   const { user, masterTokenId, duration, timestamp } = event.params;
@@ -2160,6 +1143,26 @@ MusicSubscriptionV2.PlayRecorded.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🎵 [Sub] Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId}`);
+});
+
+MusicSubscriptionV2.MonthlyDistributionFinalized.handler(async ({ event, context }) => {
+  const { monthId, totalRevenue, totalPlays, artistPool } = event.params;
+
+  const distributionId = `distribution-${event.chainId}-${monthId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.MonthlyDistribution.set({
+    id: distributionId,
+    monthId: monthId.toString(),
+    totalRevenue: totalRevenue,
+    totalPlays: totalPlays,
+    artistPool: artistPool,
+    finalizedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`📊 Monthly distribution #${monthId} finalized: Revenue: ${totalRevenue}, Plays: ${totalPlays}, Artist Pool: ${artistPool}`);
 });
 
 MusicSubscriptionV2.ArtistPayout.handler(async ({ event, context }) => {
@@ -2227,53 +1230,34 @@ MusicSubscriptionV2.ArtistToursReward.handler(async ({ event, context }) => {
   context.log.info(`🎁 TOURS reward: ${artist.slice(0, 8)}... received ${toursFormatted} TOURS for month ${monthId}`);
 });
 
-// =============================================================================
-// ✅ EmpowerToursNFT RoyaltyPaid Handler (Sales Royalties)
-// =============================================================================
+MusicSubscriptionV2.ReserveAdded.handler(async ({ event, context }) => {
+  const { monthId, amount, totalReserve } = event.params;
 
-EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
-  const { masterTokenId, artist, amount } = event.params;
+  context.log.info(`💰 Reserve added for month ${monthId}: ${amount} (total: ${totalReserve})`);
+});
 
-  const royaltyId = `royalty-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+MusicSubscriptionV2.ReserveWithdrawnToDAO.handler(async ({ event, context }) => {
+  const { dao, amount } = event.params;
 
-  // Format amount (assuming 18 decimals for WMON)
-  const amountFormatted = (Number(amount) / 1e18).toFixed(4);
+  context.log.info(`💸 Reserve withdrawn to DAO ${dao}: ${amount}`);
+});
 
-  await context.RoyaltyPayment.set({
-    id: royaltyId,
-    masterTokenId: masterTokenId.toString(),
-    masterToken_id: `music-${event.chainId}-${masterTokenId.toString()}`,
-    artist: artist.toLowerCase(),
-    amount: amount,
-    amountFormatted: amountFormatted,
-    paidAt: new Date(event.block.timestamp * 1000),
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  });
+MusicSubscriptionV2.AccountFlagged.handler(async ({ event, context }) => {
+  const { user, reason } = event.params;
 
-  // Update song streaming stats with royalty earnings
-  const songStatsId = `stats-${event.chainId}-${masterTokenId.toString()}`;
-  let songStats = await context.SongStreamingStats.get(songStatsId);
+  context.log.info(`🚩 Account flagged: ${user} - reason: ${reason}`);
+});
 
-  if (songStats) {
-    await context.SongStreamingStats.set({
-      ...songStats,
-      totalRoyaltiesEarned: songStats.totalRoyaltiesEarned + amount,
-    });
-  }
+MusicSubscriptionV2.AccountUnflagged.handler(async ({ event, context }) => {
+  const { user } = event.params;
 
-  // Update artist streaming stats
-  const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
-  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+  context.log.info(`✅ Account unflagged: ${user}`);
+});
 
-  if (artistStats) {
-    await context.ArtistStreamingStats.set({
-      ...artistStats,
-      totalEarningsWMON: artistStats.totalEarningsWMON + amount,
-    });
-  }
+MusicSubscriptionV2.VoteToFlag.handler(async ({ event, context }) => {
+  const { voter, target, totalVotes } = event.params;
 
-  context.log.info(`💎 Royalty paid: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for song #${masterTokenId}`);
+  context.log.info(`🗳️ Vote to flag: ${voter} voted to flag ${target} (total votes: ${totalVotes})`);
 });
 
 // ============================================
@@ -2711,559 +1695,4 @@ LiveRadio.SongRemovedFromPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
-});
-
-// ============================================
-// TourGuideRegistry Event Handlers
-// ============================================
-
-// ✅ Fetch Farcaster profile from Neynar API
-async function fetchNeynarProfile(fid: string, context: any): Promise<{
-  username?: string;
-  displayName?: string;
-  pfpUrl?: string;
-  bio?: string;
-} | null> {
-  try {
-    const apiKey = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-    if (!apiKey) {
-      context.log.warn("No Neynar API key configured");
-      return null;
-    }
-
-    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
-      headers: {
-        'accept': 'application/json',
-        'api_key': apiKey,
-      },
-    });
-
-    if (!response.ok) {
-      context.log.warn(`Neynar API returned ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json() as any;
-    const user = data.users?.[0];
-
-    if (user) {
-      return {
-        username: user.username,
-        displayName: user.display_name,
-        pfpUrl: user.pfp_url,
-        bio: user.profile?.bio?.text,
-      };
-    }
-  } catch (err: any) {
-    context.log.warn(`Failed to fetch Neynar profile: ${err.message}`);
-  }
-  return null;
-}
-
-// Guide Registration
-TourGuideRegistry.GuideRegistered.handler(async ({ event, context }) => {
-  const { guideFid, guideAddress, passportTokenId, countries } = event.params;
-
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  // Try to fetch Neynar profile for display info
-  const profile = await fetchNeynarProfile(guideFid.toString(), context);
-
-  await context.TourGuide.set({
-    id: guideId,
-    guideFid: guideFid.toString(),
-    guideAddress: guideAddress.toLowerCase(),
-    passportTokenId: passportTokenId.toString(),
-    countries: countries,
-    hourlyRateWMON: BigInt(0), // Will be updated by GuideUpdated event
-    hourlyRateTOURS: BigInt(0),
-    active: true,
-    suspended: false,
-    averageRating: BigInt(0),
-    ratingCount: 0,
-    totalBookings: 0,
-    completedBookings: 0,
-    registeredAt: timestamp,
-    lastUpdated: timestamp,
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-    // Profile info from Neynar (if available)
-    username: profile?.username,
-    displayName: profile?.displayName,
-    pfpUrl: profile?.pfpUrl,
-    bio: profile?.bio,
-    location: countries.length > 0 ? countries[0] : undefined,
-    languages: undefined,
-    transport: undefined,
-  });
-
-  context.log.info(`🧳 Guide registered: FID ${guideFid} (${profile?.username || 'unknown'}) - countries: ${countries.join(', ')}`);
-});
-
-// Guide Updated
-TourGuideRegistry.GuideUpdated.handler(async ({ event, context }) => {
-  const { guideFid, hourlyRateWMON, hourlyRateTOURS, active } = event.params;
-
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingGuide = await context.TourGuide.get(guideId);
-  if (existingGuide) {
-    await context.TourGuide.set({
-      ...existingGuide,
-      hourlyRateWMON: hourlyRateWMON,
-      hourlyRateTOURS: hourlyRateTOURS,
-      active: active,
-      lastUpdated: timestamp,
-    });
-
-    context.log.info(`✏️ Guide updated: FID ${guideFid} - rate: ${hourlyRateWMON} WMON, active: ${active}`);
-  }
-});
-
-// Guide Suspended
-TourGuideRegistry.GuideSuspended.handler(async ({ event, context }) => {
-  const { guideFid, reason } = event.params;
-
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingGuide = await context.TourGuide.get(guideId);
-  if (existingGuide) {
-    await context.TourGuide.set({
-      ...existingGuide,
-      suspended: true,
-      active: false,
-      lastUpdated: timestamp,
-    });
-
-    context.log.info(`⛔ Guide suspended: FID ${guideFid} - reason: ${reason}`);
-  }
-});
-
-// Guide Reinstated
-TourGuideRegistry.GuideReinstated.handler(async ({ event, context }) => {
-  const { guideFid } = event.params;
-
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingGuide = await context.TourGuide.get(guideId);
-  if (existingGuide) {
-    await context.TourGuide.set({
-      ...existingGuide,
-      suspended: false,
-      active: true,
-      lastUpdated: timestamp,
-    });
-
-    context.log.info(`✅ Guide reinstated: FID ${guideFid}`);
-  }
-});
-
-// Guide Application Submitted
-TourGuideRegistry.GuideApplicationSubmitted.handler(async ({ event, context }) => {
-  const { guideFid, applicant, creditScore } = event.params;
-
-  const applicationId = `application-${event.chainId}-${guideFid.toString()}`;
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  await context.GuideApplication.set({
-    id: applicationId,
-    guide_id: guideId,
-    guideFid: guideFid.toString(),
-    applicant: applicant.toLowerCase(),
-    creditScore: creditScore,
-    approved: undefined,
-    rejected: undefined,
-    adminNotes: undefined,
-    rejectionReason: undefined,
-    submittedAt: timestamp,
-    reviewedAt: undefined,
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  });
-
-  context.log.info(`📝 Guide application: FID ${guideFid} - credit score: ${creditScore}`);
-});
-
-// Guide Application Approved
-TourGuideRegistry.GuideApplicationApproved.handler(async ({ event, context }) => {
-  const { guideFid, adminNotes } = event.params;
-
-  const applicationId = `application-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingApp = await context.GuideApplication.get(applicationId);
-  if (existingApp) {
-    await context.GuideApplication.set({
-      ...existingApp,
-      approved: true,
-      adminNotes: adminNotes,
-      reviewedAt: timestamp,
-    });
-
-    context.log.info(`✅ Guide application approved: FID ${guideFid}`);
-  }
-});
-
-// Guide Application Rejected
-TourGuideRegistry.GuideApplicationRejected.handler(async ({ event, context }) => {
-  const { guideFid, reason } = event.params;
-
-  const applicationId = `application-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingApp = await context.GuideApplication.get(applicationId);
-  if (existingApp) {
-    await context.GuideApplication.set({
-      ...existingApp,
-      rejected: true,
-      adminNotes: reason,
-      reviewedAt: timestamp,
-    });
-
-    context.log.info(`❌ Guide application rejected: FID ${guideFid} - reason: ${reason}`);
-  }
-});
-
-// Connection Requested
-TourGuideRegistry.ConnectionRequested.handler(async ({ event, context }) => {
-  const { connectionId, travelerFid, guideFid, meetupType } = event.params;
-
-  const connId = `connection-${event.chainId}-${connectionId.toString()}`;
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  await context.GuideConnection.set({
-    id: connId,
-    connectionId: connectionId.toString(),
-    guide_id: guideId,
-    guideFid: guideFid.toString(),
-    travelerFid: travelerFid.toString(),
-    travelerAddress: undefined,
-    meetupType: meetupType,
-    message: undefined,
-    isPaid: false,
-    fee: undefined,
-    accepted: undefined,
-    declined: undefined,
-    requestedAt: timestamp,
-    respondedAt: undefined,
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  });
-
-  context.log.info(`🤝 Connection requested: traveler ${travelerFid} -> guide ${guideFid} (${meetupType})`);
-});
-
-// Connection Accepted
-TourGuideRegistry.ConnectionAccepted.handler(async ({ event, context }) => {
-  const { connectionId, travelerFid, guideFid } = event.params;
-
-  const connId = `connection-${event.chainId}-${connectionId.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingConn = await context.GuideConnection.get(connId);
-  if (existingConn) {
-    await context.GuideConnection.set({
-      ...existingConn,
-      accepted: true,
-      respondedAt: timestamp,
-    });
-
-    context.log.info(`✅ Connection accepted: guide ${guideFid} accepted traveler ${travelerFid}`);
-  }
-});
-
-// Connection Declined
-TourGuideRegistry.ConnectionDeclined.handler(async ({ event, context }) => {
-  const { connectionId, travelerFid, guideFid } = event.params;
-
-  const connId = `connection-${event.chainId}-${connectionId.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingConn = await context.GuideConnection.get(connId);
-  if (existingConn) {
-    await context.GuideConnection.set({
-      ...existingConn,
-      declined: true,
-      respondedAt: timestamp,
-    });
-
-    context.log.info(`❌ Connection declined: guide ${guideFid} declined traveler ${travelerFid}`);
-  }
-});
-
-// Paid Connection Requested
-TourGuideRegistry.PaidConnectionRequested.handler(async ({ event, context }) => {
-  const { connectionId, travelerFid, fee } = event.params;
-
-  context.log.info(`💰 Paid connection: traveler ${travelerFid} paid ${fee} WMON (connection #${connectionId})`);
-});
-
-// Guide Skipped
-TourGuideRegistry.GuideSkipped.handler(async ({ event, context }) => {
-  const { travelerFid, guideFid, paidSkip } = event.params;
-
-  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
-  const skipId = `skip-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  // Create skip event record
-  await context.GuideSkipEvent.set({
-    id: skipId,
-    travelerFid: travelerFid.toString(),
-    guideFid: guideFid.toString(),
-    paidSkip: paidSkip,
-    fee: undefined, // Will be updated by PaidSkipProcessed if paidSkip=true
-    timestamp: timestamp,
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  });
-
-  // Update traveler stats
-  let traveler = await context.TravelerStats.get(travelerId);
-  if (!traveler) {
-    traveler = {
-      id: travelerId,
-      travelerFid: travelerFid.toString(),
-      freeSkipsUsedToday: paidSkip ? 0 : 1,
-      freeConnectionsUsedToday: 0,
-      totalBookings: 0,
-      completedBookings: 0,
-      totalSpent: BigInt(0),
-      averageRating: BigInt(0),
-      lastActiveAt: timestamp,
-    };
-  } else {
-    traveler = {
-      ...traveler,
-      freeSkipsUsedToday: paidSkip ? traveler.freeSkipsUsedToday : traveler.freeSkipsUsedToday + 1,
-      lastActiveAt: timestamp,
-    };
-  }
-  await context.TravelerStats.set(traveler);
-
-  context.log.info(`⏭️ Guide skipped: traveler ${travelerFid} skipped guide ${guideFid} (paid: ${paidSkip})`);
-});
-
-// Paid Skip Processed
-TourGuideRegistry.PaidSkipProcessed.handler(async ({ event, context }) => {
-  const { travelerFid, fee } = event.params;
-
-  context.log.info(`💰 Paid skip: traveler ${travelerFid} paid ${fee} WMON`);
-});
-
-// Booking Created
-TourGuideRegistry.BookingCreated.handler(async ({ event, context }) => {
-  const { bookingId, guideFid, travelerFid, traveler, hoursDuration, totalCost, paymentToken } = event.params;
-
-  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  await context.GuideBooking.set({
-    id: bookId,
-    bookingId: bookingId.toString(),
-    guide_id: guideId,
-    guideFid: guideFid.toString(),
-    travelerFid: travelerFid.toString(),
-    traveler: traveler.toLowerCase(),
-    hoursDuration: hoursDuration,
-    totalCost: totalCost,
-    paymentToken: paymentToken.toLowerCase(),
-    status: "Pending",
-    rating: undefined,
-    autoCompleted: undefined,
-    proofIPFS: undefined,
-    markedCompleteAt: undefined,
-    completedAt: undefined,
-    cancelledAt: undefined,
-    cancelledBy: undefined,
-    cancellationReason: undefined,
-    createdAt: timestamp,
-    blockNumber: BigInt(event.block.number),
-    txHash: event.transaction.hash,
-  });
-
-  // Update guide stats
-  const existingGuide = await context.TourGuide.get(guideId);
-  if (existingGuide) {
-    await context.TourGuide.set({
-      ...existingGuide,
-      totalBookings: existingGuide.totalBookings + 1,
-      lastUpdated: timestamp,
-    });
-  }
-
-  // Update traveler stats
-  let travelerStats = await context.TravelerStats.get(travelerId);
-  if (!travelerStats) {
-    travelerStats = {
-      id: travelerId,
-      travelerFid: travelerFid.toString(),
-      freeSkipsUsedToday: 0,
-      freeConnectionsUsedToday: 0,
-      totalBookings: 1,
-      completedBookings: 0,
-      totalSpent: totalCost,
-      averageRating: BigInt(0),
-      lastActiveAt: timestamp,
-    };
-  } else {
-    travelerStats = {
-      ...travelerStats,
-      totalBookings: travelerStats.totalBookings + 1,
-      totalSpent: travelerStats.totalSpent + totalCost,
-      lastActiveAt: timestamp,
-    };
-  }
-  await context.TravelerStats.set(travelerStats);
-
-  context.log.info(`📅 Booking created: #${bookingId} - traveler ${travelerFid} booked guide ${guideFid} for ${hoursDuration}h @ ${totalCost}`);
-});
-
-// Tour Marked Complete (by guide)
-TourGuideRegistry.TourMarkedComplete.handler(async ({ event, context }) => {
-  const { bookingId, guideFid, proofIPFS, timestamp: proofTimestamp } = event.params;
-
-  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingBooking = await context.GuideBooking.get(bookId);
-  if (existingBooking) {
-    await context.GuideBooking.set({
-      ...existingBooking,
-      proofIPFS: proofIPFS,
-      markedCompleteAt: timestamp,
-      // Don't mark completed yet - wait for traveler confirmation or auto-complete
-    });
-
-    context.log.info(`📸 Tour marked complete: booking #${bookingId} by guide ${guideFid} (proof: ${proofIPFS})`);
-  }
-});
-
-// Tour Completed (final)
-TourGuideRegistry.TourCompleted.handler(async ({ event, context }) => {
-  const { bookingId, guideFid, travelerFid, rating, autoCompleted } = event.params;
-
-  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingBooking = await context.GuideBooking.get(bookId);
-  if (existingBooking) {
-    await context.GuideBooking.set({
-      ...existingBooking,
-      status: "Completed",
-      rating: Number(rating),
-      autoCompleted: autoCompleted,
-      completedAt: timestamp,
-    });
-  }
-
-  // Update guide stats
-  const existingGuide = await context.TourGuide.get(guideId);
-  if (existingGuide) {
-    await context.TourGuide.set({
-      ...existingGuide,
-      completedBookings: existingGuide.completedBookings + 1,
-      lastUpdated: timestamp,
-    });
-  }
-
-  // Update traveler stats
-  const travelerStats = await context.TravelerStats.get(travelerId);
-  if (travelerStats) {
-    await context.TravelerStats.set({
-      ...travelerStats,
-      completedBookings: travelerStats.completedBookings + 1,
-      lastActiveAt: timestamp,
-    });
-  }
-
-  context.log.info(`✅ Tour completed: booking #${bookingId} - rating: ${rating}/5 (auto: ${autoCompleted})`);
-});
-
-// Guide Rated
-TourGuideRegistry.GuideRated.handler(async ({ event, context }) => {
-  const { guideFid, newAverageRating, ratingCount } = event.params;
-
-  const guideId = `guide-${event.chainId}-${guideFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingGuide = await context.TourGuide.get(guideId);
-  if (existingGuide) {
-    await context.TourGuide.set({
-      ...existingGuide,
-      averageRating: newAverageRating,
-      ratingCount: Number(ratingCount),
-      lastUpdated: timestamp,
-    });
-
-    context.log.info(`⭐ Guide rated: FID ${guideFid} - new avg: ${newAverageRating}/5 (${ratingCount} ratings)`);
-  }
-});
-
-// Guide Reviewed Traveler
-TourGuideRegistry.GuideReviewedTraveler.handler(async ({ event, context }) => {
-  const { bookingId, travelerFid, rating } = event.params;
-
-  // Note: This event is for guide rating the traveler - update traveler stats
-  const travelerId = `traveler-${event.chainId}-${travelerFid.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const travelerStats = await context.TravelerStats.get(travelerId);
-  if (travelerStats) {
-    // Simple average update (note: proper weighted avg would need total count)
-    await context.TravelerStats.set({
-      ...travelerStats,
-      averageRating: BigInt(rating),
-      lastActiveAt: timestamp,
-    });
-  }
-
-  context.log.info(`⭐ Guide reviewed traveler: booking #${bookingId} - traveler ${travelerFid} got ${rating}/5`);
-});
-
-// Booking Cancelled
-TourGuideRegistry.BookingCancelled.handler(async ({ event, context }) => {
-  const { bookingId, cancelledBy, reason, timestamp: cancelTimestamp } = event.params;
-
-  const bookId = `booking-${event.chainId}-${bookingId.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const existingBooking = await context.GuideBooking.get(bookId);
-  if (existingBooking) {
-    await context.GuideBooking.set({
-      ...existingBooking,
-      status: "Cancelled",
-      cancelledAt: timestamp,
-      cancelledBy: cancelledBy.toLowerCase(),
-      cancellationReason: reason,
-    });
-
-    context.log.info(`❌ Booking cancelled: #${bookingId} by ${cancelledBy.slice(0, 8)}... - reason: ${reason}`);
-  }
-});
-
-// Admin events (just logging)
-TourGuideRegistry.CountryAdded.handler(async ({ event, context }) => {
-  const { guideFid, country } = event.params;
-  context.log.info(`🌍 Country added: guide ${guideFid} added ${country}`);
-});
-
-TourGuideRegistry.ApprovalOracleUpdated.handler(async ({ event, context }) => {
-  const { oldOracle, newOracle } = event.params;
-  context.log.info(`🔧 Approval oracle updated: ${oldOracle.slice(0, 8)}... -> ${newOracle.slice(0, 8)}...`);
-});
-
-TourGuideRegistry.PlatformWalletUpdated.handler(async ({ event, context }) => {
-  const { oldWallet, newWallet } = event.params;
-  context.log.info(`💼 Platform wallet updated: ${oldWallet.slice(0, 8)}... -> ${newWallet.slice(0, 8)}...`);
 });

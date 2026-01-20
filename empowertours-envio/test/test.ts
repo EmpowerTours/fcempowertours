@@ -108,6 +108,8 @@ describe("EmpowerTours NFT Transfer", () => {
       staker: "",
       isBurned: false,
       burnedAt: 0n,
+      burnReason: undefined,
+      burnType: undefined,
       mintedAt: new Date(),
       blockNumber: 442333597192n,
       txHash: "0x1234567890abcdef",
