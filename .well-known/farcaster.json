@@ -1,0 +1,37 @@
+{
+"frame": {
+"name": "EmpowerTours",
+"version": "1",
+"iconUrl": "https://fcempowertours-production-6551.up.railway.app/images/icon.png",
+"homeUrl": "https://fcempowertours-production-6551.up.railway.app",
+"imageUrl": "https://fcempowertours-production-6551.up.railway.app/images/feed.png",
+"buttonTitle": "EmpowerTours",
+"splashImageUrl": "https://fcempowertours-production-6551.up.railway.app/images/splash.png",
+"splashBackgroundColor": "#353B48",
+"webhookUrl": "https://fcempowertours-production-6551.up.railway.app/api/webhook",
+"subtitle": "Travel Stamp Buy Experiences",
+"description": "Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.",
+"primaryCategory": "social",
+"screenshotUrls": [
+"https://fcempowertours-production-6551.up.railway.app/images/screenshot1.png"
+],
+"heroImageUrl": "https://fcempowertours-production-6551.up.railway.app/images/hero.png",
+"tags": [
+"travel",
+"music",
+"nfts",
+"farcaster",
+"monad"
+],
+"tagline": "Unlock travel adventures",
+"ogTitle": "EmpowerTours - DigitalPassport",
+"ogDescription": "Mint and share Travel and Music NFTs on EmpowerTours.",
+"ogImageUrl": "https://fcempowertours-production-6551.up.railway.app/images/og-image.png",
+"castShareUrl": "https://fcempowertours-production-6551.up.railway.app/share-cast"
+},
+"accountAssociation": {
+"header": "eyJmaWQiOjc2NTk5NCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDVDNDQwOWM4ODcxQzc1NjAzOTI2NGZmQTE3QTUxNENFMzE3RjdhM2MifQ",
+"payload": "eyJkb21haW4iOiJmY2VtcG93ZXJ0b3Vycy1wcm9kdWN0aW9uLTY1NTEudXAucmFpbHdheS5hcHAifQ",
+"signature": "MHg0ZDcxNzU1ZjA0N2I4ZjE4Zjg5ZWM3YWFhMmU1NjUwNmY4MGFhOTg0ZDc0Y2ZkMmMxY2JkZGI0NjJmZmZlOGEwNWU2N2U1NTI2NWJjZDg0MmNlYTI5YzA2MmZmNzMzNTA5ZGQ3MjJmYWYzMDI3N2E4YWRmMDg0M2NhMzZkOWRkODFi"
+}
+}

@@ -1,0 +1,835 @@
+# ✅ UPDATED: Added metadata fields for instant music playback
+
+type MusicNFT @entity {
+  id: ID!
+  tokenId: String!
+  contract: String!
+  artist: String!
+  artistFid: String            # ✅ V9: Farcaster ID of the artist
+  owner: String!
+  tokenURI: String!
+  coverArt: String
+  price: BigInt                # Track license price
+  totalSold: Int               # Track total licenses sold
+  active: Boolean              # Track if sales are active
+  royaltyPercentage: Int       # Track royalty % (optional)
+
+  # ✅ NEW: Metadata fields fetched from IPFS during indexing
+  name: String                 # Song title from metadata.name
+  description: String          # Description from metadata.description
+  imageUrl: String             # Cover art URL (metadata.image resolved)
+  previewAudioUrl: String      # Preview audio (metadata.animation_url resolved)
+  fullAudioUrl: String         # Full track (metadata.external_url resolved)
+  metadataFetched: Boolean!    # Track if metadata was successfully fetched
+  isArt: Boolean!              # True if no audio URLs present (art-only NFT)
+
+  # ✅ V5: Burning fields
+  isBurned: Boolean            # Whether NFT has been burned
+  burnedAt: BigInt             # Timestamp when burned
+  burnReason: String           # ✅ V10: Reason for burn (e.g., stolen content report)
+  burnType: String             # ✅ V10: Type of burn (e.g., "stolen_content", "user_burn")
+
+  mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  licenses: [MusicLicense!]! @derivedFrom(field: "masterToken")  # Link to purchases
+}
+
+# ✅ UPDATED: Track purchased music licenses (with expiry timestamp)
+type MusicLicense @entity {
+  id: ID!
+  licenseId: String!           # Unique license ID
+  masterTokenId: String!       # Which music NFT was purchased
+  masterToken: MusicNFT!       # Link back to the music NFT
+  licensee: String!            # Who bought it
+  licenseeFid: String!         # Buyer's Farcaster ID
+  isCollector: Boolean!        # Is this a collector edition license
+  active: Boolean!             # Is license still valid
+  expiry: BigInt!              # License expiry timestamp (0 = perpetual)
+  purchasedAt: Timestamp!      # When purchased
+  createdAt: Timestamp!        # Alias for purchasedAt (for query compatibility)
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type PassportNFT @entity {
+  id: ID!
+  tokenId: String!
+  contract: String!
+  owner: String!
+  userFid: String!             # Farcaster ID
+  countryCode: String!         # Country code (e.g., "US", "AR")
+  countryName: String!         # Country name
+  region: String!              # Geographic region
+  continent: String!           # Continent
+  verified: Boolean!           # GPS/location verification status
+  tokenURI: String
+  stakedAmount: BigInt!        # ✅ Total TOURS staked with this passport
+  stampCount: Int!             # ✅ Number of venue stamps
+  verifiedStampCount: Int!     # ✅ Number of verified stamps
+  creditScore: Int!            # ✅ Calculated credit score
+
+  mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  stakes: [PassportStake!]! @derivedFrom(field: "passport")
+  stamps: [VenueStamp!]! @derivedFrom(field: "passport")
+}
+
+# ✅ Passport Staking Events
+type PassportStake @entity {
+  id: ID!
+  passport: PassportNFT!
+  tokenId: String!
+  amount: BigInt!
+  positionId: BigInt!
+  stakedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ Venue Stamps (Event Attendance)
+type VenueStamp @entity {
+  id: ID!
+  passport: PassportNFT!
+  tokenId: String!
+  location: String!
+  eventType: String!
+  artist: String
+  timestamp: BigInt!
+  verified: Boolean!
+  addedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ ExperienceNFT Entities (GPS-gated travel experiences)
+type Experience @entity {
+  id: ID!
+  experienceId: String!
+  creator: String!
+  title: String!
+  city: String!
+  country: String!
+  price: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  purchases: [ExperiencePurchase!]! @derivedFrom(field: "experience")
+  completions: [ExperienceCompletion!]! @derivedFrom(field: "experience")
+}
+
+type ExperiencePurchase @entity {
+  id: ID!
+  experience: Experience!
+  experienceId: String!
+  buyer: String!
+  price: BigInt!
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type ExperienceCompletion @entity {
+  id: ID!
+  experience: Experience!
+  experienceId: String!
+  user: String!
+  photoProofHash: String!
+  rewardAmount: BigInt!
+  completedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TransportationRequest @entity {
+  id: ID!
+  experienceId: String!
+  user: String!
+  fromLat: BigInt!
+  fromLon: BigInt!
+  toLat: BigInt!
+  toLon: BigInt!
+  requestedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type Itinerary @entity {
+  id: ID!
+  itineraryId: String!
+  creator: String!
+  description: String
+  price: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  purchases: [ItineraryPurchase!]! @derivedFrom(field: "itinerary")
+}
+
+type ItineraryPurchase @entity {
+  id: ID!
+  itinerary: Itinerary!
+  itineraryId: String!
+  buyer: String!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ V3: YieldStrategy NFT-Gated Staking Entities
+type StakingPosition @entity {
+  id: ID!                      # positionId
+  positionId: String!
+  nftAddress: String!
+  nftTokenId: String!
+  owner: String!
+  beneficiary: String!
+  toursAmount: BigInt!
+  monAmount: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  closedAt: Timestamp
+  toursRefund: BigInt
+  yieldShare: BigInt
+  createdTxHash: String!
+  closedTxHash: String
+  createdBlockNumber: BigInt!
+  closedBlockNumber: BigInt
+}
+
+type NFTWhitelistEvent @entity {
+  id: ID!
+  nftAddress: String!
+  accepted: Boolean!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type YieldHarvestEvent @entity {
+  id: ID!
+  yieldMonAmount: BigInt!
+  yieldToursAmount: BigInt!
+  totalAssets: BigInt!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UserStakingStats @entity {
+  id: ID!                      # user address (beneficiary)
+  user: String!
+  activePositions: Int!
+  totalPositionsCreated: Int!
+  totalPositionsClosed: Int!
+  totalToursStaked: BigInt!
+  totalYieldEarned: BigInt!
+  lastStakeTime: Timestamp
+  lastWithdrawTime: Timestamp
+}
+
+# ✅ NEW: DemandSignalEngine Entities
+type DemandSignal @entity {
+  id: ID!
+  eventId: String!
+  user: String!
+  amount: BigInt!
+  active: Boolean!
+  submittedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type EventDemandStats @entity {
+  id: ID!                      # eventId
+  eventId: String!
+  totalDemand: BigInt!
+  signalCount: Int!
+  uniqueUsers: Int!
+  lastUpdated: Timestamp!
+}
+
+# ✅ NEW: SmartEventManifest Entities
+type SmartEvent @entity {
+  id: ID!
+  eventId: String!
+  name: String!
+  location: String!
+  startDate: BigInt!
+  endDate: BigInt
+  capacity: BigInt!
+  ticketsSold: Int!
+  price: BigInt!
+  active: Boolean!
+  cancelled: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  tickets: [TicketPurchase!]! @derivedFrom(field: "event")
+}
+
+type TicketPurchase @entity {
+  id: ID!
+  event: SmartEvent!
+  eventId: String!
+  buyer: String!
+  quantity: Int!
+  totalPrice: BigInt!
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: TandaYieldGroup Entities
+type TandaGroup @entity {
+  id: ID!
+  groupId: String!
+  name: String!
+  creator: String!
+  contributionAmount: BigInt!
+  maxMembers: Int!
+  currentMembers: Int!
+  currentRound: Int!
+  totalPool: BigInt!
+  active: Boolean!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  members: [TandaMember!]! @derivedFrom(field: "group")
+  contributions: [TandaContribution!]! @derivedFrom(field: "group")
+  payouts: [TandaPayout!]! @derivedFrom(field: "group")
+}
+
+type TandaMember @entity {
+  id: ID!
+  group: TandaGroup!
+  groupId: String!
+  member: String!
+  joinedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TandaContribution @entity {
+  id: ID!
+  group: TandaGroup!
+  groupId: String!
+  member: String!
+  amount: BigInt!
+  round: Int!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TandaPayout @entity {
+  id: ID!
+  group: TandaGroup!
+  groupId: String!
+  member: String!
+  amount: BigInt!
+  round: Int!
+  claimedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: CreditScoreCalculator Entities
+type CreditScore @entity {
+  id: ID!                      # user address
+  user: String!
+  score: BigInt!
+  tier: String
+  paymentHistory: BigInt!
+  stakeAmount: BigInt!
+  tandaParticipation: BigInt!
+  eventAttendance: BigInt!
+  lastUpdated: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type PaymentRecord @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  onTime: Boolean!
+  recordedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UserStats @entity {
+  id: ID!
+  address: String!
+  musicNFTCount: Int!          # Music NFTs created by user (isArt: false)
+  artNFTCount: Int!            # Art NFTs created by user (isArt: true)
+  passportNFTCount: Int!
+  itinerariesCreated: Int!
+  itinerariesPurchased: Int!
+  experiencesCreated: Int!     # ✅ NEW: Experiences created (separate from itineraries)
+  experiencesPurchased: Int!   # ✅ NEW: Experiences purchased (separate from itineraries)
+  licensesOwned: Int!          # Licenses purchased by user
+  eventsAttended: Int!         # ✅ NEW
+  tandaGroupsJoined: Int!      # ✅ NEW
+  stolenContentBurns: Int      # ✅ V10: NFTs burned due to stolen content
+  totalNFTs: Int!
+  lastActive: Timestamp!
+}
+
+type GlobalStats @entity {
+  id: ID!
+  totalMusicNFTs: Int!
+  totalPassports: Int!
+  totalItineraries: Int!
+  totalItineraryPurchases: Int!
+  totalExperiences: Int!                  # ✅ NEW: Experiences (separate from itineraries)
+  totalExperiencePurchases: Int!          # ✅ NEW: Experience purchases
+  totalMusicLicensesPurchased: Int!
+  totalStaked: BigInt!                    # ✅ NEW
+  totalStakers: Int!                      # ✅ NEW
+  totalEvents: Int!                       # ✅ NEW
+  totalTicketsSold: Int!                  # ✅ NEW
+  totalTandaGroups: Int!                  # ✅ NEW
+  totalDemandSignals: Int!                # ✅ NEW
+  totalLotteryRounds: Int!                # ✅ NEW: Lottery
+  totalLotteryEntries: Int!               # ✅ NEW: Lottery
+  totalLotteryPrizePool: BigInt!          # ✅ NEW: Lottery
+  totalUsers: Int!
+  lastUpdated: Timestamp!
+}
+
+# ✅ NEW: DailyPassLottery Entities
+type LotteryRound @entity {
+  id: ID!                                 # round-{chainId}-{roundId}
+  roundId: String!
+  startTime: BigInt!
+  endTime: BigInt!
+  prizePoolMon: BigInt!
+  prizePoolShMon: BigInt!
+  participantCount: Int!
+  status: String!                         # Active, CommitPending, RevealPending, Finalized
+  winner: String
+  winnerIndex: Int
+  monPrize: BigInt
+  shMonPrize: BigInt
+  randomHash: String
+  finalizedAt: Timestamp
+  announcedOnFarcaster: Boolean!
+  announcementCastHash: String
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  entries: [LotteryEntry!]! @derivedFrom(field: "round")
+}
+
+type LotteryEntry @entity {
+  id: ID!                                 # entry-{chainId}-{roundId}-{entryIndex}
+  round: LotteryRound!
+  roundId: String!
+  holder: String!
+  entryIndex: Int!
+  paidWithShMon: Boolean!
+  amount: BigInt!
+  enteredAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type LotteryWinnerHistory @entity {
+  id: ID!                                 # winner-{chainId}-{roundId}
+  roundId: String!
+  winner: String!
+  winnerFid: Int
+  winnerUsername: String
+  monPrize: BigInt!
+  shMonPrize: BigInt!
+  totalPrize: BigInt!
+  participantCount: Int!
+  randomHash: String                      # Optional - not included in V2 WinnerRevealed event
+  claimed: Boolean!
+  claimedAt: Timestamp
+  finalizedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type UserLotteryStats @entity {
+  id: ID!                                 # user address
+  user: String!
+  totalEntriesMon: Int!
+  totalEntriesShMon: Int!
+  totalSpentMon: BigInt!
+  totalSpentShMon: BigInt!
+  wins: Int!
+  totalWonMon: BigInt!
+  totalWonShMon: BigInt!
+  lastEntryAt: Timestamp
+  lastWinAt: Timestamp
+}
+
+# ✅ NEW: MusicBeatMatchV2 Entities (Daily song guessing game)
+type BeatMatchChallenge @entity {
+  id: ID!                                 # challenge-{chainId}-{challengeId}
+  challengeId: String!
+  artistId: String!                       # Music NFT token ID
+  songTitle: String!
+  artistUsername: String!
+  ipfsAudioHash: String!
+  startTime: BigInt!
+  endTime: BigInt!
+  active: Boolean!
+  finalized: Boolean!
+  winner: String
+  rewardAmount: BigInt
+  totalGuesses: Int!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  guesses: [BeatMatchGuess!]! @derivedFrom(field: "challenge")
+}
+
+type BeatMatchGuess @entity {
+  id: ID!                                 # guess-{chainId}-{challengeId}-{player}
+  challenge: BeatMatchChallenge!
+  challengeId: String!
+  player: String!
+  guessedArtistId: String!
+  guessedSongTitle: String!
+  guessedUsername: String!
+  correct: Boolean
+  submittedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: CountryCollectorV2 Entities (Weekly country music collection)
+type CountryChallenge @entity {
+  id: ID!                                 # week-{chainId}-{weekId}
+  weekId: String!
+  country: String!
+  countryCode: String!
+  artistIds: [String!]!                   # Array of 3 music NFT token IDs
+  startTime: BigInt!
+  endTime: BigInt!
+  active: Boolean!
+  finalized: Boolean!
+  totalCompletions: Int!
+  rewardAmount: BigInt
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  completions: [ArtistCompletion!]! @derivedFrom(field: "challenge")
+}
+
+type ArtistCompletion @entity {
+  id: ID!                                 # completion-{chainId}-{weekId}-{player}-{artistIndex}
+  challenge: CountryChallenge!
+  weekId: String!
+  player: String!
+  artistIndex: Int!
+  artistId: String!
+  completedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type CountryPlayerProgress @entity {
+  id: ID!                                 # progress-{chainId}-{weekId}-{player}
+  challenge: CountryChallenge!
+  weekId: String!
+  player: String!
+  completedArtists: Int!                  # 0-3
+  allCompleted: Boolean!
+  rewardClaimed: Boolean!
+  rewardAmount: BigInt
+  lastUpdated: Timestamp!
+}
+
+# ✅ NEW: TourGuideRegistry Entities (Dec 22, 2025)
+type TourGuide @entity {
+  id: ID!                                 # guide-{chainId}-{guideFid}
+  guideFid: String!
+  guideAddress: String!
+  passportTokenId: String!
+  countries: [String!]!
+  hourlyRateWMON: BigInt!
+  hourlyRateTOURS: BigInt!
+  active: Boolean!
+  suspended: Boolean!
+  averageRating: BigInt!
+  ratingCount: Int!
+  totalBookings: Int!
+  completedBookings: Int!
+  registeredAt: Timestamp!
+  lastUpdated: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+
+  # Metadata fetched from Neynar (optional)
+  username: String
+  displayName: String
+  pfpUrl: String
+  bio: String
+  location: String
+  languages: String
+  transport: String
+
+  # Relations
+  connections: [GuideConnection!]! @derivedFrom(field: "guide")
+  bookings: [GuideBooking!]! @derivedFrom(field: "guide")
+  applications: [GuideApplication!]! @derivedFrom(field: "guide")
+}
+
+type GuideApplication @entity {
+  id: ID!                                 # application-{chainId}-{guideFid}
+  guide: TourGuide!
+  guideFid: String!
+  applicant: String!
+  creditScore: BigInt!
+  approved: Boolean
+  rejected: Boolean
+  adminNotes: String
+  rejectionReason: String
+  submittedAt: Timestamp!
+  reviewedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type GuideConnection @entity {
+  id: ID!                                 # connection-{chainId}-{connectionId}
+  connectionId: String!
+  guide: TourGuide!
+  guideFid: String!
+  travelerFid: String!
+  travelerAddress: String
+  meetupType: String!
+  message: String
+  isPaid: Boolean!
+  fee: BigInt
+  accepted: Boolean
+  declined: Boolean
+  requestedAt: Timestamp!
+  respondedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type GuideBooking @entity {
+  id: ID!                                 # booking-{chainId}-{bookingId}
+  bookingId: String!
+  guide: TourGuide!
+  guideFid: String!
+  travelerFid: String!
+  traveler: String!
+  hoursDuration: BigInt!
+  totalCost: BigInt!
+  paymentToken: String!
+  status: String!                         # Pending, Completed, Cancelled
+  rating: Int
+  autoCompleted: Boolean
+  proofIPFS: String
+  markedCompleteAt: Timestamp
+  completedAt: Timestamp
+  cancelledAt: Timestamp
+  cancelledBy: String
+  cancellationReason: String
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type GuideSkipEvent @entity {
+  id: ID!                                 # skip-{chainId}-{txHash}-{logIndex}
+  travelerFid: String!
+  guideFid: String!
+  paidSkip: Boolean!
+  fee: BigInt
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type TravelerStats @entity {
+  id: ID!                                 # traveler-{chainId}-{fid}
+  travelerFid: String!
+  freeSkipsUsedToday: Int!
+  freeConnectionsUsedToday: Int!
+  totalBookings: Int!
+  completedBookings: Int!
+  totalSpent: BigInt!
+  averageRating: BigInt!
+  lastActiveAt: Timestamp!
+}
+
+# ✅ NEW: Music Streaming Play Records (Jan 2026)
+type PlayRecord @entity {
+  id: ID!                                 # play-{chainId}-{txHash}-{logIndex}
+  user: String!
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  duration: BigInt!
+  timestamp: BigInt!
+  playedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: Artist Payouts from Streaming (Monthly distributions)
+type ArtistPayout @entity {
+  id: ID!                                 # payout-{chainId}-{monthId}-{artist}
+  monthId: String!
+  artist: String!
+  amount: BigInt!
+  amountFormatted: String!                # Human-readable WMON amount
+  playCount: BigInt!
+  paidAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: Royalty Payments from Sales
+type RoyaltyPayment @entity {
+  id: ID!                                 # royalty-{chainId}-{txHash}-{logIndex}
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  artist: String!
+  amount: BigInt!
+  amountFormatted: String!                # Human-readable WMON amount
+  paidAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ✅ NEW: Streaming Stats per Song
+type SongStreamingStats @entity {
+  id: ID!                                 # stats-{chainId}-{masterTokenId}
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  totalPlays: Int!
+  totalDuration: BigInt!
+  uniqueListeners: Int!
+  totalRoyaltiesEarned: BigInt!
+  lastPlayedAt: Timestamp
+}
+
+# ✅ NEW: Artist Streaming Stats (Aggregate)
+type ArtistStreamingStats @entity {
+  id: ID!                                 # artist-stats-{chainId}-{address}
+  artist: String!
+  totalPlays: Int!
+  totalSongs: Int!
+  uniqueListeners: Int!
+  totalEarningsWMON: BigInt!
+  totalEarningsTOURS: BigInt!
+  lastPayoutAt: Timestamp
+}
+
+# ============================================
+# ✅ NEW: LiveRadio Entities (World Cup 2026 Jukebox)
+# ============================================
+
+# Radio play history - tracks every song played on the radio
+type RadioPlay @entity {
+  id: ID!                                 # play-{chainId}-{txHash}-{logIndex}
+  queueId: String!                        # 0 for random plays
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  artist: String!
+  artistPayout: BigInt!
+  wasRandom: Boolean!
+  playedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Songs queued by users
+type RadioQueuedSong @entity {
+  id: ID!                                 # queue-{chainId}-{queueId}
+  queueId: String!
+  masterTokenId: String!
+  masterToken: MusicNFT                   # Link to the song
+  queuedBy: String!
+  queuedByFid: String!
+  paidAmount: BigInt!
+  tipAmount: BigInt!
+  hadLicense: Boolean!
+  played: Boolean!
+  queuedAt: Timestamp!
+  playedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Voice notes submitted by users
+type RadioVoiceNote @entity {
+  id: ID!                                 # voicenote-{chainId}-{noteId}
+  noteId: String!
+  submitter: String!
+  duration: BigInt!
+  paidAmount: BigInt!
+  isAd: Boolean!
+  played: Boolean!
+  rewardPaid: BigInt
+  submittedAt: Timestamp!
+  playedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Listener stats and leaderboard
+type RadioListener @entity {
+  id: ID!                                 # listener-{chainId}-{address}
+  listener: String!
+  totalSongsListened: Int!
+  totalRewardsEarned: BigInt!
+  currentStreak: Int!
+  longestStreak: Int!
+  firstListenerBonuses: Int!
+  voiceNotesSubmitted: Int!
+  voiceNotesPlayed: Int!
+  tipsGiven: BigInt!
+  songsQueued: Int!
+  lastActiveAt: Timestamp!
+}
+
+# First listener of each day
+type RadioFirstListener @entity {
+  id: ID!                                 # firstlistener-{chainId}-{day}
+  day: BigInt!
+  listener: String!
+  bonusAmount: BigInt!
+  claimedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Tips received by artists
+type RadioTip @entity {
+  id: ID!                                 # tip-{chainId}-{txHash}-{logIndex}
+  masterTokenId: String!
+  artist: String!
+  tipper: String!
+  amount: BigInt!
+  tippedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Global radio stats
+type RadioGlobalStats @entity {
+  id: ID!                                 # radio-stats-{chainId}
+  isLive: Boolean!
+  totalSongsPlayed: Int!
+  totalQueuedSongs: Int!
+  totalRandomSongs: Int!
+  totalVoiceNotes: Int!
+  totalListeners: Int!
+  totalTipsWMON: BigInt!
+  totalRewardsPaidTOURS: BigInt!
+  lastUpdated: Timestamp!
+}

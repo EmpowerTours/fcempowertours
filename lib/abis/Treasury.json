@@ -1,0 +1,43 @@
+[
+  {
+    "inputs": [{"internalType": "address", "name": "initialOwner", "type": "address"}],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "internalType": "address", "name": "from", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "FundsReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "internalType": "address", "name": "to", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "FundsWithdrawn",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "getBalance",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  }
+]

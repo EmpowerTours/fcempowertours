@@ -1,0 +1,141 @@
+@import "tw-animate-css";
+@plugin "tailwindcss-animate";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light mode (default) */
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --card: #f9fafb;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #06b6d4;
+  --primary-foreground: #ffffff;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #7e22ce;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --border: #e5e7eb;
+  --input: #ffffff;
+  --ring: #06b6d4;
+  --radius: 0.625rem;
+}
+
+/* Dark mode */
+.dark {
+  --background: #000000;
+  --foreground: #f9fafb;
+  --card: #111827;
+  --card-foreground: #f9fafb;
+  --popover: #1f2937;
+  --popover-foreground: #f9fafb;
+  --primary: #06b6d4;
+  --primary-foreground: #000000;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #374151;
+  --muted-foreground: #9ca3af;
+  --accent: #7e22ce;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --border: #374151;
+  --input: #1f2937;
+  --ring: #06b6d4;
+}
+
+/* Base styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Fix input text color in dark mode */
+.dark input,
+.dark textarea {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280 !important;
+  -webkit-text-fill-color: #6b7280 !important;
+}
+
+/* Fix browser autofill styles in dark mode */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.dark textarea:-webkit-autofill,
+.dark textarea:-webkit-autofill:hover,
+.dark textarea:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #1f2937 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background-color: #1f2937 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Fix number input spinner in dark mode */
+.dark input[type="number"]::-webkit-inner-spin-button,
+.dark input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(1);
+}
+
+/* Utility classes */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Animation keyframes */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-bounce {
+  animation: bounce 1s ease-in-out infinite;
+}
+
+/* Modal backdrop - ensure fully opaque (background set via inline styles for dark/light mode) */
+.modal-backdrop {
+  opacity: 1 !important;
+}
+
+/* Safe areas for Farcaster Mini App */
+.safe-area-inset-top { height: env(safe-area-inset-top); }
+.safe-area-inset-bottom { height: env(safe-area-inset-bottom); }
+
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-area-container {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
