@@ -11,17 +11,8 @@
   "scripts": {
     "dev": "NODE_OPTIONS='--no-deprecation' next dev -H 0.0.0.0",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "node scripts/smart-start.cjs",
-    "start:web": "NODE_OPTIONS='--no-deprecation' node scripts/start-server.js",
-    "start:worker": "node scripts/start-worker.cjs",
-    "start:legacy": "NODE_OPTIONS='--no-deprecation' PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "check-deployer": "npx tsx scripts/check-deployer.ts",
-    "check-safe": "npx tsx scripts/check-safe-balance.ts",
-    "fund-safe": "npx tsx scripts/fund-safe.ts",
-    "verify-deployment": "./scripts/verify-railway-deployment.sh",
-    "check-delegation": "npx tsx scripts/check-delegation-status.ts",
-    "whitelist-nft": "npx tsx scripts/whitelist-passport-nft.ts"
+    "start": "NODE_OPTIONS='--no-deprecation' PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
     "@farcaster/frame-sdk": "^0.1.12",
