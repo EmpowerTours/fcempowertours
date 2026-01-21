@@ -77,7 +77,21 @@ export async function checkRateLimit(
     };
   } catch (error) {
     console.error('[RateLimit] Redis error:', error);
-    // Fail open in case of Redis errors (better UX, but monitor for abuse)
+    // SECURITY: Fail closed for sensitive operations
+    // List of prefixes that should fail closed
+    const sensitiveOperations = ['delegation', 'admin', 'upload', 'mint', 'burn', 'transfer'];
+    const shouldFailClosed = sensitiveOperations.some(op => config.prefix.includes(op));
+
+    if (shouldFailClosed) {
+      console.warn('[RateLimit] Failing closed for sensitive operation:', config.prefix);
+      return {
+        allowed: false,
+        remaining: 0,
+        resetIn: config.windowSeconds,
+      };
+    }
+
+    // Fail open for non-sensitive operations (better UX)
     return {
       allowed: true,
       remaining: config.maxRequests,
@@ -137,5 +151,47 @@ export const RateLimiters = {
     prefix: 'admin',
     windowSeconds: 60,
     maxRequests: 5,
+  },
+
+  /** Minting operations: 20 per hour */
+  mint: {
+    prefix: 'mint',
+    windowSeconds: 3600,
+    maxRequests: 20,
+  },
+
+  /** Burning operations: 10 per hour */
+  burn: {
+    prefix: 'burn',
+    windowSeconds: 3600,
+    maxRequests: 10,
+  },
+
+  /** Transfer operations: 30 per hour */
+  transfer: {
+    prefix: 'transfer',
+    windowSeconds: 3600,
+    maxRequests: 30,
+  },
+
+  /** Webhook operations: 200 per minute */
+  webhook: {
+    prefix: 'webhook',
+    windowSeconds: 60,
+    maxRequests: 200,
+  },
+
+  /** Privacy/profile updates: 10 per hour */
+  privacy: {
+    prefix: 'privacy',
+    windowSeconds: 3600,
+    maxRequests: 10,
+  },
+
+  /** Execute delegated: 50 per hour */
+  execute: {
+    prefix: 'execute',
+    windowSeconds: 3600,
+    maxRequests: 50,
   },
 } as const;

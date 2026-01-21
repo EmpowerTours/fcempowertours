@@ -2,156 +2,72 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { updateDelegationPermissions } from '@/lib/delegation-system';
 import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
+import {
+  generateNonce,
+  authenticateRequest,
+  buildDelegationMessage,
+  sanitizeErrorForResponse,
+  SIGNATURE_EXPIRY_MS,
+} from '@/lib/auth';
 
 /**
- * 🔐 CREATE DELEGATION ENDPOINT
+ * 🔐 CREATE DELEGATION ENDPOINT (SECURED)
  *
- * Sets up a gasless delegation for a user via Pimlico
- * Allows the user to execute transactions without paying gas
+ * SECURITY CHANGES:
+ * - Requires wallet signature to prove ownership
+ * - Uses nonce to prevent replay attacks
+ * - Validates timestamp to prevent stale requests
+ * - Restricted default permissions (no send_tours by default)
  *
- * SECURITY: Rate limited to prevent abuse
- *
- * Usage:
- * POST /api/create-delegation
- * {
- *   userAddress: "0x...",
- *   durationHours: 24,
- *   maxTransactions: 100,
- *   permissions: ["mint_passport", "mint_music", "swap_mon_for_tours", "buy_itinerary", "send_tours"]
- * }
+ * Flow:
+ * 1. GET /api/create-delegation?address=0x... - Get nonce for signing
+ * 2. Frontend signs message with wallet
+ * 3. POST /api/create-delegation - Submit signed request
  */
 
-export async function POST(req: NextRequest) {
-  try {
-    // SECURITY: Rate limiting to prevent delegation spam
-    const ip = getClientIP(req);
-    const rateLimit = await checkRateLimit(RateLimiters.delegation, ip);
+// SECURITY: Restricted default permissions (high-risk actions excluded)
+const DEFAULT_PERMISSIONS = [
+  'mint_passport',
+  'mint_music',
+  'buy_music',
+  'burn_music',
+  'burn_nft',
+  'burn_itinerary',
+  'stake_music',
+  'unstake_music',
+  'swap_mon_for_tours',
+  'buy_itinerary',
+  // 'send_tours' - REMOVED: High-risk, requires explicit request
+  'approve_yield_strategy',
+  'stake_tours',
+  'unstake_tours',
+  'stake_music_yield',
+  'unstake_music_yield',
+  'claim_rewards',
+  'create_tanda_group',
+  'join_tanda_group',
+  'contribute_tanda',
+  'claim_tanda_payout',
+  'purchase_event_ticket',
+  'submit_demand_signal',
+  'withdraw_demand_signal',
+];
 
-    if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
-        },
-        { status: 429 }
-      );
-    }
+// High-risk permissions that require explicit request
+const HIGH_RISK_PERMISSIONS = [
+  'send_tours',
+  'admin_burn',
+];
 
-    const { userAddress, durationHours = 24, maxTransactions = 100, permissions = [] } = await req.json();
-
-    if (!userAddress) {
-      return NextResponse.json(
-        { success: false, error: 'userAddress required' },
-        { status: 400 }
-      );
-    }
-
-    // SECURITY: Validate address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid Ethereum address format' },
-        { status: 400 }
-      );
-    }
-
-    console.log('🔐 Creating delegation for:', userAddress);
-    console.log('   Duration:', durationHours, 'hours');
-    console.log('   Max transactions:', maxTransactions);
-    console.log('   Permissions:', permissions);
-
-    // Create delegation object
-    const delegation = {
-      user: userAddress,
-      bot: process.env.BOT_SIGNER_ADDRESS || 'empowertoursbot',
-      createdAt: Date.now(),
-      expiresAt: Date.now() + (durationHours * 60 * 60 * 1000),
-      transactionsExecuted: 0,
-      config: {
-        durationHours,
-        maxTransactions,
-        // ✅ FIXED: Use correct permission names that match execute-delegated action names
-        permissions: permissions.length > 0 ? permissions : [
-          'mint_passport',
-          'mint_music',
-          'buy_music',
-          'burn_music',
-          'burn_nft',       // Delegated NFT burning (v7)
-          'burn_itinerary', // Delegated Itinerary burning (ItineraryNFTv2)
-          'stake_music',  // ✅ ADD: Internal staking for TOURS rewards
-          'unstake_music', // ✅ ADD: Internal unstaking for TOURS rewards
-          'swap_mon_for_tours',
-          'buy_itinerary',
-          'send_tours',
-          // DeFi permissions
-          'approve_yield_strategy', // One-time setup for staking
-          'stake_tours',
-          'unstake_tours',
-          'stake_music_yield',   // YieldStrategy staking with MON
-          'unstake_music_yield', // YieldStrategy unstaking
-          'claim_rewards',
-          'create_tanda_group',
-          'join_tanda_group',
-          'contribute_tanda',
-          'claim_tanda_payout',
-          'purchase_event_ticket',
-          'submit_demand_signal',
-          'withdraw_demand_signal',
-        ],
-      }
-    };
-
-    // Store in Redis with TTL
-    const key = `delegation:${userAddress.toLowerCase()}`;
-    const ttl = durationHours * 3600; // Convert to seconds
-
-    const delegationJson = JSON.stringify(delegation);
-    console.log(`📝 Storing delegation to Redis: key=${key}, ttl=${ttl}s, size=${delegationJson.length} bytes`);
-
-    await redis.setex(
-      key,
-      ttl,
-      delegationJson
-    );
-
-    // ✅ VERIFY: Immediately read back to confirm storage
-    const verification = await redis.get(key);
-    if (!verification) {
-      console.error('❌ CRITICAL: Delegation was NOT stored in Redis!');
-      throw new Error('Failed to store delegation in Redis');
-    }
-
-    console.log('✅ Delegation created and VERIFIED in Redis');
-    console.log('   Key:', key);
-    console.log('   TTL:', ttl, 'seconds');
-    console.log('   Permissions:', delegation.config.permissions);
-    console.log('   Verified:', !!verification);
-
-    return NextResponse.json({
-      success: true,
-      delegation: {
-        user: userAddress,
-        createdAt: new Date(delegation.createdAt).toISOString(),
-        expiresAt: new Date(delegation.expiresAt).toISOString(),
-        durationHours,
-        maxTransactions,
-        permissions: delegation.config.permissions,
-        message: '✅ Delegation created! You can now execute gasless transactions.'
-      }
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error creating delegation:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create delegation' },
-      { status: 500 }
-    );
-  }
-}
-
+/**
+ * GET - Request nonce for delegation creation
+ * Also can check existing delegation status
+ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const userAddress = searchParams.get('address');
+    const requestNonce = searchParams.get('nonce') === 'true';
 
     if (!userAddress) {
       return NextResponse.json(
@@ -160,16 +76,53 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    console.log('🔍 Checking delegation for:', userAddress);
+    // Validate address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid Ethereum address format' },
+        { status: 400 }
+      );
+    }
+
+    // If requesting nonce for new delegation
+    if (requestNonce) {
+      const ip = getClientIP(req);
+      const rateLimit = await checkRateLimit(RateLimiters.delegation, ip, userAddress);
+
+      if (!rateLimit.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
+          },
+          { status: 429 }
+        );
+      }
+
+      const nonce = await generateNonce(userAddress, 'delegation');
+      const timestamp = Date.now();
+      const durationHours = 24; // Default duration for message preview
+
+      return NextResponse.json({
+        success: true,
+        nonce,
+        timestamp,
+        messageToSign: buildDelegationMessage(userAddress, timestamp, nonce, durationHours),
+        expiresIn: SIGNATURE_EXPIRY_MS / 1000,
+        instructions: 'Sign the messageToSign with your wallet, then POST with signature.',
+      });
+    }
+
+    // Check existing delegation status
+    console.log('[Delegation] Checking status for:', userAddress);
 
     const key = `delegation:${userAddress.toLowerCase()}`;
     const delegationData = await redis.get(key);
 
     if (!delegationData) {
-      console.log('⚠️ No delegation found for:', userAddress);
       return NextResponse.json({
         success: false,
-        message: 'No active delegation. Create one with POST /api/create-delegation',
+        message: 'No active delegation. Request a nonce with ?nonce=true to create one.',
         address: userAddress,
       });
     }
@@ -179,12 +132,6 @@ export async function GET(req: NextRequest) {
     const hoursLeft = Math.round(timeLeft / (1000 * 60 * 60));
     const minutesLeft = Math.round((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
     const transactionsLeft = delegation.config.maxTransactions - delegation.transactionsExecuted;
-
-    console.log('✅ Delegation found:', {
-      hoursLeft,
-      transactionsLeft,
-      permissions: delegation.config.permissions
-    });
 
     return NextResponse.json({
       success: true,
@@ -204,17 +151,159 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking delegation:', error);
+    console.error('[Delegation] GET Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: sanitizeErrorForResponse(error) },
       { status: 500 }
     );
   }
 }
 
+/**
+ * POST - Create delegation with signature verification
+ */
+export async function POST(req: NextRequest) {
+  try {
+    // SECURITY: Rate limiting
+    const ip = getClientIP(req);
+    const body = await req.json();
+    const { userAddress, signature, timestamp, nonce, durationHours = 24, maxTransactions = 100, permissions = [] } = body;
+
+    // Enhanced rate limiting with user identifier
+    const rateLimit = await checkRateLimit(RateLimiters.delegation, ip, userAddress);
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
+    // SECURITY: Validate required auth fields
+    if (!userAddress || !signature || !timestamp || !nonce) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Missing required fields: userAddress, signature, timestamp, nonce. Use GET ?nonce=true first.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Validate address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid Ethereum address format' },
+        { status: 400 }
+      );
+    }
+
+    console.log('[Delegation] Creating for:', userAddress);
+
+    // SECURITY: Build and verify signed message
+    const expectedMessage = buildDelegationMessage(userAddress, timestamp, nonce, durationHours);
+
+    const authResult = await authenticateRequest(
+      { address: userAddress, signature, timestamp, nonce },
+      expectedMessage,
+      'delegation',
+      true // Require nonce
+    );
+
+    if (!authResult.valid) {
+      console.error(`[Delegation] Auth failed for ${userAddress}: ${authResult.error}`);
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: 403 }
+      );
+    }
+
+    console.log(`[Delegation] ✅ Verified signature for ${userAddress}`);
+
+    // SECURITY: Filter and validate permissions
+    let finalPermissions = permissions.length > 0 ? permissions : [...DEFAULT_PERMISSIONS];
+
+    // Remove any high-risk permissions unless explicitly requested with signature
+    const requestedHighRisk = finalPermissions.filter((p: string) => HIGH_RISK_PERMISSIONS.includes(p));
+    if (requestedHighRisk.length > 0) {
+      console.warn(`[Delegation] High-risk permissions requested: ${requestedHighRisk.join(', ')}`);
+      // For now, still allow if signed - but log it
+    }
+
+    // Deduplicate permissions
+    finalPermissions = [...new Set(finalPermissions)];
+
+    // Create delegation object
+    const delegation = {
+      user: userAddress.toLowerCase(),
+      bot: process.env.BOT_SIGNER_ADDRESS || 'empowertoursbot',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (durationHours * 60 * 60 * 1000),
+      transactionsExecuted: 0,
+      config: {
+        durationHours,
+        maxTransactions,
+        permissions: finalPermissions,
+      },
+      // SECURITY: Track auth metadata
+      authMetadata: {
+        signedAt: timestamp,
+        nonce,
+        ip: ip,
+      }
+    };
+
+    // Store in Redis with TTL
+    const key = `delegation:${userAddress.toLowerCase()}`;
+    const ttl = durationHours * 3600;
+
+    const delegationJson = JSON.stringify(delegation);
+    console.log(`[Delegation] Storing: key=${key}, ttl=${ttl}s`);
+
+    await redis.setex(key, ttl, delegationJson);
+
+    // Verify storage
+    const verification = await redis.get(key);
+    if (!verification) {
+      console.error('[Delegation] CRITICAL: Failed to store in Redis');
+      throw new Error('Failed to store delegation');
+    }
+
+    console.log('[Delegation] ✅ Created and verified');
+
+    return NextResponse.json({
+      success: true,
+      delegation: {
+        user: userAddress.toLowerCase(),
+        createdAt: new Date(delegation.createdAt).toISOString(),
+        expiresAt: new Date(delegation.expiresAt).toISOString(),
+        durationHours,
+        maxTransactions,
+        permissions: finalPermissions,
+        message: 'Delegation created! You can now execute gasless transactions.'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[Delegation] POST Error:', error);
+    return NextResponse.json(
+      { success: false, error: sanitizeErrorForResponse(error) },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH - Update delegation permissions (requires signature)
+ */
 export async function PATCH(req: NextRequest) {
   try {
-    const { userAddress, addPermissions } = await req.json();
+    const ip = getClientIP(req);
+    const body = await req.json();
+    const { userAddress, addPermissions, signature, timestamp, nonce } = body;
 
     if (!userAddress) {
       return NextResponse.json(
@@ -230,8 +319,43 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    console.log('🔄 Updating delegation for:', userAddress);
-    console.log('   Adding permissions:', addPermissions);
+    // SECURITY: Require signature for permission updates
+    if (!signature || !timestamp || !nonce) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Signature required to update permissions. Use GET ?nonce=true first.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Build message for permission update
+    const expectedMessage = `EmpowerTours Permission Update
+
+Address: ${userAddress.toLowerCase()}
+Action: Add permissions
+Permissions: ${addPermissions.join(', ')}
+Timestamp: ${timestamp}
+Nonce: ${nonce}
+
+Sign this message to authorize adding these permissions.`;
+
+    const authResult = await authenticateRequest(
+      { address: userAddress, signature, timestamp, nonce },
+      expectedMessage,
+      'delegation-update',
+      true
+    );
+
+    if (!authResult.valid) {
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: 403 }
+      );
+    }
+
+    console.log('[Delegation] Updating permissions for:', userAddress);
 
     const updatedDelegation = await updateDelegationPermissions(userAddress, addPermissions);
 
@@ -254,14 +378,86 @@ export async function PATCH(req: NextRequest) {
         addedPermissions: addPermissions,
         hoursLeft,
         transactionsLeft,
-        message: '✅ Delegation permissions updated successfully!'
+        message: 'Delegation permissions updated successfully!'
       }
     });
 
   } catch (error: any) {
-    console.error('❌ Error updating delegation:', error);
+    console.error('[Delegation] PATCH Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update delegation' },
+      { success: false, error: sanitizeErrorForResponse(error) },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE - Revoke delegation (requires signature)
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const userAddress = searchParams.get('address');
+    const signature = req.headers.get('x-signature');
+    const timestamp = req.headers.get('x-timestamp');
+    const nonce = req.headers.get('x-nonce');
+
+    if (!userAddress) {
+      return NextResponse.json(
+        { success: false, error: 'address parameter required' },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Require signature to revoke delegation
+    if (!signature || !timestamp || !nonce) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Signature required to revoke delegation. Pass x-signature, x-timestamp, x-nonce in headers.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const expectedMessage = `EmpowerTours Revoke Delegation
+
+Address: ${userAddress.toLowerCase()}
+Action: Revoke delegation
+Timestamp: ${timestamp}
+Nonce: ${nonce}
+
+Sign this message to revoke your delegation.`;
+
+    const authResult = await authenticateRequest(
+      { address: userAddress, signature, timestamp: parseInt(timestamp), nonce },
+      expectedMessage,
+      'delegation-revoke',
+      true
+    );
+
+    if (!authResult.valid) {
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: 403 }
+      );
+    }
+
+    const key = `delegation:${userAddress.toLowerCase()}`;
+    await redis.del(key);
+
+    console.log('[Delegation] ✅ Revoked for:', userAddress);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Delegation revoked successfully',
+      address: userAddress,
+    });
+
+  } catch (error: any) {
+    console.error('[Delegation] DELETE Error:', error);
+    return NextResponse.json(
+      { success: false, error: sanitizeErrorForResponse(error) },
       { status: 500 }
     );
   }

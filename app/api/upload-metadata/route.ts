@@ -3,6 +3,8 @@ import axios from "axios";
 import FormData from "form-data";
 import { Redis } from "@upstash/redis";
 import { GoogleGenAI } from "@google/genai";
+import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
+import { validateCountryCode, sanitizeInput, sanitizeErrorForResponse } from '@/lib/auth';
 
 // Initialize Upstash Redis
 const redis = new Redis({
@@ -15,10 +17,35 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Rate limit
+    const ip = getClientIP(req);
+    const rateLimit = await checkRateLimit(RateLimiters.general, ip);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     const { countryCode, countryName } = await req.json();
     if (!countryCode || !countryName) {
-      throw new Error("Missing countryCode or countryName in request body");
+      return NextResponse.json(
+        { error: "Missing countryCode or countryName in request body" },
+        { status: 400 }
+      );
     }
+
+    // SECURITY: Validate country code
+    const countryValidation = validateCountryCode(countryCode);
+    if (!countryValidation.valid) {
+      return NextResponse.json(
+        { error: countryValidation.error },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Sanitize country name to prevent injection
+    const sanitizedCountryName = sanitizeInput(countryName, 100);
 
     // Debug environment variables
     console.log("PINATA_JWT:", process.env.PINATA_JWT ? "Set" : "Missing");
@@ -29,7 +56,7 @@ export async function POST(req: NextRequest) {
     const cacheKey = `passport:${countryCode}`;
     const cachedURI = await redis.get(cacheKey);
     if (cachedURI) {
-      console.log("✅ Cache hit for", countryName);
+      console.log("✅ Cache hit for", sanitizedCountryName);
       return NextResponse.json({ tokenURI: cachedURI });
     }
 
@@ -44,7 +71,7 @@ export async function POST(req: NextRequest) {
         const splashBase64 = Buffer.from(splashRes.data).toString("base64");
 
         // Gemini prompt
-        const prompt = `Using the provided image of a passport cover, add the text "${countryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition. Output a base64-encoded PNG string.`;
+        const prompt = `Using the provided image of a passport cover, add the text "${sanitizedCountryName}" directly below the word "Passport". Ensure the text matches the font style, size, color, and alignment of the existing "Passport" text for seamless integration. Preserve the original style, lighting, and composition. Output a base64-encoded PNG string.`;
         const result = await ai.models.generateContent({
           model: "gemini-2.5-flash",
           contents: [
@@ -99,11 +126,11 @@ export async function POST(req: NextRequest) {
 
     // 3️⃣ Create NFT metadata
     const metadata = {
-      name: `EmpowerTours Passport - ${countryName}`,
-      description: `Official EmpowerTours digital travel passport for ${countryName}. ${useGemini ? "AI-edited cover with Gemini" : "Standard cover image"}.`,
+      name: `EmpowerTours Passport - ${sanitizedCountryName}`,
+      description: `Official EmpowerTours digital travel passport for ${sanitizedCountryName}. ${useGemini ? "AI-edited cover with Gemini" : "Standard cover image"}.`,
       image: imageURI,
       attributes: [
-        { trait_type: "Country", value: countryName },
+        { trait_type: "Country", value: sanitizedCountryName },
         { trait_type: "Code", value: countryCode },
         { trait_type: "Collection", value: "EmpowerTours Passport" },
         { trait_type: "GeneratedBy", value: useGemini ? "Gemini 1.5 Flash" : "Static Image" },
@@ -137,15 +164,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ tokenURI });
   } catch (error: any) {
-    console.error("❌ Error:", {
-      message: error.message,
-      stack: error.stack,
-      status: error.response?.status,
-      details: error.response?.data,
-    });
+    console.error("[UploadMetadata] Error:", error.message);
+    // SECURITY: Don't expose internal error details
     return NextResponse.json(
-      { error: error.message || "Generation failed" },
-      { status: error.response?.status || 500 }
+      { error: sanitizeErrorForResponse(error) },
+      { status: 500 }
     );
   }
 }

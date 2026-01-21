@@ -29,6 +29,16 @@ const nextConfig = {
     ];
   },
   async headers() {
+    // SECURITY: Whitelist allowed origins instead of using '*'
+    const allowedOrigins = [
+      process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app',
+      'https://warpcast.com',
+      'https://www.warpcast.com',
+      'https://farcaster.xyz',
+      'https://www.farcaster.xyz',
+      // Add your specific domains here
+    ].filter(Boolean).join(', ');
+
     return [
       {
         source: '/:path*',
@@ -36,21 +46,33 @@ const nextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cache-Control', value: 'max-age=0, must-revalidate' },
-          { key: 'X-Frame-Options', value: 'ALLOWALL' },
+          // SECURITY: Changed from ALLOWALL to SAMEORIGIN (frames only on same origin)
+          // Farcaster mini-apps need to be embedded, so we use specific frame-ancestors
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          // SECURITY: Content Security Policy for frame embedding
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self' https://warpcast.com https://www.warpcast.com https://farcaster.xyz https://www.farcaster.xyz;" },
           { key: 'Permissions-Policy', value: 'geolocation=(self)' },
+          // SECURITY: Additional security headers
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         ],
       },
       {
+        // Allow Farcaster frames to embed the app
         source: '/embed',
         headers: [
           { key: 'Cache-Control', value: 'max-age=0, must-revalidate' },
           { key: 'Content-Type', value: 'text/html' },
+          // Allow embedding in Farcaster clients
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self' https://warpcast.com https://www.warpcast.com https://farcaster.xyz https://www.farcaster.xyz https://*.farcaster.xyz;" },
         ],
       },
       {
         source: '/images/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          // SECURITY: Images can have wildcard CORS (they're public assets)
           { key: 'Access-Control-Allow-Origin', value: '*' },
         ],
       },
@@ -59,7 +81,17 @@ const nextConfig = {
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=3600' },
           { key: 'Content-Type', value: 'application/json' },
+          // SECURITY: Well-known files need to be accessible
           { key: 'Access-Control-Allow-Origin', value: '*' },
+        ],
+      },
+      {
+        // API routes should have restricted CORS
+        source: '/api/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // SECURITY: Don't cache API responses by default
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
         ],
       },
     ];

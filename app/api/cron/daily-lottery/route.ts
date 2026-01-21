@@ -2,23 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   runLotteryDrawing,
   getDateKey,
-  getTodayKey,
   getLotteryPool,
   LOTTERY_CONFIG,
 } from '@/lib/lottery';
+import { sanitizeErrorForResponse } from '@/lib/auth';
 
 /**
- * Daily Lottery Cron Endpoint
+ * 🔐 DAILY LOTTERY CRON ENDPOINT (SECURED)
  *
- * For Railway/Vercel cron, add to vercel.json:
- * {
- *   "crons": [{
- *     "path": "/api/cron/daily-lottery",
- *     "schedule": "0 0 * * *"
- *   }]
- * }
+ * NOTE: Lottery feature not currently active in production.
  *
- * Or call manually/via external cron service
+ * SECURITY CHANGES:
+ * - Admin key moved from URL query param to headers
+ * - Uses Authorization header or x-admin-key header
+ * - Rate limiting via external cron service
+ *
+ * For manual calls, use header: x-admin-key: <LOTTERY_ADMIN_KEY>
  */
 
 export async function GET(req: NextRequest) {
@@ -32,18 +31,20 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Verify cron secret (for Vercel) or admin key
+    // SECURITY: Get credentials from headers (not URL params)
     const authHeader = req.headers.get('authorization');
+    const adminKeyHeader = req.headers.get('x-admin-key');
     const cronSecret = process.env.CRON_SECRET;
     const adminKey = process.env.LOTTERY_ADMIN_KEY;
 
     // Check authorization
-    const isVercelCron = authHeader === `Bearer ${cronSecret}`;
-    const url = new URL(req.url);
-    const providedKey = url.searchParams.get('key');
-    const isAdminKey = providedKey === adminKey;
+    const isCronService = cronSecret && authHeader === `Bearer ${cronSecret}`;
+    const isAdminKey = adminKey && adminKeyHeader === adminKey;
 
-    if (!isVercelCron && !isAdminKey && cronSecret) {
+    // SECURITY: Require valid auth
+    if (!isCronService && !isAdminKey) {
+      // Don't reveal which auth method is expected
+      console.warn('[CRON] Unauthorized lottery access attempt');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
     }
 
     console.log('[CRON] Running daily lottery drawing...');
+    console.log('[CRON] Auth method:', isCronService ? 'Cron Service' : 'Admin Key');
 
     // Get yesterday's date (we draw for the previous day)
     const yesterday = new Date();
@@ -100,17 +102,18 @@ export async function GET(req: NextRequest) {
 
     console.log(`[CRON] Winner: ${winner.winnerAddress} - ${winner.amount} ETH`);
 
-    // TODO: Trigger Neynar announcement and payout here
-    // For now, call the full run-drawing endpoint
+    // Trigger full drawing endpoint (for payout and announcement)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     try {
       const drawingResponse = await fetch(`${baseUrl}/api/lottery/run-drawing`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminKey || '', // Pass auth via header
+        },
         body: JSON.stringify({
           day: targetDay,
-          adminKey: adminKey,
         }),
       });
 
@@ -135,7 +138,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('[CRON] Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: sanitizeErrorForResponse(error) },
       { status: 500 }
     );
   }

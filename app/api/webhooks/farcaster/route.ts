@@ -8,6 +8,17 @@ import MusicNFTABI from '@/lib/abis/MusicNFT.json';
 import PassportNFTABI from '@/lib/abis/PassportNFT.json';
 import ItineraryMarketABI from '@/lib/abis/ItineraryMarket.json';
 import ItineraryNFTABI from '@/lib/abis/ItineraryNFT.json';
+import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
+import { createHmac } from 'crypto';
+
+/**
+ * 🔐 FARCASTER WEBHOOK ENDPOINT (SECURED)
+ *
+ * SECURITY CHANGES:
+ * - Verifies Neynar webhook signature
+ * - Rate limited
+ * - Input sanitization
+ */
 
 // Define the Cast interface based on Neynar webhook payload
 interface CastData {
@@ -36,6 +47,7 @@ const neynar = new NeynarAPIClient(config);
 const BOT_FID = process.env.BOT_FID!;
 const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID!;
 const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL || 'https://monadscan.com';
+const WEBHOOK_SECRET = process.env.NEYNAR_WEBHOOK_SECRET;
 
 // Contract addresses from env vars
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address;
@@ -53,17 +65,102 @@ function getAI() {
   return _ai;
 }
 
+/**
+ * SECURITY: Verify Neynar webhook signature
+ */
+function verifyWebhookSignature(body: string, signature: string | null): boolean {
+  if (!WEBHOOK_SECRET) {
+    console.warn('[Webhook] NEYNAR_WEBHOOK_SECRET not configured - skipping signature verification');
+    // SECURITY: In production, should fail closed
+    // For now, allow if not configured but log warning
+    return process.env.NODE_ENV !== 'production';
+  }
+
+  if (!signature) {
+    console.error('[Webhook] Missing signature header');
+    return false;
+  }
+
+  try {
+    const hmac = createHmac('sha512', WEBHOOK_SECRET);
+    hmac.update(body);
+    const expectedSignature = hmac.digest('hex');
+
+    // Neynar sends signature as hex
+    const isValid = signature === expectedSignature;
+
+    if (!isValid) {
+      console.error('[Webhook] Invalid signature');
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error('[Webhook] Signature verification error:', error);
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    // SECURITY: Rate limit webhook calls
+    const ip = getClientIP(req);
+    const rateLimit = await checkRateLimit(RateLimiters.webhook, ip);
+
+    if (!rateLimit.allowed) {
+      console.warn('[Webhook] Rate limit exceeded from:', ip);
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { status: 429 }
+      );
+    }
+
+    // Get raw body for signature verification
+    const rawBody = await req.text();
+
+    // SECURITY: Verify webhook signature from Neynar
+    const signature = req.headers.get('x-neynar-signature');
+
+    if (!verifyWebhookSignature(rawBody, signature)) {
+      console.error('[Webhook] Signature verification failed');
+      return NextResponse.json(
+        { error: 'Invalid webhook signature' },
+        { status: 401 }
+      );
+    }
+
+    const body = JSON.parse(rawBody);
     const cast: CastData = body.data;
+
+    // Validate cast data structure
+    if (!cast || !cast.author || !cast.hash) {
+      console.error('[Webhook] Invalid cast data structure');
+      return NextResponse.json(
+        { error: 'Invalid payload' },
+        { status: 400 }
+      );
+    }
 
     if (cast.replies?.to_fid !== Number(BOT_FID)) {
       return NextResponse.json({ ok: true });
     }
 
-    const text = cast.text.toLowerCase();
+    // SECURITY: Sanitize and limit text input
+    const text = (cast.text || '')
+      .toLowerCase()
+      .slice(0, 500); // Limit command length
+
     const authorFid = cast.author.fid;
+
+    // Validate FID
+    if (!authorFid || authorFid <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid author FID' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`[Webhook] Processing command from FID ${authorFid}: ${text.slice(0, 100)}...`);
+
     let command = await parseCommand(text, authorFid);
 
     let txHash: string | null = null;
@@ -75,9 +172,14 @@ export async function POST(req: NextRequest) {
         txHash = await mintNFT('passport', authorFid, { countryCode: 'US', countryName: 'United States' });
         break;
       case 'buy_itinerary':
-        txHash = await buyItinerary(command.id!, authorFid);
-        if (txHash) {
-          await mintItineraryAfterPurchase(command.id!, authorFid, txHash);
+        if (command.id && command.id > 0 && command.id < 1000000) { // Validate ID range
+          txHash = await buyItinerary(command.id, authorFid);
+          if (txHash) {
+            await mintItineraryAfterPurchase(command.id, authorFid, txHash);
+          }
+        } else {
+          await replyCast(cast.hash, 'Invalid itinerary ID');
+          return NextResponse.json({ ok: true });
         }
         break;
       case 'view_casts':
@@ -93,15 +195,24 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Bot webhook error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('[Webhook] Error:', err);
+    // SECURITY: Don't expose internal errors
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
 async function parseCommand(text: string, fid: number) {
   if (process.env.USE_GEMINI === 'true') {
     try {
-      const prompt = `Parse Farcaster command: "${text}". Return only valid JSON: {"type": "mint_music|mint_passport|buy_itinerary|view_casts|unknown", "id"?: number}`;
+      // SECURITY: Sanitize prompt input
+      const sanitizedText = text
+        .replace(/[<>{}[\]]/g, '')
+        .slice(0, 200);
+
+      const prompt = `Parse Farcaster command: "${sanitizedText}". Return only valid JSON: {"type": "mint_music|mint_passport|buy_itinerary|view_casts|unknown", "id"?: number}`;
       const result = await getAI().models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -113,7 +224,7 @@ async function parseCommand(text: string, fid: number) {
       const parsed = JSON.parse(responseText);
       if (parsed.type !== 'unknown') return parsed;
     } catch (err) {
-      console.error('Gemini parsing error:', err);
+      console.error('[Webhook] Gemini parsing error:', err);
     }
   }
 
@@ -123,7 +234,11 @@ async function parseCommand(text: string, fid: number) {
   } else if (text.includes('mint passport')) {
     return { type: 'mint_passport' };
   } else if (text.match(/buy itinerary (\d+)/i)) {
-    return { type: 'buy_itinerary', id: parseInt(RegExp.$1) };
+    const id = parseInt(RegExp.$1);
+    // Validate ID is reasonable
+    if (id > 0 && id < 1000000) {
+      return { type: 'buy_itinerary', id };
+    }
   } else if (text.includes('view casts')) {
     return { type: 'view_casts' };
   }
@@ -202,9 +317,9 @@ async function mintItineraryAfterPurchase(id: number, fid: number, purchaseTxHas
       { to: ITINERARY_NFT_ADDRESS, value: 0n, data }
     ]);
 
-    console.log(`Minted Itinerary NFT after purchase ${purchaseTxHash}: ${result.txHash}`);
+    console.log(`[Webhook] Minted Itinerary NFT after purchase ${purchaseTxHash}: ${result.txHash}`);
   } catch (err) {
-    console.error('Error minting itinerary NFT:', err);
+    console.error('[Webhook] Error minting itinerary NFT:', err);
   }
 }
 
@@ -216,7 +331,7 @@ async function getUserAddress(fid: number): Promise<Address> {
       return userData.verified_addresses.eth_addresses[0] as Address;
     }
   } catch (err) {
-    console.error('Error fetching user address:', err);
+    console.error('[Webhook] Error fetching user address:', err);
   }
   return process.env.NEYNAR_WALLET_ID! as Address;
 }

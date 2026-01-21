@@ -17,5 +17,3 @@ export { MirrorMate } from './MirrorMate';
 export { EventOracle } from './EventOracle';
 export { DAOModal } from './DAOModal';
 export { CrystalBall } from './CrystalBall';
-export { TicTacToe } from './TicTacToe';
-export { Tetris } from './Tetris';

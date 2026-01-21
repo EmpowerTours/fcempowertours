@@ -11,6 +11,8 @@ import { encodeFunctionData, parseEther, parseUnits, Address, Hex, parseAbi, for
 import { createShortUrl } from '@/lib/url-shortener';
 import { CrossbarClient } from '@switchboard-xyz/common';
 import { activeChain } from '@/app/chains';
+import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
+import { validateCountryCode, sanitizeInput, sanitizeErrorForResponse, VALID_COUNTRY_CODES } from '@/lib/auth';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
@@ -63,11 +65,34 @@ function convertPriceFromWei(price: string | number | bigint): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Rate limiting
+    const ip = getClientIP(req);
+
     const { userAddress, action, params, fid } = await req.json();
     if (!userAddress || !action) {
       return NextResponse.json(
         { success: false, error: 'Missing userAddress or action' },
         { status: 400 }
+      );
+    }
+
+    // SECURITY: Validate address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid Ethereum address format' },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Rate limit check
+    const rateLimit = await checkRateLimit(RateLimiters.execute, ip, userAddress);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
+        },
+        { status: 429 }
       );
     }
 
@@ -278,6 +303,16 @@ export async function POST(req: NextRequest) {
           });
 
           const countryCode = params?.countryCode || 'US';
+
+          // SECURITY: Validate country code format
+          const countryValidation = validateCountryCode(countryCode);
+          if (!countryValidation.valid) {
+            return NextResponse.json({
+              success: false,
+              error: countryValidation.error,
+            }, { status: 400 });
+          }
+
           const hasExistingPassport = await checkClient.readContract({
             address: PASSPORT_NFT,
             abi: parseAbi(['function hasPassport(address user, string countryCode) view returns (bool)']),
@@ -387,7 +422,8 @@ export async function POST(req: NextRequest) {
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [PASSPORT_NFT, parseEther('1000000')], // Large approval for future mints
+              // SECURITY: Approve only the exact mint price + 10% buffer (not unlimited)
+              args: [PASSPORT_NFT, PASSPORT_MINT_PRICE + (PASSPORT_MINT_PRICE / 10n)],
             }) as Hex,
           }];
 
@@ -918,7 +954,9 @@ View profile and collection!
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [EMPOWER_TOURS_NFT, parseEther('1000')],
+              // SECURITY: Approve reasonable max (100 WMON) instead of unlimited
+              // Balance check already validated user can afford the NFT
+              args: [EMPOWER_TOURS_NFT, parseEther('100')],
             }) as Hex,
           },
           {
@@ -1459,7 +1497,8 @@ ${enjoyText}
 
         const WMON_APPROVE = process.env.NEXT_PUBLIC_WMON as Address;
         const PASSPORT_APPROVE = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
-        const approveAmount = parseEther('1000000'); // Approve large amount for multiple mints
+        // SECURITY: Approve only for a single mint (150 WMON + buffer), not unlimited
+        const approveAmount = parseEther('165'); // Single passport price + 10% buffer
 
         const passportApproveCalls = [
           {
@@ -1891,7 +1930,9 @@ ${enjoyText}
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              args: [ITINERARY_NFT_PURCHASE, parseEther('1000')], // Approve enough for any itinerary
+              // SECURITY: Approve a reasonable max (100 TOURS) not unlimited
+              // TODO: Ideally fetch actual price from contract first
+              args: [ITINERARY_NFT_PURCHASE, parseEther('100')],
             }) as Hex,
           },
           {
