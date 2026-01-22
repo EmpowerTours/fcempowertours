@@ -1031,7 +1031,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
           ) : !hasSubscription ? (
             showSubscriptionModal ? (
               <MusicSubscriptionModal
-                userAddress={walletAddress}
+                userAddress={walletAddress || undefined}
                 userFid={user?.fid}
                 onClose={() => setShowSubscriptionModal(false)}
               />
