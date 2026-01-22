@@ -5,7 +5,7 @@ import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { publicClient } from '@/lib/pimlico-safe-aa';
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'withdraw' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -45,6 +45,10 @@ interface OracleAction {
     tokenId?: number;
     reason?: string;
     // Note: signature and timestamp come from request body, not Gemini
+  };
+  withdraw?: {
+    token: 'mon' | 'wmon' | 'tours';
+    amount: string;
   };
 }
 
@@ -221,6 +225,7 @@ Actions:
 - type:"sponsorship" + sponsorship.action:"vote" + sponsorship.id:<id> + sponsorship.vote:<true/false> - Vote on sponsorship
 - type:"admin" + admin.action:"burn_nft" + admin.tokenId:<id> + admin.reason:"<reason>" - Burn stolen/infringing NFT (admin only)
 - type:"admin" + admin.action:"lookup_nft" + admin.tokenId:<id> - Lookup NFT info before burning
+- type:"withdraw" + withdraw.token:"mon"|"wmon"|"tours" + withdraw.amount:"<number>" - Withdraw tokens from User Safe to Farcaster wallet
 - type:"chat" - Conversational response
 
 For "Buy MUSIC NFT #X" requests:
@@ -242,7 +247,7 @@ Return valid JSON only.`;
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'create_itinerary', 'sponsorship', 'admin'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'create_itinerary', 'sponsorship', 'admin', 'withdraw'],
             description: 'The type of action to perform'
           },
           destination: {
@@ -318,13 +323,28 @@ Return valid JSON only.`;
             },
             description: 'Admin action details if type is admin'
           },
+          withdraw: {
+            type: Type.OBJECT,
+            properties: {
+              token: {
+                type: Type.STRING,
+                enum: ['mon', 'wmon', 'tours'],
+                description: 'Token to withdraw: mon (native), wmon (wrapped), or tours'
+              },
+              amount: {
+                type: Type.STRING,
+                description: 'Amount to withdraw (e.g. "100", "0.5")'
+              }
+            },
+            description: 'Withdraw details if type is withdraw. Sends tokens from User Safe to Farcaster wallet.'
+          },
           message: {
             type: Type.STRING,
             description: 'Response message to user'
           }
         },
         required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship', 'admin']
+        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship', 'admin', 'withdraw']
       }
     };
 
@@ -568,6 +588,36 @@ Return valid JSON only.`;
       action.message = adminResult.message;
       if (adminResult.data) {
         (action as any).adminData = adminResult.data;
+      }
+    } else if (action.type === 'withdraw' && action.withdraw && userAddress) {
+      // Handle withdraw from User Safe to Farcaster wallet
+      const token = action.withdraw.token || 'mon';
+      const amount = action.withdraw.amount;
+
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        action.message = 'Please specify a valid amount to withdraw (e.g. "withdraw 100 MON to my wallet")';
+      } else {
+        try {
+          const withdrawResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/execute-delegated`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'withdraw_to_user',
+              userAddress,
+              params: { token, amount }
+            })
+          });
+          const withdrawData = await withdrawResponse.json();
+          if (withdrawData.success) {
+            txHash = withdrawData.txHash;
+            action.message = `Successfully withdrew ${amount} ${token.toUpperCase()} to your Farcaster wallet!`;
+          } else {
+            action.message = `Withdrawal failed: ${withdrawData.error}`;
+          }
+        } catch (withdrawError: any) {
+          console.error('[Oracle] Withdraw error:', withdrawError);
+          action.message = `Withdrawal failed: ${withdrawError.message}`;
+        }
       }
     }
 

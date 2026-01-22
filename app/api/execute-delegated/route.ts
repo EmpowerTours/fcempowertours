@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       'mirrormate_skip',       // Skip guide in matching
       'mirrormate_connect',    // Request connection with guide
       'maps_payment',          // Google Maps query payment (from user Safe)
+      'withdraw_to_user',      // Withdraw from own Safe to own wallet
     ];
     const requiresDelegation = !publicActions.includes(action);
 

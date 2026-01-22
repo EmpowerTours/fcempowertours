@@ -383,6 +383,21 @@ export default function OraclePage() {
             }
             break;
 
+          case 'withdraw':
+            console.log('[Oracle] WITHDRAW case triggered');
+            let withdrawMessage = action.message;
+            if (txHash) {
+              withdrawMessage += `\n\n✅ Withdrawal complete!`;
+            }
+            setMessages(prev => [...prev, {
+              role: 'oracle',
+              content: withdrawMessage,
+              action,
+              txHash,
+              explorerUrl: explorer
+            }]);
+            break;
+
           case 'execute':
             console.log('[Oracle] EXECUTE case triggered');
             let executeMessage = action.message;
