@@ -233,27 +233,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         className={`rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden shadow-2xl ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header - Compact */}
-        <div className="bg-gray-800 border-b border-gray-700 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
+        {/* Header */}
+        <div className="bg-gray-800 border-b border-gray-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
               <ProfilePicture
                 src={searchedUser?.pfpUrl || pfpUrl}
                 alt={searchedUser?.username || username || 'Profile'}
-                size={36}
               />
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-white truncate">
+                <h2 className="text-lg font-bold text-white truncate">
                   {searchedUser?.displayName || searchedUser?.username || username || 'My Profile'}
                 </h2>
                 {(searchedUser?.username || username) && (
-                  <p className="text-xs text-purple-400">@{searchedUser?.username || username}</p>
+                  <p className="text-sm text-purple-400">@{searchedUser?.username || username}</p>
                 )}
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -268,7 +267,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search username..."
-                className="w-full pl-3 pr-9 py-1.5 rounded-lg text-sm focus:outline-none"
+                className="w-full pl-3 pr-9 py-2 rounded-lg text-sm focus:outline-none"
                 style={{
                   backgroundColor: '#111827',
                   color: '#ffffff',
@@ -280,18 +279,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <button
               onClick={handleSearch}
               disabled={searchLoading || !searchQuery.trim()}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-lg text-sm transition-colors"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-lg text-sm transition-colors"
             >
-              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Go'}
+              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
             </button>
           </div>
 
-          {searchError && <p className="text-red-400 text-xs mt-1">{searchError}</p>}
+          {searchError && <p className="text-red-400 text-xs mt-2">{searchError}</p>}
 
           {searchedUser && (
             <button
               onClick={clearSearch}
-              className="mt-1 text-xs text-gray-400 hover:text-white"
+              className="mt-2 text-xs text-gray-400 hover:text-white"
             >
               ← Back to my profile
             </button>
@@ -299,7 +298,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-3 overflow-y-auto max-h-[calc(90vh-140px)]">
+        <div className="p-4 overflow-y-auto max-h-[calc(85vh-180px)]">
           {searchedUser ? (
             // Searched User View
             <div className="space-y-4">
@@ -363,59 +362,76 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           ) : stats ? (
             // Own Stats View
-            <div className="space-y-3">
-              {/* Safe Wallet - Compact layout */}
+            <div className="space-y-4">
+              {/* Safe Wallet - At top for visibility */}
               {safeBalance && (
-                <div className="bg-gradient-to-br from-cyan-900/50 to-purple-900/50 border border-cyan-700/50 rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-cyan-400" />
-                      <span className="text-sm font-medium text-white">Safe Wallet</span>
-                      <span className="text-lg font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</span>
-                      <span className="text-xs text-gray-400">MON</span>
-                    </div>
+                <div className="bg-gradient-to-br from-cyan-900/50 to-purple-900/50 border border-cyan-700/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-white flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-cyan-400" />
+                      Your Safe Wallet
+                    </h4>
                     <a
                       href={getAddressExplorerUrl(safeBalance.safeAddress)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:text-cyan-300"
+                      className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                     >
-                      <ExternalLink className="w-4 h-4" />
+                      View <ExternalLink className="w-4 h-4" />
                     </a>
                   </div>
-                  <div className="flex items-center gap-2 bg-black/30 rounded-lg px-2 py-1.5">
-                    <p className="text-[11px] text-gray-300 font-mono truncate flex-1">{safeBalance.safeAddress}</p>
+
+                  {/* Balances */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
+                      <p className="text-sm text-gray-400">MON</p>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
+                      <p className="text-sm text-gray-400">WMON</p>
+                    </div>
+                  </div>
+
+                  {/* Safe Address */}
+                  <div className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2">
+                    <p className="text-xs text-gray-300 font-mono truncate flex-1">{safeBalance.safeAddress}</p>
                     <button
                       onClick={() => copyAddress(safeBalance.safeAddress)}
-                      className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
+                      className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                         copiedAddress ? 'bg-green-500 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'
                       }`}
                     >
-                      {copiedAddress ? '✓' : 'Copy'}
+                      {copiedAddress ? '✓ Copied' : 'Copy'}
                     </button>
                   </div>
+
                   {parseFloat(safeBalance.monBalance) < 0.1 && (
-                    <p className="text-[10px] text-yellow-400 mt-1.5 text-center">Fund this address to enable transactions</p>
+                    <p className="text-sm text-yellow-400 mt-3 text-center">
+                      Send MON to this address to enable transactions
+                    </p>
                   )}
                 </div>
               )}
 
-              {/* Stats Grid - Compact 4-column */}
-              <div className="grid grid-cols-4 gap-2">
-                <StatBox icon={<Globe className="w-4 h-4" />} value={stats.passports} label="Passports" color="purple" />
-                <StatBox icon={<Music className="w-4 h-4" />} value={stats.musicCreated} label="Music" color="blue" />
-                <StatBox icon={<Palette className="w-4 h-4" />} value={stats.artCreated} label="Art" color="amber" />
-                <StatBox icon={<Ticket className="w-4 h-4" />} value={stats.musicPurchased} label="Bought" color="pink" />
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <StatBox icon={<Globe className="w-5 h-5" />} value={stats.passports} label="Passports" color="purple" />
+                <StatBox icon={<Music className="w-5 h-5" />} value={stats.musicCreated} label="Music Created" color="blue" />
+                <StatBox icon={<Palette className="w-5 h-5" />} value={stats.artCreated} label="Art Created" color="amber" />
+                <StatBox icon={<Ticket className="w-5 h-5" />} value={stats.musicPurchased} label="Purchased" color="pink" />
               </div>
 
               {/* Countries */}
               {stats.countries.length > 0 && (
-                <div className="bg-gray-800 border border-gray-700 rounded-lg p-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <MapPin className="w-3 h-3 text-cyan-400" />
-                    <span className="text-xs text-gray-400">Countries:</span>
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
+                  <h4 className="font-medium text-white mb-2 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400" />
+                    Countries Collected
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
                     {stats.countries.map((code) => (
-                      <span key={code} className="px-1.5 py-0.5 bg-purple-900 text-purple-300 text-[10px] rounded border border-purple-700">
+                      <span key={code} className="px-2 py-1 bg-purple-900 text-purple-300 text-sm rounded-lg border border-purple-700">
                         {code}
                       </span>
                     ))}
@@ -425,8 +441,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Connected Wallet */}
               {walletAddress && (
-                <div className="bg-gray-800 border border-gray-700 rounded-lg p-2">
-                  <p className="text-[10px] text-gray-400">Connected: <span className="text-white font-mono">{walletAddress.slice(0, 10)}...{walletAddress.slice(-8)}</span></p>
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
+                  <p className="text-sm text-gray-400 mb-1">Connected Wallet</p>
+                  <p className="text-sm text-white font-mono break-all">{walletAddress}</p>
                 </div>
               )}
             </div>
@@ -444,7 +461,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   return createPortal(modalContent, document.body);
 };
 
-// Stat Box Component - Compact
+// Stat Box Component
 const StatBox = ({ icon, value, label, color }: { icon: React.ReactNode; value: number; label: string; color: string }) => {
   const colors: Record<string, string> = {
     purple: 'bg-purple-900 border-purple-700 text-purple-400',
@@ -455,10 +472,10 @@ const StatBox = ({ icon, value, label, color }: { icon: React.ReactNode; value: 
   };
 
   return (
-    <div className={`${colors[color]} border rounded-lg p-2 text-center`}>
-      <div className="mx-auto mb-0.5">{icon}</div>
-      <p className="text-lg font-bold text-white">{value}</p>
-      <p className="text-[10px] text-gray-400">{label}</p>
+    <div className={`${colors[color]} border rounded-xl p-3 text-center`}>
+      <div className="mx-auto mb-1">{icon}</div>
+      <p className="text-xl font-bold text-white">{value}</p>
+      <p className="text-xs text-gray-400">{label}</p>
     </div>
   );
 };
