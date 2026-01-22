@@ -58,6 +58,10 @@ export async function getUserSafeAddress(userAddress: string): Promise<Address> 
   const botSigner = getBotSignerAccount();
   const saltNonce = getUserSaltNonce(normalizedUser);
 
+  console.log('🔄 [USER-SAFE] Creating Safe account for:', normalizedUser);
+  console.log('   EntryPoint:', ENTRYPOINT_ADDRESS);
+  console.log('   Bot signer:', botSigner.address);
+
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
     owners: [botSigner],
@@ -68,6 +72,8 @@ export async function getUserSafeAddress(userAddress: string): Promise<Address> 
     version: '1.4.1',
     saltNonce,
   });
+
+  console.log('✅ [USER-SAFE] Safe address computed:', safeAccount.address);
 
   return safeAccount.address;
 }

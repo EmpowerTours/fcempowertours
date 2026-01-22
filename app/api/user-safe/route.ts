@@ -19,7 +19,15 @@ export async function GET(req: NextRequest) {
 
     console.log('📊 [USER-SAFE] Getting Safe info for:', address);
 
-    const safeInfo = await getUserSafeInfo(address);
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Safe info fetch timed out after 30s')), 30000)
+    );
+
+    const safeInfo = await Promise.race([
+      getUserSafeInfo(address),
+      timeoutPromise
+    ]);
 
     // Also get WMON balance of Safe
     let wmonBalance = '0';

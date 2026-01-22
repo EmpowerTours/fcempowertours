@@ -192,30 +192,7 @@ export async function GET(req: NextRequest) {
       console.error('[StreamingStats] Error fetching sales data:', error);
     }
 
-    // Fallback: If no plays from Envio (not indexed yet), use Redis play history
-    if (stats.recentPlays.length === 0) {
-      try {
-        const redisPlays = await redis.lrange(PLAY_HISTORY_KEY, 0, limit - 1);
-        if (redisPlays && redisPlays.length > 0) {
-          stats.recentPlays = redisPlays.map((play: any) => {
-            const p = typeof play === 'string' ? JSON.parse(play) : play;
-            return {
-              user: p.queuedBy || 'radio',
-              masterTokenId: p.tokenId,
-              duration: 180,
-              timestamp: Math.floor(p.playedAt / 1000),
-              txHash: '',
-              songName: p.name,
-              artistAddress: p.artist,
-            };
-          });
-          stats.totalPlays = redisPlays.length;
-          console.log('[StreamingStats] Using Redis fallback for plays:', redisPlays.length);
-        }
-      } catch (redisError) {
-        console.error('[StreamingStats] Redis fallback error:', redisError);
-      }
-    }
+    // Note: Redis fallback disabled - use Envio indexer as source of truth on mainnet
 
     return NextResponse.json({
       success: true,
