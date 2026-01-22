@@ -230,7 +230,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       onClick={onClose}
     >
       <div
-        className={`rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden shadow-2xl ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}
+        className={`rounded-2xl w-full max-w-md max-h-[95vh] overflow-hidden shadow-2xl ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -298,7 +298,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[calc(85vh-180px)]">
+        <div className="p-4 overflow-y-auto max-h-[calc(95vh-160px)]">
           {searchedUser ? (
             // Searched User View
             <div className="space-y-4">
