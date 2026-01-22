@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { activeChain } from '@/app/chains';
-import { validatePaymentReceiver, WHITELISTED_RECEIVERS, sanitizeErrorForResponse } from '@/lib/auth';
+import { sanitizeErrorForResponse } from '@/lib/auth';
 import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
 
 /**
- * 🔐 FRAME PAYMENT ENDPOINT (SECURED)
+ * Frame Payment Endpoint
  *
- * SECURITY CHANGES:
- * - Payment receiver must be whitelisted (prevents redirection attacks)
  * - Rate limited
  * - Input validation
  */
@@ -31,7 +29,7 @@ export async function POST(req: NextRequest) {
       throw new Error("Server configuration error");
     }
 
-    // SECURITY: Validate and sanitize inputs
+    // Validate inputs
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       return NextResponse.json(
         { error: 'Invalid amount' },
@@ -39,18 +37,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SECURITY: Validate receiver is whitelisted
-    // If no receiver provided, use treasury (default safe behavior)
+    // Use provided receiver or default to treasury
     const finalReceiver = receiver || process.env.TREASURY_ADDRESS;
-
-    const receiverValidation = validatePaymentReceiver(finalReceiver);
-    if (!receiverValidation.valid) {
-      console.error(`[FramePay] Blocked invalid receiver: ${receiver}`);
-      return NextResponse.json(
-        { error: receiverValidation.error },
-        { status: 403 }
-      );
-    }
 
     // Sanitize text inputs
     const sanitizedName = (name || 'Payment')

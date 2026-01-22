@@ -510,36 +510,6 @@ export async function authenticateFarcasterRequest(
 }
 
 // ============================================================================
-// WHITELIST MANAGEMENT
-// ============================================================================
-
-/** Whitelisted payment receivers */
-export const WHITELISTED_RECEIVERS = new Set([
-  process.env.TREASURY_ADDRESS?.toLowerCase(),
-  process.env.PLATFORM_SAFE_ADDRESS?.toLowerCase(),
-  '0x6d11a83feefa14ef1b38dce97be3995441c9fec3', // Treasury
-  '0xddae200dbc2874bad4fdb5e39f227215386c7533', // Platform Safe
-].filter(Boolean));
-
-/**
- * Validate a payment receiver address
- */
-export function validatePaymentReceiver(receiver: string): AuthResult {
-  if (!receiver) {
-    return { valid: true }; // Will use default treasury
-  }
-
-  if (!WHITELISTED_RECEIVERS.has(receiver.toLowerCase())) {
-    return {
-      valid: false,
-      error: 'Invalid payment receiver. Only whitelisted addresses are allowed.'
-    };
-  }
-
-  return { valid: true };
-}
-
-// ============================================================================
 // INPUT VALIDATION
 // ============================================================================
 
@@ -664,7 +634,6 @@ export default {
   authenticateRequest,
   verifyFarcasterFID,
   authenticateFarcasterRequest,
-  validatePaymentReceiver,
   validateCountryCode,
   sanitizeInput,
   sanitizeGraphQLInput,
@@ -676,6 +645,5 @@ export default {
   SIGNATURE_EXPIRY_MS,
   MAX_CLOCK_SKEW_MS,
   NONCE_EXPIRY_SECONDS,
-  WHITELISTED_RECEIVERS,
   VALID_COUNTRY_CODES,
 };
