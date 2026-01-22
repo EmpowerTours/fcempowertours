@@ -3,7 +3,7 @@ import { createPublicClient, http } from 'viem';
 import { activeChain } from '@/app/chains';
 
 const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`;
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://testnet-rpc.monad.xyz';
+const RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC!;
 
 const publicClient = createPublicClient({
   chain: activeChain,
