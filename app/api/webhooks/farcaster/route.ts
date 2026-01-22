@@ -70,10 +70,9 @@ function getAI() {
  */
 function verifyWebhookSignature(body: string, signature: string | null): boolean {
   if (!WEBHOOK_SECRET) {
-    console.warn('[Webhook] NEYNAR_WEBHOOK_SECRET not configured - skipping signature verification');
-    // SECURITY: In production, should fail closed
-    // For now, allow if not configured but log warning
-    return process.env.NODE_ENV !== 'production';
+    console.error('[Webhook] NEYNAR_WEBHOOK_SECRET not configured - REJECTING request');
+    // SECURITY: Always fail closed - no secret means no verification possible
+    return false;
   }
 
   if (!signature) {

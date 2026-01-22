@@ -1,6 +1,7 @@
 import { verifyMessage, recoverMessageAddress, Address, Hex, hashMessage } from 'viem';
 import { Redis } from '@upstash/redis';
 import { NextRequest } from 'next/server';
+import { randomBytes } from 'crypto';
 
 /**
  * 🔐 SECURITY: Centralized Authentication & Authorization Utility
@@ -150,12 +151,14 @@ Sign this message to authorize this action.`;
 /**
  * Generate a unique nonce for an operation
  * Stored in Redis to prevent replay attacks
+ * SECURITY: Uses crypto.randomBytes for unpredictable nonces
  */
 export async function generateNonce(
   address: string,
   operation: string
 ): Promise<string> {
-  const nonce = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  const randomPart = randomBytes(16).toString('hex');
+  const nonce = `${Date.now()}-${randomPart}`;
   const key = `nonce:${address.toLowerCase()}:${operation}:${nonce}`;
 
   // Store nonce with expiry
