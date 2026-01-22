@@ -148,7 +148,6 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   const [leaderboard, setLeaderboard] = useState<{ address: string; totalSongsListened: number; currentStreak: number }[]>([]);
   const [recentPlays, setRecentPlays] = useState<{ tokenId: string; name: string; artist: string; imageUrl: string; playedAt: number; queuedBy: string; isRandom: boolean }[]>([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1029,56 +1028,11 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
               <span className="ml-3 text-gray-400">Checking subscription...</span>
             </div>
           ) : !hasSubscription ? (
-            showSubscriptionModal ? (
-              <MusicSubscriptionModal
-                userAddress={walletAddress || undefined}
-                userFid={user?.fid}
-                onClose={() => setShowSubscriptionModal(false)}
-              />
-            ) : (
-              <div className="text-center py-6">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-500/20 flex items-center justify-center">
-                  <Music2 className="w-8 h-8 text-purple-400" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Subscription Required</h3>
-                <p className="text-gray-400 text-sm mb-4">
-                  A music subscription is required to listen to Live Radio.
-                </p>
-
-                {/* Pricing Preview */}
-                <div className="bg-gray-800/50 rounded-xl p-4 mb-4 text-left">
-                  <p className="text-xs text-gray-400 mb-3 text-center">Choose a plan:</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-gray-700/50 rounded-lg p-2">
-                      <span className="text-white font-semibold">Daily</span>
-                      <span className="text-cyan-400 float-right">15 WMON</span>
-                    </div>
-                    <div className="bg-gray-700/50 rounded-lg p-2">
-                      <span className="text-white font-semibold">Weekly</span>
-                      <span className="text-cyan-400 float-right">75 WMON</span>
-                    </div>
-                    <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-2">
-                      <span className="text-white font-semibold">Monthly</span>
-                      <span className="text-cyan-400 float-right">300 WMON</span>
-                    </div>
-                    <div className="bg-gray-700/50 rounded-lg p-2">
-                      <span className="text-white font-semibold">Yearly</span>
-                      <span className="text-cyan-400 float-right">3000 WMON</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-gray-500 mb-4">
-                  Unlimited streaming • Earn TOURS rewards • Support artists
-                </p>
-                <button
-                  onClick={() => setShowSubscriptionModal(true)}
-                  className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold rounded-xl transition-all"
-                >
-                  Subscribe Now
-                </button>
-              </div>
-            )
+            <MusicSubscriptionModal
+              userAddress={walletAddress || undefined}
+              userFid={user?.fid}
+              onClose={onClose}
+            />
           ) : loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
