@@ -42,6 +42,17 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
     setError('');
 
     try {
+      // Register User Safe on V2 contracts if needed
+      try {
+        await fetch('/api/register-user-safe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userAddress: walletAddress }),
+        });
+      } catch (regError) {
+        console.warn('User Safe registration check failed, proceeding:', regError);
+      }
+
       // Check for existing delegation
       const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
       const delegationData = await delegationRes.json();

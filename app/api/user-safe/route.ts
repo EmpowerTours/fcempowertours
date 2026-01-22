@@ -29,23 +29,49 @@ export async function GET(req: NextRequest) {
       timeoutPromise
     ]);
 
-    // Also get WMON balance of Safe
+    // Also get WMON and TOURS balances of Safe
     let wmonBalance = '0';
     let wmonBalanceWei = '0';
+    let toursBalance = '0';
+    let toursBalanceWei = '0';
+
+    const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+
+    const balancePromises: Promise<void>[] = [];
+
     if (WMON_ADDRESS) {
-      try {
-        const balance = await publicClient.readContract({
+      balancePromises.push(
+        publicClient.readContract({
           address: WMON_ADDRESS,
           abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
           functionName: 'balanceOf',
           args: [safeInfo.safeAddress],
-        }) as bigint;
-        wmonBalance = (Number(balance) / 1e18).toFixed(4);
-        wmonBalanceWei = balance.toString();
-      } catch (e) {
-        console.error('Failed to get WMON balance:', e);
-      }
+        }).then((balance) => {
+          wmonBalance = (Number(balance as bigint) / 1e18).toFixed(4);
+          wmonBalanceWei = (balance as bigint).toString();
+        }).catch((e) => {
+          console.error('Failed to get WMON balance:', e);
+        })
+      );
     }
+
+    if (TOURS_ADDRESS) {
+      balancePromises.push(
+        publicClient.readContract({
+          address: TOURS_ADDRESS,
+          abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [safeInfo.safeAddress],
+        }).then((balance) => {
+          toursBalance = (Number(balance as bigint) / 1e18).toFixed(4);
+          toursBalanceWei = (balance as bigint).toString();
+        }).catch((e) => {
+          console.error('Failed to get TOURS balance:', e);
+        })
+      );
+    }
+
+    await Promise.all(balancePromises);
 
     const isAdequatelyFunded = parseFloat(safeInfo.balance) >= RECOMMENDED_SAFE_BALANCE;
 
@@ -59,6 +85,8 @@ export async function GET(req: NextRequest) {
       balanceWei: safeInfo.balanceWei.toString(),
       wmonBalance,
       wmonBalanceWei,
+      toursBalance,
+      toursBalanceWei,
       isFunded: safeInfo.isFunded,
       isAdequatelyFunded,
       minRequired: safeInfo.minRequired,

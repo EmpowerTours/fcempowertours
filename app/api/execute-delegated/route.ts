@@ -28,7 +28,10 @@ async function executeTransaction(
   requiredValue: bigint = 0n
 ): Promise<string> {
   if (USE_USER_SAFES) {
-    // User-funded Safe mode
+    // User-funded Safe mode - ensure registered on V2 contracts first
+    const { ensureUserSafeRegistered } = await import('@/lib/user-safe');
+    await ensureUserSafeRegistered(userAddress as string);
+
     const userSafeAddress = await getUserSafeAddress(userAddress);
     console.log(`🏠 Using USER Safe: ${userSafeAddress}`);
 
@@ -1923,15 +1926,17 @@ ${enjoyText}
           itineraryId: purchaseItineraryId.toString()
         });
 
+        // V2 uses WMON for payment via purchaseFor(address, uint256, uint256)
+        const WMON_PURCHASE = process.env.NEXT_PUBLIC_WMON as Address;
+
         const purchaseItineraryCalls = [
           {
-            to: TOURS_TOKEN,
+            to: WMON_PURCHASE,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
               functionName: 'approve',
-              // SECURITY: Approve a reasonable max (100 TOURS) not unlimited
-              // TODO: Ideally fetch actual price from contract first
+              // SECURITY: Approve a reasonable max (100 WMON) not unlimited
               args: [ITINERARY_NFT_PURCHASE, parseEther('100')],
             }) as Hex,
           },
@@ -1939,9 +1944,9 @@ ${enjoyText}
             to: ITINERARY_NFT_PURCHASE,
             value: 0n,
             data: encodeFunctionData({
-              abi: parseAbi(['function purchaseExperience(uint256 itineraryId) external']),
-              functionName: 'purchaseExperience',
-              args: [purchaseItineraryId],
+              abi: parseAbi(['function purchaseFor(address,uint256,uint256) external']),
+              functionName: 'purchaseFor',
+              args: [userAddress as Address, BigInt(fid || 0), purchaseItineraryId],
             }) as Hex,
           },
         ];
@@ -2113,14 +2118,14 @@ ${enjoyText}
 
         console.log('🛂 Found passport:', { passportTokenId: passportTokenId.toString(), country: countryData.code });
 
-        // Call PassportNFTv3's addItineraryStamp (stamps go directly to passport)
+        // V2 addItineraryStamp with placeId, googleMapsUri, latitude, longitude
         const checkinCalls = [
           {
             to: PASSPORT_NFT_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
               abi: parseAbi([
-                'function addItineraryStamp(uint256 tokenId, uint256 itineraryId, string memory locationName, string memory city, string memory country, bool gpsVerified) external'
+                'function addItineraryStamp(uint256,uint256,string,string,string,bool,string,string,int256,int256) external'
               ]),
               functionName: 'addItineraryStamp',
               args: [
@@ -2130,6 +2135,10 @@ ${enjoyText}
                 experienceCity,
                 experienceCountry,
                 gpsVerified,
+                params.placeId || '',
+                params.googleMapsUri || '',
+                BigInt(Math.round((params.userLatitude || 0) * 1e6)),
+                BigInt(Math.round((params.userLongitude || 0) * 1e6)),
               ],
             }) as Hex,
           },
@@ -2137,6 +2146,31 @@ ${enjoyText}
 
         const checkinTxHash = await executeTransaction(checkinCalls, userAddress as Address);
         console.log('✅ Passport stamped!', { txHash: checkinTxHash, passport: passportTokenId.toString(), country: experienceCountry });
+
+        // Trigger AI stamp generation after successful stamp
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+          const stampRes = await fetch(`${baseUrl}/api/oracle/generate-experience-stamp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              locationName: experienceName,
+              city: experienceCity,
+              country: experienceCountry,
+              experienceType: params.experienceType || 'attraction',
+              photos: params.photoProofIPFS ? [params.photoProofIPFS] : [],
+              style: 'vintage',
+            }),
+          });
+          const stampData = await stampRes.json();
+          if (stampData.ipfsHash) {
+            const { storeStampImage } = await import('@/lib/stamp-images');
+            await storeStampImage(passportTokenId, checkinItineraryId, stampData.ipfsHash);
+            console.log('🎨 AI stamp stored:', stampData.ipfsHash);
+          }
+        } catch (stampError) {
+          console.warn('⚠️ AI stamp generation failed (stamp still recorded):', stampError);
+        }
 
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
@@ -2153,6 +2187,66 @@ ${enjoyText}
           gpsVerified,
           message: `🎫 Stamp collected! Your ${experienceCountry} passport now has a stamp from ${experienceCity}.`,
         });
+
+      // ==================== COMPLETE LOCATION (V2 - track progress) ====================
+      case 'complete_location': {
+        console.log('📍 Action: complete_location');
+
+        const { itineraryId: completeItinId, locationIndex, photoProofIPFS: locationPhotoIPFS } = params || {};
+
+        if (!completeItinId || locationIndex === undefined) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required: itineraryId, locationIndex' },
+            { status: 400 }
+          );
+        }
+
+        const ITINERARY_NFT_COMPLETE = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+
+        if (!ITINERARY_NFT_COMPLETE) {
+          return NextResponse.json(
+            { success: false, error: 'ItineraryNFT address not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('📍 Completing location:', {
+          user: userAddress,
+          itineraryId: completeItinId,
+          locationIndex,
+          hasPhoto: !!locationPhotoIPFS,
+        });
+
+        const completeLocationCalls: Call[] = [{
+          to: ITINERARY_NFT_COMPLETE,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function completeLocation(uint256,address,uint256,string) external']),
+            functionName: 'completeLocation',
+            args: [
+              BigInt(completeItinId),
+              userAddress as Address,
+              BigInt(locationIndex),
+              locationPhotoIPFS || '',
+            ],
+          }) as Hex,
+        }];
+
+        const completeLocationTxHash = await executeTransaction(completeLocationCalls, userAddress as Address);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Location completed, TX:', completeLocationTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: completeLocationTxHash,
+          action,
+          userAddress,
+          itineraryId: completeItinId,
+          locationIndex,
+          message: `Location ${locationIndex} completed!`,
+        });
+      }
 
       // ==================== ITINERARY BURN (ItineraryNFTv2) ====================
       case 'burn_itinerary': {
@@ -3197,17 +3291,23 @@ ${enjoyText}
 
         console.log('🗺️ Creating itinerary:', { creator: userAddress, creatorFid, title: itinTitle, city, country, locationsCount: formattedLocations.length });
 
-        const oracleCreateItineraryAbi = parseAbi([
-          'function createItinerary(address,uint256,string,string,string,string,uint256,string,(string,string,string,int256,int256,string)[]) external returns (uint256)'
+        // V2 uses struct-based input: (CreateItineraryInput, Location[])
+        const createItineraryV2Abi = parseAbi([
+          'function createItinerary((address,uint256,string,string,string,string,uint256,string),(string,string,string,int256,int256,string)[]) external returns (uint256)'
         ]);
 
         const oracleCreateItineraryCalls: Call[] = [{
           to: ITINERARY_NFT_CREATE,
           value: 0n,
           data: encodeFunctionData({
-            abi: oracleCreateItineraryAbi,
+            abi: createItineraryV2Abi,
             functionName: 'createItinerary',
-            args: [userAddress as Address, BigInt(creatorFid), itinTitle, itinDescription || '', city, country, itinPriceWei, photoProofIPFS || '', formattedLocations],
+            args: [
+              // CreateItineraryInput tuple
+              [userAddress as Address, BigInt(creatorFid), itinTitle, itinDescription || '', city, country, itinPriceWei, photoProofIPFS || ''],
+              // Location[] array
+              formattedLocations,
+            ],
           }) as Hex,
         }];
 

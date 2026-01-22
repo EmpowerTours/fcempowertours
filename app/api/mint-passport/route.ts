@@ -93,7 +93,8 @@ const PASSPORT_ABI = [
       { indexed: false, internalType: "string", name: "countryCode", type: "string" },
       { indexed: false, internalType: "string", name: "countryName", type: "string" },
       { indexed: false, internalType: "string", name: "region", type: "string" },
-      { indexed: false, internalType: "string", name: "continent", type: "string" }
+      { indexed: false, internalType: "string", name: "continent", type: "string" },
+      { indexed: false, internalType: "bool", name: "verified", type: "bool" }
     ],
     name: "PassportMinted",
     type: "event",

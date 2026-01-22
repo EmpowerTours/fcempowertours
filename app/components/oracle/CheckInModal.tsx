@@ -6,6 +6,16 @@ import { X, MapPin, Navigation, Check, Loader2, AlertCircle, Stamp, Globe } from
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { getCurrentPosition, formatDistance, isValidCoordinates } from '@/lib/utils/gps';
 
+interface ItineraryLocation {
+  index: number;
+  name: string;
+  placeId?: string;
+  googleMapsUri?: string;
+  latitude?: number;
+  longitude?: number;
+  completed?: boolean;
+}
+
 interface Experience {
   id: string;
   itineraryId: string;
@@ -15,21 +25,26 @@ interface Experience {
   latitude?: number;
   longitude?: number;
   proximityRadius?: number;
+  locations?: ItineraryLocation[];
+  placeId?: string;
+  googleMapsUri?: string;
 }
 
 interface CheckInModalProps {
   experience: Experience;
   onClose: () => void;
   onSuccess?: (txHash: string, passportId: string) => void;
+  onLocationComplete?: (locationIndex: number, txHash: string) => void;
   isDarkMode?: boolean;
 }
 
-type CheckInState = 'idle' | 'getting-location' | 'checking-in' | 'success' | 'error' | 'needs-passport';
+type CheckInState = 'idle' | 'getting-location' | 'checking-in' | 'completing-location' | 'success' | 'error' | 'needs-passport';
 
 export function CheckInModal({
   experience,
   onClose,
   onSuccess,
+  onLocationComplete,
   isDarkMode = true
 }: CheckInModalProps) {
   const { walletAddress, requestWallet } = useFarcasterContext();
@@ -43,6 +58,70 @@ export function CheckInModal({
   const [passportId, setPassportId] = useState<string | null>(null);
   const [countryRequired, setCountryRequired] = useState<string | null>(null);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [completedLocations, setCompletedLocations] = useState<Set<number>>(
+    new Set((experience.locations || []).filter(l => l.completed).map(l => l.index))
+  );
+
+  const locations = experience.locations || [];
+  const totalLocations = locations.length;
+  const completedCount = completedLocations.size;
+  const hasLocations = totalLocations > 0;
+
+  const handleCompleteLocation = async (locationIndex: number) => {
+    if (!walletAddress) {
+      try {
+        await requestWallet?.();
+      } catch {
+        setError('Please connect your wallet');
+        return;
+      }
+    }
+
+    setState('completing-location');
+    setError(null);
+    setProgressPercent(50);
+
+    try {
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'complete_location',
+          params: {
+            itineraryId: experience.itineraryId,
+            locationIndex,
+            photoProofIPFS: '',
+          },
+        }),
+      });
+
+      setProgressPercent(90);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Location completion failed');
+      }
+
+      setProgressPercent(100);
+      setCompletedLocations(prev => new Set([...prev, locationIndex]));
+
+      if (onLocationComplete) {
+        onLocationComplete(locationIndex, data.txHash);
+      }
+
+      // If all locations completed, show success
+      if (completedCount + 1 >= totalLocations) {
+        setTxHash(data.txHash);
+        setState('success');
+      } else {
+        setState('idle');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to complete location');
+      setState('error');
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -105,6 +184,10 @@ export function CheckInModal({
           itineraryId: experience.itineraryId,
           latitude: userLocation!.lat,
           longitude: userLocation!.lon,
+          placeId: experience.placeId || '',
+          googleMapsUri: experience.googleMapsUri || '',
+          userLatitude: userLocation!.lat,
+          userLongitude: userLocation!.lon,
         }),
       });
 
@@ -151,7 +234,7 @@ export function CheckInModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Loading Overlay */}
-      {state === 'checking-in' && (
+      {(state === 'checking-in' || state === 'completing-location') && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center" style={{ backgroundColor: isDarkMode ? '#1f2937' : '#f3f4f6' }}>
           <div className="relative">
             <svg className="w-40 h-40 transform -rotate-90">
@@ -179,7 +262,7 @@ export function CheckInModal({
             </div>
           </div>
           <p className={`mt-6 font-medium text-lg ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-            Stamping your passport...
+            {state === 'completing-location' ? 'Completing location...' : 'Stamping your passport...'}
           </p>
           <p className={`mt-2 text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Please wait...</p>
         </div>
@@ -246,7 +329,7 @@ export function CheckInModal({
       )}
 
       {/* Main Modal */}
-      {state !== 'success' && state !== 'needs-passport' && state !== 'checking-in' && (
+      {state !== 'success' && state !== 'needs-passport' && state !== 'checking-in' && state !== 'completing-location' && (
         <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200'}`}>
           <div className="p-6">
             {/* Header */}
@@ -266,7 +349,7 @@ export function CheckInModal({
             </div>
 
             {/* Location Info */}
-            <div className={`p-4 rounded-lg mb-6 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+            <div className={`p-4 rounded-lg mb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
               <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{experience.title}</h3>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-cyan-400" />
@@ -275,6 +358,51 @@ export function CheckInModal({
                 </span>
               </div>
             </div>
+
+            {/* Location Progress (when itinerary has multiple locations) */}
+            {hasLocations && (
+              <div className={`p-4 rounded-lg mb-4 ${isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Locations ({completedCount}/{totalLocations})
+                  </span>
+                  <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all"
+                      style={{ width: `${totalLocations > 0 ? (completedCount / totalLocations) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {locations.map((loc) => {
+                    const isCompleted = completedLocations.has(loc.index);
+                    return (
+                      <div key={loc.index} className={`flex items-center justify-between p-2 rounded ${isDarkMode ? 'bg-gray-900/50' : 'bg-white'}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isCompleted ? (
+                            <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          ) : (
+                            <div className="w-4 h-4 border border-gray-500 rounded-full flex-shrink-0" />
+                          )}
+                          <span className={`text-sm truncate ${isCompleted ? 'text-gray-500 line-through' : isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {loc.name}
+                          </span>
+                        </div>
+                        {!isCompleted && (
+                          <button
+                            onClick={() => handleCompleteLocation(loc.index)}
+                            disabled={state !== 'idle'}
+                            className="ml-2 px-2 py-1 text-xs bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded transition-colors flex-shrink-0"
+                          >
+                            Complete
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* GPS Status */}
             <div className={`p-4 rounded-lg mb-6 ${isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>

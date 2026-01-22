@@ -12,6 +12,7 @@ interface ProfileModalProps {
   pfpUrl?: string;
   onClose: () => void;
   onViewUserProfile?: (address: string) => void;
+  onMintPassport?: () => void;
   isDarkMode?: boolean;
 }
 
@@ -27,6 +28,7 @@ interface SafeBalance {
   safeAddress: string;
   monBalance: string;
   wmonBalance: string;
+  toursBalance: string;
 }
 
 interface SearchedUser {
@@ -55,6 +57,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   pfpUrl,
   onClose,
   onViewUserProfile,
+  onMintPassport,
   isDarkMode = true
 }) => {
   const [mounted, setMounted] = useState(false);
@@ -89,7 +92,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         setSafeBalance({
           safeAddress: data.safeAddress || '',
           monBalance: data.balance || '0',
-          wmonBalance: data.wmonBalance || '0'
+          wmonBalance: data.wmonBalance || '0',
+          toursBalance: data.toursBalance || '0',
         });
       }
     } catch (error) {
@@ -382,14 +386,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
 
                   {/* Balances */}
-                  <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-3 gap-2 mb-3">
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
-                      <p className="text-sm text-gray-400">MON</p>
+                      <p className="text-xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">MON</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
-                      <p className="text-sm text-gray-400">WMON</p>
+                      <p className="text-xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">WMON</p>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-xl font-bold text-green-400">{parseFloat(safeBalance.toursBalance).toFixed(0)}</p>
+                      <p className="text-xs text-gray-400">TOURS</p>
                     </div>
                   </div>
 
@@ -422,22 +430,32 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <StatBox icon={<Ticket className="w-5 h-5" />} value={stats.musicPurchased} label="Purchased" color="pink" />
               </div>
 
-              {/* Countries */}
-              {stats.countries.length > 0 && (
-                <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
-                  <h4 className="font-medium text-white mb-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-cyan-400" />
-                    Countries Collected
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
+              {/* My Passports Section */}
+              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
+                <h4 className="font-medium text-white mb-2 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-cyan-400" />
+                  My Passports ({stats.passports})
+                </h4>
+                {stats.countries.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-3">
                     {stats.countries.map((code) => (
                       <span key={code} className="px-2 py-1 bg-purple-900 text-purple-300 text-sm rounded-lg border border-purple-700">
                         {code}
                       </span>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-gray-400 mb-3">No passports yet. Mint your first one!</p>
+                )}
+                {onMintPassport && (
+                  <button
+                    onClick={onMintPassport}
+                    className="w-full py-2 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-all"
+                  >
+                    Mint New Passport
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="text-center py-12">

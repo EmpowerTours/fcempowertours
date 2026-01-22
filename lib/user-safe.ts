@@ -417,3 +417,110 @@ export async function ensureUserSafeCanBurn(
     return { success: false, safeAddress: '0x0' as Address, error: error.message };
   }
 }
+
+/**
+ * Register a User Safe on all V2 contracts via Platform Safe.
+ * Checks registration state first, then only registers where needed.
+ */
+export async function registerUserSafeOnV2Contracts(
+  userAddress: string
+): Promise<{ success: boolean; txHash?: string; status: string }> {
+  const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
+  const ITINERARY_NFT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
+  const PLAY_ORACLE = process.env.NEXT_PUBLIC_PLAY_ORACLE as Address;
+
+  try {
+    const safeAddress = await getUserSafeAddress(userAddress);
+    console.log('[UserSafe] Registering Safe on V2 contracts:', safeAddress);
+
+    // Check registration state on each contract
+    const [isRegisteredPassport, isRegisteredPurchaser, isRegisteredOperator] = await Promise.all([
+      PASSPORT_NFT ? publicClient.readContract({
+        address: PASSPORT_NFT,
+        abi: parseAbi(['function authorizedMinters(address) view returns (bool)']),
+        functionName: 'authorizedMinters',
+        args: [safeAddress],
+      }).catch(() => false) : Promise.resolve(true),
+      ITINERARY_NFT ? publicClient.readContract({
+        address: ITINERARY_NFT,
+        abi: parseAbi(['function authorizedPurchasers(address) view returns (bool)']),
+        functionName: 'authorizedPurchasers',
+        args: [safeAddress],
+      }).catch(() => false) : Promise.resolve(true),
+      PLAY_ORACLE ? publicClient.readContract({
+        address: PLAY_ORACLE,
+        abi: parseAbi(['function authorizedOperators(address) view returns (bool)']),
+        functionName: 'authorizedOperators',
+        args: [safeAddress],
+      }).catch(() => false) : Promise.resolve(true),
+    ]);
+
+    // Build calls for unregistered contracts
+    const calls: Array<{ to: Address; value: bigint; data: Hex }> = [];
+
+    if (!isRegisteredPassport && PASSPORT_NFT) {
+      calls.push({
+        to: PASSPORT_NFT,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: parseAbi(['function registerUserSafeAsMinter(address) external']),
+          functionName: 'registerUserSafeAsMinter',
+          args: [safeAddress],
+        }) as Hex,
+      });
+    }
+
+    if (!isRegisteredPurchaser && ITINERARY_NFT) {
+      calls.push({
+        to: ITINERARY_NFT,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: parseAbi(['function registerUserSafeAsPurchaser(address) external']),
+          functionName: 'registerUserSafeAsPurchaser',
+          args: [safeAddress],
+        }) as Hex,
+      });
+    }
+
+    if (!isRegisteredOperator && PLAY_ORACLE) {
+      calls.push({
+        to: PLAY_ORACLE,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: parseAbi(['function registerUserSafeAsOperator(address) external']),
+          functionName: 'registerUserSafeAsOperator',
+          args: [safeAddress],
+        }) as Hex,
+      });
+    }
+
+    if (calls.length === 0) {
+      console.log('[UserSafe] Already registered on all V2 contracts');
+      return { success: true, status: 'already_registered' };
+    }
+
+    console.log(`[UserSafe] Registering on ${calls.length} contract(s)...`);
+
+    // Send registration via Platform Safe
+    const { sendSafeTransaction } = await import('@/lib/pimlico-safe-aa');
+    const txHash = await sendSafeTransaction(calls);
+
+    console.log('[UserSafe] Registration TX:', txHash);
+    return { success: true, txHash, status: 'registered' };
+  } catch (error: any) {
+    console.error('[UserSafe] V2 registration error:', error.message);
+    return { success: false, status: 'error' };
+  }
+}
+
+/**
+ * Ensure user Safe is registered on V2 contracts before first operation.
+ */
+export async function ensureUserSafeRegistered(
+  userAddress: string
+): Promise<void> {
+  const result = await registerUserSafeOnV2Contracts(userAddress);
+  if (!result.success) {
+    console.warn('[UserSafe] Registration failed but proceeding:', result.status);
+  }
+}

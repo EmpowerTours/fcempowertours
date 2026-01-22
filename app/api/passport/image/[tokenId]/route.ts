@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePassportSVG, PassportStamp } from '@/lib/passport/generatePassportSVG';
 import { getCountryByCode } from '@/lib/passport/countries';
+import { getStampImages } from '@/lib/stamp-images';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { activeChain } from '@/app/chains';
 
@@ -87,14 +88,18 @@ export async function GET(
         const envioData = await envioRes.json();
         const rawStamps = envioData.data?.PassportNFT_ItineraryStampAdded || [];
 
+        // Fetch AI-generated stamp images from store
+        const stampImages = await getStampImages(BigInt(tokenIdNum));
+
         stamps = rawStamps.map((s: any) => ({
           locationName: s.locationName || 'Unknown',
           city: s.city || 'Unknown',
           country: s.country || 'Unknown',
           stampedAt: parseInt(s.timestamp) || Math.floor(Date.now() / 1000),
+          stampImageIPFS: stampImages[`${tokenIdNum}_${s.itineraryId}`] || undefined,
         }));
 
-        console.log('[PassportImage] Found', stamps.length, 'stamps for passport', tokenId);
+        console.log('[PassportImage] Found', stamps.length, 'stamps for passport', tokenId, '(', Object.keys(stampImages).length, 'with AI images)');
       }
     } catch (indexerErr) {
       console.log('[PassportImage] Indexer query failed, passport has no stamps');

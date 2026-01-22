@@ -5,7 +5,7 @@ import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { publicClient } from '@/lib/pimlico-safe-aa';
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'sponsorship' | 'admin' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -19,6 +19,21 @@ interface OracleAction {
   passport?: {
     countryCode: string;
     countryName: string;
+  };
+  itinerary?: {
+    title?: string;
+    description?: string;
+    price?: string;
+    city?: string;
+    country?: string;
+    locations?: Array<{
+      name: string;
+      placeId: string;
+      googleMapsUri: string;
+      latitude: number;
+      longitude: number;
+      description: string;
+    }>;
   };
   sponsorship?: {
     action: 'list_open' | 'check_status' | 'checkin' | 'vote';
@@ -197,6 +212,7 @@ Actions:
 - type:"execute" + transaction.function:"buy_art" + transaction.args:["<tokenId>"] - Buy art NFT
 - type:"create_nft" - Open NFT creation modal
 - type:"mint_passport" - Open passport minting modal
+- type:"create_itinerary" - User wants to create a travel itinerary (needs Maps grounding for places)
 - type:"navigate" + destination:"/path" - Navigate to page
 - type:"game" + game:"MIRROR" - Launch game
 - type:"sponsorship" + sponsorship.action:"list_open" - Show open sponsorship offers/requests
@@ -226,7 +242,7 @@ Return valid JSON only.`;
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'sponsorship', 'admin'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'create_itinerary', 'sponsorship', 'admin'],
             description: 'The type of action to perform'
           },
           destination: {
@@ -552,6 +568,18 @@ Return valid JSON only.`;
       action.message = adminResult.message;
       if (adminResult.data) {
         (action as any).adminData = adminResult.data;
+      }
+    }
+
+    // Handle create_itinerary action from Gemini
+    if (action.type === 'create_itinerary' && userAddress && userFid) {
+      // Oracle detected user wants to create an itinerary
+      // Guide them through the conversational flow
+      if (!userLocation?.latitude || !userLocation?.longitude) {
+        action.message = `${action.message || ''}\n\n📍 **Location Required**\nTo create an itinerary, I need your GPS location. Please enable location services and tell me what places you'd like to include!`;
+      } else {
+        // User has GPS - prompt for remaining details
+        action.message = `${action.message || ''}\n\n🗺️ **Create Your Itinerary**\nI can help you create a travel guide! I'll need:\n• **Title**: What would you call this trip?\n• **Description**: Describe your experience\n• **Price**: How much WMON to charge travelers? (e.g., 0.01)\n• **Photo**: Take a photo as proof!\n\nSay "find [type] near me" and I'll search for places to add, or say "save this as itinerary" with your details when ready.`;
       }
     }
 
