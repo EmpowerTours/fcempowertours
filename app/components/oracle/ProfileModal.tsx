@@ -363,6 +363,60 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           ) : stats ? (
             // Own Stats View
             <div className="space-y-4">
+              {/* Safe Wallet Balance - FIRST so users see it immediately */}
+              {safeBalance && (
+                <div className="bg-gradient-to-br from-cyan-900/50 to-purple-900/50 border border-cyan-700/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-white flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-cyan-400" />
+                      Your Safe Wallet
+                    </h4>
+                    <a
+                      href={getAddressExplorerUrl(safeBalance.safeAddress)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                    >
+                      View <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Safe Address with Copy */}
+                  <div className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2 mb-3">
+                    <p className="text-xs text-gray-300 font-mono truncate flex-1">{safeBalance.safeAddress}</p>
+                    <button
+                      onClick={() => copyAddress(safeBalance.safeAddress)}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                        copiedAddress
+                          ? 'bg-green-500 text-white'
+                          : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                      }`}
+                      title="Copy Safe address"
+                    >
+                      {copiedAddress ? '✓ Copied' : 'Copy'}
+                    </button>
+                  </div>
+
+                  {/* Balances */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">MON</p>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">WMON</p>
+                    </div>
+                  </div>
+
+                  {parseFloat(safeBalance.monBalance) < 0.1 && (
+                    <p className="text-xs text-yellow-400 mt-3 text-center">
+                      Send MON to this address to enable transactions
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-3">
                 <StatBox icon={<Globe className="w-5 h-5" />} value={stats.passports} label="Passports" color="purple" />
@@ -388,58 +442,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               )}
 
-              {/* Safe Wallet Balance */}
-              {safeBalance && (
-                <div className="bg-gradient-to-br from-cyan-900/50 to-purple-900/50 border border-cyan-700/50 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-white flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-cyan-400" />
-                      Safe Wallet
-                    </h4>
-                    <a
-                      href={getAddressExplorerUrl(safeBalance.safeAddress)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                    >
-                      View <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-
-                  {/* Balances */}
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
-                      <p className="text-xs text-gray-400">MON</p>
-                    </div>
-                    <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
-                      <p className="text-xs text-gray-400">WMON</p>
-                    </div>
-                  </div>
-
-                  {/* Safe Address */}
-                  <div className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2">
-                    <p className="text-xs text-gray-400 font-mono truncate flex-1">{safeBalance.safeAddress}</p>
-                    <button
-                      onClick={() => copyAddress(safeBalance.safeAddress)}
-                      className="text-gray-400 hover:text-white transition-colors"
-                      title="Copy Safe address"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {copiedAddress && (
-                    <p className="text-xs text-green-400 mt-1 text-center">Copied!</p>
-                  )}
-
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    Fund this Safe to use Maps & other services
-                  </p>
-                </div>
-              )}
-
-              {/* Wallet Address */}
+              {/* Connected Wallet */}
               {walletAddress && (
                 <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
                   <p className="text-xs text-gray-400 mb-1">Connected Wallet</p>
