@@ -94,6 +94,7 @@ type VenueStamp @entity {
   passport: PassportNFT!
   tokenId: String!
   location: String!
+  placeId: String               # V2: Google Maps place ID
   eventType: String!
   artist: String
   timestamp: BigInt!

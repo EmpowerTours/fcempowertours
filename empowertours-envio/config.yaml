@@ -77,9 +77,9 @@ networks:
               transaction_fields:
                 - hash
 
-      - name: PassportNFT
+      - name: PassportNFTV2
         address:
-          - "0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4"  # Mainnet PassportNFT
+          - "0x93126e59004692B01961BE505aa04F55d5bd1851"  # Mainnet PassportNFTV3
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data, region, continent, and FID
@@ -94,59 +94,66 @@ networks:
               transaction_fields:
                 - hash
 
-          # Verification flow
-          - event: "VerificationRequested(uint256 indexed tokenId, address indexed owner, string photoProofIPFS)"
+          # Verification flow (V2: renamed events)
+          - event: "VerificationProofSubmitted(uint256 indexed tokenId, address indexed submitter, string proofIPFSHash, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "VerificationApproved(uint256 indexed tokenId, address indexed oracle)"
+          - event: "PassportVerified(uint256 indexed tokenId, address indexed verifier, string verificationProof, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
 
-          - event: "VerificationRejected(uint256 indexed tokenId, address indexed oracle, string reason)"
+          # Venue stamps (V2: location, placeId, verified, timestamp)
+          - event: "VenueStampAdded(uint256 indexed tokenId, string location, string placeId, bool verified, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Venue stamps (credit scoring)
-          - event: "VenueStampAdded(uint256 indexed tokenId, string venueName, uint256 creditAdded)"
+          # Itinerary stamps (V2: locationName, city, country, placeId, gpsVerified, timestamp)
+          - event: "ItineraryStampAdded(uint256 indexed tokenId, uint256 indexed itineraryId, string locationName, string city, string country, string placeId, bool gpsVerified, uint256 timestamp)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Itinerary stamps (credit scoring)
-          - event: "ItineraryStampAdded(uint256 indexed tokenId, uint256 indexed itineraryId, uint256 creditAdded)"
-            field_selection:
-              transaction_fields:
-                - hash
-
-      - name: ItineraryNFT
+      - name: ItineraryNFTV2
         address:
-          - "0x59414599d8e6B6E453c814f55e42Fd5aa3038949"  # Mainnet ItineraryNFT
+          - "0x97529316356A5bcAd81D85E9a0eF941958c4b020"  # Mainnet ItineraryNFTV2
         handler: src/EventHandlers.ts
         events:
-          # Itinerary creation (UGC - user-generated content)
-          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, uint256 indexed creatorFid, string title, string city, string country, uint256 price)"
+          # Itinerary creation (V2: removed city/country, added photoProof)
+          - event: "ItineraryCreated(uint256 indexed itineraryId, address indexed creator, uint256 indexed creatorFid, string title, uint256 price, string photoProof)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Itinerary purchase (70% to creator, 30% to platform)
-          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer, uint256 indexed buyerFid, uint256 price)"
+          # Itinerary purchase (V2: added creatorEarnings)
+          - event: "ItineraryPurchased(uint256 indexed itineraryId, address indexed buyer, uint256 indexed buyerFid, uint256 price, uint256 creatorEarnings)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Location completion tracking
-          - event: "LocationCompleted(uint256 indexed itineraryId, address indexed user, uint256 locationIndex, string photoProofIPFS)"
+          # Location completion (V2: placeId instead of photoProofIPFS name)
+          - event: "LocationCompleted(uint256 indexed itineraryId, address indexed user, uint256 locationIndex, string placeId, string photoProof)"
             field_selection:
               transaction_fields:
                 - hash
 
-          # Rating and reviews
-          - event: "ItineraryRated(uint256 indexed itineraryId, address indexed user, uint256 rating, string reviewIPFS)"
+          # Itinerary completed (V2: NEW - all locations done)
+          - event: "ItineraryCompleted(uint256 indexed itineraryId, address indexed user)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Rating (V2: removed reviewIPFS)
+          - event: "ItineraryRated(uint256 indexed itineraryId, address indexed user, uint256 rating)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Location added (V2: NEW - when locations are added to itinerary)
+          - event: "LocationAdded(uint256 indexed itineraryId, uint256 locationIndex, string placeId)"
             field_selection:
               transaction_fields:
                 - hash
@@ -158,9 +165,9 @@ networks:
                 - hash
 
       # MusicSubscription Contract - 10/20/70 Distribution Model
-      - name: MusicSubscriptionV2
+      - name: MusicSubscriptionV4
         address:
-          - "0x796eF7281A85D3ddf17eB96a7ED62B22BD2764fB"  # Mainnet MusicSubscription
+          - "0xCB11282E5797E036C98D321b276Cb162cde845E5"  # Mainnet MusicSubscriptionV4
         handler: src/EventHandlers.ts
         events:
           # Subscription lifecycle with FID
@@ -225,9 +232,9 @@ networks:
                 - hash
 
       # PlayOracle Contract - Backend oracle for play recording
-      - name: PlayOracle
+      - name: PlayOracleV3
         address:
-          - "0x424b2a28EDd73cb8994390a33Fe00b3b6E09AEd8"  # Mainnet PlayOracle
+          - "0xe210b31bBDf8B28B28c07D45E9B4FC886aafDCEf"  # Mainnet PlayOracleV3
         handler: src/EventHandlers.ts
         events:
           - event: "PlayRecorded(address indexed user, uint256 indexed masterTokenId, uint256 duration, uint256 timestamp)"
@@ -246,9 +253,9 @@ networks:
                 - hash
 
       # LiveRadio Contract - World Cup 2026 Jukebox
-      - name: LiveRadio
+      - name: LiveRadioV2
         address:
-          - "0x72Ddd7DBbD2af4DBfa4331D885Cfe68a82317B21"  # Mainnet LiveRadio
+          - "0x26b32987cb5d7946D81e0Cc7459f26CdeC773101"  # Mainnet LiveRadioV2
         handler: src/EventHandlers.ts
         events:
           # Radio lifecycle

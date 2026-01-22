@@ -1,10 +1,10 @@
 import {
   EmpowerToursNFT,
-  PassportNFT,
-  ItineraryNFT,
-  PlayOracle,
-  MusicSubscriptionV2,
-  LiveRadio,
+  PassportNFTV2,
+  ItineraryNFTV2,
+  PlayOracleV3,
+  MusicSubscriptionV4,
+  LiveRadioV2,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -623,7 +623,7 @@ EmpowerToursNFT.PriceUpdated.handler(async ({ event, context }) => {
 // PASSPORT NFT EVENTS
 // ============================================
 
-PassportNFT.PassportMinted.handler(async ({ event, context }) => {
+PassportNFTV2.PassportMinted.handler(async ({ event, context }) => {
   const { tokenId, owner, userFid, countryCode, countryName, region, continent, verified } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
@@ -733,7 +733,7 @@ PassportNFT.PassportMinted.handler(async ({ event, context }) => {
   );
 });
 
-PassportNFT.Transfer.handler(async ({ event, context }) => {
+PassportNFTV2.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   if (from === "0x0000000000000000000000000000000000000000") {
@@ -752,15 +752,15 @@ PassportNFT.Transfer.handler(async ({ event, context }) => {
   }
 });
 
-// ✅ Verification flow handlers
-PassportNFT.VerificationRequested.handler(async ({ event, context }) => {
-  const { tokenId, owner, photoProofIPFS } = event.params;
+// ✅ V2: Verification flow handlers (renamed events)
+PassportNFTV2.VerificationProofSubmitted.handler(async ({ event, context }) => {
+  const { tokenId, submitter, proofIPFSHash, timestamp } = event.params;
 
-  context.log.info(`📸 Verification requested for Passport #${tokenId} by ${owner} - proof: ${photoProofIPFS}`);
+  context.log.info(`📸 Verification proof submitted for Passport #${tokenId} by ${submitter} - proof: ${proofIPFSHash}`);
 });
 
-PassportNFT.VerificationApproved.handler(async ({ event, context }) => {
-  const { tokenId, oracle } = event.params;
+PassportNFTV2.PassportVerified.handler(async ({ event, context }) => {
+  const { tokenId, verifier, verificationProof, timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
   const passportNFT = await context.PassportNFT.get(passportNFTId);
@@ -772,18 +772,12 @@ PassportNFT.VerificationApproved.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`✅ Passport #${tokenId} verification APPROVED by oracle ${oracle}`);
+  context.log.info(`✅ Passport #${tokenId} verified by ${verifier} - proof: ${verificationProof}`);
 });
 
-PassportNFT.VerificationRejected.handler(async ({ event, context }) => {
-  const { tokenId, oracle, reason } = event.params;
-
-  context.log.info(`❌ Passport #${tokenId} verification REJECTED by oracle ${oracle} - reason: ${reason}`);
-});
-
-// ✅ Venue stamp handler (venueName, creditAdded)
-PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
-  const { tokenId, venueName, creditAdded } = event.params;
+// ✅ V2: Venue stamp handler (location, placeId, verified, timestamp)
+PassportNFTV2.VenueStampAdded.handler(async ({ event, context }) => {
+  const { tokenId, location, placeId, verified, timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
   const venueStampId = `venue-stamp-${event.block.number}-${event.logIndex}`;
@@ -793,11 +787,12 @@ PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
     id: venueStampId,
     passport_id: passportNFTId,
     tokenId: tokenId.toString(),
-    location: venueName, // Use venueName as location
-    eventType: "", // Not provided in this event
+    location: location,
+    placeId: placeId,
+    eventType: "",
     artist: undefined,
-    timestamp: BigInt(event.block.timestamp),
-    verified: false, // Default to false, can be updated later
+    timestamp: BigInt(Number(timestamp)),
+    verified: verified,
     addedAt: new Date(event.block.timestamp * 1000),
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -805,39 +800,43 @@ PassportNFT.VenueStampAdded.handler(async ({ event, context }) => {
 
   await context.VenueStamp.set(venueStamp);
 
-  // Update passport stamp count and credit score using creditAdded from event
+  // Update passport stamp count and credit score (+10 base, +5 if verified)
   const passportNFT = await context.PassportNFT.get(passportNFTId);
   if (passportNFT) {
+    const creditAdded = verified ? 15 : 10;
     const newStampCount = passportNFT.stampCount + 1;
-    const newCreditScore = passportNFT.creditScore + Number(creditAdded);
+    const newVerifiedCount = verified ? passportNFT.verifiedStampCount + 1 : passportNFT.verifiedStampCount;
+    const newCreditScore = passportNFT.creditScore + creditAdded;
 
     await context.PassportNFT.set({
       ...passportNFT,
       stampCount: newStampCount,
+      verifiedStampCount: newVerifiedCount,
       creditScore: newCreditScore,
     });
 
-    context.log.info(`🎟️ Venue stamp added to Passport #${tokenId}: "${venueName}" (+${creditAdded} credit). New score: ${newCreditScore}`);
+    context.log.info(`🎟️ Venue stamp added to Passport #${tokenId}: "${location}" (placeId: ${placeId}, verified: ${verified}, +${creditAdded} credit). New score: ${newCreditScore}`);
   }
 });
 
-// ✅ Itinerary stamp handler
-PassportNFT.ItineraryStampAdded.handler(async ({ event, context }) => {
-  const { tokenId, itineraryId, creditAdded } = event.params;
+// ✅ V2: Itinerary stamp handler (locationName, city, country, placeId, gpsVerified, timestamp)
+PassportNFTV2.ItineraryStampAdded.handler(async ({ event, context }) => {
+  const { tokenId, itineraryId, locationName, city, country, placeId, gpsVerified, timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
 
-  // Update passport credit score
+  // Update passport credit score (+15 base, +10 if GPS verified)
   const passportNFT = await context.PassportNFT.get(passportNFTId);
   if (passportNFT) {
-    const newCreditScore = passportNFT.creditScore + Number(creditAdded);
+    const creditAdded = gpsVerified ? 25 : 15;
+    const newCreditScore = passportNFT.creditScore + creditAdded;
 
     await context.PassportNFT.set({
       ...passportNFT,
       creditScore: newCreditScore,
     });
 
-    context.log.info(`🗺️ Itinerary stamp added to Passport #${tokenId} for itinerary #${itineraryId} (+${creditAdded} credit). New score: ${newCreditScore}`);
+    context.log.info(`🗺️ Itinerary stamp added to Passport #${tokenId} for itinerary #${itineraryId}: "${locationName}" in ${city}, ${country} (placeId: ${placeId}, GPS: ${gpsVerified}, +${creditAdded} credit). New score: ${newCreditScore}`);
   }
 });
 
@@ -845,8 +844,8 @@ PassportNFT.ItineraryStampAdded.handler(async ({ event, context }) => {
 // ITINERARY NFT EVENTS
 // ============================================
 
-ItineraryNFT.ItineraryCreated.handler(async ({ event, context }) => {
-  const { itineraryId, creator, creatorFid, title, city, country, price } = event.params;
+ItineraryNFTV2.ItineraryCreated.handler(async ({ event, context }) => {
+  const { itineraryId, creator, creatorFid, title, price, photoProof } = event.params;
 
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
   const userId = creator.toLowerCase();
@@ -857,7 +856,7 @@ ItineraryNFT.ItineraryCreated.handler(async ({ event, context }) => {
     id: itineraryEntityId,
     itineraryId: itineraryId.toString(),
     creator: userId,
-    description: `${title} - ${city}, ${country}`, // Store title/city/country in description
+    description: title, // V2: title only (city/country stored in contract, not in event)
     price: price,
     active: true,
     createdAt: timestamp,
@@ -931,11 +930,11 @@ ItineraryNFT.ItineraryCreated.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator} (FID: ${creatorFid}) - "${title}" in ${city}, ${country}`);
+  context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator} (FID: ${creatorFid}) - "${title}" (photo: ${photoProof})`);
 });
 
-ItineraryNFT.ItineraryPurchased.handler(async ({ event, context }) => {
-  const { itineraryId, buyer, buyerFid, price } = event.params;
+ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
+  const { itineraryId, buyer, buyerFid, price, creatorEarnings } = event.params;
 
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
   const purchaseId = `purchase-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -995,24 +994,34 @@ ItineraryNFT.ItineraryPurchased.handler(async ({ event, context }) => {
     });
   }
 
-  context.log.info(`🎫 Itinerary #${itineraryId} purchased by ${buyer} (FID: ${buyerFid}) for ${price}`);
+  context.log.info(`🎫 Itinerary #${itineraryId} purchased by ${buyer} (FID: ${buyerFid}) for ${price} (creator earned: ${creatorEarnings})`);
 });
 
-ItineraryNFT.LocationCompleted.handler(async ({ event, context }) => {
-  const { itineraryId, user, locationIndex, photoProofIPFS } = event.params;
+ItineraryNFTV2.LocationCompleted.handler(async ({ event, context }) => {
+  const { itineraryId, user, locationIndex, placeId, photoProof } = event.params;
 
-  // Just log - no entity for this in current schema
-  context.log.info(`📍 Location ${locationIndex} completed for Itinerary #${itineraryId} by ${user.slice(0, 8)}... - proof: ${photoProofIPFS}`);
+  context.log.info(`📍 Location ${locationIndex} completed for Itinerary #${itineraryId} by ${user.slice(0, 8)}... (placeId: ${placeId}, proof: ${photoProof})`);
 });
 
-ItineraryNFT.ItineraryRated.handler(async ({ event, context }) => {
-  const { itineraryId, user, rating, reviewIPFS } = event.params;
+ItineraryNFTV2.ItineraryCompleted.handler(async ({ event, context }) => {
+  const { itineraryId, user } = event.params;
 
-  // Just log - no entity for this in current schema
-  context.log.info(`⭐ Itinerary #${itineraryId} rated ${rating}/5 by ${user.slice(0, 8)}... - review: ${reviewIPFS}`);
+  context.log.info(`🏆 Itinerary #${itineraryId} fully completed by ${user.slice(0, 8)}...`);
 });
 
-ItineraryNFT.Transfer.handler(async ({ event, context }) => {
+ItineraryNFTV2.ItineraryRated.handler(async ({ event, context }) => {
+  const { itineraryId, user, rating } = event.params;
+
+  context.log.info(`⭐ Itinerary #${itineraryId} rated ${rating}/500 by ${user.slice(0, 8)}...`);
+});
+
+ItineraryNFTV2.LocationAdded.handler(async ({ event, context }) => {
+  const { itineraryId, locationIndex, placeId } = event.params;
+
+  context.log.info(`📌 Location added to Itinerary #${itineraryId}: index ${locationIndex}, placeId: ${placeId}`);
+});
+
+ItineraryNFTV2.Transfer.handler(async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   // Skip mint events
@@ -1024,10 +1033,10 @@ ItineraryNFT.Transfer.handler(async ({ event, context }) => {
 });
 
 // =============================================================================
-// ✅ PlayOracle Event Handlers (Music Streaming Stats)
+// ✅ PlayOracleV3 Event Handlers (Music Streaming Stats)
 // =============================================================================
 
-PlayOracle.PlayRecorded.handler(async ({ event, context }) => {
+PlayOracleV3.PlayRecorded.handler(async ({ event, context }) => {
   const { user, masterTokenId, duration, timestamp } = event.params;
 
   const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1072,21 +1081,21 @@ PlayOracle.PlayRecorded.handler(async ({ event, context }) => {
   context.log.info(`🎵 Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId} for ${duration}s`);
 });
 
-PlayOracle.OperatorAdded.handler(async ({ event, context }) => {
+PlayOracleV3.OperatorAdded.handler(async ({ event, context }) => {
   const { operator } = event.params;
   context.log.info(`➕ PlayOracle operator added: ${operator}`);
 });
 
-PlayOracle.OperatorRemoved.handler(async ({ event, context }) => {
+PlayOracleV3.OperatorRemoved.handler(async ({ event, context }) => {
   const { operator } = event.params;
   context.log.info(`➖ PlayOracle operator removed: ${operator}`);
 });
 
 // =============================================================================
-// ✅ MusicSubscriptionV2 Event Handlers (Artist Payouts & More Play Records)
+// ✅ MusicSubscriptionV4 Event Handlers (Artist Payouts & More Play Records)
 // =============================================================================
 
-MusicSubscriptionV2.Subscribed.handler(async ({ event, context }) => {
+MusicSubscriptionV4.Subscribed.handler(async ({ event, context }) => {
   const { user, userFid, tier, expiry, paidAmount } = event.params;
 
   const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
@@ -1108,7 +1117,7 @@ MusicSubscriptionV2.Subscribed.handler(async ({ event, context }) => {
   context.log.info(`🎵 User ${user.slice(0, 8)}... subscribed (FID: ${userFid}, Tier: ${tier}, Expiry: ${new Date(Number(expiry) * 1000).toISOString()})`);
 });
 
-MusicSubscriptionV2.SubscriptionRenewed.handler(async ({ event, context }) => {
+MusicSubscriptionV4.SubscriptionRenewed.handler(async ({ event, context }) => {
   const { user, newExpiry } = event.params;
 
   const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
@@ -1124,7 +1133,7 @@ MusicSubscriptionV2.SubscriptionRenewed.handler(async ({ event, context }) => {
   context.log.info(`🔄 Subscription renewed for ${user.slice(0, 8)}... - new expiry: ${new Date(Number(newExpiry) * 1000).toISOString()}`);
 });
 
-MusicSubscriptionV2.PlayRecorded.handler(async ({ event, context }) => {
+MusicSubscriptionV4.PlayRecorded.handler(async ({ event, context }) => {
   const { user, masterTokenId, duration, timestamp } = event.params;
 
   // This may duplicate PlayOracle records, but creates from subscription contract too
@@ -1145,7 +1154,7 @@ MusicSubscriptionV2.PlayRecorded.handler(async ({ event, context }) => {
   context.log.info(`🎵 [Sub] Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId}`);
 });
 
-MusicSubscriptionV2.MonthlyDistributionFinalized.handler(async ({ event, context }) => {
+MusicSubscriptionV4.MonthlyDistributionFinalized.handler(async ({ event, context }) => {
   const { monthId, totalRevenue, totalPlays, artistPool } = event.params;
 
   const distributionId = `distribution-${event.chainId}-${monthId.toString()}`;
@@ -1165,7 +1174,7 @@ MusicSubscriptionV2.MonthlyDistributionFinalized.handler(async ({ event, context
   context.log.info(`📊 Monthly distribution #${monthId} finalized: Revenue: ${totalRevenue}, Plays: ${totalPlays}, Artist Pool: ${artistPool}`);
 });
 
-MusicSubscriptionV2.ArtistPayout.handler(async ({ event, context }) => {
+MusicSubscriptionV4.ArtistPayout.handler(async ({ event, context }) => {
   const { monthId, artist, amount, playCount } = event.params;
 
   const payoutId = `payout-${event.chainId}-${monthId.toString()}-${artist.toLowerCase()}`;
@@ -1212,7 +1221,7 @@ MusicSubscriptionV2.ArtistPayout.handler(async ({ event, context }) => {
   context.log.info(`💰 Artist payout: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for ${playCount} plays in month ${monthId}`);
 });
 
-MusicSubscriptionV2.ArtistToursReward.handler(async ({ event, context }) => {
+MusicSubscriptionV4.ArtistToursReward.handler(async ({ event, context }) => {
   const { monthId, artist, toursAmount } = event.params;
 
   // Update artist stats with TOURS rewards
@@ -1230,31 +1239,31 @@ MusicSubscriptionV2.ArtistToursReward.handler(async ({ event, context }) => {
   context.log.info(`🎁 TOURS reward: ${artist.slice(0, 8)}... received ${toursFormatted} TOURS for month ${monthId}`);
 });
 
-MusicSubscriptionV2.ReserveAdded.handler(async ({ event, context }) => {
+MusicSubscriptionV4.ReserveAdded.handler(async ({ event, context }) => {
   const { monthId, amount, totalReserve } = event.params;
 
   context.log.info(`💰 Reserve added for month ${monthId}: ${amount} (total: ${totalReserve})`);
 });
 
-MusicSubscriptionV2.ReserveWithdrawnToDAO.handler(async ({ event, context }) => {
+MusicSubscriptionV4.ReserveWithdrawnToDAO.handler(async ({ event, context }) => {
   const { dao, amount } = event.params;
 
   context.log.info(`💸 Reserve withdrawn to DAO ${dao}: ${amount}`);
 });
 
-MusicSubscriptionV2.AccountFlagged.handler(async ({ event, context }) => {
+MusicSubscriptionV4.AccountFlagged.handler(async ({ event, context }) => {
   const { user, reason } = event.params;
 
   context.log.info(`🚩 Account flagged: ${user} - reason: ${reason}`);
 });
 
-MusicSubscriptionV2.AccountUnflagged.handler(async ({ event, context }) => {
+MusicSubscriptionV4.AccountUnflagged.handler(async ({ event, context }) => {
   const { user } = event.params;
 
   context.log.info(`✅ Account unflagged: ${user}`);
 });
 
-MusicSubscriptionV2.VoteToFlag.handler(async ({ event, context }) => {
+MusicSubscriptionV4.VoteToFlag.handler(async ({ event, context }) => {
   const { voter, target, totalVotes } = event.params;
 
   context.log.info(`🗳️ Vote to flag: ${voter} voted to flag ${target} (total votes: ${totalVotes})`);
@@ -1265,7 +1274,7 @@ MusicSubscriptionV2.VoteToFlag.handler(async ({ event, context }) => {
 // ============================================
 
 // Radio lifecycle events
-LiveRadio.RadioStarted.handler(async ({ event, context }) => {
+LiveRadioV2.RadioStarted.handler(async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
   let stats = await context.RadioGlobalStats.get(statsId);
@@ -1294,7 +1303,7 @@ LiveRadio.RadioStarted.handler(async ({ event, context }) => {
   context.log.info(`📻 LiveRadio started at ${event.block.timestamp}`);
 });
 
-LiveRadio.RadioStopped.handler(async ({ event, context }) => {
+LiveRadioV2.RadioStopped.handler(async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
   let stats = await context.RadioGlobalStats.get(statsId);
@@ -1310,7 +1319,7 @@ LiveRadio.RadioStopped.handler(async ({ event, context }) => {
 });
 
 // Song queuing
-LiveRadio.SongQueued.handler(async ({ event, context }) => {
+LiveRadioV2.SongQueued.handler(async ({ event, context }) => {
   const { queueId, masterTokenId, queuedBy, fid, paidAmount, tipAmount, hadLicense } = event.params;
 
   const queuedSongId = `queue-${event.chainId}-${queueId.toString()}`;
@@ -1377,7 +1386,7 @@ LiveRadio.SongQueued.handler(async ({ event, context }) => {
 });
 
 // Song played (tracks all plays - queued and random)
-LiveRadio.SongPlayed.handler(async ({ event, context }) => {
+LiveRadioV2.SongPlayed.handler(async ({ event, context }) => {
   const { queueId, masterTokenId, artist, artistPayout, wasRandom } = event.params;
 
   const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1426,7 +1435,7 @@ LiveRadio.SongPlayed.handler(async ({ event, context }) => {
 });
 
 // Voice notes
-LiveRadio.VoiceNoteSubmitted.handler(async ({ event, context }) => {
+LiveRadioV2.VoiceNoteSubmitted.handler(async ({ event, context }) => {
   const { noteId, submitter, duration, paidAmount, isAd } = event.params;
 
   const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
@@ -1488,7 +1497,7 @@ LiveRadio.VoiceNoteSubmitted.handler(async ({ event, context }) => {
   context.log.info(`🎤 Voice ${isAd ? 'ad' : 'note'} submitted by ${submitter.slice(0, 8)}... (${duration}s, paid: ${paidAmount})`);
 });
 
-LiveRadio.VoiceNotePlayed.handler(async ({ event, context }) => {
+LiveRadioV2.VoiceNotePlayed.handler(async ({ event, context }) => {
   const { noteId, submitter, rewardPaid } = event.params;
 
   const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
@@ -1520,7 +1529,7 @@ LiveRadio.VoiceNotePlayed.handler(async ({ event, context }) => {
 });
 
 // Listener rewards
-LiveRadio.ListenerRewarded.handler(async ({ event, context }) => {
+LiveRadioV2.ListenerRewarded.handler(async ({ event, context }) => {
   const { listener, amount, rewardType } = event.params;
 
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
@@ -1566,7 +1575,7 @@ LiveRadio.ListenerRewarded.handler(async ({ event, context }) => {
   context.log.info(`🎧 Listener ${listener.slice(0, 8)}... rewarded ${amount} TOURS (${rewardType})`);
 });
 
-LiveRadio.StreakBonusClaimed.handler(async ({ event, context }) => {
+LiveRadioV2.StreakBonusClaimed.handler(async ({ event, context }) => {
   const { listener, streakDays, bonusAmount } = event.params;
 
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
@@ -1590,7 +1599,7 @@ LiveRadio.StreakBonusClaimed.handler(async ({ event, context }) => {
   context.log.info(`🔥 ${listener.slice(0, 8)}... claimed ${streakDays}-day streak bonus: ${bonusAmount} TOURS`);
 });
 
-LiveRadio.FirstListenerBonus.handler(async ({ event, context }) => {
+LiveRadioV2.FirstListenerBonus.handler(async ({ event, context }) => {
   const { listener, day, bonusAmount } = event.params;
 
   const firstListenerId = `firstlistener-${event.chainId}-${day.toString()}`;
@@ -1623,7 +1632,7 @@ LiveRadio.FirstListenerBonus.handler(async ({ event, context }) => {
 });
 
 // Tips
-LiveRadio.TipReceived.handler(async ({ event, context }) => {
+LiveRadioV2.TipReceived.handler(async ({ event, context }) => {
   const { masterTokenId, artist, tipper, amount } = event.params;
 
   const tipId = `tip-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1665,33 +1674,33 @@ LiveRadio.TipReceived.handler(async ({ event, context }) => {
   context.log.info(`💸 Tip: ${tipper.slice(0, 8)}... tipped ${amount} WMON to artist ${artist.slice(0, 8)}... for song #${masterTokenId}`);
 });
 
-LiveRadio.RewardsClaimed.handler(async ({ event, context }) => {
+LiveRadioV2.RewardsClaimed.handler(async ({ event, context }) => {
   const { user, amount } = event.params;
 
   context.log.info(`💰 ${user.slice(0, 8)}... claimed ${amount} TOURS rewards`);
 });
 
 // Random song selection (Pyth Entropy)
-LiveRadio.RandomSongRequested.handler(async ({ event, context }) => {
+LiveRadioV2.RandomSongRequested.handler(async ({ event, context }) => {
   const { sequenceNumber, requester } = event.params;
 
   context.log.info(`🎲 Random song requested - sequence: ${sequenceNumber}, requester: ${requester.slice(0, 8)}...`);
 });
 
-LiveRadio.RandomSongSelected.handler(async ({ event, context }) => {
+LiveRadioV2.RandomSongSelected.handler(async ({ event, context }) => {
   const { masterTokenId, randomValue } = event.params;
 
   context.log.info(`🎲 Random song selected: #${masterTokenId} (random: ${randomValue})`);
 });
 
 // Song pool management
-LiveRadio.SongAddedToPool.handler(async ({ event, context }) => {
+LiveRadioV2.SongAddedToPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➕ Song #${masterTokenId} added to radio pool`);
 });
 
-LiveRadio.SongRemovedFromPool.handler(async ({ event, context }) => {
+LiveRadioV2.SongRemovedFromPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
