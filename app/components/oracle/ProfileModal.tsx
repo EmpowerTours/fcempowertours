@@ -438,14 +438,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 </div>
               )}
-
-              {/* Connected Wallet */}
-              {walletAddress && (
-                <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
-                  <p className="text-sm text-gray-400 mb-1">Connected Wallet</p>
-                  <p className="text-sm text-white font-mono break-all">{walletAddress}</p>
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-center py-12">
