@@ -5,24 +5,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY!;
-
-// SECURITY: Whitelist of allowed domains for metadata fetching (SSRF protection)
-const ALLOWED_METADATA_DOMAINS = new Set([
-  'ipfs.io',
-  'cloudflare-ipfs.com',
-  'nftstorage.link',
-  'dweb.link',
-  'w3s.link',
-]);
-
-// Add configured Pinata gateway to whitelist
-if (PINATA_GATEWAY) {
-  try {
-    const gatewayUrl = new URL(PINATA_GATEWAY);
-    ALLOWED_METADATA_DOMAINS.add(gatewayUrl.hostname);
-  } catch {}
-}
+const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY
+  ? `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/`
+  : 'https://gateway.pinata.cloud/ipfs/';
 
 interface NFTObject {
   id: string;
@@ -36,19 +21,6 @@ interface NFTObject {
   artistUsername?: string; // Farcaster username of the artist
 }
 
-// SECURITY: Validate URL is safe to fetch (prevent SSRF)
-function isSafeUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    // Only allow HTTPS
-    if (parsed.protocol !== 'https:') return false;
-    // Check against whitelist
-    return ALLOWED_METADATA_DOMAINS.has(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
-
 // Utility function to resolve IPFS URLs with thumbnail optimization
 const resolveIPFS = (url: string, thumbnail: boolean = false): string => {
   if (!url) return '';
@@ -56,12 +28,6 @@ const resolveIPFS = (url: string, thumbnail: boolean = false): string => {
   let resolvedUrl = url;
   if (url.startsWith('ipfs://')) {
     resolvedUrl = url.replace('ipfs://', PINATA_GATEWAY);
-  }
-
-  // SECURITY: Validate resolved URL is safe
-  if (!isSafeUrl(resolvedUrl)) {
-    console.warn('[SSRF] Blocked unsafe URL:', url);
-    return '';
   }
 
   return resolvedUrl;
@@ -185,7 +151,6 @@ export async function GET() {
 
         try {
           const metadataUrl = resolveIPFS(nft.tokenURI);
-          // SECURITY: Skip fetch if URL was blocked by SSRF protection
           if (metadataUrl) {
             const metadataRes = await fetch(metadataUrl);
             if (metadataRes.ok) {
@@ -231,7 +196,6 @@ export async function GET() {
         try {
           if (exp.metadataUri) {
             const metadataUrl = resolveIPFS(exp.metadataUri);
-            // SECURITY: Skip fetch if URL was blocked by SSRF protection
             if (metadataUrl) {
               const metadataRes = await fetch(metadataUrl);
               if (metadataRes.ok) {
