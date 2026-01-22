@@ -6,7 +6,7 @@ import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
 import FarcasterAppSetup from '@/app/components/FarcasterAppSetup';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface UserPassport {
   tokenId: string;

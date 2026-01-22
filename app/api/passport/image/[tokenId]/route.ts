@@ -4,7 +4,7 @@ import { getCountryByCode } from '@/lib/passport/countries';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { activeChain } from '@/app/chains';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as `0x${string}`;
 
 /**

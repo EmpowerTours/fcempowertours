@@ -46,7 +46,7 @@ interface SearchedUser {
   };
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   walletAddress,

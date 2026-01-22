@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, formatEther, Address } from 'viem';
 import { activeChain } from '@/app/chains';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const TOURS_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95d5185f39C760c5FA754491d0') as Address;
 const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0xC3852efFa2D1291f4224151f5F1Bc8C72051C5Fd') as Address;
 const BOT_SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address; // ✅ Bot's Safe account

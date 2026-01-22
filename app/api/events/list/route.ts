@@ -15,7 +15,7 @@ const redis = new Redis({
 
 const EVENTS_KEY = 'event-oracle:events';
 const EVENTS_LIST_KEY = 'sponsored-events:list';
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface SponsoredEvent {
   eventId: string;

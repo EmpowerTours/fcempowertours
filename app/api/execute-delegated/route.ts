@@ -15,7 +15,7 @@ import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
 import { validateCountryCode, sanitizeInput, sanitizeErrorForResponse, VALID_COUNTRY_CODES } from '@/lib/auth';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
 // Type definition for Safe transaction calls

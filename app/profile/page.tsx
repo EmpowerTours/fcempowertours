@@ -10,7 +10,7 @@ import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
 import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
 import UserSafeWidget from '@/app/components/UserSafeWidget';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface MusicMetadata {
   animation_url?: string;

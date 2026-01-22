@@ -15,7 +15,6 @@ import { activeChain } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
 import { env } from '@/lib/env';
-import { redis } from '@/lib/redis';
 
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
@@ -54,13 +53,6 @@ function getUserSaltNonce(userAddress: string): bigint {
  */
 export async function getUserSafeAddress(userAddress: string): Promise<Address> {
   const normalizedUser = userAddress.toLowerCase();
-  const cacheKey = `user-safe:${normalizedUser}`;
-
-  // Try cache first
-  const cachedAddress = await redis.get(cacheKey);
-  if (cachedAddress) {
-    return (typeof cachedAddress === 'string' ? cachedAddress : String(cachedAddress)) as Address;
-  }
 
   // Compute deterministic Safe address
   const botSigner = getBotSignerAccount();
@@ -76,9 +68,6 @@ export async function getUserSafeAddress(userAddress: string): Promise<Address> 
     version: '1.4.1',
     saltNonce,
   });
-
-  // Cache for future lookups
-  await redis.set(cacheKey, safeAccount.address);
 
   return safeAccount.address;
 }
@@ -159,9 +148,6 @@ export async function createUserSafeClient(userAddress: string): Promise<{
   console.log('✅ User Safe Client created');
   console.log('   Safe Address:', safeAccount.address);
   console.log('   Balance:', (Number(balance) / 1e18).toFixed(4), 'MON');
-
-  // Cache address
-  await redis.set(`user-safe:${normalizedUser}`, safeAccount.address);
 
   return {
     client,

@@ -208,7 +208,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   const fetchAvailableSongs = useCallback(async () => {
     setLoadingSongs(true);
     try {
-      const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
+      const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
       // Only fetch NFTs that have fullAudioUrl (music NFTs, not art NFTs)
       const query = `
         query GetMusicNFTs {

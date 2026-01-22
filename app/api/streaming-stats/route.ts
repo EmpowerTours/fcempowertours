@@ -11,7 +11,7 @@ import { Redis } from '@upstash/redis';
  * 3. RadioPlay = radio plays (falls back to Redis if Envio not indexed)
  */
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,

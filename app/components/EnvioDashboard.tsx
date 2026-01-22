@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';  // For internal routing
 
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
+
 interface Stats {
   totalMusicNFTs: number;
   totalPassports: number;
@@ -72,7 +74,7 @@ export default function EnvioDashboard() {
           }
         }
       `;
-      const response = await fetch('https://indexer.dev.hyperindex.xyz/314bd82/v1/graphql', {
+      const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),

@@ -107,7 +107,7 @@ interface ListenerStats {
   lastRewardedSongId?: string; // Track last song rewarded to prevent duplicate rewards
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || 'https://indexer.dev.hyperindex.xyz/68dbfa8/v1/graphql';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 // GET - Get current radio state
 export async function GET(req: NextRequest) {
