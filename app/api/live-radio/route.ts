@@ -630,51 +630,64 @@ export async function POST(req: NextRequest) {
       let rewardEarned = 0;
       let bonusType = '';
 
-      // Check for first listener of the day
-      const firstListenerKey = `${DAILY_FIRST_LISTENER_KEY}:${today}`;
-      const firstListener = await redis.get(firstListenerKey);
-      if (!firstListener) {
-        await redis.setex(firstListenerKey, 86400, userKey); // Expires in 24h
-        rewardEarned += FIRST_LISTENER_BONUS_TOURS;
-        stats.firstListenerBonuses++;
-        bonusType = 'first_listener';
-        console.log('[LiveRadio] First listener of day:', userKey, 'Bonus:', FIRST_LISTENER_BONUS_TOURS);
+      // Check if a song is ACTIVELY playing (not expired)
+      const isSongActive = state?.currentSong &&
+        (state.currentSong.startedAt + (state.currentSong.duration * 1000)) > now;
+
+      // If current song has expired, clear it from state
+      if (state?.currentSong && !isSongActive) {
+        console.log('[LiveRadio] Clearing expired currentSong:', state.currentSong.name);
+        state.currentSong = null;
+        state.lastUpdated = now;
+        await redis.set(RADIO_STATE_KEY, state);
       }
 
-      // Update streak
-      if (stats.lastListenDay === today - 1) {
-        // Consecutive day
-        stats.currentStreak++;
-        // Check for 7-day streak bonus
-        if (stats.currentStreak === 7) {
-          rewardEarned += STREAK_BONUS_TOURS;
-          bonusType = bonusType ? `${bonusType}+streak` : 'streak';
-          console.log('[LiveRadio] 7-day streak bonus for:', userKey);
+      // Only award rewards if a song is actually playing
+      if (isSongActive) {
+        // Check for first listener of the day
+        const firstListenerKey = `${DAILY_FIRST_LISTENER_KEY}:${today}`;
+        const firstListener = await redis.get(firstListenerKey);
+        if (!firstListener) {
+          await redis.setex(firstListenerKey, 86400, userKey); // Expires in 24h
+          rewardEarned += FIRST_LISTENER_BONUS_TOURS;
+          stats.firstListenerBonuses++;
+          bonusType = 'first_listener';
+          console.log('[LiveRadio] First listener of day:', userKey, 'Bonus:', FIRST_LISTENER_BONUS_TOURS);
         }
-      } else if (stats.lastListenDay < today - 1) {
-        // Streak broken
-        stats.currentStreak = 1;
+
+        // Update streak
+        if (stats.lastListenDay === today - 1) {
+          // Consecutive day
+          stats.currentStreak++;
+          // Check for 7-day streak bonus
+          if (stats.currentStreak === 7) {
+            rewardEarned += STREAK_BONUS_TOURS;
+            bonusType = bonusType ? `${bonusType}+streak` : 'streak';
+            console.log('[LiveRadio] 7-day streak bonus for:', userKey);
+          }
+        } else if (stats.lastListenDay < today - 1) {
+          // Streak broken
+          stats.currentStreak = 1;
+        }
+        // Same day = no streak change
+
+        if (stats.currentStreak > stats.longestStreak) {
+          stats.longestStreak = stats.currentStreak;
+        }
+
+        // Listen reward - only give once per song (not per heartbeat)
+        const currentSongId = `${state!.currentSong!.tokenId}-${state!.currentSong!.startedAt}`;
+
+        if (stats.lastRewardedSongId !== currentSongId) {
+          rewardEarned += LISTEN_REWARD_TOURS;
+          stats.totalSongsListened++;
+          stats.lastRewardedSongId = currentSongId;
+          bonusType = bonusType ? `${bonusType}+listen` : 'listen';
+        }
+
+        stats.lastListenDay = today;
       }
-      // Same day = no streak change
 
-      if (stats.currentStreak > stats.longestStreak) {
-        stats.longestStreak = stats.currentStreak;
-      }
-
-      // Listen reward - only give once per song (not per heartbeat)
-      // Create unique song ID from token and start time to prevent duplicate rewards
-      const currentSongId = state?.currentSong
-        ? `${state.currentSong.tokenId}-${state.currentSong.startedAt}`
-        : masterTokenId;
-
-      if (currentSongId && stats.lastRewardedSongId !== currentSongId) {
-        rewardEarned += LISTEN_REWARD_TOURS;
-        stats.totalSongsListened++;
-        stats.lastRewardedSongId = currentSongId;
-        bonusType = bonusType ? `${bonusType}+listen` : 'listen';
-      }
-
-      stats.lastListenDay = today;
       if (rewardEarned > 0) {
         stats.pendingRewards += rewardEarned;
         stats.totalRewardsEarned += rewardEarned;

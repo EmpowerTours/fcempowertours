@@ -1,3 +1,6 @@
+# Santander evidence (local only)
+santander-evidence/
+
 # Logs
 logs
 *.log
