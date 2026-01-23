@@ -3240,15 +3240,8 @@ ${enjoyText}
           );
         }
 
-        const TREASURY = process.env.TREASURY_ADDRESS as Address;
+        const TREASURY = (process.env.TREASURY_ADDRESS || SAFE_ACCOUNT) as Address;
         const WMON_MAPS = process.env.NEXT_PUBLIC_WMON as Address;
-
-        if (!TREASURY) {
-          return NextResponse.json(
-            { success: false, error: 'Treasury address not configured' },
-            { status: 500 }
-          );
-        }
 
         const mapsAmountWei = parseEther(mapsAmount);
 
