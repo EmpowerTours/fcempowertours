@@ -160,14 +160,20 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST - Create delegation with signature verification
+ * POST - Create delegation with signature verification OR Farcaster context auth
+ *
+ * Two auth methods:
+ * 1. Wallet signature: { userAddress, signature, timestamp, nonce }
+ * 2. Farcaster context: { userAddress, fid, authMethod: 'farcaster' }
+ *    - Verifies FID owns the wallet address via Neynar
+ *    - Used in Farcaster mini-apps where wallet signing is not available
  */
 export async function POST(req: NextRequest) {
   try {
     // SECURITY: Rate limiting
     const ip = getClientIP(req);
     const body = await req.json();
-    const { userAddress, signature, timestamp, nonce, durationHours = 24, maxTransactions = 100, permissions = [] } = body;
+    const { userAddress, signature, timestamp, nonce, fid, authMethod, durationHours = 24, maxTransactions = 100, permissions = [] } = body;
 
     // Enhanced rate limiting with user identifier
     const rateLimit = await checkRateLimit(RateLimiters.delegation, ip, userAddress);
@@ -182,12 +188,70 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SECURITY: Validate required auth fields
-    if (!userAddress || !signature || !timestamp || !nonce) {
+    if (!userAddress) {
+      return NextResponse.json(
+        { success: false, error: 'userAddress is required' },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Farcaster context authentication (for mini-apps)
+    if (authMethod === 'farcaster' && fid) {
+      console.log(`[Delegation] Farcaster auth for FID ${fid}, address: ${userAddress}`);
+
+      // Verify FID owns the wallet address via Neynar
+      const neynarApiKey = process.env.NEYNAR_API_KEY;
+      if (!neynarApiKey) {
+        return NextResponse.json(
+          { success: false, error: 'Server configuration error: Neynar API not available' },
+          { status: 500 }
+        );
+      }
+
+      const verifyRes = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+        { headers: { accept: 'application/json', api_key: neynarApiKey } }
+      );
+
+      if (!verifyRes.ok) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to verify Farcaster identity' },
+          { status: 403 }
+        );
+      }
+
+      const neynarData = await verifyRes.json();
+      const fcUser = neynarData.users?.[0];
+
+      if (!fcUser) {
+        return NextResponse.json(
+          { success: false, error: `FID ${fid} not found` },
+          { status: 403 }
+        );
+      }
+
+      // Check if any of the user's verified addresses match
+      const verifiedAddresses = fcUser.verified_addresses?.eth_addresses || [];
+      const custodyAddress = fcUser.custody_address;
+      const allAddresses = [...verifiedAddresses, custodyAddress].map((a: string) => a?.toLowerCase());
+
+      if (!allAddresses.includes(userAddress.toLowerCase())) {
+        console.error(`[Delegation] FID ${fid} does not own address ${userAddress}. Known: ${allAddresses.join(', ')}`);
+        return NextResponse.json(
+          { success: false, error: 'Address not associated with this Farcaster account' },
+          { status: 403 }
+        );
+      }
+
+      console.log(`[Delegation] ✅ Farcaster verified: FID ${fid} owns ${userAddress}`);
+      // Fall through to delegation creation below
+    }
+    // SECURITY: Standard wallet signature auth
+    else if (!signature || !timestamp || !nonce) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: userAddress, signature, timestamp, nonce. Use GET ?nonce=true first.',
+          error: 'Missing required fields: userAddress, signature, timestamp, nonce. Use GET ?nonce=true first. Or use authMethod=farcaster with fid.',
         },
         { status: 400 }
       );
@@ -203,25 +267,27 @@ export async function POST(req: NextRequest) {
 
     console.log('[Delegation] Creating for:', userAddress);
 
-    // SECURITY: Build and verify signed message
-    const expectedMessage = buildDelegationMessage(userAddress, timestamp, nonce, durationHours);
+    // SECURITY: Build and verify signed message (skip for Farcaster-authenticated requests)
+    if (authMethod !== 'farcaster') {
+      const expectedMessage = buildDelegationMessage(userAddress, timestamp, nonce, durationHours);
 
-    const authResult = await authenticateRequest(
-      { address: userAddress, signature, timestamp, nonce },
-      expectedMessage,
-      'delegation',
-      true // Require nonce
-    );
-
-    if (!authResult.valid) {
-      console.error(`[Delegation] Auth failed for ${userAddress}: ${authResult.error}`);
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: 403 }
+      const authResult = await authenticateRequest(
+        { address: userAddress, signature, timestamp, nonce },
+        expectedMessage,
+        'delegation',
+        true // Require nonce
       );
-    }
 
-    console.log(`[Delegation] ✅ Verified signature for ${userAddress}`);
+      if (!authResult.valid) {
+        console.error(`[Delegation] Auth failed for ${userAddress}: ${authResult.error}`);
+        return NextResponse.json(
+          { success: false, error: authResult.error },
+          { status: 403 }
+        );
+      }
+
+      console.log(`[Delegation] ✅ Verified signature for ${userAddress}`);
+    }
 
     // SECURITY: Filter and validate permissions
     let finalPermissions = permissions.length > 0 ? permissions : [...DEFAULT_PERMISSIONS];
@@ -250,8 +316,8 @@ export async function POST(req: NextRequest) {
       },
       // SECURITY: Track auth metadata
       authMetadata: {
-        signedAt: timestamp,
-        nonce,
+        method: authMethod === 'farcaster' ? 'farcaster' : 'signature',
+        ...(authMethod === 'farcaster' ? { fid } : { signedAt: timestamp, nonce }),
         ip: ip,
       }
     };

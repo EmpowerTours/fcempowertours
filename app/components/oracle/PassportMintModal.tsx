@@ -74,6 +74,8 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userAddress: walletAddress,
+            authMethod: 'farcaster',
+            fid: user?.fid,
             durationHours: 24,
             maxTransactions: 100,
             permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
