@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EmpowerTours - Pitch Deck</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { size: landscape; margin: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0a; color: white; }
+  .slide {
+    width: 100vw; height: 100vh; padding: 80px 80px 60px;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    page-break-after: always; position: relative; overflow: hidden;
+  }
+  .slide::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at top right, rgba(6, 182, 212, 0.08), transparent 60%),
+                radial-gradient(ellipse at bottom left, rgba(139, 92, 246, 0.06), transparent 60%);
+    pointer-events: none;
+  }
+  .slide-number {
+    position: absolute; bottom: 30px; right: 40px;
+    font-size: 14px; color: rgba(255,255,255,0.3);
+  }
+  .brand-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, #06b6d4, #8b5cf6, #ec4899);
+  }
+  h1 { font-size: 52px; font-weight: 800; margin-bottom: 20px; line-height: 1.1; }
+  h2 { font-size: 38px; font-weight: 700; margin-bottom: 24px; color: #06b6d4; }
+  h3 { font-size: 24px; font-weight: 600; margin-bottom: 12px; color: #a78bfa; }
+  p { font-size: 20px; line-height: 1.6; color: rgba(255,255,255,0.85); }
+  .subtitle { font-size: 24px; color: rgba(255,255,255,0.6); margin-bottom: 30px; }
+  .gradient-text {
+    background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 30px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; margin-top: 30px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; margin-top: 30px; }
+  .card {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; padding: 28px; position: relative; z-index: 1;
+  }
+  .card-highlight { border-color: rgba(6, 182, 212, 0.3); }
+  .stat { font-size: 42px; font-weight: 800; color: #06b6d4; }
+  .stat-label { font-size: 14px; color: rgba(255,255,255,0.5); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .tag {
+    display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 13px;
+    background: rgba(6, 182, 212, 0.15); color: #06b6d4; margin: 3px; font-weight: 500;
+  }
+  .tag-purple { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+  .tag-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+  .tag-pink { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+  ul { list-style: none; padding: 0; }
+  ul li { padding: 8px 0; font-size: 18px; color: rgba(255,255,255,0.8); position: relative; padding-left: 24px; }
+  ul li::before { content: ''; position: absolute; left: 0; top: 16px; width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; }
+  .flow-arrow { text-align: center; font-size: 28px; color: rgba(255,255,255,0.3); margin: 10px 0; }
+  .contract-addr { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.4); word-break: break-all; }
+  .logo-text { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.4); position: absolute; top: 30px; left: 40px; letter-spacing: 2px; }
+  .highlight-box {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.1));
+    border: 1px solid rgba(6, 182, 212, 0.2); border-radius: 12px; padding: 20px; margin-top: 20px;
+  }
+  @media print {
+    .slide { width: 100%; height: 100vh; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: Title -->
+<div class="slide" style="text-align: center; justify-content: center; align-items: center;">
+  <div class="brand-bar"></div>
+  <h1 style="font-size: 72px;"><span class="gradient-text">EmpowerTours</span></h1>
+  <p class="subtitle" style="font-size: 28px; margin-top: 16px;">La Plataforma Web3 de Musica, Viajes y Experiencias</p>
+  <p style="font-size: 20px; color: rgba(255,255,255,0.5); margin-top: 40px;">Construido en Monad Blockchain | Farcaster Social | AI Oracle</p>
+  <div style="margin-top: 50px;">
+    <span class="tag">Blockchain</span>
+    <span class="tag tag-purple">Inteligencia Artificial</span>
+    <span class="tag tag-green">Economia Creativa</span>
+    <span class="tag tag-pink">Turismo Web3</span>
+  </div>
+  <p style="font-size: 16px; color: rgba(255,255,255,0.3); margin-top: 60px;">fcempowertours-production-6551.up.railway.app</p>
+  <div class="slide-number">1</div>
+</div>
+
+<!-- SLIDE 2: Problema -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>El Problema</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Industria Musical</h3>
+      <ul>
+        <li>Artistas reciben solo 12% de ingresos por streaming</li>
+        <li>Intermediarios capturan la mayoria del valor</li>
+        <li>Sin conexion directa artista-fan</li>
+        <li>Pirateria y contenido robado sin solucion</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Turismo Digital</h3>
+      <ul>
+        <li>Guias de viaje genericos sin verificacion</li>
+        <li>Creadores de contenido no monetizan sus rutas</li>
+        <li>Sin prueba de experiencias vividas</li>
+        <li>Economia local no se beneficia del turismo digital</li>
+      </ul>
+    </div>
+  </div>
+  <div class="highlight-box" style="margin-top: 40px;">
+    <p style="font-size: 22px; text-align: center;"><strong>$26B</strong> en la industria musical se pierden por ineficiencias | <strong>$1.9T</strong> mercado global de turismo sin innovacion Web3</p>
+  </div>
+  <div class="slide-number">2</div>
+</div>
+
+<!-- SLIDE 3: Solucion -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Nuestra Solucion</h2>
+  <p style="font-size: 22px; margin-bottom: 30px;">Una plataforma descentralizada que empodera a artistas y viajeros con propiedad real de su contenido y experiencias.</p>
+  <div class="grid-3">
+    <div class="card card-highlight">
+      <h3 style="color: #06b6d4;">Music NFTs</h3>
+      <p style="font-size: 16px;">Artistas mintean su musica como NFTs. Fans compran licencias. Regalias automaticas on-chain. 70% para artistas.</p>
+      <div style="margin-top: 12px;">
+        <span class="tag">Master NFTs</span>
+        <span class="tag">Licencias</span>
+        <span class="tag">Regalias</span>
+      </div>
+    </div>
+    <div class="card card-highlight">
+      <h3 style="color: #8b5cf6;">Passport NFTs</h3>
+      <p style="font-size: 16px;">Pasaportes digitales con verificacion GPS. Colecciona sellos de cada pais visitado. Verificacion AI con Google Maps.</p>
+      <div style="margin-top: 12px;">
+        <span class="tag tag-purple">GPS Verificado</span>
+        <span class="tag tag-purple">Sellos AI</span>
+      </div>
+    </div>
+    <div class="card card-highlight">
+      <h3 style="color: #f472b6;">Itinerarios</h3>
+      <p style="font-size: 16px;">Crea y vende guias de viaje verificadas. Compradores completan ubicaciones con fotos. Marketplace descentralizado.</p>
+      <div style="margin-top: 12px;">
+        <span class="tag tag-pink">Verificado</span>
+        <span class="tag tag-pink">Marketplace</span>
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">3</div>
+</div>
+
+<!-- SLIDE 4: Producto -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Producto: Farcaster Mini App</h2>
+  <p style="margin-bottom: 20px;">Aplicacion nativa dentro de Warpcast con AI Oracle conversacional</p>
+  <div class="grid-2">
+    <div>
+      <h3>AI Oracle (Gemini 2.5 Flash)</h3>
+      <ul>
+        <li>Chat conversacional para todas las acciones</li>
+        <li>"Mint my passport" - mintea automaticamente</li>
+        <li>"Find restaurants near me" - busca con Google Maps</li>
+        <li>"Buy music NFT #5" - compra directa</li>
+        <li>"Withdraw 100 MON to my wallet" - retiro instantaneo</li>
+        <li>"Create itinerary" - guia paso a paso</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Funcionalidades Clave</h3>
+      <ul>
+        <li>Gasless transactions (usuario no paga gas)</li>
+        <li>Smart Accounts (ERC-4337) via Pimlico</li>
+        <li>Live Radio - Jukebox descentralizado</li>
+        <li>DAO Governance con token TOURS</li>
+        <li>Suscripciones musicales (10/20/70 split)</li>
+        <li>Google Maps Grounding para ubicaciones</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-number">4</div>
+</div>
+
+<!-- SLIDE 5: Arquitectura Tecnica -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Arquitectura Tecnica</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Frontend</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Next.js 15 (App Router)</li>
+          <li>TypeScript</li>
+          <li>Tailwind CSS</li>
+          <li>Farcaster Frame SDK</li>
+        </ul>
+      </div>
+      <h3 style="margin-top: 20px;">Blockchain</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Monad Mainnet (Chain 143)</li>
+          <li>EVM Compatible - 10,000 TPS</li>
+          <li>Solidity Smart Contracts</li>
+          <li>Viem + Foundry</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <h3>Backend / AI</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Google Gemini 2.5 Flash</li>
+          <li>Google Maps Grounding API</li>
+          <li>Pimlico Bundler (ERC-4337)</li>
+          <li>Safe Smart Accounts</li>
+        </ul>
+      </div>
+      <h3 style="margin-top: 20px;">Indexing / Data</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Envio HyperSync Indexer</li>
+          <li>Railway Deployment</li>
+          <li>IPFS (Pinata) Storage</li>
+          <li>Redis (Upstash) Cache</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">5</div>
+</div>
+
+<!-- SLIDE 6: Smart Contracts -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Smart Contracts Desplegados (Monad Mainnet)</h2>
+  <div class="grid-2" style="margin-top: 20px;">
+    <div>
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: #06b6d4; font-size: 18px;">EmpowerToursNFT</h3>
+        <p style="font-size: 14px;">Music & Art NFTs, Licencias, Regalias</p>
+        <p class="contract-addr">0xB9B3acf33439360B55d12429301E946f34f3B73F</p>
+      </div>
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: #8b5cf6; font-size: 18px;">PassportNFTV3</h3>
+        <p style="font-size: 14px;">Pasaportes con GPS, Sellos de Viaje</p>
+        <p class="contract-addr">0x93126e59004692B01961BE505aa04F55d5bd1851</p>
+      </div>
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: #f472b6; font-size: 18px;">ItineraryNFTV2</h3>
+        <p style="font-size: 14px;">Guias de Viaje, Marketplace, Completions</p>
+        <p class="contract-addr">0x97529316356A5bcAd81D85E9a0eF941958c4b020</p>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: #4ade80; font-size: 18px;">MusicSubscriptionV4</h3>
+        <p style="font-size: 14px;">Suscripciones, Distribucion 10/20/70</p>
+        <p class="contract-addr">0xCB11282E5797E036C98D321b276Cb162cde845E5</p>
+      </div>
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: #fbbf24; font-size: 18px;">LiveRadioV2</h3>
+        <p style="font-size: 14px;">Jukebox, Pyth Entropy, Propinas, Rewards</p>
+        <p class="contract-addr">0x26b32987cb5d7946D81e0Cc7459f26CdeC773101</p>
+      </div>
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: #fb923c; font-size: 18px;">PlayOracleV3</h3>
+        <p style="font-size: 14px;">Oracle de Plays, Payouts a Artistas</p>
+        <p class="contract-addr">0xe210b31bBDf8B28B28c07D45E9B4FC886aafDCEf</p>
+      </div>
+    </div>
+  </div>
+  <p style="text-align: center; margin-top: 20px; color: rgba(255,255,255,0.4); font-size: 14px;">Todos verificados en MonadScan | Codigo abierto en Solidity</p>
+  <div class="slide-number">6</div>
+</div>
+
+<!-- SLIDE 7: Modelo de Negocio -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Modelo de Negocio</h2>
+  <div class="grid-3">
+    <div class="card">
+      <h3 style="color: #06b6d4;">Music NFTs</h3>
+      <div class="stat">70%</div>
+      <div class="stat-label">Para el artista</div>
+      <p style="font-size: 14px; margin-top: 12px;">10% treasury, 20% reserve pool. Regalias automaticas en reventa.</p>
+    </div>
+    <div class="card">
+      <h3 style="color: #8b5cf6;">Suscripciones</h3>
+      <div class="stat">10/20/70</div>
+      <div class="stat-label">Treasury/Reserve/Artists</div>
+      <p style="font-size: 14px; margin-top: 12px;">Distribucion mensual proporcional a plays. Recompensas TOURS.</p>
+    </div>
+    <div class="card">
+      <h3 style="color: #f472b6;">Itinerarios</h3>
+      <div class="stat">70%</div>
+      <div class="stat-label">Para el creador</div>
+      <p style="font-size: 14px; margin-top: 12px;">Creadores fijan precio. Compradores pagan en WMON. Marketplace abierto.</p>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-top: 30px;">
+    <div class="card">
+      <h3 style="color: #4ade80;">Live Radio</h3>
+      <p style="font-size: 16px;">Queue fee: 5 WMON por cancion. Propinas directas a artistas. Voice notes: 2 WMON. First listener bonus + streak rewards.</p>
+    </div>
+    <div class="card">
+      <h3 style="color: #fbbf24;">Passport Minting</h3>
+      <p style="font-size: 16px;">150 WMON por pasaporte. Gasless para usuarios (plataforma paga gas). Sellos gratuitos con verificacion GPS.</p>
+    </div>
+  </div>
+  <div class="slide-number">7</div>
+</div>
+
+<!-- SLIDE 8: Account Abstraction -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>UX Sin Friccion: Account Abstraction</h2>
+  <p style="margin-bottom: 30px;">Los usuarios nunca tocan gas, firmas, ni wallets complejos</p>
+  <div style="display: flex; align-items: center; justify-content: space-around; margin-top: 20px;">
+    <div class="card" style="text-align: center; width: 180px;">
+      <p style="font-size: 32px;">1</p>
+      <p style="font-size: 14px; margin-top: 8px;">Usuario abre app en Warpcast</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="card" style="text-align: center; width: 180px;">
+      <p style="font-size: 32px;">2</p>
+      <p style="font-size: 14px; margin-top: 8px;">Habla con AI Oracle</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="card" style="text-align: center; width: 180px;">
+      <p style="font-size: 32px;">3</p>
+      <p style="font-size: 14px; margin-top: 8px;">Smart Account ejecuta TX</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="card" style="text-align: center; width: 180px;">
+      <p style="font-size: 32px;">4</p>
+      <p style="font-size: 14px; margin-top: 8px;">NFT llega a wallet del usuario</p>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-top: 40px;">
+    <div class="card">
+      <h3>ERC-4337 Stack</h3>
+      <ul>
+        <li>Pimlico Bundler + Paymaster</li>
+        <li>Safe Smart Accounts (User Safes)</li>
+        <li>Platform Safe para operaciones delegadas</li>
+        <li>Delegaciones temporales (24h, max 100 TX)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Beneficios UX</h3>
+      <ul>
+        <li>Zero gas fees para el usuario final</li>
+        <li>Sin MetaMask ni extension de wallet</li>
+        <li>Login via Farcaster (social login)</li>
+        <li>Transacciones por voz/chat natural</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-number">8</div>
+</div>
+
+<!-- SLIDE 9: AI Integration -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Inteligencia Artificial</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Google Gemini 2.5 Flash</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Oracle conversacional con structured output</li>
+          <li>Parsing de intenciones en tiempo real</li>
+          <li>10 tipos de acciones automaticas</li>
+          <li>Validacion de datos y seguridad</li>
+        </ul>
+      </div>
+      <h3 style="margin-top: 20px;">Google Maps Grounding</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Busqueda de lugares con coordenadas GPS</li>
+          <li>placeId verificado de Google</li>
+          <li>Ratings, fotos, direcciones reales</li>
+          <li>Creacion de itinerarios desde resultados</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <h3>AI Stamp Generation</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Gemini genera sellos circulares unicos</li>
+          <li>Estilo vintage por ubicacion visitada</li>
+          <li>Almacenados en IPFS</li>
+          <li>Renderizados dentro del Passport SVG</li>
+        </ul>
+      </div>
+      <h3 style="margin-top: 20px;">Casos de Uso AI</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>"Find sushi restaurants near me"</li>
+          <li>"Mint my passport for Mexico"</li>
+          <li>"Buy music NFT #42"</li>
+          <li>"Withdraw 500 MON to my wallet"</li>
+          <li>"Create an itinerary for Tokyo"</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">9</div>
+</div>
+
+<!-- SLIDE 10: Live Radio - World Cup 2026 -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Live Radio: Jukebox Descentralizado</h2>
+  <p style="margin-bottom: 20px;">Preparado para el Mundial 2026 - Radio en vivo con pagos on-chain</p>
+  <div class="grid-3">
+    <div class="card">
+      <h3 style="color: #06b6d4;">Queue Songs</h3>
+      <p style="font-size: 15px;">Fans pagan 5 WMON para poner su cancion favorita. Artista recibe payout automatico.</p>
+    </div>
+    <div class="card">
+      <h3 style="color: #8b5cf6;">Voice Notes</h3>
+      <p style="font-size: 15px;">Shoutouts y anuncios de 15s. Pago de 2 WMON. Reproducidos entre canciones.</p>
+    </div>
+    <div class="card">
+      <h3 style="color: #4ade80;">Listener Rewards</h3>
+      <p style="font-size: 15px;">TOURS rewards por escuchar. Streak bonus diario. First listener bonus.</p>
+    </div>
+  </div>
+  <div class="highlight-box" style="margin-top: 30px;">
+    <div class="grid-2">
+      <div>
+        <h3>Pyth Entropy</h3>
+        <p style="font-size: 15px;">Seleccion aleatoria verificable de canciones cuando no hay queue. Randomness on-chain via Pyth Network.</p>
+      </div>
+      <div>
+        <h3>Tip System</h3>
+        <p style="font-size: 15px;">Propinas directas a artistas durante reproduccion. 100% va al artista. Sin intermediarios.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">10</div>
+</div>
+
+<!-- SLIDE 11: DAO Governance -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Gobernanza DAO</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Token TOURS</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Token de gobernanza y recompensas</li>
+          <li>Wrap TOURS a vTOURS para votar</li>
+          <li>Delegacion de poder de voto</li>
+          <li>Recompensas por streaming y participacion</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <h3>Propuestas</h3>
+      <div class="card" style="margin-top: 10px;">
+        <ul>
+          <li>Quemar NFTs robados/infractores</li>
+          <li>Actualizar parametros del protocolo</li>
+          <li>Distribucion del reserve pool</li>
+          <li>Timelock de seguridad en ejecucion</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="highlight-box" style="margin-top: 30px;">
+    <p style="font-size: 18px; text-align: center;">Anti-bot: Sistema de flagging comunitario con votacion | Accounts flagged no reciben rewards</p>
+  </div>
+  <div class="slide-number">11</div>
+</div>
+
+<!-- SLIDE 12: Roadmap -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Roadmap</h2>
+  <div class="grid-4">
+    <div class="card card-highlight">
+      <h3 style="font-size: 16px; color: #4ade80;">Q1 2025 (Completado)</h3>
+      <ul style="font-size: 14px;">
+        <li>Smart Contracts V1</li>
+        <li>Farcaster Mini App</li>
+        <li>Music NFT System</li>
+        <li>Passport System</li>
+        <li>AI Oracle V1</li>
+      </ul>
+    </div>
+    <div class="card card-highlight">
+      <h3 style="font-size: 16px; color: #06b6d4;">Q2 2025 (Actual)</h3>
+      <ul style="font-size: 14px;">
+        <li>Monad Mainnet Deploy</li>
+        <li>V2/V3 Contracts</li>
+        <li>Live Radio V2</li>
+        <li>Maps Grounding</li>
+        <li>Account Abstraction</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size: 16px; color: #8b5cf6;">Q3 2025</h3>
+      <ul style="font-size: 14px;">
+        <li>World Cup 2026 Radio</li>
+        <li>Mobile App Nativa</li>
+        <li>Multi-chain (Base, Arbitrum)</li>
+        <li>Partnership Labels</li>
+        <li>Fiat On-ramp</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size: 16px; color: #f472b6;">Q4 2025+</h3>
+      <ul style="font-size: 14px;">
+        <li>SDK para Venues</li>
+        <li>API Publica</li>
+        <li>Marketplace V2</li>
+        <li>Cross-chain Bridges</li>
+        <li>Enterprise Partnerships</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-number">12</div>
+</div>
+
+<!-- SLIDE 13: Diferenciadores -->
+<div class="slide">
+  <div class="brand-bar"></div>
+  <div class="logo-text">EMPOWERTOURS</div>
+  <h2>Diferenciadores Competitivos</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="color: #06b6d4;">vs Spotify/Apple Music</h3>
+      <ul>
+        <li>Artistas reciben 70% (vs 12-30%)</li>
+        <li>Fans poseen licencias como NFTs</li>
+        <li>Regalias automaticas en reventa</li>
+        <li>Sin intermediarios corporativos</li>
+        <li>DAO gobernada por la comunidad</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color: #8b5cf6;">vs TripAdvisor/Google Maps</h3>
+      <ul>
+        <li>Guias verificadas con GPS on-chain</li>
+        <li>Creadores monetizan directamente</li>
+        <li>Prueba criptografica de visita</li>
+        <li>NFT Passport como coleccionable</li>
+        <li>AI genera sellos unicos por ubicacion</li>
+      </ul>
+    </div>
+  </div>
+  <div class="highlight-box" style="margin-top: 30px;">
+    <div class="grid-3" style="margin-top: 0;">
+      <div style="text-align: center;">
+        <div class="stat">0</div>
+        <div class="stat-label">Gas fees para usuarios</div>
+      </div>
+      <div style="text-align: center;">
+        <div class="stat">6</div>
+        <div class="stat-label">Contratos en Mainnet</div>
+      </div>
+      <div style="text-align: center;">
+        <div class="stat">10K</div>
+        <div class="stat-label">TPS en Monad</div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">13</div>
+</div>
+
+<!-- SLIDE 14: Contacto -->
+<div class="slide" style="text-align: center; justify-content: center; align-items: center;">
+  <div class="brand-bar"></div>
+  <h1><span class="gradient-text">Gracias</span></h1>
+  <p class="subtitle" style="margin-top: 20px; font-size: 24px;">EmpowerTours - Empoderando Artistas y Viajeros con Web3</p>
+  <div style="margin-top: 50px;">
+    <div class="card" style="display: inline-block; padding: 30px 50px;">
+      <p style="font-size: 18px; margin-bottom: 10px;">App en Produccion:</p>
+      <p style="font-size: 16px; color: #06b6d4;">fcempowertours-production-6551.up.railway.app</p>
+      <p style="font-size: 18px; margin-top: 20px; margin-bottom: 10px;">Blockchain:</p>
+      <p style="font-size: 16px; color: #8b5cf6;">Monad Mainnet (Chain ID: 143)</p>
+      <p style="font-size: 18px; margin-top: 20px; margin-bottom: 10px;">Social:</p>
+      <p style="font-size: 16px; color: #f472b6;">Farcaster Mini App (Warpcast)</p>
+    </div>
+  </div>
+  <div style="margin-top: 40px;">
+    <span class="tag">Blockchain</span>
+    <span class="tag tag-purple">AI</span>
+    <span class="tag tag-green">Music</span>
+    <span class="tag tag-pink">Travel</span>
+    <span class="tag">Web3</span>
+    <span class="tag tag-purple">DeFi</span>
+  </div>
+  <div class="slide-number">14</div>
+</div>
+
+</body>
+</html>

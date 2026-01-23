@@ -351,14 +351,25 @@ export default function OraclePage() {
             break;
 
           case 'mint_passport':
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: `${action.message}\n\nOpening passport minting...`,
-              action
-            }]);
-            setTimeout(() => {
-              setShowPassportMintModal(true);
-            }, 500);
+            if (txHash) {
+              // Backend already minted successfully
+              setMessages(prev => [...prev, {
+                role: 'oracle',
+                content: `${action.message}`,
+                action,
+                txHash
+              }]);
+            } else {
+              // No txHash means we need the modal for manual mint
+              setMessages(prev => [...prev, {
+                role: 'oracle',
+                content: `${action.message}\n\nOpening passport minting...`,
+                action
+              }]);
+              setTimeout(() => {
+                setShowPassportMintModal(true);
+              }, 500);
+            }
             break;
 
           case 'game':

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseEther, decodeEventLog, encodeFunctionData, type Address, type Hex } from 'viem';
 import { sendUserSafeTransaction } from '@/lib/user-safe';
+import { getCountryByCode } from '@/lib/passport/countries';
 import { publicClient } from '@/lib/pimlico-safe-aa';
 
 interface OracleAction {
@@ -215,7 +216,7 @@ Actions:
 - type:"execute" + transaction.function:"buy_music" + transaction.args:["<tokenId>"] - Buy music NFT
 - type:"execute" + transaction.function:"buy_art" + transaction.args:["<tokenId>"] - Buy art NFT
 - type:"create_nft" - Open NFT creation modal
-- type:"mint_passport" - Open passport minting modal
+- type:"mint_passport" - Mint passport NFT. Include passport:{countryCode, countryName} if user specifies a country, otherwise the system will use their detected location
 - type:"create_itinerary" - User wants to create a travel itinerary (needs Maps grounding for places)
 - type:"navigate" + destination:"/path" - Navigate to page
 - type:"game" + game:"MIRROR" - Launch game
@@ -545,19 +546,33 @@ Return valid JSON only.`;
           userFid
         );
       }
-    } else if (action.type === 'mint_passport' && action.passport && userAddress) {
-      // Mint passport via execute-delegated API with auto-wrap
-      const result = await mintPassportForUser(
-        userAddress,
-        action.passport.countryCode,
-        action.passport.countryName,
-        userFid
-      );
-      txHash = result.txHash;
-      if (result.error) {
-        action.message = result.error;
+    } else if (action.type === 'mint_passport' && userAddress) {
+      // Determine country: use Gemini's passport data, or fall back to user's location
+      let countryCode = action.passport?.countryCode;
+      let countryName = action.passport?.countryName;
+
+      if (!countryCode && userLocation?.country) {
+        countryCode = userLocation.country as string;
+        const countryInfo = getCountryByCode(countryCode);
+        countryName = countryInfo?.name || countryCode;
+        console.log(`[Oracle] No passport data from Gemini, using location: ${countryCode} (${countryName})`);
+      }
+
+      if (!countryCode) {
+        action.message = 'Could not determine your country. Please specify which country passport to mint (e.g. "mint passport for Mexico").';
       } else {
-        action.message = `Passport minted successfully! ${action.passport.countryName} - Token #${result.tokenId || 'pending'}`;
+        const result = await mintPassportForUser(
+          userAddress,
+          countryCode,
+          countryName || countryCode,
+          userFid
+        );
+        txHash = result.txHash;
+        if (result.error) {
+          action.message = result.error;
+        } else {
+          action.message = `Passport minted successfully! ${countryName} - Token #${result.tokenId || 'pending'}`;
+        }
       }
     } else if (action.type === 'sponsorship' && action.sponsorship) {
       // Handle sponsorship actions

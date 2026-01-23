@@ -17,8 +17,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    console.log('📊 [USER-SAFE] Getting Safe info for:', address);
-
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Safe info fetch timed out after 30s')), 30000)

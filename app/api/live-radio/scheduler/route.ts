@@ -419,7 +419,6 @@ export async function POST(req: NextRequest) {
           await redis.ltrim(PLAY_HISTORY_KEY, 0, 99);
         } else {
           action = 'no_songs_available';
-          console.log('[RadioScheduler] No songs available to play');
         }
       }
 
