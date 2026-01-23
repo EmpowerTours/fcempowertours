@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { X, Loader2, MapPin, Check } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
-import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
+import { getCountryByCode } from '@/lib/passport/countries';
 
 interface PassportMintModalProps {
   onClose: () => void;
@@ -256,24 +256,19 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
                 </div>
               )}
 
-              {/* Country Selection */}
-              <div className="mb-6">
-                <label className="block text-white text-sm font-medium mb-2">
-                  Select Country
-                </label>
-                <select
-                  value={selectedCountryCode}
-                  onChange={(e) => setSelectedCountryCode(e.target.value)}
-                  className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500"
-                >
-                  <option value="">Choose a country...</option>
-                  {ALL_COUNTRIES.map((country) => (
-                    <option key={country.code} value={country.code}>
-                      {country.flag} {country.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Detected Country */}
+              {selectedCountryCode ? (
+                <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg text-center">
+                  <p className="text-xs text-gray-400 mb-1">Minting passport for</p>
+                  <p className="text-2xl font-bold text-white">
+                    {getCountryByCode(selectedCountryCode)?.flag} {getCountryByCode(selectedCountryCode)?.name}
+                  </p>
+                </div>
+              ) : !geoLoading ? (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center">
+                  <p className="text-sm text-red-400">Could not detect your location. Please enable location services and try again.</p>
+                </div>
+              ) : null}
 
               {/* Connect Wallet if needed */}
               {!walletAddress && (
