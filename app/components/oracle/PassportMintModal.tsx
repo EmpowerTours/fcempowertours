@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, MapPin, Check } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
@@ -14,10 +15,15 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
   const { user, walletAddress, requestWallet } = useFarcasterContext();
   const { location, loading: geoLoading } = useGeolocation();
 
+  const [mounted, setMounted] = useState(false);
   const [selectedCountryCode, setSelectedCountryCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<{ tokenId: number; txHash: string; country: string } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-select country once geolocation loads
   useEffect(() => {
@@ -161,8 +167,10 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black modal-backdrop z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ backgroundColor: '#000000' }}>
+  if (!mounted) return null;
+
+  const modalContent = (
+    <div className="fixed inset-0 bg-black modal-backdrop flex items-center justify-center p-4 overflow-y-auto" style={{ zIndex: 9999, backgroundColor: '#000000' }}>
       <div className="w-full max-w-lg bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl shadow-2xl shadow-cyan-500/20">
         <div className="p-6">
           {/* Header */}
@@ -302,4 +310,6 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
