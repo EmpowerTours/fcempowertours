@@ -2981,6 +2981,7 @@ ${enjoyText}
         }
 
         const WMON_TOKEN_SUB = process.env.NEXT_PUBLIC_WMON as Address;
+        const subAmountBigInt = BigInt(subAmount);
 
         console.log('🎵 Subscribing user:', {
           user: userAddress,
@@ -2989,29 +2990,77 @@ ${enjoyText}
           amount: subAmount,
         });
 
-        // Create calls: 1) Approve WMON, 2) Call subscribeFor
-        const musicSubCalls: Call[] = [
-          // Approve WMON for subscription payment
-          {
+        // Get Safe address and check WMON balance - auto-wrap MON if needed
+        const { createPublicClient: createSubClient, http: subHttp } = await import('viem');
+        const { activeChain: subActiveChain } = await import('@/app/chains');
+        const subRpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC;
+        const subPublicClient = createSubClient({
+          chain: subActiveChain,
+          transport: subHttp(subRpcUrl),
+        });
+
+        const subSafeAddress = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT as Address;
+
+        // Check Safe's WMON balance
+        const safeWmonBalanceSub = await subPublicClient.readContract({
+          address: WMON_TOKEN_SUB,
+          abi: parseAbi(['function balanceOf(address account) external view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [subSafeAddress],
+        });
+
+        console.log('🎵 Safe WMON balance:', safeWmonBalanceSub.toString(), 'needed:', subAmountBigInt.toString());
+
+        const musicSubCalls: Call[] = [];
+
+        // If Safe doesn't have enough WMON, wrap MON to WMON first
+        if (safeWmonBalanceSub < subAmountBigInt) {
+          const wrapAmountSub = subAmountBigInt - safeWmonBalanceSub;
+          console.log('🎵 Wrapping MON to WMON:', formatEther(wrapAmountSub));
+
+          // Check if Safe has enough MON to wrap
+          const safeMonBalanceSub = await subPublicClient.getBalance({ address: subSafeAddress });
+          if (safeMonBalanceSub < wrapAmountSub) {
+            return NextResponse.json(
+              { success: false, error: `Insufficient balance. Your Safe needs ${formatEther(wrapAmountSub)} more MON to subscribe. Current MON: ${formatEther(safeMonBalanceSub)}` },
+              { status: 400 }
+            );
+          }
+
+          // Step 1: Wrap MON to WMON
+          musicSubCalls.push({
             to: WMON_TOKEN_SUB,
-            value: 0n,
+            value: wrapAmountSub,
             data: encodeFunctionData({
-              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
-              functionName: 'approve',
-              args: [MUSIC_SUBSCRIPTION, BigInt(subAmount)],
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
             }) as Hex,
-          },
-          // Call subscribeFor (delegation pattern)
-          {
-            to: MUSIC_SUBSCRIPTION,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function subscribeFor(address user, uint256 userFid, uint8 tier) external']),
-              functionName: 'subscribeFor',
-              args: [userAddress as Address, BigInt(subUserFid), subTier],
-            }) as Hex,
-          },
-        ];
+          });
+        }
+
+        // Step 2: Approve WMON for subscription payment
+        musicSubCalls.push({
+          to: WMON_TOKEN_SUB,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+            functionName: 'approve',
+            args: [MUSIC_SUBSCRIPTION, subAmountBigInt],
+          }) as Hex,
+        });
+
+        // Step 3: Call subscribeFor (delegation pattern)
+        musicSubCalls.push({
+          to: MUSIC_SUBSCRIPTION,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function subscribeFor(address user, uint256 userFid, uint8 tier) external']),
+            functionName: 'subscribeFor',
+            args: [userAddress as Address, BigInt(subUserFid), subTier],
+          }) as Hex,
+        });
 
         const musicSubTxHash = await executeTransaction(musicSubCalls, userAddress as Address, 0n);
         await incrementTransactionCount(userAddress);

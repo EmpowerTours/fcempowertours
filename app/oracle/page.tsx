@@ -1197,6 +1197,10 @@ export default function OraclePage() {
               setUserProfileSource('profile');
               setShowUserProfileModal(true);
             }}
+            onMintPassport={() => {
+              setShowProfileModal(false);
+              setShowPassportMintModal(true);
+            }}
           />
         </>
       )}

@@ -20,7 +20,6 @@ interface MusicSubscriptionModalProps {
 }
 
 const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION || '';
-const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON || '';
 
 // Subscription tiers from contract
 const TIERS = [
@@ -36,10 +35,6 @@ const SUBSCRIPTION_ABI = [
   'function subscribeFor(address user, uint256 userFid, uint8 tier) external',
 ];
 
-const ERC20_ABI = [
-  'function balanceOf(address account) external view returns (uint256)',
-];
-
 export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   userAddress,
   userFid,
@@ -50,6 +45,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [selectedTier, setSelectedTier] = useState(2); // Default to Monthly
   const [wmonBalance, setWmonBalance] = useState('0');
+  const [monBalance, setMonBalance] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -97,18 +93,20 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
     fetchStatus();
   }, [userAddress]);
 
-  // Check WMON balance
+  // Check Safe WMON + MON balance
   useEffect(() => {
     if (!userAddress) return;
 
     const checkBalance = async () => {
       try {
-        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://testnet-rpc.monad.xyz');
-        const wmonContract = new ethers.Contract(WMON_ADDRESS, ERC20_ABI, provider);
-        const balance = await wmonContract.balanceOf(userAddress);
-        setWmonBalance(ethers.formatEther(balance));
+        const res = await fetch(`/api/user-safe?address=${userAddress}`);
+        const data = await res.json();
+        if (data.success) {
+          setWmonBalance(data.wmonBalance || '0');
+          setMonBalance(data.balance || '0');
+        }
       } catch (err) {
-        console.error('Failed to check WMON balance:', err);
+        console.error('Failed to check Safe balance:', err);
       }
     };
 
@@ -210,7 +208,9 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   }
 
   const selectedTierData = TIERS[selectedTier];
-  const canAfford = Number(wmonBalance) >= selectedTierData.price;
+  const totalBalance = Number(wmonBalance) + Number(monBalance);
+  const canAfford = totalBalance >= selectedTierData.price;
+  const needsWrap = Number(wmonBalance) < selectedTierData.price && canAfford;
 
   return (
     <div className="bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20 border border-cyan-500/30 rounded-2xl p-6">
@@ -268,13 +268,26 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           <span className="text-sm text-gray-400">Cost</span>
           <span className="text-sm font-semibold text-cyan-400">{selectedTierData.price} WMON</span>
         </div>
-        <div className="border-t border-gray-700 pt-2 mt-2">
+        <div className="border-t border-gray-700 pt-2 mt-2 space-y-1">
           <div className="flex justify-between items-center text-xs">
-            <span className="text-gray-500">Your WMON Balance</span>
+            <span className="text-gray-500">Safe WMON</span>
+            <span className="text-gray-300">{Number(wmonBalance).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-gray-500">Safe MON</span>
+            <span className="text-gray-300">{Number(monBalance).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-gray-500">Total Available</span>
             <span className={canAfford ? 'text-green-400' : 'text-red-400'}>
-              {Number(wmonBalance).toFixed(2)} WMON
+              {totalBalance.toFixed(2)} WMON
             </span>
           </div>
+          {needsWrap && (
+            <div className="text-[10px] text-cyan-400/70 mt-1">
+              MON will be auto-wrapped to WMON
+            </div>
+          )}
         </div>
       </div>
 
@@ -302,10 +315,15 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         {loading ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            Processing...
+            {needsWrap ? 'Wrapping MON & Subscribing...' : 'Processing...'}
           </>
         ) : !canAfford ? (
-          'Insufficient WMON Balance'
+          `Insufficient Balance (need ${selectedTierData.price} WMON)`
+        ) : needsWrap ? (
+          <>
+            <Sparkles className="w-5 h-5" />
+            Wrap MON & Subscribe ({selectedTierData.price} WMON)
+          </>
         ) : (
           <>
             <Sparkles className="w-5 h-5" />
