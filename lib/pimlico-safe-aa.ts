@@ -61,7 +61,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       saltNonce: 0n,
     });
 
-    // Create Pimlico client for paymaster sponsorship
+    // Pimlico client for gas price estimation (NOT as paymaster - Safe pays its own gas)
     const pimlicoClient = createPimlicoClient({
       transport: http(PIMLICO_BUNDLER_URL),
       entryPoint: {
@@ -74,7 +74,8 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
       account: safeSmartAccount,
       chain: currentChain,
       bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 120000 }),
-      paymaster: pimlicoClient,
+      // NO paymaster - Safe pays its own gas from its MON balance (168+ MON)
+      // This matches User Safe behavior and avoids Pimlico paymaster balance issues
       userOperation: {
         estimateFeesPerGas: async () => {
           return (await pimlicoClient.getUserOperationGasPrice()).fast;
