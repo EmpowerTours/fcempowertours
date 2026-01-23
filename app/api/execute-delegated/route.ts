@@ -3281,6 +3281,43 @@ ${enjoyText}
 
         console.log('✅ Maps payment successful, TX:', mapsPaymentTxHash);
 
+        // Auto-unwrap: if Platform Safe MON is low, unwrap WMON to native MON for gas
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { activeChain } = await import('@/app/chains');
+          const autoClient = createPublicClient({ chain: activeChain, transport: http() });
+
+          const safeMon = await autoClient.getBalance({ address: SAFE_ACCOUNT });
+          const MIN_MON_THRESHOLD = parseEther('3');
+          const UNWRAP_AMOUNT = parseEther('2');
+
+          if (safeMon < MIN_MON_THRESHOLD) {
+            const safeWmon = await autoClient.readContract({
+              address: WMON_MAPS,
+              abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+              functionName: 'balanceOf',
+              args: [SAFE_ACCOUNT],
+            }) as bigint;
+
+            const unwrapAmount = safeWmon >= UNWRAP_AMOUNT ? UNWRAP_AMOUNT : safeWmon;
+            if (unwrapAmount > 0n) {
+              console.log('⛽ Auto-unwrapping', (Number(unwrapAmount) / 1e18).toFixed(2), 'WMON → MON for Platform Safe gas');
+              await sendSafeTransaction([{
+                to: WMON_MAPS,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: parseAbi(['function withdraw(uint256 amount) external']),
+                  functionName: 'withdraw',
+                  args: [unwrapAmount],
+                }) as Hex,
+              }]);
+              console.log('✅ Platform Safe auto-funded with native MON');
+            }
+          }
+        } catch (autoFundErr: any) {
+          console.warn('⚠️ Auto-unwrap failed (non-blocking):', autoFundErr.message);
+        }
+
         return NextResponse.json({
           success: true,
           txHash: mapsPaymentTxHash,
