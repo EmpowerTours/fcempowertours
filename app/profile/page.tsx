@@ -1224,7 +1224,7 @@ export default function ProfilePage() {
                           <div className="flex gap-2">
                             {nft.txHash && (
                               <a
-                                href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                                href={`https://monadscan.com/tx/${nft.txHash}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
@@ -1326,7 +1326,7 @@ export default function ProfilePage() {
                           <div className="flex gap-2">
                             {nft.txHash && (
                               <a
-                                href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                                href={`https://monadscan.com/tx/${nft.txHash}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 px-3 py-2 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-all text-center"
@@ -1489,7 +1489,7 @@ export default function ProfilePage() {
                         <div className="flex gap-2">
                           {license.txHash && (
                             <a
-                              href={`https://testnet.monadscan.com/tx/${license.txHash}`}
+                              href={`https://monadscan.com/tx/${license.txHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
@@ -1579,7 +1579,7 @@ export default function ProfilePage() {
                         <div className="flex gap-2">
                           {nft.txHash && (
                             <a
-                              href={`https://testnet.monadscan.com/tx/${nft.txHash}`}
+                              href={`https://monadscan.com/tx/${nft.txHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex-1 px-3 py-2 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-all text-center"
@@ -1671,7 +1671,7 @@ export default function ProfilePage() {
                           <div className="flex gap-2">
                             {passport.txHash && (
                               <a
-                                href={`https://testnet.monadscan.com/tx/${passport.txHash}`}
+                                href={`https://monadscan.com/tx/${passport.txHash}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
@@ -1814,7 +1814,7 @@ export default function ProfilePage() {
                       </p>
                       {purchase.txHash && (
                         <a
-                          href={`https://testnet.monadscan.com/tx/${purchase.txHash}`}
+                          href={`https://monadscan.com/tx/${purchase.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-3 inline-block px-4 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-all"

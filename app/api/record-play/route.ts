@@ -5,7 +5,7 @@ import { Redis } from '@upstash/redis';
 // Configuration - Updated Dec 27, 2025
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE!;
 const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION!;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 const ORACLE_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
 // Rate limiting with Upstash Redis

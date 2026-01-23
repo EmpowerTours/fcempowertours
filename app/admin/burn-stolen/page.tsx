@@ -125,7 +125,7 @@ export default function BurnStolenPage() {
               <div className="flex justify-between">
                 <span className="text-gray-400">Owner:</span>
                 <a
-                  href={`https://testnet.monadscan.com/address/${tokenInfo.owner}`}
+                  href={`https://monadscan.com/address/${tokenInfo.owner}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-blue-400 hover:underline"
@@ -193,7 +193,7 @@ export default function BurnStolenPage() {
             <p className="text-green-400 mb-2">{result.message}</p>
             {result.txHash && (
               <a
-                href={`https://testnet.monadscan.com/tx/${result.txHash}`}
+                href={`https://monadscan.com/tx/${result.txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-400 hover:underline text-sm"

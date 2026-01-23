@@ -649,7 +649,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
             <div className="flex items-center justify-between text-xs">
               <span className="text-green-400 font-semibold">✅ Payment confirmed</span>
               <button
-                onClick={() => openExternalUrl(`https://testnet.monadscan.com/tx/${paymentTxHash}`)}
+                onClick={() => openExternalUrl(`https://monadscan.com/tx/${paymentTxHash}`)}
                 className="text-gray-400 hover:text-cyan-400 transition-colors flex items-center gap-1"
               >
                 View transaction

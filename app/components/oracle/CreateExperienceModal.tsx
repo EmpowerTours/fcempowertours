@@ -405,7 +405,7 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
                 <div className="flex flex-col gap-3 mt-4">
                   {success.txHash && (
                     <a
-                      href={`https://testnet.monadscan.com/tx/${success.txHash}`}
+                      href={`https://monadscan.com/tx/${success.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block px-4 py-3 bg-gradient-to-r from-cyan-500 to-green-500 text-white rounded-lg font-medium transition-all text-center"

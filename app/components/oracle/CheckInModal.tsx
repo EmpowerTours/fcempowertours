@@ -281,7 +281,7 @@ export function CheckInModal({
           <div className={`p-4 rounded-lg mb-6 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Transaction</p>
             <a
-              href={`https://testnet.monadexplorer.com/tx/${txHash}`}
+              href={`https://monadscan.com/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 font-mono text-sm break-all"

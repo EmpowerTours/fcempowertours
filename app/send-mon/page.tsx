@@ -242,7 +242,7 @@ export default function SendMonPage() {
                 <>
                   <p className="text-green-200 text-xs break-all font-mono">{txHash}</p>
                   <a
-                    href={`https://testnet.monadscan.com/tx/${txHash}`}
+                    href={`https://monadscan.com/tx/${txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-300 hover:text-blue-200 text-sm underline block mt-2"

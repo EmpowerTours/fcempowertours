@@ -265,7 +265,7 @@ export default function EnvioDashboard() {
                   </div>
                 </div>
                 <a
-                  href={`https://testnet.monadexplorer.com/address/${activity.address}`}
+                  href={`https://monadscan.com/address/${activity.address}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-700 font-medium text-sm whitespace-nowrap"

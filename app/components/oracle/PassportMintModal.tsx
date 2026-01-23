@@ -198,7 +198,7 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
               <p className="text-gray-400 mb-4">Token #{success.tokenId}</p>
               {success.txHash && (
                 <a
-                  href={`https://testnet.monadscan.com/tx/${success.txHash}`}
+                  href={`https://monadscan.com/tx/${success.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block px-4 py-2 bg-cyan-500 text-black rounded-lg hover:bg-cyan-400 font-medium"

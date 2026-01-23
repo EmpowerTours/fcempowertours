@@ -767,7 +767,7 @@ Return valid JSON only.`;
       success: true,
       action,
       txHash,
-      explorer: txHash ? `https://testnet.monadscan.com/tx/${txHash}` : null,
+      explorer: txHash ? `https://monadscan.com/tx/${txHash}` : null,
       paymentTxHash,
       mapsSources,
       mapsWidgetToken,
@@ -1511,7 +1511,7 @@ async function handleAdminAction(
             `**Previous Owner:** \`${data.previousOwner.slice(0, 6)}...${data.previousOwner.slice(-4)}\`\n` +
             `**Reason:** ${admin.reason}\n` +
             `**Block:** ${data.blockNumber}\n\n` +
-            `[View Transaction](https://testnet.monadscan.com/tx/${data.txHash})`,
+            `[View Transaction](https://monadscan.com/tx/${data.txHash})`,
           txHash: data.txHash,
           data,
         };

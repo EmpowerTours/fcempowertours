@@ -598,7 +598,7 @@ export default function ArtistProfilePage() {
                       </button>
                       {music.txHash && (
                         <a
-                          href={`https://testnet.monadscan.com/tx/${music.txHash}`}
+                          href={`https://monadscan.com/tx/${music.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block text-center text-xs text-gray-500 hover:text-purple-600 mt-2"
@@ -683,7 +683,7 @@ export default function ArtistProfilePage() {
                       </button>
                       {art.txHash && (
                         <a
-                          href={`https://testnet.monadscan.com/tx/${art.txHash}`}
+                          href={`https://monadscan.com/tx/${art.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block text-center text-xs text-gray-500 hover:text-blue-600 mt-2"

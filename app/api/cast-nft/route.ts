@@ -68,7 +68,7 @@ ${countryCode} ${countryName}
 
 Token #${tokenId}
 
-View: https://testnet.monadscan.com/tx/${txHash}
+View: https://monadscan.com/tx/${txHash}
 
 @empowertours`;
 
@@ -88,7 +88,7 @@ View: https://testnet.monadscan.com/tx/${txHash}
 ⚡ Gasless minting powered by @empowertours
 🎶 Purchase license to stream full track
 
-View: https://testnet.monadscan.com/tx/${txHash}
+View: https://monadscan.com/tx/${txHash}
 
 @empowertours`;
 
@@ -104,7 +104,7 @@ View: https://testnet.monadscan.com/tx/${txHash}
 
 Now I can stream "${songTitle || 'Untitled'}" 🎵
 
-TX: https://testnet.monadscan.com/tx/${txHash}
+TX: https://monadscan.com/tx/${txHash}
 
 Gasless - they paid the gas! 🚀
 
@@ -144,7 +144,7 @@ Gasless - they paid the gas! 🚀
 🎫 Collateral: Passport NFT #${tokenId}
 🏦 Position #${positionId}
 
-TX: https://testnet.monadscan.com/tx/${txHash}
+TX: https://monadscan.com/tx/${txHash}
 
 ⚡ Gasless staking - they paid the gas!
 
@@ -166,7 +166,7 @@ TX: https://testnet.monadscan.com/tx/${txHash}
 ✨ GPS-revealed travel experience
 🎁 Earn rewards for completing
 
-View: https://testnet.monadscan.com/tx/${txHash}
+View: https://monadscan.com/tx/${txHash}
 
 @empowertours`;
 
@@ -185,7 +185,7 @@ View: https://testnet.monadscan.com/tx/${txHash}
 
 🗺️ Location unlocked! Time to explore!
 
-TX: https://testnet.monadscan.com/tx/${txHash}
+TX: https://monadscan.com/tx/${txHash}
 
 @empowertours`;
 
@@ -237,7 +237,7 @@ TX: https://testnet.monadscan.com/tx/${txHash}
 
 🎫 Enter the next round at fcempowertours.xyz/lottery
 
-TX: https://testnet.monadscan.com/tx/${txHash}
+TX: https://monadscan.com/tx/${txHash}
 
 @empowertours`;
 

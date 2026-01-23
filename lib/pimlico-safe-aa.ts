@@ -3,10 +3,10 @@ import {
   SmartAccountClient,
 } from 'permissionless';
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
-import { createPublicClient, http, Address, Hex, parseAbi, parseEther } from 'viem';
+import { createPublicClient, createWalletClient, http, Address, Hex, parseAbi, parseEther, encodePacked, concat, toHex } from 'viem';
 import { entryPoint07Address } from 'viem/account-abstraction';
 import { activeChain, monadTestnet, monadMainnet } from '@/app/chains';
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount, sign } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
 import { env } from '@/lib/env';
 
@@ -251,7 +251,7 @@ export async function sendSafeTransaction(
         `Safe address: ${SAFE_ACCOUNT}\n\n` +
         `Please fund the Safe wallet before attempting transactions.\n` +
         `Recommended: Send 5-10 MON for reliable operation.\n` +
-        `Get testnet MON from: https://testnet.monad.xyz/faucet`
+        `Please fund the Safe wallet with MON.`
       );
     }
 
@@ -734,17 +734,16 @@ export async function sendSafeTransaction(
     });
 
     console.log('✅ UserOperation hash:', userOpHash);
-    console.log('   Track your UserOperation: https://testnet.monadscan.com/op/' + userOpHash);
+    console.log('   Track your UserOperation: https://monadscan.com/op/' + userOpHash);
 
     // Wait for the UserOperation to be included in a transaction
-    // Monad testnet can be slow, so use a longer timeout (5 minutes)
     console.log('⏳ Waiting for UserOperation to be mined (timeout: 5 minutes)...');
     console.log('   Polling every 2 seconds...');
 
     try {
       const receipt = await smartAccountClient.waitForUserOperationReceipt({
         hash: userOpHash,
-        timeout: 300_000, // 5 minutes (Monad testnet can be slow)
+        timeout: 300_000, // 5 minutes
       });
 
       const txHash = receipt.receipt.transactionHash;
@@ -871,6 +870,28 @@ export async function sendSafeTransaction(
       console.error('   Short message:', error.shortMessage);
     }
 
+    // ✅ CRITICAL FIX: Detect Pimlico paymaster balance exhaustion and fallback to direct Safe execution
+    const errorStr = `${error.message || ''} ${error.details || ''} ${error.shortMessage || ''}`;
+    if (errorStr.includes('Insufficient Pimlico balance') || errorStr.includes('pm_getPaymasterData')) {
+      console.warn('⚠️  Pimlico paymaster has insufficient balance. Falling back to direct Safe execution...');
+      console.warn('   This bypasses ERC-4337 and executes through the Safe contract directly.');
+      try {
+        const directTxHash = await sendSafeTransactionDirect(calls);
+        console.log('✅ Direct Safe execution succeeded:', directTxHash);
+        return directTxHash;
+      } catch (directErr: any) {
+        console.error('❌ Direct Safe execution also failed:', directErr.message);
+        throw new Error(
+          `Both Pimlico AA and direct Safe execution failed.\n` +
+          `Pimlico error: ${error.details || error.message}\n` +
+          `Direct error: ${directErr.message}\n\n` +
+          `Solutions:\n` +
+          `1. Fund Pimlico account at https://dashboard.pimlico.io\n` +
+          `2. Fund Safe owner EOA with MON for direct execution`
+        );
+      }
+    }
+
     // ✅ Enhanced error messaging for bundler reserve balance errors
     if (error.message?.includes('reserve balance check') || error.details?.includes('reserve balance check')) {
       const currentBalance = (Number(await publicClient.getBalance({ address: SAFE_ACCOUNT })) / 1e18).toFixed(4);
@@ -894,8 +915,8 @@ export async function sendSafeTransaction(
         `1. Fund the Safe wallet with MON tokens\n` +
         `2. Send at least 5 MON to ensure reliable operation\n` +
         `3. For high-volume operations, 10+ MON is recommended\n\n` +
-        `Network: Monad Testnet\n` +
-        `You can obtain testnet MON from: https://testnet.monad.xyz/faucet`
+        `Network: Monad Mainnet\n` +
+        `Please fund the Safe wallet with MON.`
       );
     }
 
@@ -921,4 +942,165 @@ export async function checkSafeBalance(requiredAmount: bigint): Promise<boolean>
   const hasBalance = balance >= requiredAmount;
   console.log(`✅ Balance check: ${balance.toString()} >= ${requiredAmount.toString()} = ${hasBalance}`);
   return hasBalance;
+}
+
+// Safe v1.4.1 ABI for direct execution (bypasses ERC-4337/Pimlico)
+const SAFE_EXEC_ABI = parseAbi([
+  'function nonce() view returns (uint256)',
+  'function getTransactionHash(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, uint256 _nonce) view returns (bytes32)',
+  'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool)',
+]);
+
+/**
+ * Direct Safe execution - bypasses ERC-4337 and Pimlico entirely.
+ * Calls the Safe's execTransaction() directly using the owner's private key.
+ * Gas is paid by the Safe owner's EOA or refunded by the Safe itself.
+ *
+ * Use this when Pimlico paymaster has insufficient balance.
+ */
+export async function sendSafeTransactionDirect(
+  calls: Array<{ to: Address; value: bigint; data: Hex }>
+): Promise<string> {
+  console.log('📤 [DirectSafe] Executing transaction directly (bypassing Pimlico AA)...');
+  console.log('📦 [DirectSafe] Number of calls:', calls.length);
+
+  const SAFE_OWNER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
+  if (!SAFE_OWNER_PRIVATE_KEY) {
+    throw new Error('SAFE_OWNER_PRIVATE_KEY not set - cannot execute direct Safe transaction');
+  }
+
+  const safeOwner = getSafeOwnerAccount();
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
+
+  const walletClient = createWalletClient({
+    account: safeOwner,
+    chain: currentChain,
+    transport: http(env.MONAD_RPC),
+  });
+
+  // Check if Safe owner has enough MON for gas
+  const ownerBalance = await publicClient.getBalance({ address: safeOwner.address });
+  console.log('💰 [DirectSafe] Owner EOA balance:', (Number(ownerBalance) / 1e18).toFixed(4), 'MON');
+
+  if (ownerBalance < parseEther('0.01')) {
+    throw new Error(
+      `Safe owner EOA (${safeOwner.address}) has insufficient MON for gas.\n` +
+      `Balance: ${(Number(ownerBalance) / 1e18).toFixed(6)} MON\n` +
+      `Please fund the Safe owner with at least 0.1 MON for direct execution.`
+    );
+  }
+
+  // For multiple calls, encode as MultiSend delegatecall
+  let execTo: Address;
+  let execData: Hex;
+  let execValue: bigint;
+  let operation: number; // 0 = Call, 1 = DelegateCall
+
+  if (calls.length === 1) {
+    // Single call - execute directly
+    execTo = calls[0].to;
+    execData = calls[0].data;
+    execValue = calls[0].value;
+    operation = 0; // Call
+  } else {
+    // Multiple calls - use MultiSend
+    // MultiSend address (standard deployment, same on all EVM chains)
+    const MULTISEND_ADDRESS = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526' as Address;
+
+    // Encode MultiSend transactions
+    // Format: operation (uint8) + to (address) + value (uint256) + dataLength (uint256) + data
+    let multiSendData: Hex = '0x' as Hex;
+    for (const call of calls) {
+      const encoded = encodePacked(
+        ['uint8', 'address', 'uint256', 'uint256', 'bytes'],
+        [0, call.to, call.value, BigInt(call.data.length / 2 - 1), call.data]
+      );
+      multiSendData = `${multiSendData}${encoded.slice(2)}` as Hex;
+    }
+
+    // Wrap in multiSend(bytes) call
+    const multiSendSelector = '0x8d80ff0a'; // multiSend(bytes)
+    const offsetHex = '0000000000000000000000000000000000000000000000000000000000000020';
+    const dataBytes = multiSendData.slice(2);
+    const dataLenHex = (dataBytes.length / 2).toString(16).padStart(64, '0');
+    const paddedData = dataBytes + '0'.repeat((64 - (dataBytes.length % 64)) % 64);
+
+    execTo = MULTISEND_ADDRESS;
+    execData = `${multiSendSelector}${offsetHex}${dataLenHex}${paddedData}` as Hex;
+    execValue = 0n;
+    operation = 1; // DelegateCall for MultiSend
+  }
+
+  // Get Safe nonce
+  const nonce = await publicClient.readContract({
+    address: SAFE_ACCOUNT,
+    abi: SAFE_EXEC_ABI,
+    functionName: 'nonce',
+  });
+  console.log('   [DirectSafe] Safe nonce:', nonce.toString());
+
+  // Get the transaction hash to sign
+  const safeTxHash = await publicClient.readContract({
+    address: SAFE_ACCOUNT,
+    abi: SAFE_EXEC_ABI,
+    functionName: 'getTransactionHash',
+    args: [
+      execTo,        // to
+      execValue,     // value
+      execData,      // data
+      operation,     // operation
+      0n,            // safeTxGas (0 = use all available)
+      0n,            // baseGas
+      0n,            // gasPrice (0 = no refund, owner pays gas)
+      ZERO_ADDRESS,  // gasToken
+      ZERO_ADDRESS,  // refundReceiver
+      nonce,         // _nonce
+    ],
+  });
+  console.log('   [DirectSafe] Safe tx hash:', safeTxHash);
+
+  // Sign the hash with owner's private key (raw ECDSA, no EIP-191 prefix)
+  const sig = await sign({ hash: safeTxHash, privateKey: SAFE_OWNER_PRIVATE_KEY });
+
+  // Pack signature as r (32 bytes) + s (32 bytes) + v (1 byte)
+  // Safe expects v as 27 or 28
+  const rawV = sig.v ?? (sig.yParity === 0 ? 27n : 28n);
+  const v = rawV < 27n ? rawV + 27n : rawV;
+  const packedSignature = `${sig.r}${sig.s.slice(2)}${Number(v).toString(16).padStart(2, '0')}` as Hex;
+  console.log('   [DirectSafe] Signature generated (v=%d)', Number(v));
+
+  // Execute the transaction
+  const txHash = await walletClient.writeContract({
+    address: SAFE_ACCOUNT,
+    abi: SAFE_EXEC_ABI,
+    functionName: 'execTransaction',
+    args: [
+      execTo,
+      execValue,
+      execData,
+      operation,
+      0n,              // safeTxGas
+      0n,              // baseGas
+      0n,              // gasPrice
+      ZERO_ADDRESS,    // gasToken
+      ZERO_ADDRESS,    // refundReceiver
+      packedSignature, // signatures
+    ],
+    gas: 500_000n,
+  });
+  console.log('✅ [DirectSafe] Transaction submitted:', txHash);
+
+  // Wait for receipt
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+    timeout: 60_000,
+  });
+
+  if (receipt.status === 'reverted') {
+    throw new Error(`[DirectSafe] execTransaction reverted (tx: ${txHash}). Check Safe owner signature and call data.`);
+  }
+
+  console.log('✅ [DirectSafe] Transaction confirmed in block:', receipt.blockNumber.toString());
+  console.log('   Gas used:', receipt.gasUsed.toString());
+  return txHash;
 }

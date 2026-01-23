@@ -29,7 +29,7 @@ import {
  */
 
 const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || '0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08';
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
 ⚡ Gasless minting powered by @empowertours
 🎶 Purchase license to stream full track
 
-View: https://testnet.monadscan.com/tx/${tx.hash}
+View: https://monadscan.com/tx/${tx.hash}
 
 @empowertours`;
 

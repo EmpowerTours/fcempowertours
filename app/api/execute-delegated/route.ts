@@ -1147,7 +1147,7 @@ View profile and collection!
 ⚡ Gasless transaction powered by @empowertours
 ${enjoyText}
 
-🔗 TX: https://testnet.monadscan.com/tx/${buyTxHash}
+🔗 TX: https://monadscan.com/tx/${buyTxHash}
 
 @empowertours`;
 
@@ -2482,7 +2482,7 @@ ${enjoyText}
         try {
           // Step 1: Read randomnessId and requestedAt from contract
           console.log('📖 Reading randomness request data from contract...');
-          const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+          const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 
           const readResponse = await fetch(rpcUrl, {
             method: 'POST',

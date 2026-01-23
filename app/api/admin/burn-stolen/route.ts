@@ -14,7 +14,7 @@ import { publicClient } from '@/lib/pimlico-safe-aa';
 
 const NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address;
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 
 // Admin addresses that can burn (owner wallet)
 const ADMIN_ADDRESSES = [

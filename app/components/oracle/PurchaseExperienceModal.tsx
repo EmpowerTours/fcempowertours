@@ -177,7 +177,7 @@ export function PurchaseExperienceModal({
           <div className={`p-4 rounded-lg mb-6 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Transaction</p>
             <a
-              href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
+              href={`https://monadscan.com/tx/${success.txHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-cyan-400 hover:text-cyan-300 font-mono text-sm break-all"

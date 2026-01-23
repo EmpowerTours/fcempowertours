@@ -86,7 +86,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
       console.log('[DAOModal] Fetching data for:', userAddress);
 
       // Create provider with explicit network configuration to avoid network detection issues
-      const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+      const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
       const provider = new ethers.JsonRpcProvider(rpcUrl, {
         chainId: 10143,
         name: 'monad-testnet'
@@ -782,7 +782,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
 
               {/* View Proposals Link */}
               <a
-                href={`https://testnet.monadscan.com/address/${DAO_ADDRESS}#readProxyContract`}
+                href={`https://monadscan.com/address/${DAO_ADDRESS}#readProxyContract`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block bg-gray-800/30 rounded-xl p-4 hover:bg-gray-800/50 transition-colors"
@@ -806,7 +806,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                 </p>
                 <button
                   disabled={parseFloat(votingPower) < parseFloat(daoInfo.proposalThreshold)}
-                  onClick={() => window.open(`https://testnet.monadscan.com/address/${DAO_ADDRESS}#writeProxyContract`, '_blank')}
+                  onClick={() => window.open(`https://monadscan.com/address/${DAO_ADDRESS}#writeProxyContract`, '_blank')}
                   className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-white text-sm font-medium transition-colors"
                 >
                   {parseFloat(votingPower) >= parseFloat(daoInfo.proposalThreshold)
@@ -974,7 +974,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span>Contracts: vTOURS, Timelock, Governor</span>
             <a
-              href={`https://testnet.monadscan.com/address/${DAO_ADDRESS}`}
+              href={`https://monadscan.com/address/${DAO_ADDRESS}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300"

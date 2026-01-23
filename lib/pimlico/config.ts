@@ -16,13 +16,13 @@ export const monadTestnet: Chain = {
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc-testnet.monadinfra.com'],
+      http: ['https://rpc.monad.xyz'],
     },
   },
   blockExplorers: {
     default: {
       name: 'MonadScan',
-      url: 'https://testnet.monadscan.com'
+      url: 'https://monadscan.com'
     },
   },
   testnet: true,
@@ -55,9 +55,7 @@ export const monadMainnet: Chain = {
 export const activeChain = isMainnet ? monadMainnet : monadTestnet;
 
 // Default RPC URL for the active chain
-const defaultRpcUrl = isMainnet
-  ? 'https://rpc.monad.xyz'
-  : 'https://rpc-testnet.monadinfra.com';
+const defaultRpcUrl = 'https://rpc.monad.xyz';
 
 // Public client for reading blockchain
 export const publicClient = createPublicClient({
@@ -67,14 +65,12 @@ export const publicClient = createPublicClient({
 
 // Get explorer URL for a transaction
 export function getExplorerUrl(txHash: string): string {
-  const baseUrl = isMainnet ? 'https://monadscan.com' : 'https://testnet.monadscan.com';
-  return `${baseUrl}/tx/${txHash}`;
+  return `https://monadscan.com/tx/${txHash}`;
 }
 
 // Get explorer URL for an address
 export function getAddressExplorerUrl(address: string): string {
-  const baseUrl = isMainnet ? 'https://monadscan.com' : 'https://testnet.monadscan.com';
-  return `${baseUrl}/address/${address}`;
+  return `https://monadscan.com/address/${address}`;
 }
 
 // Pimlico client for Monad (CONFIRMED WORKING!)
@@ -100,5 +96,5 @@ export const networkInfo = {
   isMainnet,
   chainId: isMainnet ? 143 : 10143,
   chainName: isMainnet ? 'Monad' : 'Monad Testnet',
-  explorerUrl: isMainnet ? 'https://monadscan.com' : 'https://testnet.monadscan.com',
+  explorerUrl: 'https://monadscan.com',
 };

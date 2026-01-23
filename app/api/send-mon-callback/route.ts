@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Create a cast about the transaction
-    const explorerUrl = `https://testnet.monadscan.com/tx/${txHash}`;
+    const explorerUrl = `https://monadscan.com/tx/${txHash}`;
 
     let castText = `✅ ${username ? `@${username}` : 'User'} sent ${amount} MON!\n\n`;
     castText += `View transaction:\n${explorerUrl}`;

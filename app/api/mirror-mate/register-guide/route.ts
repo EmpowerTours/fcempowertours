@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       txHash: tx,
-      explorer: `https://testnet.monadscan.com/tx/${tx}`,
+      explorer: `https://monadscan.com/tx/${tx}`,
     });
 
   } catch (error: any) {

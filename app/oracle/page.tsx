@@ -1400,7 +1400,7 @@ export default function OraclePage() {
                 </div>
                 {itineraryNotification.txHash && (
                   <a
-                    href={`https://testnet.monadscan.com/tx/${itineraryNotification.txHash}`}
+                    href={`https://monadscan.com/tx/${itineraryNotification.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-green-400 hover:underline ml-2"

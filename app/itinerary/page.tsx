@@ -244,7 +244,7 @@ export default function ItineraryPage() {
             <h2 className="text-2xl font-bold text-white mb-2">Experience Created!</h2>
             <p className="text-emerald-400 mb-4">{locationName}</p>
             <a
-              href={`https://testnet.monadscan.com/tx/${txHash}`}
+              href={`https://monadscan.com/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-cyan-400 text-sm underline mb-4 block"

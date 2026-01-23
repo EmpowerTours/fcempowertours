@@ -324,7 +324,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <a
-                href={`https://testnet.monadscan.com/address/${walletAddress}`}
+                href={`https://monadscan.com/address/${walletAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

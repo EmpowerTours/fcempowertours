@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     // Setup clients
     const publicClient = createPublicClient({
-      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
+      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz'),
       chain: activeChain,
     });
 

@@ -2,7 +2,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { Implementation, toMetaMaskSmartAccount } from '@metamask/delegation-toolkit';
 import { createSmartAccountClient } from 'permissionless';
 import { http, type Hex, encodeFunctionData } from 'viem';
-import { publicClient, monadTestnet, createPimlicoClientForMonad } from './config';
+import { publicClient, createPimlicoClientForMonad } from './config';
+import { activeChain } from '@/app/chains';
 import MusicNFT from '../abis/MusicNFT.json';
 
 // Create user's smart account (delegator)
@@ -26,8 +27,8 @@ export async function createUserSmartAccount(userPrivateKey: Hex) {
   // Create smart account client with Pimlico paymaster
   const smartAccountClient = createSmartAccountClient({
     account: smartAccount,
-    chain: monadTestnet,
-    bundlerTransport: http(`https://api.pimlico.io/v2/monad-testnet/rpc?apikey=${process.env.NEXT_PUBLIC_PIMLICO_API_KEY}`),
+    chain: activeChain,
+    bundlerTransport: http(process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || `https://api.pimlico.io/v2/143/rpc?apikey=${process.env.NEXT_PUBLIC_PIMLICO_API_KEY}`),
     paymaster: pimlicoClient, // Pimlico sponsors gas!
     userOperation: {
       estimateFeesPerGas: async () => {

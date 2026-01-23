@@ -7,21 +7,21 @@ import { toSafeSmartAccount } from 'permissionless/accounts';
 import { createSmartAccountClient } from 'permissionless';
 import { defineChain } from 'viem';
 
-const monadTestnet = defineChain({
-  id: Number(process.env.MONAD_CHAIN_ID || '10143'),
-  name: 'Monad Testnet',
+const monadChain = defineChain({
+  id: Number(process.env.MONAD_CHAIN_ID || '143'),
+  name: 'Monad',
   nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
-  rpcUrls: { default: { http: [process.env.MONAD_RPC || 'https://rpc-testnet.monadinfra.com'] } },
-  blockExplorers: { default: { name: 'Monad Explorer', url: 'https://testnet.monadexplorer.com' } },
-  testnet: true,
+  rpcUrls: { default: { http: [process.env.MONAD_RPC || 'https://rpc.monad.xyz'] } },
+  blockExplorers: { default: { name: 'MonadScan', url: 'https://monadscan.com' } },
+  testnet: false,
 });
 
 const publicClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(process.env.MONAD_RPC || 'https://rpc-testnet.monadinfra.com'),
+  chain: monadChain,
+  transport: http(process.env.MONAD_RPC || 'https://rpc.monad.xyz'),
 });
 
-const pimlicoUrl = `https://api.pimlico.io/v2/10143/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
+const pimlicoUrl = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || `https://api.pimlico.io/v2/143/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
 
 const pimlicoClient = createPimlicoClient({
   transport: http(pimlicoUrl),
@@ -43,7 +43,7 @@ export async function getDelegatedSmartAccountClient(sessionKey: `0x${string}`) 
 
   return createSmartAccountClient({
     account,
-    chain: monadTestnet,
+    chain: monadChain,
     bundlerTransport: http(pimlicoUrl),
     paymaster: pimlicoClient,
     userOperation: {

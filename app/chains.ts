@@ -14,14 +14,14 @@ export const monadTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc-testnet.monadinfra.com'],
+      http: ['https://rpc.monad.xyz'],
     },
     public: {
-      http: ['https://rpc-testnet.monadinfra.com'],
+      http: ['https://rpc.monad.xyz'],
     },
   },
   blockExplorers: {
-    default: { name: 'Monad Explorer', url: 'https://testnet.monadscan.com' },
+    default: { name: 'Monad Explorer', url: 'https://monadscan.com' },
   },
   testnet: true,
 });

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { monadTestnet } from './chains';
+import { monadMainnet } from './chains';
 import { injected } from 'wagmi/connectors';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
@@ -44,10 +44,10 @@ const queryClient = new QueryClient({
 });
 
 const wagmiConfig = createConfig({
-  chains: [monadTestnet],
+  chains: [monadMainnet],
   connectors: [injected()],
   transports: {
-    [monadTestnet.id]: http('https://rpc-testnet.monadinfra.com'),
+    [monadMainnet.id]: http('https://rpc.monad.xyz'),
   },
 });
 

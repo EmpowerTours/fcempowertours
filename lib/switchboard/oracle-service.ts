@@ -7,7 +7,7 @@ import { ethers } from 'ethers';
  */
 
 const CROSSBAR_SIMULATE_URL = 'https://crossbar.switchboard.xyz/api/simulate';
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://testnet-rpc.monad.xyz';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 
 // Kintsu vault contract on Monad testnet
 const KINTSU_VAULT_ADDRESS = process.env.KINTSU_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';

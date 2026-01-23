@@ -198,7 +198,7 @@ export default function BurnMusicPage() {
             {txHash && (
               <div className="mt-2 text-xs break-all">
                 <a
-                  href={`https://testnet.monadscan.com/tx/${txHash}`}
+                  href={`https://monadscan.com/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-green-300 hover:text-green-100 underline"

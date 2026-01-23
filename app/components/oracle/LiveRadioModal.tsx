@@ -660,7 +660,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
         console.log('[LiveRadio] Song queued:', song.name);
 
         // Show success with tx hash link
-        const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
+        const explorerUrl = `https://monadscan.com/tx/${txHash}`;
         showToast(`Song "${song.name}" queued! TX: ${txHash.slice(0, 10)}...`, 'success');
       } else {
         throw new Error(data.error || 'Queue failed');
@@ -836,7 +836,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
         await fetchVoiceNotes();
 
         // Show success with tx hash link and queue info
-        const explorerUrl = `https://testnet.monadexplorer.com/tx/${txHash}`;
+        const explorerUrl = `https://monadscan.com/tx/${txHash}`;
         showToast(`Voice ${voiceNoteType} submitted! Will play after current song.`, 'success');
       } else {
         throw new Error(data.error || 'Submit failed');
@@ -1281,7 +1281,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                   </button>
                   {lastClaimTxHash && (
                     <button
-                      onClick={() => window.open(`https://testnet.monadexplorer.com/tx/${lastClaimTxHash}`, '_blank')}
+                      onClick={() => window.open(`https://monadscan.com/tx/${lastClaimTxHash}`, '_blank')}
                       className="w-full mt-2 py-1.5 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 text-green-400 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2"
                     >
                       <Check className="w-3 h-3" />

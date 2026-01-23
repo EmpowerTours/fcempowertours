@@ -54,38 +54,64 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Check if subscription contract exists
+    const contractCode = await publicClient.getCode({ address: MUSIC_SUBSCRIPTION_ADDRESS });
+    if (!contractCode || contractCode === '0x') {
+      // Contract not deployed at this address
+      return NextResponse.json({
+        success: true,
+        hasSubscription: false,
+        subscriptionInfo: null,
+      });
+    }
+
     // Check if user has active subscription
-    const hasSubscription = await publicClient.readContract({
-      address: MUSIC_SUBSCRIPTION_ADDRESS,
-      abi: SUBSCRIPTION_ABI,
-      functionName: 'hasActiveSubscription',
-      args: [address as `0x${string}`],
-    });
+    let hasSubscription = false;
+    try {
+      hasSubscription = await publicClient.readContract({
+        address: MUSIC_SUBSCRIPTION_ADDRESS,
+        abi: SUBSCRIPTION_ABI,
+        functionName: 'hasActiveSubscription',
+        args: [address as `0x${string}`],
+      }) as boolean;
+    } catch (readErr: any) {
+      // Contract exists but function reverted or returned invalid data
+      console.warn('[check-subscription] hasActiveSubscription failed:', readErr.message);
+      return NextResponse.json({
+        success: true,
+        hasSubscription: false,
+        subscriptionInfo: null,
+      });
+    }
 
     // Get subscription info if active
     let subscriptionInfo = null;
     if (hasSubscription) {
-      const info = await publicClient.readContract({
-        address: MUSIC_SUBSCRIPTION_ADDRESS,
-        abi: SUBSCRIPTION_ABI,
-        functionName: 'getSubscriptionInfo',
-        args: [address as `0x${string}`],
-      });
+      try {
+        const info = await publicClient.readContract({
+          address: MUSIC_SUBSCRIPTION_ADDRESS,
+          abi: SUBSCRIPTION_ABI,
+          functionName: 'getSubscriptionInfo',
+          args: [address as `0x${string}`],
+        });
 
-      const [userFid, expiry, active, totalPlays, flagVotes, lastTier, isFlagged] = info;
-      const expiryTimestamp = Number(expiry);
-      const now = Math.floor(Date.now() / 1000);
-      const daysRemaining = Math.max(0, Math.floor((expiryTimestamp - now) / 86400));
+        const [userFid, expiry, active, totalPlays, flagVotes, lastTier, isFlagged] = info as [bigint, bigint, boolean, bigint, bigint, number, boolean];
+        const expiryTimestamp = Number(expiry);
+        const now = Math.floor(Date.now() / 1000);
+        const daysRemaining = Math.max(0, Math.floor((expiryTimestamp - now) / 86400));
 
-      subscriptionInfo = {
-        userFid: Number(userFid),
-        expiry: expiryTimestamp,
-        active,
-        totalPlays: Number(totalPlays),
-        daysRemaining,
-        tier: Number(lastTier),
-        isFlagged,
-      };
+        subscriptionInfo = {
+          userFid: Number(userFid),
+          expiry: expiryTimestamp,
+          active,
+          totalPlays: Number(totalPlays),
+          daysRemaining,
+          tier: Number(lastTier),
+          isFlagged,
+        };
+      } catch (infoErr: any) {
+        console.warn('[check-subscription] getSubscriptionInfo failed:', infoErr.message);
+      }
     }
 
     return NextResponse.json({

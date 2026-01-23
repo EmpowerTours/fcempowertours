@@ -528,7 +528,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                 <div className="flex flex-col gap-3 mt-4">
                   {success.txHash && (
                     <a
-                      href={`https://testnet.monadscan.com/tx/${success.txHash}`}
+                      href={`https://monadscan.com/tx/${success.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block px-4 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-lg hover:from-cyan-400 hover:to-purple-500 font-medium transition-all text-center"

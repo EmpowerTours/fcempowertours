@@ -338,7 +338,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
+                            href={`https://monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-all"
@@ -403,7 +403,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
+                            href={`https://monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-all"
@@ -468,7 +468,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
+                            href={`https://monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-all"
@@ -535,7 +535,7 @@ export default function DashboardPage() {
                           </div>
                           {item.txHash && (
                             <a
-                              href={`https://testnet.monadscan.com/tx/${item.txHash}`}
+                              href={`https://monadscan.com/tx/${item.txHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition-all"
@@ -597,7 +597,7 @@ export default function DashboardPage() {
                         </div>
                         {item.txHash && (
                           <a
-                            href={`https://testnet.monadscan.com/tx/${item.txHash}`}
+                            href={`https://monadscan.com/tx/${item.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-all"

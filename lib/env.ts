@@ -1,13 +1,9 @@
 // Central environment variable configuration for Next.js
 
-// Determine if we're on mainnet based on chain ID
-const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || '10143';
+// Determine chain (mainnet by default)
+const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || '143';
 const isMainnet = chainId === '143';
-
-// Default RPC based on network
-const defaultRpc = isMainnet
-  ? 'https://rpc.monad.xyz'
-  : 'https://rpc-testnet.monadinfra.com';
+const defaultRpc = 'https://rpc.monad.xyz';
 
 export const env = {
   // App URLs

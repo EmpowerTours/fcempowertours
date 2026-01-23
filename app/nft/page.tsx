@@ -500,7 +500,7 @@ export default function MusicPage() {
                 </p>
                 {success.txHash && (
                   <a
-                    href={`https://testnet.monadexplorer.com/tx/${success.txHash}`}
+                    href={`https://monadscan.com/tx/${success.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"

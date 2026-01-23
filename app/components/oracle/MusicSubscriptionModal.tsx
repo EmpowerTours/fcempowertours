@@ -59,7 +59,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
     const fetchStatus = async () => {
       try {
         // Use RPC directly instead of MetaMask
-        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://testnet-rpc.monad.xyz');
+        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz');
         const subscriptionContract = new ethers.Contract(
           MUSIC_SUBSCRIPTION_ADDRESS,
           SUBSCRIPTION_ABI,
@@ -83,8 +83,14 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         };
 
         setSubscriptionStatus(status);
-      } catch (err) {
-        console.error('Failed to fetch subscription status:', err);
+      } catch (err: any) {
+        // BAD_DATA error means contract doesn't exist or returns 0x - user has no subscription
+        if (err?.code === 'BAD_DATA' || err?.message?.includes('could not decode result data')) {
+          console.log('[Subscription] No subscription contract data available');
+        } else {
+          console.error('Failed to fetch subscription status:', err);
+        }
+        setSubscriptionStatus({ hasSubscription: false, expiry: 0, isActive: false, daysRemaining: 0, totalPlays: 0, tier: 0 });
       } finally {
         setCheckingStatus(false);
       }

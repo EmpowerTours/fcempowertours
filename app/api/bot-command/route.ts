@@ -323,7 +323,7 @@ Address: ${userAddress.slice(0, 10)}...`
 Track #${tokenId} is now yours!
 TX: ${buyData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
-View: https://testnet.monadscan.com/tx/${buyData.txHash}`
+View: https://monadscan.com/tx/${buyData.txHash}`
         });
       } catch (error: any) {
         console.error('Buy music failed:', error);
@@ -400,7 +400,7 @@ View: https://testnet.monadscan.com/tx/${buyData.txHash}`
 ${amount} MON → ${amount} TOURS tokens
 TX: ${swapData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
-View: https://testnet.monadscan.com/tx/${swapData.txHash}`
+View: https://monadscan.com/tx/${swapData.txHash}`
         });
       } catch (error: any) {
         console.error('Swap failed:', error);
@@ -532,7 +532,7 @@ View: https://testnet.monadscan.com/tx/${swapData.txHash}`
 To: ${recipient.slice(0, 6)}...${recipient.slice(-4)}
 TX: ${sendData.txHash?.slice(0, 10)}...
 Gasless - we paid the fees!
-View: https://testnet.monadscan.com/tx/${sendData.txHash}`
+View: https://monadscan.com/tx/${sendData.txHash}`
         });
       } catch (error: any) {
         console.error('Send TOURS failed:', error);
@@ -776,7 +776,7 @@ ${countryCode} ${countryName}
 Gasless transaction - we paid the gas!
 
 View on Monadscan:
-https://testnet.monadscan.com/tx/${mintData.txHash}`
+https://monadscan.com/tx/${mintData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Passport mint error:', error);
@@ -857,7 +857,7 @@ Earning yield + building credit score!
 Position ID: ${stakeData.positionId || 'pending'}
 TX: ${stakeData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
-View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+View: https://monadscan.com/tx/${stakeData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Stake failed:', error);
@@ -936,7 +936,7 @@ ${amount} TOURS staked with passport as collateral
 Position ID: ${stakeData.positionId || 'pending'}
 TX: ${stakeData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
-View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+View: https://monadscan.com/tx/${stakeData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Passport stake failed:', error);
@@ -1014,7 +1014,7 @@ ${amount} TOURS staked for yield
 Position ID: ${stakeData.positionId || 'pending'}
 TX: ${stakeData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
-View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+View: https://monadscan.com/tx/${stakeData.txHash}`
         });
       } catch (error: any) {
         console.error('Stake failed:', error);
@@ -1126,7 +1126,7 @@ Song: ${songTitle}
 Price: ${price} TOURS per license
 TX: ${mintData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
-View: https://testnet.monadscan.com/tx/${mintData.txHash}`
+View: https://monadscan.com/tx/${mintData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Music mint error:', error);
@@ -1237,7 +1237,7 @@ Note: Requires MON capital deposit`
 TX: ${stakeData.txHash?.slice(0, 10)}...
 
 Your NFT stays in your wallet while earning Kintsu vault yields!
-View: https://testnet.monadscan.com/tx/${stakeData.txHash}`
+View: https://monadscan.com/tx/${stakeData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Music yield stake error:', error);
@@ -1337,7 +1337,7 @@ Note: You need the position ID from when you staked`
 TX: ${unstakeData.txHash?.slice(0, 10)}...
 
 Check your wallet for the refund!
-View: https://testnet.monadscan.com/tx/${unstakeData.txHash}`
+View: https://monadscan.com/tx/${unstakeData.txHash}`
         });
       } catch (error: any) {
         console.error('[BOT] Music yield unstake error:', error);

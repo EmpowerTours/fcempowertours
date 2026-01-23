@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       safeAddress,
       gasUsed,
       message: `${action} executed successfully from your Safe`,
-      explorerLink: `https://testnet.monadscan.com/tx/${txHash}`,
+      explorerLink: `https://monadscan.com/tx/${txHash}`,
     });
 
   } catch (error: any) {

@@ -93,7 +93,7 @@ export default function ApproveGaslessPage() {
               <p className="text-xs text-gray-400 mb-1">Transaction Hash:</p>
               <p className="text-xs text-blue-300 font-mono break-all mb-2">{txHash}</p>
               <a
-                href={`https://testnet.monadscan.com/tx/${txHash}`}
+                href={`https://monadscan.com/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-400 hover:text-blue-300 text-xs underline"
