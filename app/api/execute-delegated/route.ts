@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
     const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address; // EmpowerToursNFTv10
     const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
-    // Note: Passport minting uses 0.01 MON (native token), not TOURS tokens
+    // Note: Passport minting uses 150 WMON (wrapped MON token)
 
 
     switch (action) {
@@ -293,7 +293,7 @@ export async function POST(req: NextRequest) {
           safeAccount: SAFE_ACCOUNT,
           userAddress: userAddress,
           passportNFT: PASSPORT_NFT,
-          mintPriceMON: '0.01 MON',
+          mintPriceWMON: '150 WMON',
           countryCode: params?.countryCode || 'US',
         });
 
