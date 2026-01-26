@@ -536,12 +536,12 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                       View on Monadscan
                     </a>
                   )}
-                  <a
-                    href="/profile"
-                    className="inline-block px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-400 hover:to-emerald-500 font-medium transition-all text-center"
+                  <button
+                    onClick={onClose}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-400 hover:to-emerald-500 font-medium transition-all text-center"
                   >
-                    Go to Profile
-                  </a>
+                    Done
+                  </button>
                 </div>
                 <p className="text-yellow-400/80 text-xs mt-3 flex items-center gap-1">
                   <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>

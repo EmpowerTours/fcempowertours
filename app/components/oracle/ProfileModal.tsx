@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink } from 'lucide-react';
 import { getAddressExplorerUrl } from '@/app/chains';
+import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -16,12 +17,18 @@ interface ProfileModalProps {
   isDarkMode?: boolean;
 }
 
+interface PassportData {
+  tokenId: string;
+  countryCode: string;
+}
+
 interface UserStats {
   passports: number;
   musicCreated: number;
   artCreated: number;
   musicPurchased: number;
   countries: string[];
+  passportList: PassportData[];
 }
 
 interface SafeBalance {
@@ -70,6 +77,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [showFullProfile, setShowFullProfile] = useState(false);
   const [safeBalance, setSafeBalance] = useState<SafeBalance | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [selectedPassport, setSelectedPassport] = useState<PassportData | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -137,18 +145,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       const result = await response.json();
       const data = result.data || {};
 
-      const countries = [...new Set(
-        (data.PassportNFT || [])
-          .map((p: any) => p.countryCode)
-          .filter((c: string) => c && c !== 'XX')
-      )] as string[];
+      const passportList: PassportData[] = (data.PassportNFT || [])
+        .filter((p: any) => p.countryCode && p.countryCode !== 'XX')
+        .map((p: any) => ({ tokenId: p.tokenId, countryCode: p.countryCode }));
+
+      const countries = [...new Set(passportList.map(p => p.countryCode))] as string[];
 
       setStats({
         passports: (data.PassportNFT || []).length,
         musicCreated: (data.CreatedMusic || []).length,
         artCreated: (data.CreatedArt || []).length,
         musicPurchased: (data.PurchasedMusic || []).length,
-        countries
+        countries,
+        passportList
       });
     } catch (error) {
       console.error('[ProfileModal] Stats load error:', error);
@@ -157,7 +166,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         musicCreated: 0,
         artCreated: 0,
         musicPurchased: 0,
-        countries: []
+        countries: [],
+        passportList: []
       });
     } finally {
       setLoading(false);
@@ -436,13 +446,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <Globe className="w-4 h-4 text-cyan-400" />
                   My Passports ({stats.passports})
                 </h4>
-                {stats.countries.length > 0 ? (
+                {stats.passportList.length > 0 ? (
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {stats.countries.map((code) => (
-                      <span key={code} className="px-2 py-1 bg-purple-900 text-purple-300 text-sm rounded-lg border border-purple-700">
-                        {code}
-                      </span>
-                    ))}
+                    {stats.passportList.map((passport) => {
+                      const country = getCountryByCode(passport.countryCode);
+                      return (
+                        <button
+                          key={passport.tokenId}
+                          onClick={() => setSelectedPassport(passport)}
+                          className="px-2 py-1 bg-purple-900 hover:bg-purple-800 text-purple-300 text-lg rounded-lg border border-purple-700 hover:border-purple-500 transition-all cursor-pointer"
+                          title={`${country?.name || passport.countryCode} - Click to view passport`}
+                        >
+                          {getFlagEmoji(passport.countryCode)}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-400 mb-3">No passports yet. Mint your first one!</p>
@@ -456,6 +474,33 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </button>
                 )}
               </div>
+
+              {/* Passport Preview Modal */}
+              {selectedPassport && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[10000]" onClick={() => setSelectedPassport(null)}>
+                  <div className="bg-gray-900 border border-purple-500/50 rounded-2xl p-4 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        {getFlagEmoji(selectedPassport.countryCode)} {getCountryByCode(selectedPassport.countryCode)?.name || selectedPassport.countryCode}
+                      </h3>
+                      <button onClick={() => setSelectedPassport(null)} className="text-gray-400 hover:text-white">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="rounded-xl overflow-hidden border border-purple-500/30">
+                      <img
+                        src={`/api/passport/image/${selectedPassport.tokenId}`}
+                        alt={`Passport #${selectedPassport.tokenId}`}
+                        className="w-full h-auto"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/images/passport-placeholder.png';
+                        }}
+                      />
+                    </div>
+                    <p className="text-center text-gray-400 text-sm mt-3">Passport #{selectedPassport.tokenId}</p>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-12">
