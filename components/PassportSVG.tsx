@@ -56,7 +56,7 @@ export function PassportSVG({ countryCode, tokenId, className = '' }: PassportSV
     Token ID: ${tokenIdStr}
   </text>
   <text x="200" y="525" font-family="Arial, sans-serif" font-size="12" fill="#3b82f6" text-anchor="middle">
-    Monad Testnet
+    Monad
   </text>
   <text x="200" y="550" font-family="Arial, sans-serif" font-size="11" fill="#3b82f6" text-anchor="middle">
     Minted via EmpowerTours

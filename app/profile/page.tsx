@@ -90,7 +90,15 @@ export default function ProfilePage() {
   const [purchasedArt, setPurchasedArt] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [createdExperiences, setCreatedExperiences] = useState<any[]>([]);
-  const [balances, setBalances] = useState({ mon: '0', tours: '0', wmon: '0' });
+  const [balances, setBalances] = useState<{
+    mon: string;
+    monWallet?: string;
+    monSafe?: string;
+    tours: string;
+    wmon: string;
+    wmonWallet?: string;
+    wmonSafe?: string;
+  }>({ mon: '0', tours: '0', wmon: '0' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [musicPage, setMusicPage] = useState(1);
@@ -457,9 +465,6 @@ export default function ProfilePage() {
             metadataFetched
             totalSold
             active
-            isStaked
-            stakedAt
-            staker
             isArt
           }
           OwnedNFT: MusicNFT(where: {owner: {_in: $addresses, _neq: "0x0000000000000000000000000000000000000000"}, artist: {_nin: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
@@ -963,10 +968,10 @@ export default function ProfilePage() {
                   </motion.p>
                   <div className="mt-2 space-y-0.5">
                     <p className="text-xs text-gray-500">
-                      💳 Wallet: {(balances as any).monWallet || '0.0000'}
+                      💳 Wallet: {balances.monWallet || '0.0000'}
                     </p>
                     <p className="text-xs text-gray-500">
-                      🔒 Safe: {(balances as any).monSafe || '0.0000'}
+                      🔒 Safe: {balances.monSafe || '0.0000'}
                     </p>
                   </div>
                 </div>
@@ -1645,27 +1650,43 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {paginatedPassports.map((passport) => (
+                    {paginatedPassports.map((passport) => {
+                      // Handle mintedAt as either timestamp (number) or date string
+                      const mintDate = typeof passport.mintedAt === 'number'
+                        ? new Date(passport.mintedAt * 1000)
+                        : new Date(passport.mintedAt);
+                      const mintDateStr = !isNaN(mintDate.getTime())
+                        ? mintDate.toLocaleDateString()
+                        : 'Unknown';
+
+                      return (
                       <div
                         key={passport.id}
-                        className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
+                        className="bg-gradient-to-br from-purple-900 to-pink-900 border-2 border-purple-500 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
                       >
                         <div
-                          className="w-full bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center p-2"
+                          className="w-full bg-gradient-to-br from-purple-800 to-pink-800 flex items-center justify-center p-2"
                           style={{ aspectRatio: '2/3' }}
                         >
-                          <PassportSVG
-                            countryCode={passport.countryCode || 'XX'}
-                            tokenId={passport.tokenId}
+                          <img
+                            src={`/api/passport/image/${passport.tokenId}`}
+                            alt={`${passport.countryCode || 'Unknown'} Passport #${passport.tokenId}`}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              // Fallback to inline SVG if API fails
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.parentElement?.classList.add('passport-fallback');
+                            }}
                           />
                         </div>
                         <div className="p-4 space-y-3">
                           <div className="text-center">
-                            <p className="font-mono text-sm font-bold text-purple-900">
+                            <p className="font-mono text-sm font-bold text-purple-300">
                               {passport.countryCode ? `${passport.countryCode} Passport` : `Passport #${passport.tokenId}`}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Minted: {new Date(passport.mintedAt).toLocaleDateString()}
+                            <p className="text-xs text-gray-400 mt-1">
+                              Minted: {mintDateStr}
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -1692,7 +1713,8 @@ export default function ProfilePage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {totalPassportPages > 1 && (
                     <div className="flex justify-center gap-2 mt-6">
@@ -1957,32 +1979,32 @@ export default function ProfilePage() {
       {/* Privacy Settings Modal - rendered via portal */}
       {mounted && showPrivacyModal && createPortal(
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
           style={{ zIndex: 9999 }}
           onClick={() => setShowPrivacyModal(false)}
         >
           <div
-            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-xl font-bold text-gray-900 mb-2">🔒 Privacy Settings</h3>
-            <p className="text-sm text-gray-500 mb-6">Control what others can see when they search for your profile</p>
+            <h3 className="text-xl font-bold text-white mb-2">🔒 Privacy Settings</h3>
+            <p className="text-sm text-gray-400 mb-6">Control what others can see when they search for your profile</p>
 
             <div className="space-y-4">
               {/* Public Profile Toggle */}
-              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-900/50 to-indigo-900/50 rounded-xl border border-blue-700">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">Public Profile</p>
-                  <p className="text-xs text-gray-500">Allow others to find and view your profile</p>
+                  <p className="font-medium text-white">Public Profile</p>
+                  <p className="text-xs text-gray-400">Allow others to find and view your profile</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.isPublicProfile ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium ${privacySettings.isPublicProfile ? 'text-blue-400' : 'text-gray-500'}`}>
                     {privacySettings.isPublicProfile ? 'ON' : 'OFF'}
                   </span>
                   <button
                     onClick={() => togglePrivacySetting('isPublicProfile')}
                     disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${privacySettings.isPublicProfile ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.isPublicProfile ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     aria-label="Toggle public profile"
                   >
                     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -1991,19 +2013,19 @@ export default function ProfilePage() {
               </div>
 
               {/* Show Created NFTs */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">🎨 Created NFTs</p>
-                  <p className="text-xs text-gray-500">Show music/art you created</p>
+                  <p className="font-medium text-white">🎨 Created NFTs</p>
+                  <p className="text-xs text-gray-400">Show music/art you created</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showCreatedNFTs ? 'text-purple-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium ${privacySettings.showCreatedNFTs ? 'text-purple-400' : 'text-gray-500'}`}>
                     {privacySettings.showCreatedNFTs ? 'ON' : 'OFF'}
                   </span>
                   <button
                     onClick={() => togglePrivacySetting('showCreatedNFTs')}
                     disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 ${privacySettings.showCreatedNFTs ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showCreatedNFTs ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     aria-label="Toggle show created NFTs"
                   >
                     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -2012,19 +2034,19 @@ export default function ProfilePage() {
               </div>
 
               {/* Show Purchased NFTs */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">🛒 Purchased NFTs</p>
-                  <p className="text-xs text-gray-500">Show NFTs you&apos;ve collected</p>
+                  <p className="font-medium text-white">🛒 Purchased NFTs</p>
+                  <p className="text-xs text-gray-400">Show NFTs you&apos;ve collected</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showPurchasedNFTs ? 'text-pink-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium ${privacySettings.showPurchasedNFTs ? 'text-pink-400' : 'text-gray-500'}`}>
                     {privacySettings.showPurchasedNFTs ? 'ON' : 'OFF'}
                   </span>
                   <button
                     onClick={() => togglePrivacySetting('showPurchasedNFTs')}
                     disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 ${privacySettings.showPurchasedNFTs ? 'bg-pink-600 hover:bg-pink-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showPurchasedNFTs ? 'bg-pink-600 hover:bg-pink-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     aria-label="Toggle show purchased NFTs"
                   >
                     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -2033,19 +2055,19 @@ export default function ProfilePage() {
               </div>
 
               {/* Show Passports */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">🌍 Passports</p>
-                  <p className="text-xs text-gray-500">Show your passport collection</p>
+                  <p className="font-medium text-white">🌍 Passports</p>
+                  <p className="text-xs text-gray-400">Show your passport collection</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showPassports ? 'text-green-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium ${privacySettings.showPassports ? 'text-green-400' : 'text-gray-500'}`}>
                     {privacySettings.showPassports ? 'ON' : 'OFF'}
                   </span>
                   <button
                     onClick={() => togglePrivacySetting('showPassports')}
                     disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 ${privacySettings.showPassports ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showPassports ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     aria-label="Toggle show passports"
                   >
                     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -2054,19 +2076,19 @@ export default function ProfilePage() {
               </div>
 
               {/* Show Achievements */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">🏆 Stats & Achievements</p>
-                  <p className="text-xs text-gray-500">Show activity statistics</p>
+                  <p className="font-medium text-white">🏆 Stats & Achievements</p>
+                  <p className="text-xs text-gray-400">Show activity statistics</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showAchievements ? 'text-amber-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium ${privacySettings.showAchievements ? 'text-amber-400' : 'text-gray-500'}`}>
                     {privacySettings.showAchievements ? 'ON' : 'OFF'}
                   </span>
                   <button
                     onClick={() => togglePrivacySetting('showAchievements')}
                     disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 ${privacySettings.showAchievements ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gray-300 hover:bg-gray-400'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showAchievements ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     aria-label="Toggle show achievements"
                   >
                     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -2075,10 +2097,10 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-200">
+            <div className="mt-6 pt-4 border-t border-gray-700">
               <button
                 onClick={() => setShowPrivacyModal(false)}
-                className="w-full px-4 py-3 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all"
+                className="w-full px-4 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-500 hover:to-purple-500 transition-all"
               >
                 Done
               </button>
