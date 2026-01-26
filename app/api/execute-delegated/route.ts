@@ -463,11 +463,34 @@ export async function POST(req: NextRequest) {
         const mintTxHash = await executeTransaction(mintCalls, userAddress as Address);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
-        // ✅ POST CAST WITH MINIAPP LINK (to minter's profile, not frame)
+        // ✅ POST CAST WITH MINI-APP FRAME EMBED (opens in Farcaster mini-app, not browser)
         if (params?.fid) {
           try {
-            const tokenId = params.tokenId || 0;
-            const miniAppUrl = `${APP_URL}/profile?address=${userAddress}`;
+            // Parse tokenId from mint receipt Transfer event
+            let mintedTokenId = 0;
+            try {
+              const { createPublicClient, http } = await import('viem');
+              const { activeChain } = await import('@/app/chains');
+              const receiptClient = createPublicClient({
+                chain: activeChain,
+                transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz'),
+              });
+              const receipt = await receiptClient.getTransactionReceipt({ hash: mintTxHash as `0x${string}` });
+              // ERC-721 Transfer event: Transfer(address,address,uint256) - tokenId is topic[3]
+              const transferLog = receipt.logs.find(
+                (log) => log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+                  && log.address.toLowerCase() === PASSPORT_NFT.toLowerCase()
+              );
+              if (transferLog && transferLog.topics[3]) {
+                mintedTokenId = Number(BigInt(transferLog.topics[3]));
+                console.log('🎫 Minted passport tokenId:', mintedTokenId);
+              }
+            } catch (receiptErr) {
+              console.warn('⚠️ Could not parse tokenId from receipt:', receiptErr);
+            }
+
+            // Use frame endpoint which has proper fc:frame meta with launch_frame action
+            const frameUrl = `${APP_URL}/api/frames/passport/${mintedTokenId}`;
             const castText = `🎫 New Travel Passport NFT Minted!
 
 ${params.countryCode || 'US'} ${params.countryName || 'United States'}
@@ -475,12 +498,10 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
 ⚡ Gasless minting powered by @empowertours
 🌍 Collect all 195 countries
 
-View profile and collection!
-
 @empowertours`;
 
-            console.log('📢 Posting passport cast with miniapp link...');
-            console.log('🎬 MiniApp URL:', miniAppUrl);
+            console.log('📢 Posting passport cast with frame embed...');
+            console.log('🎬 Frame URL:', frameUrl);
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
@@ -490,13 +511,14 @@ View profile and collection!
             const castResult = await client.publishCast({
               signerUuid: process.env.BOT_SIGNER_UUID || '',
               text: castText,
-              embeds: [{ url: miniAppUrl }]
+              embeds: [{ url: frameUrl }]
             });
 
-            console.log('✅ Passport cast posted with miniapp link:', {
+            console.log('✅ Passport cast posted with frame embed:', {
               hash: castResult.cast?.hash,
               countryCode: params.countryCode,
-              miniAppUrl
+              frameUrl,
+              mintedTokenId
             });
           } catch (castError: any) {
             console.error('❌ Passport cast posting failed:', {
