@@ -859,3 +859,83 @@ type RadioGlobalStats @entity {
   totalRewardsPaidTOURS: BigInt!
   lastUpdated: Timestamp!
 }
+
+# ============================================
+# ClimbingLocationsV1 Entities (Rock Climbing)
+# ============================================
+
+# Climbing location created by users
+type ClimbLocation @entity {
+  id: ID!                                 # location-{chainId}-{locationId}
+  locationId: String!
+  creator: String!
+  creatorFid: String                      # Farcaster ID (0 if Telegram user)
+  creatorTelegramId: String               # Telegram ID (0 if Farcaster user)
+  name: String!
+  difficulty: String                      # e.g., "V5", "5.12a"
+  latitude: BigInt                        # Scaled by 1e6
+  longitude: BigInt                       # Scaled by 1e6
+  photoProofIPFS: String!
+  description: String
+  priceWmon: BigInt!
+  isActive: Boolean!
+  isDisabled: Boolean!
+  totalPurchases: Int!
+  totalClimbs: Int!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+  accessBadges: [ClimbAccessBadge!]! @derivedFrom(field: "location")
+  climbProofs: [ClimbProof!]! @derivedFrom(field: "location")
+}
+
+# Access Badge NFT - minted when user purchases location access
+type ClimbAccessBadge @entity {
+  id: ID!                                 # badge-{chainId}-{tokenId}
+  tokenId: String!
+  location: ClimbLocation!
+  locationId: String!
+  holder: String!
+  holderFid: String                       # Farcaster ID
+  holderTelegramId: String                # Telegram ID
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# Climb Proof NFT - minted when user submits journal entry
+type ClimbProof @entity {
+  id: ID!                                 # proof-{chainId}-{tokenId}
+  tokenId: String!
+  location: ClimbLocation!
+  locationId: String!
+  climber: String!
+  photoIPFS: String!                      # Climb photo with route drawn
+  entryText: String
+  reward: BigInt!                         # TOURS reward (1-10)
+  climbedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# User climbing stats
+type ClimberStats @entity {
+  id: ID!                                 # climber-{chainId}-{address}
+  climber: String!
+  locationsCreated: Int!
+  locationsPurchased: Int!
+  totalClimbs: Int!
+  totalToursEarned: BigInt!
+  lastClimbAt: Timestamp
+}
+
+# Global climbing stats
+type ClimbingGlobalStats @entity {
+  id: ID!                                 # climbing-stats-{chainId}
+  totalLocations: Int!
+  totalAccessBadges: Int!
+  totalClimbProofs: Int!
+  totalToursDistributed: BigInt!
+  totalWmonCollected: BigInt!
+  lastUpdated: Timestamp!
+}

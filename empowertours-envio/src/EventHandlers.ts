@@ -5,6 +5,7 @@ import {
   PlayOracleV3,
   MusicSubscriptionV4,
   LiveRadioV2,
+  ClimbingLocationsV1,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -1704,4 +1705,241 @@ LiveRadioV2.SongRemovedFromPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
+});
+
+// ============================================
+// CLIMBING LOCATIONS V1 EVENTS (Rock Climbing)
+// ============================================
+
+ClimbingLocationsV1.LocationCreated.handler(async ({ event, context }) => {
+  const { locationId, creator, creatorFid, creatorTelegramId, name, photoProofIPFS, priceWmon } = event.params;
+
+  const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create climb location entity
+  await context.ClimbLocation.set({
+    id: climbLocationId,
+    locationId: locationId.toString(),
+    creator: creator.toLowerCase(),
+    creatorFid: creatorFid > BigInt(0) ? creatorFid.toString() : undefined,
+    creatorTelegramId: creatorTelegramId > BigInt(0) ? creatorTelegramId.toString() : undefined,
+    name: name,
+    difficulty: undefined,
+    latitude: undefined,
+    longitude: undefined,
+    photoProofIPFS: photoProofIPFS,
+    description: undefined,
+    priceWmon: priceWmon,
+    isActive: true,
+    isDisabled: false,
+    totalPurchases: 0,
+    totalClimbs: 0,
+    createdAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update climber stats
+  const climberId = `climber-${event.chainId}-${creator.toLowerCase()}`;
+  let climberStats = await context.ClimberStats.get(climberId);
+
+  if (climberStats) {
+    await context.ClimberStats.set({
+      ...climberStats,
+      locationsCreated: climberStats.locationsCreated + 1,
+    });
+  } else {
+    await context.ClimberStats.set({
+      id: climberId,
+      climber: creator.toLowerCase(),
+      locationsCreated: 1,
+      locationsPurchased: 0,
+      totalClimbs: 0,
+      totalToursEarned: BigInt(0),
+      lastClimbAt: undefined,
+    });
+  }
+
+  // Update global climbing stats
+  const globalStatsId = `climbing-stats-${event.chainId}`;
+  let globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
+
+  if (globalStats) {
+    await context.ClimbingGlobalStats.set({
+      ...globalStats,
+      totalLocations: globalStats.totalLocations + 1,
+      totalWmonCollected: globalStats.totalWmonCollected + BigInt(35) * BigInt(10 ** 18), // 35 WMON creation fee
+      lastUpdated: timestamp,
+    });
+  } else {
+    await context.ClimbingGlobalStats.set({
+      id: globalStatsId,
+      totalLocations: 1,
+      totalAccessBadges: 0,
+      totalClimbProofs: 0,
+      totalToursDistributed: BigInt(0),
+      totalWmonCollected: BigInt(35) * BigInt(10 ** 18),
+      lastUpdated: timestamp,
+    });
+  }
+
+  const userType = creatorFid > BigInt(0) ? `FID: ${creatorFid}` : `TG: ${creatorTelegramId}`;
+  context.log.info(`🧗 Climb location #${locationId} created by ${creator.slice(0, 8)}... (${userType}) - "${name}" @ ${priceWmon} WMON`);
+});
+
+ClimbingLocationsV1.AccessBadgeMinted.handler(async ({ event, context }) => {
+  const { tokenId, locationId, holder, holderFid, holderTelegramId } = event.params;
+
+  const badgeId = `badge-${event.chainId}-${tokenId.toString()}`;
+  const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create access badge entity
+  await context.ClimbAccessBadge.set({
+    id: badgeId,
+    tokenId: tokenId.toString(),
+    location_id: climbLocationId,
+    locationId: locationId.toString(),
+    holder: holder.toLowerCase(),
+    holderFid: holderFid > BigInt(0) ? holderFid.toString() : undefined,
+    holderTelegramId: holderTelegramId > BigInt(0) ? holderTelegramId.toString() : undefined,
+    purchasedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update location purchase count
+  const location = await context.ClimbLocation.get(climbLocationId);
+  if (location) {
+    await context.ClimbLocation.set({
+      ...location,
+      totalPurchases: location.totalPurchases + 1,
+    });
+  }
+
+  // Update climber stats
+  const climberId = `climber-${event.chainId}-${holder.toLowerCase()}`;
+  let climberStats = await context.ClimberStats.get(climberId);
+
+  if (climberStats) {
+    await context.ClimberStats.set({
+      ...climberStats,
+      locationsPurchased: climberStats.locationsPurchased + 1,
+    });
+  } else {
+    await context.ClimberStats.set({
+      id: climberId,
+      climber: holder.toLowerCase(),
+      locationsCreated: 0,
+      locationsPurchased: 1,
+      totalClimbs: 0,
+      totalToursEarned: BigInt(0),
+      lastClimbAt: undefined,
+    });
+  }
+
+  // Update global climbing stats
+  const globalStatsId = `climbing-stats-${event.chainId}`;
+  let globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
+
+  if (globalStats) {
+    await context.ClimbingGlobalStats.set({
+      ...globalStats,
+      totalAccessBadges: globalStats.totalAccessBadges + 1,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const userType = holderFid > BigInt(0) ? `FID: ${holderFid}` : `TG: ${holderTelegramId}`;
+  context.log.info(`🎫 Access Badge #${tokenId} minted for location #${locationId} to ${holder.slice(0, 8)}... (${userType})`);
+});
+
+ClimbingLocationsV1.ClimbProofMinted.handler(async ({ event, context }) => {
+  const { tokenId, locationId, climber, photoIPFS, reward } = event.params;
+
+  const proofId = `proof-${event.chainId}-${tokenId.toString()}`;
+  const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create climb proof entity
+  await context.ClimbProof.set({
+    id: proofId,
+    tokenId: tokenId.toString(),
+    location_id: climbLocationId,
+    locationId: locationId.toString(),
+    climber: climber.toLowerCase(),
+    photoIPFS: photoIPFS,
+    entryText: undefined,
+    reward: reward,
+    climbedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update location climb count
+  const location = await context.ClimbLocation.get(climbLocationId);
+  if (location) {
+    await context.ClimbLocation.set({
+      ...location,
+      totalClimbs: location.totalClimbs + 1,
+    });
+  }
+
+  // Update climber stats
+  const climberId = `climber-${event.chainId}-${climber.toLowerCase()}`;
+  let climberStats = await context.ClimberStats.get(climberId);
+
+  if (climberStats) {
+    await context.ClimberStats.set({
+      ...climberStats,
+      totalClimbs: climberStats.totalClimbs + 1,
+      totalToursEarned: climberStats.totalToursEarned + reward,
+      lastClimbAt: timestamp,
+    });
+  } else {
+    await context.ClimberStats.set({
+      id: climberId,
+      climber: climber.toLowerCase(),
+      locationsCreated: 0,
+      locationsPurchased: 0,
+      totalClimbs: 1,
+      totalToursEarned: reward,
+      lastClimbAt: timestamp,
+    });
+  }
+
+  // Update global climbing stats
+  const globalStatsId = `climbing-stats-${event.chainId}`;
+  let globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
+
+  if (globalStats) {
+    await context.ClimbingGlobalStats.set({
+      ...globalStats,
+      totalClimbProofs: globalStats.totalClimbProofs + 1,
+      totalToursDistributed: globalStats.totalToursDistributed + reward,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const rewardFormatted = (Number(reward) / 1e18).toFixed(2);
+  context.log.info(`🏆 Climb Proof #${tokenId} minted for location #${locationId} - ${climber.slice(0, 8)}... earned ${rewardFormatted} TOURS`);
+});
+
+ClimbingLocationsV1.LocationDisabled.handler(async ({ event, context }) => {
+  const { locationId } = event.params;
+
+  const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const location = await context.ClimbLocation.get(climbLocationId);
+  if (location) {
+    await context.ClimbLocation.set({
+      ...location,
+      isDisabled: true,
+      isActive: false,
+    });
+  }
+
+  context.log.info(`🚫 Climb location #${locationId} disabled by admin`);
 });

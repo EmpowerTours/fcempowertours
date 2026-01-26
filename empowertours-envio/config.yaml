@@ -231,6 +231,36 @@ networks:
               transaction_fields:
                 - hash
 
+      # ClimbingLocationsV1 - Rock Climbing Locations with dual NFT system
+      - name: ClimbingLocationsV1
+        address:
+          - "0x4aEdA5269172C6C848FA7685bAd87D9fF4Ba0ED5"  # Mainnet ClimbingLocationsV1
+        handler: src/EventHandlers.ts
+        events:
+          # Location creation (costs 35 WMON)
+          - event: "LocationCreated(uint256 indexed locationId, address indexed creator, uint256 creatorFid, uint256 creatorTelegramId, string name, string photoProofIPFS, uint256 priceWmon)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Access Badge NFT minted on purchase
+          - event: "AccessBadgeMinted(uint256 indexed tokenId, uint256 indexed locationId, address indexed holder, uint256 holderFid, uint256 holderTelegramId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Climb Proof NFT minted on journal submission
+          - event: "ClimbProofMinted(uint256 indexed tokenId, uint256 indexed locationId, address indexed climber, string photoIPFS, uint256 reward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Location disabled by admin
+          - event: "LocationDisabled(uint256 indexed locationId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
       # PlayOracle Contract - Backend oracle for play recording
       - name: PlayOracleV3
         address:
