@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
       'mirrormate_connect',    // Request connection with guide
       'maps_payment',          // Google Maps query payment (from user Safe)
       'withdraw_to_user',      // Withdraw from own Safe to own wallet
+      'create_climb',          // Create climbing location (35 WMON)
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -4430,6 +4431,126 @@ ${enjoyText}
           bookingId: rateBookingId,
           rating: rateRating,
           message: 'Tour confirmed and rated successfully!',
+        });
+      }
+
+      // ==================== CREATE CLIMBING LOCATION ====================
+      case 'create_climb': {
+        const CLIMBING_CONTRACT = '0x4aEdA5269172C6C848FA7685bAd87D9fF4Ba0ED5' as Address;
+        const WMON_CLIMBING = process.env.NEXT_PUBLIC_WMON as Address;
+        const LOCATION_CREATION_COST = parseEther('35'); // 35 WMON
+
+        const {
+          creatorFid,
+          creatorTelegramId,
+          name,
+          difficulty,
+          latitude,
+          longitude,
+          photoProofIPFS,
+          description,
+          priceWmon,
+        } = params || {};
+
+        // Validate required fields
+        if (!name || !photoProofIPFS) {
+          return NextResponse.json(
+            { success: false, error: 'Name and photo are required' },
+            { status: 400 }
+          );
+        }
+
+        if (!creatorFid && !creatorTelegramId) {
+          return NextResponse.json(
+            { success: false, error: 'Must have either Farcaster FID or Telegram ID' },
+            { status: 400 }
+          );
+        }
+
+        console.log('🧗 Creating climbing location:', { name, difficulty, latitude, longitude });
+
+        // Check if user Safe has enough WMON, or needs to wrap MON
+        const { createPublicClient, http } = await import('viem');
+        const climbClient = createPublicClient({
+          chain: activeChain,
+          transport: http(activeChain.rpcUrls.default.http[0]),
+        });
+
+        // Get user Safe address
+        const userSafeForClimb = await getUserSafeAddress(userAddress);
+
+        // Check WMON balance
+        const safeWmonBalance = await climbClient.readContract({
+          address: WMON_CLIMBING,
+          abi: parseAbi(['function balanceOf(address account) view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [userSafeForClimb],
+        });
+
+        console.log('🧗 Safe WMON balance:', formatEther(safeWmonBalance), 'needed: 35 WMON');
+
+        const climbCalls: Call[] = [];
+
+        // If Safe doesn't have enough WMON, wrap MON first
+        if (safeWmonBalance < LOCATION_CREATION_COST) {
+          const wrapAmount = LOCATION_CREATION_COST - safeWmonBalance;
+          console.log('🧗 Wrapping MON to WMON:', formatEther(wrapAmount));
+
+          // Step 1: Wrap MON to WMON
+          climbCalls.push({
+            to: WMON_CLIMBING,
+            value: wrapAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          });
+        }
+
+        // Step 2: Approve WMON for ClimbingLocationsV1
+        climbCalls.push({
+          to: WMON_CLIMBING,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) returns (bool)']),
+            functionName: 'approve',
+            args: [CLIMBING_CONTRACT, LOCATION_CREATION_COST],
+          }) as Hex,
+        });
+
+        // Step 3: Create the location
+        climbCalls.push({
+          to: CLIMBING_CONTRACT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi([
+              'function createLocation(uint256 creatorFid, uint256 creatorTelegramId, string name, string difficulty, int256 latitude, int256 longitude, string photoProofIPFS, string description, uint256 priceWmon) external returns (uint256)'
+            ]),
+            functionName: 'createLocation',
+            args: [
+              BigInt(creatorFid || 0),
+              BigInt(creatorTelegramId || 0),
+              name,
+              difficulty || 'Unknown',
+              BigInt(latitude || 0),
+              BigInt(longitude || 0),
+              photoProofIPFS,
+              description || name,
+              BigInt(priceWmon || parseEther('5').toString()),
+            ],
+          }) as Hex,
+        });
+
+        const climbTxHash = await executeTransaction(climbCalls, userAddress as Address);
+        console.log('✅ Climbing location created, TX:', climbTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: climbTxHash,
+          action,
+          message: `Created climbing location "${name}" for 35 WMON!`,
         });
       }
 
