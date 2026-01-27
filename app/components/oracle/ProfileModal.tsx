@@ -470,32 +470,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 )}
               </div>
 
-              {/* Passport Preview Modal */}
-              {selectedPassport && (
-                <div className={`fixed inset-0 ${isDarkMode ? 'bg-black/80' : 'bg-black/50'} flex items-center justify-center p-4 z-[10000]`} onClick={() => setSelectedPassport(null)}>
-                  <div className={`${isDarkMode ? 'bg-gray-900 border-purple-500/50' : 'bg-white border-purple-300'} border rounded-2xl p-4 max-w-md w-full`} onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className={`text-lg font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {getFlagEmoji(selectedPassport.countryCode)} {getCountryByCode(selectedPassport.countryCode)?.name || selectedPassport.countryCode}
-                      </h3>
-                      <button onClick={() => setSelectedPassport(null)} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="rounded-xl overflow-hidden border border-purple-500/30">
-                      <img
-                        src={`/api/passport/image/${selectedPassport.tokenId}`}
-                        alt={`Passport #${selectedPassport.tokenId}`}
-                        className="w-full h-auto"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/images/passport-placeholder.png';
-                        }}
-                      />
-                    </div>
-                    <p className="text-center text-gray-400 text-sm mt-3">Passport #{selectedPassport.tokenId}</p>
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-center py-12">
@@ -508,7 +482,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  // Passport Preview Modal - rendered as separate portal for proper z-index stacking
+  const passportPreviewModal = selectedPassport && mounted ? createPortal(
+    <div
+      className={`fixed inset-0 ${isDarkMode ? 'bg-black/80' : 'bg-black/50'} flex items-center justify-center p-4`}
+      style={{ zIndex: 10001 }}
+      onClick={() => setSelectedPassport(null)}
+    >
+      <div className={`${isDarkMode ? 'bg-gray-900 border-purple-500/50' : 'bg-white border-purple-300'} border rounded-2xl p-4 max-w-md w-full`} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className={`text-lg font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            {getFlagEmoji(selectedPassport.countryCode)} {getCountryByCode(selectedPassport.countryCode)?.name || selectedPassport.countryCode}
+          </h3>
+          <button onClick={() => setSelectedPassport(null)} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="rounded-xl overflow-hidden border border-purple-500/30">
+          <img
+            src={`/api/passport/image/${selectedPassport.tokenId}`}
+            alt={`Passport #${selectedPassport.tokenId}`}
+            className="w-full h-auto"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/images/passport-placeholder.png';
+            }}
+          />
+        </div>
+        <p className={`text-center text-sm mt-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Passport #{selectedPassport.tokenId}</p>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      {passportPreviewModal}
+    </>
+  );
 };
 
 // Stat Box Component
