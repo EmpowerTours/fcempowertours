@@ -81,15 +81,6 @@ export function generatePassportSVG(
     #${tokenId}
   </text>
 
-  <!-- Staking Badge -->
-  <rect x="60" y="160" width="100" height="50" fill="#10b981" rx="8" opacity="0.9"/>
-  <text x="110" y="180" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">
-    ⚡ STAKEABLE
-  </text>
-  <text x="110" y="200" font-family="Arial, sans-serif" font-size="9" fill="#d1fae5" text-anchor="middle">
-    Earn Rewards
-  </text>
-
   <!-- Decorative Line -->
   <line x1="40" y1="425" x2="360" y2="425" stroke="#3b82f6" stroke-width="2" opacity="0.5"/>
 
@@ -102,7 +93,7 @@ export function generatePassportSVG(
     #${tokenId} • ${continent}
   </text>
   <text x="290" y="582" font-family="Arial, sans-serif" font-size="9" fill="#60a5fa" text-anchor="middle">
-    Monad Testnet
+    Monad
   </text>
 </svg>`;
 
@@ -191,18 +182,31 @@ function generateStampsSection(stamps: PassportStamp[]): string {
     </g>`;
     } else {
       // Fallback: text-based stamp
+      const isClimbing = stamp.experienceType === 'climbing' || stamp.country === 'Climbing';
       let flagOrIcon = '📍';
-      try {
-        const countryCodeGuess = stamp.country.substring(0, 2).toUpperCase();
-        const maybeFlag = getFlagEmoji(countryCodeGuess);
-        if (maybeFlag && maybeFlag !== countryCodeGuess) {
-          flagOrIcon = maybeFlag;
-        }
-      } catch {}
+
+      if (!isClimbing) {
+        try {
+          const countryCodeGuess = stamp.country.substring(0, 2).toUpperCase();
+          const maybeFlag = getFlagEmoji(countryCodeGuess);
+          if (maybeFlag && maybeFlag !== countryCodeGuess) {
+            flagOrIcon = maybeFlag;
+          }
+        } catch {}
+      }
 
       const date = new Date(stamp.stampedAt * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const cityTruncated = stamp.city.length > 10 ? stamp.city.substring(0, 9) + '.' : stamp.city;
       const locationTruncated = stamp.locationName.length > 12 ? stamp.locationName.substring(0, 11) + '.' : stamp.locationName;
+
+      // SVG climbing mountain icon for climbing badges
+      const climbingIconSVG = `
+        <!-- Mountain/Climbing SVG Icon -->
+        <g transform="translate(37, 8)">
+          <path d="M8 0 L16 14 L12 14 L14 18 L2 18 L4 14 L0 14 Z" fill="${color.bg}" opacity="0.9"/>
+          <circle cx="12" cy="4" r="2" fill="${color.text}"/>
+          <path d="M8 5 L10 9 L6 9 Z" fill="${color.text}" opacity="0.6"/>
+        </g>`;
 
       stampsHTML += `
     <!-- Text Stamp ${index + 1}: ${stamp.locationName} -->
@@ -213,13 +217,13 @@ function generateStampsSection(stamps: PassportStamp[]): string {
       <circle cx="45" cy="25" r="24" fill="none" stroke="${color.bg}" stroke-width="2" stroke-dasharray="3,2"/>
       <!-- Inner decorative ring -->
       <circle cx="45" cy="25" r="18" fill="none" stroke="${color.bg}" stroke-width="1" opacity="0.5"/>
-      <!-- Flag/Icon -->
-      <text x="45" y="20" font-size="14" text-anchor="middle">${flagOrIcon}</text>
+      ${isClimbing ? climbingIconSVG : `<!-- Flag/Icon -->
+      <text x="45" y="20" font-size="14" text-anchor="middle">${flagOrIcon}</text>`}
       <!-- Location name -->
       <text x="45" y="35" font-family="Arial, sans-serif" font-size="6" font-weight="bold" fill="${color.bg}" text-anchor="middle">
         ${locationTruncated.toUpperCase()}
       </text>
-      <!-- City -->
+      <!-- City/Difficulty -->
       <text x="45" y="43" font-family="Arial, sans-serif" font-size="5" fill="${color.text}" text-anchor="middle">
         ${cityTruncated}
       </text>
@@ -264,7 +268,7 @@ export function generatePassportMetadata(
 
   return {
     name: `EmpowerTours Passport - ${countryName}`,
-    description: `Stakeable digital passport NFT for ${countryName}. Stake your passport to earn rewards and build your credit score. Collect venue stamps as you explore events. Unlock DeFi features and exclusive benefits. Part of a collection representing all 195 countries on Monad Testnet.`,
+    description: `Digital passport NFT for ${countryName}. Collect venue stamps as you explore events and climbing locations. Unlock exclusive benefits. Part of a collection representing all 195 countries on Monad.`,
     image: imageDataURI, // SVG embedded as base64
     external_url: `https://fcempowertours-production-6551.up.railway.app/passport/${tokenId}`,
     attributes: [
@@ -286,11 +290,11 @@ export function generatePassportMetadata(
       },
       {
         trait_type: 'Type',
-        value: 'Stakeable NFT',
+        value: 'Passport NFT',
       },
       {
         trait_type: 'Features',
-        value: 'Staking, Credit Score, Venue Stamps',
+        value: 'Venue Stamps, Climbing Badges',
       },
       {
         trait_type: 'Token ID',
@@ -302,7 +306,7 @@ export function generatePassportMetadata(
       },
       {
         trait_type: 'Network',
-        value: 'Monad Testnet',
+        value: 'Monad',
       },
       {
         trait_type: 'Collection',

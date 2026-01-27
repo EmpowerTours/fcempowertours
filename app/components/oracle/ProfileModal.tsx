@@ -485,30 +485,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // Passport Preview Modal - rendered as separate portal for proper z-index stacking
   const passportPreviewModal = selectedPassport && mounted ? createPortal(
     <div
-      className={`fixed inset-0 ${isDarkMode ? 'bg-black/80' : 'bg-black/50'} flex items-center justify-center p-4`}
+      className={`fixed inset-0 ${isDarkMode ? 'bg-black/90' : 'bg-black/60'} flex items-center justify-center p-4`}
       style={{ zIndex: 10001 }}
       onClick={() => setSelectedPassport(null)}
     >
-      <div className={`${isDarkMode ? 'bg-gray-900 border-purple-500/50' : 'bg-white border-purple-300'} border rounded-2xl p-4 max-w-md w-full`} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+      <div className={`${isDarkMode ? 'bg-gray-900 border-purple-500/50' : 'bg-white border-purple-300'} border rounded-2xl overflow-hidden max-w-md w-full shadow-2xl`} onClick={(e) => e.stopPropagation()}>
+        {/* Solid header bar */}
+        <div className={`flex items-center justify-between p-4 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
           <h3 className={`text-lg font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             {getFlagEmoji(selectedPassport.countryCode)} {getCountryByCode(selectedPassport.countryCode)?.name || selectedPassport.countryCode}
           </h3>
-          <button onClick={() => setSelectedPassport(null)} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
+          <button
+            onClick={() => setSelectedPassport(null)}
+            className={`p-1 rounded-full transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'}`}
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="rounded-xl overflow-hidden border border-purple-500/30">
-          <img
-            src={`/api/passport/image/${selectedPassport.tokenId}`}
-            alt={`Passport #${selectedPassport.tokenId}`}
-            className="w-full h-auto"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/images/passport-placeholder.png';
-            }}
-          />
+        {/* Passport SVG image */}
+        <div className="p-4">
+          <div className="rounded-xl overflow-hidden border border-purple-500/30">
+            <img
+              src={`/api/passport/image/${selectedPassport.tokenId}`}
+              alt={`Passport #${selectedPassport.tokenId}`}
+              className="w-full h-auto"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/images/passport-placeholder.png';
+              }}
+            />
+          </div>
+          <p className={`text-center text-sm mt-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Passport #{selectedPassport.tokenId}</p>
         </div>
-        <p className={`text-center text-sm mt-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Passport #{selectedPassport.tokenId}</p>
       </div>
     </div>,
     document.body

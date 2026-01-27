@@ -26,31 +26,72 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token ID' }, { status: 400 });
     }
 
-    // Fetch passport data from chain
-    const publicClient = createPublicClient({
-      chain: activeChain,
-      transport: http(),
-    });
-
     let countryCode = 'XX';
     let countryName = 'Unknown';
+    let passportOwner = '';
 
+    // First, try to fetch passport data from Envio indexer (more reliable)
     try {
-      // Try to get passport country from contract
-      const result = await publicClient.readContract({
-        address: PASSPORT_NFT_ADDRESS,
-        abi: parseAbi(['function passportCountries(uint256 tokenId) view returns (string)']),
-        functionName: 'passportCountries',
-        args: [BigInt(tokenIdNum)],
+      const passportQuery = `
+        query GetPassport($tokenId: String!) {
+          PassportNFT(where: { tokenId: { _eq: $tokenId } }) {
+            tokenId
+            countryCode
+            countryName
+            region
+            continent
+            owner
+          }
+        }
+      `;
+
+      const passportRes = await fetch(ENVIO_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: passportQuery,
+          variables: { tokenId: tokenId }
+        }),
       });
 
-      if (result) {
-        countryCode = result as string;
-        const country = getCountryByCode(countryCode);
-        countryName = country?.name || countryCode;
+      if (passportRes.ok) {
+        const passportData = await passportRes.json();
+        const passport = passportData.data?.PassportNFT?.[0];
+
+        if (passport && passport.countryCode) {
+          countryCode = passport.countryCode;
+          countryName = passport.countryName || getCountryByCode(countryCode)?.name || countryCode;
+          passportOwner = passport.owner || '';
+          console.log('[PassportImage] Got passport data from indexer:', { countryCode, countryName, owner: passportOwner });
+        }
       }
-    } catch (chainErr) {
-      console.log('[PassportImage] Could not fetch from chain, using defaults');
+    } catch (indexerErr) {
+      console.log('[PassportImage] Indexer passport query failed, trying chain');
+    }
+
+    // Fallback: try to get from chain if indexer didn't work
+    if (countryCode === 'XX') {
+      try {
+        const publicClient = createPublicClient({
+          chain: activeChain,
+          transport: http(),
+        });
+
+        const result = await publicClient.readContract({
+          address: PASSPORT_NFT_ADDRESS,
+          abi: parseAbi(['function passportCountries(uint256 tokenId) view returns (string)']),
+          functionName: 'passportCountries',
+          args: [BigInt(tokenIdNum)],
+        });
+
+        if (result) {
+          countryCode = result as string;
+          const country = getCountryByCode(countryCode);
+          countryName = country?.name || countryCode;
+        }
+      } catch (chainErr) {
+        console.log('[PassportImage] Could not fetch from chain, using defaults');
+      }
     }
 
     // Fetch stamps from indexer
@@ -145,6 +186,55 @@ export async function GET(
         }
       } catch {
         // No legacy stamps either
+      }
+    }
+
+    // Also fetch climbing access badges for the passport owner
+    if (passportOwner && stamps.length < 6) {
+      try {
+        const climbingQuery = `
+          query GetClimbingBadges($holder: String!) {
+            ClimbAccessBadge(where: { holder: { _eq: $holder } }, order_by: { purchasedAt: desc }, limit: 6) {
+              tokenId
+              purchasedAt
+              location {
+                name
+                difficulty
+                latitude
+                longitude
+              }
+            }
+          }
+        `;
+
+        const climbRes = await fetch(ENVIO_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: climbingQuery,
+            variables: { holder: passportOwner.toLowerCase() }
+          }),
+        });
+
+        if (climbRes.ok) {
+          const climbData = await climbRes.json();
+          const badges = climbData.data?.ClimbAccessBadge || [];
+
+          // Convert badges to stamps format
+          const climbStamps: PassportStamp[] = badges.map((badge: any) => ({
+            locationName: badge.location?.name || 'Climb',
+            city: badge.location?.difficulty || 'Unknown',
+            country: 'Climbing',
+            stampedAt: parseInt(badge.purchasedAt) || Math.floor(Date.now() / 1000),
+            experienceType: 'climbing',
+          }));
+
+          // Add climbing stamps to the stamps array
+          stamps = [...stamps, ...climbStamps].slice(0, 6);
+          console.log('[PassportImage] Added', climbStamps.length, 'climbing badges as stamps');
+        }
+      } catch (climbErr) {
+        console.log('[PassportImage] Could not fetch climbing badges');
       }
     }
 
