@@ -248,7 +248,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gray-800 border-b border-gray-700 p-4">
+        <div className={`${isDarkMode ? 'bg-gray-800 border-b border-gray-700' : 'bg-gray-100 border-b border-gray-200'} p-4`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <ProfilePicture
@@ -256,17 +256,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 alt={searchedUser?.username || username || 'Profile'}
               />
               <div className="min-w-0">
-                <h2 className="text-lg font-bold text-white truncate">
+                <h2 className={`text-lg font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   {searchedUser?.displayName || searchedUser?.username || username || 'My Profile'}
                 </h2>
                 {(searchedUser?.username || username) && (
-                  <p className="text-sm text-purple-400">@{searchedUser?.username || username}</p>
+                  <p className="text-sm text-purple-500">@{searchedUser?.username || username}</p>
                 )}
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
+              className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'}`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -281,12 +281,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search username..."
-                className="w-full pl-3 pr-9 py-2 rounded-lg text-sm focus:outline-none"
-                style={{
-                  backgroundColor: '#111827',
-                  color: '#ffffff',
-                  border: '1px solid #4b5563',
-                }}
+                className={`w-full pl-3 pr-9 py-2 rounded-lg text-sm focus:outline-none ${isDarkMode ? 'bg-gray-900 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300'} border`}
               />
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             </div>
@@ -477,13 +472,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Passport Preview Modal */}
               {selectedPassport && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[10000]" onClick={() => setSelectedPassport(null)}>
-                  <div className="bg-gray-900 border border-purple-500/50 rounded-2xl p-4 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                <div className={`fixed inset-0 ${isDarkMode ? 'bg-black/80' : 'bg-black/50'} flex items-center justify-center p-4 z-[10000]`} onClick={() => setSelectedPassport(null)}>
+                  <div className={`${isDarkMode ? 'bg-gray-900 border-purple-500/50' : 'bg-white border-purple-300'} border rounded-2xl p-4 max-w-md w-full`} onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <h3 className={`text-lg font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                         {getFlagEmoji(selectedPassport.countryCode)} {getCountryByCode(selectedPassport.countryCode)?.name || selectedPassport.countryCode}
                       </h3>
-                      <button onClick={() => setSelectedPassport(null)} className="text-gray-400 hover:text-white">
+                      <button onClick={() => setSelectedPassport(null)} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
                         <X className="w-5 h-5" />
                       </button>
                     </div>

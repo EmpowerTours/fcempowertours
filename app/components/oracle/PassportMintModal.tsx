@@ -9,9 +9,10 @@ import { getCountryByCode } from '@/lib/passport/countries';
 
 interface PassportMintModalProps {
   onClose: () => void;
+  isDarkMode?: boolean;
 }
 
-export function PassportMintModal({ onClose }: PassportMintModalProps) {
+export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintModalProps) {
   const { user, walletAddress, requestWallet } = useFarcasterContext();
   const { location, loading: geoLoading } = useGeolocation();
 
@@ -172,18 +173,21 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
   if (!mounted) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 bg-black modal-backdrop flex items-center justify-center p-4 overflow-y-auto" style={{ zIndex: 9999, backgroundColor: '#000000' }}>
-      <div className="w-full max-w-lg bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 rounded-3xl shadow-2xl shadow-cyan-500/20">
+    <div
+      className={`fixed inset-0 modal-backdrop flex items-center justify-center p-4 overflow-y-auto ${isDarkMode ? 'bg-black/90' : 'bg-black/50'}`}
+      style={{ zIndex: 9999 }}
+    >
+      <div className={`w-full max-w-lg rounded-3xl shadow-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-black border-cyan-500/50 shadow-cyan-500/20' : 'bg-white border-purple-300 shadow-purple-200/50'}`}>
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white mb-1">Mint Passport NFT</h1>
-              <p className="text-gray-400 text-sm">Free gasless minting</p>
+              <h1 className={`text-2xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Mint Passport NFT</h1>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Free gasless minting</p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className={`transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
             >
               <X className="w-6 h-6" />
             </button>
@@ -195,22 +199,22 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-10 h-10 text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Passport Minted!</h2>
+              <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Passport Minted!</h2>
               <p className="text-3xl mb-4">{success.country}</p>
-              <p className="text-gray-400 mb-4">Token #{success.tokenId}</p>
+              <p className={`mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Token #{success.tokenId}</p>
               {success.txHash && (
                 <a
                   href={`https://monadscan.com/tx/${success.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block px-4 py-2 bg-cyan-500 text-black rounded-lg hover:bg-cyan-400 font-medium"
+                  className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 font-medium"
                 >
                   View Transaction
                 </a>
               )}
               <button
                 onClick={onClose}
-                className="w-full mt-6 px-6 py-3 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all"
+                className={`w-full mt-6 px-6 py-3 rounded-xl font-bold transition-all ${isDarkMode ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`}
               >
                 Close
               </button>
@@ -260,9 +264,9 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
 
               {/* Detected Country */}
               {selectedCountryCode ? (
-                <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg text-center">
-                  <p className="text-xs text-gray-400 mb-1">Minting passport for</p>
-                  <p className="text-2xl font-bold text-white">
+                <div className={`mb-6 p-4 rounded-lg text-center border ${isDarkMode ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'}`}>
+                  <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Minting passport for</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {getCountryByCode(selectedCountryCode)?.flag} {getCountryByCode(selectedCountryCode)?.name}
                   </p>
                 </div>
@@ -298,7 +302,7 @@ export function PassportMintModal({ onClose }: PassportMintModalProps) {
                 )}
               </button>
 
-              <p className="text-gray-500 text-xs text-center mt-4">
+              <p className={`text-xs text-center mt-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                 Each wallet can mint one passport per country
               </p>
             </>

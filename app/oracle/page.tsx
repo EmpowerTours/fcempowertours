@@ -1101,7 +1101,7 @@ export default function OraclePage() {
 
       {/* Passport Mint Modal */}
       {showPassportMintModal && (
-        <PassportMintModal onClose={() => setShowPassportMintModal(false)} />
+        <PassportMintModal onClose={() => setShowPassportMintModal(false)} isDarkMode={isDarkMode} />
       )}
 
       {/* Maps Results Modal */}

@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
 
     // Build GraphQL query
-    let whereClause = 'where: { isActive: { _eq: true }, isDisabled: { _eq: false } }';
+    let whereClause = 'where: { isActive: { _eq: true } }';
     if (creator) {
-      whereClause = `where: { isActive: { _eq: true }, isDisabled: { _eq: false }, creator: { _eq: "${creator.toLowerCase()}" } }`;
+      whereClause = `where: { isActive: { _eq: true }, creator: { _eq: "${creator.toLowerCase()}" } }`;
     }
 
     const query = `
