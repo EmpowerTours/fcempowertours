@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
       'maps_payment',          // Google Maps query payment (from user Safe)
       'withdraw_to_user',      // Withdraw from own Safe to own wallet
       'create_climb',          // Create climbing location (35 WMON)
+      'purchase_climb',        // Purchase climbing location access
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -4431,6 +4432,112 @@ ${enjoyText}
           bookingId: rateBookingId,
           rating: rateRating,
           message: 'Tour confirmed and rated successfully!',
+        });
+      }
+
+      // ==================== PURCHASE CLIMBING LOCATION ====================
+      case 'purchase_climb': {
+        const CLIMBING_CONTRACT = '0x4aEdA5269172C6C848FA7685bAd87D9fF4Ba0ED5' as Address;
+        const WMON_CLIMBING = process.env.NEXT_PUBLIC_WMON as Address;
+
+        const {
+          locationId: purchaseLocationId,
+          priceWmon: purchasePrice,
+          buyerFid,
+          buyerTelegramId,
+        } = params || {};
+
+        if (!purchaseLocationId || !purchasePrice) {
+          return NextResponse.json(
+            { success: false, error: 'Location ID and price are required' },
+            { status: 400 }
+          );
+        }
+
+        if (!buyerFid && !buyerTelegramId) {
+          return NextResponse.json(
+            { success: false, error: 'Must have either Farcaster FID or Telegram ID' },
+            { status: 400 }
+          );
+        }
+
+        const purchasePriceWei = BigInt(purchasePrice);
+        console.log('🧗 Purchasing climbing location:', { locationId: purchaseLocationId, price: formatEther(purchasePriceWei) });
+
+        // Check if user Safe has enough WMON
+        const { createPublicClient, http } = await import('viem');
+        const purchaseClient = createPublicClient({
+          chain: activeChain,
+          transport: http(activeChain.rpcUrls.default.http[0]),
+        });
+
+        const userSafeForPurchase = await getUserSafeAddress(userAddress);
+
+        const safeWmonBalancePurchase = await purchaseClient.readContract({
+          address: WMON_CLIMBING,
+          abi: parseAbi(['function balanceOf(address account) view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [userSafeForPurchase],
+        });
+
+        console.log('🧗 Safe WMON balance:', formatEther(safeWmonBalancePurchase), 'needed:', formatEther(purchasePriceWei));
+
+        const purchaseCalls: Call[] = [];
+
+        // If Safe doesn't have enough WMON, wrap MON first
+        if (safeWmonBalancePurchase < purchasePriceWei) {
+          const wrapAmountPurchase = purchasePriceWei - safeWmonBalancePurchase;
+          console.log('🧗 Wrapping MON to WMON:', formatEther(wrapAmountPurchase));
+
+          purchaseCalls.push({
+            to: WMON_CLIMBING,
+            value: wrapAmountPurchase,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          });
+        }
+
+        // Approve WMON for ClimbingLocationsV1
+        purchaseCalls.push({
+          to: WMON_CLIMBING,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) returns (bool)']),
+            functionName: 'approve',
+            args: [CLIMBING_CONTRACT, purchasePriceWei],
+          }) as Hex,
+        });
+
+        // Purchase the location
+        purchaseCalls.push({
+          to: CLIMBING_CONTRACT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi([
+              'function purchaseLocation(uint256 locationId, uint256 buyerFid, uint256 buyerTelegramId) external returns (uint256)'
+            ]),
+            functionName: 'purchaseLocation',
+            args: [
+              BigInt(purchaseLocationId),
+              BigInt(buyerFid || 0),
+              BigInt(buyerTelegramId || 0),
+            ],
+          }) as Hex,
+        });
+
+        const purchaseTxHash = await executeTransaction(purchaseCalls, userAddress as Address);
+        console.log('✅ Climbing location purchased, TX:', purchaseTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: purchaseTxHash,
+          action,
+          locationId: purchaseLocationId,
+          message: `Purchased access to climbing location #${purchaseLocationId}!`,
         });
       }
 

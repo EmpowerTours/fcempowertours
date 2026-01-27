@@ -19,6 +19,28 @@ interface ClimbLocation {
   createdAt: string;
 }
 
+interface AccessBadge {
+  id: string;
+  tokenId: string;
+  locationId: string;
+  purchasedAt: string;
+  txHash: string;
+  location: ClimbLocation | null;
+}
+
+interface ClimbProof {
+  id: string;
+  tokenId: string;
+  locationId: string;
+  photoIPFS: string;
+  entryText: string;
+  reward: string;
+  climbedAt: string;
+  txHash: string;
+  locationName: string;
+  locationDifficulty: string;
+}
+
 interface RockClimbingModalProps {
   onClose: () => void;
   isDarkMode: boolean;
@@ -52,6 +74,16 @@ export function RockClimbingModal({ onClose, isDarkMode, walletAddress, userFid,
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState<{ locationId: string; txHash: string } | null>(null);
+
+  // Purchase state
+  const [purchasingLocationId, setPurchasingLocationId] = useState<string | null>(null);
+  const [purchaseError, setPurchaseError] = useState('');
+  const [purchaseSuccess, setPurchaseSuccess] = useState<{ locationId: string; txHash: string } | null>(null);
+
+  // My Climbs state
+  const [myAccessBadges, setMyAccessBadges] = useState<AccessBadge[]>([]);
+  const [myClimbProofs, setMyClimbProofs] = useState<ClimbProof[]>([]);
+  const [loadingMyClimbs, setLoadingMyClimbs] = useState(false);
 
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
   const [manualLat, setManualLat] = useState('');
@@ -87,6 +119,105 @@ export function RockClimbingModal({ onClose, isDarkMode, walletAddress, userFid,
     };
     fetchLocations();
   }, []);
+
+  // Fetch user's purchases when my-climbs tab is active
+  useEffect(() => {
+    const fetchMyClimbs = async () => {
+      if (!walletAddress || activeTab !== 'my-climbs') return;
+
+      setLoadingMyClimbs(true);
+      try {
+        const response = await fetch(`/api/climbing/my-purchases?holder=${walletAddress}`);
+        const data = await response.json();
+        if (data.success) {
+          setMyAccessBadges(data.accessBadges || []);
+          setMyClimbProofs(data.climbProofs || []);
+        }
+      } catch (error) {
+        console.error('[RockClimbingModal] Failed to fetch my climbs:', error);
+      } finally {
+        setLoadingMyClimbs(false);
+      }
+    };
+    fetchMyClimbs();
+  }, [walletAddress, activeTab]);
+
+  // Get purchased location IDs for the current user
+  const purchasedLocationIds = new Set(myAccessBadges.map(b => b.locationId));
+
+  const handlePurchase = async (loc: ClimbLocation) => {
+    if (!walletAddress) {
+      setPurchaseError('Please connect your wallet first');
+      return;
+    }
+
+    // Check if already purchased
+    if (purchasedLocationIds.has(loc.locationId)) {
+      setPurchaseError('You already own access to this location');
+      return;
+    }
+
+    // Check if trying to buy own location
+    if (loc.creator.toLowerCase() === walletAddress.toLowerCase()) {
+      setPurchaseError('You cannot purchase your own location');
+      return;
+    }
+
+    setPurchasingLocationId(loc.locationId);
+    setPurchaseError('');
+    setPurchaseSuccess(null);
+
+    try {
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'purchase_climb',
+          params: {
+            locationId: loc.locationId,
+            priceWmon: (parseFloat(loc.priceWmon) * 1e18).toString(),
+            buyerFid: userFid || 0,
+            buyerTelegramId: userTelegramId || 0,
+          }
+        })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to purchase');
+      }
+
+      setPurchaseSuccess({
+        locationId: loc.locationId,
+        txHash: result.txHash || ''
+      });
+
+      // Refresh the locations and my climbs
+      const refreshRes = await fetch('/api/climbing/locations');
+      const refreshData = await refreshRes.json();
+      if (refreshData.success) {
+        setLocations(refreshData.locations || []);
+      }
+
+      // Also refresh my purchases
+      if (walletAddress) {
+        const myRes = await fetch(`/api/climbing/my-purchases?holder=${walletAddress}`);
+        const myData = await myRes.json();
+        if (myData.success) {
+          setMyAccessBadges(myData.accessBadges || []);
+          setMyClimbProofs(myData.climbProofs || []);
+        }
+      }
+
+    } catch (error: any) {
+      console.error('[PurchaseClimb] Error:', error);
+      setPurchaseError(error.message || 'Failed to purchase');
+    } finally {
+      setPurchasingLocationId(null);
+    }
+  };
 
   const filteredLocations = locations.filter(loc =>
     loc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -317,6 +448,30 @@ export function RockClimbingModal({ onClose, isDarkMode, walletAddress, userFid,
         <div className="flex-1 overflow-y-auto p-4">
           {activeTab === 'explore' && (
             <div className="space-y-4">
+              {/* Purchase Success Message */}
+              {purchaseSuccess && (
+                <div className="p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
+                  <p className="text-green-400 text-sm font-medium">Purchase successful!</p>
+                  {purchaseSuccess.txHash && (
+                    <a
+                      href={`https://monadscan.com/tx/${purchaseSuccess.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-400 text-xs underline flex items-center gap-1 mt-1"
+                    >
+                      View transaction <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Purchase Error Message */}
+              {purchaseError && (
+                <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <p className="text-red-400 text-sm">{purchaseError}</p>
+                </div>
+              )}
+
               {/* Search */}
               <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                 <Search className={`w-4 h-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
@@ -336,43 +491,83 @@ export function RockClimbingModal({ onClose, isDarkMode, walletAddress, userFid,
                 </div>
               ) : filteredLocations.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {filteredLocations.map((loc) => (
-                    <div
-                      key={loc.id}
-                      className={`rounded-xl overflow-hidden transition-all cursor-pointer group ${
-                        isDarkMode
-                          ? 'bg-gray-800 border border-gray-700 hover:border-orange-500/50'
-                          : 'bg-white border border-gray-200 hover:border-orange-500/50 shadow-sm'
-                      }`}
-                    >
-                      <div className="aspect-video bg-gradient-to-br from-orange-500/20 to-red-500/20 relative overflow-hidden">
-                        {loc.photoProofIPFS ? (
-                          <img
-                            src={getIPFSUrl(loc.photoProofIPFS)}
-                            alt={loc.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Mountain className={`w-12 h-12 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'}`} />
+                  {filteredLocations.map((loc) => {
+                    const isOwned = purchasedLocationIds.has(loc.locationId);
+                    const isOwnLocation = walletAddress && loc.creator.toLowerCase() === walletAddress.toLowerCase();
+                    const isPurchasing = purchasingLocationId === loc.locationId;
+
+                    return (
+                      <div
+                        key={loc.id}
+                        className={`rounded-xl overflow-hidden transition-all group ${
+                          isDarkMode
+                            ? 'bg-gray-800 border border-gray-700 hover:border-orange-500/50'
+                            : 'bg-white border border-gray-200 hover:border-orange-500/50 shadow-sm'
+                        }`}
+                      >
+                        <div className="aspect-video bg-gradient-to-br from-orange-500/20 to-red-500/20 relative overflow-hidden">
+                          {loc.photoProofIPFS ? (
+                            <img
+                              src={getIPFSUrl(loc.photoProofIPFS)}
+                              alt={loc.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Mountain className={`w-12 h-12 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'}`} />
+                            </div>
+                          )}
+                          <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-bold">
+                            {loc.difficulty}
                           </div>
-                        )}
-                        <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-bold">
-                          {loc.difficulty}
+                          {isOwned && (
+                            <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-green-500 text-white text-xs font-bold flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Owned
+                            </div>
+                          )}
+                          {isOwnLocation && (
+                            <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-purple-500 text-white text-xs font-bold">
+                              Your Location
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <h3 className={`font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{loc.name}</h3>
+                          <p className={`text-xs truncate mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{loc.description}</p>
+                          <div className="flex items-center justify-between mt-3">
+                            <span className="text-orange-500 font-bold text-sm">{loc.priceWmon} WMON</span>
+                            {isOwned ? (
+                              <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-lg font-medium">
+                                Access Granted
+                              </span>
+                            ) : isOwnLocation ? (
+                              <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-lg font-medium">
+                                Creator
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handlePurchase(loc)}
+                                disabled={isPurchasing || !walletAddress}
+                                className={`px-3 py-1 text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1 ${
+                                  isPurchasing || !walletAddress
+                                    ? 'bg-gray-500 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
+                                }`}
+                              >
+                                {isPurchasing ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" /> Buying...
+                                  </>
+                                ) : (
+                                  'Purchase'
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="p-3">
-                        <h3 className={`font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{loc.name}</h3>
-                        <p className={`text-xs truncate mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{loc.description}</p>
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-orange-500 font-bold text-sm">{loc.priceWmon} WMON</span>
-                          <button className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs rounded-lg font-medium hover:from-orange-600 hover:to-red-600 transition-all">
-                            Purchase
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className={`text-center py-12 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -797,11 +992,138 @@ export function RockClimbingModal({ onClose, isDarkMode, walletAddress, userFid,
                   <Mountain className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>Connect wallet to see your climbs</p>
                 </div>
-              ) : (
-                <div className={`text-center py-12 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                  <Mountain className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Your purchased climbs will appear here</p>
+              ) : loadingMyClimbs ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className={`w-8 h-8 animate-spin ${isDarkMode ? 'text-orange-400' : 'text-orange-500'}`} />
                 </div>
+              ) : (
+                <>
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`p-4 rounded-xl text-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{myAccessBadges.length}</p>
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Locations Purchased</p>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{myClimbProofs.length}</p>
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Climbs Logged</p>
+                    </div>
+                  </div>
+
+                  {/* Purchased Locations */}
+                  {myAccessBadges.length > 0 && (
+                    <div>
+                      <h3 className={`font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        My Purchased Locations
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {myAccessBadges.map((badge) => (
+                          <div
+                            key={badge.id}
+                            className={`rounded-xl overflow-hidden ${
+                              isDarkMode
+                                ? 'bg-gray-800 border border-gray-700'
+                                : 'bg-white border border-gray-200 shadow-sm'
+                            }`}
+                          >
+                            {badge.location?.photoProofIPFS && (
+                              <img
+                                src={getIPFSUrl(badge.location.photoProofIPFS)}
+                                alt={badge.location?.name || 'Location'}
+                                className="w-full h-24 object-cover"
+                              />
+                            )}
+                            <div className="p-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 className={`font-semibold text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {badge.location?.name || 'Unknown Location'}
+                                </h4>
+                                <span className="px-2 py-0.5 bg-orange-500 text-white text-xs rounded-full font-bold">
+                                  {badge.location?.difficulty || '?'}
+                                </span>
+                              </div>
+                              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                Badge #{badge.tokenId}
+                              </p>
+                              {badge.txHash && (
+                                <a
+                                  href={`https://monadscan.com/tx/${badge.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-orange-500 hover:underline flex items-center gap-1 mt-1"
+                                >
+                                  View TX <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Climb Proofs */}
+                  {myClimbProofs.length > 0 && (
+                    <div>
+                      <h3 className={`font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        My Climb Proofs
+                      </h3>
+                      <div className="space-y-3">
+                        {myClimbProofs.map((proof) => (
+                          <div
+                            key={proof.id}
+                            className={`rounded-xl overflow-hidden flex ${
+                              isDarkMode
+                                ? 'bg-gray-800 border border-gray-700'
+                                : 'bg-white border border-gray-200 shadow-sm'
+                            }`}
+                          >
+                            {proof.photoIPFS && (
+                              <img
+                                src={getIPFSUrl(proof.photoIPFS)}
+                                alt="Climb proof"
+                                className="w-24 h-24 object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="p-3 flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {proof.locationName}
+                                </h4>
+                                <span className="px-2 py-0.5 bg-green-500 text-white text-xs rounded-full font-bold">
+                                  +{proof.reward} TOURS
+                                </span>
+                              </div>
+                              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {proof.locationDifficulty} • Proof #{proof.tokenId}
+                              </p>
+                              {proof.entryText && (
+                                <p className={`text-xs line-clamp-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                  {proof.entryText}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {myAccessBadges.length === 0 && myClimbProofs.length === 0 && (
+                    <div className={`text-center py-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <Mountain className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No climbing activity yet</p>
+                      <p className="text-sm mt-1">Purchase a location to get started!</p>
+                      <button
+                        onClick={() => setActiveTab('explore')}
+                        className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-600"
+                      >
+                        Explore Locations
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
