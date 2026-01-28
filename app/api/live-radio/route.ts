@@ -644,6 +644,8 @@ export async function POST(req: NextRequest) {
         state.currentSong = null;
         state.lastUpdated = now;
         await redis.set(RADIO_STATE_KEY, state);
+        // Switch to voice_note phase so scheduler checks for pending voice notes
+        await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
       }
 
       // Only award rewards if a song is actually playing
