@@ -306,6 +306,49 @@ Discover music: fcempowertours.xyz/discover
       console.log('📢 Play recorded cast text:', castText);
     }
 
+    // ==================== VOICE NOTE CAST ====================
+    else if (type === 'voice_note') {
+      const { noteType, duration: noteDuration } = params || {};
+      const radioUrl = `${APP_URL}/oracle`;
+
+      // Get submitter username from FID
+      let submitterDisplay = 'Someone';
+      if (fid && NEYNAR_API_KEY) {
+        try {
+          const userResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+            headers: { 'api_key': NEYNAR_API_KEY }
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.users && userData.users.length > 0) {
+              submitterDisplay = `@${userData.users[0].username}`;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch submitter username:', err);
+        }
+      }
+
+      const isAd = noteType === 'ad';
+      const priceDisplay = isAd ? '2 WMON' : '0.5 WMON';
+      const typeEmoji = isAd ? '📢' : '🎤';
+      const typeLabel = isAd ? 'Voice Ad (30s)' : 'Voice Shoutout';
+
+      castText = `${typeEmoji} ${submitterDisplay} submitted a ${typeLabel} on @empowertours Live Radio!
+
+💰 Paid: ${priceDisplay}
+⏱️ Duration: ${noteDuration || (isAd ? 30 : 5)}s
+
+🎵 Tune in to hear it play between songs!
+
+TX: https://monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: radioUrl }];
+      console.log('📢 Voice note cast text:', castText);
+    }
+
     // ==================== TOP ARTIST CAST (Weekly/Daily Highlight) ====================
     else if (type === 'top_artist') {
       const { artistName, artistFid: topArtistFid, playCount, songCount, totalEarnings } = params || {};

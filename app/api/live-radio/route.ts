@@ -17,6 +17,8 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+
 const RADIO_STATE_KEY = 'live-radio:state';
 const RADIO_QUEUE_KEY = 'live-radio:queue';
 const VOICE_NOTES_KEY = 'live-radio:voice-notes';
@@ -422,6 +424,23 @@ export async function POST(req: NextRequest) {
 
       console.log('[LiveRadio] Voice note submitted by', username || userAddress);
 
+      // Post to Farcaster via bot (non-blocking)
+      if (userFid) {
+        fetch(`${APP_URL}/api/cast-nft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'voice_note',
+            fid: userFid,
+            txHash,
+            params: {
+              noteType: 'shoutout',
+              duration: validDuration,
+            },
+          }),
+        }).catch(err => console.error('[LiveRadio] Cast failed:', err.message));
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Voice note submitted! It will play during the next break.',
@@ -472,6 +491,23 @@ export async function POST(req: NextRequest) {
       }
 
       console.log('[LiveRadio] Voice ad submitted by', username || userAddress);
+
+      // Post to Farcaster via bot (non-blocking)
+      if (userFid) {
+        fetch(`${APP_URL}/api/cast-nft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'voice_note',
+            fid: userFid,
+            txHash,
+            params: {
+              noteType: 'ad',
+              duration: MAX_VOICE_AD_SECONDS,
+            },
+          }),
+        }).catch(err => console.error('[LiveRadio] Cast failed:', err.message));
+      }
 
       return NextResponse.json({
         success: true,
