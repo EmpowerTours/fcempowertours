@@ -25,6 +25,7 @@ const ACTIVE_LISTENERS_KEY = 'live-radio:active-listeners'; // Legacy - individu
 const ACTIVE_LISTENERS_ZSET = 'live-radio:active-listeners-zset'; // ZSET for efficient counting
 const DAILY_FIRST_LISTENER_KEY = 'live-radio:first-listener';
 const PLAY_HISTORY_KEY = 'live-radio:play-history'; // Recent plays list
+const PLAYBACK_PHASE_KEY = 'live-radio:playback-phase'; // 'song' | 'voice_note'
 const QUEUE_PRICE_WMON = 1; // 1 WMON to queue a song
 const VOICE_NOTE_PRICE_WMON = 0.5; // 0.5 WMON for a voice shoutout
 const VOICE_AD_PRICE_WMON = 2; // 2 WMON for 30-second ad
@@ -575,6 +576,9 @@ export async function POST(req: NextRequest) {
         state.lastUpdated = Date.now();
 
         await redis.set(RADIO_STATE_KEY, state);
+
+        // Switch to voice_note phase so scheduler checks for pending voice notes
+        await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
 
         return NextResponse.json({
           success: true,
