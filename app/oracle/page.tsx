@@ -18,7 +18,7 @@ import { EventOracle } from '@/app/components/oracle/EventOracle';
 import { RockClimbingModal } from '@/app/components/oracle/RockClimbingModal';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface NFTObject {
   id: string;
@@ -52,6 +52,7 @@ interface Message {
 
 export default function OraclePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, walletAddress, sendTransaction } = useFarcasterContext();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
@@ -122,6 +123,14 @@ export default function OraclePage() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  // Handle deep link query params to auto-open modals
+  useEffect(() => {
+    const modal = searchParams.get('modal');
+    if (modal === 'radio') {
+      setShowRadioModal(true);
+    }
+  }, [searchParams]);
 
   // Helper to close all modals before opening a new one
   const closeAllModals = useCallback(() => {

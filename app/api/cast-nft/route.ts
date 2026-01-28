@@ -309,7 +309,8 @@ Discover music: fcempowertours.xyz/discover
     // ==================== VOICE NOTE CAST ====================
     else if (type === 'voice_note') {
       const { noteType, duration: noteDuration } = params || {};
-      const radioUrl = `${APP_URL}/oracle`;
+      // Deep link to open mini app with radio modal
+      const radioUrl = `${APP_URL}/oracle?modal=radio`;
 
       // Get submitter username from FID
       let submitterDisplay = 'Someone';
