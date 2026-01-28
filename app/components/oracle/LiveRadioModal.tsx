@@ -1513,8 +1513,8 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
       {/* Voice Note Sub-Modal */}
       {showVoiceNoteModal && (
         <div
-          className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black/95' : 'bg-white/95'}`}
-          style={{ zIndex: 10000 }}
+          className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+          style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
           onClick={() => { if (recordingStatus === 'idle') { setShowVoiceNoteModal(false); resetRecording(); } }}
         >
           <div
