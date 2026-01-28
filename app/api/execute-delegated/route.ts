@@ -3789,17 +3789,66 @@ ${enjoyText}
 
         console.log('📻 Voice note payment:', { noteType, amount, WMON_ADDRESS, RADIO_TREASURY });
 
-        const radioVoiceCalls: Call[] = [
-          {
+        // Get user's Safe address (transactions are executed from Safe, not EOA)
+        const voiceUserSafe = await getUserSafeAddress(userAddress as Address);
+        console.log('📻 Voice note user Safe address:', voiceUserSafe);
+
+        // Create public client for balance checks
+        const { createPublicClient: createVoiceClient, http: voiceHttp } = await import('viem');
+        const { activeChain: voiceActiveChain } = await import('@/app/chains');
+        const voiceRpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC;
+        const voicePublicClient = createVoiceClient({
+          chain: voiceActiveChain,
+          transport: voiceHttp(voiceRpcUrl),
+        });
+
+        // Check Safe's WMON balance to see if we need to wrap MON first
+        const safeWmonBalanceVoice = await voicePublicClient.readContract({
+          address: WMON_ADDRESS,
+          abi: parseAbi(['function balanceOf(address account) external view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [voiceUserSafe],
+        });
+
+        console.log('📻 Safe WMON balance:', safeWmonBalanceVoice.toString(), 'needed:', amountWei.toString());
+
+        const radioVoiceCalls: Call[] = [];
+
+        // If Safe doesn't have enough WMON, wrap MON to WMON first
+        if (safeWmonBalanceVoice < amountWei) {
+          const wrapAmountVoice = amountWei - safeWmonBalanceVoice;
+          console.log('📻 Wrapping MON to WMON:', wrapAmountVoice.toString());
+
+          // Check if Safe has enough MON to wrap
+          const safeMonBalanceVoice = await voicePublicClient.getBalance({ address: voiceUserSafe });
+          if (safeMonBalanceVoice < wrapAmountVoice) {
+            return NextResponse.json(
+              { success: false, error: `Insufficient balance. Your Safe needs ${formatEther(wrapAmountVoice)} MON for voice note.` },
+              { status: 400 }
+            );
+          }
+
+          // Step 1: Wrap MON to WMON
+          radioVoiceCalls.push({
             to: WMON_ADDRESS,
-            value: 0n,
+            value: wrapAmountVoice,
             data: encodeFunctionData({
-              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
-              functionName: 'transfer',
-              args: [RADIO_TREASURY, amountWei],
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
             }) as Hex,
-          },
-        ];
+          });
+        }
+
+        // Step 2: Transfer WMON to treasury
+        radioVoiceCalls.push({
+          to: WMON_ADDRESS,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+            functionName: 'transfer',
+            args: [RADIO_TREASURY, amountWei],
+          }) as Hex,
+        });
 
         const radioVoiceTxHash = await executeTransaction(radioVoiceCalls, userAddress as Address);
         console.log('✅ Voice note payment TX:', radioVoiceTxHash);

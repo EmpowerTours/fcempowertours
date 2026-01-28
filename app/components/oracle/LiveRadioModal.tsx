@@ -1513,15 +1513,15 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
       {/* Voice Note Sub-Modal */}
       {showVoiceNoteModal && (
         <div
-          className="fixed inset-0 bg-gray-800 flex items-center justify-center p-2 sm:p-4"
+          className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black/95' : 'bg-white/95'}`}
           style={{ zIndex: 10000 }}
           onClick={() => { if (recordingStatus === 'idle') { setShowVoiceNoteModal(false); resetRecording(); } }}
         >
           <div
-            className="bg-gray-900 border border-pink-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-sm p-3 sm:p-4 overflow-hidden"
+            className={`${isDarkMode ? 'bg-gray-900 border-pink-500/30' : 'bg-white border-pink-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-sm p-3 sm:p-4 overflow-hidden shadow-xl`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base sm:text-lg font-bold text-white mb-3">
+            <h3 className={`text-base sm:text-lg font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               {recordingStatus === 'idle' ? 'Voice Shoutout' :
                recordingStatus === 'recording' ? '🔴 Recording...' :
                recordingStatus === 'recorded' ? 'Preview Recording' :
@@ -1531,19 +1531,19 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
             {/* Selection View */}
             {recordingStatus === 'idle' && (
               <>
-                <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
+                <p className={`text-xs sm:text-sm mb-3 break-words ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   Record a shoutout or ad to play between songs
                 </p>
                 <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
                   <button
                     onClick={() => handleVoiceShoutout('shoutout')}
-                    className="w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
+                    className={`w-full p-3 sm:p-4 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border ${isDarkMode ? 'border-pink-500/30' : 'border-pink-300'} rounded-xl transition-all text-left active:scale-[0.98]`}
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-pink-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm sm:text-base text-white font-semibold truncate">Quick Shoutout</p>
-                        <p className="text-xs text-gray-400 truncate">Up to 5 seconds</p>
+                        <p className={`text-sm sm:text-base font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Quick Shoutout</p>
+                        <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Up to 5 seconds</p>
                       </div>
                       <div className="text-pink-400 text-xs font-bold bg-pink-500/20 px-2 py-1 rounded">
                         {pricing.voiceNote} WMON
@@ -1552,13 +1552,13 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                   </button>
                   <button
                     onClick={() => handleVoiceShoutout('ad')}
-                    className="w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border border-purple-500/30 rounded-xl transition-all text-left active:scale-[0.98]"
+                    className={`w-full p-3 sm:p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border ${isDarkMode ? 'border-purple-500/30' : 'border-purple-300'} rounded-xl transition-all text-left active:scale-[0.98]`}
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm sm:text-base text-white font-semibold truncate">Voice Ad</p>
-                        <p className="text-xs text-gray-400 truncate">Up to 30 seconds</p>
+                        <p className={`text-sm sm:text-base font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Voice Ad</p>
+                        <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Up to 30 seconds</p>
                       </div>
                       <div className="text-purple-400 text-xs font-bold bg-purple-500/20 px-2 py-1 rounded">
                         {pricing.voiceAd} WMON
@@ -1568,7 +1568,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                 </div>
                 <button
                   onClick={() => setShowVoiceNoteModal(false)}
-                  className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
+                  className={`w-full py-2 rounded-lg font-semibold text-sm transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
                 >
                   Cancel
                 </button>
@@ -1581,8 +1581,8 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                 <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-red-500/20 border-4 border-red-500 flex items-center justify-center animate-pulse">
                   <Mic className="w-10 h-10 text-red-500" />
                 </div>
-                <p className="text-3xl font-bold text-white mb-2">{recordingTime}s</p>
-                <p className="text-sm text-gray-400 mb-4">
+                <p className={`text-3xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{recordingTime}s</p>
+                <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   {voiceNoteType === 'shoutout' ? `Max 5 seconds` : `Max 30 seconds`}
                 </p>
                 <button
@@ -1597,16 +1597,16 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
             {/* Preview View */}
             {recordingStatus === 'recorded' && recordedAudioUrl && (
               <div className="py-4">
-                <div className="bg-gray-800 rounded-xl p-4 mb-4">
+                <div className={`rounded-xl p-4 mb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                   <audio src={recordedAudioUrl} controls className="w-full" />
-                  <p className="text-xs text-gray-400 text-center mt-2">
+                  <p className={`text-xs text-center mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     Duration: {recordingTime} seconds
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={resetRecording}
-                    className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
+                    className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
                   >
                     Re-record
                   </button>
@@ -1624,7 +1624,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
             {recordingStatus === 'uploading' && (
               <div className="text-center py-8">
                 <Loader2 className="w-12 h-12 text-pink-400 animate-spin mx-auto mb-4" />
-                <p className="text-gray-400">Uploading your voice note...</p>
+                <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Uploading your voice note...</p>
               </div>
             )}
           </div>
