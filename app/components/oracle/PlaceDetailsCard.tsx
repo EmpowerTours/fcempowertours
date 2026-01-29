@@ -82,10 +82,8 @@ export const PlaceDetailsCard: React.FC<PlaceDetailsCardProps> = ({
     // Try loading the module
     const loadModule = async () => {
       try {
-        await import(
-          /* webpackIgnore: true */
-          'https://unpkg.com/@googlemaps/extended-component-library@0.6/place_building_blocks/place_details_compact.js'
-        );
+        // @ts-expect-error - dynamic import from CDN URL
+        await import(/* webpackIgnore: true */ 'https://unpkg.com/@googlemaps/extended-component-library@0.6/place_building_blocks/place_details_compact.js');
         if (checkAvailability()) return;
       } catch {
         // UI Kit not available, use fallback

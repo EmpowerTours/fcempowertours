@@ -1168,23 +1168,6 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                       </button>
                     </div>
 
-                    {/* Skip to Random Button */}
-                    <div className="mt-3">
-                      <button
-                        onClick={handleSkipToRandom}
-                        disabled={skippingToRandom || !walletAddress}
-                        className="w-full py-2 px-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {skippingToRandom ? (
-                          <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                        ) : (
-                          <SkipForward className="w-4 h-4 text-purple-400" />
-                        )}
-                        <span className="text-sm text-white font-medium">Skip to Random</span>
-                        <span className="text-xs text-purple-400 font-semibold">1 MON</span>
-                        <span className="text-[10px] text-purple-400/70">(Pyth)</span>
-                      </button>
-                    </div>
                   </div>
                 ) : (
                   <div className={`${isDarkMode ? 'bg-gray-800 border-purple-500/20' : 'bg-gray-50 border-purple-200'} rounded-2xl p-8 border text-center`}>
@@ -1196,7 +1179,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
               </div>
 
               {/* Quick Actions */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="grid grid-cols-3 gap-3 mb-6">
                 <button
                   onClick={() => {
                     setShowQueueModal(true);
@@ -1215,6 +1198,19 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                   <Mic className="w-5 h-5 text-pink-400 mx-auto mb-1" />
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Voice Shoutout</p>
                   <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{pricing.voiceNote} WMON (3-5 sec)</p>
+                </button>
+                <button
+                  onClick={handleSkipToRandom}
+                  disabled={skippingToRandom || !walletAddress}
+                  className={`p-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border ${isDarkMode ? 'border-purple-500/30' : 'border-purple-300'} rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {skippingToRandom ? (
+                    <Loader2 className="w-5 h-5 text-purple-400 mx-auto mb-1 animate-spin" />
+                  ) : (
+                    <SkipForward className="w-5 h-5 text-purple-400 mx-auto mb-1" />
+                  )}
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Skip Random</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>1 MON (Pyth)</p>
                 </button>
               </div>
 
@@ -1481,7 +1477,8 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
           onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
         >
           <div
-            className={`${isDarkMode ? 'bg-gray-900 border-purple-500/30' : 'bg-white border-purple-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col shadow-xl`}
+            className={`${isDarkMode ? 'border-purple-500/30' : 'bg-white border-purple-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col shadow-xl`}
+            style={{ backgroundColor: isDarkMode ? '#111827' : '#ffffff' }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className={`text-base sm:text-lg font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Queue a Song</h3>
