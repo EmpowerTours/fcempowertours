@@ -124,6 +124,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   const [claimingRewards, setClaimingRewards] = useState(false);
   const [lastClaimTxHash, setLastClaimTxHash] = useState<string | null>(null);
   const [queueing, setQueueing] = useState(false);
+  const [skippingToRandom, setSkippingToRandom] = useState(false);
   // Subscription requirement
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
@@ -930,6 +931,46 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
     }
   };
 
+  // Skip to random song using Pyth Entropy (on-chain verifiable randomness)
+  const handleSkipToRandom = async () => {
+    if (!walletAddress || skippingToRandom) return;
+
+    setSkippingToRandom(true);
+    try {
+      console.log('[LiveRadio] Requesting random song via Pyth Entropy...');
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'radio_skip_random',
+          fid: user?.fid, // For Farcaster cast
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Skip to random failed');
+      }
+
+      console.log('[LiveRadio] Skip to random TX:', data.txHash);
+      showToast('Requesting random song... Pyth Entropy processing!', 'success');
+
+      // Refresh radio state to get new song
+      setTimeout(() => {
+        fetchRadioState();
+        fetchQueue();
+      }, 3000);
+
+    } catch (error: any) {
+      console.error('[LiveRadio] Skip to random failed:', error);
+      showToast('Failed: ' + error.message, 'error');
+    } finally {
+      setSkippingToRandom(false);
+    }
+  };
+
   if (!mounted) return null;
 
   // Persistent audio element - ALWAYS rendered to keep playing across view switches
@@ -991,29 +1032,29 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
       )}
 
       <div
-        className="bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border border-purple-500/30 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-hidden"
+        className={`${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 border-purple-500/30' : 'bg-white border-gray-200'} border rounded-3xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-purple-500/20 flex items-center justify-between">
+        <div className={`p-4 border-b ${isDarkMode ? 'border-purple-500/20' : 'border-gray-200'} flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
               <Radio className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Live Radio</h2>
-              <p className="text-xs text-gray-400">World Cup 2026 Jukebox</p>
+              <h2 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Live Radio</h2>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>World Cup 2026 Jukebox</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsMinimized(true)}
-              className="text-gray-400 hover:text-purple-400 transition-colors"
+              className={`${isDarkMode ? 'text-gray-400 hover:text-purple-400' : 'text-gray-500 hover:text-purple-500'} transition-colors`}
               title="Minimize"
             >
               <Minus className="w-6 h-6" />
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <button onClick={onClose} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'} transition-colors`}>
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -1051,7 +1092,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
 
                 {/* Current Song */}
                 {radioState?.currentSong ? (
-                  <div className="bg-gray-800 rounded-2xl p-4 border border-purple-500/20">
+                  <div className={`${isDarkMode ? 'bg-gray-800 border-purple-500/20' : 'bg-gray-50 border-purple-200'} rounded-2xl p-4 border`}>
                     {/* Album Art */}
                     <div className="w-full aspect-square rounded-xl bg-purple-500/20 overflow-hidden mb-3">
                       {radioState.currentSong.imageUrl ? (
@@ -1068,8 +1109,8 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                     </div>
                     {/* Song Info */}
                     <div className="text-center">
-                      <p className="text-white font-bold text-lg">{radioState.currentSong.name}</p>
-                      <p className="text-sm text-gray-400">{radioState.currentSong.artist}</p>
+                      <p className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{radioState.currentSong.name}</p>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{radioState.currentSong.artist}</p>
                       <p className="text-xs text-purple-400 mt-1">
                         Queued by: {radioState.currentSong.queuedBy.slice(0, 6)}...{radioState.currentSong.queuedBy.slice(-4)}
                       </p>
@@ -1077,13 +1118,13 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
 
                     {/* Progress Bar */}
                     <div className="mt-4">
-                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                      <div className={`flex items-center justify-between text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                         <span>{formatTime(Math.floor((radioState.currentSong.duration || 180) * playbackProgress / 100))}</span>
                         <span className="text-purple-400 font-medium">
                           {remainingTime > 0 ? `-${formatTime(remainingTime)}` : 'Ending...'}
                         </span>
                       </div>
-                      <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                      <div className={`h-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full overflow-hidden`}>
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-1000"
                           style={{ width: `${playbackProgress}%` }}
@@ -1113,16 +1154,43 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                           <Play className="w-6 h-6 text-white ml-0.5" />
                         )}
                       </button>
-                      <button className="p-2 rounded-full hover:bg-purple-500/20 transition-colors opacity-50 cursor-not-allowed">
-                        <SkipForward className="w-5 h-5 text-gray-400" />
+                      <button
+                        onClick={handleSkipToRandom}
+                        disabled={skippingToRandom || !walletAddress}
+                        className="p-2 rounded-full hover:bg-purple-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group relative"
+                        title="Skip to Random - 1 MON (Pyth Entropy)"
+                      >
+                        {skippingToRandom ? (
+                          <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                        ) : (
+                          <SkipForward className="w-5 h-5 text-purple-400 group-hover:text-pink-400 transition-colors" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Skip to Random Button */}
+                    <div className="mt-3">
+                      <button
+                        onClick={handleSkipToRandom}
+                        disabled={skippingToRandom || !walletAddress}
+                        className="w-full py-2 px-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {skippingToRandom ? (
+                          <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                        ) : (
+                          <SkipForward className="w-4 h-4 text-purple-400" />
+                        )}
+                        <span className="text-sm text-white font-medium">Skip to Random</span>
+                        <span className="text-xs text-purple-400 font-semibold">1 MON</span>
+                        <span className="text-[10px] text-purple-400/70">(Pyth)</span>
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-gray-800 rounded-2xl p-8 border border-purple-500/20 text-center">
-                    <Music2 className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-                    <p className="text-gray-400">No song playing</p>
-                    <p className="text-xs text-gray-500 mt-1">Queue a song to start the party!</p>
+                  <div className={`${isDarkMode ? 'bg-gray-800 border-purple-500/20' : 'bg-gray-50 border-purple-200'} rounded-2xl p-8 border text-center`}>
+                    <Music2 className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>No song playing</p>
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Queue a song to start the party!</p>
                   </div>
                 )}
               </div>
@@ -1134,37 +1202,37 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                     setShowQueueModal(true);
                     fetchAvailableSongs();
                   }}
-                  className="p-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-xl transition-all"
+                  className={`p-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border ${isDarkMode ? 'border-purple-500/30' : 'border-purple-300'} rounded-xl transition-all`}
                 >
                   <Plus className="w-5 h-5 text-purple-400 mx-auto mb-1" />
-                  <p className="text-sm text-white font-semibold">Queue Song</p>
-                  <p className="text-xs text-gray-400">{pricing.queueSong} WMON</p>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Queue Song</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{pricing.queueSong} WMON</p>
                 </button>
                 <button
                   onClick={() => setShowVoiceNoteModal(true)}
-                  className="p-3 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border border-pink-500/30 rounded-xl transition-all"
+                  className={`p-3 bg-gradient-to-r from-pink-500/20 to-orange-500/20 hover:from-pink-500/30 hover:to-orange-500/30 border ${isDarkMode ? 'border-pink-500/30' : 'border-pink-300'} rounded-xl transition-all`}
                 >
                   <Mic className="w-5 h-5 text-pink-400 mx-auto mb-1" />
-                  <p className="text-sm text-white font-semibold">Voice Shoutout</p>
-                  <p className="text-xs text-gray-400">{pricing.voiceNote} WMON (3-5 sec)</p>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Voice Shoutout</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{pricing.voiceNote} WMON (3-5 sec)</p>
                 </button>
               </div>
 
               {/* Queue */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <h3 className={`text-sm font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     <Clock className="w-4 h-4 text-purple-400" />
                     Up Next
                   </h3>
-                  <span className="text-xs text-gray-400">{queue.length} in queue</span>
+                  <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{queue.length} in queue</span>
                 </div>
                 {queue.length > 0 ? (
                   <div className="space-y-2">
                     {queue.slice(0, 5).map((song, index) => (
                       <div
                         key={song.id}
-                        className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg border border-purple-500/10"
+                        className={`flex items-center gap-3 p-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-purple-500/10' : 'bg-gray-50 border-purple-200/50'}`}
                       >
                         <span className="text-xs text-gray-500 w-5">{index + 1}</span>
                         <div className="w-10 h-10 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
@@ -1177,14 +1245,14 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{song.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{song.artist}</p>
+                          <p className={`text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name}</p>
+                          <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500 text-sm py-4">Queue is empty</p>
+                  <p className={`text-center text-sm py-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Queue is empty</p>
                 )}
               </div>
 
@@ -1398,7 +1466,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-purple-500/20 bg-gray-800">
+        <div className={`p-3 border-t ${isDarkMode ? 'border-purple-500/20 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
           <p className="text-xs text-gray-500 text-center">
             Powered by Pyth Entropy • Smart Contract on Monad
           </p>
@@ -1408,16 +1476,16 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
       {/* Queue Song Sub-Modal */}
       {showQueueModal && (
         <div
-          className="fixed inset-0 bg-gray-800 flex items-center justify-center p-2 sm:p-4"
-          style={{ zIndex: 10000 }}
+          className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+          style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
           onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
         >
           <div
-            className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col"
+            className={`${isDarkMode ? 'bg-gray-900 border-purple-500/30' : 'bg-white border-purple-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col shadow-xl`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base sm:text-lg font-bold text-white mb-3">Queue a Song</h3>
-            <p className="text-xs sm:text-sm text-gray-400 mb-3 break-words">
+            <h3 className={`text-base sm:text-lg font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Queue a Song</h3>
+            <p className={`text-xs sm:text-sm mb-3 break-words ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               Select a song to add to the radio queue ({pricing.queueSong} WMON)
             </p>
 
@@ -1435,7 +1503,9 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                     className={`w-full p-2 sm:p-3 rounded-lg border transition-all text-left flex items-center gap-2 sm:gap-3 ${
                       selectedSong?.tokenId === song.tokenId
                         ? 'bg-purple-500/20 border-purple-500'
-                        : 'bg-gray-800 border-purple-500/20 hover:border-purple-500/50'
+                        : isDarkMode
+                          ? 'bg-gray-800 border-purple-500/20 hover:border-purple-500/50'
+                          : 'bg-gray-50 border-purple-300/50 hover:border-purple-400'
                     }`}
                   >
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
@@ -1448,8 +1518,8 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm text-white truncate font-medium">{song.name || `Song #${song.tokenId}`}</p>
-                      <p className="text-xs text-gray-400 truncate">{song.artist || 'Unknown Artist'}</p>
+                      <p className={`text-xs sm:text-sm truncate font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name || `Song #${song.tokenId}`}</p>
+                      <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist || 'Unknown Artist'}</p>
                     </div>
                     {selectedSong?.tokenId === song.tokenId && (
                       <Check className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />
@@ -1458,33 +1528,33 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                 ))
               ) : (
                 <div className="text-center py-8">
-                  <Music2 className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">No songs available</p>
-                  <p className="text-gray-500 text-xs mt-1">Mint some Music NFTs first!</p>
+                  <Music2 className={`w-8 h-8 mx-auto mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>No songs available</p>
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Mint some Music NFTs first!</p>
                 </div>
               )}
             </div>
 
             {/* Selected Song Preview */}
             {selectedSong && (
-              <div className="mb-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+              <div className={`mb-3 p-3 rounded-xl ${isDarkMode ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'}`}>
                 <p className="text-xs text-purple-400 mb-1">Selected:</p>
-                <p className="text-sm text-white font-semibold truncate">{selectedSong.name}</p>
-                <p className="text-xs text-gray-400">{selectedSong.artist}</p>
+                <p className={`text-sm font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedSong.name}</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{selectedSong.artist}</p>
               </div>
             )}
 
             {/* Payment Info */}
-            <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <p className="text-xs text-yellow-400 text-center">
+            <div className={`mb-3 p-2 rounded-lg ${isDarkMode ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-yellow-50 border border-yellow-200'}`}>
+              <p className={`text-xs text-center ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
                 Payment: {pricing.queueSong} WMON via delegated transaction
               </p>
             </div>
 
-            <div className="flex gap-2 pt-2 border-t border-purple-500/20">
+            <div className={`flex gap-2 pt-2 border-t ${isDarkMode ? 'border-purple-500/20' : 'border-gray-200'}`}>
               <button
                 onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
-                className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-sm transition-all"
+                className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
               >
                 Cancel
               </button>

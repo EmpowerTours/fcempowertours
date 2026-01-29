@@ -165,9 +165,9 @@ networks:
                 - hash
 
       # MusicSubscription Contract - 10/20/70 Distribution Model
-      - name: MusicSubscriptionV4
+      - name: MusicSubscriptionV5
         address:
-          - "0xCB11282E5797E036C98D321b276Cb162cde845E5"  # Mainnet MusicSubscriptionV4
+          - "0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19"  # Mainnet MusicSubscriptionV5
         handler: src/EventHandlers.ts
         events:
           # Subscription lifecycle with FID
@@ -231,10 +231,10 @@ networks:
               transaction_fields:
                 - hash
 
-      # ClimbingLocationsV1 - Rock Climbing Locations with dual NFT system
-      - name: ClimbingLocationsV1
+      # ClimbingLocationsV2 - Rock Climbing Locations with dual NFT system
+      - name: ClimbingLocationsV2
         address:
-          - "0x4aEdA5269172C6C848FA7685bAd87D9fF4Ba0ED5"  # Mainnet ClimbingLocationsV1
+          - "0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3"  # Mainnet ClimbingLocationsV2
         handler: src/EventHandlers.ts
         events:
           # Location creation (costs 35 WMON)
@@ -283,9 +283,9 @@ networks:
                 - hash
 
       # LiveRadio Contract - World Cup 2026 Jukebox
-      - name: LiveRadioV2
+      - name: LiveRadioV3
         address:
-          - "0x26b32987cb5d7946D81e0Cc7459f26CdeC773101"  # Mainnet LiveRadioV2
+          - "0x042EDF80713e6822a891e4e8a0800c332B8200fd"  # Mainnet LiveRadioV3
         handler: src/EventHandlers.ts
         events:
           # Radio lifecycle
@@ -344,11 +344,6 @@ networks:
               transaction_fields:
                 - hash
 
-          - event: "RewardsClaimed(address indexed user, uint256 amount)"
-            field_selection:
-              transaction_fields:
-                - hash
-
           # Random song selection (Pyth Entropy)
           - event: "RandomSongRequested(uint64 indexed sequenceNumber, address indexed requester)"
             field_selection:
@@ -367,6 +362,57 @@ networks:
                 - hash
 
           - event: "SongRemovedFromPool(uint256 indexed masterTokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # ToursRewardManager - Central reward rate manager with Bitcoin-style halving
+      - name: ToursRewardManager
+        address:
+          - "0x7fff35BB27307806B92Fb1D1FBe52D168093eF87"  # Mainnet ToursRewardManager
+        handler: src/EventHandlers.ts
+        events:
+          - event: "HalvingTriggered(uint256 indexed epoch, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BaseRewardUpdated(uint8 indexed rewardType, uint256 oldRate, uint256 newRate)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "OverrideSet(uint8 indexed rewardType, uint256 rate)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "OverrideCleared(uint8 indexed rewardType)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "DistributorUpdated(address indexed distributor, bool authorized)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "DailyCapUpdated(uint256 oldCap, uint256 newCap)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "DAOTimelockUpdated(address indexed oldTimelock, address indexed newTimelock)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardDistributed(address indexed recipient, uint8 indexed rewardType, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "EarlyHalvingTriggered(uint256 indexed newEpoch, address triggeredBy)"
             field_selection:
               transaction_fields:
                 - hash

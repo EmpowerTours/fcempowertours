@@ -162,3 +162,6 @@ monad-trading-bot/
 # Scripts and docs (separate repos)
 scripts/
 docs/
+
+# Presentation files (local only)
+presentation/

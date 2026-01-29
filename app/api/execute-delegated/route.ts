@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
       'radio_queue_song',      // Live radio song queue on-chain
       'radio_claim_rewards',   // Live radio TOURS rewards claim
       'radio_mark_played',     // Live radio mark song as played (scheduler)
+      'radio_skip_random',     // Live radio skip to random (Pyth Entropy) - user pays 1 MON
       'mirrormate_register',   // Register as tour guide
       'mirrormate_update',     // Update guide profile
       'mirrormate_skip',       // Skip guide in matching
@@ -4074,6 +4075,84 @@ ${enjoyText}
         });
       }
 
+      // ==================== LIVE RADIO: SKIP TO RANDOM (PYTH ENTROPY) ====================
+      case 'radio_skip_random': {
+        console.log('🎲 Action: radio_skip_random (Pyth Entropy)');
+
+        const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO as Address;
+        const SKIP_RANDOM_PRICE = parseEther('1'); // 1 MON covers Pyth fee (~0.4) + platform margin
+
+        if (!LIVE_RADIO_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'LiveRadio contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        // Get user's Safe address
+        const skipUserSafe = await getUserSafeAddress(userAddress as Address);
+        console.log('🎲 User Safe address:', skipUserSafe);
+
+        // Check if user Safe has enough MON
+        const { createPublicClient: createSkipClient, http: skipHttp } = await import('viem');
+        const { activeChain: skipActiveChain } = await import('@/app/chains');
+        const skipRpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC;
+        const skipPublicClient = createSkipClient({
+          chain: skipActiveChain,
+          transport: skipHttp(skipRpcUrl),
+        });
+
+        const safeMonBalance = await skipPublicClient.getBalance({ address: skipUserSafe });
+        console.log('🎲 Safe MON balance:', safeMonBalance.toString(), 'needed:', SKIP_RANDOM_PRICE.toString());
+
+        if (safeMonBalance < SKIP_RANDOM_PRICE) {
+          return NextResponse.json(
+            { success: false, error: `Insufficient balance. You need 1 MON to skip to random song.` },
+            { status: 400 }
+          );
+        }
+
+        // Call requestRandomSong() on LiveRadioV2 with 1 MON
+        // The contract will pay Pyth Entropy fee and refund excess
+        const skipRandomCalls: Call[] = [
+          {
+            to: LIVE_RADIO_ADDRESS,
+            value: SKIP_RANDOM_PRICE,
+            data: encodeFunctionData({
+              abi: parseAbi(['function requestRandomSong() external payable']),
+              functionName: 'requestRandomSong',
+            }) as Hex,
+          },
+        ];
+
+        const skipRandomTxHash = await executeTransaction(skipRandomCalls, userAddress as Address);
+        console.log('✅ Skip to random TX:', skipRandomTxHash);
+
+        await incrementTransactionCount(userAddress);
+
+        // Post Farcaster cast about the skip (non-blocking)
+        if (fid) {
+          fetch(`${APP_URL}/api/cast-nft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'radio_skip_random',
+              fid,
+              txHash: skipRandomTxHash,
+              userAddress,
+            }),
+          }).catch(err => console.error('[RadioSkip] Cast failed:', err.message));
+        }
+
+        return NextResponse.json({
+          success: true,
+          txHash: skipRandomTxHash,
+          action,
+          userAddress,
+          message: 'Random song requested via Pyth Entropy! The song will be selected shortly.',
+        });
+      }
+
       // ==================== MIRRORMATE: REGISTER GUIDE ====================
       case 'mirrormate_register': {
         console.log('🧳 Action: mirrormate_register');
@@ -4486,7 +4565,7 @@ ${enjoyText}
 
       // ==================== PURCHASE CLIMBING LOCATION ====================
       case 'purchase_climb': {
-        const CLIMBING_CONTRACT = '0x4aEdA5269172C6C848FA7685bAd87D9fF4Ba0ED5' as Address;
+        const CLIMBING_CONTRACT = (process.env.NEXT_PUBLIC_CLIMBING_LOCATIONS || '') as Address;
         const WMON_CLIMBING = process.env.NEXT_PUBLIC_WMON as Address;
 
         const {
@@ -4592,7 +4671,7 @@ ${enjoyText}
 
       // ==================== CREATE CLIMBING LOCATION ====================
       case 'create_climb': {
-        const CLIMBING_CONTRACT = '0x4aEdA5269172C6C848FA7685bAd87D9fF4Ba0ED5' as Address;
+        const CLIMBING_CONTRACT = (process.env.NEXT_PUBLIC_CLIMBING_LOCATIONS || '') as Address;
         const WMON_CLIMBING = process.env.NEXT_PUBLIC_WMON as Address;
         const LOCATION_CREATION_COST = parseEther('35'); // 35 WMON
 

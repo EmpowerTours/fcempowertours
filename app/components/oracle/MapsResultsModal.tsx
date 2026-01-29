@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { PlaceDetailsCard } from './PlaceDetailsCard';
 
 // Declare google maps types
 declare global {
@@ -52,11 +53,20 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
+  // Directions state
+  const [directionsMode, setDirectionsMode] = useState(false);
+  const [directionsResult, setDirectionsResult] = useState<any>(null);
+  const [directionsSteps, setDirectionsSteps] = useState<Array<{ instruction: string; distance: string; duration: string }>>([]);
+  const [directionsSummary, setDirectionsSummary] = useState<{ distance: string; duration: string } | null>(null);
+  const [loadingDirections, setLoadingDirections] = useState(false);
+  const [directionsError, setDirectionsError] = useState<string | null>(null);
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const infoWindowRef = useRef<any>(null);
   const placesServiceRef = useRef<any>(null);
+  const directionsRendererRef = useRef<any>(null);
 
   // Get Farcaster SDK for opening external URLs
   const { sdk } = useFarcasterContext();
@@ -323,12 +333,173 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     openExternalUrl(uri);
   };
 
+  // Render directions in-app using DirectionsService + DirectionsRenderer
+  const renderInAppDirections = useCallback(async (source: MapsSource) => {
+    if (!mapReady || !mapInstanceRef.current || !window.google?.maps) {
+      // Fallback to external
+      const directionsUrl = source.placeId
+        ? `https://www.google.com/maps/dir/?api=1&destination_place_id=${source.placeId}`
+        : source.uri.replace('/maps/place/', '/maps/dir/?api=1&destination=');
+      openExternalUrl(directionsUrl);
+      return;
+    }
+
+    setLoadingDirections(true);
+    setDirectionsError(null);
+    setDirectionsMode(true);
+    setViewMode('map');
+
+    try {
+      // Get user's current location
+      const userPos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation not supported'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+      });
+
+      const origin = {
+        lat: userPos.coords.latitude,
+        lng: userPos.coords.longitude,
+      };
+
+      // Build destination
+      const destination: any = source.placeId
+        ? { placeId: source.placeId }
+        : (() => {
+            const details = source.placeId ? placeDetails[source.placeId] : null;
+            return details?.location || source.title;
+          })();
+
+      // Clear existing markers and old directions
+      markersRef.current.forEach(m => m.setMap(null));
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null);
+      }
+
+      // Create DirectionsService and Renderer
+      const directionsService = new window.google.maps.DirectionsService();
+      const directionsRenderer = new window.google.maps.DirectionsRenderer({
+        map: mapInstanceRef.current,
+        suppressMarkers: false,
+        polylineOptions: {
+          strokeColor: '#06b6d4',
+          strokeWeight: 5,
+          strokeOpacity: 0.85,
+        },
+      });
+      directionsRendererRef.current = directionsRenderer;
+
+      const result = await new Promise<any>((resolve, reject) => {
+        directionsService.route(
+          {
+            origin,
+            destination,
+            travelMode: window.google.maps.TravelMode.DRIVING,
+          },
+          (response: any, status: string) => {
+            if (status === 'OK') {
+              resolve(response);
+            } else {
+              reject(new Error(`Directions failed: ${status}`));
+            }
+          }
+        );
+      });
+
+      directionsRenderer.setDirections(result);
+      setDirectionsResult(result);
+
+      // Extract route info
+      const route = result.routes[0];
+      const leg = route.legs[0];
+      setDirectionsSummary({
+        distance: leg.distance?.text || '',
+        duration: leg.duration?.text || '',
+      });
+      setDirectionsSteps(
+        leg.steps?.map((step: any) => ({
+          instruction: step.instructions?.replace(/<[^>]*>/g, '') || '',
+          distance: step.distance?.text || '',
+          duration: step.duration?.text || '',
+        })) || []
+      );
+
+      console.log('[MapsWidget] In-app directions rendered:', leg.distance?.text, leg.duration?.text);
+    } catch (err: any) {
+      console.error('[MapsWidget] Directions error:', err);
+      setDirectionsError(err.message || 'Could not get directions');
+    } finally {
+      setLoadingDirections(false);
+    }
+  }, [mapReady, placeDetails, openExternalUrl]);
+
+  // Exit directions mode and restore markers
+  const exitDirectionsMode = useCallback(() => {
+    setDirectionsMode(false);
+    setDirectionsResult(null);
+    setDirectionsSteps([]);
+    setDirectionsSummary(null);
+    setDirectionsError(null);
+
+    // Remove directions renderer
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null);
+      directionsRendererRef.current = null;
+    }
+
+    // Restore markers
+    if (mapInstanceRef.current && Object.keys(placeDetails).length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      markersRef.current = [];
+
+      sources.forEach((source, index) => {
+        const details = source.placeId ? placeDetails[source.placeId] : null;
+        if (!details?.location) return;
+
+        const marker = new window.google.maps.Marker({
+          position: details.location,
+          map: mapInstanceRef.current,
+          title: source.title,
+          label: { text: String(index + 1), color: '#000000', fontWeight: 'bold' },
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: index === selectedIndex ? '#06b6d4' : '#8b5cf6',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
+        });
+
+        marker.addListener('click', () => {
+          setSelectedIndex(index);
+          showInfoWindow(marker, source, details);
+        });
+
+        markersRef.current.push(marker);
+        bounds.extend(details.location);
+      });
+
+      mapInstanceRef.current.fitBounds(bounds);
+    }
+  }, [placeDetails, sources, selectedIndex, showInfoWindow]);
+
   const handleGetDirections = (source: MapsSource) => {
+    renderInAppDirections(source);
+  };
+
+  // Open directions in external Google Maps as fallback
+  const handleExternalDirections = useCallback((source: MapsSource) => {
     const directionsUrl = source.placeId
       ? `https://www.google.com/maps/dir/?api=1&destination_place_id=${source.placeId}`
       : source.uri.replace('/maps/place/', '/maps/dir/?api=1&destination=');
     openExternalUrl(directionsUrl);
-  };
+  }, [openExternalUrl]);
 
   const selectedSource = sources[selectedIndex];
   const selectedDetails = selectedSource?.placeId ? placeDetails[selectedSource.placeId] : null;
@@ -595,49 +766,129 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
               )}
             </div>
 
-            {/* Selected Place Card */}
-            {selectedSource && (
+            {/* Directions Panel (shown when route is active) */}
+            {directionsMode && (
               <div className="mt-4 bg-gray-800 border border-cyan-500/20 rounded-xl p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-white font-bold text-lg truncate">{selectedSource.title}</h3>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full">
-                        {getPlaceType(selectedSource.title)}
-                      </span>
-                      {selectedDetails?.rating && (
-                        <span className="text-xs text-yellow-400">
-                          ⭐ {selectedDetails.rating} ({selectedDetails.userRatingsTotal || 0})
-                        </span>
-                      )}
-                    </div>
-                    {selectedDetails?.address && (
-                      <p className="text-xs text-gray-500 mt-2 line-clamp-2">{selectedDetails.address}</p>
-                    )}
-                  </div>
-                  <div className="text-right ml-3">
-                    <div className="text-2xl font-bold text-cyan-400">#{selectedIndex + 1}</div>
-                    <div className="text-xs text-gray-500">of {sources.length}</div>
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={exitDirectionsMode}
+                    className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Places
+                  </button>
+                  {selectedSource && (
+                    <button
+                      onClick={() => handleExternalDirections(selectedSource)}
+                      className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-xs transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Open in Google Maps
+                    </button>
+                  )}
                 </div>
 
-                {/* Quick Actions */}
-                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-700/50">
-                  <button
-                    onClick={() => openExternalUrl(selectedSource.uri)}
-                    className="flex-1 py-2 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    View on Maps
-                  </button>
-                  <button
-                    onClick={() => handleGetDirections(selectedSource)}
-                    className="flex-1 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Navigation className="w-3 h-3" />
-                    Directions
-                  </button>
-                </div>
+                {loadingDirections && (
+                  <div className="flex items-center gap-2 text-gray-400 py-4 justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Getting directions...</span>
+                  </div>
+                )}
+
+                {directionsError && (
+                  <div className="text-center py-3">
+                    <p className="text-red-400 text-sm mb-2">{directionsError}</p>
+                    {selectedSource && (
+                      <button
+                        onClick={() => handleExternalDirections(selectedSource)}
+                        className="px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        Open in Google Maps instead
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {directionsSummary && (
+                  <>
+                    <div className="flex items-center gap-4 mb-3 pb-3 border-b border-gray-700/50">
+                      <h3 className="text-white font-bold truncate flex-1">
+                        {selectedSource?.title}
+                      </h3>
+                      <div className="flex items-center gap-3 text-sm flex-shrink-0">
+                        <span className="flex items-center gap-1 text-cyan-400">
+                          <Route className="w-3.5 h-3.5" />
+                          {directionsSummary.distance}
+                        </span>
+                        <span className="flex items-center gap-1 text-purple-400">
+                          <Clock className="w-3.5 h-3.5" />
+                          {directionsSummary.duration}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Step-by-step directions */}
+                    <div className="max-h-[200px] overflow-y-auto space-y-2">
+                      {directionsSteps.map((step, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs">
+                          <div className="w-5 h-5 bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-gray-300 font-bold" style={{ fontSize: '9px' }}>{i + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gray-300">{step.instruction}</p>
+                            <p className="text-gray-600 mt-0.5">{step.distance} &middot; {step.duration}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Selected Place Card (hidden during directions mode) */}
+            {selectedSource && !directionsMode && (
+              <div className="mt-4">
+                {selectedSource.placeId ? (
+                  <PlaceDetailsCard
+                    placeId={selectedSource.placeId}
+                    title={selectedSource.title}
+                    compact={false}
+                    onViewOnMaps={() => openExternalUrl(selectedSource.uri)}
+                    onGetDirections={() => handleGetDirections(selectedSource)}
+                  />
+                ) : (
+                  <div className="bg-gray-800 border border-cyan-500/20 rounded-xl p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-bold text-lg truncate">{selectedSource.title}</h3>
+                        <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full">
+                          {getPlaceType(selectedSource.title)}
+                        </span>
+                      </div>
+                      <div className="text-right ml-3">
+                        <div className="text-2xl font-bold text-cyan-400">#{selectedIndex + 1}</div>
+                        <div className="text-xs text-gray-500">of {sources.length}</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-700/50">
+                      <button
+                        onClick={() => openExternalUrl(selectedSource.uri)}
+                        className="flex-1 py-2 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        View on Maps
+                      </button>
+                      <button
+                        onClick={() => handleGetDirections(selectedSource)}
+                        className="flex-1 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Navigation className="w-3 h-3" />
+                        Directions
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

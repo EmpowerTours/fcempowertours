@@ -8,7 +8,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 export async function POST(req: NextRequest) {
   try {
     const {
-      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours' | 'experience_created' | 'experience_purchased' | 'lottery_winner' | 'play_recorded' | 'top_artist'
+      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours' | 'experience_created' | 'experience_purchased' | 'lottery_winner' | 'play_recorded' | 'top_artist' | 'radio_skip_random'
       fid,            // Farcaster ID
       tokenId,        // NFT token ID
       txHash,         // Transaction hash
@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
       participantCount, // Number of participants
       // Play recording / Top artist fields
       params,         // Additional params object for play_recorded and top_artist
+      // Radio skip random fields
+      userAddress,    // User's wallet address
     } = await req.json();
 
     console.log('🎵 [CAST] Posting cast:', { type, fid, tokenId, countryCode, songTitle });
@@ -388,6 +390,45 @@ Discover: fcempowertours.xyz/discover
 
       embeds = [{ url: discoverUrl }];
       console.log('📢 Top artist cast text:', castText);
+    }
+
+    // ==================== RADIO SKIP TO RANDOM CAST ====================
+    else if (type === 'radio_skip_random') {
+      // Deep link to open mini app with radio modal
+      const radioUrl = `${APP_URL}/oracle?modal=radio`;
+
+      // Get user's Farcaster username from FID
+      let userDisplay = 'Someone';
+      if (fid && NEYNAR_API_KEY) {
+        try {
+          const userResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+            headers: { 'api_key': NEYNAR_API_KEY }
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.users && userData.users.length > 0) {
+              userDisplay = `@${userData.users[0].username}`;
+            }
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch user username:', err);
+        }
+      }
+
+      castText = `🎲 ${userDisplay} just used Skip to Random on @empowertours Live Radio!
+
+⚡ Powered by Pyth Entropy - Provably Fair Randomness
+💰 Cost: 1 MON
+🎵 Next song selected by verifiable on-chain randomness!
+
+🎧 Tune in: fcempowertours.xyz/oracle?modal=radio
+
+TX: https://monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: radioUrl }];
+      console.log('📢 Radio skip random cast text:', castText);
     }
 
     if (!castText) {
