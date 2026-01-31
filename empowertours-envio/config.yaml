@@ -417,4 +417,175 @@ networks:
               transaction_fields:
                 - hash
 
+      # VotingTOURS - vTOURS wrap/unwrap tracking
+      - name: VotingTOURS
+        address:
+          - "0xe5377b1f90B9A70dD7B0f6Ea34F9c3D287B3C44c"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "Transfer(address indexed from, address indexed to, uint256 value)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "DelegateVotesChanged(address indexed delegate, uint256 previousVotes, uint256 newVotes)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # EmpowerToursGovernor - DAO proposals and voting
+      - name: EmpowerToursGovernor
+        address:
+          - "0x4d05fb8c2D090769A084aa0138cCF7A549452Fa3"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "ProposalCreated(uint256 proposalId, address proposer, address[] targets, uint256[] values, string[] signatures, bytes[] calldatas, uint256 voteStart, uint256 voteEnd, string description)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ProposalExecuted(uint256 proposalId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ProposalCanceled(uint256 proposalId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ProposalQueued(uint256 proposalId, uint256 etaSeconds)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # EmpowerToursTimelock - Timelock operations
+      - name: EmpowerToursTimelock
+        address:
+          - "0x4F7F9111215F2270A92Bd64e4c1E9D7De516bd79"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "CallScheduled(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data, bytes32 predecessor, uint256 delay)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "Cancelled(bytes32 indexed id)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # DAOContractFactory - Proposal pipeline and deployments
+      - name: DAOContractFactory
+        address:
+          - "0x627a2c457e5Eb3E9C4B6632Ac69f8c39228D7968"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "ProposalRegistered(uint256 indexed id, address indexed proposer, string prompt, uint256 treasuryAllocation)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "GovernorProposalLinked(uint256 indexed id, uint256 indexed governorProposalId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "CodeGenerated(uint256 indexed id, string ipfsCID)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BytecodeCompiled(uint256 indexed id)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ContractDeployed(uint256 indexed id, address indexed deployedContract, uint256 nftId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "TreasuryAllocated(uint256 indexed id, address indexed recipient, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RewardDistributed(uint256 indexed id, address indexed proposer, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "IntegrityHashesSet(uint256 indexed id, bytes32 sourceHash, bytes32 bytecodeHash)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ProposalFeeUpdated(uint256 oldFee, uint256 newFee)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # DeploymentNFT - Provenance NFT mints
+      - name: DeploymentNFT
+        address:
+          - "0xfA002C7538B6e28Dd7dDd00F1d3A46Ea0731A586"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "DeploymentRecorded(uint256 indexed tokenId, uint256 indexed proposalId, address indexed deployedContract, string ipfsCodeHash)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      # EmpowerToursDevStudio - Credit system, app NFTs, whitelist
+      - name: EmpowerToursDevStudio
+        address:
+          - "0xEC27aD035c39DE7217A3F4DAe64a7a67a477d880"
+        handler: src/EventHandlers.ts
+        events:
+          - event: "CreditsPurchased(address indexed user, uint256 amount, uint256 cost)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "PromptGenerated(address indexed user, uint256 indexed tokenId, string appType)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "WhitelistMinted(address indexed user, uint256 indexed tokenId, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "ToursAirdropped(address indexed user, uint256 amount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "WhitelistClosed(uint256 finalCount, uint256 timestamp)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false

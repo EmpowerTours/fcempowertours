@@ -939,3 +939,265 @@ type ClimbingGlobalStats @entity {
   totalWmonCollected: BigInt!
   lastUpdated: Timestamp!
 }
+
+# ============================================
+# ToursRewardManager Entities (Bitcoin-style Halving)
+# ============================================
+
+type RewardEpoch @entity {
+  id: ID!
+  epoch: String!
+  triggeredBy: String
+  isEarlyHalving: Boolean!
+  triggeredAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type RewardRateUpdate @entity {
+  id: ID!
+  rewardType: Int!
+  oldRate: BigInt!
+  newRate: BigInt!
+  isOverride: Boolean!
+  updatedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type ToursRewardDistribution @entity {
+  id: ID!
+  recipient: String!
+  rewardType: Int!
+  amount: BigInt!
+  distributedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type RewardManagerConfig @entity {
+  id: ID!
+  currentEpoch: Int!
+  dailyCap: BigInt!
+  daoTimelock: String
+  lastUpdated: Timestamp!
+}
+
+# ============================================
+# VotingTOURS Entities (vTOURS Governance Token)
+# ============================================
+
+type VotingTOURSTransfer @entity {
+  id: ID!
+  from: String!
+  to: String!
+  value: BigInt!
+  isWrap: Boolean!
+  isUnwrap: Boolean!
+  timestamp: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type VotingDelegate @entity {
+  id: ID!
+  delegator: String!
+  currentDelegate: String!
+  previousDelegate: String
+  lastDelegatedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type VotingPower @entity {
+  id: ID!
+  delegate: String!
+  currentVotes: BigInt!
+  previousVotes: BigInt!
+  lastUpdatedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ============================================
+# EmpowerToursGovernor Entities (DAO Proposals)
+# ============================================
+
+type GovernorProposal @entity {
+  id: ID!
+  proposalId: String!
+  proposer: String!
+  description: String!
+  voteStart: BigInt!
+  voteEnd: BigInt!
+  status: String!
+  etaSeconds: BigInt
+  totalForVotes: BigInt!
+  totalAgainstVotes: BigInt!
+  totalAbstainVotes: BigInt!
+  voteCount: Int!
+  createdAt: Timestamp!
+  executedAt: Timestamp
+  cancelledAt: Timestamp
+  queuedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+  votes: [GovernorVote!]! @derivedFrom(field: "proposal")
+}
+
+type GovernorVote @entity {
+  id: ID!
+  proposal: GovernorProposal!
+  proposalId: String!
+  voter: String!
+  support: Int!
+  weight: BigInt!
+  reason: String
+  votedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ============================================
+# EmpowerToursTimelock Entities
+# ============================================
+
+type TimelockOperation @entity {
+  id: ID!
+  operationId: String!
+  index: BigInt!
+  target: String!
+  value: BigInt!
+  data: String!
+  predecessor: String
+  delay: BigInt
+  status: String!
+  scheduledAt: Timestamp
+  executedAt: Timestamp
+  cancelledAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ============================================
+# DAOContractFactory Entities
+# ============================================
+
+type FactoryProposal @entity {
+  id: ID!
+  proposalId: String!
+  proposer: String!
+  prompt: String!
+  treasuryAllocation: BigInt!
+  governorProposalId: String
+  ipfsCID: String
+  bytecodeCompiled: Boolean!
+  deployedContract: String
+  deploymentNFTId: String
+  sourceHash: String
+  bytecodeHash: String
+  rewardAmount: BigInt
+  status: String!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type FactoryTreasuryAllocation @entity {
+  id: ID!
+  proposalId: String!
+  recipient: String!
+  amount: BigInt!
+  allocatedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type FactoryRewardDistribution @entity {
+  id: ID!
+  proposalId: String!
+  proposer: String!
+  amount: BigInt!
+  distributedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ============================================
+# DeploymentNFT Entities
+# ============================================
+
+type DeploymentNFTToken @entity {
+  id: ID!
+  tokenId: String!
+  proposalId: String!
+  deployedContract: String!
+  ipfsCodeHash: String!
+  owner: String!
+  mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+# ============================================
+# EmpowerToursDevStudio Entities
+# ============================================
+
+type DevStudioUser @entity {
+  id: ID!
+  user: String!
+  totalCredits: BigInt!
+  totalSpent: BigInt!
+  appsGenerated: Int!
+  whitelistMinted: Boolean!
+  airdropReceived: BigInt!
+  lastActive: Timestamp!
+}
+
+type DevStudioApp @entity {
+  id: ID!
+  tokenId: String!
+  creator: String!
+  appType: String!
+  createdAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type DevStudioWhitelistMint @entity {
+  id: ID!
+  user: String!
+  tokenId: String!
+  mintedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type DevStudioCreditPurchase @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  cost: BigInt!
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type DevStudioAirdrop @entity {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  airdroppedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type DevStudioGlobalStats @entity {
+  id: ID!
+  totalCreditsPurchased: BigInt!
+  totalAppsGenerated: Int!
+  totalWhitelistMints: Int!
+  totalAirdrops: BigInt!
+  whitelistOpen: Boolean!
+  lastUpdated: Timestamp!
+}

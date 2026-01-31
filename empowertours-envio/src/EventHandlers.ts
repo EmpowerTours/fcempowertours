@@ -3,9 +3,16 @@ import {
   PassportNFTV2,
   ItineraryNFTV2,
   PlayOracleV3,
-  MusicSubscriptionV4,
-  LiveRadioV2,
-  ClimbingLocationsV1,
+  MusicSubscriptionV5,
+  LiveRadioV3,
+  ClimbingLocationsV2,
+  ToursRewardManager,
+  VotingTOURS,
+  EmpowerToursGovernor,
+  EmpowerToursTimelock,
+  DAOContractFactory,
+  DeploymentNFT,
+  EmpowerToursDevStudio,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -1093,10 +1100,10 @@ PlayOracleV3.OperatorRemoved.handler(async ({ event, context }) => {
 });
 
 // =============================================================================
-// ✅ MusicSubscriptionV4 Event Handlers (Artist Payouts & More Play Records)
+// ✅ MusicSubscriptionV5 Event Handlers (Artist Payouts & More Play Records)
 // =============================================================================
 
-MusicSubscriptionV4.Subscribed.handler(async ({ event, context }) => {
+MusicSubscriptionV5.Subscribed.handler(async ({ event, context }) => {
   const { user, userFid, tier, expiry, paidAmount } = event.params;
 
   const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
@@ -1118,7 +1125,7 @@ MusicSubscriptionV4.Subscribed.handler(async ({ event, context }) => {
   context.log.info(`🎵 User ${user.slice(0, 8)}... subscribed (FID: ${userFid}, Tier: ${tier}, Expiry: ${new Date(Number(expiry) * 1000).toISOString()})`);
 });
 
-MusicSubscriptionV4.SubscriptionRenewed.handler(async ({ event, context }) => {
+MusicSubscriptionV5.SubscriptionRenewed.handler(async ({ event, context }) => {
   const { user, newExpiry } = event.params;
 
   const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
@@ -1134,7 +1141,7 @@ MusicSubscriptionV4.SubscriptionRenewed.handler(async ({ event, context }) => {
   context.log.info(`🔄 Subscription renewed for ${user.slice(0, 8)}... - new expiry: ${new Date(Number(newExpiry) * 1000).toISOString()}`);
 });
 
-MusicSubscriptionV4.PlayRecorded.handler(async ({ event, context }) => {
+MusicSubscriptionV5.PlayRecorded.handler(async ({ event, context }) => {
   const { user, masterTokenId, duration, timestamp } = event.params;
 
   // This may duplicate PlayOracle records, but creates from subscription contract too
@@ -1155,7 +1162,7 @@ MusicSubscriptionV4.PlayRecorded.handler(async ({ event, context }) => {
   context.log.info(`🎵 [Sub] Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId}`);
 });
 
-MusicSubscriptionV4.MonthlyDistributionFinalized.handler(async ({ event, context }) => {
+MusicSubscriptionV5.MonthlyDistributionFinalized.handler(async ({ event, context }) => {
   const { monthId, totalRevenue, totalPlays, artistPool } = event.params;
 
   const distributionId = `distribution-${event.chainId}-${monthId.toString()}`;
@@ -1175,7 +1182,7 @@ MusicSubscriptionV4.MonthlyDistributionFinalized.handler(async ({ event, context
   context.log.info(`📊 Monthly distribution #${monthId} finalized: Revenue: ${totalRevenue}, Plays: ${totalPlays}, Artist Pool: ${artistPool}`);
 });
 
-MusicSubscriptionV4.ArtistPayout.handler(async ({ event, context }) => {
+MusicSubscriptionV5.ArtistPayout.handler(async ({ event, context }) => {
   const { monthId, artist, amount, playCount } = event.params;
 
   const payoutId = `payout-${event.chainId}-${monthId.toString()}-${artist.toLowerCase()}`;
@@ -1222,7 +1229,7 @@ MusicSubscriptionV4.ArtistPayout.handler(async ({ event, context }) => {
   context.log.info(`💰 Artist payout: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for ${playCount} plays in month ${monthId}`);
 });
 
-MusicSubscriptionV4.ArtistToursReward.handler(async ({ event, context }) => {
+MusicSubscriptionV5.ArtistToursReward.handler(async ({ event, context }) => {
   const { monthId, artist, toursAmount } = event.params;
 
   // Update artist stats with TOURS rewards
@@ -1240,31 +1247,31 @@ MusicSubscriptionV4.ArtistToursReward.handler(async ({ event, context }) => {
   context.log.info(`🎁 TOURS reward: ${artist.slice(0, 8)}... received ${toursFormatted} TOURS for month ${monthId}`);
 });
 
-MusicSubscriptionV4.ReserveAdded.handler(async ({ event, context }) => {
+MusicSubscriptionV5.ReserveAdded.handler(async ({ event, context }) => {
   const { monthId, amount, totalReserve } = event.params;
 
   context.log.info(`💰 Reserve added for month ${monthId}: ${amount} (total: ${totalReserve})`);
 });
 
-MusicSubscriptionV4.ReserveWithdrawnToDAO.handler(async ({ event, context }) => {
+MusicSubscriptionV5.ReserveWithdrawnToDAO.handler(async ({ event, context }) => {
   const { dao, amount } = event.params;
 
   context.log.info(`💸 Reserve withdrawn to DAO ${dao}: ${amount}`);
 });
 
-MusicSubscriptionV4.AccountFlagged.handler(async ({ event, context }) => {
+MusicSubscriptionV5.AccountFlagged.handler(async ({ event, context }) => {
   const { user, reason } = event.params;
 
   context.log.info(`🚩 Account flagged: ${user} - reason: ${reason}`);
 });
 
-MusicSubscriptionV4.AccountUnflagged.handler(async ({ event, context }) => {
+MusicSubscriptionV5.AccountUnflagged.handler(async ({ event, context }) => {
   const { user } = event.params;
 
   context.log.info(`✅ Account unflagged: ${user}`);
 });
 
-MusicSubscriptionV4.VoteToFlag.handler(async ({ event, context }) => {
+MusicSubscriptionV5.VoteToFlag.handler(async ({ event, context }) => {
   const { voter, target, totalVotes } = event.params;
 
   context.log.info(`🗳️ Vote to flag: ${voter} voted to flag ${target} (total votes: ${totalVotes})`);
@@ -1275,7 +1282,7 @@ MusicSubscriptionV4.VoteToFlag.handler(async ({ event, context }) => {
 // ============================================
 
 // Radio lifecycle events
-LiveRadioV2.RadioStarted.handler(async ({ event, context }) => {
+LiveRadioV3.RadioStarted.handler(async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
   let stats = await context.RadioGlobalStats.get(statsId);
@@ -1304,7 +1311,7 @@ LiveRadioV2.RadioStarted.handler(async ({ event, context }) => {
   context.log.info(`📻 LiveRadio started at ${event.block.timestamp}`);
 });
 
-LiveRadioV2.RadioStopped.handler(async ({ event, context }) => {
+LiveRadioV3.RadioStopped.handler(async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
   let stats = await context.RadioGlobalStats.get(statsId);
@@ -1320,7 +1327,7 @@ LiveRadioV2.RadioStopped.handler(async ({ event, context }) => {
 });
 
 // Song queuing
-LiveRadioV2.SongQueued.handler(async ({ event, context }) => {
+LiveRadioV3.SongQueued.handler(async ({ event, context }) => {
   const { queueId, masterTokenId, queuedBy, fid, paidAmount, tipAmount, hadLicense } = event.params;
 
   const queuedSongId = `queue-${event.chainId}-${queueId.toString()}`;
@@ -1387,7 +1394,7 @@ LiveRadioV2.SongQueued.handler(async ({ event, context }) => {
 });
 
 // Song played (tracks all plays - queued and random)
-LiveRadioV2.SongPlayed.handler(async ({ event, context }) => {
+LiveRadioV3.SongPlayed.handler(async ({ event, context }) => {
   const { queueId, masterTokenId, artist, artistPayout, wasRandom } = event.params;
 
   const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1436,7 +1443,7 @@ LiveRadioV2.SongPlayed.handler(async ({ event, context }) => {
 });
 
 // Voice notes
-LiveRadioV2.VoiceNoteSubmitted.handler(async ({ event, context }) => {
+LiveRadioV3.VoiceNoteSubmitted.handler(async ({ event, context }) => {
   const { noteId, submitter, duration, paidAmount, isAd } = event.params;
 
   const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
@@ -1498,7 +1505,7 @@ LiveRadioV2.VoiceNoteSubmitted.handler(async ({ event, context }) => {
   context.log.info(`🎤 Voice ${isAd ? 'ad' : 'note'} submitted by ${submitter.slice(0, 8)}... (${duration}s, paid: ${paidAmount})`);
 });
 
-LiveRadioV2.VoiceNotePlayed.handler(async ({ event, context }) => {
+LiveRadioV3.VoiceNotePlayed.handler(async ({ event, context }) => {
   const { noteId, submitter, rewardPaid } = event.params;
 
   const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
@@ -1530,7 +1537,7 @@ LiveRadioV2.VoiceNotePlayed.handler(async ({ event, context }) => {
 });
 
 // Listener rewards
-LiveRadioV2.ListenerRewarded.handler(async ({ event, context }) => {
+LiveRadioV3.ListenerRewarded.handler(async ({ event, context }) => {
   const { listener, amount, rewardType } = event.params;
 
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
@@ -1576,7 +1583,7 @@ LiveRadioV2.ListenerRewarded.handler(async ({ event, context }) => {
   context.log.info(`🎧 Listener ${listener.slice(0, 8)}... rewarded ${amount} TOURS (${rewardType})`);
 });
 
-LiveRadioV2.StreakBonusClaimed.handler(async ({ event, context }) => {
+LiveRadioV3.StreakBonusClaimed.handler(async ({ event, context }) => {
   const { listener, streakDays, bonusAmount } = event.params;
 
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
@@ -1600,7 +1607,7 @@ LiveRadioV2.StreakBonusClaimed.handler(async ({ event, context }) => {
   context.log.info(`🔥 ${listener.slice(0, 8)}... claimed ${streakDays}-day streak bonus: ${bonusAmount} TOURS`);
 });
 
-LiveRadioV2.FirstListenerBonus.handler(async ({ event, context }) => {
+LiveRadioV3.FirstListenerBonus.handler(async ({ event, context }) => {
   const { listener, day, bonusAmount } = event.params;
 
   const firstListenerId = `firstlistener-${event.chainId}-${day.toString()}`;
@@ -1633,7 +1640,7 @@ LiveRadioV2.FirstListenerBonus.handler(async ({ event, context }) => {
 });
 
 // Tips
-LiveRadioV2.TipReceived.handler(async ({ event, context }) => {
+LiveRadioV3.TipReceived.handler(async ({ event, context }) => {
   const { masterTokenId, artist, tipper, amount } = event.params;
 
   const tipId = `tip-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1675,33 +1682,27 @@ LiveRadioV2.TipReceived.handler(async ({ event, context }) => {
   context.log.info(`💸 Tip: ${tipper.slice(0, 8)}... tipped ${amount} WMON to artist ${artist.slice(0, 8)}... for song #${masterTokenId}`);
 });
 
-LiveRadioV2.RewardsClaimed.handler(async ({ event, context }) => {
-  const { user, amount } = event.params;
-
-  context.log.info(`💰 ${user.slice(0, 8)}... claimed ${amount} TOURS rewards`);
-});
-
 // Random song selection (Pyth Entropy)
-LiveRadioV2.RandomSongRequested.handler(async ({ event, context }) => {
+LiveRadioV3.RandomSongRequested.handler(async ({ event, context }) => {
   const { sequenceNumber, requester } = event.params;
 
   context.log.info(`🎲 Random song requested - sequence: ${sequenceNumber}, requester: ${requester.slice(0, 8)}...`);
 });
 
-LiveRadioV2.RandomSongSelected.handler(async ({ event, context }) => {
+LiveRadioV3.RandomSongSelected.handler(async ({ event, context }) => {
   const { masterTokenId, randomValue } = event.params;
 
   context.log.info(`🎲 Random song selected: #${masterTokenId} (random: ${randomValue})`);
 });
 
 // Song pool management
-LiveRadioV2.SongAddedToPool.handler(async ({ event, context }) => {
+LiveRadioV3.SongAddedToPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➕ Song #${masterTokenId} added to radio pool`);
 });
 
-LiveRadioV2.SongRemovedFromPool.handler(async ({ event, context }) => {
+LiveRadioV3.SongRemovedFromPool.handler(async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
@@ -1711,7 +1712,7 @@ LiveRadioV2.SongRemovedFromPool.handler(async ({ event, context }) => {
 // CLIMBING LOCATIONS V1 EVENTS (Rock Climbing)
 // ============================================
 
-ClimbingLocationsV1.LocationCreated.handler(async ({ event, context }) => {
+ClimbingLocationsV2.LocationCreated.handler(async ({ event, context }) => {
   const { locationId, creator, creatorFid, creatorTelegramId, name, photoProofIPFS, priceWmon } = event.params;
 
   const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
@@ -1788,7 +1789,7 @@ ClimbingLocationsV1.LocationCreated.handler(async ({ event, context }) => {
   context.log.info(`🧗 Climb location #${locationId} created by ${creator.slice(0, 8)}... (${userType}) - "${name}" @ ${priceWmon} WMON`);
 });
 
-ClimbingLocationsV1.AccessBadgeMinted.handler(async ({ event, context }) => {
+ClimbingLocationsV2.AccessBadgeMinted.handler(async ({ event, context }) => {
   const { tokenId, locationId, holder, holderFid, holderTelegramId } = event.params;
 
   const badgeId = `badge-${event.chainId}-${tokenId.toString()}`;
@@ -1855,7 +1856,7 @@ ClimbingLocationsV1.AccessBadgeMinted.handler(async ({ event, context }) => {
   context.log.info(`🎫 Access Badge #${tokenId} minted for location #${locationId} to ${holder.slice(0, 8)}... (${userType})`);
 });
 
-ClimbingLocationsV1.ClimbProofMinted.handler(async ({ event, context }) => {
+ClimbingLocationsV2.ClimbProofMinted.handler(async ({ event, context }) => {
   const { tokenId, locationId, climber, photoIPFS, reward } = event.params;
 
   const proofId = `proof-${event.chainId}-${tokenId.toString()}`;
@@ -1926,7 +1927,7 @@ ClimbingLocationsV1.ClimbProofMinted.handler(async ({ event, context }) => {
   context.log.info(`🏆 Climb Proof #${tokenId} minted for location #${locationId} - ${climber.slice(0, 8)}... earned ${rewardFormatted} TOURS`);
 });
 
-ClimbingLocationsV1.LocationDisabled.handler(async ({ event, context }) => {
+ClimbingLocationsV2.LocationDisabled.handler(async ({ event, context }) => {
   const { locationId } = event.params;
 
   const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
@@ -1942,4 +1943,877 @@ ClimbingLocationsV1.LocationDisabled.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🚫 Climb location #${locationId} disabled by admin`);
+});
+
+// ============================================
+// TOURS REWARD MANAGER EVENTS (Bitcoin-style Halving)
+// ============================================
+
+ToursRewardManager.HalvingTriggered.handler(async ({ event, context }) => {
+  const { epoch, timestamp } = event.params;
+
+  const epochId = `epoch-${event.chainId}-${epoch.toString()}`;
+
+  await context.RewardEpoch.set({
+    id: epochId,
+    epoch: epoch.toString(),
+    triggeredBy: undefined,
+    isEarlyHalving: false,
+    triggeredAt: new Date(Number(timestamp) * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  const configId = `reward-config-${event.chainId}`;
+  let config = await context.RewardManagerConfig.get(configId);
+  if (config) {
+    await context.RewardManagerConfig.set({
+      ...config,
+      currentEpoch: Number(epoch),
+      lastUpdated: new Date(Number(timestamp) * 1000),
+    });
+  } else {
+    await context.RewardManagerConfig.set({
+      id: configId,
+      currentEpoch: Number(epoch),
+      dailyCap: BigInt(0),
+      daoTimelock: undefined,
+      lastUpdated: new Date(Number(timestamp) * 1000),
+    });
+  }
+
+  context.log.info(`⚡ Halving triggered - Epoch ${epoch}`);
+});
+
+ToursRewardManager.EarlyHalvingTriggered.handler(async ({ event, context }) => {
+  const { newEpoch, triggeredBy } = event.params;
+
+  const epochId = `epoch-${event.chainId}-${newEpoch.toString()}`;
+
+  await context.RewardEpoch.set({
+    id: epochId,
+    epoch: newEpoch.toString(),
+    triggeredBy: triggeredBy.toLowerCase(),
+    isEarlyHalving: true,
+    triggeredAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  const configId = `reward-config-${event.chainId}`;
+  let config = await context.RewardManagerConfig.get(configId);
+  if (config) {
+    await context.RewardManagerConfig.set({
+      ...config,
+      currentEpoch: Number(newEpoch),
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`⚡ Early halving triggered to epoch ${newEpoch} by ${triggeredBy}`);
+});
+
+ToursRewardManager.BaseRewardUpdated.handler(async ({ event, context }) => {
+  const { rewardType, oldRate, newRate } = event.params;
+
+  const updateId = `rate-update-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  await context.RewardRateUpdate.set({
+    id: updateId,
+    rewardType: Number(rewardType),
+    oldRate: oldRate,
+    newRate: newRate,
+    isOverride: false,
+    updatedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`📊 Base reward updated - Type ${rewardType}: ${oldRate} → ${newRate}`);
+});
+
+ToursRewardManager.OverrideSet.handler(async ({ event, context }) => {
+  const { rewardType, rate } = event.params;
+
+  const updateId = `override-set-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  await context.RewardRateUpdate.set({
+    id: updateId,
+    rewardType: Number(rewardType),
+    oldRate: BigInt(0),
+    newRate: rate,
+    isOverride: true,
+    updatedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🔧 Override set - Type ${rewardType}: ${rate}`);
+});
+
+ToursRewardManager.OverrideCleared.handler(async ({ event, context }) => {
+  const { rewardType } = event.params;
+
+  context.log.info(`🔧 Override cleared for reward type ${rewardType}`);
+});
+
+ToursRewardManager.DistributorUpdated.handler(async ({ event, context }) => {
+  const { distributor, authorized } = event.params;
+
+  context.log.info(`${authorized ? '✅' : '❌'} Distributor ${distributor} ${authorized ? 'authorized' : 'revoked'}`);
+});
+
+ToursRewardManager.DailyCapUpdated.handler(async ({ event, context }) => {
+  const { oldCap, newCap } = event.params;
+
+  const configId = `reward-config-${event.chainId}`;
+  let config = await context.RewardManagerConfig.get(configId);
+  if (config) {
+    await context.RewardManagerConfig.set({
+      ...config,
+      dailyCap: newCap,
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`📊 Daily cap updated: ${oldCap} → ${newCap}`);
+});
+
+ToursRewardManager.DAOTimelockUpdated.handler(async ({ event, context }) => {
+  const { oldTimelock, newTimelock } = event.params;
+
+  const configId = `reward-config-${event.chainId}`;
+  let config = await context.RewardManagerConfig.get(configId);
+  if (config) {
+    await context.RewardManagerConfig.set({
+      ...config,
+      daoTimelock: newTimelock.toLowerCase(),
+      lastUpdated: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🏛️ DAO Timelock updated: ${oldTimelock} → ${newTimelock}`);
+});
+
+ToursRewardManager.RewardDistributed.handler(async ({ event, context }) => {
+  const { recipient, rewardType, amount } = event.params;
+
+  const distId = `tours-reward-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  await context.ToursRewardDistribution.set({
+    id: distId,
+    recipient: recipient.toLowerCase(),
+    rewardType: Number(rewardType),
+    amount: amount,
+    distributedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  const amountFormatted = (Number(amount) / 1e18).toFixed(2);
+  context.log.info(`🎁 Reward distributed: ${recipient.slice(0, 8)}... received ${amountFormatted} TOURS (type: ${rewardType})`);
+});
+
+// ============================================
+// VOTING TOURS EVENTS (vTOURS Governance Token)
+// ============================================
+
+VotingTOURS.Transfer.handler(async ({ event, context }) => {
+  const { from, to, value } = event.params;
+
+  const transferId = `vtours-transfer-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  const isWrap = from === ZERO;
+  const isUnwrap = to === ZERO;
+
+  await context.VotingTOURSTransfer.set({
+    id: transferId,
+    from: from.toLowerCase(),
+    to: to.toLowerCase(),
+    value: value,
+    isWrap: isWrap,
+    isUnwrap: isUnwrap,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  if (isWrap) {
+    context.log.info(`🗳️ vTOURS wrapped: ${to.slice(0, 8)}... wrapped ${value} TOURS → vTOURS`);
+  } else if (isUnwrap) {
+    context.log.info(`🗳️ vTOURS unwrapped: ${from.slice(0, 8)}... unwrapped ${value} vTOURS → TOURS`);
+  } else {
+    context.log.info(`🗳️ vTOURS transferred: ${from.slice(0, 8)}... → ${to.slice(0, 8)}... (${value})`);
+  }
+});
+
+VotingTOURS.DelegateChanged.handler(async ({ event, context }) => {
+  const { delegator, fromDelegate, toDelegate } = event.params;
+
+  const delegateId = `delegate-${event.chainId}-${delegator.toLowerCase()}`;
+
+  await context.VotingDelegate.set({
+    id: delegateId,
+    delegator: delegator.toLowerCase(),
+    currentDelegate: toDelegate.toLowerCase(),
+    previousDelegate: fromDelegate.toLowerCase(),
+    lastDelegatedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🗳️ Delegation changed: ${delegator.slice(0, 8)}... delegated to ${toDelegate.slice(0, 8)}...`);
+});
+
+VotingTOURS.DelegateVotesChanged.handler(async ({ event, context }) => {
+  const { delegate, previousVotes, newVotes } = event.params;
+
+  const powerId = `voting-power-${event.chainId}-${delegate.toLowerCase()}`;
+
+  await context.VotingPower.set({
+    id: powerId,
+    delegate: delegate.toLowerCase(),
+    currentVotes: newVotes,
+    previousVotes: previousVotes,
+    lastUpdatedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🗳️ Voting power changed: ${delegate.slice(0, 8)}... ${previousVotes} → ${newVotes}`);
+});
+
+// ============================================
+// EMPOWER TOURS GOVERNOR EVENTS (DAO Proposals)
+// ============================================
+
+EmpowerToursGovernor.ProposalCreated.handler(async ({ event, context }) => {
+  const { proposalId, proposer, targets, values, signatures, calldatas, voteStart, voteEnd, description } = event.params;
+
+  const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
+
+  await context.GovernorProposal.set({
+    id: proposalEntityId,
+    proposalId: proposalId.toString(),
+    proposer: proposer.toLowerCase(),
+    description: description,
+    voteStart: voteStart,
+    voteEnd: voteEnd,
+    status: "Pending",
+    etaSeconds: undefined,
+    totalForVotes: BigInt(0),
+    totalAgainstVotes: BigInt(0),
+    totalAbstainVotes: BigInt(0),
+    voteCount: 0,
+    createdAt: new Date(event.block.timestamp * 1000),
+    executedAt: undefined,
+    cancelledAt: undefined,
+    queuedAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`🏛️ Proposal #${proposalId} created by ${proposer.slice(0, 8)}... - "${description.slice(0, 80)}..."`);
+});
+
+EmpowerToursGovernor.VoteCast.handler(async ({ event, context }) => {
+  const { voter, proposalId, support, weight, reason } = event.params;
+
+  const voteId = `vote-${event.chainId}-${proposalId.toString()}-${voter.toLowerCase()}`;
+  const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
+
+  await context.GovernorVote.set({
+    id: voteId,
+    proposal_id: proposalEntityId,
+    proposalId: proposalId.toString(),
+    voter: voter.toLowerCase(),
+    support: Number(support),
+    weight: weight,
+    reason: reason || undefined,
+    votedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update proposal vote tallies
+  const proposal = await context.GovernorProposal.get(proposalEntityId);
+  if (proposal) {
+    const update: any = {
+      ...proposal,
+      voteCount: proposal.voteCount + 1,
+      status: "Active",
+    };
+    if (Number(support) === 0) update.totalAgainstVotes = proposal.totalAgainstVotes + weight;
+    else if (Number(support) === 1) update.totalForVotes = proposal.totalForVotes + weight;
+    else if (Number(support) === 2) update.totalAbstainVotes = proposal.totalAbstainVotes + weight;
+
+    await context.GovernorProposal.set(update);
+  }
+
+  const supportLabel = Number(support) === 0 ? "Against" : Number(support) === 1 ? "For" : "Abstain";
+  context.log.info(`🗳️ Vote cast on Proposal #${proposalId}: ${voter.slice(0, 8)}... voted ${supportLabel} (weight: ${weight})`);
+});
+
+EmpowerToursGovernor.ProposalQueued.handler(async ({ event, context }) => {
+  const { proposalId, etaSeconds } = event.params;
+
+  const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
+  const proposal = await context.GovernorProposal.get(proposalEntityId);
+
+  if (proposal) {
+    await context.GovernorProposal.set({
+      ...proposal,
+      status: "Queued",
+      etaSeconds: etaSeconds,
+      queuedAt: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`🏛️ Proposal #${proposalId} queued - ETA: ${new Date(Number(etaSeconds) * 1000).toISOString()}`);
+});
+
+EmpowerToursGovernor.ProposalExecuted.handler(async ({ event, context }) => {
+  const { proposalId } = event.params;
+
+  const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
+  const proposal = await context.GovernorProposal.get(proposalEntityId);
+
+  if (proposal) {
+    await context.GovernorProposal.set({
+      ...proposal,
+      status: "Executed",
+      executedAt: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`✅ Proposal #${proposalId} executed`);
+});
+
+EmpowerToursGovernor.ProposalCanceled.handler(async ({ event, context }) => {
+  const { proposalId } = event.params;
+
+  const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
+  const proposal = await context.GovernorProposal.get(proposalEntityId);
+
+  if (proposal) {
+    await context.GovernorProposal.set({
+      ...proposal,
+      status: "Canceled",
+      cancelledAt: new Date(event.block.timestamp * 1000),
+    });
+  }
+
+  context.log.info(`❌ Proposal #${proposalId} canceled`);
+});
+
+// ============================================
+// EMPOWER TOURS TIMELOCK EVENTS
+// ============================================
+
+EmpowerToursTimelock.CallScheduled.handler(async ({ event, context }) => {
+  const { id, index, target, value, data, predecessor, delay } = event.params;
+
+  const opId = `timelock-${event.chainId}-${id}-${index.toString()}`;
+
+  await context.TimelockOperation.set({
+    id: opId,
+    operationId: id,
+    index: index,
+    target: target.toLowerCase(),
+    value: value,
+    data: data,
+    predecessor: predecessor,
+    delay: delay,
+    status: "Scheduled",
+    scheduledAt: new Date(event.block.timestamp * 1000),
+    executedAt: undefined,
+    cancelledAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`⏰ Timelock call scheduled: ${target.slice(0, 8)}... (delay: ${delay}s)`);
+});
+
+EmpowerToursTimelock.CallExecuted.handler(async ({ event, context }) => {
+  const { id, index, target, value, data } = event.params;
+
+  const opId = `timelock-${event.chainId}-${id}-${index.toString()}`;
+  const existing = await context.TimelockOperation.get(opId);
+
+  if (existing) {
+    await context.TimelockOperation.set({
+      ...existing,
+      status: "Executed",
+      executedAt: new Date(event.block.timestamp * 1000),
+    });
+  } else {
+    await context.TimelockOperation.set({
+      id: opId,
+      operationId: id,
+      index: index,
+      target: target.toLowerCase(),
+      value: value,
+      data: data,
+      predecessor: undefined,
+      delay: undefined,
+      status: "Executed",
+      scheduledAt: undefined,
+      executedAt: new Date(event.block.timestamp * 1000),
+      cancelledAt: undefined,
+      blockNumber: BigInt(event.block.number),
+      txHash: event.transaction.hash,
+    });
+  }
+
+  context.log.info(`✅ Timelock call executed: ${target.slice(0, 8)}...`);
+});
+
+EmpowerToursTimelock.Cancelled.handler(async ({ event, context }) => {
+  const { id } = event.params;
+
+  const cancelId = `timelock-cancel-${event.chainId}-${id}`;
+
+  await context.TimelockOperation.set({
+    id: cancelId,
+    operationId: id,
+    index: BigInt(0),
+    target: "",
+    value: BigInt(0),
+    data: "",
+    predecessor: undefined,
+    delay: undefined,
+    status: "Cancelled",
+    scheduledAt: undefined,
+    executedAt: undefined,
+    cancelledAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`❌ Timelock operation cancelled: ${id}`);
+});
+
+// ============================================
+// DAO CONTRACT FACTORY EVENTS
+// ============================================
+
+DAOContractFactory.ProposalRegistered.handler(async ({ event, context }) => {
+  const { id, proposer, prompt, treasuryAllocation } = event.params;
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+
+  await context.FactoryProposal.set({
+    id: proposalId,
+    proposalId: id.toString(),
+    proposer: proposer.toLowerCase(),
+    prompt: prompt,
+    treasuryAllocation: treasuryAllocation,
+    governorProposalId: undefined,
+    ipfsCID: undefined,
+    bytecodeCompiled: false,
+    deployedContract: undefined,
+    deploymentNFTId: undefined,
+    sourceHash: undefined,
+    bytecodeHash: undefined,
+    rewardAmount: undefined,
+    status: "Registered",
+    createdAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`📋 Factory Proposal #${id} registered by ${proposer.slice(0, 8)}... - "${prompt.slice(0, 60)}..."`);
+});
+
+DAOContractFactory.GovernorProposalLinked.handler(async ({ event, context }) => {
+  const { id, governorProposalId } = event.params;
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+  const proposal = await context.FactoryProposal.get(proposalId);
+
+  if (proposal) {
+    await context.FactoryProposal.set({
+      ...proposal,
+      governorProposalId: governorProposalId.toString(),
+    });
+  }
+
+  context.log.info(`🔗 Factory Proposal #${id} linked to Governor Proposal #${governorProposalId}`);
+});
+
+DAOContractFactory.CodeGenerated.handler(async ({ event, context }) => {
+  const { id, ipfsCID } = event.params;
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+  const proposal = await context.FactoryProposal.get(proposalId);
+
+  if (proposal) {
+    await context.FactoryProposal.set({
+      ...proposal,
+      ipfsCID: ipfsCID,
+      status: "CodeGenerated",
+    });
+  }
+
+  context.log.info(`💻 Code generated for Factory Proposal #${id} - IPFS: ${ipfsCID}`);
+});
+
+DAOContractFactory.BytecodeCompiled.handler(async ({ event, context }) => {
+  const { id } = event.params;
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+  const proposal = await context.FactoryProposal.get(proposalId);
+
+  if (proposal) {
+    await context.FactoryProposal.set({
+      ...proposal,
+      bytecodeCompiled: true,
+      status: "Compiled",
+    });
+  }
+
+  context.log.info(`🔨 Bytecode compiled for Factory Proposal #${id}`);
+});
+
+DAOContractFactory.ContractDeployed.handler(async ({ event, context }) => {
+  const { id, deployedContract, nftId } = event.params;
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+  const proposal = await context.FactoryProposal.get(proposalId);
+
+  if (proposal) {
+    await context.FactoryProposal.set({
+      ...proposal,
+      deployedContract: deployedContract.toLowerCase(),
+      deploymentNFTId: nftId.toString(),
+      status: "Deployed",
+    });
+  }
+
+  context.log.info(`🚀 Contract deployed for Factory Proposal #${id} at ${deployedContract} (NFT #${nftId})`);
+});
+
+DAOContractFactory.TreasuryAllocated.handler(async ({ event, context }) => {
+  const { id, recipient, amount } = event.params;
+
+  const allocationId = `treasury-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  await context.FactoryTreasuryAllocation.set({
+    id: allocationId,
+    proposalId: id.toString(),
+    recipient: recipient.toLowerCase(),
+    amount: amount,
+    allocatedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  const amountFormatted = (Number(amount) / 1e18).toFixed(2);
+  context.log.info(`💰 Treasury allocated for Proposal #${id}: ${amountFormatted} TOURS to ${recipient.slice(0, 8)}...`);
+});
+
+DAOContractFactory.RewardDistributed.handler(async ({ event, context }) => {
+  const { id, proposer, amount } = event.params;
+
+  const rewardId = `factory-reward-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+
+  await context.FactoryRewardDistribution.set({
+    id: rewardId,
+    proposalId: id.toString(),
+    proposer: proposer.toLowerCase(),
+    amount: amount,
+    distributedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+  const proposal = await context.FactoryProposal.get(proposalId);
+  if (proposal) {
+    await context.FactoryProposal.set({
+      ...proposal,
+      rewardAmount: amount,
+    });
+  }
+
+  const amountFormatted = (Number(amount) / 1e18).toFixed(2);
+  context.log.info(`🎁 Factory reward for Proposal #${id}: ${amountFormatted} TOURS to ${proposer.slice(0, 8)}...`);
+});
+
+DAOContractFactory.IntegrityHashesSet.handler(async ({ event, context }) => {
+  const { id, sourceHash, bytecodeHash } = event.params;
+
+  const proposalId = `factory-${event.chainId}-${id.toString()}`;
+  const proposal = await context.FactoryProposal.get(proposalId);
+
+  if (proposal) {
+    await context.FactoryProposal.set({
+      ...proposal,
+      sourceHash: sourceHash,
+      bytecodeHash: bytecodeHash,
+    });
+  }
+
+  context.log.info(`🔐 Integrity hashes set for Proposal #${id}`);
+});
+
+DAOContractFactory.ProposalFeeUpdated.handler(async ({ event, context }) => {
+  const { oldFee, newFee } = event.params;
+
+  context.log.info(`💰 Factory proposal fee updated: ${oldFee} → ${newFee}`);
+});
+
+// ============================================
+// DEPLOYMENT NFT EVENTS
+// ============================================
+
+DeploymentNFT.DeploymentRecorded.handler(async ({ event, context }) => {
+  const { tokenId, proposalId, deployedContract, ipfsCodeHash } = event.params;
+
+  const nftId = `deployment-nft-${event.chainId}-${tokenId.toString()}`;
+
+  await context.DeploymentNFTToken.set({
+    id: nftId,
+    tokenId: tokenId.toString(),
+    proposalId: proposalId.toString(),
+    deployedContract: deployedContract.toLowerCase(),
+    ipfsCodeHash: ipfsCodeHash,
+    owner: "",
+    mintedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(`📜 Deployment NFT #${tokenId} recorded for Proposal #${proposalId} → ${deployedContract}`);
+});
+
+DeploymentNFT.Transfer.handler(async ({ event, context }) => {
+  const { from, to, tokenId } = event.params;
+
+  const nftId = `deployment-nft-${event.chainId}-${tokenId.toString()}`;
+  const existing = await context.DeploymentNFTToken.get(nftId);
+
+  if (existing) {
+    await context.DeploymentNFTToken.set({
+      ...existing,
+      owner: to.toLowerCase(),
+    });
+  }
+
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  if (from === ZERO) {
+    context.log.info(`📜 Deployment NFT #${tokenId} minted to ${to.slice(0, 8)}...`);
+  } else {
+    context.log.info(`📜 Deployment NFT #${tokenId} transferred: ${from.slice(0, 8)}... → ${to.slice(0, 8)}...`);
+  }
+});
+
+// ============================================
+// EMPOWER TOURS DEV STUDIO EVENTS
+// ============================================
+
+EmpowerToursDevStudio.CreditsPurchased.handler(async ({ event, context }) => {
+  const { user, amount, cost } = event.params;
+
+  const purchaseId = `credit-purchase-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+  const userId = `dev-user-${event.chainId}-${user.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.DevStudioCreditPurchase.set({
+    id: purchaseId,
+    user: user.toLowerCase(),
+    amount: amount,
+    cost: cost,
+    purchasedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  let userStats = await context.DevStudioUser.get(userId);
+  if (userStats) {
+    await context.DevStudioUser.set({
+      ...userStats,
+      totalCredits: userStats.totalCredits + amount,
+      totalSpent: userStats.totalSpent + cost,
+      lastActive: timestamp,
+    });
+  } else {
+    await context.DevStudioUser.set({
+      id: userId,
+      user: user.toLowerCase(),
+      totalCredits: amount,
+      totalSpent: cost,
+      appsGenerated: 0,
+      whitelistMinted: false,
+      airdropReceived: BigInt(0),
+      lastActive: timestamp,
+    });
+  }
+
+  const globalId = `dev-studio-stats-${event.chainId}`;
+  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DevStudioGlobalStats.set({
+      ...globalStats,
+      totalCreditsPurchased: globalStats.totalCreditsPurchased + amount,
+      lastUpdated: timestamp,
+    });
+  } else {
+    await context.DevStudioGlobalStats.set({
+      id: globalId,
+      totalCreditsPurchased: amount,
+      totalAppsGenerated: 0,
+      totalWhitelistMints: 0,
+      totalAirdrops: BigInt(0),
+      whitelistOpen: true,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const costFormatted = (Number(cost) / 1e18).toFixed(2);
+  context.log.info(`💳 Credits purchased: ${user.slice(0, 8)}... bought ${amount} credits for ${costFormatted} TOURS`);
+});
+
+EmpowerToursDevStudio.PromptGenerated.handler(async ({ event, context }) => {
+  const { user, tokenId, appType } = event.params;
+
+  const appId = `dev-app-${event.chainId}-${tokenId.toString()}`;
+  const userId = `dev-user-${event.chainId}-${user.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.DevStudioApp.set({
+    id: appId,
+    tokenId: tokenId.toString(),
+    creator: user.toLowerCase(),
+    appType: appType,
+    createdAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  let userStats = await context.DevStudioUser.get(userId);
+  if (userStats) {
+    await context.DevStudioUser.set({
+      ...userStats,
+      appsGenerated: userStats.appsGenerated + 1,
+      lastActive: timestamp,
+    });
+  }
+
+  const globalId = `dev-studio-stats-${event.chainId}`;
+  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DevStudioGlobalStats.set({
+      ...globalStats,
+      totalAppsGenerated: globalStats.totalAppsGenerated + 1,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`🤖 App generated: ${user.slice(0, 8)}... created "${appType}" app (NFT #${tokenId})`);
+});
+
+EmpowerToursDevStudio.WhitelistMinted.handler(async ({ event, context }) => {
+  const { user, tokenId, timestamp: eventTimestamp } = event.params;
+
+  const mintId = `whitelist-mint-${event.chainId}-${tokenId.toString()}`;
+  const userId = `dev-user-${event.chainId}-${user.toLowerCase()}`;
+  const timestamp = new Date(Number(eventTimestamp) * 1000);
+
+  await context.DevStudioWhitelistMint.set({
+    id: mintId,
+    user: user.toLowerCase(),
+    tokenId: tokenId.toString(),
+    mintedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  let userStats = await context.DevStudioUser.get(userId);
+  if (userStats) {
+    await context.DevStudioUser.set({
+      ...userStats,
+      whitelistMinted: true,
+      lastActive: timestamp,
+    });
+  } else {
+    await context.DevStudioUser.set({
+      id: userId,
+      user: user.toLowerCase(),
+      totalCredits: BigInt(0),
+      totalSpent: BigInt(0),
+      appsGenerated: 0,
+      whitelistMinted: true,
+      airdropReceived: BigInt(0),
+      lastActive: timestamp,
+    });
+  }
+
+  const globalId = `dev-studio-stats-${event.chainId}`;
+  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DevStudioGlobalStats.set({
+      ...globalStats,
+      totalWhitelistMints: globalStats.totalWhitelistMints + 1,
+      lastUpdated: timestamp,
+    });
+  }
+
+  context.log.info(`🎫 Whitelist minted: ${user.slice(0, 8)}... received NFT #${tokenId}`);
+});
+
+EmpowerToursDevStudio.ToursAirdropped.handler(async ({ event, context }) => {
+  const { user, amount } = event.params;
+
+  const airdropId = `airdrop-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
+  const userId = `dev-user-${event.chainId}-${user.toLowerCase()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.DevStudioAirdrop.set({
+    id: airdropId,
+    user: user.toLowerCase(),
+    amount: amount,
+    airdroppedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  let userStats = await context.DevStudioUser.get(userId);
+  if (userStats) {
+    await context.DevStudioUser.set({
+      ...userStats,
+      airdropReceived: userStats.airdropReceived + amount,
+      lastActive: timestamp,
+    });
+  }
+
+  const globalId = `dev-studio-stats-${event.chainId}`;
+  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DevStudioGlobalStats.set({
+      ...globalStats,
+      totalAirdrops: globalStats.totalAirdrops + amount,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const amountFormatted = (Number(amount) / 1e18).toFixed(2);
+  context.log.info(`🪂 TOURS airdropped: ${user.slice(0, 8)}... received ${amountFormatted} TOURS`);
+});
+
+EmpowerToursDevStudio.WhitelistClosed.handler(async ({ event, context }) => {
+  const { finalCount, timestamp: eventTimestamp } = event.params;
+
+  const globalId = `dev-studio-stats-${event.chainId}`;
+  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DevStudioGlobalStats.set({
+      ...globalStats,
+      whitelistOpen: false,
+      lastUpdated: new Date(Number(eventTimestamp) * 1000),
+    });
+  }
+
+  context.log.info(`🔒 Dev Studio whitelist closed - Final count: ${finalCount}`);
 });
