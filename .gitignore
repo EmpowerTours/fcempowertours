@@ -165,3 +165,6 @@ docs/
 
 # Presentation files (local only)
 presentation/
+
+# Dune Analytics queries (local only)
+dune-analytics/

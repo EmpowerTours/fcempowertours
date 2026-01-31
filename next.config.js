@@ -19,6 +19,7 @@ const nextConfig = {
     'undici',
     '@farcaster/miniapp-sdk',
     'ethers',
+    '@anthropic-ai/sdk',
   ],
   async rewrites() {
     return [
