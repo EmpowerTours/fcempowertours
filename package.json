@@ -15,6 +15,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.0",
     "@farcaster/frame-sdk": "^0.1.12",
     "@farcaster/hub-nodejs": "^0.15.9",
     "@farcaster/miniapp-core": "^0.4.1",

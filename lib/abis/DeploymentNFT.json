@@ -1,0 +1,54 @@
+[
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "tokenURI",
+    "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "owner", "type": "address"}],
+    "name": "balanceOf",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "ownerOf",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "deployments",
+    "outputs": [
+      {"internalType": "uint256", "name": "proposalId", "type": "uint256"},
+      {"internalType": "string", "name": "prompt", "type": "string"},
+      {"internalType": "string", "name": "ipfsCodeHash", "type": "string"},
+      {"internalType": "address", "name": "deployedContract", "type": "address"},
+      {"internalType": "uint256", "name": "deployedAt", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "factory",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256"},
+      {"indexed": true, "internalType": "uint256", "name": "proposalId", "type": "uint256"},
+      {"indexed": true, "internalType": "address", "name": "deployedContract", "type": "address"},
+      {"indexed": false, "internalType": "string", "name": "ipfsCodeHash", "type": "string"}
+    ],
+    "name": "DeploymentRecorded",
+    "type": "event"
+  }
+]

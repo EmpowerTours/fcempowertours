@@ -1,0 +1,124 @@
+[
+  {
+    "inputs": [
+      {"internalType": "string", "name": "prompt", "type": "string"},
+      {"internalType": "uint256", "name": "treasuryAllocation", "type": "uint256"}
+    ],
+    "name": "registerProposal",
+    "outputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "id", "type": "uint256"},
+      {"internalType": "uint256", "name": "governorProposalId", "type": "uint256"}
+    ],
+    "name": "linkGovernorProposal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "id", "type": "uint256"},
+      {"internalType": "string", "name": "ipfsCID", "type": "string"}
+    ],
+    "name": "setGeneratedCode",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "id", "type": "uint256"},
+      {"internalType": "bytes", "name": "bytecode", "type": "bytes"},
+      {"internalType": "bytes", "name": "args", "type": "bytes"}
+    ],
+    "name": "setCompiledBytecode",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+    "name": "executeApprovedDeployment",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+    "name": "allocateTreasury",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proposalCount",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+    "name": "getProposal",
+    "outputs": [
+      {"internalType": "uint256", "name": "governorProposalId", "type": "uint256"},
+      {"internalType": "address", "name": "proposer", "type": "address"},
+      {"internalType": "string", "name": "prompt", "type": "string"},
+      {"internalType": "string", "name": "ipfsCodeHash", "type": "string"},
+      {"internalType": "uint256", "name": "treasuryAllocation", "type": "uint256"},
+      {"internalType": "address", "name": "deployedContract", "type": "address"},
+      {"internalType": "uint256", "name": "deploymentNftId", "type": "uint256"},
+      {"internalType": "uint8", "name": "status", "type": "uint8"},
+      {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+      {"internalType": "uint256", "name": "deployedAt", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "timelock",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "operator",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_TREASURY_ALLOCATION_BPS",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "id", "type": "uint256"},
+      {"indexed": true, "internalType": "address", "name": "proposer", "type": "address"},
+      {"indexed": false, "internalType": "string", "name": "prompt", "type": "string"},
+      {"indexed": false, "internalType": "uint256", "name": "treasuryAllocation", "type": "uint256"}
+    ],
+    "name": "ProposalRegistered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "id", "type": "uint256"},
+      {"indexed": true, "internalType": "address", "name": "deployedContract", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "nftId", "type": "uint256"}
+    ],
+    "name": "ContractDeployed",
+    "type": "event"
+  }
+]

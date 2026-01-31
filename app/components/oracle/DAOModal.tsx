@@ -17,6 +17,7 @@ const DAO_ADDRESS = process.env.NEXT_PUBLIC_DAO || '';
 const TIMELOCK_ADDRESS = process.env.NEXT_PUBLIC_TIMELOCK || '';
 const NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || process.env.NEXT_PUBLIC_NFT_CONTRACT || '';
 
+
 const TOURS_ABI = [
   'function balanceOf(address account) external view returns (uint256)',
   'function approve(address spender, uint256 amount) external returns (bool)',
@@ -72,6 +73,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
   const [burnTokenId, setBurnTokenId] = useState('');
   const [burnReason, setBurnReason] = useState('');
   const [burnProposalLoading, setBurnProposalLoading] = useState(false);
+
 
   // Mount state for portal rendering (SSR safety)
   useEffect(() => {
@@ -401,6 +403,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
     }
   };
 
+
   const formatNumber = (num: string) => {
     const n = parseFloat(num);
     if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
@@ -454,7 +457,8 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-3 text-sm font-medium transition-colors whitespace-nowrap px-2 ${
                 activeTab === tab
-                  ? tab === 'burn' ? 'text-red-400 border-b-2 border-red-400' : 'text-purple-400 border-b-2 border-purple-400'
+                  ? tab === 'burn' ? 'text-red-400 border-b-2 border-red-400'
+                    : 'text-purple-400 border-b-2 border-purple-400'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -839,6 +843,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
               </div>
             </div>
           )}
+
 
           {/* Burn/Report Tab - Report stolen/infringing content for DAO review */}
           {activeTab === 'burn' && (

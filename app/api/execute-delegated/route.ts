@@ -117,6 +117,10 @@ export async function POST(req: NextRequest) {
       'dao_delegate',          // Delegate voting power
       'dao_fund_safe',         // Fund user Safe with TOURS from platform
       'dao_create_burn_proposal', // Create proposal to burn stolen/infringing NFT
+      'dao_create_deployment_proposal', // Create DAO deployment proposal (factory + governor)
+      'dao_vote_proposal',       // Cast vote on Governor proposal
+      'dao_queue_proposal',      // Queue passed proposal in Timelock
+      'dao_execute_proposal',    // Execute after timelock delay
       'radio_voice_note',      // Live radio voice shoutout/ad payment
       'radio_queue_song',      // Live radio song queue on-chain
       'radio_claim_rewards',   // Live radio TOURS rewards claim
@@ -4786,6 +4790,252 @@ ${enjoyText}
           txHash: climbTxHash,
           action,
           message: `Created climbing location "${name}" for 35 WMON!`,
+        });
+      }
+
+      // ==================== DAO: CREATE DEPLOYMENT PROPOSAL ====================
+      case 'dao_create_deployment_proposal': {
+        console.log('🏗️ Action: dao_create_deployment_proposal');
+        const { prompt, treasuryAllocation, contractType } = params || {};
+        if (!prompt || prompt.trim().length < 10) {
+          return NextResponse.json(
+            { success: false, error: 'Prompt must be at least 10 characters' },
+            { status: 400 }
+          );
+        }
+
+        const allocationBps = Math.min(Math.max(Number(treasuryAllocation) || 0, 0), 500);
+
+        const DAO_FACTORY = process.env.NEXT_PUBLIC_DAO_CONTRACT_FACTORY as Address;
+        const DAO_GOVERNOR = process.env.NEXT_PUBLIC_DAO as Address;
+
+        if (!DAO_FACTORY || !DAO_GOVERNOR) {
+          return NextResponse.json(
+            { success: false, error: 'DAO Factory or Governor not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('🏗️ Creating deployment proposal:', { prompt: prompt.substring(0, 50), allocationBps, contractType });
+
+        // Step 1: Register proposal in the factory (100 MON fee, payable)
+        const proposalFeeMON = parseEther('100'); // 100 MON
+        const registerCalls: Call[] = [
+          {
+            to: DAO_FACTORY,
+            value: proposalFeeMON,
+            data: encodeFunctionData({
+              abi: parseAbi(['function registerProposal(string prompt, uint256 treasuryAllocation) external payable returns (uint256)']),
+              functionName: 'registerProposal',
+              args: [prompt, BigInt(allocationBps)],
+            }) as Hex,
+          },
+        ];
+
+        // Step 2: Create Governor proposal to executeApprovedDeployment + allocateTreasury
+        const executeCalldata = encodeFunctionData({
+          abi: parseAbi(['function executeApprovedDeployment(uint256 id) external']),
+          functionName: 'executeApprovedDeployment',
+          args: [0n], // Will be updated by backend after factory registration
+        });
+
+        const proposalDescription = `Deploy Contract Proposal\n\nType: ${contractType || 'Custom'}\nTreasury: ${(allocationBps / 100).toFixed(1)}%\nFee: 100 MON (50 treasury + 50 platform)\n\n${prompt}`;
+
+        const governorProposeCalls: Call[] = [
+          {
+            to: DAO_GOVERNOR,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function propose(address[] targets, uint256[] values, bytes[] calldatas, string description) external returns (uint256)'
+              ]),
+              functionName: 'propose',
+              args: [
+                [DAO_FACTORY],
+                [0n],
+                [executeCalldata],
+                proposalDescription,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        // Execute both calls
+        const factoryTxHash = await executeTransaction(registerCalls, userAddress as Address, proposalFeeMON);
+        console.log('✅ Factory proposal registered (100 MON paid), TX:', factoryTxHash);
+
+        const governorTxHash = await executeTransaction(governorProposeCalls, userAddress as Address);
+        console.log('✅ Governor proposal created, TX:', governorTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: governorTxHash,
+          factoryTxHash,
+          action,
+          userAddress,
+          prompt: prompt.substring(0, 100),
+          treasuryAllocation: allocationBps,
+          feePaid: '100 MON',
+          message: `Deployment proposal created! 100 MON fee paid (50 treasury + 50 platform). TOURS reward pending. Community voting begins soon.`,
+        });
+      }
+
+      // ==================== DAO: VOTE ON PROPOSAL ====================
+      case 'dao_vote_proposal': {
+        console.log('🗳️ Action: dao_vote_proposal');
+        const { proposalId: voteProposalId, support } = params || {};
+        if (!voteProposalId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing proposalId for vote' },
+            { status: 400 }
+          );
+        }
+
+        // support: 0 = Against, 1 = For, 2 = Abstain
+        const voteSupport = Number(support ?? 1);
+        if (![0, 1, 2].includes(voteSupport)) {
+          return NextResponse.json(
+            { success: false, error: 'Support must be 0 (Against), 1 (For), or 2 (Abstain)' },
+            { status: 400 }
+          );
+        }
+
+        const DAO_VOTE = process.env.NEXT_PUBLIC_DAO as Address;
+        if (!DAO_VOTE) {
+          return NextResponse.json(
+            { success: false, error: 'DAO Governor not configured' },
+            { status: 500 }
+          );
+        }
+
+        const voteCalls: Call[] = [
+          {
+            to: DAO_VOTE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function castVote(uint256 proposalId, uint8 support) external returns (uint256)']),
+              functionName: 'castVote',
+              args: [BigInt(voteProposalId), voteSupport],
+            }) as Hex,
+          },
+        ];
+
+        const voteTxHash = await executeTransaction(voteCalls, userAddress as Address);
+        console.log('✅ Vote cast, TX:', voteTxHash);
+
+        const supportLabels = ['Against', 'For', 'Abstain'];
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: voteTxHash,
+          action,
+          userAddress,
+          proposalId: voteProposalId,
+          support: supportLabels[voteSupport],
+          message: `Voted "${supportLabels[voteSupport]}" on proposal!`,
+        });
+      }
+
+      // ==================== DAO: QUEUE PROPOSAL IN TIMELOCK ====================
+      case 'dao_queue_proposal': {
+        console.log('🗳️ Action: dao_queue_proposal');
+        const { targets, values, calldatas, descriptionHash } = params || {};
+        if (!targets || !calldatas || !descriptionHash) {
+          return NextResponse.json(
+            { success: false, error: 'Missing targets, calldatas, or descriptionHash for queue' },
+            { status: 400 }
+          );
+        }
+
+        const DAO_QUEUE = process.env.NEXT_PUBLIC_DAO as Address;
+        if (!DAO_QUEUE) {
+          return NextResponse.json(
+            { success: false, error: 'DAO Governor not configured' },
+            { status: 500 }
+          );
+        }
+
+        const queueCalls: Call[] = [
+          {
+            to: DAO_QUEUE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function queue(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) external returns (uint256)'
+              ]),
+              functionName: 'queue',
+              args: [
+                targets.map((t: string) => t as Address),
+                values.map((v: string) => BigInt(v)),
+                calldatas.map((c: string) => c as Hex),
+                descriptionHash as Hex,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const queueTxHash = await executeTransaction(queueCalls, userAddress as Address);
+        console.log('✅ Proposal queued in Timelock, TX:', queueTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: queueTxHash,
+          action,
+          userAddress,
+          message: `Proposal queued in Timelock! Execution available after 2-day delay.`,
+        });
+      }
+
+      // ==================== DAO: EXECUTE PROPOSAL AFTER TIMELOCK ====================
+      case 'dao_execute_proposal': {
+        console.log('🗳️ Action: dao_execute_proposal');
+        const { targets: execTargets, values: execValues, calldatas: execCalldatas, descriptionHash: execDescHash } = params || {};
+        if (!execTargets || !execCalldatas || !execDescHash) {
+          return NextResponse.json(
+            { success: false, error: 'Missing targets, calldatas, or descriptionHash for execute' },
+            { status: 400 }
+          );
+        }
+
+        const DAO_EXEC = process.env.NEXT_PUBLIC_DAO as Address;
+        if (!DAO_EXEC) {
+          return NextResponse.json(
+            { success: false, error: 'DAO Governor not configured' },
+            { status: 500 }
+          );
+        }
+
+        const execCalls: Call[] = [
+          {
+            to: DAO_EXEC,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function execute(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) external payable returns (uint256)'
+              ]),
+              functionName: 'execute',
+              args: [
+                execTargets.map((t: string) => t as Address),
+                execValues.map((v: string) => BigInt(v)),
+                execCalldatas.map((c: string) => c as Hex),
+                execDescHash as Hex,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const execTxHash = await executeTransaction(execCalls, userAddress as Address);
+        console.log('✅ Proposal executed, TX:', execTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: execTxHash,
+          action,
+          userAddress,
+          message: `Proposal executed! Contract deployed via DAO governance.`,
         });
       }
 
