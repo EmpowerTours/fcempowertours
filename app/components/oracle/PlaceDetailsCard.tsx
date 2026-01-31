@@ -90,40 +90,31 @@ export const PlaceDetailsCard: React.FC<PlaceDetailsCardProps> = ({
         console.log('[PlaceDetailsCard] Extended Component Library not available, using fallback');
       }
 
-      // Fallback: Use PlacesService to get details
-      if (window.google?.maps?.places) {
-        try {
-          const service = new window.google.maps.places.PlacesService(
-            document.createElement('div')
-          );
-          service.getDetails(
-            {
-              placeId,
-              fields: [
-                'name', 'geometry', 'formatted_address', 'formatted_phone_number',
-                'rating', 'user_ratings_total', 'types', 'opening_hours',
-                'photos', 'website'
-              ],
-            },
-            (result: any, status: string) => {
-              if (status === 'OK' && result) {
-                setFallbackDetails({
-                  name: result.name || title,
-                  rating: result.rating,
-                  totalRatings: result.user_ratings_total,
-                  address: result.formatted_address,
-                  phone: result.formatted_phone_number,
-                  website: result.website,
-                  openNow: result.opening_hours?.isOpen?.(),
-                  photoUrl: result.photos?.[0]?.getUrl({ maxWidth: 400, maxHeight: 200 }),
-                  types: result.types?.slice(0, 3),
-                });
-              }
-            }
-          );
-        } catch (err) {
-          console.error('[PlaceDetailsCard] PlacesService fallback failed:', err);
+      // Fallback: Use server-side proxy to get details (no client-side API key exposure)
+      try {
+        const res = await fetch('/api/maps/place-details', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ placeIds: [placeId] }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const place = data.places?.[placeId];
+          if (place) {
+            setFallbackDetails({
+              name: place.name || title,
+              rating: place.rating,
+              totalRatings: place.userRatingsTotal,
+              address: place.address,
+              types: place.types?.slice(0, 3),
+              openNow: place.openNow,
+              photoUrl: place.photoUrl,
+            });
+          }
         }
+      } catch (err) {
+        console.error('[PlaceDetailsCard] Server fallback failed:', err);
       }
     };
 

@@ -65,13 +65,12 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const infoWindowRef = useRef<any>(null);
-  const placesServiceRef = useRef<any>(null);
   const directionsRendererRef = useRef<any>(null);
 
   // Get Farcaster SDK for opening external URLs
   const { sdk } = useFarcasterContext();
 
-  // Google Maps API key from environment variable
+  // Maps JS API key is only used for rendering the map (no Places calls)
   const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   // Helper to open URL in external browser (works in Farcaster mini app)
@@ -126,9 +125,9 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
       return;
     }
 
-    // Load script with places library
+    // Load Maps JS API (marker library only — Places calls go through server proxy)
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places,marker&callback=initMapsWidget`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=marker&callback=initMapsWidget`;
     script.async = true;
     script.defer = true;
     script.onerror = () => {
@@ -171,7 +170,6 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
       });
 
       mapInstanceRef.current = map;
-      placesServiceRef.current = new window.google.maps.places.PlacesService(map);
       infoWindowRef.current = new window.google.maps.InfoWindow();
 
       setMapReady(true);
@@ -182,53 +180,67 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     }
   }, [mapsLoaded]);
 
-  // Fetch place details for sources with placeIds
+  // Fetch place details via server-side proxy (prevents client-side API key abuse)
   useEffect(() => {
-    if (!mapReady || !placesServiceRef.current || sources.length === 0) return;
+    if (!mapReady || sources.length === 0) return;
 
     const fetchPlaceDetails = async () => {
       const details: Record<string, PlaceDetails> = {};
       const bounds = new window.google.maps.LatLngBounds();
       let hasValidLocations = false;
 
-      for (const source of sources) {
-        if (source.placeId) {
-          try {
-            const placeResult = await new Promise<any>((resolve, reject) => {
-              placesServiceRef.current.getDetails(
-                {
-                  placeId: source.placeId,
-                  fields: ['name', 'geometry', 'formatted_address', 'rating', 'user_ratings_total', 'types', 'opening_hours', 'photos']
-                },
-                (result: any, status: string) => {
-                  if (status === 'OK' && result) {
-                    resolve(result);
-                  } else {
-                    reject(new Error(status));
-                  }
-                }
-              );
-            });
+      // Collect all placeIds and fetch in one batch via server route
+      const placeIds = sources
+        .map(s => s.placeId)
+        .filter((id): id is string => !!id);
 
-            const location = placeResult.geometry?.location;
-            if (location) {
-              details[source.placeId] = {
-                name: placeResult.name || source.title,
-                rating: placeResult.rating,
-                userRatingsTotal: placeResult.user_ratings_total,
-                address: placeResult.formatted_address,
-                types: placeResult.types,
-                openNow: placeResult.opening_hours?.isOpen?.(),
-                photoUrl: placeResult.photos?.[0]?.getUrl({ maxWidth: 400 }),
-                location: { lat: location.lat(), lng: location.lng() }
-              };
-              bounds.extend(location);
-              hasValidLocations = true;
+      if (placeIds.length > 0) {
+        try {
+          const res = await fetch('/api/maps/place-details', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ placeIds }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const places = data.places || {};
+
+            for (const source of sources) {
+              if (source.placeId && places[source.placeId]) {
+                const p = places[source.placeId];
+                details[source.placeId] = {
+                  name: p.name || source.title,
+                  rating: p.rating,
+                  userRatingsTotal: p.userRatingsTotal,
+                  address: p.address,
+                  types: p.types,
+                  openNow: p.openNow,
+                  photoUrl: p.photoUrl,
+                  location: p.location,
+                };
+
+                if (p.location) {
+                  bounds.extend(p.location);
+                  hasValidLocations = true;
+                }
+              }
             }
-          } catch (error) {
-            console.log(`[MapsWidget] Could not get details for ${source.placeId}:`, error);
-            // Still add basic info
-            details[source.placeId] = { name: source.title };
+          } else {
+            console.error('[MapsWidget] Server place-details error:', res.status);
+            // Fall back to basic info from sources
+            for (const source of sources) {
+              if (source.placeId) {
+                details[source.placeId] = { name: source.title };
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[MapsWidget] Failed to fetch place details:', error);
+          for (const source of sources) {
+            if (source.placeId) {
+              details[source.placeId] = { name: source.title };
+            }
           }
         }
       }
