@@ -284,6 +284,8 @@ Address: ${userAddress.slice(0, 10)}...`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music']
@@ -366,6 +368,8 @@ View: https://monadscan.com/tx/${buyData.txHash}`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
@@ -498,6 +502,8 @@ View: https://monadscan.com/tx/${swapData.txHash}`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'buy_music']
@@ -699,6 +705,8 @@ Try "mint passport" from a different location or "help" for other commands.`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
@@ -821,6 +829,8 @@ https://monadscan.com/tx/${mintData.txHash}`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
@@ -901,6 +911,8 @@ View: https://monadscan.com/tx/${stakeData.txHash}`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
@@ -979,6 +991,8 @@ View: https://monadscan.com/tx/${stakeData.txHash}`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
@@ -1086,6 +1100,8 @@ Or go to the Music page to upload files.`
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['mint_music', 'mint_passport', 'wrap_mon', 'swap_mon_for_tours', 'send_tours', 'buy_music']
@@ -1218,6 +1234,8 @@ To mint a collector edition, use the NFT creation page with the collector toggle
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userAddress,
+              authMethod: 'farcaster',
+              fid,
               durationHours: 24,
               maxTransactions: 100,
               permissions: ['mint_music', 'mint_collector', 'mint_passport', 'wrap_mon', 'swap_mon_for_tours', 'send_tours', 'buy_music']

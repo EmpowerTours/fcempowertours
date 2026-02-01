@@ -58,6 +58,8 @@ export default function BurnMusicPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userAddress: walletAddress,
+            authMethod: 'farcaster',
+            fid,
             durationHours: 24,
             maxTransactions: 100,
             permissions: ['mint_passport', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music', 'stake_tours', 'unstake_tours', 'burn_nft']

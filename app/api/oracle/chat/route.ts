@@ -961,6 +961,8 @@ async function mintPassportForUser(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress,
+          authMethod: 'farcaster',
+          fid,
           durationHours: 24,
           maxTransactions: 100,
           permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']

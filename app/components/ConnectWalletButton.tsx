@@ -43,7 +43,7 @@ export default function ConnectWalletButton({ className }: ConnectWalletButtonPr
                 );
               }
 
-              if (chain.unsupported) {
+              if (!chain.hasIcon) {
                 return (
                   <button
                     onClick={openChainModal}

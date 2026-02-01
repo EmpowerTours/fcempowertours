@@ -18,7 +18,7 @@ const EXPERIENCE_TYPES = [
 ];
 
 export default function ItineraryPage() {
-  const { walletAddress } = useFarcasterContext();
+  const { walletAddress, fid } = useFarcasterContext();
   const { address: wagmiAddress } = useAccount();
   const effectiveAddress = walletAddress || wagmiAddress;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +142,8 @@ export default function ItineraryPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userAddress: effectiveAddress,
+            authMethod: 'farcaster',
+            fid,
             durationHours: 24,
             maxTransactions: 100,
             permissions: ['mint_passport', 'mint_music', 'create_experience', 'purchase_experience', 'stamp_passport']

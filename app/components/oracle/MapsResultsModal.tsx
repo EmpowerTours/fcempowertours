@@ -194,12 +194,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   }, [mapsLoaded]);
 
   // Fetch place details via server-side proxy (prevents client-side API key abuse)
+  // For Google: wait for mapReady. For OSM: fetch as soon as sources are available.
   useEffect(() => {
-    if (!mapReady || sources.length === 0) return;
+    if (sources.length === 0) return;
+    if (!isOSM && !mapReady) return;
 
     const fetchPlaceDetails = async () => {
       const details: Record<string, PlaceDetails> = {};
-      const bounds = new window.google.maps.LatLngBounds();
       let hasValidLocations = false;
 
       // Collect all placeIds and fetch in one batch via server route
@@ -234,7 +235,6 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                 };
 
                 if (p.location) {
-                  bounds.extend(p.location);
                   hasValidLocations = true;
                 }
               }
@@ -260,8 +260,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
       setPlaceDetails(details);
 
-      // Fit map to bounds if we have locations
-      if (hasValidLocations && mapInstanceRef.current) {
+      // Fit Google map to bounds if we have locations (skip for OSM — Leaflet handles its own bounds)
+      if (!isOSM && hasValidLocations && mapInstanceRef.current) {
+        const bounds = new window.google.maps.LatLngBounds();
+        for (const source of sources) {
+          const d = source.placeId ? details[source.placeId] : null;
+          if (d?.location) bounds.extend(d.location);
+        }
         mapInstanceRef.current.fitBounds(bounds);
         // Don't zoom in too much
         const listener = window.google.maps.event.addListener(mapInstanceRef.current, 'idle', () => {
@@ -274,7 +279,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     };
 
     fetchPlaceDetails();
-  }, [mapReady, sources]);
+  }, [mapReady, sources, isOSM]);
 
   // Create markers when place details are loaded
   useEffect(() => {
