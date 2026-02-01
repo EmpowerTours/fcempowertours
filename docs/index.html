@@ -96,11 +96,14 @@ section{padding:7rem 2rem}
 .audience-card{padding:3rem;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:var(--void-light)}
 .audience-card h3{font-family:var(--serif);font-size:2rem;margin-bottom:.5rem}
 .audience-card .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:2rem;text-transform:uppercase;letter-spacing:.08em}
-.audience-card ul{list-style:none;display:flex;flex-direction:column;gap:1rem}
-.audience-card li{display:flex;align-items:flex-start;gap:.75rem;font-size:.95rem;line-height:1.5;color:var(--text-dim)}
-.audience-card li::before{content:'';flex-shrink:0;width:8px;height:8px;border-radius:2px;margin-top:7px}
+.audience-card ul{list-style:none;display:flex;flex-direction:column;gap:0}
+.audience-card li{display:grid;grid-template-columns:8px 1fr;gap:0 .75rem;font-size:.95rem;line-height:1.5;color:var(--text-dim);padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.audience-card li:last-child{border-bottom:none}
+.audience-card li::before{content:'';width:8px;height:8px;border-radius:2px;margin-top:7px}
 .audience-card:first-child li::before{background:var(--amber)}
 .audience-card:last-child li::before{background:var(--cyan)}
+.audience-card li strong{display:block;color:var(--text);margin-bottom:.15rem}
+.audience-card li .desc{display:block;font-size:.85rem;color:var(--text-muted)}
 
 /* === PAYOUT RATES === */
 .payout-section{background:var(--void-light)}
@@ -267,24 +270,24 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
         <h3>For Artists</h3>
         <div class="subtitle">Creators &middot; Musicians &middot; Guides</div>
         <ul>
-          <li><strong>70% of every sale</strong> &mdash; music licenses, itineraries, climbing access badges</li>
-          <li><strong>Subscription pool payouts</strong> &mdash; monthly revenue split by your play count share</li>
-          <li><strong>TOURS rewards</strong> &mdash; earn monthly artist rewards for active catalogs</li>
-          <li><strong>No minimum withdrawal</strong> &mdash; claim anytime after month finalization</li>
-          <li><strong>Gasless transactions</strong> &mdash; platform covers all gas via account abstraction</li>
-          <li><strong>100% of tips</strong> &mdash; fan tips on radio go directly to your wallet</li>
+          <li><div><strong>70% of every sale</strong><span class="desc">Music licenses, itineraries, climbing access badges</span></div></li>
+          <li><div><strong>Subscription pool payouts</strong><span class="desc">Monthly revenue split by your play count share</span></div></li>
+          <li><div><strong>TOURS rewards</strong><span class="desc">Earn monthly artist rewards for active catalogs</span></div></li>
+          <li><div><strong>No minimum withdrawal</strong><span class="desc">Claim anytime after month finalization</span></div></li>
+          <li><div><strong>Gasless transactions</strong><span class="desc">Platform covers all gas via account abstraction</span></div></li>
+          <li><div><strong>100% of tips</strong><span class="desc">Tips on radio go directly to your wallet</span></div></li>
         </ul>
       </div>
       <div class="audience-card reveal reveal-delay-1">
         <h3>For Fans</h3>
         <div class="subtitle">Listeners &middot; Travelers &middot; Climbers</div>
         <ul>
-          <li><strong>No gas fees</strong> &mdash; every action is gasless via Safe + Pimlico (ERC-4337)</li>
-          <li><strong>No wallet setup</strong> &mdash; Farcaster embedded wallet, no MetaMask needed</li>
-          <li><strong>Earn TOURS by listening</strong> &mdash; 0.1 per song, 5 for first listen/day, streak bonuses</li>
-          <li><strong>Subscription access</strong> &mdash; daily, weekly, monthly, or yearly plans for all music</li>
-          <li><strong>Tip artists directly</strong> &mdash; 100% goes to the artist, zero platform cut</li>
-          <li><strong>No token approvals</strong> &mdash; no popups, no signing prompts, no seed phrases</li>
+          <li><div><strong>No gas fees</strong><span class="desc">Every action is gasless via Safe + Pimlico (ERC-4337)</span></div></li>
+          <li><div><strong>No wallet setup</strong><span class="desc">Farcaster embedded wallet, no MetaMask needed</span></div></li>
+          <li><div><strong>Earn TOURS by listening</strong><span class="desc">0.1 per song, 5 for first listen/day, streak bonuses</span></div></li>
+          <li><div><strong>Subscription access</strong><span class="desc">Daily, weekly, monthly, or yearly plans for all music</span></div></li>
+          <li><div><strong>Tip artists directly</strong><span class="desc">100% goes to the artist, zero platform cut</span></div></li>
+          <li><div><strong>No token approvals</strong><span class="desc">No popups, no signing prompts, no seed phrases</span></div></li>
         </ul>
       </div>
     </div>
