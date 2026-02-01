@@ -44,7 +44,16 @@ Mint digital passports with automatic geolocation detection. One per country per
 
 ### Music NFT Licensing
 
-Artists mint master NFTs they own forever. Fans buy renewable time-limited licenses to access full tracks.
+Artists mint master NFTs they own forever. Fans buy renewable time-limited licenses to access full tracks. Four NFT types are available:
+
+| Type | Description | Extras |
+|------|-------------|--------|
+| **Music NFT** | Standard music NFT with cover art + audio | — |
+| **Collector Edition Music NFT** | Premium limited-run music NFT (1–1,000 editions) | AI-enhanced collector cover art via Gemini, 5 WMON creation fee |
+| **Art NFT** | Visual art NFT (cover art only, no audio) | — |
+| **Collector Edition Art NFT** | Limited-run art NFT (1-of-1 to 1,000 editions) | Artist's original art, no AI, no extra fees |
+
+**Collector editions** use `mintCollectorMaster()` on-chain and support two-tier pricing: a standard license price (min 35 WMON, unlimited) and a collector edition price (min 500 WMON, limited editions).
 
 **Artist Flow:** Upload preview (30s) + full track + cover art, set license price in WMON, mint Master NFT (gasless), earn TOURS rewards from streaming plays.
 
@@ -60,7 +69,7 @@ Community radio station with on-chain listener tracking via LiveRadioV3 contract
 
 - **Queue Songs** - Pay WMON to add licensed tracks to the live radio queue
 - **Voice Shoutouts** - Record and broadcast 3-5 second voice notes (WMON)
-- **Skip to Random** - On-chain random song skip powered by Pyth Entropy (1 MON)
+- **Skip to Random** - Pay 1 WMON to skip the current song and play a new random track
 - **Tip Artists** - 100% of tips go directly to the artist
 - **Listener Rewards** - Earn TOURS tokens for tuning in
 
@@ -116,18 +125,39 @@ Every payment on EmpowerTours is handled by verified smart contracts on Monad. A
 
 **Contract**: `EmpowerToursNFT` — [`0xB9B3acf33439360B55d12429301E946f34f3B73F`](https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F)
 
+**Standard License:**
+
 | Detail | Value |
 |--------|-------|
 | Minimum price | 35 WMON |
 | Artist share | **70%** |
 | Platform share | **30%** |
 
-**Worked example:**
+**Collector Edition (Limited Run):**
+
+| Detail | Value |
+|--------|-------|
+| Minimum collector price | 500 WMON |
+| Max editions | 1–1,000 |
+| Artist share | **70%** |
+| Platform share | **30%** |
+| Creation fee (music collectors) | 5 WMON (covers AI art generation) |
+| Creation fee (art collectors) | Free |
+
+**Worked example (standard):**
 > Fan buys a music license at 35 WMON.
 > - Artist receives **24.5 WMON** (70%)
 > - Platform receives **10.5 WMON** (30%)
 >
 > Artist wallet is credited instantly in the same transaction.
+
+**Worked example (collector edition):**
+> Artist creates a collector edition with 100 editions at 500 WMON each.
+> - Fan buys collector edition for 500 WMON
+> - Artist receives **350 WMON** (70%)
+> - Platform receives **150 WMON** (30%)
+>
+> Music collector editions include AI-enhanced cover art (golden borders, holographic textures, limited edition badge). Art collector editions use the artist's original art with no modifications.
 
 ---
 
@@ -408,7 +438,7 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | Backend | Next.js API Routes (68 endpoints), Viem |
 | Indexing | Envio (GraphQL event indexing) |
 | Storage | IPFS (Pinata), Upstash Redis |
-| AI | Google Gemini |
+| AI | Google Gemini (Oracle chat + collector edition art generation) |
 | Randomness | Pyth Entropy |
 | APIs | Neynar (Farcaster), IPInfo (Geolocation), Google Maps |
 
@@ -433,6 +463,7 @@ fcempowertours/
 │   │   └── ...
 │   ├── components/
 │   │   └── oracle/             # UI components
+│   │       ├── CreateNFTModal.tsx     # NFT minting (4 types incl. collector editions)
 │   │       ├── LiveRadioModal.tsx
 │   │       ├── DAOModal.tsx
 │   │       ├── RockClimbingModal.tsx
