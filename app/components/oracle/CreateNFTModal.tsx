@@ -386,7 +386,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
         throw new Error(mintData.error || mintData.message || 'Mint failed');
       }
 
-      const tokenId = mintData.tokenId ? parseInt(String(mintData.tokenId)) : Math.floor(Math.random() * 10000);
+      const tokenId = mintData.tokenId != null ? parseInt(String(mintData.tokenId)) : Math.floor(Math.random() * 10000);
       const txHash = mintData.txHash || '';
 
       setProgressPercent(100);
@@ -1080,10 +1080,10 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                           ? nftType === 'music' ? '👑 COLLECTOR EDITION MUSIC NFT' : '🖼️ COLLECTOR EDITION ART NFT'
                           : nftType === 'music' ? '🎵 MUSIC NFT' : '🎨 ART NFT'}
                       </div>
-                      <h3 className="text-3xl font-bold text-white mb-4">{title || 'Untitled'}</h3>
+                      <h3 className="text-3xl font-bold text-white mb-4">{success?.title || title || 'Untitled'}</h3>
                       <div className="space-y-2 text-gray-300">
                         <p><strong>Type:</strong> {nftType === 'music' ? 'Music NFT' : 'Art NFT'}</p>
-                        <p><strong>Standard Price:</strong> {price} WMON</p>
+                        <p><strong>Standard Price:</strong> {success?.price || price} WMON</p>
                         <p><strong>Creator:</strong> @{user?.username || 'You'}</p>
                         {nftType === 'music' && (
                           <>
@@ -1112,7 +1112,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                         )}
                       </div>
                       <div className={`mt-3 p-2 rounded-lg text-xs ${isDarkMode ? 'bg-black/20 text-gray-400' : 'bg-white text-gray-600'}`}>
-                        Standard: {price} WMON (unlimited) | Collector: {collectorPrice} WMON ({maxEditions} editions){nftType === 'music' ? ' | Fee: 5 WMON' : ''}
+                        Standard: {success?.price || price} WMON (unlimited) | Collector: {collectorPrice} WMON ({maxEditions} editions){nftType === 'music' ? ' | Fee: 5 WMON' : ''}
                       </div>
                     </div>
                   )}
