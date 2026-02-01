@@ -1070,10 +1070,10 @@ Or go to the Music page to upload files.`
           isArt: is_art,
         });
 
-        if (price <= 0) {
+        if (price <= 0 || price > 1_000_000_000) {
           return NextResponse.json({
             success: false,
-            message: 'Invalid price. Must be greater than 0 TOURS'
+            message: 'Invalid price. Use: 0.001 - 1,000,000,000 TOURS'
           });
         }
 
