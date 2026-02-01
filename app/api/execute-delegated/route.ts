@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       'radio_claim_rewards',   // Live radio TOURS rewards claim
       'radio_mark_played',     // Live radio mark song as played (scheduler)
       'radio_skip_random',     // Live radio skip to random (Pyth Entropy) - user pays 1 MON
+      'radio_start',           // Start live radio (onlyOwnerOrDAO - platform Safe)
       'mirrormate_register',   // Register as tour guide
       'mirrormate_update',     // Update guide profile
       'mirrormate_skip',       // Skip guide in matching
@@ -4154,6 +4155,42 @@ ${enjoyText}
           action,
           userAddress,
           message: 'Random song requested via Pyth Entropy! The song will be selected shortly.',
+        });
+      }
+
+      // ==================== LIVE RADIO: START RADIO (ADMIN) ====================
+      case 'radio_start': {
+        console.log('📻 Action: radio_start (on-chain)');
+
+        const LIVE_RADIO_START_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO as Address;
+        if (!LIVE_RADIO_START_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'LiveRadio contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        // Call startRadio() from platform Safe (which is the contract owner)
+        const startRadioCalls: Call[] = [
+          {
+            to: LIVE_RADIO_START_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function startRadio() external']),
+              functionName: 'startRadio',
+            }) as Hex,
+          },
+        ];
+
+        // Use platform Safe directly (not user Safe) since it's the contract owner
+        const startRadioTxHash = await sendSafeTransaction(startRadioCalls);
+        console.log('✅ startRadio TX:', startRadioTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: startRadioTxHash,
+          action,
+          message: 'Radio started on-chain! isLive is now true.',
         });
       }
 
