@@ -796,8 +796,228 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           isArt: isArtNFT,
           nftType: nftTypeValue,
           price: params.price,
-          message: `${nftTypeName} NFT minted successfully: "${songTitle}" at ${params.price} TOURS (Token #${extractedTokenId})`,
+          message: `${nftTypeName} NFT minted successfully: "${songTitle}" at ${params.price} WMON (Token #${extractedTokenId})`,
         });
+
+      // ==================== MINT COLLECTOR EDITION ====================
+      case 'mint_collector': {
+        const isCollectorArt = params.is_art === true || params.is_art === 1 || params.is_art === '1';
+        const collectorNftType = isCollectorArt ? 1 : 0; // 0 = MUSIC, 1 = ART
+        const collectorTypeName = isCollectorArt ? 'Art' : 'Music';
+
+        console.log(`👑 Action: mint_collector (${collectorTypeName}, nftType: ${collectorNftType})`);
+        if (!params?.tokenURI || !params?.price || !params?.collectorPrice || !params?.maxEditions) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required params for collector mint (tokenURI, price, collectorPrice, maxEditions)' },
+            { status: 400 }
+          );
+        }
+
+        const collectorSongTitle = params.songTitle || params.title || 'Untitled';
+        const collectorTokenURI = params.collectorTokenURI || params.tokenURI;
+
+        // Validate collector price and editions
+        const cPrice = parseFloat(params.collectorPrice);
+        const cEditions = parseInt(params.maxEditions);
+        if (isNaN(cPrice) || cPrice < 500 || cPrice > 100_000_000) {
+          return NextResponse.json(
+            { success: false, error: 'Collector price must be between 500 and 100,000,000 WMON' },
+            { status: 400 }
+          );
+        }
+        if (isNaN(cEditions) || cEditions < 1 || cEditions > 1000) {
+          return NextResponse.json(
+            { success: false, error: 'Max editions must be between 1 and 1,000' },
+            { status: 400 }
+          );
+        }
+
+        // Check if already exists
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { activeChain } = await import('@/app/chains');
+          const checkCollectorClient = createPublicClient({
+            chain: activeChain,
+            transport: http(),
+          });
+
+          const collectorExists = await checkCollectorClient.readContract({
+            address: EMPOWER_TOURS_NFT as Address,
+            abi: parseAbi(['function hasSong(address artist, string songTitle) external view returns (bool)']),
+            functionName: 'hasSong',
+            args: [userAddress as Address, collectorSongTitle],
+          });
+
+          if (collectorExists) {
+            console.log(`❌ Collector NFT already minted: ${collectorSongTitle}`);
+            return NextResponse.json(
+              { success: false, error: `"${collectorSongTitle}" has already been minted by this artist.` },
+              { status: 400 }
+            );
+          }
+        } catch (checkErr: any) {
+          console.warn('⚠️ Could not verify collector NFT existence, proceeding:', checkErr.message);
+        }
+
+        const collectorStandardPrice = parseEther(params.price.toString());
+        const collectorEditionPrice = parseEther(params.collectorPrice.toString());
+        const collectorArtistFid = params.fid ? BigInt(params.fid) : 0n;
+
+        // AI art generation fee: 5 WMON to cover Gemini costs
+        const COLLECTOR_CREATION_FEE = parseEther('5');
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
+
+        console.log('👑 Minting Collector Edition NFT:', {
+          artist: userAddress,
+          standardPrice: params.price,
+          collectorPrice: params.collectorPrice,
+          maxEditions: cEditions,
+          tokenURI: params.tokenURI,
+          collectorTokenURI,
+          title: collectorSongTitle,
+          nftType: `${collectorNftType} (${collectorTypeName})`,
+          creationFee: '5 WMON',
+        });
+
+        const collectorCalls: Call[] = [
+          // Step 1: Wrap 5 MON to WMON for creation fee
+          {
+            to: WMON_ADDRESS,
+            value: COLLECTOR_CREATION_FEE,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          },
+          // Step 2: Transfer 5 WMON creation fee to platform Safe
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [SAFE_ACCOUNT, COLLECTOR_CREATION_FEE],
+            }) as Hex,
+          },
+          // Step 3: Mint the collector edition NFT
+          {
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function mintCollectorMaster(address artist, uint256 artistFid, string tokenURI, string collectorTokenURI, string title, uint256 standardPrice, uint256 collectorPrice, uint256 maxEditions, uint8 nftType) external returns (uint256)'
+              ]),
+              functionName: 'mintCollectorMaster',
+              args: [
+                userAddress as Address,
+                collectorArtistFid,
+                params.tokenURI,
+                collectorTokenURI,
+                collectorSongTitle,
+                collectorStandardPrice,
+                collectorEditionPrice,
+                BigInt(cEditions),
+                collectorNftType,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        console.log('💳 Executing collector NFT mint transaction (with 5 WMON creation fee)...');
+        const collectorTxHash = await executeTransaction(collectorCalls, userAddress as Address, COLLECTOR_CREATION_FEE);
+        console.log('✅ Collector NFT mint successful, TX:', collectorTxHash);
+
+        // Extract token ID from receipt
+        let collectorTokenId = '0';
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { activeChain } = await import('@/app/chains');
+          const receiptClient = createPublicClient({
+            chain: activeChain,
+            transport: http(),
+          });
+
+          const collectorReceipt = await receiptClient.getTransactionReceipt({
+            hash: collectorTxHash as Hex,
+          });
+
+          if (collectorReceipt?.logs && collectorReceipt.logs.length > 0) {
+            const transferLog = collectorReceipt.logs.find(
+              log => log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+            );
+            if (transferLog && transferLog.topics[3]) {
+              collectorTokenId = BigInt(transferLog.topics[3]).toString();
+              console.log('🎫 Extracted collector token ID:', collectorTokenId);
+            }
+          }
+        } catch (extractErr: any) {
+          console.warn('⚠️ Could not extract collector token ID:', extractErr.message);
+        }
+
+        // Post Farcaster cast with collector edition details
+        if (params?.fid) {
+          try {
+            const isArt = isCollectorArt;
+            const shortArtist = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+            const nftEmoji = isArt ? '🎨' : '🎵';
+            const nftText = isArt ? 'Art' : 'Music';
+
+            const collectorCastText = `👑 New Collector Edition ${nftText} NFT!
+
+"${collectorSongTitle}"
+💰 Standard: ${params.price} WMON
+👑 Collector: ${params.collectorPrice} WMON (${cEditions} editions)
+👤 Artist: ${shortArtist}
+
+⚡ Gasless minting by @empowertours`;
+
+            const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
+            const neynarClient = new NeynarAPIClient({
+              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+            });
+
+            const frameRoute = isArt ? 'art' : 'music';
+            let collectorFrameUrl = `${APP_URL}/api/frames/${frameRoute}/${collectorTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || '')}&title=${encodeURIComponent(collectorSongTitle)}&price=${params.price}&artist=${userAddress}&collector=true`;
+
+            if (collectorFrameUrl.length > 256) {
+              const shortId = await createShortUrl(collectorFrameUrl);
+              if (shortId) {
+                collectorFrameUrl = `${APP_URL}/api/s/${shortId}`;
+              } else {
+                collectorFrameUrl = `${APP_URL}/api/frames/${frameRoute}/${collectorTokenId}`;
+              }
+            }
+
+            await neynarClient.publishCast({
+              signerUuid: process.env.BOT_SIGNER_UUID || '',
+              text: collectorCastText,
+              embeds: [{ url: collectorFrameUrl }],
+            });
+
+            console.log('✅ Collector NFT cast posted');
+          } catch (castErr: any) {
+            console.error('❌ Collector NFT cast failed:', castErr.message);
+          }
+        }
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: collectorTxHash,
+          tokenId: collectorTokenId,
+          action,
+          userAddress,
+          songTitle: collectorSongTitle,
+          title: collectorSongTitle,
+          isArt: isCollectorArt,
+          nftType: collectorNftType,
+          price: params.price,
+          collectorPrice: params.collectorPrice,
+          maxEditions: cEditions,
+          message: `Collector Edition ${collectorTypeName} NFT minted: "${collectorSongTitle}" - Standard: ${params.price} WMON, Collector: ${params.collectorPrice} WMON (${cEditions} editions) (Token #${collectorTokenId})`,
+        });
+      }
 
       // ==================== BUY MUSIC (WITH CAST + FRAME) - FIXED ====================
       case 'buy_music':

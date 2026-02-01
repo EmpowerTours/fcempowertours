@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { GoogleGenAI } from '@google/genai';
 
 const PINATA_API_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
 
@@ -29,8 +30,10 @@ export async function POST(request: NextRequest) {
     const description = formData.get('description') as string;
     const fid = formData.get('fid') as string;
     const address = formData.get('address') as string;
+    const isCollectorEdition = formData.get('isCollectorEdition') === 'true';
+    const collectorTitle = formData.get('collectorTitle') as string;
 
-    // ✅ Support art-only NFTs: only cover, description, and address are required
+    // Support art-only NFTs: only cover, description, and address are required
     if (!coverFile || !description || !address) {
       return NextResponse.json(
         { error: 'Missing required fields: cover, description, address' },
@@ -202,7 +205,116 @@ export async function POST(request: NextRequest) {
     console.log('📤 Uploading cover image...');
     const coverCid = await uploadFileToPinata(coverFile, 'cover image');
 
-    // ✅ FIXED: Proper metadata structure with conditional audio fields
+    // Collector Edition: AI-enhance cover art with Gemini
+    let collectorCoverCid: string | null = null;
+    let collectorMetadataCid: string | null = null;
+
+    if (isCollectorEdition && process.env.GEMINI_API_KEY) {
+      console.log('👑 Generating AI-enhanced collector edition cover art...');
+      try {
+        // Convert cover file to base64 for Gemini
+        const coverBuffer = Buffer.from(await coverFile.arrayBuffer());
+        const coverBase64 = coverBuffer.toString('base64');
+        const coverMimeType = coverFile.type || 'image/jpeg';
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+        const enhancePrompt = `You are an expert digital artist. Take this album/NFT cover art and create a PREMIUM COLLECTOR'S LIMITED EDITION version of it.
+
+IMPORTANT: Keep the original artwork as the centerpiece but enhance it with these collector edition treatments:
+1. Add an elegant golden/metallic border frame around the artwork
+2. Add subtle holographic or iridescent light effects (rainbow reflections)
+3. Add a small "COLLECTOR'S EDITION" or "LIMITED EDITION" text badge in a corner
+4. Add subtle embossed or foil-stamp texture effects
+5. Make the colors slightly richer and more vibrant
+6. Add a subtle numbered placeholder like "#/1000" in small text
+
+The result should look like a premium physical collector's vinyl or art print — luxurious but not overwhelming the original art. Keep the same composition and subject matter.`;
+
+        const imageResult = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: coverMimeType,
+                    data: coverBase64,
+                  },
+                },
+                { text: enhancePrompt },
+              ],
+            },
+          ],
+          config: {
+            responseModalities: ['TEXT', 'IMAGE'],
+          },
+        });
+
+        // Extract generated image
+        let collectorImageBase64: string | null = null;
+        if (imageResult.candidates && imageResult.candidates[0]?.content?.parts) {
+          for (const part of imageResult.candidates[0].content.parts) {
+            if (part.inlineData?.data) {
+              collectorImageBase64 = part.inlineData.data;
+            }
+          }
+        }
+
+        if (collectorImageBase64) {
+          console.log('👑 AI collector art generated, uploading to IPFS...');
+
+          // Upload AI-enhanced image to Pinata
+          const imageBuffer = Buffer.from(collectorImageBase64, 'base64');
+          const blob = new Blob([imageBuffer], { type: 'image/png' });
+          const collectorFile = new File([blob], `collector-${(collectorTitle || description).replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.png`, { type: 'image/png' });
+          collectorCoverCid = await uploadFileToPinata(collectorFile, 'collector cover art');
+
+          // Create collector edition metadata
+          const collectorMetadata: any = {
+            name: `${description} (Collector Edition)`,
+            description: `Collector Edition NFT by ${address.slice(0, 6)}...${address.slice(-4)} — AI-enhanced limited edition artwork`,
+            image: `ipfs://${collectorCoverCid}`,
+            attributes: [
+              { trait_type: 'Creator Address', value: address },
+              { trait_type: 'Creator FID', value: fid || 'Unknown' },
+              { trait_type: 'Type', value: 'Collector Edition' },
+              { trait_type: 'Original Cover', value: `ipfs://${coverCid}` },
+            ],
+          };
+
+          // Add audio fields if music NFT
+          if (previewCid && fullCid) {
+            collectorMetadata.animation_url = `ipfs://${previewCid}`;
+            collectorMetadata.external_url = `ipfs://${fullCid}`;
+          }
+
+          console.log('📤 Uploading collector metadata...');
+          const collectorMetaRes = await axios.post(PINATA_JSON_URL, collectorMetadata, {
+            headers: {
+              'Authorization': `Bearer ${PINATA_JWT}`,
+              'Content-Type': 'application/json',
+              'Connection': 'keep-alive',
+            },
+            timeout: 60000,
+            httpsAgent: httpsAgent,
+          });
+
+          if (collectorMetaRes.data.IpfsHash) {
+            collectorMetadataCid = collectorMetaRes.data.IpfsHash;
+            console.log('👑 Collector metadata uploaded:', collectorMetadataCid);
+          }
+        } else {
+          console.warn('⚠️ Gemini did not return an image, collector art will use standard cover');
+        }
+      } catch (geminiError: any) {
+        console.error('⚠️ Gemini collector art generation failed, using standard cover:', geminiError.message);
+        // Non-fatal: fall back to standard cover for collector edition
+      }
+    }
+
+    // Proper metadata structure with conditional audio fields
     const metadata: any = {
       name: description,  // ✅ Use the actual song title from user input
       description: `Music NFT by ${address.slice(0, 6)}...${address.slice(-4)}`,
@@ -273,7 +385,7 @@ export async function POST(request: NextRequest) {
       metadataUrl: `https://${PINATA_GATEWAY}/ipfs/${metadataCid}`,
     };
 
-    // ✅ Only include audio URLs if this is a music NFT
+    // Only include audio URLs if this is a music NFT
     if (previewCid && fullCid) {
       response.previewCid = previewCid;
       response.fullCid = fullCid;
@@ -281,9 +393,18 @@ export async function POST(request: NextRequest) {
       response.fullUrl = `https://${PINATA_GATEWAY}/ipfs/${fullCid}`;
     }
 
+    // Include collector edition data if generated
+    if (collectorMetadataCid) {
+      response.collectorTokenURI = `ipfs://${collectorMetadataCid}`;
+      response.collectorCoverCid = collectorCoverCid;
+      response.collectorCoverUrl = `https://${PINATA_GATEWAY}/ipfs/${collectorCoverCid}`;
+      response.collectorMetadataUrl = `https://${PINATA_GATEWAY}/ipfs/${collectorMetadataCid}`;
+    }
+
     console.log('📤 Upload complete! Response:', {
       tokenURI: response.tokenURI,
       metadataUrl: response.metadataUrl,
+      collectorTokenURI: response.collectorTokenURI || 'N/A',
     });
 
     return NextResponse.json(response);

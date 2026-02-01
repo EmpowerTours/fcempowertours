@@ -27,10 +27,13 @@ export function useBotCommand() {
       options?: {
         location?: { latitude: number; longitude: number };
         fid?: number | string;
-        imageUrl?: string;  // ✅ ADD: For music minting - direct cover image URL
-        title?: string; // ✅ NFT title (works for both music and art)
-        tokenURI?: string;  // ✅ ADD: For music minting - token metadata URI
-        is_art?: boolean;  // ✅ ADD: Art vs Music flag for conditional cast posting
+        imageUrl?: string;  // For music minting - direct cover image URL
+        title?: string; // NFT title (works for both music and art)
+        tokenURI?: string;  // For music minting - token metadata URI
+        is_art?: boolean;  // Art vs Music flag for conditional cast posting
+        collectorTokenURI?: string; // Collector edition token URI
+        collectorPrice?: string; // Collector edition price in WMON
+        maxEditions?: string; // Max collector editions
       }
     ): Promise<BotCommandResponse> => {
       setLoading(true);
@@ -59,10 +62,13 @@ export function useBotCommand() {
             userAddress,
             location: options?.location,
             fid: options?.fid || fid,
-            imageUrl: options?.imageUrl,  // ✅ PASS: Direct cover image URL from upload
-            title: options?.title, // ✅ PASS: NFT title (works for both music and art)
-            tokenURI: options?.tokenURI,   // ✅ PASS: Token metadata URI
-            is_art: options?.is_art,  // ✅ PASS: Art vs Music flag for conditional cast posting
+            imageUrl: options?.imageUrl,
+            title: options?.title,
+            tokenURI: options?.tokenURI,
+            is_art: options?.is_art,
+            collectorTokenURI: options?.collectorTokenURI,
+            collectorPrice: options?.collectorPrice,
+            maxEditions: options?.maxEditions,
           }),
         });
 

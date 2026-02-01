@@ -20,8 +20,9 @@ function extractFidFromRequest(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ EXTRACT: imageUrl, title, tokenURI, is_art from request body
-    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest, is_art } = await req.json();
+    // Extract all params from request body including collector edition fields
+    const body = await req.json();
+    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest, is_art } = body;
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
@@ -1070,10 +1071,10 @@ Or go to the Music page to upload files.`
           isArt: is_art,
         });
 
-        if (price <= 0 || price > 1_000_000_000) {
+        if (price <= 0 || price > 100_000_000) {
           return NextResponse.json({
             success: false,
-            message: 'Invalid price. Use: 0.001 - 1,000,000,000 TOURS'
+            message: 'Invalid price. Use: 0.001 - 100,000,000 WMON'
           });
         }
 
@@ -1123,7 +1124,7 @@ Or go to the Music page to upload files.`
           action: 'transaction',
           message: `Music NFT Minted (FREE)!
 Song: ${songTitle}
-Price: ${price} TOURS per license
+Price: ${price} WMON per license
 TX: ${mintData.txHash?.slice(0, 10)}...
 Gasless - we paid the gas!
 View: https://monadscan.com/tx/${mintData.txHash}`
@@ -1137,8 +1138,8 @@ View: https://monadscan.com/tx/${mintData.txHash}`
       }
     }
 
-    // ==================== STAKE MUSIC YIELD COMMAND ====================
-    if (lowerCommand.includes('stake music yield') || lowerCommand.includes('stake_music_yield')) {
+    // ==================== MINT COLLECTOR EDITION COMMAND ====================
+    if (lowerCommand.includes('mint collector') || lowerCommand.includes('mint_collector')) {
       if (!userAddress) {
         return NextResponse.json({
           success: false,
@@ -1146,150 +1147,69 @@ View: https://monadscan.com/tx/${mintData.txHash}`
         });
       }
       try {
-        const regex = /stake[_ ]music[_ ]yield\s+(\d+)\s+([\d.]+)/i;
-        const match = originalCommand.match(regex);
+        const collectorRegex = /mint[_ ]collector\s+(.+?)\s+(ipfs:\/\/[a-zA-Z0-9]{46,})\s+([\d.]+)/i;
+        const collectorMatch = originalCommand.match(collectorRegex);
 
-        if (!match) {
+        if (!collectorMatch) {
           return NextResponse.json({
             success: true,
             action: 'info',
-            message: `Music NFT Yield Staking
-Stake your Music NFT with MON capital to earn Kintsu vault yields!
-
-Usage:
-"stake music yield <tokenId> <MON amount>"
-
-Example:
-"stake music yield 1 50"
-
-This will:
-✅ Stake Music NFT #1 with 50 MON
-✅ Earn variable yield from Kintsu DeFi vault
-✅ Keep your NFT in your wallet (never transferred!)
-✅ Yield can be allocated to DragonRouter locations
-
-Note: Requires MON capital deposit`
+            message: `Collector Edition NFT Minting
+To mint a collector edition, use the NFT creation page with the collector toggle enabled.`
           });
         }
 
-        const tokenId = match[1].trim();
-        const monAmount = parseFloat(match[2]);
+        const collectorTitle = collectorMatch[1].trim();
+        const collectorTokenURIVal = collectorMatch[2];
+        const collectorStdPrice = parseFloat(collectorMatch[3]);
 
-        if (monAmount <= 0) {
+        // Get collector-specific params from request body context
+        const collectorTokenURI = body.collectorTokenURI || collectorTokenURIVal;
+        const collectorPriceVal = body.collectorPrice || '500';
+        const maxEditionsVal = body.maxEditions || '100';
+        const imageUrlFromCollector = body.imageUrl || '';
+        const is_collector_art = body.is_art;
+
+        const cid = collectorTokenURIVal.replace('ipfs://', '');
+        if (!cid.startsWith('Qm') && !cid.startsWith('bafy')) {
           return NextResponse.json({
             success: false,
-            message: 'Invalid MON amount. Must be greater than 0.'
+            message: `Invalid IPFS CID format: ${cid}. Must start with Qm or bafy`
           });
         }
 
-        console.log('[BOT] Staking Music NFT with YieldStrategy:', {
-          tokenId,
-          monAmount,
-          userAddress
-        });
-
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        if (!delegationData.success || !delegationData.delegation) {
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['stake_music_yield', 'unstake_music_yield', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
-            })
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
-          }
-        }
-
-        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress,
-            action: 'stake_music_yield',
-            params: {
-              tokenId,
-              monAmount: monAmount.toString()
-            }
-          })
-        });
-        const stakeData = await stakeRes.json();
-        if (!stakeData.success) {
-          throw new Error(stakeData.error || 'Stake failed');
-        }
-
-        console.log('[BOT] Music NFT staked in YieldStrategy:', stakeData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: stakeData.txHash,
-          positionId: stakeData.positionId,
-          action: 'transaction',
-          message: `Music NFT #${tokenId} Staked with YieldStrategy!
-💎 Capital: ${monAmount} MON
-📊 Position ID: ${stakeData.positionId || 'Pending'}
-⛽ Gasless - we paid the gas!
-TX: ${stakeData.txHash?.slice(0, 10)}...
-
-Your NFT stays in your wallet while earning Kintsu vault yields!
-View: https://monadscan.com/tx/${stakeData.txHash}`
-        });
-      } catch (error: any) {
-        console.error('[BOT] Music yield stake error:', error);
-        return NextResponse.json({
-          success: false,
-          message: `Stake failed: ${error.message}`
-        });
-      }
-    }
-
-    // ==================== UNSTAKE MUSIC YIELD COMMAND ====================
-    if (lowerCommand.includes('unstake music yield') || lowerCommand.includes('unstake_music_yield')) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
-        });
-      }
-      try {
-        const regex = /unstake[_ ]music[_ ]yield\s+(\d+)/i;
-        const match = originalCommand.match(regex);
-
-        if (!match) {
+        if (collectorStdPrice <= 0 || collectorStdPrice > 100_000_000) {
           return NextResponse.json({
-            success: true,
-            action: 'info',
-            message: `Music NFT Yield Unstaking
-Unstake your Music NFT position and claim accumulated yield!
-
-Usage:
-"unstake music yield <positionId>"
-
-Example:
-"unstake music yield 0"
-
-This will:
-✅ Unstake your position from YieldStrategy
-✅ Withdraw principal MON + accumulated yield
-✅ Pay 0.5% withdrawal fee
-✅ Receive MON to your wallet
-
-Note: You need the position ID from when you staked`
+            success: false,
+            message: 'Invalid price. Use: 0.001 - 100,000,000 WMON'
           });
         }
 
-        const positionId = match[1].trim();
+        const cPrice = parseFloat(collectorPriceVal);
+        if (isNaN(cPrice) || cPrice < 500 || cPrice > 100_000_000) {
+          return NextResponse.json({
+            success: false,
+            message: 'Collector price must be between 500 and 100,000,000 WMON'
+          });
+        }
 
-        console.log('[BOT] Unstaking Music NFT from YieldStrategy:', {
-          positionId,
-          userAddress
+        const cEditions = parseInt(maxEditionsVal);
+        if (isNaN(cEditions) || cEditions < 1 || cEditions > 1000) {
+          return NextResponse.json({
+            success: false,
+            message: 'Max editions must be between 1 and 1,000'
+          });
+        }
+
+        console.log(`[BOT] Minting COLLECTOR EDITION NFT:`, {
+          title: collectorTitle,
+          tokenURI: collectorTokenURIVal,
+          standardPrice: collectorStdPrice,
+          collectorPrice: collectorPriceVal,
+          maxEditions: maxEditionsVal,
         });
 
+        // Create delegation if needed
         const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
         const delegationData = await delegationRes.json();
         if (!delegationData.success || !delegationData.delegation) {
@@ -1300,7 +1220,7 @@ Note: You need the position ID from when you staked`
               userAddress,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['stake_music_yield', 'unstake_music_yield', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['mint_music', 'mint_collector', 'mint_passport', 'wrap_mon', 'swap_mon_for_tours', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -1309,41 +1229,47 @@ Note: You need the position ID from when you staked`
           }
         }
 
-        const unstakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+        const mintCollectorRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userAddress,
-            action: 'unstake_music_yield',
+            action: 'mint_collector',
             params: {
-              positionId
+              songTitle: collectorTitle,
+              tokenURI: collectorTokenURIVal,
+              collectorTokenURI,
+              imageUrl: imageUrlFromCollector,
+              price: collectorStdPrice.toString(),
+              collectorPrice: collectorPriceVal,
+              maxEditions: maxEditionsVal,
+              fid,
+              is_art: is_collector_art,
             }
           })
         });
-        const unstakeData = await unstakeRes.json();
-        if (!unstakeData.success) {
-          throw new Error(unstakeData.error || 'Unstake failed');
+        const mintCollectorData = await mintCollectorRes.json();
+        if (!mintCollectorData.success) {
+          throw new Error(mintCollectorData.error || 'Collector mint failed');
         }
-
-        console.log('[BOT] Music NFT position unstaked:', unstakeData.txHash);
+        console.log('[BOT] Collector NFT minted:', mintCollectorData.txHash);
         return NextResponse.json({
           success: true,
-          txHash: unstakeData.txHash,
+          txHash: mintCollectorData.txHash,
+          tokenId: mintCollectorData.tokenId,
           action: 'transaction',
-          message: `Music NFT Position Unstaked!
-📤 Position #${positionId} closed
-💰 MON principal + yield sent to your wallet
-⛽ Gasless - we paid the gas!
-TX: ${unstakeData.txHash?.slice(0, 10)}...
-
-Check your wallet for the refund!
-View: https://monadscan.com/tx/${unstakeData.txHash}`
+          message: `Collector Edition NFT Minted (FREE)!
+Title: ${collectorTitle}
+Standard: ${collectorStdPrice} WMON | Collector: ${collectorPriceVal} WMON (${maxEditionsVal} editions)
+TX: ${mintCollectorData.txHash?.slice(0, 10)}...
+Gasless - we paid the gas!
+View: https://monadscan.com/tx/${mintCollectorData.txHash}`
         });
       } catch (error: any) {
-        console.error('[BOT] Music yield unstake error:', error);
+        console.error('[BOT] Collector mint error:', error);
         return NextResponse.json({
           success: false,
-          message: `Unstake failed: ${error.message}`
+          message: `Collector mint failed: ${error.message}`
         });
       }
     }

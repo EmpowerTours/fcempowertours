@@ -39,6 +39,9 @@ export default function MusicPage() {
   const [trimEnd, setTrimEnd] = useState(3);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isCollectorEdition, setIsCollectorEdition] = useState(false);
+  const [collectorPrice, setCollectorPrice] = useState('500');
+  const [maxEditions, setMaxEditions] = useState('100');
 
   const farcasterFid = user?.fid || 0;
 
@@ -273,10 +276,24 @@ export default function MusicPage() {
       return;
     }
     const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum <= 0 || priceNum > 1_000_000_000) {
-      setError('Price must be between 0.001 and 1,000,000,000 TOURS');
+    if (isNaN(priceNum) || priceNum <= 0 || priceNum > 100_000_000) {
+      setError('Price must be between 0.001 and 100,000,000 WMON');
       return;
     }
+    // Collector edition validations
+    if (isCollectorEdition) {
+      const cPrice = parseFloat(collectorPrice);
+      if (isNaN(cPrice) || cPrice < 500 || cPrice > 100_000_000) {
+        setError('Collector price must be between 500 and 100,000,000 WMON');
+        return;
+      }
+      const editions = parseInt(maxEditions);
+      if (isNaN(editions) || editions < 1 || editions > 1000) {
+        setError('Max editions must be between 1 and 1,000');
+        return;
+      }
+    }
+
     if (!walletAddress) {
       setError('Please connect your wallet first');
       await requestWallet();
@@ -289,15 +306,15 @@ export default function MusicPage() {
     try {
       const formData = new FormData();
 
-      // ✅ Auto-trim full track to create preview if no preview provided
+      // Auto-trim full track to create preview if no preview provided
       let actualPreviewFile = previewFile;
       if (!previewFile && fullFile && nftType === 'music') {
-        console.log(`🎬 Auto-trimming preview from ${trimStart}s to ${trimEnd}s`);
+        console.log(`Auto-trimming preview from ${trimStart}s to ${trimEnd}s`);
         actualPreviewFile = await trimAudio(fullFile, trimStart, trimEnd);
-        console.log(`✂️ Trimmed preview created: ${(actualPreviewFile.size / 1024).toFixed(0)}KB`);
+        console.log(`Trimmed preview created: ${(actualPreviewFile.size / 1024).toFixed(0)}KB`);
       }
 
-      // ✅ Only append audio files if they exist (support art-only NFTs)
+      // Only append audio files if they exist (support art-only NFTs)
       if (actualPreviewFile) {
         formData.append('previewAudio', actualPreviewFile);
       }
@@ -308,7 +325,13 @@ export default function MusicPage() {
       formData.append('description', title);
       formData.append('address', walletAddress);
       formData.append('fid', farcasterFid?.toString() || '0');
-      formData.append('isArtOnly', isArtOnly.toString()); // Flag for backend
+      formData.append('isArtOnly', isArtOnly.toString());
+
+      // Pass collector edition flags so upload route can AI-generate collector art
+      if (isCollectorEdition) {
+        formData.append('isCollectorEdition', 'true');
+        formData.append('collectorTitle', title);
+      }
 
       // Upload files
       let uploadRes: Response;
@@ -329,30 +352,48 @@ export default function MusicPage() {
 
       const uploadData = await uploadRes.json();
       const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
-      const coverUrl = uploadData.coverUrl || `ipfs://${uploadData.coverCid}`; // ✅ EXTRACT COVER URL
+      const coverUrl = uploadData.coverUrl || `ipfs://${uploadData.coverCid}`;
+      const collectorTokenURI = uploadData.collectorTokenURI || uploadData.tokenURI || tokenURI;
 
-      console.log('📤 Upload successful:', {
+      console.log('Upload successful:', {
         tokenURI,
         coverUrl,
         title,
+        isCollectorEdition,
+        collectorTokenURI: isCollectorEdition ? collectorTokenURI : 'N/A',
       });
 
       setUploading(false);
       setMinting(true);
 
-      // ✅ FIXED: Pass both tokenURI and coverUrl through the bot command
-      // The bot will extract these and pass to execute-delegated
-      const command = `mint_music ${title.slice(0, 50)} ${tokenURI} ${price}`;
+      let mintData;
 
-      console.log('🎵 Executing mint command with cover URL:', coverUrl);
+      if (isCollectorEdition) {
+        // Collector edition mint
+        const command = `mint_collector ${title.slice(0, 50)} ${tokenURI} ${price}`;
+        console.log('Executing collector mint command with cover URL:', coverUrl);
 
-      // ✅ USE useBotCommand HOOK - it will handle the delegation + execution
-      const mintData = await executeCommand(command, {
-        imageUrl: coverUrl,  // ✅ PASS DIRECT COVER IMAGE URL AS CONTEXT
-        title,
-        tokenURI,
-        is_art: nftType === 'art', // ✅ Pass NFT type for conditional cast posting
-      });
+        mintData = await executeCommand(command, {
+          imageUrl: coverUrl,
+          title,
+          tokenURI,
+          collectorTokenURI,
+          collectorPrice,
+          maxEditions,
+          is_art: nftType === 'art',
+        });
+      } else {
+        // Standard mint
+        const command = `mint_music ${title.slice(0, 50)} ${tokenURI} ${price}`;
+        console.log('Executing mint command with cover URL:', coverUrl);
+
+        mintData = await executeCommand(command, {
+          imageUrl: coverUrl,
+          title,
+          tokenURI,
+          is_art: nftType === 'art',
+        });
+      }
 
       if (!mintData.success) {
         throw new Error(mintData.error || mintData.message || 'Mint failed');
@@ -368,8 +409,11 @@ export default function MusicPage() {
       setCoverFile(null);
       setTitle('');
       setPrice('0.01');
+      setIsCollectorEdition(false);
+      setCollectorPrice('500');
+      setMaxEditions('100');
     } catch (err: any) {
-      console.error('❌ Error:', err);
+      console.error('Error:', err);
       setError(err.message || 'Something went wrong');
     } finally {
       setUploading(false);
@@ -496,7 +540,7 @@ export default function MusicPage() {
                   <strong>Song:</strong> {success.title || 'Untitled'}
                 </p>
                 <p className="text-green-700">
-                  <strong>Price:</strong> {success.price} TOURS per license {/* ✅ FIXED: Say TOURS */}
+                  <strong>Price:</strong> {success.price} WMON per license
                 </p>
                 {success.txHash && (
                   <a
@@ -732,6 +776,22 @@ export default function MusicPage() {
                   </div>
                 )}
 
+                {/* AI Collector Art Notice (when collector edition is enabled) */}
+                {isCollectorEdition && (
+                  <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border-2 border-amber-200">
+                    <div className="text-center">
+                      <div className="text-5xl mb-3">&#x1F451;&#x2728;</div>
+                      <p className="text-lg font-bold text-amber-900">AI-Enhanced Collector Art</p>
+                      <p className="text-sm text-amber-700 mt-2">
+                        Your cover art will be automatically enhanced by Gemini AI with premium collector edition effects — golden borders, holographic textures, and a limited edition badge.
+                      </p>
+                      <p className="text-xs text-amber-600 mt-2 font-medium">
+                        Requires 5 WMON creation fee from your Safe wallet to cover AI generation costs.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   onClick={() => setCurrentStep(3)}
                   disabled={!coverFile || (nftType === 'music' && !fullFile)}
@@ -785,7 +845,7 @@ export default function MusicPage() {
                             : 'bg-white text-gray-700 hover:scale-105 border-2 border-gray-200'
                         }`}
                       >
-                        {p} TOURS
+                        {p} WMON
                       </button>
                     ))}
                   </div>
@@ -795,15 +855,78 @@ export default function MusicPage() {
                       type="number"
                       step="0.001"
                       min="0.001"
-                      max="10"
+                      max="100000000"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="Custom price"
                       className="w-full px-6 py-4 text-lg border-2 border-green-300 rounded-xl focus:ring-4 focus:ring-green-500 focus:border-transparent"
                     />
-                    <span className="absolute right-6 top-4.5 text-gray-600 font-bold pointer-events-none">TOURS</span>
+                    <span className="absolute right-6 top-4.5 text-gray-600 font-bold pointer-events-none">WMON</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 | Max: 1B TOURS</p>
+                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 | Max: 100,000,000 WMON</p>
+                </div>
+
+                {/* Collector Edition Panel */}
+                <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border-2 border-amber-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-xl font-bold text-gray-900">
+                      <span className="mr-2">&#x1F451;</span> Collector Edition (Limited Run)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCollectorEdition(!isCollectorEdition)}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
+                        isCollectorEdition ? 'bg-amber-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow ${
+                          isCollectorEdition ? 'translate-x-8' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {isCollectorEdition && (
+                    <div className="space-y-4 animate-fadeIn">
+                      <p className="text-sm text-amber-800 bg-amber-100 p-3 rounded-lg">
+                        Collector editions are premium limited-run copies. Your cover art is automatically enhanced by Gemini AI with collector edition effects (golden borders, holographic textures, limited edition badge). A <strong>5 WMON creation fee</strong> is required to cover AI generation costs.
+                      </p>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Collector Price (WMON)</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="1"
+                            min="500"
+                            max="100000000"
+                            value={collectorPrice}
+                            onChange={(e) => setCollectorPrice(e.target.value)}
+                            placeholder="500"
+                            className="w-full px-6 py-3 text-lg border-2 border-amber-300 rounded-xl focus:ring-4 focus:ring-amber-500 focus:border-transparent"
+                          />
+                          <span className="absolute right-6 top-3.5 text-gray-600 font-bold pointer-events-none">WMON</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Min: 500 | Max: 100,000,000 WMON</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Max Editions</label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          max="1000"
+                          value={maxEditions}
+                          onChange={(e) => setMaxEditions(e.target.value)}
+                          placeholder="100"
+                          className="w-full px-6 py-3 text-lg border-2 border-amber-300 rounded-xl focus:ring-4 focus:ring-amber-500 focus:border-transparent"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">1 - 1,000 editions</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -846,7 +969,7 @@ export default function MusicPage() {
                       <h3 className="text-3xl font-bold text-gray-900 mb-4">{title || 'Untitled'}</h3>
                       <div className="space-y-2 text-gray-700">
                         <p><strong>Type:</strong> {nftType === 'music' ? 'Music NFT' : 'Art NFT'}</p>
-                        <p><strong>Price:</strong> {price} TOURS per license</p>
+                        <p><strong>Standard Price:</strong> {price} WMON per license</p>
                         <p><strong>Creator:</strong> @{user?.username || 'You'}</p>
                         {nftType === 'music' && (
                           <>
@@ -857,6 +980,22 @@ export default function MusicPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Collector Edition Details */}
+                  {isCollectorEdition && (
+                    <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border-2 border-amber-200">
+                      <p className="text-sm font-bold text-amber-800 mb-3">Collector Edition Details</p>
+                      <div className="space-y-1 text-sm text-amber-900">
+                        <p><strong>Collector Price:</strong> {collectorPrice} WMON per edition</p>
+                        <p><strong>Max Editions:</strong> {maxEditions}</p>
+                        <p><strong>Collector Art:</strong> AI-enhanced by Gemini</p>
+                        <p><strong>Creation Fee:</strong> 5 WMON (covers AI art generation)</p>
+                      </div>
+                      <div className="mt-3 p-2 bg-white rounded-lg text-xs text-gray-600">
+                        Standard: {price} WMON (unlimited) | Collector: {collectorPrice} WMON ({maxEditions} editions) | Fee: 5 WMON
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Mint Button */}
@@ -893,7 +1032,7 @@ export default function MusicPage() {
               💡 How NFT Pricing Works:
             </p>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-              <li>Set your price in TOURS tokens (what fans pay to own your NFT)</li>
+              <li>Set your price in WMON tokens (what fans pay to own your NFT)</li>
               <li>You receive 90% of sales + 10% royalties on resales</li>
               <li>Minting is FREE - we cover all gas costs for you</li>
               <li>Music NFTs: Fans can preview audio before buying</li>
