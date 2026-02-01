@@ -12,7 +12,7 @@ This is a **full-stack Next.js 15 application** with blockchain integration. Whe
    - External API integrations (Neynar, Envio, Google Gemini)
 
 2. **Smart Contracts** (`/contracts/`)
-   - Solidity contracts for Monad testnet
+   - Solidity contracts for Monad Mainnet (Chain ID: 143)
    - Foundry testing with `forge test`
    - Contract deployment and verification
 
@@ -22,7 +22,7 @@ This is a **full-stack Next.js 15 application** with blockchain integration. Whe
    - Background jobs and scheduled tasks
 
 4. **Blockchain Integration**
-   - Monad testnet (Chain ID: 10143)
+   - Monad Mainnet (Chain ID: 143)
    - ERC-4337 account abstraction via Pimlico
    - Token contracts: TOURS, WMON, Passports, NFTs
 

@@ -252,7 +252,7 @@ export function useFarcasterContext() {
         const result = await sdk.actions.sendToken({
           address: params.to,
           amount: amount.toString(),
-          chainId: params.chainId || 41454, // Monad testnet
+          chainId: params.chainId || 143, // Monad mainnet
         });
 
         console.log('✅ sendToken result:', result);

@@ -1,31 +1,5 @@
 import { defineChain } from 'viem';
 
-// Check if we're on mainnet based on chain ID
-const isMainnet = process.env.NEXT_PUBLIC_CHAIN_ID === '143';
-
-export const monadTestnet = defineChain({
-  id: 10143,
-  name: 'Monad Testnet',
-  network: 'monad-testnet',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'MON',
-    symbol: 'MON',
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc.monad.xyz'],
-    },
-    public: {
-      http: ['https://rpc.monad.xyz'],
-    },
-  },
-  blockExplorers: {
-    default: { name: 'Monad Explorer', url: 'https://monadscan.com' },
-  },
-  testnet: true,
-});
-
 export const monadMainnet = defineChain({
   id: 143,
   name: 'Monad',
@@ -49,8 +23,11 @@ export const monadMainnet = defineChain({
   testnet: false,
 });
 
-// Active chain based on environment
-export const activeChain = isMainnet ? monadMainnet : monadTestnet;
+// Active chain — Monad Mainnet (Chain ID: 143)
+export const activeChain = monadMainnet;
+
+// Backwards compatibility alias (previously pointed to testnet, now mainnet)
+export const monadTestnet = monadMainnet;
 
 // Helper to get explorer URL
 export function getExplorerUrl(txHash: string): string {

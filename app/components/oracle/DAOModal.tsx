@@ -90,8 +90,8 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
       // Create provider with explicit network configuration to avoid network detection issues
       const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
       const provider = new ethers.JsonRpcProvider(rpcUrl, {
-        chainId: 10143,
-        name: 'monad-testnet'
+        chainId: 143,
+        name: 'monad'
       });
 
       // Get User Safe address

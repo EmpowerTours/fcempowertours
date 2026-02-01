@@ -5,14 +5,13 @@ import {
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { createPublicClient, createWalletClient, http, Address, Hex, parseAbi, parseEther, encodePacked, concat, toHex } from 'viem';
 import { entryPoint07Address } from 'viem/account-abstraction';
-import { activeChain, monadTestnet, monadMainnet } from '@/app/chains';
+import { monadMainnet } from '@/app/chains';
 import { privateKeyToAccount, sign } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
 import { env } from '@/lib/env';
 
-// Determine which chain to use based on environment
-const isMainnet = env.CHAIN_ID === '143';
-const currentChain = isMainnet ? monadMainnet : monadTestnet;
+// Monad Mainnet (Chain ID: 143)
+const currentChain = monadMainnet;
 
 const PIMLICO_API_KEY = env.PIMLICO_API_KEY;
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;

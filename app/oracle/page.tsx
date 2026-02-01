@@ -637,7 +637,7 @@ export default function OraclePage() {
       const result = await sendTransaction({
         to: userSafeAddress,
         value: '0x' + amountInWei.toString(16),
-        chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '10143'),
+        chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '143'),
       });
 
       const txHash = result?.transactionHash || result;
