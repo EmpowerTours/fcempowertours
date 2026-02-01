@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { broadcastRadioUpdate } from '@/lib/event-manager';
+import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { activeChain } from '@/app/chains';
 
 /**
  * Live Radio API
@@ -534,6 +537,37 @@ export async function POST(req: NextRequest) {
 
     // Start radio (admin only)
     if (action === 'start_radio') {
+      // Call startRadio() on-chain via deployer wallet
+      const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO;
+      const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+
+      if (LIVE_RADIO_ADDRESS && DEPLOYER_KEY) {
+        try {
+          const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+          const account = privateKeyToAccount(DEPLOYER_KEY as `0x${string}`);
+          const walletClient = createWalletClient({
+            account,
+            chain: activeChain,
+            transport: http(rpcUrl),
+          });
+          const publicClient = createPublicClient({
+            chain: activeChain,
+            transport: http(rpcUrl),
+          });
+
+          const txHash = await walletClient.writeContract({
+            address: LIVE_RADIO_ADDRESS as `0x${string}`,
+            abi: parseAbi(['function startRadio() external']),
+            functionName: 'startRadio',
+          });
+
+          await publicClient.waitForTransactionReceipt({ hash: txHash });
+          console.log('[LiveRadio] On-chain startRadio TX:', txHash);
+        } catch (err: any) {
+          console.error('[LiveRadio] On-chain startRadio failed:', err.message);
+        }
+      }
+
       const state: RadioState = {
         isLive: true,
         currentSong: null,
@@ -560,6 +594,37 @@ export async function POST(req: NextRequest) {
 
     // Stop radio (admin only)
     if (action === 'stop_radio') {
+      // Call stopRadio() on-chain via deployer wallet
+      const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO;
+      const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+
+      if (LIVE_RADIO_ADDRESS && DEPLOYER_KEY) {
+        try {
+          const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+          const account = privateKeyToAccount(DEPLOYER_KEY as `0x${string}`);
+          const walletClient = createWalletClient({
+            account,
+            chain: activeChain,
+            transport: http(rpcUrl),
+          });
+          const publicClient = createPublicClient({
+            chain: activeChain,
+            transport: http(rpcUrl),
+          });
+
+          const txHash = await walletClient.writeContract({
+            address: LIVE_RADIO_ADDRESS as `0x${string}`,
+            abi: parseAbi(['function stopRadio() external']),
+            functionName: 'stopRadio',
+          });
+
+          await publicClient.waitForTransactionReceipt({ hash: txHash });
+          console.log('[LiveRadio] On-chain stopRadio TX:', txHash);
+        } catch (err: any) {
+          console.error('[LiveRadio] On-chain stopRadio failed:', err.message);
+        }
+      }
+
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (state) {
         state.isLive = false;
