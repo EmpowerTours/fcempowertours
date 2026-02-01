@@ -147,6 +147,18 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   });
   const [availableSongs, setAvailableSongs] = useState<any[]>([]);
   const [loadingSongs, setLoadingSongs] = useState(false);
+  const [artistNames, setArtistNames] = useState<Record<string, string>>({}); // FID -> @username
+
+  // Helper: get display name for artist (prefers @username, falls back to truncated address)
+  const getArtistDisplayName = useCallback((artist: string, artistFid?: number) => {
+    if (artistFid && artistNames[String(artistFid)]) {
+      return artistNames[String(artistFid)];
+    }
+    if (artist && artist.startsWith('0x') && artist.length > 10) {
+      return `${artist.slice(0, 6)}...${artist.slice(-4)}`;
+    }
+    return artist || 'Unknown Artist';
+  }, [artistNames]);
   const [selectedSong, setSelectedSong] = useState<any>(null);
   const [tipAmount, setTipAmount] = useState('');
   const [voiceNoteType, setVoiceNoteType] = useState<'shoutout' | 'ad' | null>(null);
@@ -232,6 +244,41 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
     }
   }, []);
 
+  // Resolve FIDs to Farcaster @usernames via Neynar bulk API
+  const resolveArtistNames = useCallback(async (fids: number[]) => {
+    const uniqueFids = [...new Set(fids.filter(f => f && f > 0))];
+    if (uniqueFids.length === 0) return;
+
+    // Skip FIDs we already resolved
+    const unresolvedFids = uniqueFids.filter(f => !artistNames[String(f)]);
+    if (unresolvedFids.length === 0) return;
+
+    try {
+      const NEYNAR_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+      if (!NEYNAR_KEY) return;
+
+      // Neynar bulk endpoint supports up to 100 FIDs
+      const res = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${unresolvedFids.join(',')}`, {
+        headers: { 'api_key': NEYNAR_KEY },
+      });
+      const data = await res.json();
+      if (data.users) {
+        const newNames: Record<string, string> = {};
+        for (const user of data.users) {
+          const name = user.username || user.display_name || null;
+          if (name) {
+            newNames[String(user.fid)] = `@${name}`;
+          }
+        }
+        if (Object.keys(newNames).length > 0) {
+          setArtistNames(prev => ({ ...prev, ...newNames }));
+        }
+      }
+    } catch (err) {
+      console.error('[LiveRadio] Failed to resolve artist usernames:', err);
+    }
+  }, [artistNames]);
+
   // Fetch available songs from Envio (only Music NFTs with audio)
   const fetchAvailableSongs = useCallback(async () => {
     setLoadingSongs(true);
@@ -268,13 +315,17 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
           }));
         setAvailableSongs(songs);
         console.log('[LiveRadio] Fetched', songs.length, 'music NFTs (filtered out art NFTs)');
+
+        // Resolve artist FIDs to @usernames
+        const fids = songs.map((s: any) => s.artistFid).filter(Boolean);
+        if (fids.length > 0) resolveArtistNames(fids);
       }
     } catch (error) {
       console.error('[LiveRadio] Failed to fetch songs:', error);
     } finally {
       setLoadingSongs(false);
     }
-  }, []);
+  }, [resolveArtistNames]);
 
   // Fetch queue
   const fetchQueue = useCallback(async () => {
@@ -1137,7 +1188,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                     {/* Song Info */}
                     <div className="text-center">
                       <p className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{radioState.currentSong.name}</p>
-                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{radioState.currentSong.artist}</p>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{getArtistDisplayName(radioState.currentSong.artist, availableSongs.find(s => s.tokenId === radioState.currentSong?.tokenId)?.artistFid)}</p>
                       <p className="text-xs text-purple-400 mt-1">
                         Queued by: {radioState.currentSong.queuedBy.slice(0, 6)}...{radioState.currentSong.queuedBy.slice(-4)}
                       </p>
@@ -1268,7 +1319,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                           <span className="absolute top-1 left-1 text-xs text-white bg-black/60 rounded px-1.5 py-0.5">{index + 1}</span>
                         </div>
                         <p className={`text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name}</p>
-                        <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist}</p>
+                        <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{getArtistDisplayName(song.artist, availableSongs.find((s: any) => s.tokenId === song.tokenId)?.artistFid)}</p>
                       </div>
                     ))}
                   </div>
@@ -1470,9 +1521,9 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                               <p className="text-[10px] text-white text-center truncate w-full leading-tight">
                                 {play.name || `#${play.tokenId}`}
                               </p>
-                              {/* Artist/queuer below song name */}
+                              {/* Artist below song name */}
                               <p className="text-[9px] text-gray-500 text-center truncate w-full">
-                                {play.queuedBy ? `${play.queuedBy.slice(0, 4)}...${play.queuedBy.slice(-2)}` : play.artist?.slice(0, 6) || ''}
+                                {getArtistDisplayName(play.artist, availableSongs.find((s: any) => s.tokenId === play.tokenId)?.artistFid)}
                               </p>
                             </div>
                           ))}
@@ -1545,7 +1596,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                       )}
                     </div>
                     <p className={`text-xs sm:text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name || `Song #${song.tokenId}`}</p>
-                    <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist || 'Unknown Artist'}</p>
+                    <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{getArtistDisplayName(song.artist, song.artistFid)}</p>
                   </button>
                 ))
               ) : (
@@ -1562,7 +1613,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
               <div className={`mb-3 p-3 rounded-xl ${isDarkMode ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'}`}>
                 <p className="text-xs text-purple-400 mb-1">Selected:</p>
                 <p className={`text-sm font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedSong.name}</p>
-                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{selectedSong.artist}</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{getArtistDisplayName(selectedSong.artist, selectedSong.artistFid)}</p>
               </div>
             )}
 
