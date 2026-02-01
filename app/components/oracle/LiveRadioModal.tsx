@@ -148,6 +148,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   const [availableSongs, setAvailableSongs] = useState<any[]>([]);
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [selectedSong, setSelectedSong] = useState<any>(null);
+  const [tipAmount, setTipAmount] = useState('');
   const [voiceNoteType, setVoiceNoteType] = useState<'shoutout' | 'ad' | null>(null);
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'uploading' | 'recorded'>('idle');
   const [playbackProgress, setPlaybackProgress] = useState(0);
@@ -641,7 +642,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
           params: {
             masterTokenId: song.tokenId,
             userFid: user?.fid?.toString() || '0',
-            tipAmount: '0', // No tip for now
+            tipAmount: tipAmount && parseFloat(tipAmount) > 0 ? tipAmount : '0',
           },
         }),
       });
@@ -677,6 +678,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
         fetchQueue();
         setShowQueueModal(false);
         setSelectedSong(null);
+        setTipAmount('');
         console.log('[LiveRadio] Song queued:', song.name);
 
         // Show success with tx hash link
@@ -1499,7 +1501,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
         <div
           className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           style={{ zIndex: 10000, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
-          onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
+          onClick={() => { setShowQueueModal(false); setSelectedSong(null); setTipAmount(''); }}
         >
           <div
             className={`${isDarkMode ? 'border-purple-500/30' : 'bg-white border-purple-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col shadow-xl`}
@@ -1566,16 +1568,37 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
               </div>
             )}
 
+            {/* Tip Artist (optional) */}
+            {selectedSong && (
+              <div className={`mb-3 p-3 rounded-xl ${isDarkMode ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-orange-50 border border-orange-200'}`}>
+                <p className={`text-xs font-semibold mb-2 ${isDarkMode ? 'text-orange-400' : 'text-orange-700'}`}>
+                  Tip the artist (optional, 100% goes to them)
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="0"
+                    value={tipAmount}
+                    onChange={(e) => setTipAmount(e.target.value)}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm ${isDarkMode ? 'bg-gray-800 border-orange-500/30 text-white placeholder-gray-500' : 'bg-white border-orange-300 text-gray-900 placeholder-gray-400'} border outline-none focus:border-orange-400`}
+                  />
+                  <span className={`text-xs font-semibold ${isDarkMode ? 'text-orange-400' : 'text-orange-700'}`}>WMON</span>
+                </div>
+              </div>
+            )}
+
             {/* Payment Info */}
             <div className={`mb-3 p-2 rounded-lg ${isDarkMode ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-yellow-50 border border-yellow-200'}`}>
               <p className={`text-xs text-center ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                Payment: {pricing.queueSong} WMON via delegated transaction
+                Payment: {pricing.queueSong} WMON{tipAmount && parseFloat(tipAmount) > 0 ? ` + ${tipAmount} WMON tip` : ''} via delegated transaction
               </p>
             </div>
 
             <div className={`flex gap-2 pt-2 border-t ${isDarkMode ? 'border-purple-500/20' : 'border-gray-200'}`}>
               <button
-                onClick={() => { setShowQueueModal(false); setSelectedSong(null); }}
+                onClick={() => { setShowQueueModal(false); setSelectedSong(null); setTipAmount(''); }}
                 className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
               >
                 Cancel
