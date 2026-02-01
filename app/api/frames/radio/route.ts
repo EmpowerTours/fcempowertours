@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const radioDeepLink = `${APP_URL}/oracle?modal=radio`;
 
     // Dynamic OG image for the cast preview (1200x630)
-    const ogImageUrl = `${APP_URL}/api/og`;
+    const ogImageUrl = `${APP_URL}/api/og/radio`;
 
     const buttonTitle = action === 'skip_random'
       ? '🎲 Tune In - Live Radio'

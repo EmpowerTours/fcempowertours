@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const discoverDeepLink = `${APP_URL}/discover`;
     // Dynamic OG image for the cast preview (1200x630)
-    const ogImageUrl = `${APP_URL}/api/og`;
+    const ogImageUrl = `${APP_URL}/api/og/discover`;
 
     const frameData = {
       version: 'next',
