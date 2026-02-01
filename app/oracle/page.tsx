@@ -1145,6 +1145,12 @@ export default function OraclePage() {
           widgetToken={mapsResultsData.widgetToken}
           query={mapsResultsData.query}
           paymentTxHash={mapsResultsData.paymentTxHash}
+          userLocation={geoLocation ? {
+            latitude: geoLocation.latitude,
+            longitude: geoLocation.longitude,
+            city: geoLocation.city,
+            country: geoLocation.country,
+          } : undefined}
           onClose={() => {
             setShowMapsResults(false);
             setMapsResultsData(null);

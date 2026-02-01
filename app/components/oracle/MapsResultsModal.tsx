@@ -37,6 +37,7 @@ interface MapsResultsModalProps {
   query: string;
   onClose: () => void;
   paymentTxHash?: string;
+  userLocation?: { latitude: number; longitude: number; city?: string; country?: string };
 }
 
 export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
@@ -44,7 +45,8 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   widgetToken,
   query,
   onClose,
-  paymentTxHash
+  paymentTxHash,
+  userLocation
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
@@ -362,22 +364,43 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     setViewMode('map');
 
     try {
-      // Get user's current location
-      const userPos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error('Geolocation not supported'));
+      // Get user's current location (try browser geolocation, fallback to IP-based)
+      let origin: { lat: number; lng: number };
+      try {
+        const userPos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('Geolocation not supported'));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 5000,
+          });
+        });
+        origin = {
+          lat: userPos.coords.latitude,
+          lng: userPos.coords.longitude,
+        };
+      } catch (geoErr) {
+        // Fallback to IP-based location passed from parent
+        if (userLocation?.latitude && userLocation?.longitude) {
+          console.log('[MapsWidget] Using IP-based location fallback:', userLocation.city || 'unknown city');
+          origin = {
+            lat: userLocation.latitude,
+            lng: userLocation.longitude,
+          };
+        } else {
+          // No location available at all — open in external Google Maps
+          console.log('[MapsWidget] No location available, opening external maps');
+          const fallbackUrl = source.placeId
+            ? `https://www.google.com/maps/dir/?api=1&destination_place_id=${source.placeId}`
+            : source.uri.replace('/maps/place/', '/maps/dir/?api=1&destination=');
+          openExternalUrl(fallbackUrl);
+          setLoadingDirections(false);
+          setDirectionsMode(false);
           return;
         }
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-        });
-      });
-
-      const origin = {
-        lat: userPos.coords.latitude,
-        lng: userPos.coords.longitude,
-      };
+      }
 
       // Build destination
       const destination: any = source.placeId
@@ -448,7 +471,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     } finally {
       setLoadingDirections(false);
     }
-  }, [mapReady, placeDetails, openExternalUrl]);
+  }, [mapReady, placeDetails, openExternalUrl, userLocation]);
 
   // Exit directions mode and restore markers
   const exitDirectionsMode = useCallback(() => {

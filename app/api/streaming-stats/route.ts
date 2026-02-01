@@ -192,13 +192,50 @@ export async function GET(req: NextRequest) {
       console.error('[StreamingStats] Error fetching sales data:', error);
     }
 
-    // Note: Redis fallback disabled - use Envio indexer as source of truth on mainnet
+    // Fetch radio play data from Redis (live-radio tracks plays and listeners)
+    try {
+      const LISTENER_STATS_KEY = 'live-radio:listener-stats';
+      const RADIO_STATE_KEY = 'live-radio:state';
+
+      // Get play history from Redis
+      const playHistory = await redis.lrange(PLAY_HISTORY_KEY, 0, limit - 1);
+      const plays = playHistory.map((item: any) => {
+        const entry = typeof item === 'string' ? JSON.parse(item) : item;
+        return {
+          user: entry.queuedBy || '',
+          masterTokenId: entry.tokenId || '',
+          duration: 0,
+          timestamp: Math.floor((entry.playedAt || 0) / 1000),
+          txHash: `radio-${entry.tokenId}-${entry.playedAt}`,
+          songName: entry.name,
+          artistAddress: entry.artist,
+        };
+      });
+
+      stats.recentPlays = plays;
+
+      // Get total plays from radio state
+      const radioState = await redis.get<{ totalSongsPlayed?: number }>(RADIO_STATE_KEY);
+      const totalFromState = radioState?.totalSongsPlayed || 0;
+      // Use the higher of state count or history length
+      const historyLength = await redis.llen(PLAY_HISTORY_KEY);
+      stats.totalPlays = Math.max(totalFromState, historyLength);
+
+      // Get unique listeners from listener stats hash
+      const allListenerStats = await redis.hgetall(LISTENER_STATS_KEY);
+      if (allListenerStats) {
+        stats.uniqueListeners = Object.keys(allListenerStats).length;
+      }
+    } catch (redisError) {
+      console.error('[StreamingStats] Redis play data error:', redisError);
+    }
 
     return NextResponse.json({
       success: true,
       stats,
       sources: {
-        data: 'envio (MusicLicense, MusicNFT)',
+        sales: 'envio (MusicLicense, MusicNFT)',
+        plays: 'redis (live-radio)',
       },
     });
 
