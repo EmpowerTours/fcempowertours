@@ -8,7 +8,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 export async function POST(req: NextRequest) {
   try {
     const {
-      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'stake_tours' | 'experience_created' | 'experience_purchased' | 'lottery_winner' | 'play_recorded' | 'top_artist' | 'radio_skip_random'
+      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'experience_created' | 'experience_purchased' | 'play_recorded' | 'top_artist' | 'radio_skip_random' | 'voice_note'
       fid,            // Farcaster ID
       tokenId,        // NFT token ID
       txHash,         // Transaction hash
@@ -17,8 +17,6 @@ export async function POST(req: NextRequest) {
       songTitle,      // For music
       price,          // For music
       artist,         // For music purchase
-      amount,         // For staking
-      positionId,     // For staking
       // Experience fields
       experienceId,   // For experiences
       title,          // Experience title
@@ -26,12 +24,6 @@ export async function POST(req: NextRequest) {
       country,        // Experience country
       creatorAddress, // Experience creator
       buyerAddress,   // Experience buyer
-      // Lottery fields
-      roundId,        // Lottery round ID
-      winnerAddress,  // Lottery winner address
-      monPrize,       // MON prize amount
-      shMonPrize,     // shMON prize amount
-      participantCount, // Number of participants
       // Play recording / Top artist fields
       params,         // Additional params object for play_recorded and top_artist
       // Radio skip random fields
@@ -116,46 +108,6 @@ Gasless - they paid the gas! 🚀
       console.log('📢 Music purchase cast text:', castText);
     }
 
-    // ==================== STAKING CAST ====================
-    else if (type === 'stake_tours') {
-      // Use frame URL so clicking opens mini-app in Warpcast, not browser
-      const stakingUrl = `${APP_URL}/api/frames/staking`;
-
-      // Try to get username from FID
-      let username = '';
-      if (fid && NEYNAR_API_KEY) {
-        try {
-          const userResponse = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
-            headers: { 'api_key': NEYNAR_API_KEY }
-          });
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-            if (userData.users && userData.users.length > 0) {
-              username = userData.users[0].username;
-            }
-          }
-        } catch (err) {
-          console.log('⚠️ Could not fetch username from FID:', err);
-        }
-      }
-
-      const userMention = username ? `@${username} just staked` : 'Just staked';
-      castText = `💎 ${userMention} ${amount} TOURS on @empowertours!
-
-📈 Earning yield + building credit score
-🎫 Collateral: Passport NFT #${tokenId}
-🏦 Position #${positionId}
-
-TX: https://monadscan.com/tx/${txHash}
-
-⚡ Gasless staking - they paid the gas!
-
-@empowertours`;
-
-      embeds = [{ url: stakingUrl }];
-      console.log('📢 Staking cast text:', castText);
-    }
-
     // ==================== EXPERIENCE CREATED CAST ====================
     else if (type === 'experience_created') {
       const experienceUrl = `${APP_URL}/experiences/${experienceId}`;
@@ -195,62 +147,11 @@ TX: https://monadscan.com/tx/${txHash}
       console.log('📢 Experience purchased cast text:', castText);
     }
 
-    // ==================== LOTTERY WINNER CAST ====================
-    else if (type === 'lottery_winner') {
-      const lotteryUrl = `${APP_URL}/lottery`;
-
-      // Calculate total prize
-      const totalMonPrize = parseFloat(monPrize || '0');
-      const totalShMonPrize = parseFloat(shMonPrize || '0');
-      const totalPrize = (totalMonPrize + totalShMonPrize).toFixed(4);
-
-      // Try to get winner's Farcaster username
-      let winnerDisplay = winnerAddress ? `${winnerAddress.slice(0, 6)}...${winnerAddress.slice(-4)}` : 'Unknown';
-      let winnerUsername = '';
-
-      if (winnerAddress && NEYNAR_API_KEY) {
-        try {
-          const userResponse = await fetch(
-            `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${winnerAddress}`,
-            {
-              headers: {
-                'Accept': 'application/json',
-                'x-api-key': NEYNAR_API_KEY,
-              },
-            }
-          );
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-            if (userData && userData[winnerAddress.toLowerCase()]?.[0]) {
-              winnerUsername = userData[winnerAddress.toLowerCase()][0].username;
-              winnerDisplay = `@${winnerUsername}`;
-            }
-          }
-        } catch (err) {
-          console.log('⚠️ Could not fetch winner username:', err);
-        }
-      }
-
-      castText = `🎰 LOTTERY WINNER - Round #${roundId}!
-
-🏆 Congratulations ${winnerDisplay}!
-💰 Prize: ${totalPrize} MON${totalShMonPrize > 0 ? ` (${totalMonPrize.toFixed(4)} MON + ${totalShMonPrize.toFixed(4)} shMON)` : ''}
-👥 ${participantCount || 0} participants
-
-🎫 Enter the next round at fcempowertours.xyz/lottery
-
-TX: https://monadscan.com/tx/${txHash}
-
-@empowertours`;
-
-      embeds = [{ url: lotteryUrl }];
-      console.log('📢 Lottery winner cast text:', castText);
-    }
-
     // ==================== PLAY RECORDED CAST ====================
     else if (type === 'play_recorded') {
       const { songName, artistName, duration, artistFid } = params || {};
-      const discoverUrl = `${APP_URL}/discover`;
+      // Frame URL that opens mini app (not browser) when tapped in Warpcast
+      const discoverUrl = `${APP_URL}/api/frames/discover`;
 
       // Get listener username
       let listenerDisplay = 'Someone';
@@ -300,8 +201,6 @@ TX: https://monadscan.com/tx/${txHash}
 🎶 Artists earn 70% of subscription revenue
 📈 Each play counts towards artist payouts
 
-Discover music: fcempowertours.xyz/discover
-
 @empowertours`;
 
       embeds = [{ url: discoverUrl }];
@@ -311,8 +210,8 @@ Discover music: fcempowertours.xyz/discover
     // ==================== VOICE NOTE CAST ====================
     else if (type === 'voice_note') {
       const { noteType, duration: noteDuration } = params || {};
-      // Deep link to open mini app with radio modal
-      const radioUrl = `${APP_URL}/oracle?modal=radio`;
+      // Frame URL that opens mini app (not browser) when tapped in Warpcast
+      const radioUrl = `${APP_URL}/api/frames/radio?action=voice_note`;
 
       // Get submitter username from FID
       let submitterDisplay = 'Someone';
@@ -355,7 +254,8 @@ TX: https://monadscan.com/tx/${txHash}
     // ==================== TOP ARTIST CAST (Weekly/Daily Highlight) ====================
     else if (type === 'top_artist') {
       const { artistName, artistFid: topArtistFid, playCount, songCount, totalEarnings } = params || {};
-      const discoverUrl = `${APP_URL}/discover`;
+      // Frame URL that opens mini app (not browser) when tapped in Warpcast
+      const discoverUrl = `${APP_URL}/api/frames/discover`;
 
       // Get artist username if FID provided
       let artistDisplay = artistName || 'Unknown Artist';
@@ -384,8 +284,6 @@ ${artistDisplay} is making waves!
 
 🎶 Support independent artists - stream their music!
 
-Discover: fcempowertours.xyz/discover
-
 @empowertours`;
 
       embeds = [{ url: discoverUrl }];
@@ -394,8 +292,8 @@ Discover: fcempowertours.xyz/discover
 
     // ==================== RADIO SKIP TO RANDOM CAST ====================
     else if (type === 'radio_skip_random') {
-      // Deep link to open mini app with radio modal
-      const radioUrl = `${APP_URL}/oracle?modal=radio`;
+      // Frame URL that opens mini app (not browser) when tapped in Warpcast
+      const radioUrl = `${APP_URL}/api/frames/radio?action=skip_random`;
 
       // Get user's Farcaster username from FID
       let userDisplay = 'Someone';
@@ -421,7 +319,7 @@ Discover: fcempowertours.xyz/discover
 💰 Cost: 1 MON
 🎵 Next song selected by verifiable on-chain randomness!
 
-🎧 Tune in: fcempowertours.xyz/oracle?modal=radio
+🎧 Tap to tune in!
 
 TX: https://monadscan.com/tx/${txHash}
 
