@@ -909,67 +909,92 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                   <p className={`text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{title.length}/200 characters</p>
                 </div>
 
-                <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'}`}>
-                  <label className={`block text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💰 License Price</label>
-                  <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Set your price in WMON</p>
+                {/* Pricing — Standard NFTs */}
+                {!isCollectorEdition && (
+                  <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'}`}>
+                    <label className={`block text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💰 License Price</label>
+                    <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Set your price in WMON</p>
 
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {['50', '100', '300'].map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPrice(p)}
-                        className={`px-4 py-3 rounded-xl font-bold text-base transition-all ${
-                          price === p
-                            ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-105 shadow-lg shadow-cyan-500/30'
-                            : isDarkMode
-                              ? 'bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50'
-                              : 'bg-white text-gray-700 hover:scale-105 border border-gray-300 hover:border-cyan-500/50'
-                        }`}
-                      >
-                        {p} WMON
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      step="1"
-                      min="35"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      placeholder="Enter amount"
-                      className={`flex-1 px-6 py-4 text-lg rounded-xl border focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 ${
-                        isDarkMode
-                          ? 'bg-gray-800 border-cyan-500/30 text-white placeholder-gray-500'
-                          : 'bg-white border-cyan-300 text-gray-900 placeholder-gray-400'
-                      }`}
-                      style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
-                    />
-                    <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>WMON</span>
-                  </div>
-                  <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Minimum: 35 WMON</p>
-                </div>
-
-                {/* Collector Edition Panel */}
-                {isCollectorEdition && (
-                  <div className={`p-6 rounded-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <label className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        👑 Collector Edition (Limited Run)
-                      </label>
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                      {['50', '100', '300'].map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => setPrice(p)}
+                          className={`px-4 py-3 rounded-xl font-bold text-base transition-all ${
+                            price === p
+                              ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-105 shadow-lg shadow-cyan-500/30'
+                              : isDarkMode
+                                ? 'bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50'
+                                : 'bg-white text-gray-700 hover:scale-105 border border-gray-300 hover:border-cyan-500/50'
+                          }`}
+                        >
+                          {p} WMON
+                        </button>
+                      ))}
                     </div>
 
-                    <div className="space-y-4">
-                      <p className={`text-sm p-3 rounded-lg ${isDarkMode ? 'text-amber-300/90 bg-amber-500/10' : 'text-amber-800 bg-amber-100'}`}>
-                        {nftType === 'music'
-                          ? <>Collector editions are premium limited-run copies. Your cover art is automatically enhanced by Gemini AI with collector edition effects. A <strong>5 WMON creation fee</strong> is required to cover AI generation costs.</>
-                          : <>Collector editions are premium limited-run art pieces. Set your edition count from 1 (one-of-one) to 1,000. Your original art is used as-is — no AI modifications. <strong>No extra fees.</strong></>
-                        }
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        step="1"
+                        min="35"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        placeholder="Enter amount"
+                        className={`flex-1 px-6 py-4 text-lg rounded-xl border focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 ${
+                          isDarkMode
+                            ? 'bg-gray-800 border-cyan-500/30 text-white placeholder-gray-500'
+                            : 'bg-white border-cyan-300 text-gray-900 placeholder-gray-400'
+                        }`}
+                        style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                      />
+                      <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>WMON</span>
+                    </div>
+                    <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Minimum: 35 WMON</p>
+                  </div>
+                )}
 
+                {/* Pricing — Collector Editions (all pricing in one panel) */}
+                {isCollectorEdition && (
+                  <div className={`p-6 rounded-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+                    <label className={`block text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      👑 Collector Edition Pricing
+                    </label>
+
+                    <p className={`text-sm p-3 rounded-lg mb-4 ${isDarkMode ? 'text-amber-300/90 bg-amber-500/10' : 'text-amber-800 bg-amber-100'}`}>
+                      {nftType === 'music'
+                        ? <>Premium limited-run with AI-enhanced collector cover art. <strong>5 WMON creation fee</strong> applies.</>
+                        : <>Premium limited-run art. Your original art, no AI modifications. <strong>No extra fees.</strong></>
+                      }
+                    </p>
+
+                    <div className="space-y-4">
+                      {/* Standard License Price */}
                       <div>
-                        <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Collector Price (WMON)</label>
+                        <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Standard License Price (unlimited copies)</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            step="1"
+                            min="35"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                            placeholder="35"
+                            className={`flex-1 px-6 py-3 text-lg rounded-xl border focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 ${
+                              isDarkMode
+                                ? 'bg-gray-800 border-amber-500/30 text-white placeholder-gray-500'
+                                : 'bg-white border-amber-300 text-gray-900 placeholder-gray-400'
+                            }`}
+                            style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                          />
+                          <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>WMON</span>
+                        </div>
+                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Min: 35 WMON — fans can always buy standard copies at this price</p>
+                      </div>
+
+                      {/* Collector Edition Price */}
+                      <div>
+                        <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Collector Edition Price (limited editions)</label>
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
@@ -988,9 +1013,10 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                           />
                           <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>WMON</span>
                         </div>
-                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Min: 500 | Max: 100,000,000 WMON</p>
+                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Min: 500 WMON — premium price for limited collector copies</p>
                       </div>
 
+                      {/* Max Editions */}
                       <div>
                         <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Max Editions</label>
                         <input
@@ -1008,7 +1034,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                           }`}
                           style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
                         />
-                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>1 - 1,000 editions</p>
+                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>1 (one-of-one) to 1,000 editions</p>
                       </div>
                     </div>
                   </div>

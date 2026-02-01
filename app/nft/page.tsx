@@ -876,74 +876,82 @@ export default function MusicPage() {
                   <p className="text-sm text-gray-600 mt-2">{title.length}/200 characters</p>
                 </div>
 
-                <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200">
-                  <label className="block text-xl font-bold text-gray-900 mb-4">💰 License Price</label>
-                  <p className="text-sm text-gray-600 mb-4">How much will fans pay to own this NFT?</p>
+                {/* Pricing — Standard NFTs */}
+                {!isCollectorEdition && (
+                  <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200">
+                    <label className="block text-xl font-bold text-gray-900 mb-4">💰 License Price</label>
+                    <p className="text-sm text-gray-600 mb-4">How much will fans pay to own this NFT?</p>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {['0.01', '0.05', '0.1', '1'].map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPrice(p)}
-                        className={`px-6 py-4 rounded-xl font-bold text-lg transition-all ${
-                          price === p
-                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white scale-110 shadow-lg'
-                            : 'bg-white text-gray-700 hover:scale-105 border-2 border-gray-200'
-                        }`}
-                      >
-                        {p} WMON
-                      </button>
-                    ))}
-                  </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                      {['50', '100', '300', '1000'].map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => setPrice(p)}
+                          className={`px-6 py-4 rounded-xl font-bold text-lg transition-all ${
+                            price === p
+                              ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white scale-110 shadow-lg'
+                              : 'bg-white text-gray-700 hover:scale-105 border-2 border-gray-200'
+                          }`}
+                        >
+                          {p} WMON
+                        </button>
+                      ))}
+                    </div>
 
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0.001"
-                      max="100000000"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      placeholder="Custom price"
-                      className="w-full px-6 py-4 text-lg border-2 border-green-300 rounded-xl focus:ring-4 focus:ring-green-500 focus:border-transparent"
-                    />
-                    <span className="absolute right-6 top-4.5 text-gray-600 font-bold pointer-events-none">WMON</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 | Max: 100,000,000 WMON</p>
-                </div>
-
-                {/* Collector Edition Panel */}
-                <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border-2 border-amber-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="text-xl font-bold text-gray-900">
-                      <span className="mr-2">&#x1F451;</span> Collector Edition (Limited Run)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCollectorEdition(!isCollectorEdition)}
-                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
-                        isCollectorEdition ? 'bg-amber-500' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow ${
-                          isCollectorEdition ? 'translate-x-8' : 'translate-x-1'
-                        }`}
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="35"
+                        max="100000000"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        placeholder="Custom price"
+                        className="w-full px-6 py-4 text-lg border-2 border-green-300 rounded-xl focus:ring-4 focus:ring-green-500 focus:border-transparent"
                       />
-                    </button>
+                      <span className="absolute right-6 top-4.5 text-gray-600 font-bold pointer-events-none">WMON</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Min: 35 | Max: 100,000,000 WMON</p>
                   </div>
+                )}
 
-                  {isCollectorEdition && (
-                    <div className="space-y-4 animate-fadeIn">
-                      <p className="text-sm text-amber-800 bg-amber-100 p-3 rounded-lg">
-                        {nftType === 'music'
-                          ? <>Collector editions are premium limited-run copies. Your cover art is automatically enhanced by Gemini AI with collector edition effects (golden borders, holographic textures, limited edition badge). A <strong>5 WMON creation fee</strong> is required to cover AI generation costs.</>
-                          : <>Collector editions are premium limited-run art pieces. Set your edition count from 1 (one-of-one) to 1,000. Your original art is used as-is — no AI modifications. <strong>No extra fees.</strong></>
-                        }
-                      </p>
+                {/* Pricing — Collector Editions (all pricing in one panel) */}
+                {isCollectorEdition && (
+                  <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border-2 border-amber-200">
+                    <label className="block text-xl font-bold text-gray-900 mb-2">
+                      👑 Collector Edition Pricing
+                    </label>
 
+                    <p className="text-sm text-amber-800 bg-amber-100 p-3 rounded-lg mb-4">
+                      {nftType === 'music'
+                        ? <>Premium limited-run with AI-enhanced collector cover art. <strong>5 WMON creation fee</strong> applies.</>
+                        : <>Premium limited-run art. Your original art, no AI modifications. <strong>No extra fees.</strong></>
+                      }
+                    </p>
+
+                    <div className="space-y-4">
+                      {/* Standard License Price */}
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Collector Price (WMON)</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Standard License Price (unlimited copies)</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="1"
+                            min="35"
+                            max="100000000"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                            placeholder="35"
+                            className="w-full px-6 py-3 text-lg border-2 border-amber-300 rounded-xl focus:ring-4 focus:ring-amber-500 focus:border-transparent"
+                          />
+                          <span className="absolute right-6 top-3.5 text-gray-600 font-bold pointer-events-none">WMON</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Min: 35 WMON — fans can always buy standard copies at this price</p>
+                      </div>
+
+                      {/* Collector Edition Price */}
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Collector Edition Price (limited editions)</label>
                         <div className="relative">
                           <input
                             type="number"
@@ -957,9 +965,10 @@ export default function MusicPage() {
                           />
                           <span className="absolute right-6 top-3.5 text-gray-600 font-bold pointer-events-none">WMON</span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Min: 500 | Max: 100,000,000 WMON</p>
+                        <p className="text-xs text-gray-500 mt-1">Min: 500 WMON — premium price for limited collector copies</p>
                       </div>
 
+                      {/* Max Editions */}
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Max Editions</label>
                         <input
@@ -972,11 +981,11 @@ export default function MusicPage() {
                           placeholder="100"
                           className="w-full px-6 py-3 text-lg border-2 border-amber-300 rounded-xl focus:ring-4 focus:ring-amber-500 focus:border-transparent"
                         />
-                        <p className="text-xs text-gray-500 mt-1">1 - 1,000 editions</p>
+                        <p className="text-xs text-gray-500 mt-1">1 (one-of-one) to 1,000 editions</p>
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <button
                   onClick={() => setCurrentStep(4)}
