@@ -198,7 +198,7 @@ export default function DashboardPage() {
                 <div className={`w-3 h-3 rounded-full bg-green-400 animate-pulse ${pulse ? 'scale-125' : ''} transition-transform`}></div>
                 <h2 className="text-3xl font-bold">📊 Live Indexing Dashboard</h2>
               </div>
-              <p className="text-white/90 text-sm">Powered by <span className="font-bold">Envio HyperIndex</span> on Monad Testnet</p>
+              <p className="text-white/90 text-sm">Powered by <span className="font-bold">Envio HyperIndex</span> on Monad Mainnet</p>
             </div>
             <div className="flex items-center gap-6">
               <div className="text-right">

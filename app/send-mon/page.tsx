@@ -160,7 +160,7 @@ export default function SendMonPage() {
           <div className="bg-yellow-500/20 border border-yellow-500 rounded-xl p-4 mb-4">
             <p className="text-yellow-200 font-semibold mb-2">⚠️ Manual Transfer Required</p>
             <p className="text-yellow-100 text-xs">
-              Monad Testnet is not in Farcaster's token list yet. To send MON to your Safe:
+              Monad is not in Farcaster's token list yet. To send MON to your Safe:
             </p>
             <ol className="text-yellow-100 text-xs mt-2 ml-4 list-decimal space-y-1">
               <li>Copy your Safe address below</li>

@@ -92,7 +92,7 @@ export default function HomeClient() {
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
               <div className="text-4xl font-bold text-purple-400 mb-2">Live</div>
-              <div className="text-purple-300">On Testnet</div>
+              <div className="text-purple-300">On Mainnet</div>
             </div>
             <div>
               <div className="text-4xl font-bold text-blue-400 mb-2">195</div>

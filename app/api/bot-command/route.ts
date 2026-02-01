@@ -107,7 +107,7 @@ A Farcaster Mini App for:
 - Passport staking for benefits
 - Marketplace trading
 - MON ↔ TOURS token swaps
-Built on Monad Testnet
+Built on Monad Mainnet
 Powered by Envio Indexer
 All transactions are FREE - we pay gas!
 Try "help" to see all commands!`

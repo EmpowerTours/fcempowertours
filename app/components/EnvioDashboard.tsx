@@ -284,7 +284,7 @@ export default function EnvioDashboard() {
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           Live data from Envio indexer
         </div>
-        <p className="text-xs text-gray-500 mt-2">Updates every 10 seconds • Powered by Monad testnet</p>
+        <p className="text-xs text-gray-500 mt-2">Updates every 10 seconds • Powered by Monad Mainnet</p>
       </div>
     </div>
   );
