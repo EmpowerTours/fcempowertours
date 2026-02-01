@@ -231,6 +231,37 @@ ADDITIONAL REQUIREMENTS FOR TOKENS:
 - Include vesting schedules if applicable
 - Add frontend React code with ethers.js v6
 - Include token economics tests`,
+    'Vesting': `
+ADDITIONAL REQUIREMENTS FOR VESTING CONTRACTS:
+- Use OpenZeppelin VestingWallet as base or implement custom linear vesting
+- Support cliff period (tokens locked until cliff ends)
+- Support linear vesting after cliff (gradual release over duration)
+- Support multiple beneficiaries with individual schedules
+- Include revocable option for contract owner (unvested tokens returned)
+- Accept any ERC20 token address (configurable, default to TOURS token)
+- Include admin functions: addBeneficiary, revokeBeneficiary, updateSchedule
+- Emit events for all vesting actions (TokensReleased, BeneficiaryAdded, VestingRevoked)
+- Include view functions: vestedAmount, releasableAmount, vestingSchedule per beneficiary
+- Add emergency pause functionality (Pausable)
+- Include proper access control (Ownable or AccessControl)
+- Add frontend React code with ethers.js v6 for managing vesting schedules
+- Include comprehensive tests for cliff, linear release, revocation, and edge cases`,
+    'SAFT': `
+ADDITIONAL REQUIREMENTS FOR SAFT (Simple Agreement for Future Tokens):
+- Implement EIP-712 typed data signing for investment agreement signatures
+- Investment agreement struct: investor address, investment amount, token allocation, valuation cap, discount rate, vesting schedule (cliff + linear)
+- Support investment rounds with configurable caps (soft cap, hard cap), pricing tiers, and open/close timestamps
+- Safe multisig integration: project owner operates via a Safe — require Safe owner signatures to open/close rounds, approve investors, and release tokens
+- Investor flow: sign EIP-712 agreement off-chain → submit signature + funds on-chain → contract verifies signature and escrows funds
+- Token distribution: integrate with a VestingWallet so tokens vest according to the SAFT terms after TGE (Token Generation Event)
+- Include investor whitelist with optional KYC status flag (set by Safe owner)
+- Refund mechanism: if soft cap not met or round cancelled by Safe owner, investors can claim full refund
+- Include view functions: investorAllocation, roundStatus, totalRaised, vestedTokens, claimableTokens
+- Emit events: InvestmentReceived, AgreementSigned, RoundOpened, RoundClosed, TokensClaimed, RefundClaimed
+- Add emergency pause functionality (Pausable)
+- Include proper access control — only Safe address can admin, investors can only claim/refund
+- Add frontend React code with ethers.js v6 for signing agreements (EIP-712), depositing funds, and claiming tokens
+- Include comprehensive tests for signing, investing, vesting, refunds, and Safe owner operations`,
   };
 
   return base + (typeSpecific[appType] || typeSpecific['NFT Platform']);

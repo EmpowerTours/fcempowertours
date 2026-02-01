@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Full dApp generation
     if (!appType) {
       return NextResponse.json(
-        { success: false, error: 'App type is required', validTypes: ['VRF Game', 'NFT Platform', 'DeFi Protocol', 'DAO', 'Token', 'Custom'] },
+        { success: false, error: 'App type is required', validTypes: ['VRF Game', 'NFT Platform', 'DeFi Protocol', 'DAO', 'Token', 'Custom', 'Vesting', 'SAFT'] },
         { status: 400 }
       );
     }
