@@ -1251,26 +1251,24 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                   <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{queue.length} in queue</span>
                 </div>
                 {queue.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {queue.slice(0, 5).map((song, index) => (
                       <div
                         key={song.id}
-                        className={`flex items-center gap-3 p-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-purple-500/10' : 'bg-gray-50 border-purple-200/50'}`}
+                        className={`p-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-purple-500/10' : 'bg-gray-50 border-purple-200/50'}`}
                       >
-                        <span className="text-xs text-gray-500 w-5">{index + 1}</span>
-                        <div className="w-10 h-10 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
+                        <div className="w-full aspect-square rounded bg-purple-500/20 overflow-hidden mb-2 relative">
                           {song.imageUrl ? (
                             <img src={song.imageUrl} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Music2 className="w-4 h-4 text-purple-400" />
+                              <Music2 className="w-6 h-6 text-purple-400" />
                             </div>
                           )}
+                          <span className="absolute top-1 left-1 text-xs text-white bg-black/60 rounded px-1.5 py-0.5">{index + 1}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name}</p>
-                          <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist}</p>
-                        </div>
+                        <p className={`text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name}</p>
+                        <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist}</p>
                       </div>
                     ))}
                   </div>
@@ -1514,7 +1512,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
             </p>
 
             {/* Song List */}
-            <div className="space-y-2 mb-3 sm:mb-4 max-h-[35vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 mb-3 sm:mb-4 max-h-[35vh] overflow-y-auto">
               {loadingSongs ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
@@ -1524,7 +1522,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                   <button
                     key={song.tokenId}
                     onClick={() => setSelectedSong(song)}
-                    className={`w-full p-2 sm:p-3 rounded-lg border transition-all text-left flex items-center gap-2 sm:gap-3 ${
+                    className={`w-full p-2 sm:p-3 rounded-lg border transition-all text-left relative ${
                       selectedSong?.tokenId === song.tokenId
                         ? 'bg-purple-500/20 border-purple-500'
                         : isDarkMode
@@ -1532,22 +1530,22 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                           : 'bg-gray-50 border-purple-300/50 hover:border-purple-400'
                     }`}
                   >
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-purple-500/20 overflow-hidden flex-shrink-0">
+                    {selectedSong?.tokenId === song.tokenId && (
+                      <div className="absolute top-2 right-2">
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+                      </div>
+                    )}
+                    <div className="w-full aspect-square rounded bg-purple-500/20 overflow-hidden mb-2">
                       {song.imageUrl ? (
                         <img src={song.imageUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Music2 className="w-5 h-5 text-purple-400" />
+                          <Music2 className="w-8 h-8 text-purple-400" />
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs sm:text-sm truncate font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name || `Song #${song.tokenId}`}</p>
-                      <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist || 'Unknown Artist'}</p>
-                    </div>
-                    {selectedSong?.tokenId === song.tokenId && (
-                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />
-                    )}
+                    <p className={`text-xs sm:text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{song.name || `Song #${song.tokenId}`}</p>
+                    <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{song.artist || 'Unknown Artist'}</p>
                   </button>
                 ))
               ) : (
