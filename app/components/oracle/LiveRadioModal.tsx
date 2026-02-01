@@ -1504,7 +1504,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
           onClick={() => { setShowQueueModal(false); setSelectedSong(null); setTipAmount(''); }}
         >
           <div
-            className={`${isDarkMode ? 'border-purple-500/30' : 'bg-white border-purple-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[80vh] overflow-hidden flex flex-col shadow-xl`}
+            className={`${isDarkMode ? 'border-purple-500/30' : 'bg-white border-purple-300'} border rounded-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md p-3 sm:p-4 max-h-[85vh] overflow-y-auto flex flex-col shadow-xl`}
             style={{ backgroundColor: isDarkMode ? '#111827' : '#ffffff' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1514,7 +1514,7 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
             </p>
 
             {/* Song List */}
-            <div className="flex-1 overflow-y-auto space-y-2 mb-3 sm:mb-4 max-h-[40vh]">
+            <div className="space-y-2 mb-3 sm:mb-4 max-h-[35vh] overflow-y-auto">
               {loadingSongs ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
