@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X, GripHorizontal } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X, GripHorizontal, Crown } from 'lucide-react';
 
 interface Song {
   id: string;
@@ -53,6 +53,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
   const clickedNFTsRef = useRef<string>(''); // Track serialized clickedNFTs to detect actual changes
   const [savedPlaylistOrder, setSavedPlaylistOrder] = useState<string[] | null>(null);
   const [playlistLoaded, setPlaylistLoaded] = useState(false);
+  const [collectorImages, setCollectorImages] = useState<Record<string, string>>({});
 
   // Drag state for modal position
   const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
@@ -385,6 +386,38 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
     }
   }, [clickedNFTs, ownedSongs, playlistLoaded, savedPlaylistOrder]);
 
+  // Fetch collector edition info for all songs
+  useEffect(() => {
+    if (songs.length === 0) return;
+    const tokenIds = songs.map(s => s.tokenId).filter(Boolean);
+    if (tokenIds.length === 0) return;
+
+    const fetchCollectorInfo = async () => {
+      try {
+        const res = await fetch('/api/nft/collector-info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenIds }),
+        });
+        if (!res.ok) return;
+        const data: Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null }> = await res.json();
+        const imageMap: Record<string, string> = {};
+        for (const [tid, info] of Object.entries(data)) {
+          if (info.isCollectorMaster && info.collectorImageUrl) {
+            imageMap[tid] = info.collectorImageUrl;
+          }
+        }
+        if (Object.keys(imageMap).length > 0) {
+          setCollectorImages(prev => ({ ...prev, ...imageMap }));
+        }
+      } catch {
+        // Silently fail — standard images remain
+      }
+    };
+
+    fetchCollectorInfo();
+  }, [songs.map(s => s.tokenId).join(',')]);
+
   // Notify parent of playing state changes
   useEffect(() => {
     const currentSong = songs[currentSongIndex];
@@ -638,11 +671,16 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
                   } ${draggedIndex === index ? 'opacity-50' : ''}`}
                 >
                   <GripVertical className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                  <div className="w-10 h-10 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {song.imageUrl ? (
-                      <img src={song.imageUrl} alt={song.title} className="w-full h-full object-cover" />
+                  <div className="w-10 h-10 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                    {(collectorImages[song.tokenId] || song.imageUrl) ? (
+                      <img src={collectorImages[song.tokenId] || song.imageUrl} alt={song.title} className="w-full h-full object-cover" />
                     ) : (
                       <Music2 className="w-5 h-5 text-cyan-400" />
+                    )}
+                    {collectorImages[song.tokenId] && (
+                      <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-500 rounded-full flex items-center justify-center">
+                        <Crown className="w-2 h-2 text-white" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -749,11 +787,16 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
             <div className="flex items-center gap-3 w-64 flex-shrink-0 min-w-0">
               {currentSong && (
                 <>
-                  <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg overflow-hidden flex items-center justify-center">
-                    {currentSong.imageUrl ? (
-                      <img src={currentSong.imageUrl} alt={currentSong.title} className="w-full h-full object-cover" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg overflow-hidden flex items-center justify-center relative">
+                    {(collectorImages[currentSong.tokenId] || currentSong.imageUrl) ? (
+                      <img src={collectorImages[currentSong.tokenId] || currentSong.imageUrl} alt={currentSong.title} className="w-full h-full object-cover" />
                     ) : (
                       <Music2 className="w-6 h-6 text-white" />
+                    )}
+                    {collectorImages[currentSong.tokenId] && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center shadow-sm">
+                        <Crown className="w-2.5 h-2.5 text-white" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

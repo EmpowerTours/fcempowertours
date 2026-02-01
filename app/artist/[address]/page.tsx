@@ -75,6 +75,7 @@ export default function ArtistProfilePage() {
   const [buying, setBuying] = useState<number | null>(null);
   const [audioErrors, setAudioErrors] = useState<Record<number, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<number, boolean>>({});
+  const [collectorInfo, setCollectorInfo] = useState<Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null; maxEditions: number; collectorsMinted: number }>>({});
 
   // IPFS URL Resolver Function
   const resolveIPFS = (url: string): string => {
@@ -108,6 +109,30 @@ export default function ArtistProfilePage() {
     };
     // Re-run when Farcaster context loads (user/walletAddress)
   }, [artistAddress, user, walletAddress]);
+
+  // Fetch collector info when artist music loads
+  useEffect(() => {
+    if (artistMusic.length === 0) return;
+    const tokenIds = artistMusic.map(m => String(m.tokenId));
+    if (tokenIds.length === 0) return;
+
+    const fetchCollectorData = async () => {
+      try {
+        const res = await fetch('/api/nft/collector-info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenIds }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setCollectorInfo(data);
+      } catch {
+        // Silently fail
+      }
+    };
+
+    fetchCollectorData();
+  }, [artistMusic]);
 
   // Autoplay effect - triggers when music loads and autoplay is requested
   useEffect(() => {
@@ -484,18 +509,26 @@ export default function ArtistProfilePage() {
               🎵 Music Catalog
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {artistMusic.filter(m => !m.isArt).map((music) => (
+              {artistMusic.filter(m => !m.isArt).map((music) => {
+                const ci = collectorInfo[String(music.tokenId)];
+                const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : music.metadata?.image;
+                return (
                 <div
                   key={music.tokenId}
-                  className="bg-white border-2 border-gray-200 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-lg"
+                  className={`bg-white border-2 ${ci?.isCollectorMaster ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-200'} rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-lg`}
                 >
-                  {music.metadata?.image ? (
-                    <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                  {displayImage ? (
+                    <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
                       <img
-                        src={music.metadata.image}
-                        alt={music.metadata.name || `Track #${music.tokenId}`}
+                        src={displayImage}
+                        alt={music.metadata?.name || `Track #${music.tokenId}`}
                         className="w-full h-full object-cover"
                       />
+                      {ci?.isCollectorMaster && (
+                        <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                          {ci.collectorsMinted}/{ci.maxEditions} Collector
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="w-full aspect-square bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center rounded-t-xl">
@@ -609,7 +642,8 @@ export default function ArtistProfilePage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         )}
@@ -621,18 +655,26 @@ export default function ArtistProfilePage() {
               🎨 Art Catalog
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {artistMusic.filter(m => m.isArt).map((art) => (
+              {artistMusic.filter(m => m.isArt).map((art) => {
+                const ci = collectorInfo[String(art.tokenId)];
+                const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : art.metadata?.image;
+                return (
                 <div
                   key={art.tokenId}
-                  className="bg-white border-2 border-gray-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-lg"
+                  className={`bg-white border-2 ${ci?.isCollectorMaster ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-200'} rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-lg`}
                 >
-                  {art.metadata?.image ? (
-                    <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                  {displayImage ? (
+                    <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
                       <img
-                        src={art.metadata.image}
-                        alt={art.metadata.name || `Art #${art.tokenId}`}
+                        src={displayImage}
+                        alt={art.metadata?.name || `Art #${art.tokenId}`}
                         className="w-full h-full object-cover"
                       />
+                      {ci?.isCollectorMaster && (
+                        <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                          {ci.collectorsMinted}/{ci.maxEditions} Collector
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-cyan-200 flex items-center justify-center rounded-t-xl">
@@ -694,7 +736,8 @@ export default function ArtistProfilePage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         )}

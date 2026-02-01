@@ -116,6 +116,7 @@ export default function ProfilePage() {
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
   const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
+  const [collectorInfo, setCollectorInfo] = useState<Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null; maxEditions: number; collectorsMinted: number }>>({});
   // Resale listing state
   const [resaleModalOpen, setResaleModalOpen] = useState(false);
   const [selectedResaleLicense, setSelectedResaleLicense] = useState<MusicNFTWithMetadata | null>(null);
@@ -162,6 +163,35 @@ export default function ProfilePage() {
       loadPrivacySettings();
     }
   }, [walletAddress]);
+
+  // Fetch collector info when NFT data loads
+  useEffect(() => {
+    const tokenIds = [
+      ...createdMusic.map(n => String(n.tokenId)),
+      ...createdArt.map(n => String(n.tokenId)),
+      ...purchasedMusic.map(l => String(l.masterTokenId)),
+      ...purchasedArt.map(l => String(l.masterTokenId || l.tokenId)),
+    ].filter(Boolean);
+    const uniqueIds = [...new Set(tokenIds)];
+    if (uniqueIds.length === 0) return;
+
+    const fetchCollectorData = async () => {
+      try {
+        const res = await fetch('/api/nft/collector-info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenIds: uniqueIds }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setCollectorInfo(data);
+      } catch {
+        // Silently fail
+      }
+    };
+
+    fetchCollectorData();
+  }, [createdMusic, createdArt, purchasedMusic, purchasedArt]);
 
   // Load privacy settings
   const loadPrivacySettings = async () => {
@@ -1142,18 +1172,26 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {paginatedCreatedMusic.map((nft) => (
+                  {paginatedCreatedMusic.map((nft) => {
+                    const ci = collectorInfo[String(nft.tokenId)];
+                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : nft.metadata?.image;
+                    return (
                     <div
                       key={nft.id}
-                      className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
+                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-amber-50 to-yellow-50 border-2 border-amber-300' : 'from-blue-50 to-purple-50 border-2 border-blue-200'} rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md`}
                     >
-                      {nft.metadata?.image ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                      {displayImage ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
                           <img
-                            src={nft.metadata.image}
-                            alt={nft.metadata.name || `Music NFT #${nft.tokenId}`}
+                            src={displayImage}
+                            alt={nft.metadata?.name || `Music NFT #${nft.tokenId}`}
                             className="w-full h-full object-cover"
                           />
+                          {ci?.isCollectorMaster && (
+                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                              {ci.collectorsMinted}/{ci.maxEditions} Collector
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
@@ -1259,7 +1297,8 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {totalCreatedMusicPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
@@ -1295,18 +1334,26 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {paginatedCreatedArt.map((nft) => (
+                  {paginatedCreatedArt.map((nft) => {
+                    const ci = collectorInfo[String(nft.tokenId)];
+                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : nft.metadata?.image;
+                    return (
                     <div
                       key={nft.id}
-                      className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl hover:border-amber-400 transition-all shadow-sm hover:shadow-md"
+                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-yellow-50 to-amber-100 border-2 border-yellow-400' : 'from-amber-50 to-orange-50 border-2 border-amber-200'} rounded-xl hover:border-amber-400 transition-all shadow-sm hover:shadow-md`}
                     >
-                      {nft.metadata?.image ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                      {displayImage ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
                           <img
-                            src={nft.metadata.image}
-                            alt={nft.metadata.name || `Art NFT #${nft.tokenId}`}
+                            src={displayImage}
+                            alt={nft.metadata?.name || `Art NFT #${nft.tokenId}`}
                             className="w-full h-full object-cover"
                           />
+                          {ci?.isCollectorMaster && (
+                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                              {ci.collectorsMinted}/{ci.maxEditions} Collector
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-amber-200 to-orange-200 flex items-center justify-center rounded-t-xl">
@@ -1361,7 +1408,8 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {totalCreatedArtPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
@@ -1397,18 +1445,26 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {paginatedPurchasedMusic.map((license) => (
+                  {paginatedPurchasedMusic.map((license) => {
+                    const ci = collectorInfo[String(license.masterTokenId)];
+                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : license.metadata?.image;
+                    return (
                     <div
                       key={license.id}
-                      className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200 rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md"
+                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-amber-50 to-yellow-50 border-2 border-amber-300' : 'from-pink-50 to-rose-50 border-2 border-pink-200'} rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md`}
                     >
-                      {license.metadata?.image ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                      {displayImage ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
                           <img
-                            src={license.metadata.image}
-                            alt={license.metadata.name || `License #${license.licenseId}`}
+                            src={displayImage}
+                            alt={license.metadata?.name || `License #${license.licenseId}`}
                             className="w-full h-full object-cover"
                           />
+                          {ci?.isCollectorMaster && (
+                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                              Collector Edition
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
@@ -1513,7 +1569,8 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {totalPurchasedMusicPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
@@ -1549,18 +1606,27 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {paginatedPurchasedArt.map((nft) => (
+                  {paginatedPurchasedArt.map((nft) => {
+                    const tokenKey = String(nft.masterTokenId || nft.tokenId);
+                    const ci = collectorInfo[tokenKey];
+                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : nft.metadata?.image;
+                    return (
                     <div
                       key={nft.id}
-                      className="bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-xl hover:border-teal-400 transition-all shadow-sm hover:shadow-md"
+                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-amber-50 to-yellow-50 border-2 border-amber-300' : 'from-teal-50 to-cyan-50 border-2 border-teal-200'} rounded-xl hover:border-teal-400 transition-all shadow-sm hover:shadow-md`}
                     >
-                      {nft.metadata?.image ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl">
+                      {displayImage ? (
+                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
                           <img
-                            src={nft.metadata.image}
-                            alt={nft.metadata.name || `Art NFT #${nft.tokenId}`}
+                            src={displayImage}
+                            alt={nft.metadata?.name || `Art NFT #${nft.tokenId}`}
                             className="w-full h-full object-cover"
                           />
+                          {ci?.isCollectorMaster && (
+                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                              Collector Edition
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="w-full aspect-square bg-gradient-to-br from-teal-200 to-cyan-200 flex items-center justify-center rounded-t-xl">
@@ -1603,7 +1669,8 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {totalPurchasedArtPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">

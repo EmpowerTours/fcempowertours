@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Music, Palette, Globe, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2 } from 'lucide-react';
+import { X, Music, Palette, Globe, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2, Crown } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserProfileModalProps {
@@ -90,6 +90,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
+  const [collectorInfo, setCollectorInfo] = useState<Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null; maxEditions: number; collectorsMinted: number }>>({});
 
   const canPurchase = buyerAddress && buyerAddress.toLowerCase() !== walletAddress.toLowerCase();
 
@@ -225,6 +226,32 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
       setLoading(false);
     }
   };
+
+  // Fetch collector info for all NFTs once data is loaded
+  useEffect(() => {
+    const tokenIds = [
+      ...createdNFTs.map(n => n.tokenId),
+      ...purchasedLicenses.map(l => l.masterTokenId),
+    ].filter(Boolean);
+    if (tokenIds.length === 0) return;
+
+    const fetchCollectorData = async () => {
+      try {
+        const res = await fetch('/api/nft/collector-info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenIds: [...new Set(tokenIds)] }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setCollectorInfo(data);
+      } catch {
+        // Silently fail
+      }
+    };
+
+    fetchCollectorData();
+  }, [createdNFTs, purchasedLicenses]);
 
   const userType = createdNFTs.length > 0 ? 'artist' : (purchasedLicenses.length > 0 ? 'collector' : 'explorer');
 
@@ -410,22 +437,35 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
-                {createdNFTs.map((nft) => (
-                  <div key={nft.id} className="bg-purple-500/10 border border-purple-500/20 rounded-lg overflow-hidden">
-                    <div className="aspect-square">
-                      {nft.imageUrl ? (
-                        <img src={resolveIPFS(nft.imageUrl)} alt={nft.name || ''} className="w-full h-full object-cover" />
+                {createdNFTs.map((nft) => {
+                  const ci = collectorInfo[nft.tokenId];
+                  const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : resolveIPFS(nft.imageUrl || '');
+                  return (
+                  <div key={nft.id} className={`${ci?.isCollectorMaster ? 'bg-amber-500/10 border-amber-500/30' : 'bg-purple-500/10 border-purple-500/20'} border rounded-lg overflow-hidden`}>
+                    <div className="aspect-square relative">
+                      {displayImage ? (
+                        <img src={displayImage} alt={nft.name || ''} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-purple-500/20 flex items-center justify-center text-2xl">
                           {nft.isArt ? '🎨' : '🎵'}
                         </div>
                       )}
+                      {ci?.isCollectorMaster && (
+                        <div className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                          <Crown className="w-2.5 h-2.5" />
+                          {ci.collectorsMinted}/{ci.maxEditions}
+                        </div>
+                      )}
                     </div>
                     <div className="p-1.5">
                       <p className="text-white text-xs font-medium truncate">{nft.name || `#${nft.tokenId}`}</p>
+                      {ci?.isCollectorMaster && (
+                        <p className="text-amber-400 text-[10px]">Collector Edition</p>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )
           ) : activeTab === 'purchased' ? (
@@ -447,11 +487,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
-                  {purchasedLicenses.map((license) => (
-                    <div key={license.id} className={`${license.forSale ? 'bg-green-500/10 border-green-500/30' : 'bg-cyan-500/10 border-cyan-500/20'} border rounded-lg overflow-hidden`}>
+                  {purchasedLicenses.map((license) => {
+                    const ci = collectorInfo[license.masterTokenId];
+                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : resolveIPFS(license.masterImage || '');
+                    return (
+                    <div key={license.id} className={`${license.forSale ? 'bg-green-500/10 border-green-500/30' : ci?.isCollectorMaster ? 'bg-amber-500/10 border-amber-500/30' : 'bg-cyan-500/10 border-cyan-500/20'} border rounded-lg overflow-hidden`}>
                       <div className="aspect-square relative">
-                        {license.masterImage ? (
-                          <img src={resolveIPFS(license.masterImage)} alt={license.masterName || ''} className="w-full h-full object-cover" />
+                        {displayImage ? (
+                          <img src={displayImage} alt={license.masterName || ''} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-cyan-500/20 flex items-center justify-center text-2xl">
                             {license.isArt ? '🖼️' : '🎧'}
@@ -461,6 +504,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
                         {license.forSale && (
                           <div className="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                             FOR SALE
+                          </div>
+                        )}
+                        {/* Collector Badge */}
+                        {ci?.isCollectorMaster && !license.forSale && (
+                          <div className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                            <Crown className="w-2.5 h-2.5" />
+                            Collector
                           </div>
                         )}
                       </div>
@@ -496,7 +546,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )

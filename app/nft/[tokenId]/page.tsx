@@ -98,9 +98,34 @@ export default function NFTPage() {
   const [buying, setBuying] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [purchaseMessage, setPurchaseMessage] = useState('');
+  const [collectorData, setCollectorData] = useState<{
+    isCollectorMaster: boolean;
+    collectorImageUrl: string | null;
+    maxEditions: number;
+    collectorsMinted: number;
+    collectorPrice: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchMusicData();
+  }, [tokenId]);
+
+  // Fetch collector info for this token
+  useEffect(() => {
+    if (!tokenId) return;
+    const fetchCollectorInfo = async () => {
+      try {
+        const res = await fetch(`/api/nft/collector-info?tokenId=${tokenId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.isCollectorMaster) {
+          setCollectorData(data);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    fetchCollectorInfo();
   }, [tokenId]);
 
   const fetchMusicData = async () => {
@@ -428,18 +453,34 @@ export default function NFTPage() {
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         {/* Cover Art */}
-        <div className="flex items-center justify-center">
-          {imageUrl ? (
-            <div className="w-full max-w-xs aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-purple-500/30 flex items-center justify-center bg-gray-900">
-              <img
-                src={imageUrl}
-                alt={nftData.name}
-                className="w-full h-full object-contain"
-              />
+        <div className="flex flex-col items-center justify-center gap-4">
+          {(collectorData?.collectorImageUrl || imageUrl) ? (
+            <div className="relative">
+              <div className={`w-full max-w-xs aspect-square rounded-3xl overflow-hidden shadow-2xl ${collectorData?.isCollectorMaster ? 'border-4 border-amber-400/60' : 'border-4 border-purple-500/30'} flex items-center justify-center bg-gray-900`}>
+                <img
+                  src={collectorData?.collectorImageUrl || imageUrl}
+                  alt={nftData.name}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              {collectorData?.isCollectorMaster && (
+                <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs px-3 py-1.5 rounded-full font-bold shadow-lg">
+                  Collector Edition
+                </div>
+              )}
             </div>
           ) : (
             <div className="w-full max-w-xs aspect-square bg-gradient-to-br from-purple-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl">
               <div className="text-9xl">{isArt ? '🎨' : '🎵'}</div>
+            </div>
+          )}
+          {/* Show standard art as secondary when collector art is displayed */}
+          {collectorData?.collectorImageUrl && imageUrl && (
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-purple-500/30 bg-gray-900">
+                <img src={imageUrl} alt="Standard cover" className="w-full h-full object-cover" />
+              </div>
+              <p className="text-gray-400 text-xs">Standard Cover</p>
             </div>
           )}
         </div>
@@ -463,6 +504,23 @@ export default function NFTPage() {
             <p className="text-gray-400 text-sm mb-1">TOKEN ID</p>
             <p className="text-lg text-purple-400 font-bold">#{nftData.tokenId}</p>
           </div>
+
+          {/* Collector Edition Info */}
+          {collectorData?.isCollectorMaster && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-2">
+              <p className="text-amber-400 font-bold text-sm">Collector Edition</p>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Editions Minted</span>
+                <span className="text-white font-bold">{collectorData.collectorsMinted} / {collectorData.maxEditions}</span>
+              </div>
+              {parseFloat(collectorData.collectorPrice) > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-sm">Collector Price</span>
+                  <span className="text-amber-400 font-bold">{collectorData.collectorPrice} WMON</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Audio Player - Only show for Music NFTs */}
