@@ -562,31 +562,77 @@ export default function MusicPage() {
             {currentStep === 1 && (
               <div className="space-y-4 animate-fadeIn">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">What would you like to create?</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <button
                     onClick={() => {
                       setNftType('music');
+                      setIsCollectorEdition(false);
                       setCurrentStep(2);
                     }}
-                    className="group relative p-8 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-4 border-purple-200 hover:border-purple-500 hover:scale-105 transition-all shadow-lg hover:shadow-2xl"
+                    className="group relative p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-4 border-purple-200 hover:border-purple-500 hover:scale-[1.02] transition-all shadow-lg hover:shadow-2xl text-left"
                   >
-                    <div className="text-6xl mb-4">🎵</div>
-                    <h3 className="text-2xl font-bold text-purple-900 mb-2">Music NFT</h3>
-                    <p className="text-gray-700">Upload cover art + audio files to create a music NFT</p>
-                    <div className="mt-4 text-sm text-purple-600 font-medium">Includes: Cover + Preview + Full Track →</div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-5xl">🎵</div>
+                      <div>
+                        <h3 className="text-xl font-bold text-purple-900 mb-1">Music NFT</h3>
+                        <p className="text-sm text-gray-700">Upload cover art + audio files to create a music NFT</p>
+                        <p className="mt-1 text-xs text-purple-600 font-medium">Cover + Preview + Full Track</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setNftType('music');
+                      setIsCollectorEdition(true);
+                      setCurrentStep(2);
+                    }}
+                    className="group relative p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border-4 border-amber-300 hover:border-amber-500 hover:scale-[1.02] transition-all shadow-lg hover:shadow-2xl text-left"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="text-5xl">👑</div>
+                      <div>
+                        <h3 className="text-xl font-bold text-amber-900 mb-1">Collector Edition Music NFT</h3>
+                        <p className="text-sm text-gray-700">Limited-run premium music NFT with AI-enhanced collector cover art</p>
+                        <p className="mt-1 text-xs text-amber-700 font-medium">Cover + Audio + AI Collector Art + Limited Editions &bull; 5 WMON fee</p>
+                      </div>
+                    </div>
                   </button>
 
                   <button
                     onClick={() => {
                       setNftType('art');
+                      setIsCollectorEdition(false);
                       setCurrentStep(2);
                     }}
-                    className="group relative p-8 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border-4 border-blue-200 hover:border-blue-500 hover:scale-105 transition-all shadow-lg hover:shadow-2xl"
+                    className="group relative p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border-4 border-blue-200 hover:border-blue-500 hover:scale-[1.02] transition-all shadow-lg hover:shadow-2xl text-left"
                   >
-                    <div className="text-6xl mb-4">🎨</div>
-                    <h3 className="text-2xl font-bold text-blue-900 mb-2">Art NFT</h3>
-                    <p className="text-gray-700">Upload only cover art to create a visual art NFT</p>
-                    <div className="mt-4 text-sm text-blue-600 font-medium">Includes: Cover Art Only →</div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-5xl">🎨</div>
+                      <div>
+                        <h3 className="text-xl font-bold text-blue-900 mb-1">Art NFT</h3>
+                        <p className="text-sm text-gray-700">Upload only cover art to create a visual art NFT</p>
+                        <p className="mt-1 text-xs text-blue-600 font-medium">Cover Art Only</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setNftType('art');
+                      setIsCollectorEdition(true);
+                      setCurrentStep(2);
+                    }}
+                    className="group relative p-6 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl border-4 border-amber-200 hover:border-amber-500 hover:scale-[1.02] transition-all shadow-lg hover:shadow-2xl text-left"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="text-5xl">🖼️</div>
+                      <div>
+                        <h3 className="text-xl font-bold text-amber-900 mb-1">Collector Edition Art NFT</h3>
+                        <p className="text-sm text-gray-700">Limited-run art NFT — set your own edition count (1-of-1 to 1000)</p>
+                        <p className="mt-1 text-xs text-amber-700 font-medium">Your Art + Limited Editions &bull; No extra fees</p>
+                      </div>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -890,7 +936,10 @@ export default function MusicPage() {
                   {isCollectorEdition && (
                     <div className="space-y-4 animate-fadeIn">
                       <p className="text-sm text-amber-800 bg-amber-100 p-3 rounded-lg">
-                        Collector editions are premium limited-run copies. Your cover art is automatically enhanced by Gemini AI with collector edition effects (golden borders, holographic textures, limited edition badge). A <strong>5 WMON creation fee</strong> is required to cover AI generation costs.
+                        {nftType === 'music'
+                          ? <>Collector editions are premium limited-run copies. Your cover art is automatically enhanced by Gemini AI with collector edition effects (golden borders, holographic textures, limited edition badge). A <strong>5 WMON creation fee</strong> is required to cover AI generation costs.</>
+                          : <>Collector editions are premium limited-run art pieces. Set your edition count from 1 (one-of-one) to 1,000. Your original art is used as-is — no AI modifications. <strong>No extra fees.</strong></>
+                        }
                       </p>
 
                       <div>
@@ -964,7 +1013,9 @@ export default function MusicPage() {
                     )}
                     <div className="flex-1">
                       <div className="text-sm font-bold text-purple-600 mb-2">
-                        {nftType === 'music' ? '🎵 MUSIC NFT' : '🎨 ART NFT'}
+                        {isCollectorEdition
+                          ? nftType === 'music' ? '👑 COLLECTOR EDITION MUSIC NFT' : '🖼️ COLLECTOR EDITION ART NFT'
+                          : nftType === 'music' ? '🎵 MUSIC NFT' : '🎨 ART NFT'}
                       </div>
                       <h3 className="text-3xl font-bold text-gray-900 mb-4">{title || 'Untitled'}</h3>
                       <div className="space-y-2 text-gray-700">
@@ -987,12 +1038,18 @@ export default function MusicPage() {
                       <p className="text-sm font-bold text-amber-800 mb-3">Collector Edition Details</p>
                       <div className="space-y-1 text-sm text-amber-900">
                         <p><strong>Collector Price:</strong> {collectorPrice} WMON per edition</p>
-                        <p><strong>Max Editions:</strong> {maxEditions}</p>
-                        <p><strong>Collector Art:</strong> AI-enhanced by Gemini</p>
-                        <p><strong>Creation Fee:</strong> 5 WMON (covers AI art generation)</p>
+                        <p><strong>Max Editions:</strong> {maxEditions}{maxEditions === '1' ? ' (One-of-One)' : ''}</p>
+                        {nftType === 'music' ? (
+                          <>
+                            <p><strong>Collector Art:</strong> AI-enhanced by Gemini</p>
+                            <p><strong>Creation Fee:</strong> 5 WMON (covers AI art generation)</p>
+                          </>
+                        ) : (
+                          <p><strong>Collector Art:</strong> Your original art (no AI modifications)</p>
+                        )}
                       </div>
                       <div className="mt-3 p-2 bg-white rounded-lg text-xs text-gray-600">
-                        Standard: {price} WMON (unlimited) | Collector: {collectorPrice} WMON ({maxEditions} editions) | Fee: 5 WMON
+                        Standard: {price} WMON (unlimited) | Collector: {collectorPrice} WMON ({maxEditions} editions){nftType === 'music' ? ' | Fee: 5 WMON' : ''}
                       </div>
                     </div>
                   )}

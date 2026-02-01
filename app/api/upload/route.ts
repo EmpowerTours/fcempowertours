@@ -205,11 +205,13 @@ export async function POST(request: NextRequest) {
     console.log('📤 Uploading cover image...');
     const coverCid = await uploadFileToPinata(coverFile, 'cover image');
 
-    // Collector Edition: AI-enhance cover art with Gemini
+    // Collector Edition: AI-enhance cover art with Gemini (music only)
+    // Art collector editions use the artist's original art — no AI modifications
+    const isArtOnly = formData.get('isArtOnly') === 'true';
     let collectorCoverCid: string | null = null;
     let collectorMetadataCid: string | null = null;
 
-    if (isCollectorEdition && process.env.GEMINI_API_KEY) {
+    if (isCollectorEdition && !isArtOnly && process.env.GEMINI_API_KEY) {
       console.log('👑 Generating AI-enhanced collector edition cover art...');
       try {
         // Convert cover file to base64 for Gemini
@@ -311,6 +313,39 @@ The result should look like a premium physical collector's vinyl or art print �
       } catch (geminiError: any) {
         console.error('⚠️ Gemini collector art generation failed, using standard cover:', geminiError.message);
         // Non-fatal: fall back to standard cover for collector edition
+      }
+    }
+
+    // Art collector editions: use the original cover art as-is, create collector metadata
+    if (isCollectorEdition && isArtOnly && !collectorMetadataCid) {
+      console.log('🖼️ Art collector edition — using original cover art for collector metadata');
+      collectorCoverCid = coverCid; // Same art, no AI modification
+
+      const collectorMetadata: any = {
+        name: `${description} (Collector Edition)`,
+        description: `Collector Edition Art NFT by ${address.slice(0, 6)}...${address.slice(-4)} — limited edition artwork`,
+        image: `ipfs://${coverCid}`,
+        attributes: [
+          { trait_type: 'Creator Address', value: address },
+          { trait_type: 'Creator FID', value: fid || 'Unknown' },
+          { trait_type: 'Type', value: 'Art Collector Edition' },
+        ],
+      };
+
+      console.log('📤 Uploading art collector metadata...');
+      const artCollectorMetaRes = await axios.post(PINATA_JSON_URL, collectorMetadata, {
+        headers: {
+          'Authorization': `Bearer ${PINATA_JWT}`,
+          'Content-Type': 'application/json',
+          'Connection': 'keep-alive',
+        },
+        timeout: 60000,
+        httpsAgent: httpsAgent,
+      });
+
+      if (artCollectorMetaRes.data.IpfsHash) {
+        collectorMetadataCid = artCollectorMetaRes.data.IpfsHash;
+        console.log('🖼️ Art collector metadata uploaded:', collectorMetadataCid);
       }
     }
 

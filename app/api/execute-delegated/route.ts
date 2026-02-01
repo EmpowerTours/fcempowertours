@@ -863,8 +863,10 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         const collectorEditionPrice = parseEther(params.collectorPrice.toString());
         const collectorArtistFid = params.fid ? BigInt(params.fid) : 0n;
 
-        // AI art generation fee: 5 WMON to cover Gemini costs
+        // AI art generation fee: 5 WMON for music collectors only (covers Gemini costs)
+        // Art collector editions have no fee — the artist's original art is used as-is
         const COLLECTOR_CREATION_FEE = parseEther('5');
+        const hasCreationFee = !isCollectorArt; // Only music collectors pay the AI fee
         const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
 
         console.log('👑 Minting Collector Edition NFT:', {
@@ -876,56 +878,63 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           collectorTokenURI,
           title: collectorSongTitle,
           nftType: `${collectorNftType} (${collectorTypeName})`,
-          creationFee: '5 WMON',
+          creationFee: hasCreationFee ? '5 WMON' : 'None (art)',
         });
 
-        const collectorCalls: Call[] = [
-          // Step 1: Wrap 5 MON to WMON for creation fee
-          {
-            to: WMON_ADDRESS,
-            value: COLLECTOR_CREATION_FEE,
-            data: encodeFunctionData({
-              abi: parseAbi(['function deposit() external payable']),
-              functionName: 'deposit',
-              args: [],
-            }) as Hex,
-          },
-          // Step 2: Transfer 5 WMON creation fee to platform Safe
-          {
-            to: WMON_ADDRESS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
-              functionName: 'transfer',
-              args: [SAFE_ACCOUNT, COLLECTOR_CREATION_FEE],
-            }) as Hex,
-          },
-          // Step 3: Mint the collector edition NFT
-          {
-            to: EMPOWER_TOURS_NFT,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                'function mintCollectorMaster(address artist, uint256 artistFid, string tokenURI, string collectorTokenURI, string title, uint256 standardPrice, uint256 collectorPrice, uint256 maxEditions, uint8 nftType) external returns (uint256)'
-              ]),
-              functionName: 'mintCollectorMaster',
-              args: [
-                userAddress as Address,
-                collectorArtistFid,
-                params.tokenURI,
-                collectorTokenURI,
-                collectorSongTitle,
-                collectorStandardPrice,
-                collectorEditionPrice,
-                BigInt(cEditions),
-                collectorNftType,
-              ],
-            }) as Hex,
-          },
-        ];
+        const collectorCalls: Call[] = [];
 
-        console.log('💳 Executing collector NFT mint transaction (with 5 WMON creation fee)...');
-        const collectorTxHash = await executeTransaction(collectorCalls, userAddress as Address, COLLECTOR_CREATION_FEE);
+        // Only add WMON wrap+transfer fee for music collectors
+        if (hasCreationFee) {
+          collectorCalls.push(
+            // Step 1: Wrap 5 MON to WMON for creation fee
+            {
+              to: WMON_ADDRESS,
+              value: COLLECTOR_CREATION_FEE,
+              data: encodeFunctionData({
+                abi: parseAbi(['function deposit() external payable']),
+                functionName: 'deposit',
+                args: [],
+              }) as Hex,
+            },
+            // Step 2: Transfer 5 WMON creation fee to platform Safe
+            {
+              to: WMON_ADDRESS,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+                functionName: 'transfer',
+                args: [SAFE_ACCOUNT, COLLECTOR_CREATION_FEE],
+              }) as Hex,
+            },
+          );
+        }
+
+        // Mint the collector edition NFT
+        collectorCalls.push({
+          to: EMPOWER_TOURS_NFT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi([
+              'function mintCollectorMaster(address artist, uint256 artistFid, string tokenURI, string collectorTokenURI, string title, uint256 standardPrice, uint256 collectorPrice, uint256 maxEditions, uint8 nftType) external returns (uint256)'
+            ]),
+            functionName: 'mintCollectorMaster',
+            args: [
+              userAddress as Address,
+              collectorArtistFid,
+              params.tokenURI,
+              collectorTokenURI,
+              collectorSongTitle,
+              collectorStandardPrice,
+              collectorEditionPrice,
+              BigInt(cEditions),
+              collectorNftType,
+            ],
+          }) as Hex,
+        });
+
+        const requiredValue = hasCreationFee ? COLLECTOR_CREATION_FEE : 0n;
+        console.log(`💳 Executing collector NFT mint transaction${hasCreationFee ? ' (with 5 WMON creation fee)' : ' (no fee)'}...`);
+        const collectorTxHash = await executeTransaction(collectorCalls, userAddress as Address, requiredValue);
         console.log('✅ Collector NFT mint successful, TX:', collectorTxHash);
 
         // Extract token ID from receipt
