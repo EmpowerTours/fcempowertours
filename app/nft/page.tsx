@@ -273,8 +273,8 @@ export default function MusicPage() {
       return;
     }
     const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum <= 0 || priceNum > 1000) {
-      setError('Price must be between 0.001 and 1000 TOURS');
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setError('Price must be greater than 0 TOURS');
       return;
     }
     if (!walletAddress) {
@@ -803,7 +803,7 @@ export default function MusicPage() {
                     />
                     <span className="absolute right-6 top-4.5 text-gray-600 font-bold pointer-events-none">TOURS</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 | Max: 1000 TOURS</p>
+                  <p className="text-xs text-gray-500 mt-2">Min: 0.001 TOURS (no max)</p>
                 </div>
 
                 <button
