@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route } from 'lucide-react';
+
+const LeafletMapRenderer = lazy(() => import('./map-renderers/LeafletMapRenderer'));
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { PlaceDetailsCard } from './PlaceDetailsCard';
+import type { MapProviderType, MapClientConfig } from '@/lib/maps/provider';
 
 // Declare google maps types
 declare global {
@@ -38,6 +41,8 @@ interface MapsResultsModalProps {
   onClose: () => void;
   paymentTxHash?: string;
   userLocation?: { latitude: number; longitude: number; city?: string; country?: string };
+  mapsProvider?: MapProviderType;
+  clientConfig?: MapClientConfig;
 }
 
 export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
@@ -46,7 +51,9 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   query,
   onClose,
   paymentTxHash,
-  userLocation
+  userLocation,
+  mapsProvider,
+  clientConfig,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
@@ -62,6 +69,10 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const [directionsSummary, setDirectionsSummary] = useState<{ distance: string; duration: string } | null>(null);
   const [loadingDirections, setLoadingDirections] = useState(false);
   const [directionsError, setDirectionsError] = useState<string | null>(null);
+
+  // OSM directions polyline (for LeafletMapRenderer)
+  const [osmDirectionsPolyline, setOsmDirectionsPolyline] = useState<Array<{ lat: number; lng: number }>>([]);
+  const isOSM = mapsProvider === 'osm';
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -480,6 +491,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     setDirectionsSteps([]);
     setDirectionsSummary(null);
     setDirectionsError(null);
+    setOsmDirectionsPolyline([]);
 
     // Remove directions renderer
     if (directionsRendererRef.current) {
@@ -524,8 +536,88 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     }
   }, [placeDetails, sources, selectedIndex, showInfoWindow]);
 
+  // OSM directions via OSRM
+  const renderOSMDirections = useCallback(async (source: MapsSource) => {
+    setLoadingDirections(true);
+    setDirectionsError(null);
+    setDirectionsMode(true);
+    setViewMode('map');
+
+    try {
+      let origin: { lat: number; lng: number };
+      try {
+        const userPos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) { reject(new Error('Geolocation not supported')); return; }
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 5000 });
+        });
+        origin = { lat: userPos.coords.latitude, lng: userPos.coords.longitude };
+      } catch {
+        if (userLocation?.latitude && userLocation?.longitude) {
+          origin = { lat: userLocation.latitude, lng: userLocation.longitude };
+        } else {
+          setDirectionsError('Location not available. Please enable location services.');
+          setLoadingDirections(false);
+          return;
+        }
+      }
+
+      const details = source.placeId ? placeDetails[source.placeId] : null;
+      if (!details?.location) {
+        setDirectionsError('Destination coordinates not available.');
+        setLoadingDirections(false);
+        return;
+      }
+
+      const dest = details.location;
+      const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=true`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.code !== 'Ok' || !data.routes?.[0]) {
+        setDirectionsError('Could not find a route.');
+        setLoadingDirections(false);
+        return;
+      }
+
+      const route = data.routes[0];
+      const leg = route.legs[0];
+
+      const formatDist = (m: number) => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+      const formatDur = (s: number) => {
+        const min = Math.round(s / 60);
+        if (min < 60) return `${min} min`;
+        return `${Math.floor(min / 60)} hr ${min % 60} min`;
+      };
+
+      setDirectionsSummary({
+        distance: formatDist(route.distance),
+        duration: formatDur(route.duration),
+      });
+
+      setDirectionsSteps(
+        (leg.steps || []).map((step: any) => ({
+          instruction: step.name || step.maneuver?.type || 'Continue',
+          distance: formatDist(step.distance),
+          duration: formatDur(step.duration),
+        }))
+      );
+
+      // Set polyline for LeafletMapRenderer
+      const polyline = (route.geometry?.coordinates || []).map((c: number[]) => ({ lat: c[1], lng: c[0] }));
+      setOsmDirectionsPolyline(polyline);
+    } catch (err: any) {
+      setDirectionsError(err.message || 'Could not get directions');
+    } finally {
+      setLoadingDirections(false);
+    }
+  }, [placeDetails, userLocation]);
+
   const handleGetDirections = (source: MapsSource) => {
-    renderInAppDirections(source);
+    if (isOSM) {
+      renderOSMDirections(source);
+    } else {
+      renderInAppDirections(source);
+    }
   };
 
   // Open directions in external Google Maps as fallback
@@ -679,32 +771,40 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
               })}
             </div>
 
-            {/* Results Count & Google Maps Attribution */}
+            {/* Results Count & Attribution */}
             <div className="mt-4 pt-4 border-t border-gray-700/50">
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>{sources.length} places found</span>
-                <span
-                  translate="no"
-                  className="flex items-center gap-1.5"
-                  style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 92.3 132.3"
-                    className="flex-shrink-0"
-                  >
-                    <path fill="#1a73e8" d="M60.2 2.2C55.8.8 51 0 46.1 0 32 0 19.3 6.4 10.8 16.5l21.8 18.3L60.2 2.2z"/>
-                    <path fill="#ea4335" d="M10.8 16.5C4.1 24.5 0 34.9 0 46.1c0 8.7 1.7 15.7 4.6 22l28-33.3-21.8-18.3z"/>
-                    <path fill="#4285f4" d="M46.2 28.5c9.8 0 17.7 7.9 17.7 17.7 0 4.3-1.6 8.3-4.2 11.4 0 0 13.9-16.6 27.5-32.7-5.6-10.8-15.3-19-27-22.7L32.6 34.8c3.3-3.8 8.1-6.3 13.6-6.3"/>
-                    <path fill="#fbbc04" d="M46.2 63.8c-9.8 0-17.7-7.9-17.7-17.7 0-4.3 1.6-8.3 4.2-11.4L4.6 68.1C11.5 81.9 24.5 98 36.6 114.2 43.3 101 51.3 88 59.6 74.9c-3.3 3.8-8.1 6.3-13.4 6.3"/>
-                    <path fill="#34a853" d="M59.6 74.9c11.4-16.2 24.6-32.2 32.7-46.6 0 0-12.8 15.3-27.5 32.7 8.5 11.4 18.4 24 24.8 38.5 5.1-12.3 2.7-26.1 2.7-26.1-5.5 10.6-19.4 31.4-37.6 58.9 0 0 12.3-21.2 19.4-35.1-6.4-10.8-13.5-21.1-14.5-22.3"/>
-                  </svg>
-                  <span style={{ fontSize: '11px', letterSpacing: '0.2px', color: '#9aa0a6' }}>
-                    Google Maps
+                {isOSM ? (
+                  <span className="flex items-center gap-1.5">
+                    <span style={{ fontSize: '11px', letterSpacing: '0.2px', color: '#9aa0a6' }}>
+                      OpenStreetMap + OSRM
+                    </span>
                   </span>
-                </span>
+                ) : (
+                  <span
+                    translate="no"
+                    className="flex items-center gap-1.5"
+                    style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 92.3 132.3"
+                      className="flex-shrink-0"
+                    >
+                      <path fill="#1a73e8" d="M60.2 2.2C55.8.8 51 0 46.1 0 32 0 19.3 6.4 10.8 16.5l21.8 18.3L60.2 2.2z"/>
+                      <path fill="#ea4335" d="M10.8 16.5C4.1 24.5 0 34.9 0 46.1c0 8.7 1.7 15.7 4.6 22l28-33.3-21.8-18.3z"/>
+                      <path fill="#4285f4" d="M46.2 28.5c9.8 0 17.7 7.9 17.7 17.7 0 4.3-1.6 8.3-4.2 11.4 0 0 13.9-16.6 27.5-32.7-5.6-10.8-15.3-19-27-22.7L32.6 34.8c3.3-3.8 8.1-6.3 13.6-6.3"/>
+                      <path fill="#fbbc04" d="M46.2 63.8c-9.8 0-17.7-7.9-17.7-17.7 0-4.3 1.6-8.3 4.2-11.4L4.6 68.1C11.5 81.9 24.5 98 36.6 114.2 43.3 101 51.3 88 59.6 74.9c-3.3 3.8-8.1 6.3-13.4 6.3"/>
+                      <path fill="#34a853" d="M59.6 74.9c11.4-16.2 24.6-32.2 32.7-46.6 0 0-12.8 15.3-27.5 32.7 8.5 11.4 18.4 24 24.8 38.5 5.1-12.3 2.7-26.1 2.7-26.1-5.5 10.6-19.4 31.4-37.6 58.9 0 0 12.3-21.2 19.4-35.1-6.4-10.8-13.5-21.1-14.5-22.3"/>
+                    </svg>
+                    <span style={{ fontSize: '11px', letterSpacing: '0.2px', color: '#9aa0a6' }}>
+                      Google Maps
+                    </span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -713,7 +813,22 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
           <div className={`${viewMode === 'list' ? 'hidden md:block' : ''} flex-1 p-4 flex flex-col`}>
             {/* Map Container */}
             <div className="flex-1 bg-gray-900/50 rounded-xl border border-cyan-500/20 overflow-hidden relative">
-              {mapsApiKey ? (
+              {isOSM ? (
+                <Suspense fallback={
+                  <div className="w-full h-full min-h-[300px] flex items-center justify-center bg-gray-900/90">
+                    <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+                  </div>
+                }>
+                  <LeafletMapRenderer
+                    sources={sources}
+                    placeDetails={placeDetails}
+                    selectedIndex={selectedIndex}
+                    onSelectIndex={setSelectedIndex}
+                    userLocation={userLocation ? { latitude: userLocation.latitude, longitude: userLocation.longitude } : undefined}
+                    directionsPolyline={osmDirectionsPolyline.length > 0 ? osmDirectionsPolyline : undefined}
+                  />
+                </Suspense>
+              ) : mapsApiKey ? (
                 <>
                   {/* Google Maps Container */}
                   <div ref={mapRef} className="w-full h-full min-h-[300px]" />

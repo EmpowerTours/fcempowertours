@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { detectUserTerritory, getMapProvider } from '@/lib/maps/provider';
 
 // Server-side only — key never exposed to client
 const GOOGLE_MAPS_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -55,13 +56,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!GOOGLE_MAPS_SERVER_KEY) {
-      return NextResponse.json(
-        { error: 'Maps API not configured' },
-        { status: 500 }
-      );
-    }
-
     const { placeIds } = await req.json();
 
     if (!Array.isArray(placeIds) || placeIds.length === 0) {
@@ -78,57 +72,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate placeIds format (should start with "ChI" or similar)
+    // Validate placeIds format
     const validPlaceIds = placeIds.filter(
-      (id: unknown) => typeof id === 'string' && id.length > 5 && id.length < 200
+      (id: unknown) => typeof id === 'string' && id.length > 0 && id.length < 200
     );
 
+    // Detect territory and use appropriate provider
+    const territory = await detectUserTerritory(req);
+    const provider = await getMapProvider(territory);
+    console.log('[Maps] Using provider:', provider.type, 'for territory:', territory);
+
+    const providerResults = await provider.getPlaceDetails(validPlaceIds);
+
+    // Convert normalized results to existing PlaceDetailsResult format
     const results: Record<string, PlaceDetailsResult> = {};
-
-    // Fetch details for each place using Google Places API (New) server-side
-    await Promise.all(
-      validPlaceIds.map(async (placeId: string) => {
-        try {
-          const fields = 'displayName,rating,userRatingCount,formattedAddress,types,currentOpeningHours,photos,location';
-          const url = `https://places.googleapis.com/v1/places/${placeId}?fields=${fields}&key=${GOOGLE_MAPS_SERVER_KEY}`;
-
-          const response = await fetch(url, {
-            headers: {
-              'X-Goog-FieldMask': fields,
-            },
-          });
-
-          if (!response.ok) {
-            console.log(`[Maps] Place details failed for ${placeId}: ${response.status}`);
-            results[placeId] = { name: placeId };
-            return;
-          }
-
-          const data = await response.json();
-
-          let photoUrl: string | undefined;
-          if (data.photos?.[0]?.name) {
-            photoUrl = `https://places.googleapis.com/v1/${data.photos[0].name}/media?maxWidthPx=400&key=${GOOGLE_MAPS_SERVER_KEY}`;
-          }
-
-          results[placeId] = {
-            name: data.displayName?.text || placeId,
-            rating: data.rating,
-            userRatingsTotal: data.userRatingCount,
-            address: data.formattedAddress,
-            types: data.types,
-            openNow: data.currentOpeningHours?.openNow,
-            photoUrl,
-            location: data.location
-              ? { lat: data.location.latitude, lng: data.location.longitude }
-              : undefined,
-          };
-        } catch (err) {
-          console.error(`[Maps] Error fetching place ${placeId}:`, err);
-          results[placeId] = { name: placeId };
-        }
-      })
-    );
+    for (const [id, detail] of Object.entries(providerResults)) {
+      results[id] = {
+        name: detail.name,
+        rating: detail.rating,
+        userRatingsTotal: detail.userRatingsTotal,
+        address: detail.address,
+        types: detail.types,
+        openNow: detail.openNow,
+        photoUrl: detail.photoUrl,
+        location: detail.location,
+      };
+    }
 
     return NextResponse.json({ success: true, places: results });
   } catch (error: any) {

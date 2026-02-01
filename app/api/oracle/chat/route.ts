@@ -4,6 +4,13 @@ import { parseEther, decodeEventLog, encodeFunctionData, type Address, type Hex 
 import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { getCountryByCode } from '@/lib/passport/countries';
 import { publicClient } from '@/lib/pimlico-safe-aa';
+import {
+  detectUserTerritory as sharedDetectUserTerritory,
+  getMapProvider,
+  getMapProviderType,
+  GOOGLE_PROHIBITED_TERRITORIES,
+  type MapProviderType,
+} from '@/lib/maps/provider';
 
 interface OracleAction {
   type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'withdraw' | 'unknown';
@@ -59,36 +66,8 @@ interface MapsGroundingSource {
   placeId?: string;
 }
 
-// Detect user's country from IP or location
-async function detectUserTerritory(req: NextRequest): Promise<string | null> {
-  try {
-    // Try IPInfo API for country detection
-    const ipInfoToken = process.env.IPINFO_TOKEN;
-    if (!ipInfoToken) {
-      console.log('[Oracle] IPInfo token not configured, skipping territory check');
-      return null;
-    }
-
-    // Get client IP from request headers
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    const realIp = req.headers.get('x-real-ip');
-    const ip = forwardedFor?.split(',')[0] || realIp || null;
-
-    if (!ip) {
-      console.log('[Oracle] Could not detect client IP');
-      return null;
-    }
-
-    const response = await fetch(`https://ipinfo.io/${ip}?token=${ipInfoToken}`);
-    const data = await response.json();
-
-    console.log('[Oracle] Detected country:', data.country);
-    return data.country || null;
-  } catch (error) {
-    console.error('[Oracle] Failed to detect territory:', error);
-    return null;
-  }
-}
+// Use shared territory detection from lib/maps/provider.ts
+const detectUserTerritory = sharedDetectUserTerritory;
 
 export async function POST(req: NextRequest) {
   try {
@@ -151,20 +130,13 @@ export async function POST(req: NextRequest) {
       console.log('[Oracle] Returning payment required response (100 WMON)');
     }
 
-    // Check territory restrictions for Maps Grounding
+    // Detect territory and resolve map provider
+    let userCountry: string | null = null;
+    let mapsProviderType: MapProviderType = 'google';
     if (needsMapsGrounding) {
-      const userCountry = await detectUserTerritory(req);
-
-      if (userCountry && PROHIBITED_TERRITORIES.includes(userCountry)) {
-        console.log('[Oracle] User in prohibited territory:', userCountry);
-        return NextResponse.json({
-          success: true,
-          action: {
-            type: 'chat',
-            message: '🌍 Google Maps services are not available in your region.\n\nDue to Google Maps terms of service, location-based features cannot be provided in certain territories. However, I can still help you with:\n\n• Travel recommendations\n• Blockchain services\n• NFT browsing\n• Games and entertainment\n\nHow else can I assist you?',
-          },
-        });
-      }
+      userCountry = await detectUserTerritory(req);
+      mapsProviderType = getMapProviderType(userCountry);
+      console.log('[Oracle] Maps provider resolved:', mapsProviderType, 'for territory:', userCountry);
     }
 
     // If Maps grounding needed and user hasn't confirmed payment, return cost estimate
@@ -195,12 +167,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // OSM provider path: search via Nominatim, pass results as context to Gemini
+    let osmSearchResults: MapsGroundingSource[] = [];
+    if (needsMapsGrounding && mapsProviderType === 'osm') {
+      try {
+        const provider = await getMapProvider(userCountry);
+        osmSearchResults = await provider.searchPlaces({
+          query: message,
+          latitude: userLocation?.latitude,
+          longitude: userLocation?.longitude,
+          radius: 5000,
+        });
+        console.log('[Oracle] OSM search returned', osmSearchResults.length, 'results');
+      } catch (osmErr) {
+        console.error('[Oracle] OSM search error:', osmErr);
+      }
+    }
+
     // Build prompt - use simple natural language for Maps, structured for other queries
     let systemPrompt: string;
 
-    if (needsMapsGrounding) {
-      // Simple prompt for Maps grounding - let the model use the tool naturally
-      // DO NOT ask for JSON output - this confuses the grounding tool
+    if (needsMapsGrounding && mapsProviderType === 'osm' && osmSearchResults.length > 0) {
+      // OSM path: feed search results as context to Gemini (no Maps grounding tool)
+      const placesContext = osmSearchResults.map((s, i) => `${i + 1}. ${s.title}`).join('\n');
+      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || 'an unknown city'}, ${userLocation?.country || 'unknown country'}.
+
+Here are nearby places found via OpenStreetMap:
+${placesContext}
+
+Answer the user's question using these results. Be helpful and conversational. Reference the specific places listed above.
+
+User question: ${message}`;
+    } else if (needsMapsGrounding) {
+      // Google Maps grounding path (original)
       systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || 'an unknown city'}, ${userLocation?.country || 'unknown country'}.
 
 Answer their question about local places. Be helpful and conversational. Include specific place names, ratings, and addresses when available.
@@ -349,11 +348,18 @@ Return valid JSON only.`;
       }
     };
 
-    // Add Maps grounding tool if needed
+    // Add Maps grounding tool if needed (Google only — OSM uses pre-fetched results)
     // Best Practice: Only enable when query has geographical context (off by default)
     // IMPORTANT: Maps grounding is incompatible with structured JSON output
     // When using Maps, we must disable responseSchema and parse text manually
-    if (needsMapsGrounding) {
+    // OSM path also uses text output (no structured JSON)
+    if (needsMapsGrounding && mapsProviderType === 'osm') {
+      console.log('[Oracle] OSM provider — disabling structured output for text response');
+      delete config.responseMimeType;
+      delete config.responseSchema;
+    }
+
+    if (needsMapsGrounding && mapsProviderType === 'google') {
       console.log('[Oracle] Enabling Google Maps grounding tool');
 
       // Remove structured output - incompatible with Maps grounding
@@ -421,15 +427,19 @@ Return valid JSON only.`;
       }));
     }
 
-    // Extract Maps grounding sources if present (do this before parsing)
+    // Extract Maps sources: OSM from pre-fetched results, Google from grounding metadata
     let mapsSources: MapsGroundingSource[] = [];
     let mapsWidgetToken: string | null = null;
 
-    if (needsMapsGrounding && response.candidates?.[0]?.groundingMetadata) {
+    if (needsMapsGrounding && mapsProviderType === 'osm') {
+      // OSM: use pre-fetched search results
+      mapsSources = osmSearchResults;
+      console.log('[Oracle] Using OSM search results:', mapsSources.length);
+    } else if (needsMapsGrounding && response.candidates?.[0]?.groundingMetadata) {
       const grounding = response.candidates[0].groundingMetadata as any;
       console.log('[Oracle] Grounding metadata:', JSON.stringify(grounding, null, 2).substring(0, 500));
 
-      // Extract sources
+      // Extract sources from Google Maps grounding
       if (grounding.groundingChunks) {
         mapsSources = grounding.groundingChunks
           .filter((chunk: any) => chunk.maps)
@@ -771,6 +781,7 @@ Return valid JSON only.`;
       paymentTxHash,
       mapsSources,
       mapsWidgetToken,
+      mapsProvider: needsMapsGrounding ? mapsProviderType : undefined,
       itineraryTxHash,
       itineraryData,
     });
@@ -820,17 +831,7 @@ function getAbiName(contractAddress: string): string {
   return contracts[contractAddress] || 'ERC20';
 }
 
-// Google Maps Grounding - Prohibited Territories (as per Google Terms)
-const PROHIBITED_TERRITORIES = [
-  'CN', // China
-  'CU', // Cuba
-  'IR', // Iran
-  'KP', // North Korea
-  'SY', // Syria
-  'VN', // Vietnam
-  'UA-43', // Crimea
-  // Note: Donetsk and Luhansk People's Republics are also prohibited but harder to detect via country codes
-];
+// Prohibited territories now imported from lib/maps/provider.ts as GOOGLE_PROHIBITED_TERRITORIES
 
 // Prohibited activities for Maps Grounding (high-risk activities)
 const EMERGENCY_KEYWORDS = [

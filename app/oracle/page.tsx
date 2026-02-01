@@ -18,9 +18,10 @@ import { EventOracle } from '@/app/components/oracle/EventOracle';
 import { RockClimbingModal } from '@/app/components/oracle/RockClimbingModal';
 import { DevStudioModal } from '@/app/components/oracle/DevStudioModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { useRouter, useSearchParams } from 'next/navigation';
+import ConnectWalletButton from '@/app/components/ConnectWalletButton';
 
 interface NFTObject {
   id: string;
@@ -55,7 +56,7 @@ interface Message {
 export default function OraclePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, walletAddress, sendTransaction } = useFarcasterContext();
+  const { user, walletAddress, sendTransaction, isFarcaster, isConnected, fid } = useWalletContext();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
   const [input, setInput] = useState('');
@@ -80,6 +81,7 @@ export default function OraclePage() {
     widgetToken?: string;
     query: string;
     paymentTxHash?: string;
+    mapsProvider?: string;
   } | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
@@ -312,7 +314,7 @@ export default function OraclePage() {
         body: JSON.stringify({
           message: userMessage,
           userAddress: walletAddress,
-          userFid: user?.fid,
+          userFid: fid,
           userLocation: geoLocation ? {
             latitude: geoLocation.latitude,
             longitude: geoLocation.longitude,
@@ -524,7 +526,7 @@ export default function OraclePage() {
         body: JSON.stringify({
           message: queryMessage,
           userAddress: walletAddress,
-          userFid: user?.fid,
+          userFid: fid,
           userLocation: geoLocation ? {
             latitude: geoLocation.latitude,
             longitude: geoLocation.longitude,
@@ -538,7 +540,7 @@ export default function OraclePage() {
       const data = await response.json();
 
       if (data.success) {
-        const { action, mapsSources, mapsWidgetToken, paymentTxHash, itineraryData, itineraryTxHash } = data;
+        const { action, mapsSources, mapsWidgetToken, paymentTxHash, itineraryData, itineraryTxHash, mapsProvider } = data;
 
         // Handle itinerary creation notification
         if (itineraryData) {
@@ -576,7 +578,8 @@ export default function OraclePage() {
             sources: mapsSources,
             widgetToken: mapsWidgetToken,
             query: queryMessage,
-            paymentTxHash
+            paymentTxHash,
+            mapsProvider,
           });
           setShowMapsResults(true);
         } else {
@@ -718,8 +721,8 @@ export default function OraclePage() {
 
           {/* User Info + Toggle Right */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* User Info */}
-            {user && walletAddress && (
+            {/* Farcaster User Info */}
+            {isFarcaster && user && walletAddress && (
               <div className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? 'bg-gray-800/80' : 'bg-gray-100/80 border border-gray-200'}`}>
                 {user.pfpUrl ? (
                   <img
@@ -745,6 +748,26 @@ export default function OraclePage() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Standalone: wallet address display */}
+            {!isFarcaster && isConnected && walletAddress && (
+              <div className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? 'bg-gray-800/80' : 'bg-gray-100/80 border border-gray-200'}`}>
+                <div
+                  className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold"
+                  style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px' }}
+                >
+                  {walletAddress.slice(2, 4).toUpperCase()}
+                </div>
+                <div className={`text-[10px] font-mono ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </div>
+              </div>
+            )}
+
+            {/* Standalone: Connect Wallet button when not connected */}
+            {!isFarcaster && !isConnected && (
+              <ConnectWalletButton />
             )}
 
             {/* Dark Mode Toggle */}
@@ -1122,7 +1145,7 @@ export default function OraclePage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-lg pointer-events-auto animate-fadeIn">
           <MusicSubscriptionModal
             userAddress={walletAddress ?? undefined}
-            userFid={user?.fid}
+            userFid={fid}
             onClose={() => setShowSubscriptionModal(false)}
           />
         </div>
@@ -1145,6 +1168,7 @@ export default function OraclePage() {
           widgetToken={mapsResultsData.widgetToken}
           query={mapsResultsData.query}
           paymentTxHash={mapsResultsData.paymentTxHash}
+          mapsProvider={mapsResultsData.mapsProvider as any}
           userLocation={geoLocation ? {
             latitude: geoLocation.latitude,
             longitude: geoLocation.longitude,
@@ -1234,7 +1258,7 @@ export default function OraclePage() {
           {console.log('[OraclePage] Rendering ProfileModal, walletAddress:', walletAddress)}
           <ProfileModal
             walletAddress={walletAddress || ''}
-            userFid={user?.fid}
+            userFid={fid}
             username={user?.username}
             pfpUrl={user?.pfpUrl}
             isDarkMode={isDarkMode}
@@ -1276,7 +1300,7 @@ export default function OraclePage() {
           onClose={() => setShowRockClimbingModal(false)}
           isDarkMode={isDarkMode}
           walletAddress={walletAddress || undefined}
-          userFid={user?.fid}
+          userFid={fid}
         />
       )}
 
@@ -1432,7 +1456,7 @@ export default function OraclePage() {
         <UserProfileModal
           walletAddress={viewingUserAddress}
           buyerAddress={walletAddress || undefined}
-          buyerFid={user?.fid}
+          buyerFid={fid}
           isDarkMode={isDarkMode}
           onClose={() => {
             setShowUserProfileModal(false);
@@ -1512,7 +1536,7 @@ export default function OraclePage() {
       {/* Music Playlist Player - positioned at bottom center */}
       <MusicPlaylist
         userAddress={walletAddress ?? undefined}
-        userFid={user?.fid}
+        userFid={fid}
         clickedNFTs={clickedMusicNFTs}
         isSubscriber={hasSubscription}
         onPlayingChange={(nftId, isPlaying) => {

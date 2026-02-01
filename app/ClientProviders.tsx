@@ -1,10 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider, createConfig, http } from 'wagmi';
-import { monadMainnet } from './chains';
-import { injected } from 'wagmi/connectors';
+import StandaloneProviders from './components/StandaloneProviders';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   const [hasError, setHasError] = useState(false);
@@ -29,37 +26,12 @@ function ErrorBoundary({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      retry: (failureCount, error: any) => {
-        if (error?.status === 404) {
-          return false;
-        }
-        return failureCount < 3;
-      },
-    },
-  },
-});
-
-const wagmiConfig = createConfig({
-  chains: [monadMainnet],
-  connectors: [injected()],
-  transports: {
-    [monadMainnet.id]: http('https://rpc.monad.xyz'),
-  },
-});
-
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={wagmiConfig}>
-          {/* 🔥 REMOVED: PrivyProvider - use Farcaster SDK only */}
-          {children}
-        </WagmiProvider>
-      </QueryClientProvider>
+      <StandaloneProviders>
+        {children}
+      </StandaloneProviders>
     </ErrorBoundary>
   );
 }
