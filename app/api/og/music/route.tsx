@@ -295,31 +295,23 @@ export async function GET(request: NextRequest) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            {/* Cover Art - Left Side (50%) - Shows complete image */}
+            {/* Cover Art - Left Side (50%) */}
             <div
               style={{
                 width: '50%',
                 height: '100%',
-                background: 'linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '60px',
-                boxSizing: 'border-box',
+                padding: '40px',
               }}
             >
-              {/* Inner container with cover art - shows full image without cropping */}
-              <div
+              <img
+                src={imageUrl}
+                width={460}
+                height={460}
                 style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundImage: `url('${imageUrl}')`,
-                  backgroundSize: 'contain',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
+                  objectFit: 'cover',
                   borderRadius: '16px',
                   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                 }}
