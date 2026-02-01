@@ -372,7 +372,7 @@ flowchart TD
 
 ## Deployed Contracts (V3)
 
-All contracts are deployed on **Monad Testnet** and verifiable on MonadScan.
+All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 
 | Contract | Address | Purpose |
 |----------|---------|---------|
