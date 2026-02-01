@@ -5,7 +5,8 @@ const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-productio
 export async function GET(request: NextRequest) {
   try {
     const discoverDeepLink = `${APP_URL}/discover`;
-    const ogImageUrl = `${APP_URL}/splash.png`;
+    // Dynamic OG image for the cast preview (1200x630)
+    const ogImageUrl = `${APP_URL}/api/og`;
 
     const frameData = {
       version: 'next',
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
           type: 'launch_frame',
           name: 'EmpowerTours',
           url: discoverDeepLink,
-          splashImageUrl: `${APP_URL}/splash.png`,
+          splashImageUrl: `${APP_URL}/images/splash.png`,
           splashBackgroundColor: '#0f172a',
         },
       },

@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
     // The mini app destination — opens the oracle page with radio modal
     const radioDeepLink = `${APP_URL}/oracle?modal=radio`;
 
-    // OG image for the cast preview
-    const ogImageUrl = `${APP_URL}/splash.png`;
+    // Dynamic OG image for the cast preview (1200x630)
+    const ogImageUrl = `${APP_URL}/api/og`;
 
     const buttonTitle = action === 'skip_random'
       ? '🎲 Tune In - Live Radio'
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
           type: 'launch_frame',
           name: 'EmpowerTours',
           url: radioDeepLink,
-          splashImageUrl: `${APP_URL}/splash.png`,
+          splashImageUrl: `${APP_URL}/images/splash.png`,
           splashBackgroundColor: '#0f172a',
         },
       },
