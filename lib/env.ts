@@ -11,6 +11,7 @@ export const env = {
 
   // Blockchain
   MONAD_RPC: process.env.NEXT_PUBLIC_MONAD_RPC || defaultRpc,
+  MONAD_WS_RPC: process.env.MONAD_WS_RPC || 'wss://rpc.monad.xyz',
   CHAIN_ID: chainId,
   IS_MAINNET: isMainnet,
 

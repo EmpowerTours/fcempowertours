@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
+import { broadcastRadioUpdate } from '@/lib/event-manager';
 
 /**
  * Live Radio Scheduler
@@ -347,6 +348,10 @@ export async function POST(req: NextRequest) {
           state.lastUpdated = now;
           await redis.set(RADIO_STATE_KEY, state);
           cachedState = { data: state, timestamp: now };
+
+          // Broadcast voice note start to SSE clients
+          broadcastRadioUpdate('state_update', { type: 'voice_note_started', state });
+
           await redis.del(SCHEDULER_LOCK_KEY);
 
           return NextResponse.json({
@@ -426,6 +431,11 @@ export async function POST(req: NextRequest) {
       state.lastUpdated = now;
       await redis.set(RADIO_STATE_KEY, state);
       cachedState = { data: state, timestamp: now };
+
+      // Broadcast state update to SSE clients
+      if (action !== 'no_action' && action !== 'no_songs_available') {
+        broadcastRadioUpdate('state_update', { type: action, state });
+      }
 
       return NextResponse.json({
         success: true,

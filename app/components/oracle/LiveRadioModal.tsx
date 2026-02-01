@@ -30,6 +30,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useRadioStream } from '@/app/hooks/useRadioStream';
 import { MusicSubscriptionModal } from './MusicSubscriptionModal';
 
 interface RadioState {
@@ -98,7 +99,7 @@ interface LiveRadioModalProps {
 }
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
-const POLL_INTERVAL = 2000; // 2 seconds for state updates (fast enough for 5s voice notes)
+// POLL_INTERVAL removed — replaced by SSE via useRadioStream (fallback at 5s)
 
 // Format seconds to mm:ss
 const formatTime = (seconds: number): string => {
@@ -109,6 +110,15 @@ const formatTime = (seconds: number): string => {
 
 export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalProps) {
   const { user, walletAddress } = useFarcasterContext();
+
+  // Real-time SSE stream (replaces 2s polling for radioState, queue, voiceNotes)
+  const {
+    radioState: streamRadioState,
+    queue: streamQueue,
+    voiceNotes: streamVoiceNotes,
+    connectionStatus,
+  } = useRadioStream();
+
   const [mounted, setMounted] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [radioState, setRadioState] = useState<RadioState | null>(null);
@@ -155,7 +165,22 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync SSE stream data into local state
+  useEffect(() => {
+    if (streamRadioState) {
+      setRadioState(streamRadioState as RadioState);
+      if (loading) setLoading(false);
+    }
+  }, [streamRadioState, loading]);
+
+  useEffect(() => {
+    if (streamQueue) setQueue(streamQueue as QueuedSong[]);
+  }, [streamQueue]);
+
+  useEffect(() => {
+    if (streamVoiceNotes) setVoiceNotes(streamVoiceNotes as VoiceNote[]);
+  }, [streamVoiceNotes]);
 
   useEffect(() => {
     setMounted(true);
@@ -345,29 +370,23 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
     }
   }, [walletAddress, user?.fid, isPlaying, radioState?.currentSong]);
 
-  // Initial fetch
+  // Initial fetch for data not covered by SSE (listener stats, leaderboard, recent plays, pricing)
   useEffect(() => {
     const init = async () => {
-      setLoading(true);
-      await Promise.all([fetchRadioState(), fetchQueue(), fetchVoiceNotes(), fetchListenerStats(), fetchLeaderboard(), fetchRecentPlays()]);
-      setLoading(false);
+      await Promise.all([fetchRadioState(), fetchListenerStats(), fetchLeaderboard(), fetchRecentPlays()]);
     };
     init();
-  }, [fetchRadioState, fetchQueue, fetchVoiceNotes, fetchListenerStats, fetchLeaderboard, fetchRecentPlays]);
+  }, [fetchRadioState, fetchListenerStats, fetchLeaderboard, fetchRecentPlays]);
 
-  // Poll for updates
+  // Periodic refresh for leaderboard and recent plays (30s — not time-critical)
   useEffect(() => {
-    pollRef.current = setInterval(() => {
-      fetchRadioState();
-      fetchQueue();
-      fetchVoiceNotes();
+    const slowPoll = setInterval(() => {
+      fetchLeaderboard();
       fetchRecentPlays();
-    }, POLL_INTERVAL);
+    }, 30_000);
 
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [fetchRadioState, fetchQueue]);
+    return () => clearInterval(slowPoll);
+  }, [fetchLeaderboard, fetchRecentPlays]);
 
   // Heartbeat for listener tracking
   useEffect(() => {
@@ -1087,6 +1106,12 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                   <span className="text-sm font-semibold">{radioState?.isLive ? 'LIVE' : 'OFFLINE'}</span>
                   {radioState?.isLive && (
                     <span className="text-xs text-gray-400">• {radioState.listenerCount || 0} listeners</span>
+                  )}
+                  {connectionStatus === 'connected' && (
+                    <span className="text-xs text-green-500 opacity-75">• SSE</span>
+                  )}
+                  {connectionStatus === 'fallback' && (
+                    <span className="text-xs text-yellow-500 opacity-75">• polling</span>
                   )}
                 </div>
 

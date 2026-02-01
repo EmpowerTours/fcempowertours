@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
+import { broadcastRadioUpdate } from '@/lib/event-manager';
 
 /**
  * Live Radio API
@@ -365,6 +366,11 @@ export async function POST(req: NextRequest) {
 
       console.log('[LiveRadio] Song queued:', name, 'by', userAddress);
 
+      // Broadcast queue update to SSE clients
+      const updatedQueue = await redis.lrange(RADIO_QUEUE_KEY, 0, 20);
+      const parsedQueue = updatedQueue.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
+      broadcastRadioUpdate('queue_update', { type: 'song_queued', queue: parsedQueue, song: queuedSong });
+
       return NextResponse.json({
         success: true,
         message: 'Song added to queue!',
@@ -423,6 +429,11 @@ export async function POST(req: NextRequest) {
       }
 
       console.log('[LiveRadio] Voice note submitted by', username || userAddress);
+
+      // Broadcast voice notes update to SSE clients
+      const updatedNotes = await redis.lrange(VOICE_NOTES_KEY, 0, 10);
+      const parsedNotes = updatedNotes.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
+      broadcastRadioUpdate('voice_notes_update', { type: 'voice_note_submitted', voiceNotes: parsedNotes });
 
       // Post to Farcaster via bot (non-blocking)
       if (userFid) {
@@ -492,6 +503,11 @@ export async function POST(req: NextRequest) {
 
       console.log('[LiveRadio] Voice ad submitted by', username || userAddress);
 
+      // Broadcast voice notes update to SSE clients
+      const updatedAdNotes = await redis.lrange(VOICE_NOTES_KEY, 0, 10);
+      const parsedAdNotes = updatedAdNotes.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
+      broadcastRadioUpdate('voice_notes_update', { type: 'voice_ad_submitted', voiceNotes: parsedAdNotes });
+
       // Post to Farcaster via bot (non-blocking)
       if (userFid) {
         fetch(`${APP_URL}/api/cast-nft`, {
@@ -532,6 +548,9 @@ export async function POST(req: NextRequest) {
       // Initialize playback phase
       await redis.set('live-radio:playback-phase', 'song');
 
+      // Broadcast state update to SSE clients
+      broadcastRadioUpdate('state_update', { type: 'radio_started', state });
+
       return NextResponse.json({
         success: true,
         message: 'Radio is now live! Call /api/live-radio/scheduler to start playback.',
@@ -548,6 +567,9 @@ export async function POST(req: NextRequest) {
         state.currentVoiceNote = null;
         state.lastUpdated = Date.now();
         await redis.set(RADIO_STATE_KEY, state);
+
+        // Broadcast state update to SSE clients
+        broadcastRadioUpdate('state_update', { type: 'radio_stopped', state });
       }
 
       return NextResponse.json({
@@ -586,6 +608,9 @@ export async function POST(req: NextRequest) {
 
       await redis.set(RADIO_STATE_KEY, state);
 
+      // Broadcast state update to SSE clients
+      broadcastRadioUpdate('state_update', { type: 'song_playing', state });
+
       return NextResponse.json({
         success: true,
         message: 'Now playing',
@@ -615,6 +640,9 @@ export async function POST(req: NextRequest) {
 
         // Switch to voice_note phase so scheduler checks for pending voice notes
         await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
+
+        // Broadcast state update to SSE clients
+        broadcastRadioUpdate('state_update', { type: 'song_ended', state });
 
         return NextResponse.json({
           success: true,
@@ -649,9 +677,15 @@ export async function POST(req: NextRequest) {
       // Update radio state listener count
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (state) {
+        const prevCount = state.listenerCount;
         state.listenerCount = activeCount;
         state.lastUpdated = Date.now();
         await redis.set(RADIO_STATE_KEY, state);
+
+        // Only broadcast if listener count actually changed (avoid spamming SSE)
+        if (prevCount !== activeCount) {
+          broadcastRadioUpdate('state_update', { type: 'listener_count', state });
+        }
       }
 
       // Get or create listener stats
