@@ -159,9 +159,8 @@ contracts/broadcast/
 empowertours-envio/node_modules/
 monad-trading-bot/
 
-# Scripts and docs (separate repos)
+# Scripts (separate repos)
 scripts/
-docs/
 
 # Presentation files (local only)
 presentation/

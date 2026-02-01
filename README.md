@@ -17,6 +17,20 @@ EmpowerTours is a comprehensive Web3 platform built as a **Farcaster Mini App** 
 
 ---
 
+## Table of Contents
+
+- [Features](#features)
+- [Economics & Payouts](#economics--payouts)
+- [Architecture Diagrams](#architecture-diagrams)
+- [Deployed Contracts (V3)](#deployed-contracts-v3)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Deployment](#deployment)
+- [Links](#links)
+
+---
+
 ## Features
 
 ### Travel Passport NFTs (195 Countries)
@@ -38,15 +52,16 @@ Artists mint master NFTs they own forever. Fans buy renewable time-limited licen
 
 ### Music Streaming & Play Tracking
 
-On-chain play recording with artist royalty distribution via PlayOracleV2 contract. Streaming plays earn TOURS rewards for both artists and listeners.
+On-chain play recording with artist royalty distribution via PlayOracleV3 contract. Streaming plays earn TOURS rewards for both artists and listeners.
 
 ### Live Radio
 
-Community radio station with on-chain listener tracking via LiveRadio contract.
+Community radio station with on-chain listener tracking via LiveRadioV3 contract.
 
 - **Queue Songs** - Pay WMON to add licensed tracks to the live radio queue
 - **Voice Shoutouts** - Record and broadcast 3-5 second voice notes (WMON)
 - **Skip to Random** - On-chain random song skip powered by Pyth Entropy (1 MON)
+- **Tip Artists** - 100% of tips go directly to the artist
 - **Listener Rewards** - Earn TOURS tokens for tuning in
 
 ### Rock Climbing Adventures (ClimbingLocationsV2)
@@ -87,33 +102,302 @@ Create and sponsor community events with on-chain accountability.
 
 Natural language interface powered by Google Gemini for blockchain interactions. Chat with the oracle to mint passports, check balances, explore music, and interact with all platform features.
 
-### MirrorMate
-
-Social matching system for tour guide discovery and community connections.
-
-### Daily Lottery
-
-On-chain lottery with automated daily drawings and winner announcements.
-
 ### Delegation System (Gasless Transactions)
 
 User-grants-permission model allowing gasless transactions for 24 hours (max 100 transactions) via Safe Smart Accounts + Pimlico bundler. All platform actions are gasless for delegated users.
 
 ---
 
-## Token Economy
+## Economics & Payouts
 
-**WMON (Wrapped Monad):** Used for all payments - music licenses, radio queue, location creation, experience purchases, event sponsorship.
+Every payment on EmpowerTours is handled by verified smart contracts on Monad. All splits are enforced on-chain — no manual payouts, no minimums, no delays.
 
-**TOURS Token:** Reward token earned from streaming plays, journal entries, listener rewards, and platform engagement. Wrappable to vTOURS for governance voting.
+### 1. Music License Purchase
 
-**MON:** Native Monad token used for Pyth Entropy randomness (Skip to Random, journal rewards).
+**Contract**: `EmpowerToursNFT` — [`0xB9B3acf33439360B55d12429301E946f34f3B73F`](https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F)
+
+| Detail | Value |
+|--------|-------|
+| Minimum price | 35 WMON |
+| Artist share | **70%** |
+| Platform share | **30%** |
+
+**Worked example:**
+> Fan buys a music license at 35 WMON.
+> - Artist receives **24.5 WMON** (70%)
+> - Platform receives **10.5 WMON** (30%)
+>
+> Artist wallet is credited instantly in the same transaction.
 
 ---
 
-## Architecture
+### 2. Radio Queue & Tips
 
-### Tech Stack
+**Contract**: `LiveRadioV3` — [`0x042EDF80713e6822a891e4e8a0800c332B8200fd`](https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd)
+
+| Detail | Value |
+|--------|-------|
+| Queue fee | 1 WMON per song |
+| Artist share (queue) | **70%** (0.70 WMON) |
+| Platform safe | **15%** (0.15 WMON) |
+| Platform wallet | **15%** (0.15 WMON) |
+| Tips | **100% to artist** |
+| Voice note shoutout | 0.5–2 WMON |
+
+**Worked example:**
+> Fan queues a song for 1 WMON and adds a 0.5 WMON tip.
+> - Queue split: Artist gets **0.70 WMON**, platform safe gets **0.15 WMON**, platform wallet gets **0.15 WMON**
+> - Tip: Artist gets **0.50 WMON** (100%)
+> - **Artist total: 1.20 WMON**
+
+License holders can queue for free. Random song selection uses Pyth Entropy.
+
+---
+
+### 3. Monthly Subscription Pool
+
+**Contract**: `MusicSubscriptionV5` — [`0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19`](https://monadscan.com/address/0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19)
+
+**Subscription Tiers:**
+
+| Tier | Price (WMON) |
+|------|-------------|
+| Daily | 15 |
+| Weekly | 75 |
+| Monthly | 300 |
+| Yearly | 3,000 |
+
+**Revenue Split:**
+
+| Destination | Share |
+|-------------|-------|
+| Artist Pool | **70%** |
+| Reserve (DAO) | **20%** |
+| Treasury | **10%** |
+
+**How artist payouts work:**
+
+Each artist's share of the pool is proportional to their plays that month:
+
+```
+Artist payout = (artist's plays / total plays) × artist pool amount
+```
+
+**Worked example:**
+> Monthly subscription revenue = 10,000 WMON
+> - Artist pool = **7,000 WMON** (70%)
+> - Reserve (DAO) = 2,000 WMON (20%)
+> - Treasury = 1,000 WMON (10%)
+>
+> If an artist had 500 plays out of 5,000 total plays (10%):
+> - Artist earns **700 WMON** (10% of 7,000)
+>
+> Artists can claim anytime after the month is finalized. **No minimum withdrawal.**
+
+---
+
+### 4. Play Tracking (Oracle)
+
+**Contract**: `PlayOracleV3` — [`0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf`](https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf)
+
+Every music play is recorded on-chain through the Play Oracle, which feeds into the subscription pool for revenue distribution.
+
+**Anti-spam rules:**
+
+| Rule | Limit |
+|------|-------|
+| Minimum play duration | 30 seconds |
+| Replay cooldown (same song) | 5 minutes |
+| Max plays per user per day | 500 |
+| Max plays per song per user per day | 100 |
+
+Plays are validated by the oracle before being counted toward an artist's monthly pool share.
+
+---
+
+### 5. Itinerary Purchase
+
+**Contract**: `ItineraryNFTV2` — [`0x97529316356A5bcAd81D85E9a0eF941958c4b020`](https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020)
+
+| Detail | Value |
+|--------|-------|
+| Price | Set by creator |
+| Creator share | **70%** |
+| Platform share | **30%** |
+
+**Worked example:**
+> Creator prices an itinerary at 50 WMON.
+> - Creator receives **35 WMON** (70%)
+> - Platform receives **15 WMON** (30%)
+
+Itinerary buyers can track GPS-verified journeys with photo proof checkpoints.
+
+---
+
+### 6. Climbing Locations
+
+**Contract**: `ClimbingLocationsV2` — [`0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3`](https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3)
+
+| Action | Cost | Split |
+|--------|------|-------|
+| Create location | 35 WMON | — |
+| Access badge | Creator-set price | **70% creator / 30% platform** |
+| Climb proof journal | Free (earns TOURS) | — |
+
+Climbing locations use a dual-NFT system:
+- **Access Badge NFTs** (token IDs 1–999,999) — minted on location purchase
+- **Climb Proof NFTs** (token IDs 1,000,000+) — minted on journal submission with photo proof
+
+Journal entries earn TOURS rewards with a random 1–10x multiplier.
+
+---
+
+### 7. TOURS Rewards
+
+**Contract**: `ToursRewardManager` — [`0x7fff35BB27307806B92Fb1D1FBe52D168093eF87`](https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87)
+
+TOURS is the platform reward token with a **Bitcoin-style halving** schedule.
+
+**Listener / Fan Rewards:**
+
+| Action | TOURS Earned |
+|--------|-------------|
+| Listen to a song | 0.1 |
+| First listen of the day | 5 |
+| Submit a voice note | 1 |
+| 7-day listening streak | 10 |
+| Complete an itinerary | 50 |
+
+**Artist Rewards:**
+
+| Action | TOURS Earned | Requirements |
+|--------|-------------|--------------|
+| Monthly artist reward | 1 | ≥10 Masters uploaded + ≥100 lifetime plays |
+
+**Halving schedule:**
+- Rewards halve every ~365 days (epoch-based)
+- Minimum reward floor prevents dust amounts
+- DAO can override rates via governance
+
+---
+
+### 8. Wallet & Gas
+
+EmpowerTours uses **gasless transactions** — users never pay gas fees or approve tokens manually.
+
+| Detail | How It Works |
+|--------|-------------|
+| **Wallet** | Farcaster embedded wallet — no MetaMask, no browser extensions needed |
+| **Gas fees** | All gas paid by the platform via Safe Smart Accounts + Pimlico (ERC-4337) |
+| **Token approvals** | No manual approvals — gasless delegation covers all on-chain actions |
+| **Wallet connection** | Automatic through Farcaster Frame SDK — no seed phrases, no popups |
+
+> There is no wallet connection prompt, no token approval popups, and no minimum payout threshold. Artists receive their share in the same transaction as the fan's payment.
+
+---
+
+## Architecture Diagrams
+
+### Music License Purchase Flow
+
+```mermaid
+flowchart LR
+    Fan([Fan]) -->|Pays 35+ WMON| Contract[EmpowerToursNFT]
+    Contract -->|70%| Artist([Artist Wallet])
+    Contract -->|30%| Platform([Platform])
+    Contract -->|NFT| Fan
+```
+
+### Radio Queue & Payment Flow
+
+```mermaid
+flowchart LR
+    Fan([Fan]) -->|1 WMON queue fee| Radio[LiveRadioV3]
+    Fan -.->|Optional tip| Radio
+    Radio -->|70% of queue| Artist([Artist])
+    Radio -->|15%| Safe([Platform Safe])
+    Radio -->|15%| Wallet([Platform Wallet])
+    Radio -->|100% of tip| Artist
+```
+
+### Monthly Subscription Cycle
+
+```mermaid
+flowchart TD
+    S1([Subscriber]) -->|15-3000 WMON| Pool[MusicSubscriptionV5]
+    S2([Subscriber]) -->|15-3000 WMON| Pool
+    S3([Subscriber]) -->|15-3000 WMON| Pool
+    Pool -->|70%| ArtistPool[Artist Pool]
+    Pool -->|20%| Reserve[Reserve / DAO]
+    Pool -->|10%| Treasury[Treasury]
+    ArtistPool -->|plays / total plays| A1([Artist A])
+    ArtistPool -->|plays / total plays| A2([Artist B])
+    ArtistPool -->|plays / total plays| A3([Artist C])
+```
+
+### Play Recording Pipeline
+
+```mermaid
+flowchart LR
+    User([User plays song]) -->|API call| Oracle[PlayOracleV3]
+    Oracle -->|Validates: 30s min, cooldown, limits| Check{Valid?}
+    Check -->|Yes| Record[MusicSubscriptionV5]
+    Check -->|No| Reject([Rejected])
+    Record -->|Increments play count| MonthPool[Monthly Pool]
+    MonthPool -->|Month finalized| Distribute([Artist claims payout])
+```
+
+### Gasless Delegation Flow
+
+```mermaid
+flowchart LR
+    User([User signs action]) -->|Delegation| Safe[Safe Smart Account]
+    Safe -->|UserOperation| Bundler[Pimlico Bundler]
+    Bundler -->|Pays gas| Monad([Monad Network])
+    Monad -->|Tx executed| Contract([Target Contract])
+```
+
+### TOURS Reward System
+
+```mermaid
+flowchart TD
+    Actions[User Actions] -->|Listen, Voice Note, Streak...| Manager[ToursRewardManager]
+    Manager -->|Check epoch| Halving{Halving applied?}
+    Halving -->|Current rate| Mint[TOURS to user]
+    Halving -->|Halved rate| Mint
+    Schedule[~365 day epochs] -.->|Halving trigger| Halving
+```
+
+---
+
+## Deployed Contracts (V3)
+
+All contracts are deployed on **Monad Testnet** and verifiable on MonadScan.
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| EmpowerToursNFT | [`0xB9B3acf33439360B55d12429301E946f34f3B73F`](https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F) | Music license NFT sales (70/30 split) |
+| LiveRadioV3 | [`0x042EDF80713e6822a891e4e8a0800c332B8200fd`](https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd) | Decentralized radio queue, tips, voice notes |
+| MusicSubscriptionV5 | [`0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19`](https://monadscan.com/address/0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19) | Subscription pool with monthly artist payouts |
+| PlayOracleV3 | [`0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf`](https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf) | On-chain play tracking and anti-spam |
+| ItineraryNFTV2 | [`0x97529316356A5bcAd81D85E9a0eF941958c4b020`](https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020) | Travel itinerary NFT marketplace |
+| ClimbingLocationsV2 | [`0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3`](https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3) | Climbing location database with dual-NFT system |
+| ToursRewardManager | [`0x7fff35BB27307806B92Fb1D1FBe52D168093eF87`](https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87) | TOURS reward distribution with halving |
+| ToursToken | [`0xf61F2b014e38FfEf66a3A0a8104D36365404f74f`](https://monadscan.com/address/0xf61F2b014e38FfEf66a3A0a8104D36365404f74f) | ERC-20 platform reward token |
+| WMON | [`0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A`](https://monadscan.com/address/0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A) | Wrapped Monad (payment token) |
+| PassportNFT | [`0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4`](https://monadscan.com/address/0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4) | Travel passport NFTs (195 countries) |
+| Platform Safe | [`0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA`](https://monadscan.com/address/0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA) | Treasury & platform operations |
+
+### Companion Services
+
+| Service | Purpose |
+|---------|---------|
+| [EmpowerTours Bot](https://t.me/AI_RobotExpert_bot) | Telegram bot for rock climbing & TOURS rewards |
+| [Envio Indexer](./empowertours-envio/) | GraphQL event indexing for all contracts |
+
+---
+
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -127,29 +411,6 @@ User-grants-permission model allowing gasless transactions for 24 hours (max 100
 | AI | Google Gemini |
 | Randomness | Pyth Entropy |
 | APIs | Neynar (Farcaster), IPInfo (Geolocation), Google Maps |
-
-### Smart Contracts (Monad - Chain ID 143)
-
-| Contract | Address | Purpose |
-|----------|---------|---------|
-| ToursToken | `0xf61F2b014e38FfEf66a3A0a8104D36365404f74f` | ERC-20 platform reward token |
-| WMON | `0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A` | Wrapped Monad (payment token) |
-| PassportNFT | `0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4` | Travel passport NFTs (195 countries) |
-| EmpowerToursNFTV2 | `0xB9B3acf33439360B55d12429301E946f34f3B73F` | Music master NFTs |
-| ItineraryNFT | `0x59414599d8e6B6E453c814f55e42Fd5aa3038949` | AI-generated travel itinerary NFTs |
-| MusicSubscriptionV3 | `0x796eF7281A85D3ddf17eB96a7ED62B22BD2764fB` | Music subscription & licensing |
-| PlayOracleV2 | `0x424b2a28EDd73cb8994390a33Fe00b3b6E09AEd8` | On-chain play recording & royalties |
-| LiveRadio | `0x72Ddd7DBbD2af4DBfa4331D885Cfe68a82317B21` | Live radio streaming & queue |
-| ClimbingLocationsV2 | `0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3` | Rock climbing locations, badges & proofs |
-| Platform Safe | `0xf3b9D123E7Ac8C36FC9B5AB32135c665956725bA` | Treasury & platform operations |
-
-### Companion Services
-
-| Service | Purpose |
-|---------|---------|
-| [EmpowerTours Bot](https://t.me/AI_RobotExpert_bot) | Telegram bot for rock climbing & TOURS rewards |
-| [Envio Indexer](./empowertours-envio/) | GraphQL event indexing for all contracts |
-| [Cron Service](./cron-service/) | Scheduled tasks (lottery, cleanup) |
 
 ---
 
@@ -165,14 +426,13 @@ fcempowertours/
 │   │   ├── climbing/           # Rock climbing locations
 │   │   ├── events/             # Event management
 │   │   ├── sponsorship/        # Event sponsorship
-│   │   ├── lottery/            # Daily lottery
 │   │   ├── music/              # Music catalog
 │   │   ├── mint-passport/      # Passport minting
 │   │   ├── mint-music/         # Music NFT minting
 │   │   ├── record-play/        # Play tracking
 │   │   └── ...
 │   ├── components/
-│   │   └── oracle/             # 19 UI components
+│   │   └── oracle/             # UI components
 │   │       ├── LiveRadioModal.tsx
 │   │       ├── DAOModal.tsx
 │   │       ├── RockClimbingModal.tsx
@@ -180,16 +440,28 @@ fcempowertours/
 │   │       ├── MusicSubscriptionModal.tsx
 │   │       ├── PassportMintModal.tsx
 │   │       ├── EventOracle.tsx
-│   │       ├── MirrorMate.tsx
 │   │       └── ...
 │   ├── experiences/            # Experience pages
 │   ├── oracle/                 # AI Oracle page
 │   ├── dashboard/              # User dashboard
 │   └── ...                     # 25+ page routes
 ├── contracts/                  # Solidity smart contracts
+│   ├── LiveRadioV3.sol
+│   ├── MusicSubscriptionV5.sol
+│   ├── PlayOracleV3.sol
+│   ├── ClimbingLocationsV2.sol
+│   ├── ItineraryNFTV2.sol
+│   ├── ToursRewardManager.sol
+│   ├── EmpowerToursNFTV3.sol
+│   ├── PassportNFTV3.sol
+│   ├── ToursTokenV2.sol
+│   ├── VotingTOURS.sol
+│   ├── EmpowerToursGovernor.sol
+│   └── ...
 ├── empowertours-envio/         # Envio indexer config
-├── cron-service/               # Scheduled tasks
 ├── lib/                        # Shared utilities & ABIs
+├── docs/                       # GitHub Pages site
+│   └── index.html
 └── public/                     # Static assets
 ```
 
@@ -246,12 +518,6 @@ railway login
 railway link
 railway up
 ```
-
----
-
-## Roadmap
-
-See [empowertours-dev-studio](https://github.com/EmpowerTours/empowertours-dev-studio) for upcoming DAO governance, smart contract factory, and AI-assisted development tools.
 
 ---
 

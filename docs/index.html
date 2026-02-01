@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EmpowerTours — Decentralized Music, Travel & Climbing on Monad</title>
+<meta name="description" content="Stream music, sell itineraries, and discover climbing locations on Monad. Artists earn 70%. Gasless. On-chain.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --void:#0a0a0f;
+  --void-light:#12121a;
+  --void-mid:#1a1a28;
+  --cyan:#00e5ff;
+  --cyan-dim:rgba(0,229,255,.12);
+  --amber:#ffab40;
+  --amber-dim:rgba(255,171,64,.1);
+  --purple:#9c6cff;
+  --purple-dim:rgba(156,108,255,.1);
+  --text:#e8e6e3;
+  --text-dim:#8a8693;
+  --text-muted:#5a5567;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'DM Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+}
+html{scroll-behavior:smooth;background:var(--void);color:var(--text);font-family:var(--sans);font-size:16px;-webkit-font-smoothing:antialiased}
+body{overflow-x:hidden;background:var(--void)}
+a{color:var(--cyan);text-decoration:none;transition:color .2s}
+a:hover{color:var(--amber)}
+
+/* === NAV === */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1.25rem 2rem;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(20px);background:rgba(10,10,15,.7);border-bottom:1px solid rgba(255,255,255,.04);transition:all .3s}
+nav.scrolled{padding:.75rem 2rem;background:rgba(10,10,15,.92)}
+.nav-logo{font-family:var(--serif);font-size:1.35rem;color:var(--text);letter-spacing:-.02em}
+.nav-logo span{color:var(--cyan)}
+.nav-links{display:flex;gap:2rem;align-items:center}
+.nav-links a{font-size:.85rem;font-weight:500;color:var(--text-dim);letter-spacing:.03em;text-transform:uppercase;transition:color .25s}
+.nav-links a:hover{color:var(--cyan)}
+.nav-cta{background:var(--cyan);color:var(--void);padding:.55rem 1.5rem;border-radius:4px;font-weight:600;font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;transition:all .25s}
+.nav-cta:hover{background:var(--amber);color:var(--void);transform:translateY(-1px)}
+.nav-toggle{display:none;background:none;border:none;color:var(--text);font-size:1.5rem;cursor:pointer}
+
+/* === HERO === */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:6rem 2rem 4rem}
+.hero-canvas{position:absolute;inset:0;z-index:0}
+.hero-canvas canvas{width:100%;height:100%}
+.hero-overlay{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,transparent 0%,var(--void) 70%);z-index:1}
+.hero-content{position:relative;z-index:2;text-align:center;max-width:900px}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem 1rem;border:1px solid rgba(0,229,255,.2);border-radius:100px;font-size:.75rem;font-weight:500;color:var(--cyan);letter-spacing:.08em;text-transform:uppercase;margin-bottom:2rem;background:var(--cyan-dim)}
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-family:var(--serif);font-size:clamp(3.5rem,8vw,7.5rem);line-height:.92;letter-spacing:-.04em;margin-bottom:1.5rem;color:var(--text)}
+.hero h1 em{font-style:italic;color:var(--cyan)}
+.hero-sub{font-size:clamp(1rem,2vw,1.25rem);color:var(--text-dim);line-height:1.7;max-width:600px;margin:0 auto 2.5rem;font-weight:300}
+.hero-actions{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.btn-primary{background:var(--cyan);color:var(--void);padding:.9rem 2.5rem;border-radius:4px;font-weight:600;font-size:.9rem;letter-spacing:.04em;transition:all .3s;display:inline-flex;align-items:center;gap:.5rem}
+.btn-primary:hover{background:#fff;color:var(--void);transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,229,255,.25)}
+.btn-secondary{border:1px solid rgba(255,255,255,.15);color:var(--text-dim);padding:.9rem 2.5rem;border-radius:4px;font-weight:500;font-size:.9rem;letter-spacing:.04em;transition:all .3s}
+.btn-secondary:hover{border-color:var(--cyan);color:var(--cyan)}
+.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:4rem;padding-top:3rem;border-top:1px solid rgba(255,255,255,.06)}
+.hero-stat{text-align:center}
+.hero-stat .num{font-family:var(--mono);font-size:1.8rem;font-weight:600;color:var(--cyan)}
+.hero-stat .label{font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;margin-top:.3rem}
+
+/* === SECTIONS === */
+section{padding:7rem 2rem}
+.section-inner{max-width:1200px;margin:0 auto}
+.section-label{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:1rem;display:flex;align-items:center;gap:.75rem}
+.section-label::before{content:'';width:2rem;height:1px;background:var(--cyan)}
+.section-title{font-family:var(--serif);font-size:clamp(2.2rem,4vw,3.5rem);line-height:1.1;letter-spacing:-.03em;margin-bottom:1rem}
+.section-desc{font-size:1.05rem;color:var(--text-dim);line-height:1.7;max-width:550px;margin-bottom:3rem}
+
+/* === DIAGONAL DIVIDER === */
+.divider{height:120px;background:linear-gradient(to bottom right,var(--void) 49.5%,var(--void-light) 50.5%);margin:0 -2rem}
+.divider-rev{height:120px;background:linear-gradient(to bottom left,var(--void-light) 49.5%,var(--void) 50.5%);margin:0 -2rem}
+
+/* === HOW IT WORKS === */
+.how-section{background:var(--void-light)}
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem}
+.how-card{position:relative;padding:2.5rem 2rem;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:var(--void);transition:all .4s;overflow:hidden}
+.how-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));opacity:0;transition:opacity .4s}
+.how-card:hover{border-color:rgba(0,229,255,.15);transform:translateY(-4px)}.how-card:hover::before{opacity:1}
+.how-card .icon{width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:1.5rem}
+.how-card:nth-child(1) .icon{background:var(--cyan-dim);color:var(--cyan)}
+.how-card:nth-child(2) .icon{background:var(--amber-dim);color:var(--amber)}
+.how-card:nth-child(3) .icon{background:var(--purple-dim);color:var(--purple)}
+.how-card h3{font-family:var(--serif);font-size:1.5rem;margin-bottom:.75rem;letter-spacing:-.01em}
+.how-card p{color:var(--text-dim);line-height:1.65;font-size:.95rem}
+
+/* === FOR ARTISTS / FANS === */
+.audience-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:start}
+.audience-card{padding:3rem;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:var(--void-light)}
+.audience-card h3{font-family:var(--serif);font-size:2rem;margin-bottom:.5rem}
+.audience-card .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:2rem;text-transform:uppercase;letter-spacing:.08em}
+.audience-card ul{list-style:none;display:flex;flex-direction:column;gap:1rem}
+.audience-card li{display:flex;align-items:flex-start;gap:.75rem;font-size:.95rem;line-height:1.5;color:var(--text-dim)}
+.audience-card li::before{content:'';flex-shrink:0;width:8px;height:8px;border-radius:2px;margin-top:7px}
+.audience-card:first-child li::before{background:var(--amber)}
+.audience-card:last-child li::before{background:var(--cyan)}
+
+/* === PAYOUT RATES === */
+.payout-section{background:var(--void-light)}
+.payout-grid{display:flex;flex-direction:column;gap:2rem}
+.payout-card{display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;background:var(--void);transition:border-color .3s}
+.payout-card:hover{border-color:rgba(0,229,255,.12)}
+.payout-left{padding:2rem;display:flex;flex-direction:column;justify-content:center;border-right:1px solid rgba(255,255,255,.04);background:rgba(255,255,255,.01)}
+.payout-left h3{font-family:var(--serif);font-size:1.35rem;margin-bottom:.35rem}
+.payout-left .contract-addr{font-family:var(--mono);font-size:.65rem;color:var(--text-muted);word-break:break-all;transition:color .2s}
+.payout-left .contract-addr:hover{color:var(--cyan)}
+.payout-right{padding:2rem}
+.payout-right table{width:100%;border-collapse:collapse}
+.payout-right th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);padding-bottom:.75rem;border-bottom:1px solid rgba(255,255,255,.06);font-weight:500}
+.payout-right td{padding:.6rem 1rem .6rem 0;font-size:.9rem;color:var(--text-dim);border-bottom:1px solid rgba(255,255,255,.03)}
+.payout-right td:first-child{color:var(--text);font-weight:500}
+.payout-right .highlight{color:var(--cyan);font-family:var(--mono);font-weight:600}
+.payout-right .amber{color:var(--amber)}
+.payout-example{margin-top:1.25rem;padding:1rem 1.25rem;background:var(--cyan-dim);border-left:2px solid var(--cyan);border-radius:0 4px 4px 0;font-size:.85rem;line-height:1.6;color:var(--text-dim)}
+.payout-example strong{color:var(--text);font-weight:600}
+
+/* TOURS rewards special card */
+.tours-table{width:100%;border-collapse:collapse;margin-bottom:1rem}
+.tours-table th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);padding-bottom:.5rem;border-bottom:1px solid rgba(255,255,255,.06);font-weight:500}
+.tours-table td{padding:.45rem 1rem .45rem 0;font-size:.85rem;color:var(--text-dim);border-bottom:1px solid rgba(255,255,255,.03)}
+.tours-table td:last-child{font-family:var(--mono);color:var(--amber);font-weight:600;text-align:right}
+
+/* Wallet card */
+.wallet-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.wallet-item{padding:1.25rem;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid rgba(255,255,255,.04)}
+.wallet-item h4{font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:.5rem}
+.wallet-item p{font-size:.9rem;color:var(--text);line-height:1.5}
+
+/* === ARCHITECTURE === */
+.arch-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+.arch-card{border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;background:var(--void-light)}
+.arch-card h3{font-family:var(--serif);font-size:1.15rem;padding:1.25rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.arch-card .mermaid{padding:1.5rem;font-size:.8rem;display:flex;justify-content:center}
+.arch-card .mermaid svg{max-width:100%;height:auto!important}
+
+/* === CONTRACTS TABLE === */
+.contracts-table{width:100%;border-collapse:collapse;border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden}
+.contracts-table thead{background:rgba(255,255,255,.03)}
+.contracts-table th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);padding:1rem 1.5rem;font-weight:500;border-bottom:1px solid rgba(255,255,255,.06)}
+.contracts-table td{padding:.9rem 1.5rem;font-size:.9rem;border-bottom:1px solid rgba(255,255,255,.03)}
+.contracts-table tr:last-child td{border-bottom:none}
+.contracts-table .name{font-weight:600;color:var(--text)}
+.contracts-table .addr{font-family:var(--mono);font-size:.72rem;color:var(--text-muted);transition:color .2s}
+.contracts-table .addr:hover{color:var(--cyan)}
+.contracts-table .purpose{color:var(--text-dim)}
+
+/* === FOOTER === */
+footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:center}
+.footer-inner{max-width:1200px;margin:0 auto}
+.footer-links{display:flex;justify-content:center;gap:2.5rem;margin-bottom:2rem}
+.footer-links a{font-size:.85rem;color:var(--text-muted);font-weight:500;transition:color .2s}
+.footer-links a:hover{color:var(--cyan)}
+.footer-tagline{font-family:var(--serif);font-size:1rem;color:var(--text-muted);font-style:italic}
+
+/* === SCROLL REVEAL === */
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:.1s}
+.reveal-delay-2{transition-delay:.2s}
+.reveal-delay-3{transition-delay:.3s}
+
+/* === RESPONSIVE === */
+@media(max-width:1024px){
+  .how-grid{grid-template-columns:1fr 1fr}
+  .audience-grid{grid-template-columns:1fr}
+  .payout-card{grid-template-columns:1fr}
+  .payout-left{border-right:none;border-bottom:1px solid rgba(255,255,255,.04)}
+  .arch-grid{grid-template-columns:1fr}
+  .wallet-grid{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  nav{padding:1rem}
+  .nav-links{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;background:rgba(10,10,15,.97);padding:1.5rem;gap:1.25rem;border-bottom:1px solid rgba(255,255,255,.06)}
+  .nav-links.open{display:flex}
+  .nav-toggle{display:block}
+  .hero{min-height:auto;padding:8rem 1.5rem 4rem}
+  .hero-stats{flex-direction:column;gap:1.5rem}
+  .how-grid{grid-template-columns:1fr}
+  section{padding:4rem 1.5rem}
+  .divider,.divider-rev{height:60px}
+  .contracts-table{font-size:.8rem}
+  .contracts-table th,.contracts-table td{padding:.7rem .75rem}
+  .footer-links{flex-direction:column;gap:1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="#" class="nav-logo">Empower<span>Tours</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="#how">How It Works</a>
+    <a href="#payouts">Payouts</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#contracts">Contracts</a>
+    <a href="https://fcempowertours-production-6551.up.railway.app" class="nav-cta" target="_blank" rel="noopener">Launch App</a>
+  </div>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">&#9776;</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="hero-canvas" id="heroCanvas"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-badge">Live on Monad Testnet</div>
+    <h1>Empower<em>Tours</em></h1>
+    <p class="hero-sub">Decentralized music streaming, travel itineraries, and climbing adventures on Monad. Artists earn 70%. Fans pay zero gas. Everything on-chain.</p>
+    <div class="hero-actions">
+      <a href="https://fcempowertours-production-6551.up.railway.app" class="btn-primary" target="_blank" rel="noopener">Launch App &rarr;</a>
+      <a href="#payouts" class="btn-secondary">View Payout Rates</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">70%</div><div class="label">To Artists</div></div>
+      <div class="hero-stat"><div class="num">0</div><div class="label">Gas Fees for Users</div></div>
+      <div class="hero-stat"><div class="num">7</div><div class="label">Verified Contracts</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- DIVIDER -->
+<div class="divider"></div>
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="how">
+  <div class="section-inner">
+    <div class="section-label reveal">How It Works</div>
+    <h2 class="section-title reveal">Three ways to participate</h2>
+    <p class="section-desc reveal">Every interaction is settled on Monad. Every payment split is enforced by smart contracts. No middlemen.</p>
+    <div class="how-grid">
+      <div class="how-card reveal reveal-delay-1">
+        <div class="icon">&#9835;</div>
+        <h3>Listen & Earn</h3>
+        <p>Stream music from independent artists. Earn TOURS rewards for every play, daily first-listens, and listening streaks. Subscribe for unlimited access across tiers.</p>
+      </div>
+      <div class="how-card reveal reveal-delay-2">
+        <div class="icon">&#9998;</div>
+        <h3>Create & Sell</h3>
+        <p>Upload music as on-chain licenses, build travel itineraries, or share climbing locations. Keep 70% of every sale automatically &mdash; paid in the same transaction.</p>
+      </div>
+      <div class="how-card reveal reveal-delay-3">
+        <div class="icon">&#9968;</div>
+        <h3>Explore & Climb</h3>
+        <p>Discover GPS-verified travel itineraries and rock climbing locations. Complete journeys with photo-proof checkpoints. Earn TOURS with random multipliers.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider-rev"></div>
+
+<!-- FOR ARTISTS & FANS -->
+<section id="audience">
+  <div class="section-inner">
+    <div class="section-label reveal">Who It's For</div>
+    <h2 class="section-title reveal">Built for creators and explorers</h2>
+    <div class="audience-grid" style="margin-top:3rem">
+      <div class="audience-card reveal">
+        <h3>For Artists</h3>
+        <div class="subtitle">Creators &middot; Musicians &middot; Guides</div>
+        <ul>
+          <li><strong>70% of every sale</strong> &mdash; music licenses, itineraries, climbing access badges</li>
+          <li><strong>Subscription pool payouts</strong> &mdash; monthly revenue split by your play count share</li>
+          <li><strong>TOURS rewards</strong> &mdash; earn monthly artist rewards for active catalogs</li>
+          <li><strong>No minimum withdrawal</strong> &mdash; claim anytime after month finalization</li>
+          <li><strong>Gasless transactions</strong> &mdash; platform covers all gas via account abstraction</li>
+          <li><strong>100% of tips</strong> &mdash; fan tips on radio go directly to your wallet</li>
+        </ul>
+      </div>
+      <div class="audience-card reveal reveal-delay-1">
+        <h3>For Fans</h3>
+        <div class="subtitle">Listeners &middot; Travelers &middot; Climbers</div>
+        <ul>
+          <li><strong>No gas fees</strong> &mdash; every action is gasless via Safe + Pimlico (ERC-4337)</li>
+          <li><strong>No wallet setup</strong> &mdash; Farcaster embedded wallet, no MetaMask needed</li>
+          <li><strong>Earn TOURS by listening</strong> &mdash; 0.1 per song, 5 for first listen/day, streak bonuses</li>
+          <li><strong>Subscription access</strong> &mdash; daily, weekly, monthly, or yearly plans for all music</li>
+          <li><strong>Tip artists directly</strong> &mdash; 100% goes to the artist, zero platform cut</li>
+          <li><strong>No token approvals</strong> &mdash; no popups, no signing prompts, no seed phrases</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PAYOUT RATES -->
+<section class="payout-section" id="payouts">
+  <div class="section-inner">
+    <div class="section-label reveal">Economics & Payouts</div>
+    <h2 class="section-title reveal">Transparent rates, verified on-chain</h2>
+    <p class="section-desc reveal">Every split is enforced by smart contracts on Monad. No manual payouts, no minimums, no delays. Verify any contract on MonadScan.</p>
+
+    <div class="payout-grid">
+
+      <!-- 1. Music License -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Music License Purchase</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F" target="_blank" rel="noopener">EmpowerToursNFT<br>0xB9B3...B73F</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Detail</th><th>Value</th></tr>
+            <tr><td>Minimum price</td><td class="highlight">35 WMON</td></tr>
+            <tr><td>Artist share</td><td class="highlight">70%</td></tr>
+            <tr><td>Platform share</td><td>30%</td></tr>
+          </table>
+          <div class="payout-example">
+            <strong>Example:</strong> Fan buys license at 35 WMON &rarr; Artist receives <strong>24.5 WMON</strong>, platform receives 10.5 WMON. Credited instantly in the same transaction.
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Radio Queue -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Radio Queue & Tips</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd" target="_blank" rel="noopener">LiveRadioV3<br>0x042E...00fd</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Detail</th><th>Value</th></tr>
+            <tr><td>Queue fee</td><td class="highlight">1 WMON per song</td></tr>
+            <tr><td>Artist share (queue)</td><td class="highlight">70% (0.70 WMON)</td></tr>
+            <tr><td>Platform safe</td><td>15% (0.15 WMON)</td></tr>
+            <tr><td>Platform wallet</td><td>15% (0.15 WMON)</td></tr>
+            <tr><td>Tips</td><td class="amber">100% to artist</td></tr>
+            <tr><td>Voice note shoutout</td><td>0.5&ndash;2 WMON</td></tr>
+          </table>
+          <div class="payout-example">
+            <strong>Example:</strong> Fan queues song for 1 WMON + 0.5 WMON tip &rarr; Artist gets <strong>0.70 + 0.50 = 1.20 WMON</strong>. License holders queue for free.
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Subscription -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Monthly Subscription Pool</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19" target="_blank" rel="noopener">MusicSubscriptionV5<br>0x5372...5f19</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Tier</th><th>Price (WMON)</th></tr>
+            <tr><td>Daily</td><td class="highlight">15</td></tr>
+            <tr><td>Weekly</td><td class="highlight">75</td></tr>
+            <tr><td>Monthly</td><td class="highlight">300</td></tr>
+            <tr><td>Yearly</td><td class="highlight">3,000</td></tr>
+          </table>
+          <table style="margin-top:1rem">
+            <tr><th>Revenue Split</th><th>Share</th></tr>
+            <tr><td>Artist Pool</td><td class="highlight">70%</td></tr>
+            <tr><td>Reserve (DAO)</td><td>20%</td></tr>
+            <tr><td>Treasury</td><td>10%</td></tr>
+          </table>
+          <div class="payout-example">
+            <strong>Example:</strong> Month revenue = 10,000 WMON &rarr; Artist pool = 7,000 WMON. Artist with 500 of 5,000 total plays (10%) earns <strong>700 WMON</strong>. Claim anytime, no minimum.
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Play Tracking -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Play Tracking (Oracle)</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf" target="_blank" rel="noopener">PlayOracleV3<br>0xe210...DCEf</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Anti-Spam Rule</th><th>Limit</th></tr>
+            <tr><td>Minimum play duration</td><td class="highlight">30 seconds</td></tr>
+            <tr><td>Replay cooldown (same song)</td><td class="highlight">5 minutes</td></tr>
+            <tr><td>Max plays / user / day</td><td class="highlight">500</td></tr>
+            <tr><td>Max plays / song / user / day</td><td class="highlight">100</td></tr>
+          </table>
+          <div class="payout-example">
+            Every play is validated on-chain before counting toward an artist's monthly pool share. This prevents gaming and ensures fair distribution.
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Itinerary -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Itinerary Purchase</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020" target="_blank" rel="noopener">ItineraryNFTV2<br>0x9752...b020</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Detail</th><th>Value</th></tr>
+            <tr><td>Price</td><td>Set by creator</td></tr>
+            <tr><td>Creator share</td><td class="highlight">70%</td></tr>
+            <tr><td>Platform share</td><td>30%</td></tr>
+          </table>
+          <div class="payout-example">
+            <strong>Example:</strong> Itinerary priced at 50 WMON &rarr; Creator receives <strong>35 WMON</strong>, platform receives 15 WMON. Buyers can track GPS-verified journeys with photo-proof checkpoints.
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Climbing -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Climbing Locations</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3" target="_blank" rel="noopener">ClimbingLocationsV2<br>0x23e4...CBc3</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Action</th><th>Cost</th><th>Split</th></tr>
+            <tr><td>Create location</td><td class="highlight">35 WMON</td><td>&mdash;</td></tr>
+            <tr><td>Access badge</td><td>Creator-set</td><td class="highlight">70 / 30</td></tr>
+            <tr><td>Climb proof journal</td><td>Free</td><td class="amber">Earns TOURS</td></tr>
+          </table>
+          <div class="payout-example">
+            Dual-NFT system: Access Badges (IDs 1&ndash;999,999) on purchase, Climb Proofs (IDs 1,000,000+) on journal submission. Journal entries earn TOURS with a random 1&ndash;10x multiplier.
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. TOURS Rewards -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>TOURS Rewards</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87" target="_blank" rel="noopener">ToursRewardManager<br>0x7fff...eF87</a>
+        </div>
+        <div class="payout-right">
+          <table class="tours-table">
+            <tr><th>Action</th><th style="text-align:right">TOURS</th></tr>
+            <tr><td>Listen to a song</td><td>0.1</td></tr>
+            <tr><td>First listen of the day</td><td>5</td></tr>
+            <tr><td>Submit voice note</td><td>1</td></tr>
+            <tr><td>7-day listening streak</td><td>10</td></tr>
+            <tr><td>Complete an itinerary</td><td>50</td></tr>
+            <tr><td>Artist monthly reward *</td><td>1</td></tr>
+          </table>
+          <div class="payout-example">
+            * Requires &ge;10 Masters uploaded + &ge;100 lifetime plays. <strong>Bitcoin-style halving</strong> every ~365 days (epoch-based). Minimum reward floor prevents dust. DAO can override rates.
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Wallet & Gas -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Wallet & Gas</h3>
+          <span class="contract-addr" style="color:var(--cyan)">Gasless by default</span>
+        </div>
+        <div class="payout-right">
+          <div class="wallet-grid">
+            <div class="wallet-item">
+              <h4>Wallet</h4>
+              <p>Farcaster embedded wallet &mdash; no MetaMask, no browser extensions, no seed phrases.</p>
+            </div>
+            <div class="wallet-item">
+              <h4>Gas Fees</h4>
+              <p>All gas paid by the platform via Safe Smart Accounts + Pimlico (ERC-4337 account abstraction).</p>
+            </div>
+            <div class="wallet-item">
+              <h4>Token Approvals</h4>
+              <p>No manual approvals needed. Gasless delegation covers all on-chain actions automatically.</p>
+            </div>
+            <div class="wallet-item">
+              <h4>Minimum Payout</h4>
+              <p>None. Artists receive their share in the same transaction as the fan's payment.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider-rev"></div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-inner">
+    <div class="section-label reveal">Architecture</div>
+    <h2 class="section-title reveal">System diagrams</h2>
+    <p class="section-desc reveal">On-chain payment flows verified by smart contracts on Monad Testnet.</p>
+
+    <div class="arch-grid">
+      <div class="arch-card reveal">
+        <h3>Music License Purchase</h3>
+        <pre class="mermaid">
+flowchart LR
+    Fan(["Fan"]) -->|"35+ WMON"| C["EmpowerToursNFT"]
+    C -->|"70%"| Artist(["Artist"])
+    C -->|"30%"| Platform(["Platform"])
+    C -->|"NFT"| Fan
+        </pre>
+      </div>
+      <div class="arch-card reveal reveal-delay-1">
+        <h3>Radio Queue & Tips</h3>
+        <pre class="mermaid">
+flowchart LR
+    Fan(["Fan"]) -->|"1 WMON"| R["LiveRadioV3"]
+    Fan -.->|"Tip"| R
+    R -->|"70%"| Artist(["Artist"])
+    R -->|"15%"| Safe(["Safe"])
+    R -->|"15%"| Wallet(["Wallet"])
+    R -->|"100% tip"| Artist
+        </pre>
+      </div>
+      <div class="arch-card reveal">
+        <h3>Monthly Subscription Cycle</h3>
+        <pre class="mermaid">
+flowchart TD
+    S1(["Subscribers"]) -->|"15-3000 WMON"| Pool["MusicSubscriptionV5"]
+    Pool -->|"70%"| AP["Artist Pool"]
+    Pool -->|"20%"| Res["Reserve / DAO"]
+    Pool -->|"10%"| Tr["Treasury"]
+    AP -->|"plays / total"| A1(["Artist A"])
+    AP -->|"plays / total"| A2(["Artist B"])
+        </pre>
+      </div>
+      <div class="arch-card reveal reveal-delay-1">
+        <h3>Play Recording Pipeline</h3>
+        <pre class="mermaid">
+flowchart LR
+    U(["User plays"]) -->|"API"| O["PlayOracleV3"]
+    O -->|"Validate"| V{"Valid?"}
+    V -->|"Yes"| Rec["SubscriptionV5"]
+    V -->|"No"| Rej(["Rejected"])
+    Rec -->|"Count"| MP["Monthly Pool"]
+        </pre>
+      </div>
+      <div class="arch-card reveal">
+        <h3>Gasless Delegation</h3>
+        <pre class="mermaid">
+flowchart LR
+    U(["User"]) -->|"Signs"| S["Safe Account"]
+    S -->|"UserOp"| B["Pimlico"]
+    B -->|"Pays gas"| M(["Monad"])
+    M -->|"Executes"| C(["Contract"])
+        </pre>
+      </div>
+      <div class="arch-card reveal reveal-delay-1">
+        <h3>TOURS Reward System</h3>
+        <pre class="mermaid">
+flowchart TD
+    A["User Actions"] -->|"Listen, Note..."| Mgr["RewardManager"]
+    Mgr -->|"Check epoch"| H{"Halving?"}
+    H -->|"Current"| T["TOURS to user"]
+    H -->|"Halved"| T
+    Ep["~365d epochs"] -.->|"Trigger"| H
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CONTRACTS TABLE -->
+<section class="payout-section" id="contracts">
+  <div class="section-inner">
+    <div class="section-label reveal">Smart Contracts</div>
+    <h2 class="section-title reveal">Deployed & verifiable</h2>
+    <p class="section-desc reveal">All contracts on Monad Testnet. Click any address to verify on MonadScan.</p>
+
+    <div style="overflow-x:auto" class="reveal">
+      <table class="contracts-table">
+        <thead>
+          <tr><th>Contract</th><th>Address</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">EmpowerToursNFT</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F" target="_blank" rel="noopener">0xB9B3acf33439360B55d12429301E946f34f3B73F</a></td>
+            <td class="purpose">Music license NFT sales (70/30 split)</td>
+          </tr>
+          <tr>
+            <td class="name">LiveRadioV3</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd" target="_blank" rel="noopener">0x042EDF80713e6822a891e4e8a0800c332B8200fd</a></td>
+            <td class="purpose">Radio queue, tips, voice notes</td>
+          </tr>
+          <tr>
+            <td class="name">MusicSubscriptionV5</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19" target="_blank" rel="noopener">0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19</a></td>
+            <td class="purpose">Subscription pool + artist payouts</td>
+          </tr>
+          <tr>
+            <td class="name">PlayOracleV3</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf" target="_blank" rel="noopener">0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf</a></td>
+            <td class="purpose">On-chain play tracking & anti-spam</td>
+          </tr>
+          <tr>
+            <td class="name">ItineraryNFTV2</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020" target="_blank" rel="noopener">0x97529316356A5bcAd81D85E9a0eF941958c4b020</a></td>
+            <td class="purpose">Travel itinerary marketplace</td>
+          </tr>
+          <tr>
+            <td class="name">ClimbingLocationsV2</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3" target="_blank" rel="noopener">0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3</a></td>
+            <td class="purpose">Climbing locations + dual-NFT system</td>
+          </tr>
+          <tr>
+            <td class="name">ToursRewardManager</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87" target="_blank" rel="noopener">0x7fff35BB27307806B92Fb1D1FBe52D168093eF87</a></td>
+            <td class="purpose">TOURS reward distribution + halving</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-links">
+      <a href="https://fcempowertours-production-6551.up.railway.app" target="_blank" rel="noopener">Launch App</a>
+      <a href="https://github.com/empowertours/fcempowertours" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://monad.xyz" target="_blank" rel="noopener">Monad</a>
+      <a href="#payouts">Payout Rates</a>
+      <a href="#contracts">Smart Contracts</a>
+    </div>
+    <p class="footer-tagline">Built on Monad for the Farcaster Community.</p>
+  </div>
+</footer>
+
+<!-- MERMAID -->
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#1a1a28',
+    primaryTextColor: '#e8e6e3',
+    primaryBorderColor: '#9c6cff',
+    lineColor: '#00e5ff',
+    secondaryColor: '#12121a',
+    tertiaryColor: '#0a0a0f',
+    edgeLabelBackground: '#12121a',
+    clusterBkg: '#1a1a28',
+    fontFamily: 'DM Sans, system-ui, sans-serif',
+    fontSize: '13px',
+    nodeTextColor: '#e8e6e3'
+  },
+  flowchart: {
+    curve: 'basis',
+    padding: 16,
+    htmlLabels: true
+  }
+});
+</script>
+
+<!-- HERO CANVAS: topographic contour lines -->
+<script>
+(function(){
+  const container = document.getElementById('heroCanvas');
+  const canvas = document.createElement('canvas');
+  container.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  let w, h, time = 0, animId;
+
+  function resize(){
+    w = canvas.width = container.offsetWidth;
+    h = canvas.height = container.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    const layers = 12;
+    for(let i = 0; i < layers; i++){
+      const t = time * 0.0004 + i * 0.3;
+      const alpha = 0.03 + (i / layers) * 0.04;
+      const hue = 180 + i * 8;
+      ctx.strokeStyle = `hsla(${hue}, 80%, 60%, ${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for(let x = 0; x <= w; x += 4){
+        const y = h * 0.5
+          + Math.sin(x * 0.003 + t) * (60 + i * 12)
+          + Math.sin(x * 0.007 - t * 0.7) * (30 + i * 8)
+          + Math.cos(x * 0.002 + t * 0.5) * (40 + i * 6);
+        if(x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    time++;
+    animId = requestAnimationFrame(draw);
+  }
+  draw();
+
+  const observer = new IntersectionObserver(([entry]) => {
+    if(entry.isIntersecting){ if(!animId) draw(); }
+    else { cancelAnimationFrame(animId); animId = null; }
+  }, { threshold: 0.1 });
+  observer.observe(container);
+})();
+</script>
+
+<!-- NAV SCROLL + TOGGLE -->
+<script>
+(function(){
+  const nav = document.getElementById('nav');
+  const toggle = document.getElementById('navToggle');
+  const links = document.getElementById('navLinks');
+
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+  });
+
+  toggle.addEventListener('click', () => {
+    links.classList.toggle('open');
+  });
+
+  links.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', () => links.classList.remove('open'));
+  });
+})();
+</script>
+
+<!-- SCROLL REVEAL -->
+<script>
+(function(){
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting){
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  reveals.forEach(el => observer.observe(el));
+})();
+</script>
+
+</body>
+</html>
