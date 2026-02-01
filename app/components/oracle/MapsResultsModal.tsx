@@ -418,9 +418,10 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
         }
       }
 
-      // Build destination
-      const destination: any = source.placeId
-        ? { placeId: source.placeId }
+      // Build destination — strip "places/" prefix from Grounding API placeIds
+      const cleanPlaceId = source.placeId?.replace(/^places\//, '');
+      const destination: any = cleanPlaceId
+        ? { placeId: cleanPlaceId }
         : (() => {
             const details = source.placeId ? placeDetails[source.placeId] : null;
             return details?.location || source.title;

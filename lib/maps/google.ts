@@ -127,9 +127,10 @@ export class GoogleMapsProvider implements MapProvider {
     if (!GOOGLE_MAPS_SERVER_KEY) return null;
 
     try {
+      // Strip "places/" prefix from Grounding API placeIds
       const destStr =
         typeof destination === 'string'
-          ? `place_id:${destination}`
+          ? `place_id:${destination.replace(/^places\//, '')}`
           : `${destination.lat},${destination.lng}`;
 
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destStr}&key=${GOOGLE_MAPS_SERVER_KEY}`;

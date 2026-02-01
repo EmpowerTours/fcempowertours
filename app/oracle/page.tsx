@@ -564,7 +564,7 @@ export default function OraclePage() {
         // Add message with Maps data
         setMessages(prev => [...prev, {
           role: 'oracle',
-          content: `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
+          content: action.message || `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
           action,
           mapsSources,
           mapsWidgetToken,
