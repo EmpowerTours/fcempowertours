@@ -4300,78 +4300,65 @@ ${enjoyText}
         });
       }
 
-      // ==================== LIVE RADIO: SKIP TO RANDOM (PYTH ENTROPY) ====================
+      // ==================== LIVE RADIO: SKIP TO RANDOM ====================
       case 'radio_skip_random': {
-        console.log('🎲 Action: radio_skip_random (Pyth Entropy)');
+        console.log('🎲 Action: radio_skip_random');
 
-        const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO as Address;
-        const SKIP_RANDOM_PRICE = parseEther('1'); // 1 MON covers Pyth fee (~0.4) + platform margin
+        const SKIP_PRICE = parseEther('1'); // 1 MON to skip
+        const SKIP_WMON = process.env.NEXT_PUBLIC_WMON as Address;
 
-        if (!LIVE_RADIO_ADDRESS) {
+        if (!SKIP_WMON) {
           return NextResponse.json(
-            { success: false, error: 'LiveRadio contract not configured' },
+            { success: false, error: 'WMON contract not configured' },
             { status: 500 }
           );
         }
 
-        // Get user's Safe address
-        const skipUserSafe = await getUserSafeAddress(userAddress as Address);
-        console.log('🎲 User Safe address:', skipUserSafe);
-
-        // Check if user Safe has enough MON
-        const { createPublicClient: createSkipClient, http: skipHttp } = await import('viem');
-        const { activeChain: skipActiveChain } = await import('@/app/chains');
-        const skipRpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC;
-        const skipPublicClient = createSkipClient({
-          chain: skipActiveChain,
-          transport: skipHttp(skipRpcUrl),
-        });
-
-        const safeMonBalance = await skipPublicClient.getBalance({ address: skipUserSafe });
-        console.log('🎲 Safe MON balance:', safeMonBalance.toString(), 'needed:', SKIP_RANDOM_PRICE.toString());
-
-        if (safeMonBalance < SKIP_RANDOM_PRICE) {
-          return NextResponse.json(
-            { success: false, error: `Insufficient balance. You need 1 MON to skip to random song.` },
-            { status: 400 }
-          );
-        }
-
-        // Check if song pool has songs before sending transaction
-        try {
-          const poolLength = await skipPublicClient.readContract({
-            address: LIVE_RADIO_ADDRESS,
-            abi: parseAbi(['function getSongPoolLength() external view returns (uint256)']),
-            functionName: 'getSongPoolLength',
-          });
-          console.log('🎲 Song pool length:', poolLength.toString());
-          if (poolLength === 0n) {
-            return NextResponse.json(
-              { success: false, error: 'No songs in the radio pool. Songs must be added before skipping.' },
-              { status: 400 }
-            );
-          }
-        } catch (poolCheckErr: any) {
-          console.warn('⚠️ Could not check song pool, proceeding:', poolCheckErr.message);
-        }
-
-        // Call requestRandomSong() on LiveRadioV3 with 1 MON
-        // The contract will pay Pyth Entropy fee and refund excess
-        const skipRandomCalls: Call[] = [
+        // Charge 1 MON: wrap to WMON and transfer to platform Safe
+        const skipCalls: Call[] = [
           {
-            to: LIVE_RADIO_ADDRESS,
-            value: SKIP_RANDOM_PRICE,
+            to: SKIP_WMON,
+            value: SKIP_PRICE,
             data: encodeFunctionData({
-              abi: parseAbi(['function requestRandomSong() external payable']),
-              functionName: 'requestRandomSong',
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          },
+          {
+            to: SKIP_WMON,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
+              functionName: 'transfer',
+              args: [SAFE_ACCOUNT, SKIP_PRICE],
             }) as Hex,
           },
         ];
 
-        const skipRandomTxHash = await executeTransaction(skipRandomCalls, userAddress as Address);
-        console.log('✅ Skip to random TX:', skipRandomTxHash);
+        const skipTxHash = await executeTransaction(skipCalls, userAddress as Address, SKIP_PRICE);
+        console.log('✅ Skip payment TX:', skipTxHash);
 
         await incrementTransactionCount(userAddress);
+
+        // Tell the live-radio API to skip to a new random song from Envio
+        let skipResult: any = null;
+        try {
+          const skipRes = await fetch(`${APP_URL}/api/live-radio`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'skip_to_random',
+              userAddress,
+              userFid: fid || 0,
+              txHash: skipTxHash,
+            }),
+          });
+          skipResult = await skipRes.json();
+          console.log('🎲 Skip result:', skipResult);
+        } catch (skipErr: any) {
+          console.error('🎲 Skip API call failed:', skipErr.message);
+        }
 
         // Post Farcaster cast about the skip (non-blocking)
         if (fid) {
@@ -4381,7 +4368,7 @@ ${enjoyText}
             body: JSON.stringify({
               type: 'radio_skip_random',
               fid,
-              txHash: skipRandomTxHash,
+              txHash: skipTxHash,
               userAddress,
             }),
           }).catch(err => console.error('[RadioSkip] Cast failed:', err.message));
@@ -4389,10 +4376,11 @@ ${enjoyText}
 
         return NextResponse.json({
           success: true,
-          txHash: skipRandomTxHash,
+          txHash: skipTxHash,
           action,
           userAddress,
-          message: 'Random song requested via Pyth Entropy! The song will be selected shortly.',
+          message: skipResult?.message || 'Skipped to new random song!',
+          song: skipResult?.song || null,
         });
       }
 

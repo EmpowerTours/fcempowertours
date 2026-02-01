@@ -864,6 +864,119 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Skip current song and play a new random one (called by execute-delegated after payment)
+    if (action === 'skip_to_random') {
+      const { txHash } = body;
+
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY);
+      if (!state || !state.isLive) {
+        return NextResponse.json(
+          { success: false, error: 'Radio is not live' },
+          { status: 400 }
+        );
+      }
+
+      // Fetch random song from Envio (same source the scheduler uses)
+      const ENVIO = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
+      let randomSong: any = null;
+      try {
+        const query = `
+          query GetMusicNFTs {
+            MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 100) {
+              tokenId
+              name
+              artist
+              artistFid
+              fullAudioUrl
+              imageUrl
+            }
+          }
+        `;
+        const envioRes = await fetch(ENVIO, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const envioData = await envioRes.json();
+        const songs = (envioData.data?.MusicNFT || []).filter(
+          (s: any) => s.fullAudioUrl && s.fullAudioUrl.length > 0
+        );
+
+        if (songs.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'No music NFTs available to play' },
+            { status: 400 }
+          );
+        }
+
+        // Pick random, try to avoid the currently playing song
+        let attempts = 0;
+        do {
+          randomSong = songs[Math.floor(Math.random() * songs.length)];
+          attempts++;
+        } while (
+          state.currentSong &&
+          randomSong.tokenId === state.currentSong.tokenId &&
+          songs.length > 1 &&
+          attempts < 5
+        );
+      } catch (envioErr: any) {
+        console.error('[LiveRadio] Envio fetch failed for skip:', envioErr.message);
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch available songs' },
+          { status: 500 }
+        );
+      }
+
+      // Update state with the new song
+      const now = Date.now();
+      state.currentSong = {
+        tokenId: randomSong.tokenId,
+        name: randomSong.name || `Song #${randomSong.tokenId}`,
+        artist: randomSong.artist || 'Unknown Artist',
+        artistAddress: randomSong.artist || '',
+        audioUrl: randomSong.fullAudioUrl,
+        imageUrl: randomSong.imageUrl || '',
+        queuedBy: userAddress,
+        queuedByFid: userFid || 0,
+        startedAt: now,
+        duration: 600, // 10 min fallback, client reports actual end
+        isRandom: true,
+      };
+      state.currentVoiceNote = null;
+      state.totalSongsPlayed = (state.totalSongsPlayed || 0) + 1;
+      state.lastUpdated = now;
+
+      await redis.set(RADIO_STATE_KEY, state);
+      await redis.set('live-radio:playback-phase', 'song');
+
+      // Log to play history
+      await redis.lpush('live-radio:play-history', JSON.stringify({
+        tokenId: randomSong.tokenId,
+        name: randomSong.name,
+        artist: randomSong.artist,
+        imageUrl: randomSong.imageUrl,
+        queuedBy: userAddress,
+        queuedByFid: userFid || 0,
+        playedAt: now,
+        isRandom: true,
+        skippedBy: userAddress,
+      }));
+      await redis.ltrim('live-radio:play-history', 0, 99);
+
+      // Broadcast to all listeners
+      broadcastRadioUpdate('state_update', { type: 'song_skipped', state });
+
+      console.log('[LiveRadio] Skipped to random song:', randomSong.name, 'by', userAddress);
+
+      return NextResponse.json({
+        success: true,
+        message: `Now playing: ${randomSong.name}`,
+        txHash,
+        song: state.currentSong,
+      });
+    }
+
     return NextResponse.json(
       { success: false, error: 'Unknown action' },
       { status: 400 }
