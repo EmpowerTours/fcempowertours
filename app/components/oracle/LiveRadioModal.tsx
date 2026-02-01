@@ -1582,7 +1582,8 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
                     placeholder="0"
                     value={tipAmount}
                     onChange={(e) => setTipAmount(e.target.value)}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm ${isDarkMode ? 'bg-gray-800 border-orange-500/30 text-white placeholder-gray-500' : 'bg-white border-orange-300 text-gray-900 placeholder-gray-400'} border outline-none focus:border-orange-400`}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm border outline-none focus:border-orange-400 ${isDarkMode ? 'border-orange-500/30 placeholder-gray-500' : 'border-orange-300 placeholder-gray-400'}`}
+                    style={{ backgroundColor: isDarkMode ? '#1f2937' : '#ffffff', color: isDarkMode ? '#ffffff' : '#111827' }}
                   />
                   <span className={`text-xs font-semibold ${isDarkMode ? 'text-orange-400' : 'text-orange-700'}`}>WMON</span>
                 </div>

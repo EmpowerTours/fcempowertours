@@ -4337,7 +4337,25 @@ ${enjoyText}
           );
         }
 
-        // Call requestRandomSong() on LiveRadioV2 with 1 MON
+        // Check if song pool has songs before sending transaction
+        try {
+          const poolLength = await skipPublicClient.readContract({
+            address: LIVE_RADIO_ADDRESS,
+            abi: parseAbi(['function getSongPoolLength() external view returns (uint256)']),
+            functionName: 'getSongPoolLength',
+          });
+          console.log('🎲 Song pool length:', poolLength.toString());
+          if (poolLength === 0n) {
+            return NextResponse.json(
+              { success: false, error: 'No songs in the radio pool. Songs must be added before skipping.' },
+              { status: 400 }
+            );
+          }
+        } catch (poolCheckErr: any) {
+          console.warn('⚠️ Could not check song pool, proceeding:', poolCheckErr.message);
+        }
+
+        // Call requestRandomSong() on LiveRadioV3 with 1 MON
         // The contract will pay Pyth Entropy fee and refund excess
         const skipRandomCalls: Call[] = [
           {
