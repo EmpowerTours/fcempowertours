@@ -792,24 +792,24 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black modal-backdrop flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 10000 }} onClick={onClose}>
+    <div className="fixed inset-0 bg-black modal-backdrop flex items-center justify-center p-2 sm:p-4 overflow-hidden" style={{ backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 10000 }} onClick={onClose}>
       <div
-        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-cyan-500/30 rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl shadow-cyan-500/10"
+        className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-cyan-500/30 rounded-3xl w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] md:max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl shadow-cyan-500/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border-b border-cyan-500/30 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Places Found</h2>
-                <p className="text-xs text-gray-400 truncate max-w-[300px]">"{query}"</p>
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-lg font-bold text-white">Places Found</h2>
+                <p className="text-xs text-gray-400 truncate max-w-[150px] sm:max-w-[300px]">"{query}"</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               {/* View Toggle */}
               <div className="flex bg-gray-800 rounded-lg p-1">
                 <button

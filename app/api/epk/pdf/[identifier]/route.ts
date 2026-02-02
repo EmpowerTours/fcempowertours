@@ -82,22 +82,24 @@ export async function GET(
 
     const epk = epkMetadata;
 
-    // Helper: create children array for createElement (avoids spread issues with react-pdf)
+    // Helper: safe string coercion for IPFS data that may have unexpected types
+    const s = (val: any): string => (val == null ? '' : String(val));
+
     const h = React.createElement;
 
     // Build header children
     const headerChildren: any[] = [
-      h(Text, { key: 'name', style: styles.title }, epk.artist.name),
-      h(Text, { key: 'loc', style: styles.subtitle }, epk.artist.location),
+      h(Text, { key: 'name', style: styles.title }, s(epk.artist.name)),
+      h(Text, { key: 'loc', style: styles.subtitle }, s(epk.artist.location)),
       h(View, { key: 'genres', style: styles.genrePills },
-        epk.artist.genre.map((g, i) =>
-          h(Text, { key: `g${i}`, style: styles.pill }, g)
+        ...(epk.artist.genre || []).map((g: string, i: number) =>
+          h(Text, { key: `g${i}`, style: styles.pill }, s(g))
         )
       ),
     ];
     if (epk.onChain?.ipfsCid) {
       headerChildren.push(
-        h(Text, { key: 'verified', style: styles.verifiedBadge }, `On-chain verified | IPFS: ${epk.onChain.ipfsCid.slice(0, 16)}...`)
+        h(Text, { key: 'verified', style: styles.verifiedBadge }, `On-chain verified | IPFS: ${String(epk.onChain.ipfsCid).slice(0, 16)}...`)
       );
     }
 
@@ -105,13 +107,13 @@ export async function GET(
     const pressChildren: any[] = [
       h(Text, { key: 'pt', style: styles.sectionTitle }, 'Press'),
     ];
-    epk.press.forEach((article, i) => {
+    (epk.press || []).forEach((article: any, i: number) => {
       pressChildren.push(
         h(View, { key: `p${i}`, style: styles.pressItem },
-          h(Text, { key: `po${i}`, style: styles.pressOutlet }, article.outlet),
-          h(Text, { key: `pt${i}`, style: styles.pressTitle }, article.title),
-          h(Text, { key: `pe${i}`, style: styles.pressExcerpt }, article.excerpt),
-          h(Text, { key: `pd${i}`, style: styles.pressDate }, article.date)
+          h(Text, { key: `po${i}`, style: styles.pressOutlet }, s(article.outlet)),
+          h(Text, { key: `pt${i}`, style: styles.pressTitle }, s(article.title)),
+          h(Text, { key: `pe${i}`, style: styles.pressExcerpt }, s(article.excerpt)),
+          h(Text, { key: `pd${i}`, style: styles.pressDate }, s(article.date))
         )
       );
     });
@@ -119,12 +121,12 @@ export async function GET(
     // Build contact children
     const contactChildren: any[] = [
       h(Text, { key: 'ct', style: styles.sectionTitle }, 'Contact'),
-      h(Text, { key: 'c1', style: styles.bookingItem }, `Booking inquiries: Visit empowertours.xyz/epk/${epk.artist.slug}`),
+      h(Text, { key: 'c1', style: styles.bookingItem }, `Booking inquiries: Visit empowertours.xyz/epk/${s(epk.artist.slug)}`),
       h(Text, { key: 'c2', style: styles.bookingItem }, 'WMON deposit required for booking confirmation'),
     ];
     if (epk.socials?.farcaster) {
       contactChildren.push(
-        h(Text, { key: 'c3', style: styles.bookingItem }, `Farcaster: @${epk.socials.farcaster}`)
+        h(Text, { key: 'c3', style: styles.bookingItem }, `Farcaster: @${s(epk.socials.farcaster)}`)
       );
     }
 
@@ -132,13 +134,14 @@ export async function GET(
     const techRiderChildren: any[] = [
       h(Text, { key: 'tr', style: styles.sectionTitle }, 'Technical Rider'),
     ];
-    Object.values(epk.technicalRider).forEach((section, i) => {
-      const items = section.items.map((item: string, j: number) =>
-        h(Text, { key: `t${i}${j}`, style: styles.riderItem }, `\u2022 ${item}`)
+    Object.values(epk.technicalRider || {}).forEach((section: any, i: number) => {
+      const items = (section.items || []).map((item: string, j: number) =>
+        h(Text, { key: `t${i}${j}`, style: styles.riderItem }, `\u2022 ${s(item)}`)
       );
       techRiderChildren.push(
         h(View, { key: `ts${i}`, style: styles.riderSection },
-          [h(Text, { key: `tt${i}`, style: styles.riderTitle }, section.title), ...items]
+          h(Text, { key: `tt${i}`, style: styles.riderTitle }, s(section.title)),
+          ...items
         )
       );
     });
@@ -147,13 +150,14 @@ export async function GET(
     const hospRiderChildren: any[] = [
       h(Text, { key: 'hr', style: styles.sectionTitle }, 'Hospitality Rider'),
     ];
-    Object.values(epk.hospitalityRider).forEach((section, i) => {
-      const items = section.items.map((item: string, j: number) =>
-        h(Text, { key: `h${i}${j}`, style: styles.riderItem }, `\u2022 ${item}`)
+    Object.values(epk.hospitalityRider || {}).forEach((section: any, i: number) => {
+      const items = (section.items || []).map((item: string, j: number) =>
+        h(Text, { key: `h${i}${j}`, style: styles.riderItem }, `\u2022 ${s(item)}`)
       );
       hospRiderChildren.push(
         h(View, { key: `hs${i}`, style: styles.riderSection },
-          [h(Text, { key: `ht${i}`, style: styles.riderTitle }, section.title), ...items]
+          h(Text, { key: `ht${i}`, style: styles.riderTitle }, s(section.title)),
+          ...items
         )
       );
     });
@@ -161,57 +165,57 @@ export async function GET(
     // Build booking children
     const bookingChildren: any[] = [
       h(Text, { key: 'b1', style: styles.bookingTitle }, 'Pricing'),
-      h(Text, { key: 'b2', style: styles.bookingItem }, epk.booking.pricing),
+      h(Text, { key: 'b2', style: styles.bookingItem }, s(epk.booking?.pricing)),
       h(Text, { key: 'b3', style: { ...styles.bookingTitle, marginTop: 12 } }, 'Available For'),
     ];
-    epk.booking.availableFor.forEach((item, i) => {
+    (epk.booking?.availableFor || []).forEach((item: string, i: number) => {
       bookingChildren.push(
-        h(Text, { key: `a${i}`, style: styles.bookingItem }, `\u2022 ${item}`)
+        h(Text, { key: `a${i}`, style: styles.bookingItem }, `\u2022 ${s(item)}`)
       );
     });
     bookingChildren.push(
       h(Text, { key: 'b4', style: { ...styles.bookingTitle, marginTop: 12 } }, 'Target Events')
     );
-    epk.booking.targetEvents.forEach((item, i) => {
+    (epk.booking?.targetEvents || []).forEach((item: string, i: number) => {
       bookingChildren.push(
-        h(Text, { key: `e${i}`, style: styles.bookingItem }, `\u2022 ${item}`)
+        h(Text, { key: `e${i}`, style: styles.bookingItem }, `\u2022 ${s(item)}`)
       );
     });
     bookingChildren.push(
       h(Text, { key: 'b5', style: { ...styles.bookingTitle, marginTop: 12 } }, 'Territories')
     );
-    epk.booking.territories.forEach((item, i) => {
+    (epk.booking?.territories || []).forEach((item: string, i: number) => {
       bookingChildren.push(
-        h(Text, { key: `r${i}`, style: styles.bookingItem }, `\u2022 ${item}`)
+        h(Text, { key: `r${i}`, style: styles.bookingItem }, `\u2022 ${s(item)}`)
       );
     });
 
-    const footerText = `${epk.artist.name} | Electronic Press Kit | EmpowerTours on Monad`;
+    const footerText = `${s(epk.artist.name)} | Electronic Press Kit | EmpowerTours on Monad`;
 
     const EPKDocument = h(Document, {},
       // Page 1: Hero + Bio + Press
       h(Page, { key: 'p1', size: 'A4', style: styles.page },
-        h(View, { style: styles.header }, headerChildren),
+        h(View, { style: styles.header }, ...headerChildren),
         h(View, { style: styles.section },
           h(Text, { style: styles.sectionTitle }, 'About'),
-          h(Text, { style: styles.bio }, epk.artist.bio)
+          h(Text, { style: styles.bio }, s(epk.artist.bio))
         ),
-        h(View, { style: styles.section }, pressChildren),
+        h(View, { style: styles.section }, ...pressChildren),
         h(Text, { style: styles.footer }, footerText)
       ),
       // Page 2: Technical + Hospitality Riders
       h(Page, { key: 'p2', size: 'A4', style: styles.page },
-        h(View, { style: styles.section }, techRiderChildren),
-        h(View, { style: styles.section }, hospRiderChildren),
+        h(View, { style: styles.section }, ...techRiderChildren),
+        h(View, { style: styles.section }, ...hospRiderChildren),
         h(Text, { style: styles.footer }, footerText)
       ),
       // Page 3: Booking
       h(Page, { key: 'p3', size: 'A4', style: styles.page },
         h(View, { style: styles.section },
           h(Text, { style: styles.sectionTitle }, 'Booking Information'),
-          h(View, { style: styles.bookingSection }, bookingChildren)
+          h(View, { style: styles.bookingSection }, ...bookingChildren)
         ),
-        h(View, { style: { ...styles.section, marginTop: 20 } }, contactChildren),
+        h(View, { style: { ...styles.section, marginTop: 20 } }, ...contactChildren),
         h(Text, { style: styles.footer }, footerText)
       )
     );
