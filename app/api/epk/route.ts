@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
     const slug = epkData.artist.slug;
     await redis.set(`${EPK_SLUG_PREFIX}${slug}`, userAddress.toLowerCase());
 
+    // Cache the IPFS CID so subsequent fetches get the latest version immediately
+    await redis.set(`epk:cache:${userAddress.toLowerCase()}`, ipfsCid);
+
     return NextResponse.json({
       success: true,
       slug,

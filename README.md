@@ -103,14 +103,24 @@ Create and sponsor community events with on-chain accountability.
 
 ### Electronic Press Kit (EPKRegistryV2)
 
-On-chain artist press kits with WMON escrow booking system. Artists register their EPK metadata (stored on IPFS) on-chain, and organizers can book artists with WMON deposits held in escrow.
+On-chain artist press kits with AI-assisted generation and WMON escrow booking. Artists register their EPK metadata (stored on IPFS) on-chain, and organizers can book artists with WMON deposits held in escrow.
 
+- **AI-Assisted Generation** - Click "Generate Press Kit" (5 WMON) → fetches Farcaster profile + on-chain music stats → Gemini generates professional bio, genres, riders, and booking config → pre-fills all form fields for review
 - **Create EPK** - Artists build professional press kits with bio, genre, media, press coverage, technical rider, and hospitality rider
 - **On-Chain Registration** - EPK IPFS CID registered on-chain via EPKRegistryV2 contract
 - **WMON Escrow Booking** - Organizers deposit WMON to book artists, held in escrow until booking lifecycle completes
 - **Booking Lifecycle** - Pending → Confirmed → Completed (deposit released to artist) or Refunded/Cancelled (deposit returned to organizer)
+- **PDF Export** - Download EPK as a professionally formatted PDF via server-side rendering
 - **Profile Integration** - Artists can create and view their EPK directly from the profile modal
 - **Public EPK Pages** - Each artist gets a public URL at `/epk/{slug}` with live on-chain streaming stats
+
+**AI Generation Flow:**
+
+1. Artist clicks "Generate Press Kit (5 WMON)" from their profile
+2. 5 WMON collected from User Safe → Platform Safe
+3. Parallel data fetch: Farcaster profile (Neynar) + streaming stats (Envio) + genre detection (IPFS metadata)
+4. Gemini generates professional bio, genre tags, location, technical/hospitality riders, booking defaults
+5. All form fields pre-filled → artist reviews, edits, then publishes to IPFS + Monad
 
 **Booking Flow:**
 
@@ -312,17 +322,21 @@ Journal entries earn TOURS rewards with a random 1–10x multiplier.
 
 ---
 
-### 7. EPK Booking Escrow
+### 7. EPK AI Generation & Booking Escrow
 
 **Contract**: `EPKRegistryV2` — [`0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D`](https://monadscan.com/address/0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D)
 
-| Detail | Value |
-|--------|-------|
+| Action | Cost |
+|--------|------|
+| AI-Generate EPK | **5 WMON** |
+| Publish / Update EPK | Gasless |
 | Booking deposit | Set by organizer (min 100 WMON recommended) |
 | Escrow | 100% held in contract until lifecycle completes |
 | Completion | Artist receives full deposit |
 | Refund | Organizer gets full deposit back (if booking unconfirmed) |
-| Cancellation | Artist cancels → deposit returned to organizer |
+
+**AI generation:**
+> Artist clicks "Generate Press Kit" → 5 WMON collected from User Safe → Platform fetches Farcaster profile + on-chain music stats + IPFS genre data → Gemini generates professional EPK draft → all form fields pre-filled for review.
 
 **Booking lifecycle:**
 > Organizer deposits 500 WMON to book an artist.
@@ -574,6 +588,22 @@ flowchart LR
     Monad -->|Tx executed| Contract([Target Contract])
 ```
 
+### EPK AI Generation Flow
+
+```mermaid
+flowchart TD
+    Artist([Artist]) -->|"5 WMON"| API[EPK Generate API]
+    API -->|"Parallel fetch"| Neynar[Neynar: Farcaster Profile]
+    API -->|"Parallel fetch"| Envio[Envio: Music Stats]
+    API -->|"Parallel fetch"| IPFS_Meta[IPFS: Genre Metadata]
+    Neynar --> Gemini[Gemini AI]
+    Envio --> Gemini
+    IPFS_Meta --> Gemini
+    Gemini -->|"Structured JSON"| Draft[EPK Draft]
+    Draft -->|"Pre-fill form"| Review([Artist Reviews & Edits])
+    Review -->|"Publish"| IPFS[IPFS + EPKRegistryV2]
+```
+
 ### EPK Booking Escrow Flow
 
 ```mermaid
@@ -625,9 +655,9 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | ItineraryNFTV2 | [`0x97529316356A5bcAd81D85E9a0eF941958c4b020`](https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020) | Travel itinerary NFT marketplace |
 | ClimbingLocationsV2 | [`0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3`](https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3) | Climbing location database with dual-NFT system |
 | ToursRewardManager | [`0x7fff35BB27307806B92Fb1D1FBe52D168093eF87`](https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87) | TOURS reward distribution with halving |
-| ToursToken | [`0xf61F2b014e38FfEf66a3A0a8104D36365404f74f`](https://monadscan.com/address/0xf61F2b014e38FfEf66a3A0a8104D36365404f74f) | ERC-20 platform reward token |
+| ToursTokenV2 | [`0xf61F2b014e38FfEf66a3A0a8104D36365404f74f`](https://monadscan.com/address/0xf61F2b014e38FfEf66a3A0a8104D36365404f74f) | ERC-20 platform reward token |
 | WMON | [`0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A`](https://monadscan.com/address/0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A) | Wrapped Monad (payment token) |
-| PassportNFT | [`0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4`](https://monadscan.com/address/0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4) | Travel passport NFTs (195 countries) |
+| PassportNFTV3 | [`0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4`](https://monadscan.com/address/0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4) | Travel passport NFTs (195 countries) |
 | EPKRegistryV2 | [`0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D`](https://monadscan.com/address/0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D) | Electronic Press Kit registry + WMON escrow booking |
 | VotingTOURS | [`0xe5377b1f90b9a70dd7b0f6ea34f9c3d287b3c44c`](https://monadscan.com/address/0xe5377b1f90b9a70dd7b0f6ea34f9c3d287b3c44c) | vTOURS governance voting token |
 | EmpowerToursGovernor | [`0x4d05fb8c2d090769a084aa0138ccf7a549452fa3`](https://monadscan.com/address/0x4d05fb8c2d090769a084aa0138ccf7a549452fa3) | DAO governance (proposals, voting, execution) |
@@ -657,7 +687,7 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | Backend | Next.js API Routes (68 endpoints), Viem |
 | Indexing | Envio (GraphQL event indexing) |
 | Storage | IPFS (Pinata), Upstash Redis |
-| AI | Google Gemini (Oracle chat + collector edition art generation) |
+| AI | Google Gemini (Oracle chat, collector edition art, EPK auto-generation) |
 | Randomness | Pyth Entropy |
 | APIs | Neynar (Farcaster), IPInfo (Geolocation), Google Maps |
 
@@ -676,7 +706,7 @@ fcempowertours/
 │   │   ├── events/             # Event management
 │   │   ├── sponsorship/        # Event sponsorship
 │   │   ├── music/              # Music catalog
-│   │   ├── epk/                # Electronic Press Kit (create, seed, lookup, booking)
+│   │   ├── epk/                # Electronic Press Kit (create, generate, seed, lookup, booking, PDF)
 │   │   ├── dev-studio/         # AI contract generation proposals
 │   │   ├── mint-passport/      # Passport minting
 │   │   ├── mint-music/         # Music NFT minting

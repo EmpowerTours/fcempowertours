@@ -202,7 +202,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
   <div class="nav-links" id="navLinks">
     <a href="#how">How It Works</a>
     <a href="#payouts">Payouts</a>
-    <a href="#architecture">Architecture</a>
+    <a href="#architecture">Diagrams</a>
     <a href="#contracts">Contracts</a>
     <a href="https://farcaster.xyz/miniapps/83hgtZau7TNB/empowertours" class="nav-cta" target="_blank" rel="noopener">Launch App</a>
   </div>
@@ -224,7 +224,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
     <div class="hero-stats">
       <div class="hero-stat"><div class="num">70%</div><div class="label">To Artists</div></div>
       <div class="hero-stat"><div class="num">0</div><div class="label">Gas Fees for Users</div></div>
-      <div class="hero-stat"><div class="num">7</div><div class="label">Verified Contracts</div></div>
+      <div class="hero-stat"><div class="num">18</div><div class="label">Verified Contracts</div></div>
     </div>
   </div>
 </section>
@@ -452,7 +452,26 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
         </div>
       </div>
 
-      <!-- 8. Wallet & Gas -->
+      <!-- 8. Electronic Press Kit -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Electronic Press Kit (EPK)</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D" target="_blank" rel="noopener">EPKRegistryV2<br>0x232D...621D</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Action</th><th>Cost</th></tr>
+            <tr><td>AI-Generate EPK</td><td class="highlight">5 WMON</td></tr>
+            <tr><td>Publish / Update</td><td class="amber">Gasless</td></tr>
+            <tr><td>Booking deposit</td><td>Artist-set minimum</td></tr>
+          </table>
+          <div class="payout-example">
+            <strong>AI-Assisted:</strong> Click "Generate Press Kit" &rarr; pays 5 WMON &rarr; fetches Farcaster profile + on-chain music stats &rarr; Gemini generates professional bio, genres, riders, booking config. Artist reviews, edits, then publishes to IPFS + Monad. Promoters book with WMON escrow.
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. Wallet & Gas -->
       <div class="payout-card reveal">
         <div class="payout-left">
           <h3>Wallet & Gas</h3>
@@ -491,7 +510,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
   <div class="section-inner">
     <div class="section-label reveal">Architecture</div>
     <h2 class="section-title reveal">System diagrams</h2>
-    <p class="section-desc reveal">On-chain payment flows verified by smart contracts on Monad Mainnet.</p>
+    <p class="section-desc reveal">Payment flows, AI pipelines, DAO governance, and smart contract dependencies — all verified on Monad Mainnet.</p>
 
     <div class="arch-grid">
       <div class="arch-card reveal">
@@ -560,6 +579,71 @@ flowchart TD
     Ep["~365d epochs"] -.->|"Trigger"| H
         </pre>
       </div>
+      <div class="arch-card reveal">
+        <h3>AI-Assisted EPK Generation</h3>
+        <pre class="mermaid">
+flowchart TD
+    U(["Artist"]) -->|"5 WMON"| API["EPK Generate API"]
+    API -->|"Parallel fetch"| N["Neynar: Profile"]
+    API -->|"Parallel fetch"| E["Envio: Music Stats"]
+    API -->|"Parallel fetch"| I["IPFS: Genre Data"]
+    N --> G["Gemini AI"]
+    E --> G
+    I --> G
+    G -->|"Structured JSON"| D["EPK Draft"]
+    D -->|"Pre-fill form"| R(["Artist Reviews"])
+    R -->|"Publish"| IPFS["IPFS + Monad"]
+        </pre>
+      </div>
+      <div class="arch-card reveal reveal-delay-1">
+        <h3>EPK Booking Escrow</h3>
+        <pre class="mermaid">
+flowchart LR
+    O(["Organizer"]) -->|"WMON deposit"| EPK["EPKRegistryV2"]
+    EPK -->|"Escrow"| C(["Contract"])
+    A(["Artist"]) -->|"Confirms"| EPK
+    A -->|"Completes"| EPK
+    EPK -->|"Release"| A
+    O -->|"Refund"| EPK
+    EPK -->|"Return"| O
+        </pre>
+      </div>
+      <div class="arch-card reveal">
+        <h3>DAO Governance</h3>
+        <pre class="mermaid">
+flowchart LR
+    U(["TOURS Holder"]) -->|"Wrap"| V["VotingTOURS"]
+    V -->|"Vote"| G["Governor"]
+    G -->|"Queue"| T["Timelock"]
+    T -->|"Execute"| C(["On-chain Action"])
+        </pre>
+      </div>
+      <div class="arch-card reveal reveal-delay-1">
+        <h3>Dev Studio Pipeline</h3>
+        <pre class="mermaid">
+flowchart LR
+    U(["User"]) -->|"Describe"| AI["Gemini AI"]
+    AI -->|"Solidity"| P["DAO Proposal"]
+    P -->|"Vote"| G["Governor"]
+    G -->|"Deploy"| F["ContractFactory"]
+    F -->|"Mint"| N(["DeploymentNFT"])
+        </pre>
+      </div>
+      <div class="arch-card reveal">
+        <h3>Smart Contract Dependencies</h3>
+        <pre class="mermaid">
+flowchart TD
+    W([WMON]) -->|"Payments"| NFT["EmpowerToursNFT"]
+    W -->|"Queue"| RAD["LiveRadioV3"]
+    W -->|"Subs"| SUB["SubscriptionV5"]
+    W -->|"Escrow"| EPK["EPKRegistryV2"]
+    W -->|"Climb"| CL["ClimbingV2"]
+    T([TOURS]) -->|"Wrap"| VT["VotingTOURS"]
+    VT -->|"Vote"| GOV["Governor"]
+    GOV -->|"Execute"| TL["Timelock"]
+    TL -->|"Deploy"| FAC["ContractFactory"]
+        </pre>
+      </div>
     </div>
   </div>
 </section>
@@ -613,6 +697,61 @@ flowchart TD
             <td class="name">ToursRewardManager</td>
             <td><a class="addr" href="https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87" target="_blank" rel="noopener">0x7fff35BB27307806B92Fb1D1FBe52D168093eF87</a></td>
             <td class="purpose">TOURS reward distribution + halving</td>
+          </tr>
+          <tr>
+            <td class="name">EPKRegistryV2</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D" target="_blank" rel="noopener">0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D</a></td>
+            <td class="purpose">Electronic Press Kit registry + WMON escrow booking</td>
+          </tr>
+          <tr>
+            <td class="name">ToursTokenV2</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xf61F2b014e38FfEf66a3A0a8104D36365404f74f" target="_blank" rel="noopener">0xf61F2b014e38FfEf66a3A0a8104D36365404f74f</a></td>
+            <td class="purpose">ERC-20 platform reward token</td>
+          </tr>
+          <tr>
+            <td class="name">WMON</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A" target="_blank" rel="noopener">0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A</a></td>
+            <td class="purpose">Wrapped Monad (payment token)</td>
+          </tr>
+          <tr>
+            <td class="name">PassportNFTV3</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4" target="_blank" rel="noopener">0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4</a></td>
+            <td class="purpose">Travel passport NFTs (195 countries)</td>
+          </tr>
+          <tr>
+            <td class="name">VotingTOURS</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xe5377b1f90b9a70dd7b0f6ea34f9c3d287b3c44c" target="_blank" rel="noopener">0xe5377b1f90b9a70dd7b0f6ea34f9c3d287b3c44c</a></td>
+            <td class="purpose">vTOURS governance voting token</td>
+          </tr>
+          <tr>
+            <td class="name">EmpowerToursGovernor</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x4d05fb8c2d090769a084aa0138ccf7a549452fa3" target="_blank" rel="noopener">0x4d05fb8c2d090769a084aa0138ccf7a549452fa3</a></td>
+            <td class="purpose">DAO governance (proposals, voting, execution)</td>
+          </tr>
+          <tr>
+            <td class="name">EmpowerToursTimelock</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x4f7f9111215f2270a92bd64e4c1e9d7de516bd79" target="_blank" rel="noopener">0x4f7f9111215f2270a92bd64e4c1e9d7de516bd79</a></td>
+            <td class="purpose">Timelock controller for governance execution</td>
+          </tr>
+          <tr>
+            <td class="name">DAOContractFactory</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x627a2c457e5Eb3E9C4B6632Ac69f8c39228D7968" target="_blank" rel="noopener">0x627a2c457e5Eb3E9C4B6632Ac69f8c39228D7968</a></td>
+            <td class="purpose">DAO-governed smart contract deployment pipeline</td>
+          </tr>
+          <tr>
+            <td class="name">DeploymentNFT</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xfA002C7538B6e28Dd7dDd00F1d3A46Ea0731A586" target="_blank" rel="noopener">0xfA002C7538B6e28Dd7dDd00F1d3A46Ea0731A586</a></td>
+            <td class="purpose">Provenance NFTs for deployed contracts</td>
+          </tr>
+          <tr>
+            <td class="name">EmpowerToursDevStudio</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xEC27aD035c39DE7217A3F4DAe64a7a67a477d880" target="_blank" rel="noopener">0xEC27aD035c39DE7217A3F4DAe64a7a67a477d880</a></td>
+            <td class="purpose">AI contract generation credit system + whitelist</td>
+          </tr>
+          <tr>
+            <td class="name">Platform Safe</td>
+            <td><a class="addr" href="https://monadscan.com/address/0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA" target="_blank" rel="noopener">0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA</a></td>
+            <td class="purpose">Treasury &amp; platform operations</td>
           </tr>
         </tbody>
       </table>

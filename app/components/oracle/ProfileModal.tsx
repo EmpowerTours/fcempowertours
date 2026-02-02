@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown } from 'lucide-react';
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown, Download } from 'lucide-react';
 import { getAddressExplorerUrl } from '@/app/chains';
 import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
 import { EPKModal } from './EPKModal';
@@ -686,7 +686,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }}
                 className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-sm font-medium transition-all"
               >
-                Create Press Kit
+                Generate Press Kit (5 WMON)
               </button>
             </>
           )}
@@ -786,6 +786,13 @@ const EPKViewContent = ({
           Press Kit
         </h3>
         <div className="flex items-center gap-2">
+          <a
+            href={`/api/epk/pdf/${epk.artist.slug || 'epk'}`}
+            className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Download PDF"
+          >
+            <Download className="w-4 h-4" />
+          </a>
           <button
             onClick={onEdit}
             className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
