@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route, CheckCircle2, AlertTriangle, Star, Users, PlusCircle } from 'lucide-react';
 import { getCurrentPosition, isWithinProximity, formatDistance } from '@/lib/utils/gps';
 
 const LeafletMapRenderer = lazy(() => import('./map-renderers/LeafletMapRenderer'));
@@ -35,6 +35,24 @@ interface PlaceDetails {
   location?: { lat: number; lng: number };
 }
 
+interface ProtocolExperience {
+  id: string;
+  itineraryId: string;
+  title: string;
+  description: string;
+  creator: string;
+  creatorFid?: string;
+  creatorUsername?: string;
+  creatorDisplayName?: string;
+  creatorPfpUrl?: string;
+  photoUrl?: string;
+  priceWMON: string;
+  averageRating: number;
+  ratingCount: number;
+  totalPurchases: number;
+  createdAt?: string;
+}
+
 interface MapsResultsModalProps {
   sources: MapsSource[];
   widgetToken?: string;
@@ -44,11 +62,36 @@ interface MapsResultsModalProps {
   userLocation?: { latitude: number; longitude: number; city?: string; country?: string };
   mapsProvider?: MapProviderType;
   clientConfig?: MapClientConfig;
+  protocolExperiences?: ProtocolExperience[];
   onCreateExperience?: (placeData: {
     name: string; placeId: string; googleMapsUri: string;
     latitude: number; longitude: number;
     address?: string; rating?: number; types?: string[];
   }) => void;
+  onCreateCustomExperience?: () => void;
+  onPurchaseExperience?: (experienceId: string) => void;
+}
+
+// Format timestamp to relative time (e.g. "2 days ago", "3 months ago")
+function formatTimeAgo(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    const now = Date.now();
+    const diffMs = now - date.getTime();
+    if (diffMs < 0) return '';
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 60) return minutes <= 1 ? 'just now' : `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+  } catch {
+    return '';
+  }
 }
 
 export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
@@ -60,7 +103,10 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   userLocation,
   mapsProvider,
   clientConfig,
+  protocolExperiences,
   onCreateExperience,
+  onCreateCustomExperience,
+  onPurchaseExperience,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
@@ -120,9 +166,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const handleCreateExperienceCheck = useCallback(async (source: MapsSource) => {
     if (!onCreateExperience) return;
 
-    const details = source.placeId ? placeDetails[source.placeId] : null;
+    // Strip "places/" prefix from placeId for cache lookup (Grounding API uses "places/ChIJ..." format)
+    const rawPlaceId = source.placeId || '';
+    const cleanPlaceId = rawPlaceId.replace(/^places\//, '');
+    const details = placeDetails[rawPlaceId] || placeDetails[cleanPlaceId] || null;
+
     if (!details?.location) {
-      setProximityError('Location coordinates not available for this place.');
+      setProximityError('Location coordinates not available for this place. Try selecting a different result.');
       return;
     }
 
@@ -131,16 +181,24 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     setProximityError(null);
 
     try {
-      const userPos = await getCurrentPosition();
+      // Use already-available location from Oracle page hook first, fall back to GPS API
+      let userPos: { lat: number; lon: number };
+      if (userLocation?.latitude && userLocation?.longitude) {
+        console.log('[MapsWidget] Using parent location for proximity check:', userLocation.city || 'unknown');
+        userPos = { lat: userLocation.latitude, lon: userLocation.longitude };
+      } else {
+        console.log('[MapsWidget] Attempting browser geolocation for proximity check');
+        const gpsPos = await getCurrentPosition();
+        userPos = gpsPos;
+      }
+
       const result = isWithinProximity(
         userPos.lat, userPos.lon,
         details.location.lat, details.location.lng,
-        200 // 200m radius
+        500 // 500m radius (relaxed for MVP — covers GPS drift in dense urban areas)
       );
 
       if (result.isWithin) {
-        // Strip "places/" prefix from placeId (same as directions fix)
-        const cleanPlaceId = (source.placeId || '').replace(/^places\//, '');
         onCreateExperience({
           name: details.name || source.title,
           placeId: cleanPlaceId,
@@ -159,11 +217,15 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
       }
     } catch (err: any) {
       console.error('[MapsWidget] Proximity check error:', err);
-      setProximityError(err.message || 'Could not check your location.');
+      setProximityError(
+        userLocation
+          ? 'Could not verify your location. Please try again.'
+          : 'Location access is required. Please enable location services and try again.'
+      );
     } finally {
       setProximityChecking(false);
     }
-  }, [onCreateExperience, placeDetails]);
+  }, [onCreateExperience, placeDetails, userLocation]);
 
   // Clear proximity state when switching places
   useEffect(() => {
@@ -769,6 +831,160 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
         <div className="flex flex-col md:flex-row h-[calc(85vh-80px)]">
           {/* Places List */}
           <div className={`${viewMode === 'map' ? 'hidden md:block' : ''} md:w-1/2 overflow-y-auto p-4 border-r border-cyan-500/20`}>
+            {/* Protocol Community Experiences — Place Reviews style */}
+            {protocolExperiences && protocolExperiences.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-4 h-4 text-green-400" />
+                  <span className="text-sm font-bold text-green-400">Community Reviews</span>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded-full">On-Chain</span>
+                </div>
+                <div className="space-y-3">
+                  {protocolExperiences.map((exp) => {
+                    const timeAgo = exp.createdAt ? formatTimeAgo(exp.createdAt) : '';
+                    const starRating = exp.averageRating > 0 ? exp.averageRating : 0;
+                    const fullStars = Math.floor(starRating);
+                    const hasHalfStar = starRating % 1 >= 0.25;
+
+                    return (
+                      <div
+                        key={exp.id}
+                        className="rounded-xl bg-gray-800/80 border border-green-500/20 hover:border-green-500/40 transition-all overflow-hidden"
+                      >
+                        {/* Experience photo */}
+                        {exp.photoUrl && (
+                          <div className="relative w-full h-32 bg-gray-900">
+                            <img
+                              src={exp.photoUrl}
+                              alt={exp.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                            <div className="absolute top-2 left-2">
+                              <span className="text-[9px] px-1.5 py-0.5 bg-green-500/90 text-white font-bold rounded">
+                                COMMUNITY
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="p-3">
+                          {/* Title + Price row */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h4 className="text-white font-semibold text-sm leading-tight">{exp.title}</h4>
+                            <span className="text-sm font-bold text-green-400 whitespace-nowrap flex-shrink-0">
+                              {exp.priceWMON} WMON
+                            </span>
+                          </div>
+
+                          {/* Star rating bar */}
+                          {starRating > 0 && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                  <Star
+                                    key={i}
+                                    className={`w-3.5 h-3.5 ${
+                                      i <= fullStars
+                                        ? 'text-yellow-400 fill-yellow-400'
+                                        : i === fullStars + 1 && hasHalfStar
+                                          ? 'text-yellow-400 fill-yellow-400/50'
+                                          : 'text-gray-600'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs text-yellow-400 font-medium">
+                                {starRating.toFixed(1)}
+                              </span>
+                              {exp.ratingCount > 0 && (
+                                <span className="text-[10px] text-gray-500">
+                                  ({exp.ratingCount} {exp.ratingCount === 1 ? 'review' : 'reviews'})
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Author row — like a Place Review author */}
+                          <div className="flex items-center gap-2 mb-2">
+                            {exp.creatorPfpUrl ? (
+                              <img
+                                src={exp.creatorPfpUrl}
+                                alt={exp.creatorUsername || 'Creator'}
+                                className="w-7 h-7 rounded-full border border-green-500/40 object-cover flex-shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                            ) : null}
+                            {/* Fallback avatar */}
+                            <div className={`w-7 h-7 rounded-full bg-green-500/20 border border-green-500/40 flex items-center justify-center flex-shrink-0 ${exp.creatorPfpUrl ? 'hidden' : ''}`}>
+                              <span className="text-green-400 text-[10px] font-bold">
+                                {(exp.creatorUsername || exp.creatorDisplayName || exp.creator.slice(2, 4)).slice(0, 2).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs text-white font-medium truncate">
+                                {exp.creatorDisplayName || exp.creatorUsername || `${exp.creator.slice(0, 6)}...${exp.creator.slice(-4)}`}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {exp.creatorUsername && (
+                                  <span className="text-[10px] text-gray-500">@{exp.creatorUsername}</span>
+                                )}
+                                {timeAgo && (
+                                  <span className="text-[10px] text-gray-600">{timeAgo}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Review text / description */}
+                          {exp.description && exp.description !== exp.title && (
+                            <p className="text-xs text-gray-400 leading-relaxed mb-2 line-clamp-3">
+                              {exp.description}
+                            </p>
+                          )}
+
+                          {/* Stats + Purchase row */}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
+                            <div className="flex items-center gap-3">
+                              {exp.totalPurchases > 0 && (
+                                <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {exp.totalPurchases} {exp.totalPurchases === 1 ? 'visitor' : 'visitors'}
+                                </span>
+                              )}
+                              {!exp.photoUrl && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-green-500/15 text-green-400 rounded font-medium">
+                                  COMMUNITY
+                                </span>
+                              )}
+                            </div>
+                            {onPurchaseExperience && (
+                              <button
+                                onClick={() => onPurchaseExperience(exp.itineraryId)}
+                                className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-[11px] font-bold rounded-lg transition-colors border border-green-500/30"
+                              >
+                                Purchase Access
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {sources.length > 0 && (
+                  <div className="flex items-center gap-2 mt-4 mb-2">
+                    <div className="flex-1 h-px bg-gray-700/50" />
+                    <span className="text-[10px] text-gray-500 font-medium">Google Maps Results</span>
+                    <div className="flex-1 h-px bg-gray-700/50" />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-3">
               {sources.map((source, index) => {
                 const isSelected = index === selectedIndex;
@@ -862,6 +1078,20 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                 );
               })}
             </div>
+
+            {/* Create Custom Experience button */}
+            {onCreateCustomExperience && (
+              <div className="mt-4">
+                <button
+                  onClick={onCreateCustomExperience}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 hover:from-purple-500/30 hover:to-cyan-500/30 border border-purple-500/30 hover:border-purple-500/50 text-purple-400 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Create Custom Experience
+                  <span className="text-[10px] text-purple-400/60 ml-1">(no Maps required)</span>
+                </button>
+              </div>
+            )}
 
             {/* Results Count & Attribution */}
             <div className="mt-4 pt-4 border-t border-gray-700/50">
@@ -1112,7 +1342,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                 <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-yellow-400 text-sm font-medium">You're {proximityResult.distance} away</p>
-                  <p className="text-yellow-400/70 text-xs mt-0.5">Get within 200m of this place to create an experience.</p>
+                  <p className="text-yellow-400/70 text-xs mt-0.5">Get within 500m of this place to create an experience.</p>
                 </div>
                 <button onClick={() => setProximityResult(null)} className="text-yellow-400/50 hover:text-yellow-400">
                   <X className="w-4 h-4" />

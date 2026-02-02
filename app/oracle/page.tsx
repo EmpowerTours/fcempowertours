@@ -51,6 +51,7 @@ interface Message {
   mapsWidgetToken?: string;
   mapsQuery?: string;
   mapsPaymentTxHash?: string;
+  protocolExperiences?: any[];
   txHash?: string;
   explorerUrl?: string;
 }
@@ -84,6 +85,7 @@ export default function OraclePage() {
     query: string;
     paymentTxHash?: string;
     mapsProvider?: string;
+    protocolExperiences?: any[];
   } | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
@@ -112,6 +114,7 @@ export default function OraclePage() {
     name: string; placeId: string; googleMapsUri: string;
     latitude: number; longitude: number;
     address?: string; rating?: number; types?: string[];
+    isCustom?: boolean;
   } | null>(null);
 
   // User Safe balance and deposit modal
@@ -576,7 +579,7 @@ export default function OraclePage() {
       const data = await response.json();
 
       if (data.success) {
-        const { action, mapsSources, mapsWidgetToken, paymentTxHash, itineraryData, itineraryTxHash, mapsProvider } = data;
+        const { action, mapsSources, mapsWidgetToken, paymentTxHash, itineraryData, itineraryTxHash, mapsProvider, protocolExperiences } = data;
 
         // Handle itinerary creation notification
         if (itineraryData) {
@@ -605,7 +608,8 @@ export default function OraclePage() {
           mapsSources,
           mapsWidgetToken,
           mapsQuery: queryMessage,
-          mapsPaymentTxHash: paymentTxHash
+          mapsPaymentTxHash: paymentTxHash,
+          protocolExperiences,
         }]);
 
         // Show the Maps Results Modal
@@ -616,6 +620,7 @@ export default function OraclePage() {
             query: queryMessage,
             paymentTxHash,
             mapsProvider,
+            protocolExperiences,
           });
           setShowMapsResults(true);
         } else {
@@ -651,6 +656,30 @@ export default function OraclePage() {
     setMapsResultsData(null);
     setCreateExperiencePlaceData(placeData);
     setShowCreateExperienceModal(true);
+  }, []);
+
+  // Handle "Create Custom Experience" — no Google Maps required
+  const handleCreateCustomExperience = useCallback(() => {
+    setShowMapsResults(false);
+    setMapsResultsData(null);
+    setCreateExperiencePlaceData({
+      name: '',
+      placeId: '',
+      googleMapsUri: '',
+      latitude: geoLocation?.latitude || 0,
+      longitude: geoLocation?.longitude || 0,
+      address: geoLocation?.city ? `${geoLocation.city}, ${geoLocation.country || ''}` : '',
+      isCustom: true,
+    } as any);
+    setShowCreateExperienceModal(true);
+  }, [geoLocation]);
+
+  // Handle "Purchase Experience" from protocol experiences
+  const handlePurchaseExperience = useCallback((experienceId: string) => {
+    // Route to the Oracle chat to handle the purchase
+    handleConsult(`Purchase experience #${experienceId}`);
+    setShowMapsResults(false);
+    setMapsResultsData(null);
   }, []);
 
   const handleCancelPayment = () => {
@@ -896,7 +925,8 @@ export default function OraclePage() {
                             sources: msg.mapsSources!,
                             widgetToken: msg.mapsWidgetToken,
                             query: msg.mapsQuery || 'Places',
-                            paymentTxHash: msg.mapsPaymentTxHash
+                            paymentTxHash: msg.mapsPaymentTxHash,
+                            protocolExperiences: msg.protocolExperiences,
                           });
                           setShowMapsResults(true);
                         }}
@@ -904,6 +934,11 @@ export default function OraclePage() {
                       >
                         <MapPin className="w-4 h-4" />
                         View {msg.mapsSources.length} Places
+                        {msg.protocolExperiences && msg.protocolExperiences.length > 0 && (
+                          <span className="text-[10px] bg-green-500/30 px-1.5 py-0.5 rounded-full">
+                            +{msg.protocolExperiences.length} community
+                          </span>
+                        )}
                       </button>
                     </div>
                   )}
@@ -1218,6 +1253,7 @@ export default function OraclePage() {
           query={mapsResultsData.query}
           paymentTxHash={mapsResultsData.paymentTxHash}
           mapsProvider={mapsResultsData.mapsProvider as any}
+          protocolExperiences={mapsResultsData.protocolExperiences}
           userLocation={geoLocation ? {
             latitude: geoLocation.latitude,
             longitude: geoLocation.longitude,
@@ -1229,6 +1265,8 @@ export default function OraclePage() {
             setMapsResultsData(null);
           }}
           onCreateExperience={handleCreateExperienceFromMaps}
+          onCreateCustomExperience={handleCreateCustomExperience}
+          onPurchaseExperience={handlePurchaseExperience}
         />,
         document.body
       )}

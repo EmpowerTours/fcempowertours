@@ -161,9 +161,16 @@ type Itinerary @entity {
   id: ID!
   itineraryId: String!
   creator: String!
-  description: String
+  creatorFid: String                 # Farcaster ID of creator
+  title: String                      # Itinerary title (V2: stored separately from description)
+  description: String                # Legacy: stores title in older entries
+  photoProofIPFS: String             # IPFS hash of photo proof
   price: BigInt!
   active: Boolean!
+  averageRating: BigInt              # Average rating in basis points (e.g. 450 = 4.50/5.00)
+  ratingCount: Int                   # Number of ratings received
+  totalRatingSum: BigInt             # Sum of all ratings (for computing average)
+  totalPurchases: Int                # Number of times purchased
   createdAt: Timestamp!
   blockNumber: BigInt!
   txHash: String!

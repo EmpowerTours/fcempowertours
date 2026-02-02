@@ -170,6 +170,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Protocol-first experience discovery: query our own experiences before Maps
+    let protocolExperiences: any[] = [];
+    if (needsMapsGrounding) {
+      try {
+        const expCity = userLocation?.city || extractLocationFromQuery(message).city || '';
+        const expQuery = message.replace(/near me|nearby|around here/gi, '').trim();
+        const searchParams = new URLSearchParams();
+        if (expCity) searchParams.set('city', expCity);
+        if (expQuery) searchParams.set('q', expQuery);
+        searchParams.set('limit', '5');
+
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
+        const expRes = await fetch(`${APP_URL}/api/experiences/search?${searchParams.toString()}`);
+        const expData = await expRes.json();
+        if (expData.success && expData.experiences?.length > 0) {
+          protocolExperiences = expData.experiences;
+          console.log('[Oracle] Protocol experiences found:', protocolExperiences.length);
+        }
+      } catch (expError) {
+        console.log('[Oracle] Protocol experience search skipped:', expError);
+      }
+    }
+
     // OSM provider path: search via Nominatim, pass results as context to Gemini
     let osmSearchResults: MapsGroundingSource[] = [];
     if (needsMapsGrounding && mapsProviderType === 'osm') {
@@ -816,6 +839,17 @@ Return valid JSON only.`;
       }
     }
 
+    // If protocol experiences were found, prepend mention to the response
+    if (protocolExperiences.length > 0 && action.type === 'chat') {
+      const expList = protocolExperiences.slice(0, 3).map((exp: any) => {
+        const author = exp.creatorDisplayName || exp.creatorUsername || exp.creator.slice(0, 8);
+        const rating = exp.averageRating > 0 ? ` ⭐ ${exp.averageRating.toFixed(1)}` : '';
+        const reviews = exp.ratingCount > 0 ? ` (${exp.ratingCount} reviews)` : '';
+        return `• "${exp.title}" by @${author}${rating}${reviews} — ${exp.priceWMON} WMON`;
+      }).join('\n');
+      action.message = `🏠 **Community Reviews**\n${expList}\n\n---\n\n${action.message}`;
+    }
+
     return NextResponse.json({
       success: true,
       action,
@@ -825,6 +859,7 @@ Return valid JSON only.`;
       mapsSources,
       mapsWidgetToken,
       mapsProvider: needsMapsGrounding ? mapsProviderType : undefined,
+      protocolExperiences: protocolExperiences.length > 0 ? protocolExperiences : undefined,
       itineraryTxHash,
       itineraryData,
     });

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowLeft, MapPin, Camera, Clock, Star, DollarSign, Lightbulb, Upload, Check } from 'lucide-react';
+import { X, ArrowLeft, MapPin, Camera, Clock, Star, DollarSign, Lightbulb, Upload, Check, PlusCircle } from 'lucide-react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
 interface PlaceData {
@@ -14,6 +14,7 @@ interface PlaceData {
   address?: string;
   rating?: number;
   types?: string[];
+  isCustom?: boolean; // True when creating a custom place (no Google Maps)
 }
 
 interface CreateExperienceModalProps {
@@ -37,6 +38,11 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
   const [currentStep, setCurrentStep] = useState(1);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string[]>([]);
+
+  // Custom place editable fields
+  const [customName, setCustomName] = useState(place.name);
+  const [customAddress, setCustomAddress] = useState(place.address || '');
+  const [customCategory, setCustomCategory] = useState('other');
 
   const [formData, setFormData] = useState({
     title: `${place.name} Experience`,
@@ -131,25 +137,31 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
       setProgressPercent(50);
 
       // Extract city and country from address for stamp
-      const addressParts = (place.address || '').split(',').map(p => p.trim());
+      const effectiveAddress = place.isCustom ? customAddress : (place.address || '');
+      const effectiveName = place.isCustom ? customName : place.name;
+      const addressParts = effectiveAddress.split(',').map(p => p.trim());
       const city = addressParts[addressParts.length - 2] || 'Unknown City';
       const country = addressParts[addressParts.length - 1] || 'Unknown Country';
 
-      // Determine experience type from place types
+      // Determine experience type from place types or custom category
       let experienceType: 'food' | 'attraction' | 'hotel' | 'entertainment' | 'nature' | 'shopping' | 'other' = 'other';
-      const placeTypes = place.types || [];
-      if (placeTypes.some(t => ['restaurant', 'cafe', 'bakery', 'bar', 'food'].includes(t))) {
-        experienceType = 'food';
-      } else if (placeTypes.some(t => ['lodging', 'hotel'].includes(t))) {
-        experienceType = 'hotel';
-      } else if (placeTypes.some(t => ['park', 'natural_feature', 'campground'].includes(t))) {
-        experienceType = 'nature';
-      } else if (placeTypes.some(t => ['museum', 'tourist_attraction', 'point_of_interest'].includes(t))) {
-        experienceType = 'attraction';
-      } else if (placeTypes.some(t => ['shopping_mall', 'store'].includes(t))) {
-        experienceType = 'shopping';
-      } else if (placeTypes.some(t => ['night_club', 'movie_theater', 'amusement_park'].includes(t))) {
-        experienceType = 'entertainment';
+      if (place.isCustom) {
+        experienceType = customCategory as typeof experienceType;
+      } else {
+        const placeTypes = place.types || [];
+        if (placeTypes.some(t => ['restaurant', 'cafe', 'bakery', 'bar', 'food'].includes(t))) {
+          experienceType = 'food';
+        } else if (placeTypes.some(t => ['lodging', 'hotel'].includes(t))) {
+          experienceType = 'hotel';
+        } else if (placeTypes.some(t => ['park', 'natural_feature', 'campground'].includes(t))) {
+          experienceType = 'nature';
+        } else if (placeTypes.some(t => ['museum', 'tourist_attraction', 'point_of_interest'].includes(t))) {
+          experienceType = 'attraction';
+        } else if (placeTypes.some(t => ['shopping_mall', 'store'].includes(t))) {
+          experienceType = 'shopping';
+        } else if (placeTypes.some(t => ['night_club', 'movie_theater', 'amusement_park'].includes(t))) {
+          experienceType = 'entertainment';
+        }
       }
 
       let stampIpfsHash: string | null = null;
@@ -158,7 +170,7 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            locationName: place.name,
+            locationName: effectiveName,
             city,
             country,
             experienceType,
@@ -192,12 +204,13 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
         image: `ipfs://${photoHashes[0]}`,
         stamp: stampIpfsHash ? `ipfs://${stampIpfsHash}` : null, // AI-generated stamp
         attributes: [
-          { trait_type: 'Location', value: place.name },
+          { trait_type: 'Location', value: effectiveName },
           { trait_type: 'Best Time', value: formData.bestTime || 'Anytime' },
           { trait_type: 'Creator FID', value: user?.fid?.toString() || '0' },
           { trait_type: 'Price', value: formData.price },
           { trait_type: 'Experience Type', value: experienceType },
           { trait_type: 'Has AI Stamp', value: stampIpfsHash ? 'Yes' : 'No' },
+          { trait_type: 'Custom Place', value: place.isCustom ? 'Yes' : 'No' },
         ],
         properties: {
           review: formData.review,
@@ -207,8 +220,10 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
           proTip: formData.proTip,
           photos: photoHashes.map(h => `ipfs://${h}`),
           stampImage: stampIpfsHash ? `ipfs://${stampIpfsHash}` : null,
-          placeId: place.placeId,
-          googleMapsUri: place.googleMapsUri,
+          placeId: place.placeId || '',
+          googleMapsUri: place.googleMapsUri || '',
+          isCustomPlace: place.isCustom || false,
+          address: effectiveAddress,
           coordinates: {
             latitude: place.latitude,
             longitude: place.longitude,
@@ -220,7 +235,7 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
       const metadataRes = await fetch('/api/upload-json-to-ipfs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ json: metadata, name: `experience-${place.placeId}` }),
+        body: JSON.stringify({ json: metadata, name: `experience-${place.placeId || 'custom-' + Date.now()}` }),
       });
 
       if (!metadataRes.ok) throw new Error('Failed to upload metadata');
@@ -245,9 +260,9 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
           stampIPFS: stampIpfsHash, // AI-generated unique stamp
           experienceType,
           locations: [{
-            name: place.name,
-            placeId: place.placeId,
-            googleMapsUri: place.googleMapsUri,
+            name: effectiveName,
+            placeId: place.placeId || '',
+            googleMapsUri: place.googleMapsUri || '',
             latitude: place.latitude,
             longitude: place.longitude,
             description: formData.recommendation || formData.review.slice(0, 200),
@@ -424,9 +439,61 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
           {/* Step Content */}
           {!success && (
             <div className="space-y-6">
-              {/* STEP 1: Take Photos */}
+              {/* STEP 1: Take Photos (+ custom place details if applicable) */}
               {currentStep === 1 && (
                 <div className="space-y-4">
+                  {/* Custom place fields — only shown when creating without Google Maps */}
+                  {place.isCustom && (
+                    <div className="space-y-3 mb-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <PlusCircle className="w-4 h-4 text-purple-400" />
+                        <span className="text-sm font-bold text-purple-400">Custom Place</span>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Place Name *</label>
+                        <input
+                          type="text"
+                          value={customName}
+                          onChange={e => {
+                            setCustomName(e.target.value);
+                            setFormData(prev => ({ ...prev, title: `${e.target.value} Experience` }));
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg border text-sm ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900'}`}
+                          placeholder="e.g., Secret Rooftop Bar"
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Address / Description</label>
+                        <input
+                          type="text"
+                          value={customAddress}
+                          onChange={e => setCustomAddress(e.target.value)}
+                          className={`w-full px-3 py-2 rounded-lg border text-sm ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900'}`}
+                          placeholder="e.g., 123 Main St, Barcelona"
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Category</label>
+                        <select
+                          value={customCategory}
+                          onChange={e => setCustomCategory(e.target.value)}
+                          className={`w-full px-3 py-2 rounded-lg border text-sm ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                        >
+                          <option value="food">Food & Drink</option>
+                          <option value="attraction">Attraction</option>
+                          <option value="hotel">Hotel / Stay</option>
+                          <option value="nature">Nature / Outdoors</option>
+                          <option value="entertainment">Entertainment</option>
+                          <option value="shopping">Shopping</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <p className={`text-[10px] ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        GPS coordinates auto-filled from your current location ({place.latitude.toFixed(4)}, {place.longitude.toFixed(4)})
+                      </p>
+                    </div>
+                  )}
+
                   <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     📸 Upload Your Photos
                   </h2>

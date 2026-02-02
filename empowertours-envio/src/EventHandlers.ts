@@ -859,14 +859,21 @@ ItineraryNFTV2.ItineraryCreated.handler(async ({ event, context }) => {
   const userId = creator.toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Create itinerary entity (using existing schema fields)
+  // Create itinerary entity with enriched fields
   const itinerary = {
     id: itineraryEntityId,
     itineraryId: itineraryId.toString(),
     creator: userId,
-    description: title, // V2: title only (city/country stored in contract, not in event)
+    creatorFid: creatorFid.toString(),
+    title: title,
+    description: title, // Legacy compatibility
+    photoProofIPFS: photoProof || undefined,
     price: price,
     active: true,
+    averageRating: BigInt(0),
+    ratingCount: 0,
+    totalRatingSum: BigInt(0),
+    totalPurchases: 0,
     createdAt: timestamp,
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
@@ -949,7 +956,7 @@ ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
   const userId = buyer.toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Create purchase record (using existing schema fields)
+  // Create purchase record
   await context.ItineraryPurchase.set({
     id: purchaseId,
     itinerary_id: itineraryEntityId,
@@ -959,6 +966,15 @@ ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
     blockNumber: BigInt(event.block.number),
     txHash: event.transaction.hash,
   });
+
+  // Update itinerary purchase count
+  const itinerary = await context.Itinerary.get(itineraryEntityId);
+  if (itinerary) {
+    await context.Itinerary.set({
+      ...itinerary,
+      totalPurchases: (itinerary.totalPurchases || 0) + 1,
+    });
+  }
 
   // Update user stats
   let userStats = await context.UserStats.get(userId);
@@ -1019,6 +1035,22 @@ ItineraryNFTV2.ItineraryCompleted.handler(async ({ event, context }) => {
 
 ItineraryNFTV2.ItineraryRated.handler(async ({ event, context }) => {
   const { itineraryId, user, rating } = event.params;
+
+  const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
+  const itinerary = await context.Itinerary.get(itineraryEntityId);
+
+  if (itinerary) {
+    const newRatingCount = (itinerary.ratingCount || 0) + 1;
+    const newTotalRatingSum = (itinerary.totalRatingSum || BigInt(0)) + BigInt(rating.toString());
+    const newAverageRating = newTotalRatingSum / BigInt(newRatingCount);
+
+    await context.Itinerary.set({
+      ...itinerary,
+      ratingCount: newRatingCount,
+      totalRatingSum: newTotalRatingSum,
+      averageRating: newAverageRating,
+    });
+  }
 
   context.log.info(`⭐ Itinerary #${itineraryId} rated ${rating}/500 by ${user.slice(0, 8)}...`);
 });
