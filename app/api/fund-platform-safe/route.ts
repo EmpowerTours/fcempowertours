@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, formatEther, parseEther } from 'ethers';
 
 const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN!;
-const PLATFORM_SAFE_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_SAFE || '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533';
+const PLATFORM_SAFE_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_SAFE!;
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const KEEPER_SECRET = process.env.KEEPER_SECRET || '';

@@ -17,9 +17,9 @@ const RADIO_QUEUE_KEY = 'live-radio:queue';
 const VOICE_NOTES_KEY = 'live-radio:voice-notes';
 
 // ── Contract Addresses ───────────────────────────────────────────────
-const LIVE_RADIO_ADDRESS = (env.LIVE_RADIO || '0x042EDF80713e6822a891e4e8a0800c332B8200fd') as `0x${string}`;
-const MUSIC_SUBSCRIPTION_ADDRESS = (env.MUSIC_SUBSCRIPTION || '0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19') as `0x${string}`;
-const TOURS_REWARD_MANAGER_ADDRESS = (env.TOURS_REWARD_MANAGER || '0x7fff35BB27307806B92Fb1D1FBe52D168093eF87') as `0x${string}`;
+const LIVE_RADIO_ADDRESS = env.LIVE_RADIO as `0x${string}`;
+const MUSIC_SUBSCRIPTION_ADDRESS = env.MUSIC_SUBSCRIPTION as `0x${string}`;
+const TOURS_REWARD_MANAGER_ADDRESS = env.TOURS_REWARD_MANAGER as `0x${string}`;
 
 // ── Event ABIs (extracted from compiled Foundry artifacts) ───────────
 

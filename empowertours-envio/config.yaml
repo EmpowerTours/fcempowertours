@@ -588,4 +588,50 @@ networks:
               transaction_fields:
                 - hash
 
+      # EPK Registry - Electronic Press Kit + Booking Escrow
+      - name: EPKRegistry
+        address:
+          - "0x0000000000000000000000000000000000000000"  # TODO: Update after deployment
+        handler: src/EventHandlers.ts
+        events:
+          - event: "EPKCreated(address indexed artist, uint256 indexed artistFid, string ipfsCid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "EPKUpdated(address indexed artist, string ipfsCid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "EPKDeactivated(address indexed artist)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BookingCreated(uint256 indexed bookingId, address indexed organizer, address indexed artist, uint256 depositAmount, string eventDetailsCid)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BookingConfirmed(uint256 indexed bookingId, address indexed artist)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BookingCompleted(uint256 indexed bookingId, uint256 depositReleased)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BookingRefunded(uint256 indexed bookingId, uint256 amountRefunded)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "BookingCancelled(uint256 indexed bookingId)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false

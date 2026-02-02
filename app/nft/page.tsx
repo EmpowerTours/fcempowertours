@@ -16,7 +16,7 @@ const styles = `
 `;
 
 // ✅ EmpowerToursNFTv5 with Music + Art support
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || '0xb7c3565C2a00F29947219875AaE067c6cC36331a';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || '';
 
 export default function MusicPage() {
   const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();

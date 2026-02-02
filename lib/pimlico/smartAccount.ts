@@ -46,7 +46,7 @@ export async function mintMusicNFTGasless(
   recipient: `0x${string}`,  // Fixed type
   metadataURI: string
 ) {
-  const musicNFTAddress = '0x61A9d192b577EE197Db153753bAD5A93a772eB52' as `0x${string}`;
+  const musicNFTAddress = (process.env.NEXT_PUBLIC_NFT_CONTRACT || '') as `0x${string}`;
   
   console.log('Minting Music NFT (gasless)...');
   console.log('Recipient:', recipient);
@@ -71,7 +71,7 @@ export async function mintPassportNFTGasless(
   smartAccountClient: any,
   recipient: `0x${string}`  // Fixed type
 ) {
-  const passportNFTAddress = '0x2c26632F67f5E516704C3b6bf95B2aBbD9FC2BB4' as `0x${string}`;
+  const passportNFTAddress = (process.env.NEXT_PUBLIC_PASSPORT_NFT || '') as `0x${string}`;
   
   console.log('Minting Passport NFT (gasless)...');
   

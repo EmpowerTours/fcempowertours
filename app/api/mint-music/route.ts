@@ -28,7 +28,7 @@ import {
  * 3. POST /api/mint-music - Submit signed mint request
  */
 
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || '0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08';
+const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT!;
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';

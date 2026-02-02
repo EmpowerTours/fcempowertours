@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
       success: true,
       delegation: {
         user: delegation.user,
-        bot: delegation.bot,
         hoursLeft: Math.max(0, hoursLeft),
         minutesLeft: Math.max(0, minutesLeft),
         totalTimeLeft: `${Math.max(0, hoursLeft)}h ${Math.max(0, minutesLeft)}m`,
@@ -90,7 +89,6 @@ export async function POST(req: NextRequest) {
       success: true,
       delegation: {
         user: delegation.user,
-        bot: delegation.bot,
         hoursLeft: Math.max(0, hoursLeft),
         minutesLeft: Math.max(0, minutesLeft),
         totalTimeLeft: `${Math.max(0, hoursLeft)}h ${Math.max(0, minutesLeft)}m`,

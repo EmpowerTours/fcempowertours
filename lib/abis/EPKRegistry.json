@@ -1,0 +1,270 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      { "name": "_wmonToken", "type": "address", "internalType": "address" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createEPK",
+    "inputs": [
+      { "name": "ipfsCid", "type": "string", "internalType": "string" },
+      { "name": "artistFid", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateEPK",
+    "inputs": [
+      { "name": "ipfsCid", "type": "string", "internalType": "string" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deactivateEPK",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createBooking",
+    "inputs": [
+      { "name": "artist", "type": "address", "internalType": "address" },
+      { "name": "depositAmount", "type": "uint256", "internalType": "uint256" },
+      { "name": "eventDetailsCid", "type": "string", "internalType": "string" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "confirmBooking",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "completeBooking",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requestRefund",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelBooking",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "artistEPKs",
+    "inputs": [
+      { "name": "", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "ipfsCid", "type": "string", "internalType": "string" },
+      { "name": "artistFid", "type": "uint256", "internalType": "uint256" },
+      { "name": "createdAt", "type": "uint256", "internalType": "uint256" },
+      { "name": "updatedAt", "type": "uint256", "internalType": "uint256" },
+      { "name": "active", "type": "bool", "internalType": "bool" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bookings",
+    "inputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "organizer", "type": "address", "internalType": "address" },
+      { "name": "artist", "type": "address", "internalType": "address" },
+      { "name": "depositAmount", "type": "uint256", "internalType": "uint256" },
+      { "name": "eventDetails", "type": "string", "internalType": "string" },
+      { "name": "status", "type": "uint8", "internalType": "enum EPKRegistry.BookingStatus" },
+      { "name": "createdAt", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bookingCounter",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "wmonToken",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "address", "internalType": "contract IERC20" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "address", "internalType": "address" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasActiveEPK",
+    "inputs": [
+      { "name": "artist", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "", "type": "bool", "internalType": "bool" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRegisteredArtistCount",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getBooking",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "organizer", "type": "address", "internalType": "address" },
+      { "name": "artist", "type": "address", "internalType": "address" },
+      { "name": "depositAmount", "type": "uint256", "internalType": "uint256" },
+      { "name": "eventDetails", "type": "string", "internalType": "string" },
+      { "name": "status", "type": "uint8", "internalType": "enum EPKRegistry.BookingStatus" },
+      { "name": "createdAt", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registeredArtists",
+    "inputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "address", "internalType": "address" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      { "name": "newOwner", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "EPKCreated",
+    "inputs": [
+      { "name": "artist", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "artistFid", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "ipfsCid", "type": "string", "indexed": false, "internalType": "string" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EPKUpdated",
+    "inputs": [
+      { "name": "artist", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "ipfsCid", "type": "string", "indexed": false, "internalType": "string" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EPKDeactivated",
+    "inputs": [
+      { "name": "artist", "type": "address", "indexed": true, "internalType": "address" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BookingCreated",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "organizer", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "artist", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "depositAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "eventDetailsCid", "type": "string", "indexed": false, "internalType": "string" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BookingConfirmed",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "artist", "type": "address", "indexed": true, "internalType": "address" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BookingCompleted",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "depositReleased", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BookingRefunded",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "amountRefunded", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BookingCancelled",
+    "inputs": [
+      { "name": "bookingId", "type": "uint256", "indexed": true, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  }
+]

@@ -61,7 +61,7 @@ async function getMetadataFromBlockchain(tokenId: string): Promise<any | null> {
   try {
     console.log('🔗 Querying blockchain for token:', tokenId);
     
-    const MUSIC_NFT_ADDRESS = '0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6';
+    const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || '';
     
     const response = await fetch(MONAD_RPC, {
       method: 'POST',

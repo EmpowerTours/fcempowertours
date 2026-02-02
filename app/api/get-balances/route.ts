@@ -4,7 +4,7 @@ import { activeChain } from '@/app/chains';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0xC3852efFa2D1291f4224151f5F1Bc8C72051C5Fd') as Address;
+const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
 const BOT_SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address; // ✅ Bot's Safe account
 
 const ERC20_ABI = [

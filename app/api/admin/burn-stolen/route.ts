@@ -18,9 +18,9 @@ const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 
 // Admin addresses that can burn (owner wallet)
 const ADMIN_ADDRESSES = [
-  '0x6d11A83fEeFa14eF1B38Dce97Be3995441c9fEc3', // Treasury
-  '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533', // Platform Safe
-].map(a => a.toLowerCase());
+  process.env.ADMIN_ADDRESS || '',
+  process.env.NEXT_PUBLIC_PLATFORM_SAFE || '',
+].filter(Boolean).map(a => a.toLowerCase());
 
 // Signature expiry time (5 minutes)
 const SIGNATURE_EXPIRY_MS = 5 * 60 * 1000;

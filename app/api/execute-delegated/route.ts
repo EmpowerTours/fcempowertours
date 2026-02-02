@@ -2617,8 +2617,8 @@ ${enjoyText}
       case 'lottery_enter_wmon': {
         console.log('🎰 Action: lottery_enter_wmon');
 
-        const lotteryAddr = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as Address;
-        const wmonAddr = (process.env.NEXT_PUBLIC_WMON || '0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541') as Address;
+        const lotteryAddr = process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY! as Address;
+        const wmonAddr = process.env.NEXT_PUBLIC_WMON! as Address;
         const lotteryEntryFee = parseEther('1'); // 1 WMON entry fee
 
         // 🎁 ALWAYS use platform Safe for lottery entries (gasless/free for users)
@@ -2687,7 +2687,7 @@ ${enjoyText}
       case 'lottery_request':
         console.log('🎲 Action: lottery_request (V4 Switchboard)');
 
-        const LOTTERY_REQUEST_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as Address;
+        const LOTTERY_REQUEST_ADDRESS = process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY! as Address;
 
         if (!params?.roundId) {
           return NextResponse.json(
@@ -2729,7 +2729,7 @@ ${enjoyText}
       case 'lottery_resolve':
         console.log('🎰 Action: lottery_resolve (V4 Switchboard)');
 
-        const LOTTERY_RESOLVE_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as Address;
+        const LOTTERY_RESOLVE_ADDRESS = process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY! as Address;
 
         if (!params?.roundId) {
           return NextResponse.json(
@@ -2864,7 +2864,7 @@ ${enjoyText}
       case 'lottery_claim':
         console.log('💰 Action: lottery_claim');
 
-        const LOTTERY_CLAIM_ADDRESS = (process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY || '0xEFB7d472A717bDb9aEF4308d891eA8eE70C21a4F') as Address;
+        const LOTTERY_CLAIM_ADDRESS = process.env.NEXT_PUBLIC_DAILY_PASS_LOTTERY! as Address;
 
         if (!params?.roundId) {
           return NextResponse.json(
@@ -2906,7 +2906,7 @@ ${enjoyText}
       case 'create_experience':
         console.log('📍 Action: create_experience');
 
-        const ITINERARY_ADDRESS = (process.env.NEXT_PUBLIC_ITINERARY_ADDRESS || '0x5B61286AC88688fe8930711fAa5b1155e98daFe8') as Address;
+        const ITINERARY_ADDRESS = process.env.NEXT_PUBLIC_ITINERARY_NFT! as Address;
 
         // Validate required params
         if (!params?.locationName || !params?.city || !params?.country) {

@@ -13,7 +13,7 @@ import {
 } from '@/lib/maps/provider';
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'withdraw' | 'unknown';
+  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'withdraw' | 'create_epk' | 'manage_epk' | 'unknown';
   destination?: string; // Page to navigate to
   game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
   transaction?: {
@@ -57,6 +57,9 @@ interface OracleAction {
   withdraw?: {
     token: 'mon' | 'wmon' | 'tours';
     amount: string;
+  };
+  epk?: {
+    action: 'create' | 'view' | 'list_bookings';
   };
 }
 
@@ -226,6 +229,8 @@ Actions:
 - type:"admin" + admin.action:"burn_nft" + admin.tokenId:<id> + admin.reason:"<reason>" - Burn stolen/infringing NFT (admin only)
 - type:"admin" + admin.action:"lookup_nft" + admin.tokenId:<id> - Lookup NFT info before burning
 - type:"withdraw" + withdraw.token:"mon"|"wmon"|"tours" + withdraw.amount:"<number>" - Withdraw tokens from User Safe to Farcaster wallet
+- type:"create_epk" - Create an Electronic Press Kit (EPK). Triggers when user says "create my epk", "make a press kit", "build my press kit"
+- type:"manage_epk" + epk.action:"view"|"list_bookings" - View EPK or list booking inquiries. "show my epk", "my booking inquiries", "show my bookings"
 - type:"chat" - Conversational response
 
 For "Buy MUSIC NFT #X" requests:
@@ -247,7 +252,7 @@ Return valid JSON only.`;
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'create_itinerary', 'sponsorship', 'admin', 'withdraw'],
+            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'create_itinerary', 'sponsorship', 'admin', 'withdraw', 'create_epk', 'manage_epk'],
             description: 'The type of action to perform'
           },
           destination: {
@@ -338,13 +343,24 @@ Return valid JSON only.`;
             },
             description: 'Withdraw details if type is withdraw. Sends tokens from User Safe to Farcaster wallet.'
           },
+          epk: {
+            type: Type.OBJECT,
+            properties: {
+              action: {
+                type: Type.STRING,
+                enum: ['create', 'view', 'list_bookings'],
+                description: 'EPK action: create new EPK, view existing, or list booking inquiries'
+              }
+            },
+            description: 'EPK action details if type is create_epk or manage_epk'
+          },
           message: {
             type: Type.STRING,
             description: 'Response message to user'
           }
         },
         required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship', 'admin', 'withdraw']
+        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship', 'admin', 'withdraw', 'epk']
       }
     };
 
@@ -643,6 +659,33 @@ Return valid JSON only.`;
           console.error('[Oracle] Withdraw error:', withdrawError);
           action.message = `Withdrawal failed: ${withdrawError.message}`;
         }
+      }
+    }
+
+    // Handle EPK actions
+    if (action.type === 'create_epk') {
+      action.message = `I'll help you create your Electronic Press Kit (EPK)! This will be stored on IPFS and registered on Monad blockchain.\n\nOpening the EPK wizard now...`;
+    } else if (action.type === 'manage_epk' && action.epk) {
+      if (action.epk.action === 'list_bookings' && userAddress) {
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+          const bookingsRes = await fetch(`${baseUrl}/api/epk/booking?artist=${userAddress}`);
+          const bookingsData = await bookingsRes.json();
+          if (bookingsData.success && bookingsData.inquiries?.length > 0) {
+            const list = bookingsData.inquiries.slice(0, 5).map((b: any, i: number) =>
+              `${i + 1}. **${b.eventName}** - ${b.name} (${b.status}) - ${b.location}`
+            ).join('\n');
+            action.message = `Your booking inquiries:\n\n${list}\n\n${bookingsData.inquiries.length > 5 ? `...and ${bookingsData.inquiries.length - 5} more` : ''}`;
+          } else {
+            action.message = 'No booking inquiries found yet. Share your EPK page to start receiving bookings!';
+          }
+        } catch {
+          action.message = 'Could not fetch booking inquiries. Try again later.';
+        }
+      } else if (action.epk.action === 'view') {
+        action.message = 'Opening your EPK page...';
+        action.type = 'navigate';
+        action.destination = `/epk/${userAddress || ''}`;
       }
     }
 
@@ -1424,9 +1467,9 @@ async function handleAdminAction(
 
   // Admin addresses that can perform admin actions
   const ADMIN_ADDRESSES = [
-    '0x6d11A83fEeFa14eF1B38Dce97Be3995441c9fEc3', // Treasury
-    '0xDdaE200DBc2874BAd4FdB5e39F227215386c7533', // Platform Safe
-  ].map(a => a.toLowerCase());
+    process.env.ADMIN_ADDRESS || '',
+    process.env.NEXT_PUBLIC_PLATFORM_SAFE || '',
+  ].filter(Boolean).map(a => a.toLowerCase());
 
   try {
     switch (admin.action) {

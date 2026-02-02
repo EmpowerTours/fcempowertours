@@ -19,6 +19,7 @@ import { EventOracle } from '@/app/components/oracle/EventOracle';
 import { RockClimbingModal } from '@/app/components/oracle/RockClimbingModal';
 import { DevStudioModal } from '@/app/components/oracle/DevStudioModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
+import { EPKModal } from '@/app/components/oracle/EPKModal';
 import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -93,6 +94,7 @@ export default function OraclePage() {
   const [showRockClimbingModal, setShowRockClimbingModal] = useState(false);
   const [showDevStudioModal, setShowDevStudioModal] = useState(false);
   const [showDaoModal, setShowDaoModal] = useState(false);
+  const [showEPKModal, setShowEPKModal] = useState(false);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [viewingUserAddress, setViewingUserAddress] = useState<string | null>(null);
@@ -148,6 +150,8 @@ export default function OraclePage() {
       setShowDevStudioModal(true);
     } else if (modal === 'dao') {
       setShowDaoModal(true);
+    } else if (modal === 'epk') {
+      setShowEPKModal(true);
     }
   }, [searchParams]);
 
@@ -159,6 +163,7 @@ export default function OraclePage() {
     setShowRockClimbingModal(false);
     setShowDevStudioModal(false);
     setShowDaoModal(false);
+    setShowEPKModal(false);
     setShowDashboardModal(false);
     setShowUserProfileModal(false);
     setShowDepositModal(false);
@@ -456,6 +461,27 @@ export default function OraclePage() {
               action,
               txHash,
               explorerUrl: explorer
+            }]);
+            break;
+
+          case 'create_epk':
+            console.log('[Oracle] CREATE_EPK case triggered');
+            setMessages(prev => [...prev, {
+              role: 'oracle',
+              content: `${action.message}\n\nOpening EPK creation wizard...`,
+              action
+            }]);
+            setTimeout(() => {
+              setShowEPKModal(true);
+            }, 500);
+            break;
+
+          case 'manage_epk':
+            console.log('[Oracle] MANAGE_EPK case triggered');
+            setMessages(prev => [...prev, {
+              role: 'oracle',
+              content: action.message,
+              action
             }]);
             break;
 
@@ -1363,6 +1389,16 @@ export default function OraclePage() {
           userAddress={walletAddress || ''}
           onClose={() => setShowDaoModal(false)}
           isDarkMode={isDarkMode}
+        />
+      )}
+
+      {/* EPK Modal */}
+      {showEPKModal && (
+        <EPKModal
+          isOpen={showEPKModal}
+          onClose={() => setShowEPKModal(false)}
+          userAddress={walletAddress || undefined}
+          userFid={fid || undefined}
         />
       )}
 

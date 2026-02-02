@@ -224,9 +224,7 @@ export default function NFTPage() {
         transport: http(),
       });
 
-      const MUSIC_NFT_ADDRESS =
-        (process.env.NEXT_PUBLIC_NFT_CONTRACT as Address) ||
-        ('0x5adb6c3Dc258f2730c488Ea81883dc222A7426B6' as Address);
+      const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address;
 
       const uriData = await client.readContract({
         address: MUSIC_NFT_ADDRESS,

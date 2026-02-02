@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, parseAbi, Address } from 'viem';
 import { monadMainnet } from '@/app/chains';
 
-const NFT_CONTRACT = (process.env.NEXT_PUBLIC_NFT_CONTRACT || '0x5B5aB516fcBC1fF0ac26E3BaD0B72f52E0600b08') as Address;
+const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_CONTRACT! as Address;
 
 const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY
   ? `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/`

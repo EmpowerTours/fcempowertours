@@ -137,7 +137,6 @@ export async function GET(req: NextRequest) {
       success: true,
       delegation: {
         user: delegation.user,
-        bot: delegation.bot,
         hoursLeft,
         minutesLeft,
         totalTimeLeft: `${hoursLeft}h ${minutesLeft}m`,

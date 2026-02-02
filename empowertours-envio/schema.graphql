@@ -1201,3 +1201,33 @@ type DevStudioGlobalStats @entity {
   whitelistOpen: Boolean!
   lastUpdated: Timestamp!
 }
+
+# =============================================
+# EPK REGISTRY - Electronic Press Kit + Booking
+# =============================================
+
+type EPK @entity {
+  id: ID!  # artist address
+  artist: String!
+  artistFid: BigInt!
+  ipfsCid: String!
+  active: Boolean!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type EPKBooking @entity {
+  id: ID!  # bookingId
+  bookingId: BigInt!
+  organizer: String!
+  artist: String!
+  depositAmount: BigInt!
+  eventDetailsCid: String!
+  status: String!  # PENDING, CONFIRMED, COMPLETED, CANCELLED, REFUNDED
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}

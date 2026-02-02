@@ -8,7 +8,6 @@ export interface DelegationConfig {
 
 export interface Delegation {
   user: string;
-  bot: string;
   expiresAt: number;
   config: DelegationConfig;
   transactionsExecuted: number;
@@ -29,7 +28,7 @@ function parseDelegationData(data: any): Delegation | null {
     }
     
     // If it's already an object and valid, return it
-    if (typeof data === 'object' && data.user && data.bot) {
+    if (typeof data === 'object' && data.user) {
       return data as Delegation;
     }
 
@@ -49,12 +48,8 @@ export async function createDelegation(
   userAddress: string,
   config: DelegationConfig
 ): Promise<Delegation> {
-  const botAddress = process.env.BOT_SMART_ACCOUNT_ADDRESS ||
-    '0x9c751Ba8D48f9Fa49Af0ef0A8227D0189aEd84f5';
-
   const delegation: Delegation = {
     user: userAddress.toLowerCase(),
-    bot: botAddress.toLowerCase(),
     expiresAt: Date.now() + (config.durationHours * 60 * 60 * 1000),
     config,
     transactionsExecuted: 0,

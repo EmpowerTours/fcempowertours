@@ -17,3 +17,4 @@ export { MirrorMate } from './MirrorMate';
 export { EventOracle } from './EventOracle';
 export { DAOModal } from './DAOModal';
 export { CrystalBall } from './CrystalBall';
+export { EPKModal } from './EPKModal';
