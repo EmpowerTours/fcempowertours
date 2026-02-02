@@ -290,12 +290,24 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     try {
       console.log('[MapsWidget] Initializing map');
 
-      // Default center (will be updated when we get place details)
-      const defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC as fallback
+      // Use user's actual location as center, fall back to first place with coords, then NYC
+      let initialCenter = { lat: 40.7128, lng: -74.0060 };
+      if (userLocation?.latitude && userLocation?.longitude) {
+        initialCenter = { lat: userLocation.latitude, lng: userLocation.longitude };
+      } else {
+        // Check if any placeDetails already have locations
+        for (const source of sources) {
+          const details = source.placeId ? placeDetails[source.placeId] : null;
+          if (details?.location) {
+            initialCenter = details.location;
+            break;
+          }
+        }
+      }
 
       const map = new window.google.maps.Map(mapRef.current, {
-        center: defaultCenter,
-        zoom: 12,
+        center: initialCenter,
+        zoom: 14,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
