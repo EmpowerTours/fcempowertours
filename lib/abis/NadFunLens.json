@@ -1,0 +1,45 @@
+[
+  {
+    "inputs": [{ "name": "token", "type": "address" }],
+    "name": "getTokenInfo",
+    "outputs": [
+      {
+        "components": [
+          { "name": "token", "type": "address" },
+          { "name": "creator", "type": "address" },
+          { "name": "name", "type": "string" },
+          { "name": "symbol", "type": "string" },
+          { "name": "totalSupply", "type": "uint256" },
+          { "name": "virtualTokenReserves", "type": "uint256" },
+          { "name": "virtualMonReserves", "type": "uint256" },
+          { "name": "realTokenReserves", "type": "uint256" },
+          { "name": "realMonReserves", "type": "uint256" },
+          { "name": "graduated", "type": "bool" }
+        ],
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "token", "type": "address" },
+      { "name": "monAmount", "type": "uint256" }
+    ],
+    "name": "getTokenAmountByMon",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "token", "type": "address" },
+      { "name": "tokenAmount", "type": "uint256" }
+    ],
+    "name": "getMonAmountByToken",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

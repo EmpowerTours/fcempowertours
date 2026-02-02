@@ -1,0 +1,46 @@
+[
+  {
+    "inputs": [
+      { "name": "name", "type": "string" },
+      { "name": "symbol", "type": "string" },
+      { "name": "tokenURI", "type": "string" },
+      { "name": "orderSize", "type": "uint256" }
+    ],
+    "name": "create",
+    "outputs": [{ "name": "token", "type": "address" }],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "token", "type": "address" },
+      { "name": "minOrderSize", "type": "uint256" }
+    ],
+    "name": "buy",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "token", "type": "address" },
+      { "name": "orderSize", "type": "uint256" },
+      { "name": "minPayoff", "type": "uint256" }
+    ],
+    "name": "sell",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "token", "type": "address" },
+      { "indexed": true, "name": "creator", "type": "address" },
+      { "indexed": false, "name": "name", "type": "string" },
+      { "indexed": false, "name": "symbol", "type": "string" }
+    ],
+    "name": "TokenCreated",
+    "type": "event"
+  }
+]
