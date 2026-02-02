@@ -575,7 +575,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                         onChange={(e) => setFundAmount(e.target.value)}
                         placeholder="Amount (max 10)"
                         max="10"
-                        className={`flex-1 min-w-0 rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
+                        className={`flex-1 min-w-0 rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
                       />
                       <button
                         onClick={() => setFundAmount('10')}
@@ -614,7 +614,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                       value={wrapAmount}
                       onChange={(e) => setWrapAmount(e.target.value)}
                       placeholder="Amount"
-                      className={`flex-1 min-w-0 rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
+                      className={`flex-1 min-w-0 rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
                     />
                     <button
                       onClick={() => setWrapAmount(safeToursBalance)}
@@ -647,7 +647,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                       value={unwrapAmount}
                       onChange={(e) => setUnwrapAmount(e.target.value)}
                       placeholder="Amount"
-                      className={`flex-1 min-w-0 rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
+                      className={`flex-1 min-w-0 rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
                     />
                     <button
                       onClick={() => setUnwrapAmount(vToursBalance)}
@@ -707,7 +707,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                       value={delegateAddress}
                       onChange={(e) => setDelegateAddress(e.target.value)}
                       placeholder="0x... delegate address"
-                      className={`w-full rounded-lg px-3 py-2 focus:outline-none mb-2 ${isDarkMode ? 'bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
+                      className={`w-full rounded-lg px-3 py-2 focus:outline-none mb-2 ${isDarkMode ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-purple-500'}`}
                     />
                     <button
                       onClick={handleDelegate}
@@ -880,7 +880,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                         value={burnTokenId}
                         onChange={(e) => setBurnTokenId(e.target.value)}
                         placeholder="Enter NFT token ID"
-                        className={`w-full rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-red-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'}`}
+                        className={`w-full rounded-lg px-3 py-2 focus:outline-none ${isDarkMode ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-red-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'}`}
                       />
                     </div>
 
@@ -891,7 +891,7 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
                         onChange={(e) => setBurnReason(e.target.value)}
                         placeholder="Explain why this NFT should be burned (e.g., 'Copyright infringement - original artwork by @artist')"
                         rows={3}
-                        className={`w-full rounded-lg px-3 py-2 focus:outline-none resize-none ${isDarkMode ? 'bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-red-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'}`}
+                        className={`w-full rounded-lg px-3 py-2 focus:outline-none resize-none ${isDarkMode ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-red-500' : 'bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'}`}
                       />
                     </div>
 

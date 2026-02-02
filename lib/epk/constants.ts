@@ -241,7 +241,7 @@ export const EARVIN_GALLARDO_EPK: EPKMetadata = {
     },
   },
   socials: {
-    farcaster: 'earvin',
+    farcaster: 'unify34',
   },
   onChain: {},
 };

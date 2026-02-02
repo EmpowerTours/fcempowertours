@@ -334,7 +334,7 @@ export default function EPKPage({ identifier }: EPKPageProps) {
             <div className="flex items-center gap-4">
               {epk.socials?.farcaster && (
                 <a
-                  href={`https://warpcast.com/${epk.socials.farcaster}`}
+                  href={`https://farcaster.xyz/${epk.socials.farcaster}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-slate-400 hover:text-purple-300 transition-colors"

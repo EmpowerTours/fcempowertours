@@ -278,7 +278,7 @@ export const DevStudioModal: React.FC<DevStudioModalProps> = ({
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="A token with vesting schedule and multi-sig governance..."
                   rows={4}
-                  className="w-full rounded-xl px-4 py-3 bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 resize-none text-sm"
+                  className="w-full rounded-xl px-4 py-3 bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 resize-none text-sm"
                 />
               </div>
 

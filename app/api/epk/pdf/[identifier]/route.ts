@@ -82,57 +82,76 @@ export async function GET(
 
     const epk = epkMetadata;
 
+    // Build page children arrays (react-pdf doesn't handle spread + conditional well)
+    const headerChildren: any[] = [
+      React.createElement(Text, { key: 'name', style: styles.title }, epk.artist.name),
+      React.createElement(Text, { key: 'loc', style: styles.subtitle }, epk.artist.location),
+      React.createElement(View, { key: 'genres', style: styles.genrePills },
+        ...epk.artist.genre.map((g, i) =>
+          React.createElement(Text, { key: i, style: styles.pill }, g)
+        )
+      ),
+    ];
+    if (epk.onChain?.ipfsCid) {
+      headerChildren.push(
+        React.createElement(Text, { key: 'verified', style: styles.verifiedBadge }, `On-chain verified | IPFS: ${epk.onChain.ipfsCid.slice(0, 16)}...`)
+      );
+    }
+
+    const pressChildren: any[] = [
+      React.createElement(Text, { key: 'pt', style: styles.sectionTitle }, 'Press'),
+      ...epk.press.map((article, i) =>
+        React.createElement(View, { key: `p${i}`, style: styles.pressItem },
+          React.createElement(Text, { style: styles.pressOutlet }, article.outlet),
+          React.createElement(Text, { style: styles.pressTitle }, article.title),
+          React.createElement(Text, { style: styles.pressExcerpt }, article.excerpt),
+          React.createElement(Text, { style: styles.pressDate }, article.date)
+        )
+      ),
+    ];
+
+    const contactChildren: any[] = [
+      React.createElement(Text, { key: 'ct', style: styles.sectionTitle }, 'Contact'),
+      React.createElement(Text, { key: 'c1', style: styles.bookingItem }, `Booking inquiries: Visit empowertours.xyz/epk/${epk.artist.slug}`),
+      React.createElement(Text, { key: 'c2', style: styles.bookingItem }, 'WMON deposit required for booking confirmation'),
+    ];
+    if (epk.socials?.farcaster) {
+      contactChildren.push(
+        React.createElement(Text, { key: 'c3', style: styles.bookingItem }, `Farcaster: @${epk.socials.farcaster}`)
+      );
+    }
+
     const EPKDocument = React.createElement(Document, {},
       // Page 1: Hero + Bio + Press
-      React.createElement(Page, { size: 'A4', style: styles.page },
-        React.createElement(View, { style: styles.header },
-          React.createElement(Text, { style: styles.title }, epk.artist.name),
-          React.createElement(Text, { style: styles.subtitle }, epk.artist.location),
-          React.createElement(View, { style: styles.genrePills },
-            ...epk.artist.genre.map((g, i) =>
-              React.createElement(Text, { key: i, style: styles.pill }, g)
-            )
-          ),
-          epk.onChain?.ipfsCid &&
-            React.createElement(Text, { style: styles.verifiedBadge }, `On-chain verified | IPFS: ${epk.onChain.ipfsCid.slice(0, 16)}...`)
-        ),
+      React.createElement(Page, { key: 'p1', size: 'A4', style: styles.page },
+        React.createElement(View, { style: styles.header }, ...headerChildren),
         React.createElement(View, { style: styles.section },
           React.createElement(Text, { style: styles.sectionTitle }, 'About'),
           React.createElement(Text, { style: styles.bio }, epk.artist.bio)
         ),
-        React.createElement(View, { style: styles.section },
-          React.createElement(Text, { style: styles.sectionTitle }, 'Press'),
-          ...epk.press.map((article, i) =>
-            React.createElement(View, { key: i, style: styles.pressItem },
-              React.createElement(Text, { style: styles.pressOutlet }, article.outlet),
-              React.createElement(Text, { style: styles.pressTitle }, article.title),
-              React.createElement(Text, { style: styles.pressExcerpt }, article.excerpt),
-              React.createElement(Text, { style: styles.pressDate }, article.date)
-            )
-          )
-        ),
+        React.createElement(View, { style: styles.section }, ...pressChildren),
         React.createElement(Text, { style: styles.footer }, `${epk.artist.name} | Electronic Press Kit | EmpowerTours on Monad`)
       ),
       // Page 2: Technical + Hospitality Riders
-      React.createElement(Page, { size: 'A4', style: styles.page },
+      React.createElement(Page, { key: 'p2', size: 'A4', style: styles.page },
         React.createElement(View, { style: styles.section },
-          React.createElement(Text, { style: styles.sectionTitle }, 'Technical Rider'),
+          React.createElement(Text, { key: 'tr', style: styles.sectionTitle }, 'Technical Rider'),
           ...Object.values(epk.technicalRider).map((section, i) =>
-            React.createElement(View, { key: i, style: styles.riderSection },
+            React.createElement(View, { key: `t${i}`, style: styles.riderSection },
               React.createElement(Text, { style: styles.riderTitle }, section.title),
               ...section.items.map((item: string, j: number) =>
-                React.createElement(Text, { key: j, style: styles.riderItem }, `• ${item}`)
+                React.createElement(Text, { key: `t${i}${j}`, style: styles.riderItem }, `\u2022 ${item}`)
               )
             )
           )
         ),
         React.createElement(View, { style: styles.section },
-          React.createElement(Text, { style: styles.sectionTitle }, 'Hospitality Rider'),
+          React.createElement(Text, { key: 'hr', style: styles.sectionTitle }, 'Hospitality Rider'),
           ...Object.values(epk.hospitalityRider).map((section, i) =>
-            React.createElement(View, { key: i, style: styles.riderSection },
+            React.createElement(View, { key: `h${i}`, style: styles.riderSection },
               React.createElement(Text, { style: styles.riderTitle }, section.title),
               ...section.items.map((item: string, j: number) =>
-                React.createElement(Text, { key: j, style: styles.riderItem }, `• ${item}`)
+                React.createElement(Text, { key: `h${i}${j}`, style: styles.riderItem }, `\u2022 ${item}`)
               )
             )
           )
@@ -140,32 +159,27 @@ export async function GET(
         React.createElement(Text, { style: styles.footer }, `${epk.artist.name} | Electronic Press Kit | EmpowerTours on Monad`)
       ),
       // Page 3: Booking
-      React.createElement(Page, { size: 'A4', style: styles.page },
+      React.createElement(Page, { key: 'p3', size: 'A4', style: styles.page },
         React.createElement(View, { style: styles.section },
           React.createElement(Text, { style: styles.sectionTitle }, 'Booking Information'),
           React.createElement(View, { style: styles.bookingSection },
-            React.createElement(Text, { style: styles.bookingTitle }, 'Pricing'),
-            React.createElement(Text, { style: styles.bookingItem }, epk.booking.pricing),
-            React.createElement(Text, { style: { ...styles.bookingTitle, marginTop: 12 } }, 'Available For'),
+            React.createElement(Text, { key: 'b1', style: styles.bookingTitle }, 'Pricing'),
+            React.createElement(Text, { key: 'b2', style: styles.bookingItem }, epk.booking.pricing),
+            React.createElement(Text, { key: 'b3', style: { ...styles.bookingTitle, marginTop: 12 } }, 'Available For'),
             ...epk.booking.availableFor.map((item, i) =>
-              React.createElement(Text, { key: i, style: styles.bookingItem }, `• ${item}`)
+              React.createElement(Text, { key: `a${i}`, style: styles.bookingItem }, `\u2022 ${item}`)
             ),
-            React.createElement(Text, { style: { ...styles.bookingTitle, marginTop: 12 } }, 'Target Events'),
+            React.createElement(Text, { key: 'b4', style: { ...styles.bookingTitle, marginTop: 12 } }, 'Target Events'),
             ...epk.booking.targetEvents.map((item, i) =>
-              React.createElement(Text, { key: i, style: styles.bookingItem }, `• ${item}`)
+              React.createElement(Text, { key: `e${i}`, style: styles.bookingItem }, `\u2022 ${item}`)
             ),
-            React.createElement(Text, { style: { ...styles.bookingTitle, marginTop: 12 } }, 'Territories'),
+            React.createElement(Text, { key: 'b5', style: { ...styles.bookingTitle, marginTop: 12 } }, 'Territories'),
             ...epk.booking.territories.map((item, i) =>
-              React.createElement(Text, { key: i, style: styles.bookingItem }, `• ${item}`)
+              React.createElement(Text, { key: `r${i}`, style: styles.bookingItem }, `\u2022 ${item}`)
             )
           )
         ),
-        React.createElement(View, { style: { ...styles.section, marginTop: 20 } },
-          React.createElement(Text, { style: styles.sectionTitle }, 'Contact'),
-          React.createElement(Text, { style: styles.bookingItem }, `Booking inquiries: Visit empowertours.xyz/epk/${epk.artist.slug}`),
-          React.createElement(Text, { style: styles.bookingItem }, 'WMON deposit required for booking confirmation'),
-          epk.socials?.farcaster && React.createElement(Text, { style: styles.bookingItem }, `Farcaster: @${epk.socials.farcaster}`)
-        ),
+        React.createElement(View, { style: { ...styles.section, marginTop: 20 } }, ...contactChildren),
         React.createElement(Text, { style: styles.footer }, `${epk.artist.name} | Electronic Press Kit | EmpowerTours on Monad`)
       )
     );
