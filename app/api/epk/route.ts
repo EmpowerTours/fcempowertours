@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { encodeFunctionData, type Address } from 'viem';
-import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
+import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { EPK_SLUG_PREFIX, EPK_REGISTRY_ADDRESS } from '@/lib/epk/constants';
 import { slugify, validateEPK } from '@/lib/epk/utils';
 import type { EPKMetadata } from '@/lib/epk/types';
@@ -47,14 +47,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to upload EPK to IPFS' }, { status: 500 });
     }
 
-    // Register on-chain via EPKRegistry (platform Safe calls createEPKFor/updateEPKFor on behalf of artist)
+    // Register on-chain via EPKRegistry (user's Safe calls createEPK/updateEPK directly)
     let txHash: string | null = null;
     if (EPK_REGISTRY_ADDRESS) {
       try {
-        const functionName = update ? 'updateEPKFor' : 'createEPKFor';
+        const functionName = update ? 'updateEPK' : 'createEPK';
         const args = update
-          ? [userAddress as Address, ipfsCid]
-          : [userAddress as Address, ipfsCid, BigInt(userFid || 0)];
+          ? [ipfsCid]
+          : [ipfsCid, BigInt(userFid || 0)];
 
         const data = encodeFunctionData({
           abi: EPKRegistryABI,
@@ -62,9 +62,10 @@ export async function POST(req: NextRequest) {
           args,
         });
 
-        txHash = await sendSafeTransaction([
+        const result = await sendUserSafeTransaction(userAddress, [
           { to: EPK_REGISTRY_ADDRESS as Address, value: 0n, data },
         ]);
+        txHash = result.txHash;
 
         console.log(`[EPK] ${update ? 'Updated' : 'Created'} on-chain for ${userAddress}:`, txHash);
       } catch (chainError: any) {
