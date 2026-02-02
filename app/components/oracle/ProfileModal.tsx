@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight } from 'lucide-react';
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown } from 'lucide-react';
 import { getAddressExplorerUrl } from '@/app/chains';
 import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
 import { EPKModal } from './EPKModal';
+import type { EPKMetadata, ArtistStreamingStats } from '@/lib/epk/types';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -62,6 +62,8 @@ interface EPKData {
   slug: string;
   artistName: string;
   genre: string;
+  fullEpk?: EPKMetadata;
+  streamingStats?: ArtistStreamingStats | null;
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
@@ -76,7 +78,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onMintPassport,
   isDarkMode = true
 }) => {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,6 +93,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [epkLoading, setEpkLoading] = useState(false);
   const [showEPKModal, setShowEPKModal] = useState(false);
   const [showEPKSubmodal, setShowEPKSubmodal] = useState(false);
+  const [showEPKViewModal, setShowEPKViewModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -136,6 +138,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           slug: epk.artist?.slug || '',
           artistName: epk.artist?.name || '',
           genre: Array.isArray(epk.artist?.genre) ? epk.artist.genre.join(', ') : (epk.artist?.genre || ''),
+          fullEpk: epk,
+          streamingStats: data.streamingStats || null,
         });
       }
     } catch (error) {
@@ -645,8 +649,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    onClose();
-                    router.push(`/epk/${epkData.slug}`);
+                    setShowEPKSubmodal(false);
+                    setShowEPKViewModal(true);
                   }}
                   className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
                 >
@@ -692,11 +696,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     document.body
   ) : null;
 
+  // EPK View Modal - full press kit view as scrollable sub-modal
+  const epkViewModal = showEPKViewModal && mounted && epkData?.fullEpk ? createPortal(
+    <div
+      className="fixed inset-0 flex items-end sm:items-center justify-center"
+      style={{ zIndex: 10002, backgroundColor: 'rgba(0,0,0,0.9)' }}
+      onClick={() => setShowEPKViewModal(false)}
+    >
+      <div
+        className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-2xl bg-[#0f172a]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <EPKViewContent
+          epk={epkData.fullEpk}
+          stats={epkData.streamingStats}
+          onClose={() => setShowEPKViewModal(false)}
+          onEdit={() => {
+            setShowEPKViewModal(false);
+            setShowEPKModal(true);
+          }}
+        />
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
   return (
     <>
       {createPortal(modalContent, document.body)}
       {passportPreviewModal}
       {epkSubmodal}
+      {epkViewModal}
       {showEPKModal && (
         <EPKModal
           isOpen={showEPKModal}
@@ -728,6 +758,298 @@ const StatBox = ({ icon, value, label, color }: { icon: React.ReactNode; value: 
       <p className="text-xl font-bold text-white">{value}</p>
       <p className="text-xs text-gray-400">{label}</p>
     </div>
+  );
+};
+
+// EPK View Content - full press kit rendered in a sub-modal
+const EPKViewContent = ({
+  epk,
+  stats,
+  onClose,
+  onEdit,
+}: {
+  epk: EPKMetadata;
+  stats?: ArtistStreamingStats | null;
+  onClose: () => void;
+  onEdit: () => void;
+}) => {
+  const [expandedRider, setExpandedRider] = useState<string | null>(null);
+  const verified = !!epk.onChain?.ipfsCid;
+
+  return (
+    <>
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-white/10 bg-[#0f172a]/95 backdrop-blur-sm">
+        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <FileText className="w-5 h-5 text-purple-400" />
+          Press Kit
+        </h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onEdit}
+            className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Edit EPK"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <div className="px-4 pt-6 pb-4 bg-gradient-to-b from-[#1e1b4b] to-[#0f172a]">
+        <div className="flex items-center gap-2 mb-3">
+          {verified && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-400 bg-green-400/10 border border-green-400/20 rounded-full px-2.5 py-0.5">
+              <CheckCircle className="w-3 h-3" />
+              On-Chain Verified
+            </span>
+          )}
+        </div>
+        <h1 className="text-2xl font-bold text-white mb-2">{epk.artist.name}</h1>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {epk.artist.genre.map((g) => (
+            <span key={g} className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-0.5">
+              {g}
+            </span>
+          ))}
+        </div>
+        <p className="flex items-center gap-1.5 text-sm text-slate-400">
+          <MapPin className="w-3.5 h-3.5" />
+          {epk.artist.location}
+        </p>
+      </div>
+
+      <div className="px-4 pb-6 space-y-6">
+        {/* About */}
+        <section>
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">About</h2>
+          <p className="text-sm text-slate-300 leading-relaxed">{epk.artist.bio}</p>
+        </section>
+
+        {/* Streaming Stats */}
+        {stats && (stats.totalPlays > 0 || stats.totalSales > 0) && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">On-Chain Stats</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Play className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-xs text-slate-400">Plays</span>
+                </div>
+                <p className="text-lg font-bold text-white">{stats.totalPlays.toLocaleString()}</p>
+              </div>
+              <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-xs text-slate-400">Listeners</span>
+                </div>
+                <p className="text-lg font-bold text-white">{stats.uniqueListeners.toLocaleString()}</p>
+              </div>
+              <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Music className="w-3.5 h-3.5 text-green-400" />
+                  <span className="text-xs text-slate-400">Sales</span>
+                </div>
+                <p className="text-lg font-bold text-white">{stats.totalSales.toLocaleString()}</p>
+              </div>
+              <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs text-slate-400">Revenue</span>
+                </div>
+                <p className="text-lg font-bold text-white">{stats.totalRevenue} WMON</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Press */}
+        {epk.press.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Press</h2>
+            <div className="space-y-2">
+              {epk.press.map((article, i) => (
+                <a
+                  key={i}
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
+                >
+                  <p className="text-xs font-semibold text-purple-400 uppercase tracking-wider">{article.outlet}</p>
+                  <p className="text-sm text-white font-medium mt-1 line-clamp-2">{article.title}</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {new Date(article.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Media / Videos */}
+        {epk.media.videos.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Media</h2>
+            <div className="space-y-2">
+              {epk.media.videos.map((video, i) => (
+                <a
+                  key={i}
+                  href={video.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
+                >
+                  <Play className="w-8 h-8 text-purple-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-white font-medium truncate">{video.title}</p>
+                    <p className="text-xs text-slate-500 capitalize">{video.platform}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Booking Info */}
+        {epk.booking.inquiryEnabled && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Booking</h2>
+            <div className="bg-[#1e293b] rounded-lg p-4 border border-white/5 space-y-3">
+              <p className="text-sm text-white font-medium">{epk.booking.pricing}</p>
+              {epk.booking.minimumDeposit && (
+                <p className="text-xs text-slate-400">Min. deposit: {epk.booking.minimumDeposit} WMON</p>
+              )}
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Available For</p>
+                <div className="flex flex-wrap gap-1">
+                  {epk.booking.availableFor.map((item, i) => (
+                    <span key={i} className="text-xs text-slate-300 bg-white/5 rounded-full px-2.5 py-0.5">{item}</span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Territories</p>
+                <p className="text-xs text-slate-300">{epk.booking.territories.join(', ')}</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Technical Rider (collapsible) */}
+        {epk.technicalRider && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Technical Rider</h2>
+            <div className="space-y-1">
+              {Object.values(epk.technicalRider).map((section: any) => (
+                <div key={section.title} className="bg-[#1e293b] rounded-lg border border-white/5 overflow-hidden">
+                  <button
+                    onClick={() => setExpandedRider(expandedRider === `tech-${section.title}` ? null : `tech-${section.title}`)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-white/5 transition-colors"
+                  >
+                    <span className="text-sm text-white font-medium">{section.title}</span>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedRider === `tech-${section.title}` ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expandedRider === `tech-${section.title}` && (
+                    <div className="px-3 pb-3 border-t border-white/5">
+                      <ul className="space-y-1 mt-2">
+                        {section.items.map((item: string, i: number) => (
+                          <li key={i} className="text-xs text-slate-400 flex items-start gap-2">
+                            <span className="text-purple-400 mt-0.5">&#8226;</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Hospitality Rider (collapsible) */}
+        {epk.hospitalityRider && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Hospitality Rider</h2>
+            <div className="space-y-1">
+              {Object.values(epk.hospitalityRider).map((section: any) => (
+                <div key={section.title} className="bg-[#1e293b] rounded-lg border border-white/5 overflow-hidden">
+                  <button
+                    onClick={() => setExpandedRider(expandedRider === `hosp-${section.title}` ? null : `hosp-${section.title}`)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-white/5 transition-colors"
+                  >
+                    <span className="text-sm text-white font-medium">{section.title}</span>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedRider === `hosp-${section.title}` ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expandedRider === `hosp-${section.title}` && (
+                    <div className="px-3 pb-3 border-t border-white/5">
+                      <ul className="space-y-1 mt-2">
+                        {section.items.map((item: string, i: number) => (
+                          <li key={i} className="text-xs text-slate-400 flex items-start gap-2">
+                            <span className="text-purple-400 mt-0.5">&#8226;</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Socials */}
+        {epk.socials && (epk.socials.farcaster || epk.socials.twitter || epk.socials.instagram || epk.socials.website) && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Links</h2>
+            <div className="flex flex-wrap gap-2">
+              {epk.socials.farcaster && (
+                <a href={`https://farcaster.xyz/${epk.socials.farcaster}`} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-1.5 hover:bg-purple-500/20 transition-colors">
+                  Farcaster
+                </a>
+              )}
+              {epk.socials.twitter && (
+                <a href={`https://twitter.com/${epk.socials.twitter}`} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1.5 hover:bg-blue-500/20 transition-colors">
+                  Twitter
+                </a>
+              )}
+              {epk.socials.instagram && (
+                <a href={`https://instagram.com/${epk.socials.instagram}`} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-pink-300 bg-pink-500/10 border border-pink-500/20 rounded-full px-3 py-1.5 hover:bg-pink-500/20 transition-colors">
+                  Instagram
+                </a>
+              )}
+              {epk.socials.website && (
+                <a href={epk.socials.website} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 hover:bg-white/10 transition-colors">
+                  Website
+                </a>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* On-Chain Info */}
+        {verified && epk.onChain?.ipfsCid && (
+          <div className="text-center pt-2 border-t border-white/5">
+            <p className="text-xs text-slate-500">
+              IPFS: {epk.onChain.ipfsCid.slice(0, 16)}...
+            </p>
+            <p className="text-xs text-slate-600 mt-1">Powered by EmpowerTours on Monad</p>
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 
