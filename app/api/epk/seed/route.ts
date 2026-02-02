@@ -80,8 +80,9 @@ export async function POST(req: NextRequest) {
 
     // Store slug mapping and cache CID in Redis
     const slug = 'earvin-gallardo';
-    await redis.set(`${EPK_SLUG_PREFIX}${slug}`, artistAddress);
-    await redis.set(`${EPK_CACHE_PREFIX}${artistAddress}`, ipfsCid);
+    const normalizedAddress = artistAddress.toLowerCase();
+    await redis.set(`${EPK_SLUG_PREFIX}${slug}`, normalizedAddress);
+    await redis.set(`${EPK_CACHE_PREFIX}${normalizedAddress}`, ipfsCid);
 
     return NextResponse.json({
       success: true,

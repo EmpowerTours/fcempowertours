@@ -23,10 +23,11 @@ export async function GET(
     let artistAddress: string | null = null;
 
     if (identifier.startsWith('0x') && identifier.length === 42) {
-      artistAddress = identifier;
+      artistAddress = identifier.toLowerCase();
     } else {
       // Look up slug in Redis
       artistAddress = await redis.get<string>(`${EPK_SLUG_PREFIX}${identifier}`);
+      if (artistAddress) artistAddress = artistAddress.toLowerCase();
     }
 
     if (!artistAddress) {

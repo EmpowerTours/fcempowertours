@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     // Store slug -> address mapping in Redis
     const slug = epkData.artist.slug;
-    await redis.set(`${EPK_SLUG_PREFIX}${slug}`, userAddress);
+    await redis.set(`${EPK_SLUG_PREFIX}${slug}`, userAddress.toLowerCase());
 
     return NextResponse.json({
       success: true,
