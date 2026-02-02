@@ -730,11 +730,10 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
         setShowQueueModal(false);
         setSelectedSong(null);
         setTipAmount('');
-        console.log('[LiveRadio] Song queued:', song.name);
+        console.log('[LiveRadio] Song now playing:', song.name);
 
-        // Show success with tx hash link
-        const explorerUrl = `https://monadscan.com/tx/${txHash}`;
-        showToast(`Song "${song.name}" queued! TX: ${txHash.slice(0, 10)}...`, 'success');
+        // Show success - song is now playing immediately
+        showToast(`Now playing: "${song.name}"! TX: ${txHash.slice(0, 10)}...`, 'success');
       } else {
         throw new Error(data.error || 'Queue failed');
       }

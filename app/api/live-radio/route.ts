@@ -454,20 +454,54 @@ export async function POST(req: NextRequest) {
         duration: songDuration,
       };
 
-      await redis.rpush(RADIO_QUEUE_KEY, JSON.stringify(queuedSong));
-
       console.log('[LiveRadio] Song queued:', name, 'by', userAddress);
 
-      // Broadcast queue update to SSE clients
-      const updatedQueue = await redis.lrange(RADIO_QUEUE_KEY, 0, 20);
-      const parsedQueue = updatedQueue.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
-      broadcastRadioUpdate('queue_update', { type: 'song_queued', queue: parsedQueue, song: queuedSong });
+      // Immediately start playing the queued song (interrupts current)
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY) || {
+        isLive: true,
+        currentSong: null,
+        currentVoiceNote: null,
+        listenerCount: 0,
+        lastUpdated: Date.now(),
+        totalSongsPlayed: 0,
+        totalVoiceNotesPlayed: 0,
+      };
+
+      state.currentSong = {
+        ...queuedSong,
+        startedAt: Date.now(),
+        duration: songDuration,
+        isRandom: false,
+      };
+      state.currentVoiceNote = null; // Stop any voice note
+      state.totalSongsPlayed = (state.totalSongsPlayed || 0) + 1;
+      state.lastUpdated = Date.now();
+
+      await redis.set(RADIO_STATE_KEY, state);
+      await redis.set(PLAYBACK_PHASE_KEY, 'song');
+
+      // Log to play history
+      await redis.lpush(PLAY_HISTORY_KEY, JSON.stringify({
+        tokenId: queuedSong.tokenId,
+        name: queuedSong.name,
+        artist: queuedSong.artist,
+        imageUrl: queuedSong.imageUrl,
+        queuedBy: userAddress,
+        queuedByFid: userFid || 0,
+        playedAt: Date.now(),
+        isRandom: false,
+        paidAmount: queuedSong.paidAmount,
+      }));
+      await redis.ltrim(PLAY_HISTORY_KEY, 0, 99);
+
+      // Broadcast state update so all listeners switch to the new song
+      broadcastRadioUpdate('state_update', { type: 'song_playing', state });
 
       return NextResponse.json({
         success: true,
-        message: 'Song added to queue!',
-        queuePosition: await redis.llen(RADIO_QUEUE_KEY),
+        message: `Now playing: ${name}`,
         song: queuedSong,
+        nowPlaying: true,
       });
     }
 
