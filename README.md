@@ -1,6 +1,6 @@
 # EmpowerTours - Farcaster Mini App
 
-> **Travel Passports, Music Streaming, Live Radio, Rock Climbing, DAO Governance, and Social Experiences on Monad**
+> **Travel Passports, Music Streaming, Live Radio, Rock Climbing, DAO Governance, Electronic Press Kits, Dev Studio, and Social Experiences on Monad**
 
 [![Monad](https://img.shields.io/badge/Monad-Mainnet-purple)](https://monad.xyz)
 [![Farcaster](https://img.shields.io/badge/Farcaster-Mini%20App-blue)](https://docs.farcaster.xyz)
@@ -13,7 +13,7 @@
 
 ## What is EmpowerTours?
 
-EmpowerTours is a comprehensive Web3 platform built as a **Farcaster Mini App** on Monad. It combines travel passport NFTs, music streaming with NFT-based licensing, live community radio, rock climbing adventures, DAO governance, event sponsorship, AI-powered interactions, and fully gasless transactions through Account Abstraction.
+EmpowerTours is a comprehensive Web3 platform built as a **Farcaster Mini App** on Monad. It combines travel passport NFTs, music streaming with NFT-based licensing, live community radio, rock climbing adventures, DAO governance, electronic press kits with on-chain booking, an AI-powered dev studio for smart contract generation, event sponsorship, AI-powered interactions, and fully gasless transactions through Account Abstraction.
 
 ---
 
@@ -100,6 +100,36 @@ Create and sponsor community events with on-chain accountability.
 - **Sponsorship** - Brands sponsor events with WMON escrow
 - **Verification Voting** - Checked-in attendees vote on whether sponsor was mentioned
 - **Auto-Settlement** - Funds released to host or refunded to sponsor based on vote outcome
+
+### Electronic Press Kit (EPKRegistryV2)
+
+On-chain artist press kits with WMON escrow booking system. Artists register their EPK metadata (stored on IPFS) on-chain, and organizers can book artists with WMON deposits held in escrow.
+
+- **Create EPK** - Artists build professional press kits with bio, genre, media, press coverage, technical rider, and hospitality rider
+- **On-Chain Registration** - EPK IPFS CID registered on-chain via EPKRegistryV2 contract
+- **WMON Escrow Booking** - Organizers deposit WMON to book artists, held in escrow until booking lifecycle completes
+- **Booking Lifecycle** - Pending → Confirmed → Completed (deposit released to artist) or Refunded/Cancelled (deposit returned to organizer)
+- **Profile Integration** - Artists can create and view their EPK directly from the profile modal
+- **Public EPK Pages** - Each artist gets a public URL at `/epk/{slug}` with live on-chain streaming stats
+
+**Booking Flow:**
+
+1. Organizer visits artist's EPK page and submits booking inquiry with WMON deposit
+2. `createBooking()` escrows WMON in the contract
+3. Artist confirms booking → status moves to CONFIRMED
+4. After the event, artist completes booking → WMON released to artist
+5. If unconfirmed, organizer can request full refund anytime
+
+### Dev Studio (AI Smart Contract Generation)
+
+AI-powered smart contract generation and deployment through DAO governance.
+
+- **AI Contract Generation** - Describe a smart contract in natural language, AI generates Solidity code
+- **Contract Types** - Token, NFT, DeFi, VRF Game, DAO, Vesting, SAFT, Bonding Curve, or Custom
+- **DAO Proposal Pipeline** - Generated contracts go through DAO governance vote before deployment
+- **Deployment NFTs** - Each deployed contract mints a provenance NFT as on-chain proof
+- **Credit System** - Purchase credits with TOURS tokens to generate contracts
+- **Whitelist** - Early access whitelist with NFT minting
 
 ### Experiences & Itineraries
 
@@ -282,7 +312,28 @@ Journal entries earn TOURS rewards with a random 1–10x multiplier.
 
 ---
 
-### 7. TOURS Rewards
+### 7. EPK Booking Escrow
+
+**Contract**: `EPKRegistryV2` — [`0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D`](https://monadscan.com/address/0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D)
+
+| Detail | Value |
+|--------|-------|
+| Booking deposit | Set by organizer (min 100 WMON recommended) |
+| Escrow | 100% held in contract until lifecycle completes |
+| Completion | Artist receives full deposit |
+| Refund | Organizer gets full deposit back (if booking unconfirmed) |
+| Cancellation | Artist cancels → deposit returned to organizer |
+
+**Booking lifecycle:**
+> Organizer deposits 500 WMON to book an artist.
+> - PENDING: 500 WMON held in EPKRegistry escrow
+> - CONFIRMED: Artist accepts, deposit stays in escrow
+> - COMPLETED: Artist marks complete → **500 WMON released to artist**
+> - REFUNDED: Organizer cancels before confirmation → **500 WMON returned to organizer**
+
+---
+
+### 8. TOURS Rewards
 
 **Contract**: `ToursRewardManager` — [`0x7fff35BB27307806B92Fb1D1FBe52D168093eF87`](https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87)
 
@@ -311,7 +362,7 @@ TOURS is the platform reward token with a **Bitcoin-style halving** schedule.
 
 ---
 
-### 8. Wallet & Gas
+### 9. Wallet & Gas
 
 EmpowerTours uses **gasless transactions** — users never pay gas fees or approve tokens manually.
 
@@ -327,6 +378,142 @@ EmpowerTours uses **gasless transactions** — users never pay gas fees or appro
 ---
 
 ## Architecture Diagrams
+
+### System Architecture Overview
+
+```mermaid
+flowchart TD
+    subgraph Clients["Client Layer"]
+        FC([Farcaster Mini App])
+        TG([Telegram Bot])
+        WEB([Web Browser])
+    end
+
+    subgraph Frontend["Next.js 15 Frontend"]
+        UI[React UI Components]
+        SDK[Farcaster Frame SDK]
+    end
+
+    subgraph API["Next.js API Layer (68 endpoints)"]
+        AUTH[Auth & Delegation]
+        MUSIC_API[Music / Radio / Subscription]
+        EPK_API[EPK / Booking]
+        DAO_API[DAO / Dev Studio]
+        CLIMB_API[Climbing / Events / Sponsors]
+        ORACLE_API[AI Oracle]
+        PASSPORT_API[Passport / Itinerary]
+    end
+
+    subgraph External["External Services"]
+        PIMLICO[Pimlico Bundler<br/>ERC-4337]
+        PINATA[Pinata IPFS]
+        GEMINI[Google Gemini AI]
+        NEYNAR[Neynar API]
+        ENVIO[Envio Indexer<br/>GraphQL]
+        REDIS[(Upstash Redis)]
+        PYTH[Pyth Entropy<br/>VRF]
+    end
+
+    subgraph Monad["Monad Mainnet (Chain 143)"]
+        SAFE[Safe Smart Accounts]
+        NFT[EmpowerToursNFT]
+        RADIO[LiveRadioV3]
+        SUB[MusicSubscriptionV5]
+        PLAY[PlayOracleV3]
+        EPKC[EPKRegistryV2]
+        CLIMB[ClimbingLocationsV2]
+        ITIN[ItineraryNFTV2]
+        PASS[PassportNFT]
+        TOURS[ToursToken + RewardManager]
+        GOV[Governor + Timelock]
+        VTOURS[VotingTOURS]
+        FACTORY[DAOContractFactory]
+        DEVS[DevStudio + DeploymentNFT]
+    end
+
+    FC --> SDK --> UI
+    TG --> CLIMB_API
+    WEB --> UI
+    UI --> API
+
+    AUTH --> PIMLICO --> SAFE
+    MUSIC_API --> NFT & RADIO & SUB & PLAY
+    EPK_API --> PINATA & EPKC
+    DAO_API --> GEMINI & GOV & FACTORY & DEVS
+    CLIMB_API --> CLIMB & PYTH
+    ORACLE_API --> GEMINI & NEYNAR
+    PASSPORT_API --> PASS & ITIN
+
+    SAFE -->|Gasless txns| Monad
+    ENVIO -->|Index events| Monad
+    EPK_API --> REDIS
+    MUSIC_API --> REDIS
+
+    GOV --> VTOURS
+    GOV --> FACTORY
+    FACTORY --> DEVS
+    PLAY --> SUB
+    RADIO --> NFT
+    TOURS -.->|Rewards| PLAY & RADIO & CLIMB
+```
+
+### Data Flow: User Action to On-Chain
+
+```mermaid
+sequenceDiagram
+    participant U as User (Farcaster)
+    participant F as Frontend
+    participant A as API Route
+    participant R as Redis Cache
+    participant S as Safe + Pimlico
+    participant M as Monad Contract
+    participant E as Envio Indexer
+
+    U->>F: Performs action (mint, buy, play, etc.)
+    F->>A: POST /api/{action}
+    A->>R: Cache lookup / store state
+    A->>S: Build UserOperation
+    S->>M: Execute on-chain (gasless)
+    M-->>E: Emit event
+    E-->>A: GraphQL query (next read)
+    A-->>F: Return result + txHash
+    F-->>U: Show confirmation
+```
+
+### Smart Contract Dependency Map
+
+```mermaid
+flowchart TD
+    WMON([WMON<br/>Payment Token])
+    TOURS([ToursToken<br/>Reward Token])
+
+    WMON -->|Payments| NFT[EmpowerToursNFT]
+    WMON -->|Queue fees & tips| RADIO[LiveRadioV3]
+    WMON -->|Subscriptions| SUB[MusicSubscriptionV5]
+    WMON -->|Location fees| CLIMB[ClimbingLocationsV2]
+    WMON -->|Itinerary sales| ITIN[ItineraryNFTV2]
+    WMON -->|Booking escrow| EPK[EPKRegistryV2]
+    WMON -->|Sponsorship escrow| EVENTS[EventSponsorshipV3]
+
+    TOURS -->|Wrap to vote| VTOURS[VotingTOURS]
+    VTOURS -->|Voting power| GOV[Governor]
+    GOV -->|Execute via| TIMELOCK[Timelock]
+    TIMELOCK -->|Deploy contracts| FACTORY[DAOContractFactory]
+    FACTORY -->|Mint proof| DEPLOY_NFT[DeploymentNFT]
+
+    PLAY[PlayOracleV3] -->|Play counts| SUB
+    RADIO -->|Track lookup| NFT
+    NFT -->|License check| RADIO
+
+    REWARD[ToursRewardManager] -->|Mint TOURS| TOURS
+    PLAY -.->|Triggers rewards| REWARD
+    RADIO -.->|Triggers rewards| REWARD
+    CLIMB -.->|Triggers rewards| REWARD
+
+    SAFE([Platform Safe]) -->|Admin ops| EPK
+    SAFE -->|Admin ops| FACTORY
+    USER_SAFE([User Safes]) -->|Gasless txns| NFT & RADIO & SUB & CLIMB & EPK
+```
 
 ### Music License Purchase Flow
 
@@ -387,6 +574,31 @@ flowchart LR
     Monad -->|Tx executed| Contract([Target Contract])
 ```
 
+### EPK Booking Escrow Flow
+
+```mermaid
+flowchart LR
+    Organizer([Organizer]) -->|WMON deposit| EPK[EPKRegistryV2]
+    EPK -->|Escrow held| Contract([Contract])
+    Artist([Artist]) -->|Confirms| EPK
+    Artist -->|Completes| EPK
+    EPK -->|Release deposit| Artist
+    Organizer -->|Request refund| EPK
+    EPK -->|Return deposit| Organizer
+```
+
+### Dev Studio Pipeline
+
+```mermaid
+flowchart LR
+    User([User]) -->|Describe contract| AI[Gemini AI]
+    AI -->|Generate Solidity| Proposal[DAO Proposal]
+    Proposal -->|Community vote| Governor[EmpowerToursGovernor]
+    Governor -->|Approved| Factory[DAOContractFactory]
+    Factory -->|Deploy| Contract([New Contract])
+    Factory -->|Mint| NFT([DeploymentNFT])
+```
+
 ### TOURS Reward System
 
 ```mermaid
@@ -416,6 +628,13 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | ToursToken | [`0xf61F2b014e38FfEf66a3A0a8104D36365404f74f`](https://monadscan.com/address/0xf61F2b014e38FfEf66a3A0a8104D36365404f74f) | ERC-20 platform reward token |
 | WMON | [`0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A`](https://monadscan.com/address/0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A) | Wrapped Monad (payment token) |
 | PassportNFT | [`0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4`](https://monadscan.com/address/0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4) | Travel passport NFTs (195 countries) |
+| EPKRegistryV2 | [`0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D`](https://monadscan.com/address/0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D) | Electronic Press Kit registry + WMON escrow booking |
+| VotingTOURS | [`0xe5377b1f90b9a70dd7b0f6ea34f9c3d287b3c44c`](https://monadscan.com/address/0xe5377b1f90b9a70dd7b0f6ea34f9c3d287b3c44c) | vTOURS governance voting token |
+| EmpowerToursGovernor | [`0x4d05fb8c2d090769a084aa0138ccf7a549452fa3`](https://monadscan.com/address/0x4d05fb8c2d090769a084aa0138ccf7a549452fa3) | DAO governance (proposals, voting, execution) |
+| EmpowerToursTimelock | [`0x4f7f9111215f2270a92bd64e4c1e9d7de516bd79`](https://monadscan.com/address/0x4f7f9111215f2270a92bd64e4c1e9d7de516bd79) | Timelock controller for governance execution |
+| DAOContractFactory | [`0x627a2c457e5Eb3E9C4B6632Ac69f8c39228D7968`](https://monadscan.com/address/0x627a2c457e5Eb3E9C4B6632Ac69f8c39228D7968) | DAO-governed smart contract deployment pipeline |
+| DeploymentNFT | [`0xfA002C7538B6e28Dd7dDd00F1d3A46Ea0731A586`](https://monadscan.com/address/0xfA002C7538B6e28Dd7dDd00F1d3A46Ea0731A586) | Provenance NFTs for deployed contracts |
+| EmpowerToursDevStudio | [`0xEC27aD035c39DE7217A3F4DAe64a7a67a477d880`](https://monadscan.com/address/0xEC27aD035c39DE7217A3F4DAe64a7a67a477d880) | AI contract generation credit system + whitelist |
 | Platform Safe | [`0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA`](https://monadscan.com/address/0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA) | Treasury & platform operations |
 
 ### Companion Services
@@ -457,6 +676,8 @@ fcempowertours/
 │   │   ├── events/             # Event management
 │   │   ├── sponsorship/        # Event sponsorship
 │   │   ├── music/              # Music catalog
+│   │   ├── epk/                # Electronic Press Kit (create, seed, lookup, booking)
+│   │   ├── dev-studio/         # AI contract generation proposals
 │   │   ├── mint-passport/      # Passport minting
 │   │   ├── mint-music/         # Music NFT minting
 │   │   ├── record-play/        # Play tracking
@@ -470,8 +691,11 @@ fcempowertours/
 │   │       ├── MusicPlaylist.tsx
 │   │       ├── MusicSubscriptionModal.tsx
 │   │       ├── PassportMintModal.tsx
+│   │       ├── EPKModal.tsx           # Multi-step EPK creation wizard
+│   │       ├── DevStudioModal.tsx     # AI contract generation
 │   │       ├── EventOracle.tsx
 │   │       └── ...
+│   ├── epk/                    # Public EPK pages (/epk/[slug])
 │   ├── experiences/            # Experience pages
 │   ├── oracle/                 # AI Oracle page
 │   ├── dashboard/              # User dashboard
@@ -488,6 +712,7 @@ fcempowertours/
 │   ├── ToursTokenV2.sol
 │   ├── VotingTOURS.sol
 │   ├── EmpowerToursGovernor.sol
+│   ├── EPKRegistry.sol           # EPKRegistryV2 - EPK + WMON escrow booking
 │   └── ...
 ├── empowertours-envio/         # Envio indexer config
 ├── lib/                        # Shared utilities & ABIs
