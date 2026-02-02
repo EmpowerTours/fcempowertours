@@ -4278,10 +4278,11 @@ ${enjoyText}
         const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
         const rewardAmountWei = parseEther(rewardAmount.toString());
 
-        console.log('📻 Claiming radio rewards:', { amount: rewardAmount, TOURS_TOKEN, userAddress });
+        // Send rewards to user's Safe, not their wallet
+        const userSafe = await getUserSafeAddress(userAddress as Address);
+        console.log('📻 Claiming radio rewards:', { amount: rewardAmount, TOURS_TOKEN, userAddress, userSafe });
 
-        // Transfer TOURS from platform Safe to user
-        // Note: Platform Safe must have TOURS tokens to distribute rewards
+        // Transfer TOURS from platform Safe to user's Safe
         const radioRewardCalls: Call[] = [
           {
             to: TOURS_TOKEN,
@@ -4289,12 +4290,12 @@ ${enjoyText}
             data: encodeFunctionData({
               abi: parseAbi(['function transfer(address to, uint256 amount) external returns (bool)']),
               functionName: 'transfer',
-              args: [userAddress as Address, rewardAmountWei],
+              args: [userSafe as Address, rewardAmountWei],
             }) as Hex,
           },
         ];
 
-        // Use platform Safe for rewards distribution (not user Safe)
+        // Use platform Safe for rewards distribution
         const radioRewardTxHash = await sendSafeTransaction(radioRewardCalls);
         console.log('✅ Radio rewards claimed TX:', radioRewardTxHash);
 

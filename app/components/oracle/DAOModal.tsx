@@ -11,7 +11,7 @@ interface DAOModalProps {
   isDarkMode?: boolean;
 }
 
-const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95d5185f39C760c5FA754491d0';
+const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN!;
 const VTOURS_ADDRESS = process.env.NEXT_PUBLIC_VOTING_TOURS || '';
 const DAO_ADDRESS = process.env.NEXT_PUBLIC_DAO || '';
 const TIMELOCK_ADDRESS = process.env.NEXT_PUBLIC_TIMELOCK || '';
@@ -94,40 +94,29 @@ export const DAOModal: React.FC<DAOModalProps> = ({ userAddress, onClose, isDark
         name: 'monad'
       });
 
-      // Get User Safe address
+      // Get User Safe address and TOURS balances from server-side API
       let userSafeAddr: string | null = null;
       try {
         const safeRes = await fetch(`/api/user-safe?address=${userAddress}`);
         const safeData = await safeRes.json();
-        if (safeData.success && safeData.safeAddress) {
-          userSafeAddr = safeData.safeAddress;
-          setSafeAddress(userSafeAddr);
-          console.log('[DAOModal] User Safe:', userSafeAddr);
+        if (safeData.success) {
+          if (safeData.safeAddress) {
+            userSafeAddr = safeData.safeAddress;
+            setSafeAddress(userSafeAddr);
+            console.log('[DAOModal] User Safe:', userSafeAddr);
+          }
+          // Use server-side TOURS balances (more reliable than client-side RPC)
+          if (safeData.toursWalletBalance) {
+            setToursBalance(safeData.toursWalletBalance);
+            console.log('[DAOModal] Wallet TOURS balance (from API):', safeData.toursWalletBalance);
+          }
+          if (safeData.toursBalance) {
+            setSafeToursBalance(safeData.toursBalance);
+            console.log('[DAOModal] Safe TOURS balance (from API):', safeData.toursBalance);
+          }
         }
       } catch (safeErr) {
-        console.warn('[DAOModal] Failed to fetch Safe address:', safeErr);
-      }
-
-      const toursContract = new ethers.Contract(TOURS_ADDRESS, TOURS_ABI, provider);
-
-      // Fetch wallet TOURS balance
-      try {
-        const toursBal = await toursContract.balanceOf(userAddress);
-        setToursBalance(ethers.formatEther(toursBal));
-        console.log('[DAOModal] Wallet TOURS balance:', ethers.formatEther(toursBal));
-      } catch (toursErr) {
-        console.warn('[DAOModal] Failed to fetch wallet TOURS balance:', toursErr);
-      }
-
-      // Fetch Safe TOURS balance
-      if (userSafeAddr) {
-        try {
-          const safeToursBal = await toursContract.balanceOf(userSafeAddr);
-          setSafeToursBalance(ethers.formatEther(safeToursBal));
-          console.log('[DAOModal] Safe TOURS balance:', ethers.formatEther(safeToursBal));
-        } catch (safeToursErr) {
-          console.warn('[DAOModal] Failed to fetch Safe TOURS balance:', safeToursErr);
-        }
+        console.warn('[DAOModal] Failed to fetch Safe data:', safeErr);
       }
 
       // Fetch vTOURS balance and voting power from BOTH wallet and Safe

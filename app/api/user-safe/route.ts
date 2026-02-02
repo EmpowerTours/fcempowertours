@@ -27,13 +27,16 @@ export async function GET(req: NextRequest) {
       timeoutPromise
     ]);
 
-    // Also get WMON and TOURS balances of Safe
+    // Also get WMON and TOURS balances of Safe + wallet TOURS balance
     let wmonBalance = '0';
     let wmonBalanceWei = '0';
     let toursBalance = '0';
     let toursBalanceWei = '0';
+    let toursWalletBalance = '0';
+    let toursWalletBalanceWei = '0';
 
     const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
+    const erc20BalanceAbi = parseAbi(['function balanceOf(address) view returns (uint256)']);
 
     const balancePromises: Promise<void>[] = [];
 
@@ -41,7 +44,7 @@ export async function GET(req: NextRequest) {
       balancePromises.push(
         publicClient.readContract({
           address: WMON_ADDRESS,
-          abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+          abi: erc20BalanceAbi,
           functionName: 'balanceOf',
           args: [safeInfo.safeAddress],
         }).then((balance) => {
@@ -54,17 +57,33 @@ export async function GET(req: NextRequest) {
     }
 
     if (TOURS_ADDRESS) {
+      // Safe TOURS balance
       balancePromises.push(
         publicClient.readContract({
           address: TOURS_ADDRESS,
-          abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+          abi: erc20BalanceAbi,
           functionName: 'balanceOf',
           args: [safeInfo.safeAddress],
         }).then((balance) => {
           toursBalance = (Number(balance as bigint) / 1e18).toFixed(4);
           toursBalanceWei = (balance as bigint).toString();
         }).catch((e) => {
-          console.error('Failed to get TOURS balance:', e);
+          console.error('Failed to get Safe TOURS balance:', e);
+        })
+      );
+
+      // Wallet TOURS balance (radio rewards are sent here)
+      balancePromises.push(
+        publicClient.readContract({
+          address: TOURS_ADDRESS,
+          abi: erc20BalanceAbi,
+          functionName: 'balanceOf',
+          args: [address as Address],
+        }).then((balance) => {
+          toursWalletBalance = (Number(balance as bigint) / 1e18).toFixed(4);
+          toursWalletBalanceWei = (balance as bigint).toString();
+        }).catch((e) => {
+          console.error('Failed to get wallet TOURS balance:', e);
         })
       );
     }
@@ -85,6 +104,8 @@ export async function GET(req: NextRequest) {
       wmonBalanceWei,
       toursBalance,
       toursBalanceWei,
+      toursWalletBalance,
+      toursWalletBalanceWei,
       isFunded: safeInfo.isFunded,
       isAdequatelyFunded,
       minRequired: safeInfo.minRequired,

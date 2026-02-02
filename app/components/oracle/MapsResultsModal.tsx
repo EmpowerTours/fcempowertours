@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route } from 'lucide-react';
+import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { getCurrentPosition, isWithinProximity, formatDistance } from '@/lib/utils/gps';
 
 const LeafletMapRenderer = lazy(() => import('./map-renderers/LeafletMapRenderer'));
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
@@ -43,6 +44,11 @@ interface MapsResultsModalProps {
   userLocation?: { latitude: number; longitude: number; city?: string; country?: string };
   mapsProvider?: MapProviderType;
   clientConfig?: MapClientConfig;
+  onCreateExperience?: (placeData: {
+    name: string; placeId: string; googleMapsUri: string;
+    latitude: number; longitude: number;
+    address?: string; rating?: number; types?: string[];
+  }) => void;
 }
 
 export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
@@ -54,6 +60,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   userLocation,
   mapsProvider,
   clientConfig,
+  onCreateExperience,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
@@ -73,6 +80,11 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   // OSM directions polyline (for LeafletMapRenderer)
   const [osmDirectionsPolyline, setOsmDirectionsPolyline] = useState<Array<{ lat: number; lng: number }>>([]);
   const isOSM = mapsProvider === 'osm';
+
+  // Proximity check state for "I'm Here" button
+  const [proximityChecking, setProximityChecking] = useState(false);
+  const [proximityResult, setProximityResult] = useState<{ tooFar: boolean; distance: string } | null>(null);
+  const [proximityError, setProximityError] = useState<string | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -103,6 +115,61 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
       window.open(url, '_blank', 'noopener,noreferrer');
     }
   }, [sdk]);
+
+  // Handle "I'm Here" button — check GPS proximity before creating experience
+  const handleCreateExperienceCheck = useCallback(async (source: MapsSource) => {
+    if (!onCreateExperience) return;
+
+    const details = source.placeId ? placeDetails[source.placeId] : null;
+    if (!details?.location) {
+      setProximityError('Location coordinates not available for this place.');
+      return;
+    }
+
+    setProximityChecking(true);
+    setProximityResult(null);
+    setProximityError(null);
+
+    try {
+      const userPos = await getCurrentPosition();
+      const result = isWithinProximity(
+        userPos.lat, userPos.lon,
+        details.location.lat, details.location.lng,
+        200 // 200m radius
+      );
+
+      if (result.isWithin) {
+        // Strip "places/" prefix from placeId (same as directions fix)
+        const cleanPlaceId = (source.placeId || '').replace(/^places\//, '');
+        onCreateExperience({
+          name: details.name || source.title,
+          placeId: cleanPlaceId,
+          googleMapsUri: source.uri,
+          latitude: details.location.lat,
+          longitude: details.location.lng,
+          address: details.address,
+          rating: details.rating,
+          types: details.types,
+        });
+      } else {
+        setProximityResult({
+          tooFar: true,
+          distance: formatDistance(result.distance),
+        });
+      }
+    } catch (err: any) {
+      console.error('[MapsWidget] Proximity check error:', err);
+      setProximityError(err.message || 'Could not check your location.');
+    } finally {
+      setProximityChecking(false);
+    }
+  }, [onCreateExperience, placeDetails]);
+
+  // Clear proximity state when switching places
+  useEffect(() => {
+    setProximityResult(null);
+    setProximityError(null);
+  }, [selectedIndex]);
 
   // Load Google Maps JavaScript API
   useEffect(() => {
@@ -498,6 +565,8 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     setDirectionsSummary(null);
     setDirectionsError(null);
     setOsmDirectionsPolyline([]);
+    setProximityResult(null);
+    setProximityError(null);
 
     // Remove directions renderer
     if (directionsRendererRef.current) {
@@ -770,6 +839,23 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                           <Navigation className="w-3 h-3" />
                           Get Directions
                         </button>
+                        {onCreateExperience && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateExperienceCheck(source);
+                            }}
+                            disabled={proximityChecking}
+                            className="flex-1 py-2 px-3 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                          >
+                            {proximityChecking ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-3 h-3" />
+                            )}
+                            I'm Here
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -999,6 +1085,50 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                     </div>
                   </>
                 )}
+
+                {/* "I'm Here - Create Experience" button in directions panel */}
+                {onCreateExperience && directionsSummary && selectedSource && (
+                  <div className="mt-3 pt-3 border-t border-gray-700/50">
+                    <button
+                      onClick={() => handleCreateExperienceCheck(selectedSource)}
+                      disabled={proximityChecking}
+                      className="w-full py-2.5 px-4 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {proximityChecking ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4" />
+                      )}
+                      I'm Here — Create Experience
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Proximity Feedback Banners */}
+            {proximityResult?.tooFar && (
+              <div className="mt-3 p-3 bg-yellow-500/15 border border-yellow-500/30 rounded-xl flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-yellow-400 text-sm font-medium">You're {proximityResult.distance} away</p>
+                  <p className="text-yellow-400/70 text-xs mt-0.5">Get within 200m of this place to create an experience.</p>
+                </div>
+                <button onClick={() => setProximityResult(null)} className="text-yellow-400/50 hover:text-yellow-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {proximityError && (
+              <div className="mt-3 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-400 text-sm font-medium">Location Error</p>
+                  <p className="text-red-400/70 text-xs mt-0.5">{proximityError}</p>
+                </div>
+                <button onClick={() => setProximityError(null)} className="text-red-400/50 hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             )}
 
@@ -1044,6 +1174,22 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                       </button>
                     </div>
                   </div>
+                )}
+
+                {/* "I'm Here" button below place card */}
+                {onCreateExperience && (
+                  <button
+                    onClick={() => handleCreateExperienceCheck(selectedSource)}
+                    disabled={proximityChecking}
+                    className="w-full mt-3 py-2.5 px-4 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {proximityChecking ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    I'm Here — Create Experience
+                  </button>
                 )}
               </div>
             )}

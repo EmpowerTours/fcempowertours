@@ -36,6 +36,7 @@ interface SafeBalance {
   monBalance: string;
   wmonBalance: string;
   toursBalance: string;
+  toursWalletBalance: string;
 }
 
 interface SearchedUser {
@@ -102,6 +103,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           monBalance: data.balance || '0',
           wmonBalance: data.wmonBalance || '0',
           toursBalance: data.toursBalance || '0',
+          toursWalletBalance: data.toursWalletBalance || '0',
         });
       }
     } catch (error) {
@@ -402,7 +404,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <p className="text-xs text-gray-400">WMON</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-green-400">{parseFloat(safeBalance.toursBalance).toFixed(0)}</p>
+                      <p className="text-xl font-bold text-green-400">{(parseFloat(safeBalance.toursBalance) + parseFloat(safeBalance.toursWalletBalance)).toFixed(0)}</p>
                       <p className="text-xs text-gray-400">TOURS</p>
                     </div>
                   </div>

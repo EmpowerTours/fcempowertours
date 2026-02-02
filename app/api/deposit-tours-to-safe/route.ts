@@ -3,7 +3,7 @@ import { JsonRpcProvider, Wallet, Contract, formatEther, parseEther } from 'ethe
 import { getUserSafeAddress } from '@/lib/user-safe';
 import { Address } from 'viem';
 
-const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x46d048EB424b0A95d5185f39C760c5FA754491d0';
+const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN!;
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 

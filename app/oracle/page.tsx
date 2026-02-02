@@ -9,6 +9,7 @@ import { MirrorMate } from '@/app/components/oracle/MirrorMate';
 import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
 import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
 import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
+import { CreateExperienceModal } from '@/app/components/oracle/CreateExperienceModal';
 import { ProfileModal } from '@/app/components/oracle/ProfileModal';
 import { DashboardModal } from '@/app/components/oracle/DashboardModal';
 import { UserProfileModal } from '@/app/components/oracle/UserProfileModal';
@@ -103,6 +104,14 @@ export default function OraclePage() {
     txHash?: string;
     price?: string;
   } | null>(null);
+  // Create Experience modal (from Maps flow)
+  const [showCreateExperienceModal, setShowCreateExperienceModal] = useState(false);
+  const [createExperiencePlaceData, setCreateExperiencePlaceData] = useState<{
+    name: string; placeId: string; googleMapsUri: string;
+    latitude: number; longitude: number;
+    address?: string; rating?: number; types?: string[];
+  } | null>(null);
+
   // User Safe balance and deposit modal
   const [userSafeBalance, setUserSafeBalance] = useState<{ wmonBalance: string; monBalance: string } | null>(null);
   const [userSafeAddress, setUserSafeAddress] = useState<string | null>(null);
@@ -157,6 +166,7 @@ export default function OraclePage() {
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
     setShowMapsResults(false);
+    setShowCreateExperienceModal(false);
     setSelectedNFT(null);
     setPaymentRequired(null);
   }, []);
@@ -605,6 +615,18 @@ export default function OraclePage() {
     }
   };
 
+  // Handle "I'm Here" from Maps → open CreateExperienceModal
+  const handleCreateExperienceFromMaps = useCallback((placeData: {
+    name: string; placeId: string; googleMapsUri: string;
+    latitude: number; longitude: number;
+    address?: string; rating?: number; types?: string[];
+  }) => {
+    setShowMapsResults(false);
+    setMapsResultsData(null);
+    setCreateExperiencePlaceData(placeData);
+    setShowCreateExperienceModal(true);
+  }, []);
+
   const handleCancelPayment = () => {
     setPaymentRequired(null);
     setPendingMessage('');
@@ -691,6 +713,7 @@ export default function OraclePage() {
       showCreateNFTModal ||
       showPassportMintModal ||
       showMapsResults ||
+      showCreateExperienceModal ||
       showUserProfileModal ||
       selectedNFT !== null;
 
@@ -1179,8 +1202,29 @@ export default function OraclePage() {
             setShowMapsResults(false);
             setMapsResultsData(null);
           }}
+          onCreateExperience={handleCreateExperienceFromMaps}
         />,
         document.body
+      )}
+
+      {/* Create Experience Modal (from Maps flow) */}
+      {showCreateExperienceModal && createExperiencePlaceData && (
+        <CreateExperienceModal
+          place={createExperiencePlaceData}
+          onClose={() => {
+            setShowCreateExperienceModal(false);
+            setCreateExperiencePlaceData(null);
+          }}
+          onSuccess={(itineraryId, txHash) => {
+            setShowCreateExperienceModal(false);
+            setCreateExperiencePlaceData(null);
+            setItineraryNotification({
+              type: 'created',
+              txHash,
+            });
+            setTimeout(() => setItineraryNotification(null), 5000);
+          }}
+        />
       )}
 
       {/* Payment Confirmation Dialog - Shows cost before charging via delegation */}
