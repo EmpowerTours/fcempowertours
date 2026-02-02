@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight } from 'lucide-react';
 import { getAddressExplorerUrl } from '@/app/chains';
 import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
@@ -75,6 +76,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onMintPassport,
   isDarkMode = true
 }) => {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -641,15 +643,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 )}
               </div>
               <div className="flex gap-2">
-                <a
-                  href={`/epk/${epkData.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    onClose();
+                    router.push(`/epk/${epkData.slug}`);
+                  }}
                   className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <FileText className="w-3.5 h-3.5" />
                   View Press Kit
-                </a>
+                </button>
                 <button
                   onClick={() => {
                     setShowEPKSubmodal(false);
