@@ -5,12 +5,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title EPKRegistry
+ * @title EPKRegistryV2
  * @notice On-chain EPK (Electronic Press Kit) registry with WMON escrow booking system
- * @dev Artists register EPK metadata (IPFS CID) on-chain. Organizers book artists
+ * @dev V2 adds createEPKFor/updateEPKFor so the platform Safe can register on behalf of artists.
+ *      Artists register EPK metadata (IPFS CID) on-chain. Organizers book artists
  *      with WMON deposits held in escrow until the booking lifecycle completes.
  */
-contract EPKRegistry is ReentrancyGuard {
+contract EPKRegistryV2 is ReentrancyGuard {
     // ---- State ----
     IERC20 public immutable wmonToken;
     address public owner;
@@ -107,6 +108,45 @@ contract EPKRegistry is ReentrancyGuard {
         registeredArtists.push(msg.sender);
 
         emit EPKCreated(msg.sender, artistFid, ipfsCid);
+    }
+
+    /**
+     * @notice Create a new EPK on behalf of an artist (admin only)
+     * @param artist Address of the artist
+     * @param ipfsCid IPFS CID containing the full EPK metadata JSON
+     * @param artistFid Farcaster ID of the artist
+     */
+    function createEPKFor(address artist, string calldata ipfsCid, uint256 artistFid) external onlyOwner {
+        if (bytes(ipfsCid).length == 0) revert InvalidCID();
+        if (artistEPKs[artist].createdAt != 0) revert EPKAlreadyExists();
+
+        artistEPKs[artist] = EPK({
+            ipfsCid: ipfsCid,
+            artistFid: artistFid,
+            createdAt: block.timestamp,
+            updatedAt: block.timestamp,
+            active: true
+        });
+
+        registeredArtists.push(artist);
+        emit EPKCreated(artist, artistFid, ipfsCid);
+    }
+
+    /**
+     * @notice Update an existing EPK on behalf of an artist (admin only)
+     * @param artist Address of the artist
+     * @param ipfsCid New IPFS CID with updated metadata
+     */
+    function updateEPKFor(address artist, string calldata ipfsCid) external onlyOwner {
+        if (bytes(ipfsCid).length == 0) revert InvalidCID();
+        EPK storage epk = artistEPKs[artist];
+        if (epk.createdAt == 0) revert EPKDoesNotExist();
+
+        epk.ipfsCid = ipfsCid;
+        epk.updatedAt = block.timestamp;
+        epk.active = true;
+
+        emit EPKUpdated(artist, ipfsCid);
     }
 
     /**

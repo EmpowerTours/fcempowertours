@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink } from 'lucide-react';
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight } from 'lucide-react';
 import { getAddressExplorerUrl } from '@/app/chains';
 import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
+import { EPKModal } from './EPKModal';
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -56,6 +57,12 @@ interface SearchedUser {
   };
 }
 
+interface EPKData {
+  slug: string;
+  artistName: string;
+  genre: string;
+}
+
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -79,6 +86,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [safeBalance, setSafeBalance] = useState<SafeBalance | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [selectedPassport, setSelectedPassport] = useState<PassportData | null>(null);
+  const [epkData, setEpkData] = useState<EPKData | null>(null);
+  const [epkLoading, setEpkLoading] = useState(false);
+  const [showEPKModal, setShowEPKModal] = useState(false);
+  const [showEPKSubmodal, setShowEPKSubmodal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -88,6 +99,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     if (walletAddress) {
       loadStats(walletAddress);
       loadSafeBalance(walletAddress);
+      loadEPKStatus(walletAddress);
     } else {
       setLoading(false);
     }
@@ -108,6 +120,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
     } catch (error) {
       console.error('[ProfileModal] Safe balance load error:', error);
+    }
+  };
+
+  const loadEPKStatus = async (address: string) => {
+    setEpkLoading(true);
+    try {
+      const response = await fetch(`/api/epk/${address}`);
+      const data = await response.json();
+      if (data.success && data.epk) {
+        const epk = data.epk;
+        setEpkData({
+          slug: epk.artist?.slug || '',
+          artistName: epk.artist?.name || '',
+          genre: Array.isArray(epk.artist?.genre) ? epk.artist.genre.join(', ') : (epk.artist?.genre || ''),
+        });
+      }
+    } catch (error) {
+      console.error('[ProfileModal] EPK status load error:', error);
+    } finally {
+      setEpkLoading(false);
     }
   };
 
@@ -438,6 +470,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <StatBox icon={<Ticket className="w-5 h-5" />} value={stats.musicPurchased} label="Purchased" color="pink" />
               </div>
 
+              {/* EPK Button - only show for artists (musicCreated > 0) */}
+              {stats.musicCreated > 0 && (
+                <button
+                  onClick={() => setShowEPKSubmodal(true)}
+                  disabled={epkLoading}
+                  className="w-full flex items-center justify-between bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-600 rounded-xl p-3 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-white">Press Kit</span>
+                    {epkLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+                    ) : epkData ? (
+                      <span className="flex items-center gap-1 text-xs text-green-400">
+                        <CheckCircle className="w-3 h-3" /> Live
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-500">Not created</span>
+                    )}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </button>
+              )}
+
               {/* My Passports Section */}
               <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
                 <h4 className="font-medium text-white mb-2 flex items-center gap-2">
@@ -545,10 +601,110 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     document.body
   ) : null;
 
+  // EPK Submodal - rendered as separate portal for proper z-index stacking
+  const epkSubmodal = showEPKSubmodal && mounted ? createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 10001, backgroundColor: 'rgba(0,0,0,0.85)' }}
+      onClick={() => setShowEPKSubmodal(false)}
+    >
+      <div
+        className="rounded-2xl overflow-hidden max-w-sm w-full shadow-2xl bg-gray-900 border border-gray-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-400" />
+            Press Kit
+          </h3>
+          <button
+            onClick={() => setShowEPKSubmodal(false)}
+            className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {epkData ? (
+            <>
+              {/* Has EPK - show summary + view/edit */}
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-green-400 font-medium">Press Kit Live</span>
+              </div>
+              <div>
+                <p className="text-white font-medium">{epkData.artistName}</p>
+                {epkData.genre && (
+                  <p className="text-sm text-gray-400 mt-0.5">{epkData.genre}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <a
+                  href={`/epk/${epkData.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View Press Kit
+                </a>
+                <button
+                  onClick={() => {
+                    setShowEPKSubmodal(false);
+                    setShowEPKModal(true);
+                  }}
+                  className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit EPK
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* No EPK - show create prompt */}
+              <div className="text-center py-2">
+                <div className="w-12 h-12 bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <FileText className="w-6 h-6 text-purple-400" />
+                </div>
+                <p className="text-white font-medium mb-1">No Press Kit Yet</p>
+                <p className="text-sm text-gray-400">Create a professional press kit to share with promoters and venues.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEPKSubmodal(false);
+                  setShowEPKModal(true);
+                }}
+                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-sm font-medium transition-all"
+              >
+                Create Press Kit
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
   return (
     <>
       {createPortal(modalContent, document.body)}
       {passportPreviewModal}
+      {epkSubmodal}
+      {showEPKModal && (
+        <EPKModal
+          isOpen={showEPKModal}
+          onClose={() => {
+            setShowEPKModal(false);
+            if (walletAddress) loadEPKStatus(walletAddress);
+          }}
+          userAddress={walletAddress}
+          userFid={userFid}
+        />
+      )}
     </>
   );
 };

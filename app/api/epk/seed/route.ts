@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
       try {
         const data = encodeFunctionData({
           abi: EPKRegistryABI,
-          functionName: 'createEPK',
-          args: [ipfsCid, BigInt(artistFid || 0)],
+          functionName: 'createEPKFor',
+          args: [artistAddress as Address, ipfsCid, BigInt(artistFid || 0)],
         });
 
         txHash = await sendSafeTransaction([

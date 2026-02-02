@@ -18,8 +18,29 @@
   },
   {
     "type": "function",
+    "name": "createEPKFor",
+    "inputs": [
+      { "name": "artist", "type": "address", "internalType": "address" },
+      { "name": "ipfsCid", "type": "string", "internalType": "string" },
+      { "name": "artistFid", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "updateEPK",
     "inputs": [
+      { "name": "ipfsCid", "type": "string", "internalType": "string" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateEPKFor",
+    "inputs": [
+      { "name": "artist", "type": "address", "internalType": "address" },
       { "name": "ipfsCid", "type": "string", "internalType": "string" }
     ],
     "outputs": [],
