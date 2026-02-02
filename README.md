@@ -345,8 +345,8 @@ flowchart LR
     Fan([Fan]) -->|1 WMON queue fee| Radio[LiveRadioV3]
     Fan -.->|Optional tip| Radio
     Radio -->|70% of queue| Artist([Artist])
-    Radio -->|15%| Safe([Platform Safe])
-    Radio -->|15%| Wallet([Platform Wallet])
+    Radio -->|15%| PlatformSafe([Platform Safe])
+    Radio -->|15%| PlatformWallet([Platform Wallet])
     Radio -->|100% of tip| Artist
 ```
 
