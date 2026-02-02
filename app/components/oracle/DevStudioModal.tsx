@@ -17,7 +17,7 @@ interface DevStudioModalProps {
 
 type StudioView = 'proposals' | 'create' | 'pipeline';
 
-const CONTRACT_TYPES = ['Custom', 'Token', 'NFT', 'DeFi', 'VRF Game', 'DAO', 'Vesting', 'SAFT'] as const;
+const CONTRACT_TYPES = ['Custom', 'Token', 'NFT', 'DeFi', 'VRF Game', 'DAO', 'Vesting', 'SAFT', 'Bonding Curve'] as const;
 const PROPOSAL_FEE = 100; // 100 MON
 
 export const DevStudioModal: React.FC<DevStudioModalProps> = ({

@@ -246,6 +246,21 @@ ADDITIONAL REQUIREMENTS FOR VESTING CONTRACTS:
 - Include proper access control (Ownable or AccessControl)
 - Add frontend React code with ethers.js v6 for managing vesting schedules
 - Include comprehensive tests for cliff, linear release, revocation, and edge cases`,
+    'Bonding Curve': `
+ADDITIONAL REQUIREMENTS FOR BONDING CURVE CONTRACTS:
+- Implement a wrapper/market contract that manages dynamic pricing for existing ERC721 NFTs
+- Support multiple curve formulas configurable per NFT: linear (basePrice + totalSold * increment), exponential (basePrice * (1 + rate)^totalSold), and stepped tiers (price jumps at configurable milestones)
+- Integrate with an existing NFT contract that has updatePrice(uint256 masterTokenId, uint256 newPrice) — the bonding curve contract must be authorized to call this
+- After each purchase, automatically compute and set the new price based on the curve formula and totalSold count
+- Support both price-increase curves (demand drives price up) and price-decrease on refund/burn if enabled
+- Include configurable parameters per NFT: base price, price ceiling, price floor (minimum), curve steepness/rate, and milestone thresholds for stepped curves
+- Admin functions (owner or Safe multisig): registerNFT, setCurveParams, pauseCurve, withdrawFees
+- Include view functions: currentPrice(masterTokenId), priceAtSupply(masterTokenId, supply), curveParams(masterTokenId), projectedPrice(masterTokenId, additionalSales)
+- Emit events: PriceAdjusted, CurveRegistered, CurveParamsUpdated, Purchase
+- Add emergency pause functionality (Pausable)
+- Include proper access control — only authorized addresses can register curves and update params
+- Add frontend React code with ethers.js v6 showing price chart visualization and buy interface
+- Include comprehensive tests for each curve type, edge cases at ceiling/floor, and authorization`,
     'SAFT': `
 ADDITIONAL REQUIREMENTS FOR SAFT (Simple Agreement for Future Tokens):
 - Implement EIP-712 typed data signing for investment agreement signatures
