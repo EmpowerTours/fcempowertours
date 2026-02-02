@@ -736,6 +736,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           }}
           userAddress={walletAddress}
           userFid={userFid}
+          existingEpk={epkData?.fullEpk}
         />
       )}
     </>

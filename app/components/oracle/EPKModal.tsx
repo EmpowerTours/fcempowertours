@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Loader2, CheckCircle, Music, FileText, Hotel, CalendarCheck } from 'lucide-react';
 import { EVENT_TYPES } from '@/lib/epk/constants';
+import type { EPKMetadata } from '@/lib/epk/types';
 
 interface EPKModalProps {
   isOpen: boolean;
   onClose: () => void;
   userAddress?: string;
   userFid?: number;
+  existingEpk?: EPKMetadata;
 }
 
 type Step = 'artist' | 'media' | 'riders' | 'booking' | 'review';
@@ -21,33 +24,36 @@ const STEPS: { key: Step; label: string; icon: any }[] = [
   { key: 'review', label: 'Review & Publish', icon: CheckCircle },
 ];
 
-export function EPKModal({ isOpen, onClose, userAddress, userFid }: EPKModalProps) {
+export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }: EPKModalProps) {
+  const isEdit = !!existingEpk;
   const [step, setStep] = useState<Step>('artist');
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const [publishResult, setPublishResult] = useState<any>(null);
   const [error, setError] = useState('');
 
-  // Form state
-  const [artistName, setArtistName] = useState('');
-  const [bio, setBio] = useState('');
-  const [genre, setGenre] = useState('');
-  const [location, setLocation] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [videoTitle, setVideoTitle] = useState('');
-  const [pressArticles, setPressArticles] = useState([{ outlet: '', title: '', url: '', date: '', excerpt: '' }]);
-  const [pricing, setPricing] = useState('Contact for rates');
-  const [availableFor, setAvailableFor] = useState('');
-  const [territories, setTerritories] = useState('');
-  const [minimumDeposit, setMinimumDeposit] = useState('100');
+  // Form state - pre-fill from existing EPK if editing
+  const [artistName, setArtistName] = useState(existingEpk?.artist?.name || '');
+  const [bio, setBio] = useState(existingEpk?.artist?.bio || '');
+  const [genre, setGenre] = useState(existingEpk?.artist?.genre?.join(', ') || '');
+  const [location, setLocation] = useState(existingEpk?.artist?.location || '');
+  const [videoUrl, setVideoUrl] = useState(existingEpk?.media?.videos?.[0]?.url || '');
+  const [videoTitle, setVideoTitle] = useState(existingEpk?.media?.videos?.[0]?.title || '');
+  const [pressArticles, setPressArticles] = useState(
+    existingEpk?.press?.length ? existingEpk.press.map(a => ({ outlet: a.outlet, title: a.title, url: a.url, date: a.date, excerpt: a.excerpt })) : [{ outlet: '', title: '', url: '', date: '', excerpt: '' }]
+  );
+  const [pricing, setPricing] = useState(existingEpk?.booking?.pricing || 'Contact for rates');
+  const [availableFor, setAvailableFor] = useState(existingEpk?.booking?.availableFor?.join(', ') || '');
+  const [territories, setTerritories] = useState(existingEpk?.booking?.territories?.join(', ') || '');
+  const [minimumDeposit, setMinimumDeposit] = useState(existingEpk?.booking?.minimumDeposit || '100');
 
-  // Simple rider state - comma-separated items
-  const [stageItems, setStageItems] = useState('');
-  const [soundItems, setSoundItems] = useState('');
-  const [lightingItems, setLightingItems] = useState('');
-  const [dressingRoomItems, setDressingRoomItems] = useState('');
-  const [cateringItems, setCateringItems] = useState('');
-  const [beverageItems, setBeverageItems] = useState('');
+  // Simple rider state - newline-separated items
+  const [stageItems, setStageItems] = useState(existingEpk?.technicalRider?.stage?.items?.join('\n') || '');
+  const [soundItems, setSoundItems] = useState(existingEpk?.technicalRider?.sound?.items?.join('\n') || '');
+  const [lightingItems, setLightingItems] = useState(existingEpk?.technicalRider?.lighting?.items?.join('\n') || '');
+  const [dressingRoomItems, setDressingRoomItems] = useState(existingEpk?.hospitalityRider?.dressingRoom?.items?.join('\n') || '');
+  const [cateringItems, setCateringItems] = useState(existingEpk?.hospitalityRider?.catering?.items?.join('\n') || '');
+  const [beverageItems, setBeverageItems] = useState(existingEpk?.hospitalityRider?.beverages?.items?.join('\n') || '');
 
   if (!isOpen) return null;
 
@@ -126,7 +132,7 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid }: EPKModalProp
       const res = await fetch('/api/epk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadata, userAddress, userFid }),
+        body: JSON.stringify({ metadata, userAddress, userFid, update: isEdit }),
       });
 
       const data = await res.json();
@@ -152,12 +158,12 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid }: EPKModalProp
     setPressArticles(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  const modalContent = (
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10003, backgroundColor: 'rgba(0,0,0,0.85)' }}>
       <div className="bg-[#1e293b] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-white/10">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h2 className="text-lg font-semibold text-white">Create Press Kit</h2>
+          <h2 className="text-lg font-semibold text-white">{isEdit ? 'Edit Press Kit' : 'Create Press Kit'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -188,8 +194,8 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid }: EPKModalProp
           {published ? (
             <div className="text-center py-8">
               <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-white mb-2">EPK Published!</h3>
-              <p className="text-slate-400 mb-4">Your press kit is now live on IPFS and registered on Monad.</p>
+              <h3 className="text-xl font-bold text-white mb-2">{isEdit ? 'EPK Updated!' : 'EPK Published!'}</h3>
+              <p className="text-slate-400 mb-4">{isEdit ? 'Your press kit has been updated on IPFS and Monad.' : 'Your press kit is now live on IPFS and registered on Monad.'}</p>
               {publishResult && (
                 <div className="space-y-2 text-sm">
                   <a
@@ -487,12 +493,12 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid }: EPKModalProp
                 {publishing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Publishing...
+                    {isEdit ? 'Updating...' : 'Publishing...'}
                   </>
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    Publish EPK
+                    {isEdit ? 'Update EPK' : 'Publish EPK'}
                   </>
                 )}
               </button>
@@ -510,4 +516,7 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid }: EPKModalProp
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }
