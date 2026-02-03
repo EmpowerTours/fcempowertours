@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route, CheckCircle2, AlertTriangle, Star, Users, PlusCircle } from 'lucide-react';
+import { MapPin, Navigation, ExternalLink, X, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Clock, Route, CheckCircle2, AlertTriangle, Star, Users, PlusCircle, Minus, Maximize2 } from 'lucide-react';
 import { getCurrentPosition, isWithinProximity, formatDistance } from '@/lib/utils/gps';
 
 const LeafletMapRenderer = lazy(() => import('./map-renderers/LeafletMapRenderer'));
@@ -63,6 +63,8 @@ interface MapsResultsModalProps {
   mapsProvider?: MapProviderType;
   clientConfig?: MapClientConfig;
   protocolExperiences?: ProtocolExperience[];
+  minimized?: boolean;
+  setMinimized?: (minimized: boolean) => void;
   onCreateExperience?: (placeData: {
     name: string; placeId: string; googleMapsUri: string;
     latitude: number; longitude: number;
@@ -104,6 +106,8 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   mapsProvider,
   clientConfig,
   protocolExperiences,
+  minimized = false,
+  setMinimized,
   onCreateExperience,
   onCreateCustomExperience,
   onPurchaseExperience,
@@ -334,15 +338,13 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     }
   }, [mapsLoaded]);
 
-  // Fetch place details via server-side proxy (prevents client-side API key abuse)
-  // For Google: wait for mapReady. For OSM: fetch as soon as sources are available.
+  // Effect A: Fetch place details immediately when sources arrive (no mapReady gate).
+  // This ensures "I'm Here" works in mobile list view where Google Maps container may be hidden.
   useEffect(() => {
     if (sources.length === 0) return;
-    if (!isOSM && !mapReady) return;
 
     const fetchPlaceDetails = async () => {
       const details: Record<string, PlaceDetails> = {};
-      let hasValidLocations = false;
 
       // Collect all placeIds and fetch in one batch via server route
       const placeIds = sources
@@ -374,10 +376,6 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                   photoUrl: p.photoUrl,
                   location: p.location,
                 };
-
-                if (p.location) {
-                  hasValidLocations = true;
-                }
               }
             }
           } else {
@@ -400,27 +398,38 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
       }
 
       setPlaceDetails(details);
-
-      // Fit Google map to bounds if we have locations (skip for OSM — Leaflet handles its own bounds)
-      if (!isOSM && hasValidLocations && mapInstanceRef.current) {
-        const bounds = new window.google.maps.LatLngBounds();
-        for (const source of sources) {
-          const d = source.placeId ? details[source.placeId] : null;
-          if (d?.location) bounds.extend(d.location);
-        }
-        mapInstanceRef.current.fitBounds(bounds);
-        // Don't zoom in too much
-        const listener = window.google.maps.event.addListener(mapInstanceRef.current, 'idle', () => {
-          if (mapInstanceRef.current.getZoom() > 16) {
-            mapInstanceRef.current.setZoom(16);
-          }
-          window.google.maps.event.removeListener(listener);
-        });
-      }
     };
 
     fetchPlaceDetails();
-  }, [mapReady, sources, isOSM]);
+  }, [sources]);
+
+  // Effect B: Fit Google map to bounds when mapReady AND placeDetails are both available.
+  // Separated from fetch so the map can initialize independently.
+  useEffect(() => {
+    if (isOSM || !mapReady || !mapInstanceRef.current) return;
+    if (Object.keys(placeDetails).length === 0) return;
+
+    const hasValidLocations = sources.some(s => {
+      const d = s.placeId ? placeDetails[s.placeId] : null;
+      return !!d?.location;
+    });
+
+    if (hasValidLocations) {
+      const bounds = new window.google.maps.LatLngBounds();
+      for (const source of sources) {
+        const d = source.placeId ? placeDetails[source.placeId] : null;
+        if (d?.location) bounds.extend(d.location);
+      }
+      mapInstanceRef.current.fitBounds(bounds);
+      // Don't zoom in too much
+      const listener = window.google.maps.event.addListener(mapInstanceRef.current, 'idle', () => {
+        if (mapInstanceRef.current.getZoom() > 16) {
+          mapInstanceRef.current.setZoom(16);
+        }
+        window.google.maps.event.removeListener(listener);
+      });
+    }
+  }, [mapReady, placeDetails, sources, isOSM]);
 
   // Create markers when place details are loaded
   useEffect(() => {
@@ -791,6 +800,27 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     return 'Place';
   };
 
+  // Minimized floating pill
+  if (minimized) {
+    return (
+      <div
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] animate-fadeIn cursor-pointer"
+        onClick={() => setMinimized?.(false)}
+      >
+        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-gray-900 via-black to-gray-900 border border-cyan-500/40 rounded-full shadow-2xl shadow-cyan-500/20 hover:border-cyan-500/70 transition-all">
+          <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+          <span className="text-sm font-semibold text-white whitespace-nowrap">
+            {sources.length} places found
+          </span>
+          <span className="text-xs text-gray-400 hidden sm:inline truncate max-w-[120px]">
+            — Tap to expand
+          </span>
+          <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black modal-backdrop flex items-center justify-center p-2 sm:p-4 overflow-hidden" style={{ backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 10000 }} onClick={onClose}>
       <div
@@ -829,6 +859,16 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                   Map
                 </button>
               </div>
+              {/* Minimize button */}
+              {setMinimized && (
+                <button
+                  onClick={() => setMinimized(true)}
+                  className="text-gray-400 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors"
+                  title="Minimize"
+                >
+                  <Minus className="w-5 h-5" />
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors"

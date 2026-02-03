@@ -4,6 +4,7 @@ import { parseEther, decodeEventLog, encodeFunctionData, type Address, type Hex 
 import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { getCountryByCode } from '@/lib/passport/countries';
 import { publicClient } from '@/lib/pimlico-safe-aa';
+import { Redis } from '@upstash/redis';
 import {
   detectUserTerritory as sharedDetectUserTerritory,
   getMapProvider,
@@ -11,6 +12,9 @@ import {
   GOOGLE_PROHIBITED_TERRITORIES,
   type MapProviderType,
 } from '@/lib/maps/provider';
+
+// Redis client for payment dedup cache (maps:paid:<address>:<query> → txHash, 1h TTL)
+const redis = Redis.fromEnv();
 
 interface OracleAction {
   type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'withdraw' | 'create_epk' | 'manage_epk' | 'unknown';
@@ -155,12 +159,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // If payment confirmed, charge the user via delegated transaction
+    // If payment confirmed, charge the user via delegated transaction (with dedup cache)
     let paymentTxHash: string | null = null;
     if (needsMapsGrounding && confirmPayment && userAddress) {
+      // Normalize query for dedup key (lowercase, trimmed, collapse whitespace)
+      const normalizedQuery = message.trim().toLowerCase().replace(/\s+/g, ' ');
+      const dedupKey = `maps:paid:${userAddress.toLowerCase()}:${normalizedQuery}`;
+
       try {
-        paymentTxHash = await chargeMONForMapsQuery(userAddress);
-        console.log('[Oracle] Payment collected (delegated):', paymentTxHash);
+        // Check Redis cache for recent payment on same query (1-hour TTL)
+        const cachedTxHash = await redis.get<string>(dedupKey);
+        if (cachedTxHash) {
+          console.log('[Oracle] Payment dedup cache hit — skipping charge, cached txHash:', cachedTxHash);
+          paymentTxHash = cachedTxHash;
+        } else {
+          paymentTxHash = await chargeMONForMapsQuery(userAddress);
+          console.log('[Oracle] Payment collected (delegated):', paymentTxHash);
+
+          // Cache the txHash for 1 hour to prevent duplicate charges
+          await redis.set(dedupKey, paymentTxHash, { ex: 3600 });
+        }
       } catch (error) {
         console.error('[Oracle] Payment failed:', error);
         return NextResponse.json({
