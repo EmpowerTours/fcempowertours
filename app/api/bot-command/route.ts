@@ -18,16 +18,19 @@ function extractFidFromRequest(req: NextRequest): string | null {
   return null;
 }
 
+// Agent's wallet address for custodial deposits
+const AGENT_WALLET = '0x868469E5D124f81cf63e1A3808795649cA6c3D77';
+
 export async function POST(req: NextRequest) {
   try {
     // Extract all params from request body including collector edition fields
     const body = await req.json();
-    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest, is_art } = body;
+    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest, is_art, discordId } = body;
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
 
-    console.log('Bot command received:', { command, userAddress, fid, imageUrl: imageUrlFromRequest });
+    console.log('Bot command received:', { command, userAddress, discordId, fid, imageUrl: imageUrlFromRequest });
 
     // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
     const originalCommand = command.trim();
@@ -67,10 +70,14 @@ DeFi Actions (Gasless):
 - "join tanda <id>" - Join savings group
 - "buy ticket <eventId>" - Purchase event ticket
 - "signal demand <eventId>" - Show interest in event
-Daily Lottery:
+Daily Lottery (Discord Custodial):
 - "lottery" - Check current lottery status
-- "buy lottery ticket" - Buy 1 ticket (2 WMON)
+- "deposit" - Get deposit address for MON
+- "confirm deposit 0x..." - Confirm your deposit
+- "my balance" - Check your deposited balance
+- "buy lottery ticket" - Buy 1 ticket (2 MON)
 - "buy 5 lottery tickets" - Buy multiple tickets
+- "withdraw 5 mon to 0x..." - Withdraw your MON
 Info:
 - "help" - Show this message
 - "status" - Check wallet connection
@@ -169,6 +176,18 @@ Address: ${userAddress.slice(0, 10)}...`
         const mins = Math.floor((round.timeRemaining % 3600) / 60);
         const poolFormatted = (Number(round.prizePool) / 1e18).toFixed(2);
 
+        // Get user's balance if discordId provided
+        let balanceInfo = '';
+        if (discordId) {
+          try {
+            const balRes = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
+            const balData = await balRes.json();
+            if (balData.success) {
+              balanceInfo = `\n💳 Your Balance: ${balData.balanceMon} MON`;
+            }
+          } catch (e) {}
+        }
+
         return NextResponse.json({
           success: true,
           action: 'info',
@@ -177,11 +196,11 @@ Address: ${userAddress.slice(0, 10)}...`
 💰 Prize Pool: ${poolFormatted} WMON
 🎟️ Tickets Sold: ${round.ticketCount}
 ⏰ Time Left: ${hours}h ${mins}m
-💵 Ticket Price: ${config.ticketPriceWMON} WMON
+💵 Ticket Price: ${config.ticketPriceWMON} MON${balanceInfo}
 
 🏆 Winner gets 90% of pool + 10-100 TOURS bonus!
 
-Buy tickets: "buy lottery ticket" or "buy 5 lottery tickets"`
+To play: "deposit" → send MON → "buy lottery ticket"`
         });
       } catch (err: any) {
         return NextResponse.json({
@@ -191,12 +210,130 @@ Buy tickets: "buy lottery ticket" or "buy 5 lottery tickets"`
       }
     }
 
-    // ==================== BUY LOTTERY TICKETS COMMAND ====================
-    if (lowerCommand.includes('buy') && lowerCommand.includes('lottery')) {
-      if (!userAddress) {
+    // ==================== DEPOSIT COMMAND (show deposit address) ====================
+    if (lowerCommand === 'deposit' || lowerCommand === 'deposit mon') {
+      return NextResponse.json({
+        success: true,
+        action: 'info',
+        message: `💰 Deposit MON to Play Lottery
+
+Send MON to this address:
+\`${AGENT_WALLET}\`
+
+After sending, confirm with:
+"confirm deposit 0xYOUR_TX_HASH"
+
+Example: "confirm deposit 0xabc123..."
+
+Your MON will be credited to your Discord balance for buying lottery tickets!`
+      });
+    }
+
+    // ==================== CONFIRM DEPOSIT COMMAND ====================
+    if (lowerCommand.startsWith('confirm deposit')) {
+      if (!discordId) {
         return NextResponse.json({
           success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
+          message: 'Discord ID not found. Please try again or contact support.'
+        });
+      }
+
+      // Extract tx hash from command
+      const txHashMatch = originalCommand.match(/confirm deposit\s+(0x[a-fA-F0-9]{64})/i);
+      if (!txHashMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "confirm deposit 0xYOUR_TX_HASH"'
+        });
+      }
+
+      const txHash = txHashMatch[1];
+
+      try {
+        const response = await fetch(`${APP_URL}/api/discord/balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'deposit',
+            discordId,
+            txHash,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `✅ Deposit Confirmed!
+
+💰 Deposited: ${result.depositAmount} MON
+💳 New Balance: ${result.newBalance} MON
+
+Now you can buy lottery tickets:
+"buy lottery ticket" or "buy 5 lottery tickets"`
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ Deposit failed: ${result.error}`
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to confirm deposit: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== MY BALANCE COMMAND ====================
+    if (lowerCommand === 'my balance' || lowerCommand === 'discord balance' || lowerCommand === 'lottery balance') {
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
+        });
+      }
+
+      try {
+        const response = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
+        const result = await response.json();
+
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `💳 Your Lottery Balance
+
+Balance: ${result.balanceMon} MON
+
+Commands:
+• "deposit" - Add more MON
+• "buy lottery ticket" - Buy tickets (2 MON each)
+• "withdraw 5 mon to 0x..." - Withdraw to wallet`
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to fetch balance'
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to check balance: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== BUY LOTTERY TICKETS COMMAND (CUSTODIAL) ====================
+    if (lowerCommand.includes('buy') && lowerCommand.includes('lottery')) {
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
         });
       }
 
@@ -211,46 +348,116 @@ Buy tickets: "buy lottery ticket" or "buy 5 lottery tickets"`
       ticketCount = Math.min(ticketCount, 50);
 
       try {
-        console.log(`[BOT] Buying ${ticketCount} lottery tickets for ${userAddress}`);
+        // Get current round ID
+        let roundId = '1';
+        try {
+          const lotteryRes = await fetch(`${APP_URL}/api/lottery`);
+          const lotteryData = await lotteryRes.json();
+          if (lotteryData.success) {
+            roundId = lotteryData.currentRound.roundId.toString();
+          }
+        } catch (e) {}
 
-        const response = await fetch(`${APP_URL}/api/execute-delegated`, {
+        console.log(`[BOT] Discord user ${discordId} buying ${ticketCount} lottery tickets`);
+
+        const response = await fetch(`${APP_URL}/api/discord/balance`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userAddress,
-            action: 'daily_lottery_buy',
-            params: { ticketCount },
-            fid: fid || '0',
+            action: 'buy_lottery',
+            discordId,
+            ticketCount,
+            roundId,
           }),
         });
 
         const result = await response.json();
 
         if (result.success) {
-          const totalCost = ticketCount * 2;
           return NextResponse.json({
             success: true,
             action: 'transaction',
             message: `🎟️ Lottery Tickets Purchased!
 
-Tickets: ${ticketCount}
-Cost: ${totalCost} WMON
+Tickets: ${result.ticketCount}
+Cost: ${result.cost} MON
+💳 Balance: ${result.newBalance} MON
 Tx: ${result.txHash?.slice(0, 10)}...
 
-Good luck! 🍀 Check status with "lottery"`,
+Good luck! 🍀 Check "lottery" for status`,
             txHash: result.txHash,
           });
         } else {
           return NextResponse.json({
             success: false,
-            message: `Failed to buy lottery tickets: ${result.error || 'Unknown error'}`
+            message: `❌ ${result.error}`
           });
         }
       } catch (err: any) {
         console.error('[BOT] Lottery buy error:', err);
         return NextResponse.json({
           success: false,
-          message: `Failed to buy lottery tickets: ${err.message}`
+          message: `Failed to buy tickets: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== WITHDRAW COMMAND ====================
+    if (lowerCommand.startsWith('withdraw')) {
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
+        });
+      }
+
+      // Parse: "withdraw 5 mon to 0x..."
+      const withdrawMatch = originalCommand.match(/withdraw\s+([\d.]+)\s*(?:mon)?\s*to\s+(0x[a-fA-F0-9]{40})/i);
+      if (!withdrawMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "withdraw 5 mon to 0xYourWallet"'
+        });
+      }
+
+      const amount = withdrawMatch[1];
+      const toAddress = withdrawMatch[2];
+
+      try {
+        const response = await fetch(`${APP_URL}/api/discord/balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'withdraw',
+            discordId,
+            amount,
+            toAddress,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            action: 'transaction',
+            message: `✅ Withdrawal Sent!
+
+Amount: ${result.amount} MON
+To: ${result.toAddress.slice(0, 10)}...
+💳 Remaining: ${result.newBalance} MON
+Tx: ${result.txHash?.slice(0, 10)}...`
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ ${result.error}`
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Withdrawal failed: ${err.message}`
         });
       }
     }

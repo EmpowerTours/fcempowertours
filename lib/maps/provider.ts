@@ -48,6 +48,7 @@ export interface MapClientConfig {
   tileUrl?: string; // OSM tile URL template
   cssUrls?: string[]; // Leaflet CSS, etc.
   apiKey?: string; // client-side key (Google only)
+  mapId?: string; // Google Map ID for vector rendering + cloud styling
 }
 
 // =============================================

@@ -342,25 +342,37 @@ fi
 
 ### Discord Announcements
 
-The Discord agent should post these announcements:
+The Discord agent should post these announcements with user instructions:
 
 **Round Started:**
 ```
 🎰 **Daily Lottery Round #X Started!**
-💰 Prize Pool: X WMON
-🎟️ Ticket Price: 2 WMON each
-⏰ Ends in: 24 hours
 
-Buy tickets: `lottery_buy` action or ask the Oracle!
+💰 Prize Pool: X WMON
+🎟️ Ticket Price: 2 MON each
+🏆 Winner gets 90% of pool + 10-100 TOURS bonus!
+
+**How to Play (Discord Users):**
+1️⃣ Type `@EmpowerTours deposit` to get deposit address
+2️⃣ Send MON to the agent's wallet
+3️⃣ Type `@EmpowerTours confirm deposit 0xYourTxHash`
+4️⃣ Type `@EmpowerTours buy lottery ticket`
+
+**Commands:**
+• `@EmpowerTours lottery` - Check status
+• `@EmpowerTours my balance` - Check your balance
+• `@EmpowerTours buy 5 lottery tickets` - Buy multiple
+• `@EmpowerTours withdraw 5 mon to 0x...` - Withdraw
+
+⏰ Round ends in 24 hours. Good luck! 🍀
 ```
 
 **1 Hour Warning:**
 ```
 ⏰ **1 Hour Left in Round #X!**
-💰 Current Pool: X WMON
-🎟️ Total Entries: X tickets
+💰 Pool: X WMON | 🎟️ Entries: X tickets
 
-Last chance to buy tickets!
+Last chance! `@EmpowerTours deposit` to add funds, then `@EmpowerTours buy lottery ticket`
 ```
 
 **Draw Triggered:**

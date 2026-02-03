@@ -35,6 +35,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * - QUEST:         Generic quest/activity reward
  * - ARTIST_MONTHLY: Monthly artist eligibility reward (MusicSubscription)
  * - CLIMB_JOURNAL:  Climbing journal entry reward (base rate, uses random 1-10x multiplier)
+ * - LOTTERY_WINNER: Daily lottery winner bonus (base rate, random 1-10x multiplier)
+ * - LOTTERY_TRIGGER: Reward for triggering lottery draw (base rate, random 1-10x multiplier)
  */
 contract ToursRewardManager is Ownable {
     using SafeERC20 for IERC20;

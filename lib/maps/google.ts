@@ -162,6 +162,7 @@ export class GoogleMapsProvider implements MapProvider {
       provider: 'google',
       scriptUrl: `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=marker`,
       apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+      mapId: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID,
     };
   }
 }

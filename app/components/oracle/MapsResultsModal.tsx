@@ -147,6 +147,8 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
   // Maps JS API key is only used for rendering the map (no Places calls)
   const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Map ID enables vector rendering, cloud-based styling, and WebGL features (tilt/rotation/3D)
+  const mapsMapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID;
 
   // Helper to open URL in external browser (works in Farcaster mini app)
   const openExternalUrl = useCallback((url: string) => {
@@ -309,13 +311,27 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
         }
       }
 
-      const map = new window.google.maps.Map(mapRef.current, {
+      // When a Map ID is configured, use vector rendering with WebGL features (tilt/rotation/3D).
+      // Vector maps use cloud-based styling (configured in Google Cloud Console) instead of JSON styles.
+      // Without a Map ID, fall back to legacy raster rendering with dark JSON styles.
+      const mapOptions: any = {
         center: initialCenter,
         zoom: 14,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        styles: [
+      };
+
+      if (mapsMapId) {
+        // Vector map: Map ID controls styling + enables WebGL
+        mapOptions.mapId = mapsMapId;
+        mapOptions.tiltInteractionEnabled = true;
+        mapOptions.headingInteractionEnabled = true;
+        mapOptions.gestureHandling = 'greedy';
+        console.log('[MapsWidget] Using vector map with Map ID:', mapsMapId);
+      } else {
+        // Legacy raster fallback with dark JSON styling
+        mapOptions.styles = [
           { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
           { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
           { elementType: 'labels.text.fill', stylers: [{ color: '#8892b0' }] },
@@ -324,8 +340,10 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
           { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1a2b' }] },
           { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
           { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a3a2a' }] },
-        ],
-      });
+        ];
+      }
+
+      const map = new window.google.maps.Map(mapRef.current, mapOptions);
 
       mapInstanceRef.current = map;
       infoWindowRef.current = new window.google.maps.InfoWindow();
