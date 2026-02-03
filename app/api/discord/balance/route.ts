@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { createPublicClient, http, parseEther, formatEther, verifyMessage } from 'viem';
 import { activeChain } from '@/app/chains';
+import { getUserSafeInfo } from '@/lib/user-safe';
 
 // Lottery contract for reading ticket price
 const DAILY_LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_DAILY_LOTTERY as `0x${string}` | undefined;
@@ -266,29 +267,38 @@ export async function POST(req: NextRequest) {
 
     // ==================== BUY LOTTERY TICKETS ====================
     if (action === 'buy_lottery') {
+      console.log('[Discord Lottery] buy_lottery action received:', { discordId, ticketCount, roundId });
+
       const tickets = ticketCount || 1;
 
       // Read ticket price from contract (or fallback to 5 MON)
       let ticketPriceWei = parseEther('5'); // Default 5 MON
       if (DAILY_LOTTERY_ADDRESS) {
         try {
+          console.log('[Discord Lottery] Reading ticket price from contract:', DAILY_LOTTERY_ADDRESS);
           const priceResult = await client.readContract({
             address: DAILY_LOTTERY_ADDRESS,
             abi: [{ name: 'ticketPrice', type: 'function', inputs: [], outputs: [{ type: 'uint256' }] }],
             functionName: 'ticketPrice',
           });
           ticketPriceWei = priceResult as bigint;
-        } catch (e) {
-          console.log('[Discord Lottery] Using fallback ticket price');
+          console.log('[Discord Lottery] Ticket price from contract:', formatEther(ticketPriceWei), 'MON');
+        } catch (e: any) {
+          console.error('[Discord Lottery] Failed to read ticket price:', e.message);
+          console.log('[Discord Lottery] Using fallback ticket price: 5 MON');
         }
+      } else {
+        console.warn('[Discord Lottery] DAILY_LOTTERY_ADDRESS not configured');
       }
       const totalCostWei = ticketPriceWei * BigInt(tickets);
 
       const currentBalance = await redis.get<string>(balanceKey(discordId)) || '0';
+      console.log('[Discord Lottery] User balance:', formatEther(BigInt(currentBalance)), 'MON, need:', formatEther(totalCostWei), 'MON');
 
       if (BigInt(currentBalance) < totalCostWei) {
         const needed = formatEther(totalCostWei);
         const have = formatEther(BigInt(currentBalance));
+        console.warn('[Discord Lottery] Insufficient balance');
         return NextResponse.json({
           success: false,
           error: `Insufficient balance. Need ${needed} MON, have ${have} MON. Use "deposit" to add funds.`,
@@ -298,9 +308,12 @@ export async function POST(req: NextRequest) {
       // Deduct from user's balance
       const newBalance = (BigInt(currentBalance) - totalCostWei).toString();
       await redis.set(balanceKey(discordId), newBalance);
+      console.log('[Discord Lottery] Balance deducted, new balance:', formatEther(BigInt(newBalance)), 'MON');
 
       // Buy tickets using agent's wallet via execute-delegated
       const APP_URL = process.env.NEXT_PUBLIC_URL;
+      console.log('[Discord Lottery] Calling execute-delegated:', `${APP_URL}/api/execute-delegated`);
+
       const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -312,11 +325,14 @@ export async function POST(req: NextRequest) {
         }),
       });
 
+      console.log('[Discord Lottery] execute-delegated response status:', buyRes.status);
       const buyResult = await buyRes.json();
+      console.log('[Discord Lottery] execute-delegated result:', { success: buyResult.success, error: buyResult.error, txHash: buyResult.txHash?.slice(0, 10) });
 
       if (!buyResult.success) {
         // Refund on failure
         await redis.set(balanceKey(discordId), currentBalance);
+        console.error('[Discord Lottery] Purchase failed, refunded balance');
         return NextResponse.json({
           success: false,
           error: `Failed to buy tickets: ${buyResult.error}`,
@@ -331,7 +347,7 @@ export async function POST(req: NextRequest) {
       const costMon = formatEther(totalCostWei);
       const newBalanceMon = formatEther(BigInt(newBalance));
 
-      console.log(`[Discord Lottery] ${discordId} bought ${tickets} tickets for ${costMon} MON`);
+      console.log(`[Discord Lottery] SUCCESS: ${discordId} bought ${tickets} tickets for ${costMon} MON, tx: ${buyResult.txHash}`);
 
       return NextResponse.json({
         success: true,
@@ -342,6 +358,39 @@ export async function POST(req: NextRequest) {
         txHash: buyResult.txHash,
         roundId: currentRoundId,
       });
+    }
+
+    // ==================== GET SAFE INFO ====================
+    if (action === 'get_safe_info') {
+      // Check if user has linked wallet
+      const linkedWallet = await redis.get<string>(walletKey(discordId));
+      if (!linkedWallet) {
+        return NextResponse.json({
+          success: false,
+          error: 'No wallet linked. Use "link wallet" first to connect your wallet.',
+        }, { status: 400 });
+      }
+
+      try {
+        const safeInfo = await getUserSafeInfo(linkedWallet);
+
+        return NextResponse.json({
+          success: true,
+          linkedWallet,
+          safeAddress: safeInfo.safeAddress,
+          balance: safeInfo.balance,
+          balanceWei: safeInfo.balanceWei.toString(),
+          isDeployed: safeInfo.isDeployed,
+          isFunded: safeInfo.isFunded,
+          minRequired: safeInfo.minRequired,
+        });
+      } catch (err: any) {
+        console.error('[Discord Balance] Safe info error:', err);
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to get Safe info: ' + err.message,
+        }, { status: 500 });
+      }
     }
 
     // ==================== WITHDRAW ====================
@@ -418,7 +467,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: 'Invalid action. Use: link_wallet, verify_signature, deposit, buy_lottery, withdraw' },
+      { success: false, error: 'Invalid action. Use: link_wallet, verify_signature, deposit, buy_lottery, withdraw, get_safe_info' },
       { status: 400 }
     );
   } catch (err: any) {

@@ -42,33 +42,35 @@ export async function POST(req: NextRequest) {
         success: true,
         action: 'info',
         message: `EmpowerTours AI Agent
-Navigation:
-- "go to passport" - Mint travel passport
-- "go to music" - Mint music NFT
-- "go to discover" - Browse all music
-- "go to profile" - View your NFTs
-- "go to dashboard" - View analytics
-Basic Transactions (Gasless):
-- "mint passport" - Mint passport NFT (FREE)
-- "mint music <Song> <ipfs://...> <price>" - Mint music NFT
-- "send <amount> tours to @user" - Send TOURS
-- "send <amount> mon to 0x..." - Send MON
+
+🌍 **Agent World Actions:**
+- "world status" - View world state & stats
+- "world leaderboard" - Top agents by TOURS earned
+- "world actions" - List available actions
+- "dao proposals" - View active DAO proposals
+- "dao vote <id> yes/no" - Vote on a proposal
+
+🎵 **Music & Radio:**
+- "tip artist <address> <amount>" - Tip an artist TOURS
+- "queue song <tokenId>" - Queue a song on radio
 - "buy music <tokenId>" - Buy music license
 - "buy art <tokenId>" - Buy art NFT
-- "check balance" - Check balances
-Daily Lottery (Discord Custodial):
-- "lottery" - Check current lottery status
-- "link wallet" - Get link to connect wallet (one-time)
-- "deposit" - Get deposit address for MON
-- "confirm deposit 0x..." - Confirm your deposit
-- "my balance" - Check your deposited balance
-- "buy lottery ticket" - Buy 1 ticket (2 MON)
-- "buy 5 lottery tickets" - Buy multiple tickets
-- "withdraw 5 mon to 0x..." - Withdraw your MON
-Info:
+
+🎫 **NFTs (Gasless):**
+- "mint passport" - Mint travel passport NFT
+- "mint music <Song> <ipfs://...> <price>" - Mint music NFT
+
+💰 **Tokens:**
+- "check balance" - Check MON/TOURS balances
+- "send <amount> tours to @user" - Send TOURS
+
+📍 **Navigation:**
+- "go to passport/music/discover/profile/dashboard"
+
+ℹ️ **Info:**
 - "help" - Show this message
-- "status" - Check wallet connection
 - "about" - Learn about EmpowerTours
+
 All transactions are FREE - we pay gas!`
       });
     }
@@ -82,7 +84,7 @@ All transactions are FREE - we pay gas!`
           ? `Wallet Connected
 Address: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}
 You can execute gasless transactions via our bot!
-Try: "swap 0.1 mon" or "mint passport"`
+Try: "mint passport" or "check balance"`
           : `Wallet Not Connected
 Please connect your wallet first by visiting your profile.
 Try: "go to profile"`
@@ -94,16 +96,379 @@ Try: "go to profile"`
       return NextResponse.json({
         success: true,
         action: 'info',
-        message: `EmpowerTours
-A Farcaster Mini App for:
+        message: `EmpowerTours - Agent World on Monad
+
+🌍 An AI Agent ecosystem featuring:
+- Agent World with 15+ on-chain actions
 - Travel passport NFTs (195 countries!)
-- Music NFTs with royalties
-- Daily lottery
-Built on Monad Mainnet
-Powered by Envio Indexer
-All transactions are FREE - we pay gas!
+- Music NFTs with artist royalties
+- Community radio with TOURS rewards
+- DAO governance with vTOURS voting
+
+💎 Tokens:
+- TOURS: Ecosystem rewards & governance
+- EMPTOURS: Community token on nad.fun
+
+Built on Monad Mainnet | Gasless transactions
 Try "help" to see all commands!`
       });
+    }
+
+    // ==================== WORLD STATUS COMMAND ====================
+    if (lowerCommand === 'world status' || lowerCommand === 'world state' || lowerCommand === 'world') {
+      try {
+        const worldRes = await fetch(`${APP_URL}/api/world/state`);
+        const worldData = await worldRes.json();
+
+        if (!worldData.success) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to fetch world state'
+          });
+        }
+
+        const state = worldData.state;
+        return NextResponse.json({
+          success: true,
+          action: 'info',
+          message: `🌍 **EmpowerTours Agent World**
+
+📊 **Stats:**
+• Agents: ${state.agents.total} registered (${state.agents.active} active)
+• Music NFTs: ${state.economy.totalMusicNFTs}
+• Passports: ${state.economy.totalPassports}
+• Total Users: ${state.economy.totalUsers}
+
+💎 **Tokens:**
+• TOURS: ${state.tokens.tours.address.slice(0, 10)}...
+• EMPTOURS: ${state.tokens.emptours?.price || 'N/A'} MON
+
+🎵 Radio: ${state.economy.radioActive ? 'LIVE' : 'Offline'}
+
+🔗 Explore: https://fcempowertours.vercel.app/agent-world`
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to fetch world status: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== WORLD LEADERBOARD COMMAND ====================
+    if (lowerCommand === 'world leaderboard' || lowerCommand === 'leaderboard' || lowerCommand === 'top agents') {
+      try {
+        const worldRes = await fetch(`${APP_URL}/api/world/state`);
+        const worldData = await worldRes.json();
+
+        if (!worldData.success) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to fetch leaderboard'
+          });
+        }
+
+        const leaderboard = worldData.leaderboard || [];
+        const top5 = leaderboard.slice(0, 5);
+
+        if (top5.length === 0) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `🏆 **Agent World Leaderboard**
+
+No agents registered yet! Be the first to enter the world.
+
+Entry fee: 1 MON
+🔗 https://fcempowertours.vercel.app/agent-world`
+          });
+        }
+
+        const rankings = top5.map((agent: any, i: number) =>
+          `${i + 1}. ${agent.name} - ${agent.toursEarned} TOURS`
+        ).join('\n');
+
+        return NextResponse.json({
+          success: true,
+          action: 'info',
+          message: `🏆 **Agent World Leaderboard**
+
+${rankings}
+
+Total Agents: ${worldData.state.agents.total}
+🔗 https://fcempowertours.vercel.app/agent-world`
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to fetch leaderboard: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== WORLD ACTIONS LIST ====================
+    if (lowerCommand === 'world actions' || lowerCommand === 'actions') {
+      return NextResponse.json({
+        success: true,
+        action: 'info',
+        message: `🎮 **Available World Actions**
+
+**Music & Radio:**
+• buy_music - Buy a music license
+• buy_art - Buy art NFT
+• radio_queue_song - Queue song on radio
+• tip_artist - Tip an artist TOURS
+• music_subscribe - Subscribe to artist
+
+**DAO Governance:**
+• dao_vote_proposal - Vote on proposals
+• dao_wrap - Wrap TOURS → vTOURS
+• dao_unwrap - Unwrap vTOURS → TOURS
+• dao_delegate - Delegate voting power
+
+**NFTs:**
+• mint_passport - Mint travel passport
+
+**Radio Rewards:**
+• radio_claim_rewards - Claim listener rewards
+
+All actions earn TOURS rewards! 💎`
+      });
+    }
+
+    // ==================== DAO PROPOSALS COMMAND ====================
+    if (lowerCommand === 'dao proposals' || lowerCommand === 'proposals' || lowerCommand === 'dao') {
+      try {
+        const daoRes = await fetch(`${APP_URL}/api/world/dao`);
+        const daoData = await daoRes.json();
+
+        if (!daoData.success) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to fetch proposals'
+          });
+        }
+
+        const proposals = daoData.proposals || [];
+        const active = proposals.filter((p: any) => p.status === 'active');
+
+        if (active.length === 0) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `🗳️ **DAO Proposals**
+
+No active proposals at the moment.
+
+To create a proposal, you need ${daoData.minEmptoursToPropose} EMPTOURS.
+
+🔗 https://fcempowertours.vercel.app/dao`
+          });
+        }
+
+        const proposalList = active.slice(0, 3).map((p: any) =>
+          `**#${p.id}** ${p.title}\n   👍 ${p.forVotes} | 👎 ${p.againstVotes}`
+        ).join('\n\n');
+
+        return NextResponse.json({
+          success: true,
+          action: 'info',
+          message: `🗳️ **Active DAO Proposals**
+
+${proposalList}
+
+Vote: "dao vote <id> yes" or "dao vote <id> no"
+🔗 https://fcempowertours.vercel.app/dao`
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to fetch proposals: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== DAO VOTE COMMAND ====================
+    if (lowerCommand.startsWith('dao vote')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Visit the app to connect your wallet first.'
+        });
+      }
+
+      // Parse: "dao vote 1 yes" or "dao vote 1 no"
+      const voteMatch = lowerCommand.match(/dao vote\s+(\d+)\s+(yes|no|for|against)/i);
+      if (!voteMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "dao vote <proposal_id> yes" or "dao vote <proposal_id> no"'
+        });
+      }
+
+      const proposalId = voteMatch[1];
+      const support = ['yes', 'for'].includes(voteMatch[2].toLowerCase());
+
+      try {
+        const voteRes = await fetch(`${APP_URL}/api/world/dao`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'vote',
+            userAddress,
+            proposalId,
+            support,
+          }),
+        });
+
+        const voteData = await voteRes.json();
+
+        if (!voteData.success) {
+          return NextResponse.json({
+            success: false,
+            message: `Vote failed: ${voteData.error}`
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          action: 'transaction',
+          message: `🗳️ **Vote Recorded!**
+
+Proposal #${proposalId}: ${support ? '👍 FOR' : '👎 AGAINST'}
+Vote Weight: ${voteData.weight}
+${voteData.reward ? `💎 Earned: ${voteData.reward}` : ''}
+${voteData.txHash ? `TX: ${voteData.txHash.slice(0, 14)}...` : ''}`,
+          txHash: voteData.txHash,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Vote failed: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== TIP ARTIST COMMAND ====================
+    if (lowerCommand.startsWith('tip artist') || lowerCommand.startsWith('tip ')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Visit the app to connect your wallet first.'
+        });
+      }
+
+      // Parse: "tip artist 0x... 10" or "tip 0x... 5"
+      const tipMatch = originalCommand.match(/tip\s+(?:artist\s+)?(0x[a-fA-F0-9]{40})\s+([\d.]+)/i);
+      if (!tipMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "tip artist 0xArtistAddress 10" (amount in TOURS)'
+        });
+      }
+
+      const artistAddress = tipMatch[1];
+      const tipAmount = tipMatch[2];
+
+      try {
+        const tipRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'tip-artist',
+            params: {
+              artistAddress,
+              amount: tipAmount,
+            },
+          }),
+        });
+
+        const tipData = await tipRes.json();
+
+        if (!tipData.success) {
+          return NextResponse.json({
+            success: false,
+            message: `Tip failed: ${tipData.error}`
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          action: 'transaction',
+          message: `🎵 **Artist Tipped!**
+
+Sent ${tipAmount} TOURS to ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}
+TX: ${tipData.txHash?.slice(0, 14)}...
+
+Thanks for supporting artists! 💎`,
+          txHash: tipData.txHash,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Tip failed: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== QUEUE SONG COMMAND ====================
+    if (lowerCommand.startsWith('queue song') || lowerCommand.startsWith('queue ')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Visit the app to connect your wallet first.'
+        });
+      }
+
+      // Parse: "queue song 5" or "queue 5"
+      const queueMatch = lowerCommand.match(/queue\s+(?:song\s+)?(\d+)/i);
+      if (!queueMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "queue song <tokenId>"'
+        });
+      }
+
+      const tokenId = queueMatch[1];
+
+      try {
+        const queueRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'radio_queue_song',
+            params: { tokenId },
+          }),
+        });
+
+        const queueData = await queueRes.json();
+
+        if (!queueData.success) {
+          return NextResponse.json({
+            success: false,
+            message: `Queue failed: ${queueData.error}`
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          action: 'transaction',
+          message: `🎵 **Song Queued!**
+
+Token #${tokenId} added to the radio queue.
+TX: ${queueData.txHash?.slice(0, 14)}...
+
+🎧 Listen: https://fcempowertours.vercel.app/radio`,
+          txHash: queueData.txHash,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Queue failed: ${err.message}`
+        });
+      }
     }
 
     // ==================== BALANCE CHECK ====================
@@ -142,65 +507,8 @@ Address: ${userAddress.slice(0, 10)}...`
       }
     }
 
-    // ==================== LOTTERY STATUS COMMAND ====================
-    if (lowerCommand === 'lottery' || lowerCommand === 'lottery status' || lowerCommand === 'lottery info') {
-      try {
-        const lotteryRes = await fetch(`${APP_URL}/api/lottery`);
-        const lotteryData = await lotteryRes.json();
-
-        if (!lotteryData.success) {
-          return NextResponse.json({
-            success: false,
-            message: 'Failed to fetch lottery status'
-          });
-        }
-
-        const round = lotteryData.currentRound;
-        const config = lotteryData.config;
-        const hours = Math.floor(round.timeRemaining / 3600);
-        const mins = Math.floor((round.timeRemaining % 3600) / 60);
-        const poolFormatted = (Number(round.prizePool) / 1e18).toFixed(2);
-
-        // Get user's balance if discordId provided
-        let balanceInfo = '';
-        if (discordId) {
-          try {
-            const balRes = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
-            const balData = await balRes.json();
-            if (balData.success) {
-              balanceInfo = `\n💳 Your Balance: ${balData.balanceMon} MON`;
-            }
-          } catch (e) {}
-        }
-
-        return NextResponse.json({
-          success: true,
-          action: 'info',
-          message: `🎰 Daily Lottery - Round #${round.roundId}
-
-💰 Prize Pool: ${poolFormatted} WMON
-🎟️ Tickets Sold: ${round.ticketCount}
-⏰ Time Left: ${hours}h ${mins}m
-💵 Ticket Price: ${config.ticketPriceWMON} MON${balanceInfo}
-
-🏆 Winner gets 90% of pool + 10-100 TOURS bonus!
-
-**How to Play:**
-1️⃣ @EmpowerTours Agent link wallet (REQUIRED FIRST)
-2️⃣ @EmpowerTours Agent deposit → send MON
-3️⃣ @EmpowerTours Agent confirm deposit 0xTxHash
-4️⃣ @EmpowerTours Agent buy lottery ticket`
-        });
-      } catch (err: any) {
-        return NextResponse.json({
-          success: false,
-          message: `Failed to check lottery: ${err.message}`
-        });
-      }
-    }
-
-    // ==================== LINK WALLET COMMAND ====================
-    if (lowerCommand === 'link wallet' || lowerCommand === 'link' || lowerCommand.startsWith('link wallet')) {
+    // ==================== MY SAFE / SAFE INFO COMMAND ====================
+    if (lowerCommand === 'my safe' || lowerCommand === 'safe' || lowerCommand === 'safe info' || lowerCommand === 'safe balance') {
       if (!discordId) {
         return NextResponse.json({
           success: false,
@@ -208,139 +516,125 @@ Address: ${userAddress.slice(0, 10)}...`
         });
       }
 
-      // Check if already linked
-      try {
-        const balRes = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
-        const balData = await balRes.json();
-        if (balData.linkedWallet) {
-          return NextResponse.json({
-            success: true,
-            action: 'info',
-            message: `✅ **Wallet Already Linked!**
-
-Wallet: \`${balData.linkedWallet.slice(0, 6)}...${balData.linkedWallet.slice(-4)}\`
-Balance: ${balData.balanceMon} MON
-
-You're ready to play! Use \`deposit\` to add funds.`
-          });
-        }
-      } catch (e) {}
-
-      // Generate link to website for wallet connection
-      const linkUrl = `${APP_URL}/link-discord?discordId=${discordId}`;
-
-      return NextResponse.json({
-        success: true,
-        action: 'info',
-        message: `🔗 **Link Your Wallet**
-
-Click this link to connect and verify your wallet:
-${linkUrl}
-
-**What happens:**
-1. Connect your wallet (MetaMask, Rainbow, etc.)
-2. Sign a message to prove ownership (free, no gas!)
-3. Come back here and type \`deposit\` to add funds
-
-⚡ This is a one-time setup for security.`
-      });
-    }
-
-    // ==================== DEPOSIT COMMAND (show deposit address) ====================
-    if (lowerCommand === 'deposit' || lowerCommand === 'deposit mon') {
-      // Check if wallet is linked first
-      if (discordId) {
-        try {
-          const balRes = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
-          const balData = await balRes.json();
-          if (!balData.linkedWallet) {
-            return NextResponse.json({
-              success: true,
-              action: 'info',
-              message: `🔐 **Link Your Wallet First**
-
-For security, you must link your wallet before depositing.
-
-Type: \`link wallet 0xYourWalletAddress\`
-
-This ensures only YOU can claim your deposits.`
-            });
-          }
-        } catch (e) {}
-      }
-
-      return NextResponse.json({
-        success: true,
-        action: 'info',
-        message: `💰 **Deposit MON to Play Lottery**
-
-Send MON to this address:
-\`${AGENT_WALLET}\`
-
-⚠️ **Important:** Send from your linked wallet only!
-
-After sending, confirm with:
-\`@EmpowerTours Agent confirm deposit 0xYOUR_TX_HASH\`
-
-Your MON will be credited to your Discord balance for buying lottery tickets!`
-      });
-    }
-
-    // ==================== CONFIRM DEPOSIT COMMAND ====================
-    if (lowerCommand.startsWith('confirm deposit')) {
-      if (!discordId) {
-        return NextResponse.json({
-          success: false,
-          message: 'Discord ID not found. Please try again or contact support.'
-        });
-      }
-
-      // Extract tx hash from command
-      const txHashMatch = originalCommand.match(/confirm deposit\s+(0x[a-fA-F0-9]{64})/i);
-      if (!txHashMatch) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid format. Use: "confirm deposit 0xYOUR_TX_HASH"'
-        });
-      }
-
-      const txHash = txHashMatch[1];
-
       try {
         const response = await fetch(`${APP_URL}/api/discord/balance`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'deposit',
+            action: 'get_safe_info',
             discordId,
-            txHash,
           }),
         });
 
         const result = await response.json();
 
         if (result.success) {
+          const statusEmoji = result.isFunded ? '✅' : '⚠️';
+          const fundingStatus = result.isFunded
+            ? 'Funded and ready for gasless transactions!'
+            : `Needs funding (min ${result.minRequired} MON for gas)`;
+
           return NextResponse.json({
             success: true,
             action: 'info',
-            message: `✅ Deposit Confirmed!
+            message: `🔐 **Your User Safe**
 
-💰 Deposited: ${result.depositAmount} MON
-💳 New Balance: ${result.newBalance} MON
+📍 Safe Address:
+\`${result.safeAddress}\`
 
-Now you can buy lottery tickets:
-"buy lottery ticket" or "buy 5 lottery tickets"`
+💰 Balance: ${result.balance} MON
+${statusEmoji} Status: ${fundingStatus}
+🔗 Linked Wallet: ${result.linkedWallet.slice(0, 6)}...${result.linkedWallet.slice(-4)}
+
+**Send MON to your Safe address above to fund gasless transactions!**
+
+Commands:
+• \`fund safe\` - Get funding instructions
+• \`my balance\` - Check lottery balance`
           });
         } else {
+          // User needs to link wallet first
           return NextResponse.json({
-            success: false,
-            message: `❌ Deposit failed: ${result.error}`
+            success: true,
+            action: 'info',
+            message: `🔐 **User Safe Not Available**
+
+${result.error || 'You need to link your wallet first.'}
+
+Use \`link wallet\` to connect your wallet and get your Safe address.`
           });
         }
       } catch (err: any) {
         return NextResponse.json({
           success: false,
-          message: `Failed to confirm deposit: ${err.message}`
+          message: `Failed to get Safe info: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== FUND SAFE COMMAND ====================
+    if (lowerCommand === 'fund safe' || lowerCommand === 'fund my safe' || lowerCommand === 'safe funding') {
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
+        });
+      }
+
+      try {
+        const response = await fetch(`${APP_URL}/api/discord/balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'get_safe_info',
+            discordId,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          const currentBalance = parseFloat(result.balance);
+          const minRequired = parseFloat(result.minRequired);
+          const needsMore = currentBalance < minRequired;
+          const suggestedAmount = needsMore ? Math.max(0.5, minRequired - currentBalance).toFixed(2) : '0.5';
+
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `💰 **Fund Your Safe for Gasless Transactions**
+
+📍 Your Safe Address:
+\`${result.safeAddress}\`
+
+**Current Balance:** ${result.balance} MON
+**Minimum Required:** ${result.minRequired} MON
+
+${needsMore ? `⚠️ **Action Required:** Send at least ${suggestedAmount} MON to enable gasless transactions.` : '✅ Your Safe is funded and ready!'}
+
+**How to Fund:**
+1. Copy your Safe address above
+2. Send MON from any wallet (exchange, MetaMask, etc.)
+3. Wait for confirmation (~2 seconds on Monad)
+4. Use \`my safe\` to check your updated balance
+
+💡 **Tip:** We recommend keeping 0.5+ MON in your Safe for smooth operations.`
+          });
+        } else {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `🔐 **Link Wallet First**
+
+${result.error || 'You need to link your wallet to get a Safe address.'}
+
+Use \`link wallet\` to connect your wallet first.`
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to get Safe info: ${err.message}`
         });
       }
     }
@@ -392,7 +686,10 @@ Commands:
 
     // ==================== BUY LOTTERY TICKETS COMMAND (CUSTODIAL) ====================
     if (lowerCommand.includes('buy') && lowerCommand.includes('lottery')) {
+      console.log('[BOT-LOTTERY] Buy lottery command received:', { command: lowerCommand, discordId });
+
       if (!discordId) {
+        console.warn('[BOT-LOTTERY] No discordId provided');
         return NextResponse.json({
           success: false,
           message: 'Discord ID not found. Please try again.'
@@ -408,21 +705,29 @@ Commands:
 
       // Cap at 50 tickets per transaction
       ticketCount = Math.min(ticketCount, 50);
+      console.log('[BOT-LOTTERY] Parsed ticket count:', ticketCount);
 
       try {
         // Get current round ID
         let roundId = '1';
         try {
+          console.log('[BOT-LOTTERY] Fetching lottery round info from:', `${APP_URL}/api/lottery`);
           const lotteryRes = await fetch(`${APP_URL}/api/lottery`);
           const lotteryData = await lotteryRes.json();
+          console.log('[BOT-LOTTERY] Lottery API response:', { success: lotteryData.success, roundId: lotteryData.currentRound?.roundId });
           if (lotteryData.success) {
             roundId = lotteryData.currentRound.roundId.toString();
           }
-        } catch (e) {}
+        } catch (e: any) {
+          console.error('[BOT-LOTTERY] Failed to fetch lottery round:', e.message);
+        }
 
-        console.log(`[BOT] Discord user ${discordId} buying ${ticketCount} lottery tickets`);
+        console.log(`[BOT-LOTTERY] Discord user ${discordId} buying ${ticketCount} lottery tickets for round ${roundId}`);
 
-        const response = await fetch(`${APP_URL}/api/discord/balance`, {
+        const balanceApiUrl = `${APP_URL}/api/discord/balance`;
+        console.log('[BOT-LOTTERY] Calling balance API:', balanceApiUrl);
+
+        const response = await fetch(balanceApiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -433,7 +738,9 @@ Commands:
           }),
         });
 
+        console.log('[BOT-LOTTERY] Balance API response status:', response.status);
         const result = await response.json();
+        console.log('[BOT-LOTTERY] Balance API result:', { success: result.success, error: result.error, txHash: result.txHash?.slice(0, 10) });
 
         if (result.success) {
           return NextResponse.json({
@@ -450,13 +757,14 @@ Good luck! 🍀 Check "lottery" for status`,
             txHash: result.txHash,
           });
         } else {
+          console.warn('[BOT-LOTTERY] Purchase failed:', result.error);
           return NextResponse.json({
             success: false,
             message: `❌ ${result.error}`
           });
         }
       } catch (err: any) {
-        console.error('[BOT] Lottery buy error:', err);
+        console.error('[BOT-LOTTERY] Lottery buy error:', err.message, err.stack);
         return NextResponse.json({
           success: false,
           message: `Failed to buy tickets: ${err.message}`
@@ -666,7 +974,7 @@ Tx: ${result.txHash?.slice(0, 10)}...`
               fid,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['buy_music', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music']
+              permissions: ['buy_music', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music']
             })
           });
           const createData = await createRes.json();
@@ -715,84 +1023,6 @@ View: https://monadscan.com/tx/${buyData.txHash}`
       }
     }
 
-    // ==================== SWAP COMMAND (GASLESS VIA DELEGATION) ====================
-    if (lowerCommand.includes('swap') && lowerCommand.includes('mon')) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
-        });
-      }
-      const match = lowerCommand.match(/([\d.]+)\s*mon/);
-      const amount = match ? parseFloat(match[1]) : 0.1;
-      if (amount <= 0 || amount > 10) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid amount. Please use 0.01 - 10 MON'
-        });
-      }
-      try {
-        console.log(`Executing swap via delegation: ${amount} MON for user ${userAddress}`);
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        const hasValidDelegation = delegationData.success &&
-                                  delegationData.delegation &&
-                                  Array.isArray(delegationData.delegation.permissions) &&
-                                  delegationData.delegation.permissions.includes('swap_mon_for_tours');
-        if (!hasValidDelegation) {
-          console.warn('[BOT] No delegation with swap_mon_for_tours permission - creating one...');
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress,
-              authMethod: 'farcaster',
-              fid,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
-            })
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
-          }
-          console.log('[BOT] Delegation created with swap_mon_for_tours permission');
-        }
-        const swapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress,
-            action: 'swap_mon_for_tours',
-            params: {
-              amount: amount.toString()
-            }
-          })
-        });
-        const swapData = await swapRes.json();
-        if (!swapData.success) {
-          throw new Error(swapData.error || 'Swap failed');
-        }
-        console.log('Swap successful:', swapData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: swapData.txHash,
-          action: 'transaction',
-          message: `Swap Complete (FREE)!
-${amount} MON → ${amount} TOURS tokens
-TX: ${swapData.txHash?.slice(0, 10)}...
-Gasless - we paid the gas!
-View: https://monadscan.com/tx/${swapData.txHash}`
-        });
-      } catch (error: any) {
-        console.error('Swap failed:', error);
-        return NextResponse.json({
-          success: false,
-          message: `Swap failed: ${error.message || 'Unknown error'}`
-        });
-      }
-    }
 
     // ==================== SEND TOURS COMMAND ====================
     if (lowerCommand.includes('send') && lowerCommand.includes('tours')) {
@@ -884,7 +1114,7 @@ View: https://monadscan.com/tx/${swapData.txHash}`
               fid,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'buy_music']
+              permissions: ['send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -1087,7 +1317,7 @@ Try "mint passport" from a different location or "help" for other commands.`
               fid,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -1238,7 +1468,7 @@ Or go to the Music page to upload files.`
               fid,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_music', 'mint_passport', 'wrap_mon', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['mint_music', 'mint_passport', 'wrap_mon', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
@@ -1372,7 +1602,7 @@ To mint a collector edition, use the NFT creation page with the collector toggle
               fid,
               durationHours: 24,
               maxTransactions: 100,
-              permissions: ['mint_music', 'mint_collector', 'mint_passport', 'wrap_mon', 'swap_mon_for_tours', 'send_tours', 'buy_music']
+              permissions: ['mint_music', 'mint_collector', 'mint_passport', 'wrap_mon', 'send_tours', 'buy_music']
             })
           });
           const createData = await createRes.json();
