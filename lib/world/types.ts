@@ -11,7 +11,10 @@ export const WORLD_ENTRY_FEE = '1'; // 1 MON
 export const WORLD_FEE_RECEIVER = (process.env.WORLD_FEE_RECEIVER ||
   '0xf3b9D123E7Ac8C36FC9b5AB32135c665956725bA') as Address;
 
-/** EMPTOURS token address on nad.fun */
+/** TOURS utility token — the ecosystem token used across all contracts */
+export const TOURS_TOKEN = (process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x45b76a127167fD7FC7Ed264ad490144300eCfcBF') as Address;
+
+/** EMPTOURS community token on nad.fun — the Agent World belief/community token */
 export const EMPTOURS_TOKEN = (process.env.NEXT_PUBLIC_EMPTOURS_TOKEN || '0x8F2D9BaE2445Db65491b0a8E199f1487f9eA7777') as Address;
 
 /** nad.fun contracts on Monad */
@@ -162,13 +165,23 @@ export interface WorldState {
     active: number;
   };
   economy: WorldEconomy;
-  token: {
-    address: string;
-    symbol: string;
-    price: string;
-    marketCap: string;
-    graduated: boolean;
-  } | null;
+  tokens: {
+    /** TOURS — ecosystem utility token used for music purchases, radio, DAO voting, rewards */
+    tours: {
+      address: string;
+      symbol: string;
+      role: string;
+    };
+    /** EMPTOURS — community token on nad.fun bonding curve */
+    emptours: {
+      address: string;
+      symbol: string;
+      role: string;
+      price: string;
+      marketCap: string;
+      graduated: boolean;
+    } | null;
+  };
   recentEvents: WorldEvent[];
   entryFee: string;
   availableActions: WorldActionType[];

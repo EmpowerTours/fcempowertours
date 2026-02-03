@@ -51,13 +51,21 @@ interface WorldState {
     recentSongs: Array<{ tokenId: string; name: string; artist: string; price: string }>;
     radioActive: boolean;
   };
-  token: {
-    address: string;
-    symbol: string;
-    price: string;
-    marketCap: string;
-    graduated: boolean;
-  } | null;
+  tokens: {
+    tours: {
+      address: string;
+      symbol: string;
+      role: string;
+    };
+    emptours: {
+      address: string;
+      symbol: string;
+      role: string;
+      price: string;
+      marketCap: string;
+      graduated: boolean;
+    } | null;
+  };
   recentEvents: WorldEvent[];
   entryFee: string;
   availableActions: string[];
@@ -176,7 +184,7 @@ export default function WorldPage() {
         )}
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {[
             {
               label: 'Agents',
@@ -204,13 +212,18 @@ export default function WorldPage() {
               sub: 'total',
             },
             {
-              label: 'EMPTOURS Price',
-              value: state?.token
-                ? `${parseFloat(state.token.price).toFixed(6)}`
+              label: 'TOURS',
+              value: 'Live',
+              sub: 'utility token',
+            },
+            {
+              label: 'EMPTOURS',
+              value: state?.tokens?.emptours
+                ? `${parseFloat(state.tokens.emptours.price).toFixed(6)}`
                 : 'N/A',
-              sub: state?.token
-                ? `MC: ${parseFloat(state.token.marketCap).toFixed(2)} MON`
-                : 'token not launched',
+              sub: state?.tokens?.emptours
+                ? `MC: ${parseFloat(state.tokens.emptours.marketCap).toFixed(2)} MON`
+                : 'community token',
             },
           ].map((stat) => (
             <div

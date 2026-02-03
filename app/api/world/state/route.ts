@@ -8,6 +8,7 @@ import {
   WorldActionType,
   ACTION_MAP,
   WORLD_ENTRY_FEE,
+  TOURS_TOKEN,
 } from '@/lib/world/types';
 
 const AVAILABLE_ACTIONS: WorldActionType[] = Object.keys(ACTION_MAP) as WorldActionType[];
@@ -57,15 +58,23 @@ export async function GET(req: NextRequest) {
         active: activeCount,
       },
       economy,
-      token: token
-        ? {
-            address: token.address,
-            symbol: token.symbol,
-            price: token.price,
-            marketCap: token.marketCap,
-            graduated: token.graduated,
-          }
-        : null,
+      tokens: {
+        tours: {
+          address: TOURS_TOKEN,
+          symbol: 'TOURS',
+          role: 'Ecosystem utility token — used for music purchases, radio rewards, DAO governance (vTOURS), subscriptions, staking, and artist payouts across 15+ live contracts',
+        },
+        emptours: token
+          ? {
+              address: token.address,
+              symbol: token.symbol,
+              role: 'Community token on nad.fun bonding curve — represents belief in the EmpowerTours Agent World ecosystem',
+              price: token.price,
+              marketCap: token.marketCap,
+              graduated: token.graduated,
+            }
+          : null,
+      },
       recentEvents: events,
       entryFee: `${WORLD_ENTRY_FEE} MON`,
       availableActions: AVAILABLE_ACTIONS,
