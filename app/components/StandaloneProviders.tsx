@@ -7,11 +7,13 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { monadMainnet } from '@/app/chains';
+import { mainnet } from 'wagmi/chains';
 
 const config = getDefaultConfig({
   appName: 'EmpowerTours',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'empowertours-standalone',
-  chains: [monadMainnet],
+  // Allow both Monad and Ethereum mainnet for message signing (no chain switch required)
+  chains: [monadMainnet, mainnet],
   ssr: true,
 });
 

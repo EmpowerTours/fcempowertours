@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Get pending challenge
-      const challengeData = await redis.get<string>(challengeKey(discordId));
+      // Get pending challenge (Upstash auto-deserializes JSON)
+      const challengeData = await redis.get<{ walletAddress: string; challenge: string; timestamp: number }>(challengeKey(discordId));
       if (!challengeData) {
         return NextResponse.json(
           { success: false, error: 'No pending wallet link. Use "link wallet 0x..." first.' },
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { walletAddress, challenge } = JSON.parse(challengeData);
+      const { walletAddress, challenge } = challengeData;
 
       // Verify signature
       try {

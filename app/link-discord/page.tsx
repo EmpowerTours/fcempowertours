@@ -5,9 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import { useAccount, useSignMessage } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import StandaloneProviders from '@/app/components/StandaloneProviders';
-import { CheckCircle, XCircle, Loader2, Wallet, Link2, Shield } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Wallet, Link2, Shield, Sparkles, Zap } from 'lucide-react';
 
-const APP_URL = process.env.NEXT_PUBLIC_URL || '';
+// Use relative URL for same-origin requests, or fallback to production
+const APP_URL = typeof window !== 'undefined'
+  ? '' // Use relative URL on client (same origin)
+  : (process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app');
 
 function LinkDiscordContent() {
   const searchParams = useSearchParams();
@@ -21,7 +24,6 @@ function LinkDiscordContent() {
   const [challenge, setChallenge] = useState<string | null>(null);
   const [linkedWallet, setLinkedWallet] = useState<string | null>(null);
 
-  // Check if already linked
   useEffect(() => {
     if (discordId) {
       checkExistingLink();
@@ -36,9 +38,7 @@ function LinkDiscordContent() {
         setLinkedWallet(data.linkedWallet);
         setStatus('success');
       }
-    } catch (e) {
-      // Not linked yet, that's fine
-    }
+    } catch (e) {}
   };
 
   const handleLinkWallet = async () => {
@@ -48,7 +48,6 @@ function LinkDiscordContent() {
     setError(null);
 
     try {
-      // Step 1: Get challenge from API
       const challengeRes = await fetch(`${APP_URL}/api/discord/balance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,14 +67,12 @@ function LinkDiscordContent() {
       setChallenge(challengeData.challenge);
       setStatus('signing');
 
-      // Step 2: Sign the message (MetaMask popup appears here!)
       const signature = await signMessageAsync({
         message: challengeData.challenge,
       });
 
       setStatus('loading');
 
-      // Step 3: Verify signature with API
       const verifyRes = await fetch(`${APP_URL}/api/discord/balance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,18 +99,27 @@ function LinkDiscordContent() {
     }
   };
 
-  // No Discord ID provided
   if (!discordId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 max-w-md w-full border border-white/10">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Animated background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-blue-900/20" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[128px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[128px] animate-pulse delay-1000" />
+
+        <div className="relative z-10 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-8 max-w-md w-full border border-white/10 shadow-2xl">
           <div className="text-center">
-            <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-2">Missing Discord ID</h1>
-            <p className="text-gray-400">
-              Please use the link provided by the Discord bot.
+            <div className="w-20 h-20 mx-auto mb-6 relative">
+              <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping" />
+              <div className="relative w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center">
+                <XCircle className="w-10 h-10 text-white" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">Missing Discord ID</h1>
+            <p className="text-gray-400 leading-relaxed">
+              Use the link from Discord bot.
               <br /><br />
-              Type <code className="bg-white/10 px-2 py-1 rounded">@EmpowerTours link wallet 0x...</code> in Discord to get your personal link.
+              Type <code className="bg-white/10 px-3 py-1 rounded-lg text-purple-300 font-mono text-sm">@EmpowerToursAgent link wallet</code>
             </p>
           </div>
         </div>
@@ -122,140 +128,238 @@ function LinkDiscordContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 max-w-md w-full border border-white/10">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated background gradients */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-blue-900/20" />
+      <div className="absolute top-0 left-0 w-full h-full">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/30 rounded-full blur-[128px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-blue-600/30 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-pink-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
 
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Link2 className="w-8 h-8 text-purple-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Link Your Wallet</h1>
-          <p className="text-gray-400 text-sm">
-            Connect your wallet to your Discord account for secure lottery deposits
-          </p>
-        </div>
+      {/* Floating particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-white/30 rounded-full animate-float"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 5}s`,
+              animationDuration: `${3 + Math.random() * 4}s`,
+            }}
+          />
+        ))}
+      </div>
 
-        {/* Success State */}
-        {status === 'success' && linkedWallet && (
-          <div className="text-center">
-            <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Wallet Linked!</h2>
-            <p className="text-gray-400 mb-4">
-              <code className="bg-white/10 px-2 py-1 rounded text-sm">
-                {linkedWallet.slice(0, 6)}...{linkedWallet.slice(-4)}
-              </code>
+      <div className="relative z-10 w-full max-w-md">
+        {/* Main Card */}
+        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-8 border border-white/10 shadow-2xl">
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 mx-auto mb-6 relative">
+              <div className="absolute inset-0 bg-purple-500/30 rounded-full animate-ping" style={{ animationDuration: '2s' }} />
+              <div className="relative w-20 h-20 bg-gradient-to-br from-purple-500 via-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/25">
+                <Link2 className="w-10 h-10 text-white" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
+              {status === 'success' ? 'Wallet Linked!' : 'Link Your Wallet'}
+            </h1>
+            <p className="text-gray-400 text-sm">
+              {status === 'success'
+                ? 'You\'re all set for the lottery!'
+                : 'Secure your Discord account with your wallet'}
             </p>
-            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-left">
-              <p className="text-green-300 text-sm">
-                You can now return to Discord and:
-              </p>
-              <ul className="text-green-200 text-sm mt-2 space-y-1">
-                <li>• Type <code className="bg-white/10 px-1 rounded">@EmpowerTours deposit</code> to add funds</li>
-                <li>• Type <code className="bg-white/10 px-1 rounded">@EmpowerTours buy lottery ticket</code> to play</li>
-              </ul>
-            </div>
           </div>
-        )}
 
-        {/* Error State */}
-        {status === 'error' && (
-          <div className="text-center mb-6">
-            <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-            <p className="text-red-300">{error}</p>
-            <button
-              onClick={() => setStatus('idle')}
-              className="mt-4 text-purple-400 hover:text-purple-300 text-sm underline"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Main Flow */}
-        {status !== 'success' && (
-          <>
-            {/* Step 1: Connect Wallet */}
-            <div className={`mb-6 p-4 rounded-xl border ${isConnected ? 'bg-green-500/10 border-green-500/20' : 'bg-white/5 border-white/10'}`}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isConnected ? 'bg-green-500' : 'bg-gray-600'}`}>
-                  {isConnected ? <CheckCircle className="w-5 h-5 text-white" /> : <span className="text-white font-bold">1</span>}
-                </div>
-                <span className="text-white font-medium">Connect Wallet</span>
-              </div>
-
-              {!isConnected ? (
-                <ConnectButton />
-              ) : (
-                <p className="text-green-300 text-sm ml-11">
-                  Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
-                </p>
-              )}
-            </div>
-
-            {/* Step 2: Sign Message */}
-            <div className={`mb-6 p-4 rounded-xl border ${status === 'signing' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-white/5 border-white/10'}`}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${status === 'signing' ? 'bg-purple-500' : 'bg-gray-600'}`}>
-                  {status === 'signing' ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <span className="text-white font-bold">2</span>}
-                </div>
-                <span className="text-white font-medium">Sign Verification Message</span>
-              </div>
-
-              {status === 'signing' && (
-                <div className="ml-11">
-                  <p className="text-purple-300 text-sm mb-2">Check your wallet for the signature request...</p>
-                  <div className="bg-black/20 rounded-lg p-3 text-xs text-gray-400 font-mono max-h-32 overflow-auto">
-                    {challenge}
+          {/* Success State */}
+          {status === 'success' && linkedWallet && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-green-500/30 rounded-full animate-ping" />
+                  <div className="relative w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-12 h-12 text-white" />
                   </div>
                 </div>
-              )}
+              </div>
 
-              {status !== 'signing' && (
-                <p className="text-gray-400 text-sm ml-11">
-                  Your wallet will ask you to sign a message to prove ownership
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Connected Wallet</p>
+                <p className="font-mono text-white text-lg">
+                  {linkedWallet.slice(0, 6)}...{linkedWallet.slice(-4)}
                 </p>
-              )}
+              </div>
+
+              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl p-5 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-5 h-5 text-green-400" />
+                  <span className="text-green-300 font-medium">Next Steps</span>
+                </div>
+                <ul className="text-green-200/80 text-sm space-y-2">
+                  <li className="flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    <code className="bg-black/30 px-2 py-0.5 rounded">@EmpowerToursAgent deposit</code>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    <code className="bg-black/30 px-2 py-0.5 rounded">@EmpowerToursAgent buy lottery ticket</code>
+                  </li>
+                </ul>
+              </div>
             </div>
+          )}
 
-            {/* Security Notice */}
-            <div className="flex items-start gap-3 mb-6 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-              <Shield className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <p className="text-blue-200 text-xs">
-                Signing a message is <strong>free</strong> and <strong>safe</strong>. It only proves you own this wallet - no transaction is made and no funds are moved.
-              </p>
+          {/* Error State */}
+          {status === 'error' && (
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center">
+                <XCircle className="w-8 h-8 text-white" />
+              </div>
+              <p className="text-red-300 mb-4">{error}</p>
+              <button
+                onClick={() => setStatus('idle')}
+                className="text-purple-400 hover:text-purple-300 text-sm underline underline-offset-4 transition-colors"
+              >
+                Try Again
+              </button>
             </div>
+          )}
 
-            {/* Link Button */}
-            <button
-              onClick={handleLinkWallet}
-              disabled={!isConnected || status === 'loading' || status === 'signing'}
-              className={`w-full py-3 px-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 ${
-                isConnected && status !== 'loading' && status !== 'signing'
-                  ? 'bg-purple-600 hover:bg-purple-700 cursor-pointer'
-                  : 'bg-gray-600 cursor-not-allowed opacity-50'
-              }`}
-            >
-              {status === 'loading' || status === 'signing' ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {status === 'signing' ? 'Waiting for signature...' : 'Processing...'}
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-5 h-5" />
-                  Link Wallet to Discord
-                </>
-              )}
-            </button>
-          </>
-        )}
+          {/* Main Flow */}
+          {status !== 'success' && status !== 'error' && (
+            <div className="space-y-4">
+              {/* Step 1: Connect Wallet */}
+              <div className={`p-5 rounded-2xl border transition-all duration-300 ${
+                isConnected
+                  ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30'
+                  : 'bg-white/5 border-white/10 hover:border-white/20'
+              }`}>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    isConnected
+                      ? 'bg-gradient-to-br from-green-400 to-emerald-600'
+                      : 'bg-white/10'
+                  }`}>
+                    {isConnected ? (
+                      <CheckCircle className="w-5 h-5 text-white" />
+                    ) : (
+                      <span className="text-white font-bold">1</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">Connect Wallet</p>
+                    <p className="text-gray-500 text-xs">Rainbow, MetaMask, or any wallet</p>
+                  </div>
+                </div>
 
-        {/* Footer */}
-        <p className="text-center text-gray-500 text-xs mt-6">
-          Discord ID: {discordId}
-        </p>
+                {!isConnected ? (
+                  <div className="pl-14">
+                    <ConnectButton />
+                  </div>
+                ) : (
+                  <div className="pl-14 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    <span className="text-green-300 text-sm font-mono">
+                      {address?.slice(0, 6)}...{address?.slice(-4)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Sign Message */}
+              <div className={`p-5 rounded-2xl border transition-all duration-300 ${
+                status === 'signing'
+                  ? 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-500/30'
+                  : 'bg-white/5 border-white/10'
+              }`}>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    status === 'signing'
+                      ? 'bg-gradient-to-br from-purple-500 to-blue-600'
+                      : 'bg-white/10'
+                  }`}>
+                    {status === 'signing' ? (
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    ) : (
+                      <span className="text-white font-bold">2</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">Sign Message</p>
+                    <p className="text-gray-500 text-xs">Prove wallet ownership (free)</p>
+                  </div>
+                </div>
+
+                {status === 'signing' && (
+                  <div className="pl-14">
+                    <div className="bg-black/30 rounded-xl p-3 mb-2 border border-white/5">
+                      <p className="text-purple-300 text-sm mb-2">Check your wallet...</p>
+                      <p className="text-xs text-gray-500 font-mono leading-relaxed line-clamp-3">
+                        {challenge}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Security Badge */}
+              <div className="flex items-center gap-3 p-4 bg-blue-500/5 rounded-xl border border-blue-500/10">
+                <Shield className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                <p className="text-blue-200/70 text-xs leading-relaxed">
+                  <strong className="text-blue-300">Free & Safe.</strong> Signing only proves ownership — no transaction, no gas, no funds moved.
+                </p>
+              </div>
+
+              {/* Link Button */}
+              <button
+                onClick={handleLinkWallet}
+                disabled={!isConnected || status === 'loading' || status === 'signing'}
+                className={`w-full py-4 px-6 rounded-2xl font-semibold text-white transition-all duration-300 flex items-center justify-center gap-3 ${
+                  isConnected && status !== 'loading' && status !== 'signing'
+                    ? 'bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 hover:from-purple-500 hover:via-purple-400 hover:to-blue-500 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98]'
+                    : 'bg-gray-800 cursor-not-allowed opacity-50'
+                }`}
+              >
+                {status === 'loading' || status === 'signing' ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {status === 'signing' ? 'Sign in wallet...' : 'Verifying...'}
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-5 h-5" />
+                    Link Wallet to Discord
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Discord ID Footer */}
+          <div className="mt-6 pt-6 border-t border-white/5 text-center">
+            <p className="text-gray-600 text-xs font-mono">
+              Discord ID: {discordId}
+            </p>
+          </div>
+        </div>
+
+        {/* Bottom glow */}
+        <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-20 bg-purple-600/20 blur-3xl rounded-full" />
       </div>
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.3; }
+          50% { transform: translateY(-20px) rotate(180deg); opacity: 0.8; }
+        }
+        .animate-float {
+          animation: float 4s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }
