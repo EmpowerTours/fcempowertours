@@ -96,6 +96,10 @@ interface ListenerStats {
 interface LiveRadioModalProps {
   onClose: () => void;
   isDarkMode?: boolean;
+  minimized?: boolean;
+  setMinimized?: (v: boolean) => void;
+  onAudioPlay?: () => void;
+  registerPauseAudio?: (pauseFn: () => void) => void;
 }
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
@@ -108,7 +112,7 @@ const formatTime = (seconds: number): string => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalProps) {
+export function LiveRadioModal({ onClose, isDarkMode = true, minimized: externalMinimized, setMinimized: externalSetMinimized, onAudioPlay, registerPauseAudio }: LiveRadioModalProps) {
   const { user, walletAddress } = useFarcasterContext();
 
   // Real-time SSE stream (replaces 2s polling for radioState, queue, voiceNotes)
@@ -120,7 +124,9 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
   } = useRadioStream();
 
   const [mounted, setMounted] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [internalMinimized, setInternalMinimized] = useState(false);
+  const isMinimized = externalMinimized !== undefined ? externalMinimized : internalMinimized;
+  const setIsMinimized = externalSetMinimized || setInternalMinimized;
   const [radioState, setRadioState] = useState<RadioState | null>(null);
   const [queue, setQueue] = useState<QueuedSong[]>([]);
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
@@ -637,12 +643,26 @@ export function LiveRadioModal({ onClose, isDarkMode = true }: LiveRadioModalPro
     if (isPlaying) {
       audioRef.current.pause();
     } else {
+      // Notify parent so it can pause other audio sources
+      onAudioPlay?.();
       // Sync to live position before playing
       syncToLivePosition();
       audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
-  }, [isPlaying, syncToLivePosition]);
+  }, [isPlaying, syncToLivePosition, onAudioPlay]);
+
+  // Register pause function with parent for audio conflict prevention
+  useEffect(() => {
+    if (registerPauseAudio) {
+      registerPauseAudio(() => {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      });
+    }
+  }, [registerPauseAudio]);
 
   // Handle mute toggle
   const toggleMute = useCallback(() => {

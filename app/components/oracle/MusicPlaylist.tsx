@@ -35,9 +35,11 @@ interface MusicPlaylistProps {
   onPlayingChange?: (nftId: string | null, isPlaying: boolean) => void;
   onClose?: () => void;
   isSubscriber?: boolean; // If true, user can listen to all songs (not just owned)
+  onAudioPlay?: () => void;
+  registerPauseAudio?: (pauseFn: () => void) => void;
 }
 
-const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose, isSubscriber = false }) => {
+const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, userFid, clickedNFTs = [], onPlayingChange, onClose, isSubscriber = false, onAudioPlay, registerPauseAudio }) => {
   const [mounted, setMounted] = useState(false);
   const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -447,6 +449,8 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
     setCurrentTime(0);
 
     if (isPlaying) {
+      // Notify parent so it can pause other audio sources (e.g. Radio)
+      onAudioPlay?.();
       // Track play start time for recording
       playStartTimeRef.current = Date.now();
       audio.play().catch(() => {
@@ -530,10 +534,24 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
     if (isPlaying) {
       audio.pause();
     } else {
+      // Notify parent so it can pause other audio sources (e.g. Radio)
+      onAudioPlay?.();
       audio.play();
     }
     setIsPlaying(!isPlaying);
   };
+
+  // Register pause function with parent for audio conflict prevention
+  useEffect(() => {
+    if (registerPauseAudio) {
+      registerPauseAudio(() => {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      });
+    }
+  }, [registerPauseAudio]);
 
   const handleNext = () => {
     if (currentSongIndex < songs.length - 1) {
@@ -889,6 +907,8 @@ export const MusicPlaylist = memo(MusicPlaylistComponent, (prevProps, nextProps)
     prevProps.userFid === nextProps.userFid &&
     prevProps.isSubscriber === nextProps.isSubscriber &&
     prevProps.onClose === nextProps.onClose &&
+    prevProps.onAudioPlay === nextProps.onAudioPlay &&
+    prevProps.registerPauseAudio === nextProps.registerPauseAudio &&
     // Compare clickedNFTs by tokenId to avoid new array reference issues
     prevProps.clickedNFTs?.map(n => n.tokenId).join(',') ===
     nextProps.clickedNFTs?.map(n => n.tokenId).join(',')

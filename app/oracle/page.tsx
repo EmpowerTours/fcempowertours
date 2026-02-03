@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, Sparkles, X, Globe, Loader2, Music2, User, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon, Mountain, Code, Vote } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
@@ -79,6 +79,12 @@ export default function OraclePage() {
   const [paymentRequired, setPaymentRequired] = useState<{ message: string; estimatedCost: string } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string>('');
   const [showMapsResults, setShowMapsResults] = useState(false);
+  const [mapsMinimized, setMapsMinimized] = useState(false);
+  const [radioMinimized, setRadioMinimized] = useState(false);
+
+  // Audio conflict prevention refs — each stores a pause callback registered by the child
+  const pauseRadioAudioRef = useRef<(() => void) | null>(null);
+  const pausePlaylistAudioRef = useRef<(() => void) | null>(null);
   const [mapsResultsData, setMapsResultsData] = useState<{
     sources: MapsSource[];
     widgetToken?: string;
@@ -158,10 +164,9 @@ export default function OraclePage() {
     }
   }, [searchParams]);
 
-  // Helper to close all modals before opening a new one
-  const closeAllModals = useCallback(() => {
+  // Close all non-minimizable modals (leaves Radio and Maps open but minimized)
+  const closeNonMinimizableModals = useCallback(() => {
     setShowProfileModal(false);
-    setShowRadioModal(false);
     setShowEventOracleModal(false);
     setShowRockClimbingModal(false);
     setShowDevStudioModal(false);
@@ -173,10 +178,50 @@ export default function OraclePage() {
     setShowSubscriptionModal(false);
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
-    setShowMapsResults(false);
     setShowCreateExperienceModal(false);
     setSelectedNFT(null);
     setPaymentRequired(null);
+  }, []);
+
+  // Minimize all minimizable modals (Radio + Maps)
+  const minimizeAllMinimizable = useCallback(() => {
+    if (showRadioModal) setRadioMinimized(true);
+    if (showMapsResults) setMapsMinimized(true);
+  }, [showRadioModal, showMapsResults]);
+
+  // Smart modal opener: minimizes Radio/Maps instead of closing, closes everything else
+  const openModal = useCallback((openFn: () => void) => {
+    closeNonMinimizableModals();
+    minimizeAllMinimizable();
+    openFn();
+  }, [closeNonMinimizableModals, minimizeAllMinimizable]);
+
+  // Legacy closeAllModals for cases that truly need everything closed (e.g. Maps "View Places" button)
+  const closeAllModals = useCallback(() => {
+    closeNonMinimizableModals();
+    setShowRadioModal(false);
+    setRadioMinimized(false);
+    setShowMapsResults(false);
+    setMapsMinimized(false);
+  }, [closeNonMinimizableModals]);
+
+  // Audio conflict handlers (stable refs to avoid re-renders)
+  const handleRadioAudioPlay = useCallback(() => {
+    // Radio started playing → pause playlist
+    pausePlaylistAudioRef.current?.();
+  }, []);
+
+  const handlePlaylistAudioPlay = useCallback(() => {
+    // Playlist started playing → pause radio
+    pauseRadioAudioRef.current?.();
+  }, []);
+
+  const registerRadioPauseAudio = useCallback((pauseFn: () => void) => {
+    pauseRadioAudioRef.current = pauseFn;
+  }, []);
+
+  const registerPlaylistPauseAudio = useCallback((pauseFn: () => void) => {
+    pausePlaylistAudioRef.current = pauseFn;
   }, []);
 
   // Fetch NFT list
@@ -622,6 +667,7 @@ export default function OraclePage() {
             mapsProvider,
             protocolExperiences,
           });
+          setMapsMinimized(false);
           setShowMapsResults(true);
         } else {
           setMessages(prev => [...prev, {
@@ -653,6 +699,7 @@ export default function OraclePage() {
     address?: string; rating?: number; types?: string[];
   }) => {
     setShowMapsResults(false);
+    setMapsMinimized(false);
     setMapsResultsData(null);
     setCreateExperiencePlaceData(placeData);
     setShowCreateExperienceModal(true);
@@ -759,7 +806,7 @@ export default function OraclePage() {
       messages.length > 0 ||
       showProfileModal ||
       showDashboardModal ||
-      showRadioModal ||
+      (showRadioModal && !radioMinimized) ||
       showEventOracleModal ||
       showRockClimbingModal ||
       showDevStudioModal ||
@@ -767,7 +814,7 @@ export default function OraclePage() {
       showSubscriptionModal ||
       showCreateNFTModal ||
       showPassportMintModal ||
-      showMapsResults ||
+      (showMapsResults && !mapsMinimized) ||
       showCreateExperienceModal ||
       showUserProfileModal ||
       selectedNFT !== null;
@@ -928,6 +975,7 @@ export default function OraclePage() {
                             paymentTxHash: msg.mapsPaymentTxHash,
                             protocolExperiences: msg.protocolExperiences,
                           });
+                          setMapsMinimized(false);
                           setShowMapsResults(true);
                         }}
                         className="w-full py-2 px-4 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
@@ -990,49 +1038,55 @@ export default function OraclePage() {
           {/* Quick Actions - Minimal floating pills */}
           <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
             <button
-              onClick={() => { closeAllModals(); setShowProfileModal(true); }}
+              onClick={() => openModal(() => setShowProfileModal(true))}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
             >
               <User className="w-3.5 h-3.5" />
               Profile
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowDashboardModal(true); }}
+              onClick={() => openModal(() => setShowDashboardModal(true))}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
               Dashboard
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowRadioModal(true); }}
+              onClick={() => {
+                // Opening Radio: minimize Maps if open, close non-minimizable modals, expand Radio
+                closeNonMinimizableModals();
+                if (showMapsResults) setMapsMinimized(true);
+                setShowRadioModal(true);
+                setRadioMinimized(false);
+              }}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-pink-400 hover:bg-pink-500/10' : 'text-gray-500 hover:text-pink-600 hover:bg-pink-50'}`}
             >
               <Radio className="w-3.5 h-3.5" />
               Radio
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowCreateNFTModal(true); }}
+              onClick={() => openModal(() => setShowCreateNFTModal(true))}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-500 hover:text-emerald-600 hover:bg-emerald-50'}`}
             >
               <Plus className="w-3.5 h-3.5" />
               Create NFT
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowRockClimbingModal(true); }}
+              onClick={() => openModal(() => setShowRockClimbingModal(true))}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-orange-400 hover:bg-orange-500/10' : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50'}`}
             >
               <Mountain className="w-3.5 h-3.5" />
               Rock Climbing
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowDevStudioModal(true); }}
+              onClick={() => openModal(() => setShowDevStudioModal(true))}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
             >
               <Code className="w-3.5 h-3.5" />
               Dev Studio
             </button>
             <button
-              onClick={() => { closeAllModals(); setShowDaoModal(true); }}
+              onClick={() => openModal(() => setShowDaoModal(true))}
               className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-gray-500 hover:text-violet-600 hover:bg-violet-50'}`}
             >
               <Vote className="w-3.5 h-3.5" />
@@ -1254,6 +1308,15 @@ export default function OraclePage() {
           paymentTxHash={mapsResultsData.paymentTxHash}
           mapsProvider={mapsResultsData.mapsProvider as any}
           protocolExperiences={mapsResultsData.protocolExperiences}
+          minimized={mapsMinimized}
+          setMinimized={(v: boolean) => {
+            if (!v) {
+              // Expanding from minimized: minimize Radio, close non-minimizable modals
+              closeNonMinimizableModals();
+              if (showRadioModal) setRadioMinimized(true);
+            }
+            setMapsMinimized(v);
+          }}
           userLocation={geoLocation ? {
             latitude: geoLocation.latitude,
             longitude: geoLocation.longitude,
@@ -1262,6 +1325,7 @@ export default function OraclePage() {
           } : undefined}
           onClose={() => {
             setShowMapsResults(false);
+            setMapsMinimized(false);
             setMapsResultsData(null);
           }}
           onCreateExperience={handleCreateExperienceFromMaps}
@@ -1390,7 +1454,21 @@ export default function OraclePage() {
 
       {/* Live Radio Modal */}
       {showRadioModal && (
-        <LiveRadioModal onClose={() => setShowRadioModal(false)} isDarkMode={isDarkMode} />
+        <LiveRadioModal
+          onClose={() => { setShowRadioModal(false); setRadioMinimized(false); }}
+          isDarkMode={isDarkMode}
+          minimized={radioMinimized}
+          setMinimized={(v) => {
+            if (!v) {
+              // Expanding from minimized: minimize Maps, close non-minimizable modals
+              closeNonMinimizableModals();
+              if (showMapsResults) setMapsMinimized(true);
+            }
+            setRadioMinimized(v);
+          }}
+          onAudioPlay={handleRadioAudioPlay}
+          registerPauseAudio={registerRadioPauseAudio}
+        />
       )}
 
       {/* Event Oracle Modal */}
@@ -1663,6 +1741,8 @@ export default function OraclePage() {
           setPlayingTokenId(isPlaying && nft ? nft.tokenId : null);
         }}
         onClose={() => setClickedMusicNFTs([])}
+        onAudioPlay={handlePlaylistAudioPlay}
+        registerPauseAudio={registerPlaylistPauseAudio}
       />
     </>
   );
