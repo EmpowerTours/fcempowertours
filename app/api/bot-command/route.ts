@@ -72,8 +72,7 @@ DeFi Actions (Gasless):
 - "signal demand <eventId>" - Show interest in event
 Daily Lottery (Discord Custodial):
 - "lottery" - Check current lottery status
-- "link wallet 0x..." - Link your wallet (one-time)
-- "verify signature 0x..." - Complete wallet linking
+- "link wallet" - Get link to connect wallet (one-time)
 - "deposit" - Get deposit address for MON
 - "confirm deposit 0x..." - Confirm your deposit
 - "my balance" - Check your deposited balance
@@ -212,8 +211,8 @@ To play: "deposit" → send MON → "buy lottery ticket"`
       }
     }
 
-    // ==================== LINK WALLET COMMAND (Step 1) ====================
-    if (lowerCommand.startsWith('link wallet')) {
+    // ==================== LINK WALLET COMMAND ====================
+    if (lowerCommand === 'link wallet' || lowerCommand === 'link' || lowerCommand.startsWith('link wallet')) {
       if (!discordId) {
         return NextResponse.json({
           success: false,
@@ -221,124 +220,42 @@ To play: "deposit" → send MON → "buy lottery ticket"`
         });
       }
 
-      // Extract wallet address
-      const walletMatch = originalCommand.match(/link wallet\s+(0x[a-fA-F0-9]{40})/i);
-      if (!walletMatch) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid format. Use: "link wallet 0xYourWalletAddress"'
-        });
-      }
-
-      const walletAddress = walletMatch[1];
-
+      // Check if already linked
       try {
-        const response = await fetch(`${APP_URL}/api/discord/balance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'link_wallet',
-            discordId,
-            walletAddress,
-          }),
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
+        const balRes = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
+        const balData = await balRes.json();
+        if (balData.linkedWallet) {
           return NextResponse.json({
             success: true,
             action: 'info',
-            message: `🔐 **Wallet Verification Required**
+            message: `✅ **Wallet Already Linked!**
 
-Sign this message with your wallet to prove ownership:
+Wallet: \`${balData.linkedWallet.slice(0, 6)}...${balData.linkedWallet.slice(-4)}\`
+Balance: ${balData.balanceMon} MON
 
-\`\`\`
-${result.challenge}
-\`\`\`
-
-**How to sign:**
-1. Go to etherscan.io/verifiedSignatures or use your wallet's "Sign Message" feature
-2. Paste the message above and sign it
-3. Copy the signature and reply with:
-   \`verify signature 0xYOUR_SIGNATURE\`
-
-⏰ Expires in 10 minutes`
-          });
-        } else {
-          return NextResponse.json({
-            success: false,
-            message: `❌ ${result.error}`
+You're ready to play! Use \`deposit\` to add funds.`
           });
         }
-      } catch (err: any) {
-        return NextResponse.json({
-          success: false,
-          message: `Failed to start wallet linking: ${err.message}`
-        });
-      }
-    }
+      } catch (e) {}
 
-    // ==================== VERIFY SIGNATURE COMMAND (Step 2) ====================
-    if (lowerCommand.startsWith('verify signature') || lowerCommand.startsWith('verify sig')) {
-      if (!discordId) {
-        return NextResponse.json({
-          success: false,
-          message: 'Discord ID not found. Please try again.'
-        });
-      }
+      // Generate link to website for wallet connection
+      const linkUrl = `${APP_URL}/link-discord?discordId=${discordId}`;
 
-      // Extract signature
-      const sigMatch = originalCommand.match(/verify (?:signature|sig)\s+(0x[a-fA-F0-9]+)/i);
-      if (!sigMatch) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid format. Use: "verify signature 0xYOUR_SIGNATURE"'
-        });
-      }
+      return NextResponse.json({
+        success: true,
+        action: 'info',
+        message: `🔗 **Link Your Wallet**
 
-      const signature = sigMatch[1];
+Click this link to connect and verify your wallet:
+${linkUrl}
 
-      try {
-        const response = await fetch(`${APP_URL}/api/discord/balance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'verify_signature',
-            discordId,
-            signature,
-          }),
-        });
+**What happens:**
+1. Connect your wallet (MetaMask, Rainbow, etc.)
+2. Sign a message to prove ownership (free, no gas!)
+3. Come back here and type \`deposit\` to add funds
 
-        const result = await response.json();
-
-        if (result.success) {
-          return NextResponse.json({
-            success: true,
-            action: 'info',
-            message: `✅ **Wallet Linked Successfully!**
-
-Wallet: ${result.linkedWallet}
-
-You can now deposit MON:
-1. Type \`deposit\` to get the deposit address
-2. Send MON from your linked wallet
-3. Type \`confirm deposit 0xTxHash\`
-
-Only deposits from your linked wallet will be accepted.`
-          });
-        } else {
-          return NextResponse.json({
-            success: false,
-            message: `❌ ${result.error}`
-          });
-        }
-      } catch (err: any) {
-        return NextResponse.json({
-          success: false,
-          message: `Verification failed: ${err.message}`
-        });
-      }
+⚡ This is a one-time setup for security.`
+      });
     }
 
     // ==================== DEPOSIT COMMAND (show deposit address) ====================
