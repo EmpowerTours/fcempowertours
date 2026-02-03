@@ -5339,17 +5339,7 @@ ${enjoyText}
         }
 
         // Read ticket price from contract
-        let ticketPrice = parseEther('5'); // Fallback
-        try {
-          const priceResult = await client.readContract({
-            address: DAILY_LOTTERY_ADDRESS,
-            abi: [{ name: 'ticketPrice', type: 'function', inputs: [], outputs: [{ type: 'uint256' }] }],
-            functionName: 'ticketPrice',
-          });
-          ticketPrice = priceResult as bigint;
-        } catch (e) {
-          console.log('[Lottery] Using fallback ticket price');
-        }
+        let ticketPrice = parseEther('2'); // Fallback to 2 WMON
         const totalCost = ticketPrice * BigInt(ticketCount);
 
         console.log('🎰 Buying daily lottery tickets:', {
