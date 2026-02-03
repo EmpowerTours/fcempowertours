@@ -127,7 +127,11 @@ Try "help" to see all commands!`
     }
 
     // ==================== BALANCE CHECK ====================
-    if (lowerCommand.includes('balance') || lowerCommand === 'check balance') {
+    // Skip if it's "my balance" (handled by Discord-specific handler below)
+    if ((lowerCommand.includes('balance') || lowerCommand === 'check balance') &&
+        !lowerCommand.startsWith('my balance') &&
+        !lowerCommand.startsWith('discord balance') &&
+        !lowerCommand.startsWith('lottery balance')) {
       if (!userAddress) {
         return NextResponse.json({
           success: false,
@@ -201,7 +205,11 @@ Address: ${userAddress.slice(0, 10)}...`
 
 🏆 Winner gets 90% of pool + 10-100 TOURS bonus!
 
-To play: "deposit" → send MON → "buy lottery ticket"`
+**How to Play:**
+1️⃣ @EmpowerTours Agent link wallet (REQUIRED FIRST)
+2️⃣ @EmpowerTours Agent deposit → send MON
+3️⃣ @EmpowerTours Agent confirm deposit 0xTxHash
+4️⃣ @EmpowerTours Agent buy lottery ticket`
         });
       } catch (err: any) {
         return NextResponse.json({
@@ -292,7 +300,7 @@ Send MON to this address:
 ⚠️ **Important:** Send from your linked wallet only!
 
 After sending, confirm with:
-\`confirm deposit 0xYOUR_TX_HASH\`
+\`@EmpowerTours Agent confirm deposit 0xYOUR_TX_HASH\`
 
 Your MON will be credited to your Discord balance for buying lottery tickets!`
       });
