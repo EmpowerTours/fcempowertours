@@ -46,11 +46,7 @@ Navigation:
 - "go to passport" - Mint travel passport
 - "go to music" - Mint music NFT
 - "go to discover" - Browse all music
-- "go to events" - View & buy event tickets
-- "go to tanda" - Join savings groups
-- "go to credit score" - View your score
 - "go to profile" - View your NFTs
-- "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
 Basic Transactions (Gasless):
 - "mint passport" - Mint passport NFT (FREE)
@@ -60,11 +56,6 @@ Basic Transactions (Gasless):
 - "buy music <tokenId>" - Buy music license
 - "buy art <tokenId>" - Buy art NFT
 - "check balance" - Check balances
-Tanda (Savings Groups):
-- "create tanda <name>" - Create savings group
-- "join tanda <id>" - Join savings group
-- "buy ticket <eventId>" - Purchase event ticket
-- "signal demand <eventId>" - Show interest in event
 Daily Lottery (Discord Custodial):
 - "lottery" - Check current lottery status
 - "link wallet" - Get link to connect wallet (one-time)
@@ -107,10 +98,6 @@ Try: "go to profile"`
 A Farcaster Mini App for:
 - Travel passport NFTs (195 countries!)
 - Music NFTs with royalties
-- Tanda (rotating savings groups)
-- Event tickets & demand signals
-- Credit scoring system
-- Marketplace trading
 - Daily lottery
 Built on Monad Mainnet
 Powered by Envio Indexer
@@ -1473,20 +1460,9 @@ Note: You'll pay a small gas fee to burn the NFT.`
       'go to discover': '/discover',
       'discover': '/discover',
       'browse music': '/discover',
-      'go to events': '/events',
-      'events': '/events',
-      'go to tanda': '/tanda',
-      'tanda': '/tanda',
-      'savings': '/tanda',
-      'go to credit score': '/credit-score',
-      'credit score': '/credit-score',
-      'score': '/credit-score',
       'go to profile': '/profile',
       'profile': '/profile',
       'my profile': '/profile',
-      'go to market': '/market',
-      'market': '/market',
-      'marketplace': '/market',
       'go to dashboard': '/dashboard',
       'dashboard': '/dashboard',
       'stats': '/dashboard',
