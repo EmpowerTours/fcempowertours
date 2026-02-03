@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         tours: {
           address: TOURS_TOKEN,
           symbol: 'TOURS',
-          role: 'Ecosystem utility token — used for music purchases, radio rewards, DAO governance (vTOURS), subscriptions, staking, and artist payouts across 15+ live contracts',
+          role: 'Ecosystem reward token — earned by listeners and music buyers. Used for DAO governance (wrap to vTOURS). All payments and artist payouts are in WMON.',
         },
         emptours: token
           ? {

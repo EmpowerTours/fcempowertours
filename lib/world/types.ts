@@ -166,7 +166,7 @@ export interface WorldState {
   };
   economy: WorldEconomy;
   tokens: {
-    /** TOURS — ecosystem utility token used for music purchases, radio, DAO voting, rewards */
+    /** TOURS — ecosystem reward token earned by listeners and music buyers, used for DAO governance (vTOURS) */
     tours: {
       address: string;
       symbol: string;

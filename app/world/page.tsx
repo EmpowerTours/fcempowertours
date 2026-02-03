@@ -214,7 +214,7 @@ export default function WorldPage() {
             {
               label: 'TOURS',
               value: 'Live',
-              sub: 'utility token',
+              sub: 'reward token',
             },
             {
               label: 'EMPTOURS',
