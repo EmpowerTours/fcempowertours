@@ -167,3 +167,9 @@ presentation/
 
 # Dune Analytics queries (local only)
 dune-analytics/
+
+# EPK generated files (local only)
+*.pdf
+*.jpg
+generate-epk*.cjs
+public/epk/
