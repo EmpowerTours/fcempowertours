@@ -67,6 +67,10 @@ DeFi Actions (Gasless):
 - "join tanda <id>" - Join savings group
 - "buy ticket <eventId>" - Purchase event ticket
 - "signal demand <eventId>" - Show interest in event
+Daily Lottery:
+- "lottery" - Check current lottery status
+- "buy lottery ticket" - Buy 1 ticket (2 WMON)
+- "buy 5 lottery tickets" - Buy multiple tickets
 Info:
 - "help" - Show this message
 - "status" - Check wallet connection
@@ -142,6 +146,111 @@ Address: ${userAddress.slice(0, 10)}...`
         return NextResponse.json({
           success: false,
           message: `Failed to check balance: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== LOTTERY STATUS COMMAND ====================
+    if (lowerCommand === 'lottery' || lowerCommand === 'lottery status' || lowerCommand === 'lottery info') {
+      try {
+        const lotteryRes = await fetch(`${APP_URL}/api/lottery`);
+        const lotteryData = await lotteryRes.json();
+
+        if (!lotteryData.success) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to fetch lottery status'
+          });
+        }
+
+        const round = lotteryData.currentRound;
+        const config = lotteryData.config;
+        const hours = Math.floor(round.timeRemaining / 3600);
+        const mins = Math.floor((round.timeRemaining % 3600) / 60);
+        const poolFormatted = (Number(round.prizePool) / 1e18).toFixed(2);
+
+        return NextResponse.json({
+          success: true,
+          action: 'info',
+          message: `🎰 Daily Lottery - Round #${round.roundId}
+
+💰 Prize Pool: ${poolFormatted} WMON
+🎟️ Tickets Sold: ${round.ticketCount}
+⏰ Time Left: ${hours}h ${mins}m
+💵 Ticket Price: ${config.ticketPriceWMON} WMON
+
+🏆 Winner gets 90% of pool + 10-100 TOURS bonus!
+
+Buy tickets: "buy lottery ticket" or "buy 5 lottery tickets"`
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to check lottery: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== BUY LOTTERY TICKETS COMMAND ====================
+    if (lowerCommand.includes('buy') && lowerCommand.includes('lottery')) {
+      if (!userAddress) {
+        return NextResponse.json({
+          success: false,
+          message: 'Wallet not connected. Try: "go to profile"'
+        });
+      }
+
+      // Parse ticket count: "buy lottery ticket", "buy 5 lottery tickets", "buy lottery 3"
+      let ticketCount = 1;
+      const countMatch = lowerCommand.match(/buy (\d+) lottery|lottery (\d+)|(\d+) ticket/);
+      if (countMatch) {
+        ticketCount = parseInt(countMatch[1] || countMatch[2] || countMatch[3]);
+      }
+
+      // Cap at 50 tickets per transaction
+      ticketCount = Math.min(ticketCount, 50);
+
+      try {
+        console.log(`[BOT] Buying ${ticketCount} lottery tickets for ${userAddress}`);
+
+        const response = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            action: 'daily_lottery_buy',
+            params: { ticketCount },
+            fid: fid || '0',
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          const totalCost = ticketCount * 2;
+          return NextResponse.json({
+            success: true,
+            action: 'transaction',
+            message: `🎟️ Lottery Tickets Purchased!
+
+Tickets: ${ticketCount}
+Cost: ${totalCost} WMON
+Tx: ${result.txHash?.slice(0, 10)}...
+
+Good luck! 🍀 Check status with "lottery"`,
+            txHash: result.txHash,
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `Failed to buy lottery tickets: ${result.error || 'Unknown error'}`
+          });
+        }
+      } catch (err: any) {
+        console.error('[BOT] Lottery buy error:', err);
+        return NextResponse.json({
+          success: false,
+          message: `Failed to buy lottery tickets: ${err.message}`
         });
       }
     }
