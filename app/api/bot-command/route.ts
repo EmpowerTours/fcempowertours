@@ -46,7 +46,6 @@ Navigation:
 - "go to passport" - Mint travel passport
 - "go to music" - Mint music NFT
 - "go to discover" - Browse all music
-- "go to staking" - Passport staking page
 - "go to events" - View & buy event tickets
 - "go to tanda" - Join savings groups
 - "go to credit score" - View your score
@@ -54,7 +53,6 @@ Navigation:
 - "go to market" - Browse marketplace
 - "go to dashboard" - View analytics
 Basic Transactions (Gasless):
-- "swap 0.1 mon" - Swap MON for TOURS
 - "mint passport" - Mint passport NFT (FREE)
 - "mint music <Song> <ipfs://...> <price>" - Mint music NFT
 - "send <amount> tours to @user" - Send TOURS
@@ -62,10 +60,7 @@ Basic Transactions (Gasless):
 - "buy music <tokenId>" - Buy music license
 - "buy art <tokenId>" - Buy art NFT
 - "check balance" - Check balances
-DeFi Actions (Gasless):
-- "stake 10" - Stake TOURS (yield + credit boost)
-- "unstake 10" - Unstake TOURS
-- "claim rewards" - Claim staking rewards
+Tanda (Savings Groups):
 - "create tanda <name>" - Create savings group
 - "join tanda <id>" - Join savings group
 - "buy ticket <eventId>" - Purchase event ticket
@@ -112,13 +107,11 @@ Try: "go to profile"`
 A Farcaster Mini App for:
 - Travel passport NFTs (195 countries!)
 - Music NFTs with royalties
-- TOURS token staking for rewards
 - Tanda (rotating savings groups)
 - Event tickets & demand signals
 - Credit scoring system
-- Passport staking for benefits
 - Marketplace trading
-- MON ↔ TOURS token swaps
+- Daily lottery
 Built on Monad Mainnet
 Powered by Envio Indexer
 All transactions are FREE - we pay gas!
@@ -1194,250 +1187,6 @@ https://monadscan.com/tx/${mintData.txHash}`
       }
     }
 
-    // ==================== SIMPLE STAKE COMMAND ====================
-    // Handle "stake <amount>" - automatically uses passport (everyone has one!)
-    // This matches: "stake 10", "stake 100", etc.
-    if (lowerCommand.includes('stake') && !lowerCommand.includes('passport') && !lowerCommand.includes('tours')) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
-        });
-      }
-      const match = lowerCommand.match(/stake\s+([\d.]+)/);
-      const amount = match ? parseFloat(match[1]) : 0;
-      if (amount <= 0 || amount > 100000) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid amount. Use: "stake 10" to stake 10 TOURS'
-        });
-      }
-      try {
-        console.log(`[BOT] Staking ${amount} TOURS (with passport collateral) for user ${userAddress}`);
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        const hasValidDelegation = delegationData.success &&
-                                  delegationData.delegation &&
-                                  Array.isArray(delegationData.delegation.permissions) &&
-                                  delegationData.delegation.permissions.includes('stake_tours');
-        if (!hasValidDelegation) {
-          console.warn('[BOT] No delegation with stake_tours permission - creating one...');
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress,
-              authMethod: 'farcaster',
-              fid,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
-            })
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
-          }
-          console.log('[BOT] Delegation created with stake_tours permission');
-        }
-        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress,
-            action: 'stake_tours',
-            params: {
-              amount: amount.toString()
-            }
-          })
-        });
-        const stakeData = await stakeRes.json();
-        if (!stakeData.success) {
-          throw new Error(stakeData.error || 'Stake failed');
-        }
-        console.log('[BOT] Stake successful:', stakeData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: stakeData.txHash,
-          action: 'transaction',
-          message: `Staking Complete (FREE)!
-${amount} TOURS staked with your passport
-Earning yield + building credit score!
-Position ID: ${stakeData.positionId || 'pending'}
-TX: ${stakeData.txHash?.slice(0, 10)}...
-Gasless - we paid the gas!
-View: https://monadscan.com/tx/${stakeData.txHash}`
-        });
-      } catch (error: any) {
-        console.error('[BOT] Stake failed:', error);
-        return NextResponse.json({
-          success: false,
-          message: `Stake failed: ${error.message || 'Unknown error'}`
-        });
-      }
-    }
-
-    // ==================== STAKE PASSPORT COMMAND (STAKE TOURS WITH PASSPORT) ====================
-    // Handle "stake passport" separately - it stakes TOURS using passport as collateral
-    if (lowerCommand.includes('stake') && lowerCommand.includes('passport')) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
-        });
-      }
-      const match = lowerCommand.match(/([\d.]+)/);
-      const amount = match ? parseFloat(match[1]) : 0;
-      if (amount <= 0 || amount > 100000) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid amount. Use: "stake passport 10" to stake 10 TOURS'
-        });
-      }
-      try {
-        console.log(`[BOT] Staking ${amount} TOURS with passport as collateral for user ${userAddress}`);
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        const hasValidDelegation = delegationData.success &&
-                                  delegationData.delegation &&
-                                  Array.isArray(delegationData.delegation.permissions) &&
-                                  delegationData.delegation.permissions.includes('stake_tours');
-        if (!hasValidDelegation) {
-          console.warn('[BOT] No delegation with stake_tours permission - creating one...');
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress,
-              authMethod: 'farcaster',
-              fid,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
-            })
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
-          }
-          console.log('[BOT] Delegation created with stake_tours permission');
-        }
-        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress,
-            action: 'stake_tours',
-            params: {
-              amount: amount.toString()
-            }
-          })
-        });
-        const stakeData = await stakeRes.json();
-        if (!stakeData.success) {
-          throw new Error(stakeData.error || 'Stake failed');
-        }
-        console.log('[BOT] Passport stake successful:', stakeData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: stakeData.txHash,
-          action: 'transaction',
-          message: `Passport Staking Complete (FREE)!
-${amount} TOURS staked with passport as collateral
-Position ID: ${stakeData.positionId || 'pending'}
-TX: ${stakeData.txHash?.slice(0, 10)}...
-Gasless - we paid the gas!
-View: https://monadscan.com/tx/${stakeData.txHash}`
-        });
-      } catch (error: any) {
-        console.error('[BOT] Passport stake failed:', error);
-        return NextResponse.json({
-          success: false,
-          message: `Stake failed: ${error.message || 'Unknown error'}`
-        });
-      }
-    }
-
-    // ==================== STAKE TOURS COMMAND (GASLESS VIA DELEGATION) ====================
-    if (lowerCommand.includes('stake') && lowerCommand.includes('tours')) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"'
-        });
-      }
-      const match = lowerCommand.match(/([\d.]+)\s*tours/);
-      const amount = match ? parseFloat(match[1]) : 0;
-      if (amount <= 0 || amount > 100000) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid amount. Please use 1 - 100000 TOURS'
-        });
-      }
-      try {
-        console.log(`Executing stake via delegation: ${amount} TOURS for user ${userAddress}`);
-        const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
-        const delegationData = await delegationRes.json();
-        const hasValidDelegation = delegationData.success &&
-                                  delegationData.delegation &&
-                                  Array.isArray(delegationData.delegation.permissions) &&
-                                  delegationData.delegation.permissions.includes('stake_tours');
-        if (!hasValidDelegation) {
-          console.warn('[BOT] No delegation with stake_tours permission - creating one...');
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress,
-              authMethod: 'farcaster',
-              fid,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: ['stake_tours', 'unstake_tours', 'claim_rewards', 'swap_mon_for_tours', 'send_tours', 'mint_passport', 'wrap_mon', 'mint_music', 'buy_music']
-            })
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error('Failed to create delegation: ' + createData.error);
-          }
-          console.log('[BOT] Delegation created with stake_tours permission');
-        }
-        const stakeRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress,
-            action: 'stake_tours',
-            params: {
-              amount: amount.toString()
-            }
-          })
-        });
-        const stakeData = await stakeRes.json();
-        if (!stakeData.success) {
-          throw new Error(stakeData.error || 'Stake failed');
-        }
-        console.log('Stake successful:', stakeData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: stakeData.txHash,
-          action: 'transaction',
-          message: `Staking Complete (FREE)!
-${amount} TOURS staked for yield
-Position ID: ${stakeData.positionId || 'pending'}
-TX: ${stakeData.txHash?.slice(0, 10)}...
-Gasless - we paid the gas!
-View: https://monadscan.com/tx/${stakeData.txHash}`
-        });
-      } catch (error: any) {
-        console.error('Stake failed:', error);
-        return NextResponse.json({
-          success: false,
-          message: `Stake failed: ${error.message || 'Unknown error'}`
-        });
-      }
-    }
-
     // ==================== MINT MUSIC COMMAND (WITH CAST) ====================
     if (lowerCommand.includes('mint music')) {
       if (!userAddress) {
@@ -1724,8 +1473,6 @@ Note: You'll pay a small gas fee to burn the NFT.`
       'go to discover': '/discover',
       'discover': '/discover',
       'browse music': '/discover',
-      'go to staking': '/passport-staking',
-      'staking': '/passport-staking',
       'go to events': '/events',
       'events': '/events',
       'go to tanda': '/tanda',
@@ -1734,8 +1481,6 @@ Note: You'll pay a small gas fee to burn the NFT.`
       'go to credit score': '/credit-score',
       'credit score': '/credit-score',
       'score': '/credit-score',
-      'go to passport staking': '/passport-staking',
-      'passport staking': '/passport-staking',
       'go to profile': '/profile',
       'profile': '/profile',
       'my profile': '/profile',
