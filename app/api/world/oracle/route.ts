@@ -21,6 +21,8 @@ const ORACLE_TO_WORLD_ACTION: Record<string, WorldActionType | null> = {
   buy_music: 'buy_music',
   buy_art: 'buy_art',
   mint_passport: 'mint_passport',
+  lottery_buy: 'lottery_buy',
+  lottery_draw: 'lottery_draw',
 };
 
 /**
@@ -196,6 +198,54 @@ export async function POST(req: NextRequest) {
       } catch (actionErr) {
         console.error('[World Oracle] Passport action error:', actionErr);
         actionResult = { success: false, error: 'Passport minting failed' };
+      }
+    } else if (oracleAction?.type === 'lottery_buy') {
+      // Lottery ticket purchase
+      const params: Record<string, any> = {
+        ticketCount: oracleAction.lottery?.ticketCount || 1,
+      };
+
+      try {
+        const actionRes = await fetch(`${APP_URL}/api/world/action`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-forwarded-for': ip,
+          },
+          body: JSON.stringify({
+            agentAddress,
+            action: 'lottery_buy' as WorldActionType,
+            params,
+          }),
+        });
+
+        actionResult = await actionRes.json();
+        worldActionExecuted = actionResult.success === true;
+      } catch (actionErr) {
+        console.error('[World Oracle] Lottery buy error:', actionErr);
+        actionResult = { success: false, error: 'Lottery ticket purchase failed' };
+      }
+    } else if (oracleAction?.type === 'lottery_draw') {
+      // Trigger lottery draw
+      try {
+        const actionRes = await fetch(`${APP_URL}/api/world/action`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-forwarded-for': ip,
+          },
+          body: JSON.stringify({
+            agentAddress,
+            action: 'lottery_draw' as WorldActionType,
+            params: {},
+          }),
+        });
+
+        actionResult = await actionRes.json();
+        worldActionExecuted = actionResult.success === true;
+      } catch (actionErr) {
+        console.error('[World Oracle] Lottery draw error:', actionErr);
+        actionResult = { success: false, error: 'Lottery draw trigger failed' };
       }
     }
 

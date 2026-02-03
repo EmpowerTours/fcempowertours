@@ -634,4 +634,44 @@ networks:
               transaction_fields:
                 - hash
 
+      # DailyLottery - Daily lottery with Pyth Entropy randomness
+      - name: DailyLottery
+        address:
+          - "0xF3A65137F0A05e461aBccF20EB63a8212f5f1EE3"  # Mainnet DailyLottery
+        handler: src/EventHandlers.ts
+        events:
+          # Round lifecycle
+          - event: "RoundStarted(uint256 indexed roundId, uint256 startTime, uint256 endTime, uint256 initialPool)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "RoundRolledOver(uint256 indexed roundId, uint256 poolAmount, uint256 ticketCount)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Ticket purchases
+          - event: "TicketPurchased(uint256 indexed roundId, address indexed beneficiary, uint256 userFid, uint256 ticketCount, uint256 totalCost)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Draw process
+          - event: "DrawRequested(uint256 indexed roundId, uint64 sequenceNumber, address triggeredBy)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          - event: "DrawTriggered(uint256 indexed roundId, address indexed triggeredBy, uint256 toursReward)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+          # Winner selection
+          - event: "WinnerSelected(uint256 indexed roundId, address indexed winner, uint256 winnerFid, uint256 wmonPrize, uint256 toursBonus, uint256 totalEntries)"
+            field_selection:
+              transaction_fields:
+                - hash
+
 rollback_on_reorg: false

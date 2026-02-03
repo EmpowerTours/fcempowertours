@@ -84,7 +84,9 @@ export type WorldActionType =
   | 'music_subscribe'
   | 'radio_claim_rewards'
   | 'create_climb'
-  | 'purchase_climb';
+  | 'purchase_climb'
+  | 'lottery_buy'
+  | 'lottery_draw';
 
 /** Map of world action types to execute-delegated action names */
 export const ACTION_MAP: Record<WorldActionType, string> = {
@@ -102,6 +104,8 @@ export const ACTION_MAP: Record<WorldActionType, string> = {
   radio_claim_rewards: 'radio_claim_rewards',
   create_climb: 'create_climb',
   purchase_climb: 'purchase_climb',
+  lottery_buy: 'daily_lottery_buy',
+  lottery_draw: 'daily_lottery_draw',
 };
 
 /** Action request from an agent */

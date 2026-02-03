@@ -13,6 +13,7 @@ import {
   DAOContractFactory,
   DeploymentNFT,
   EmpowerToursDevStudio,
+  DailyLottery,
 } from "generated";
 
 // ✅ Type definition for metadata
@@ -2848,4 +2849,322 @@ EmpowerToursDevStudio.WhitelistClosed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🔒 Dev Studio whitelist closed - Final count: ${finalCount}`);
+});
+
+// ============================================
+// DAILY LOTTERY EVENTS (Pyth Entropy Randomness)
+// ============================================
+
+DailyLottery.RoundStarted.handler(async ({ event, context }) => {
+  const { roundId, startTime, endTime, initialPool } = event.params;
+
+  const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
+  const globalId = `lottery-stats-${event.chainId}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.DailyLotteryRound.set({
+    id: roundEntityId,
+    roundId: roundId.toString(),
+    startTime: startTime,
+    endTime: endTime,
+    prizePool: initialPool,
+    ticketCount: 0,
+    participantCount: 0,
+    status: "Active",
+    winner: undefined,
+    winnerFid: undefined,
+    wmonPrize: undefined,
+    toursBonus: undefined,
+    triggeredBy: undefined,
+    triggerReward: undefined,
+    drawSequenceNumber: undefined,
+    createdAt: timestamp,
+    completedAt: undefined,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update global stats
+  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DailyLotteryGlobalStats.set({
+      ...globalStats,
+      totalRounds: globalStats.totalRounds + 1,
+      currentRoundId: roundId.toString(),
+      lastUpdated: timestamp,
+    });
+  } else {
+    await context.DailyLotteryGlobalStats.set({
+      id: globalId,
+      totalRounds: 1,
+      totalTicketsSold: 0,
+      totalWMONCollected: BigInt(0),
+      totalWMONPaidOut: BigInt(0),
+      totalTOURSPaidOut: BigInt(0),
+      totalUniqueParticipants: 0,
+      currentRoundId: roundId.toString(),
+      lastUpdated: timestamp,
+    });
+  }
+
+  const poolFormatted = (Number(initialPool) / 1e18).toFixed(2);
+  context.log.info(`🎰 Lottery Round #${roundId} started - Initial pool: ${poolFormatted} WMON`);
+});
+
+DailyLottery.RoundRolledOver.handler(async ({ event, context }) => {
+  const { roundId, poolAmount, ticketCount } = event.params;
+
+  const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const existing = await context.DailyLotteryRound.get(roundEntityId);
+  if (existing) {
+    await context.DailyLotteryRound.set({
+      ...existing,
+      status: "RolledOver",
+      completedAt: timestamp,
+    });
+  }
+
+  const poolFormatted = (Number(poolAmount) / 1e18).toFixed(2);
+  context.log.info(`🔄 Lottery Round #${roundId} rolled over - Pool: ${poolFormatted} WMON, Tickets: ${ticketCount}`);
+});
+
+DailyLottery.TicketPurchased.handler(async ({ event, context }) => {
+  const { roundId, beneficiary, userFid, ticketCount, totalCost } = event.params;
+
+  const ticketId = `ticket-${event.chainId}-${roundId.toString()}-${event.transaction.hash}-${event.logIndex}`;
+  const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
+  const userId = `user-${event.chainId}-${beneficiary.toLowerCase()}`;
+  const globalId = `lottery-stats-${event.chainId}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Create ticket record
+  await context.DailyLotteryTicket.set({
+    id: ticketId,
+    round_id: roundEntityId,
+    roundId: roundId.toString(),
+    buyer: event.transaction.from?.toLowerCase() || beneficiary.toLowerCase(),
+    beneficiary: beneficiary.toLowerCase(),
+    userFid: userFid,
+    ticketCount: Number(ticketCount),
+    totalCost: totalCost,
+    purchasedAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update round stats
+  const round = await context.DailyLotteryRound.get(roundEntityId);
+  if (round) {
+    await context.DailyLotteryRound.set({
+      ...round,
+      ticketCount: round.ticketCount + Number(ticketCount),
+      prizePool: round.prizePool + totalCost,
+    });
+  }
+
+  // Update user stats
+  let userStats = await context.DailyLotteryUserStats.get(userId);
+  if (userStats) {
+    await context.DailyLotteryUserStats.set({
+      ...userStats,
+      totalTicketsPurchased: userStats.totalTicketsPurchased + Number(ticketCount),
+      totalSpentWMON: userStats.totalSpentWMON + totalCost,
+      lastEntryAt: timestamp,
+    });
+  } else {
+    await context.DailyLotteryUserStats.set({
+      id: userId,
+      user: beneficiary.toLowerCase(),
+      totalTicketsPurchased: Number(ticketCount),
+      totalSpentWMON: totalCost,
+      totalWins: 0,
+      totalWonWMON: BigInt(0),
+      totalWonTOURS: BigInt(0),
+      totalTriggersExecuted: 0,
+      totalTriggerRewardsTOURS: BigInt(0),
+      lastEntryAt: timestamp,
+      lastWinAt: undefined,
+    });
+
+    // Update unique participants in global stats
+    let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+    if (globalStats) {
+      await context.DailyLotteryGlobalStats.set({
+        ...globalStats,
+        totalUniqueParticipants: globalStats.totalUniqueParticipants + 1,
+        totalTicketsSold: globalStats.totalTicketsSold + Number(ticketCount),
+        totalWMONCollected: globalStats.totalWMONCollected + totalCost,
+        lastUpdated: timestamp,
+      });
+    }
+  }
+
+  // Update global ticket count (for existing users)
+  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  if (globalStats && userStats) {
+    await context.DailyLotteryGlobalStats.set({
+      ...globalStats,
+      totalTicketsSold: globalStats.totalTicketsSold + Number(ticketCount),
+      totalWMONCollected: globalStats.totalWMONCollected + totalCost,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const costFormatted = (Number(totalCost) / 1e18).toFixed(2);
+  context.log.info(`🎟️ Lottery tickets purchased: ${beneficiary.slice(0, 8)}... bought ${ticketCount} tickets for ${costFormatted} WMON (Round #${roundId})`);
+});
+
+DailyLottery.DrawRequested.handler(async ({ event, context }) => {
+  const { roundId, sequenceNumber, triggeredBy } = event.params;
+
+  const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
+
+  const round = await context.DailyLotteryRound.get(roundEntityId);
+  if (round) {
+    await context.DailyLotteryRound.set({
+      ...round,
+      status: "DrawPending",
+      triggeredBy: triggeredBy.toLowerCase(),
+      drawSequenceNumber: BigInt(sequenceNumber),
+    });
+  }
+
+  context.log.info(`🎲 Lottery draw requested: Round #${roundId} by ${triggeredBy.slice(0, 8)}... (Pyth seq: ${sequenceNumber})`);
+});
+
+DailyLottery.DrawTriggered.handler(async ({ event, context }) => {
+  const { roundId, triggeredBy, toursReward } = event.params;
+
+  const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
+  const userId = `user-${event.chainId}-${triggeredBy.toLowerCase()}`;
+  const globalId = `lottery-stats-${event.chainId}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Update round with trigger info
+  const round = await context.DailyLotteryRound.get(roundEntityId);
+  if (round) {
+    await context.DailyLotteryRound.set({
+      ...round,
+      triggeredBy: triggeredBy.toLowerCase(),
+      triggerReward: toursReward,
+    });
+  }
+
+  // Update trigger user stats
+  let userStats = await context.DailyLotteryUserStats.get(userId);
+  if (userStats) {
+    await context.DailyLotteryUserStats.set({
+      ...userStats,
+      totalTriggersExecuted: userStats.totalTriggersExecuted + 1,
+      totalTriggerRewardsTOURS: userStats.totalTriggerRewardsTOURS + toursReward,
+    });
+  } else {
+    await context.DailyLotteryUserStats.set({
+      id: userId,
+      user: triggeredBy.toLowerCase(),
+      totalTicketsPurchased: 0,
+      totalSpentWMON: BigInt(0),
+      totalWins: 0,
+      totalWonWMON: BigInt(0),
+      totalWonTOURS: BigInt(0),
+      totalTriggersExecuted: 1,
+      totalTriggerRewardsTOURS: toursReward,
+      lastEntryAt: undefined,
+      lastWinAt: undefined,
+    });
+  }
+
+  // Update global TOURS paidout
+  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DailyLotteryGlobalStats.set({
+      ...globalStats,
+      totalTOURSPaidOut: globalStats.totalTOURSPaidOut + toursReward,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const rewardFormatted = (Number(toursReward) / 1e18).toFixed(2);
+  context.log.info(`⚡ Lottery draw triggered: ${triggeredBy.slice(0, 8)}... earned ${rewardFormatted} TOURS for Round #${roundId}`);
+});
+
+DailyLottery.WinnerSelected.handler(async ({ event, context }) => {
+  const { roundId, winner, winnerFid, wmonPrize, toursBonus, totalEntries } = event.params;
+
+  const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
+  const winnerId = `winner-${event.chainId}-${roundId.toString()}`;
+  const userId = `user-${event.chainId}-${winner.toLowerCase()}`;
+  const globalId = `lottery-stats-${event.chainId}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  // Update round as completed
+  const round = await context.DailyLotteryRound.get(roundEntityId);
+  if (round) {
+    await context.DailyLotteryRound.set({
+      ...round,
+      status: "Completed",
+      winner: winner.toLowerCase(),
+      winnerFid: winnerFid,
+      wmonPrize: wmonPrize,
+      toursBonus: toursBonus,
+      completedAt: timestamp,
+    });
+  }
+
+  // Create winner record
+  await context.DailyLotteryWinner.set({
+    id: winnerId,
+    roundId: roundId.toString(),
+    winner: winner.toLowerCase(),
+    winnerFid: winnerFid,
+    wmonPrize: wmonPrize,
+    toursBonus: toursBonus,
+    totalEntries: Number(totalEntries),
+    wonAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  // Update winner user stats
+  let userStats = await context.DailyLotteryUserStats.get(userId);
+  if (userStats) {
+    await context.DailyLotteryUserStats.set({
+      ...userStats,
+      totalWins: userStats.totalWins + 1,
+      totalWonWMON: userStats.totalWonWMON + wmonPrize,
+      totalWonTOURS: userStats.totalWonTOURS + toursBonus,
+      lastWinAt: timestamp,
+    });
+  } else {
+    await context.DailyLotteryUserStats.set({
+      id: userId,
+      user: winner.toLowerCase(),
+      totalTicketsPurchased: 0,
+      totalSpentWMON: BigInt(0),
+      totalWins: 1,
+      totalWonWMON: wmonPrize,
+      totalWonTOURS: toursBonus,
+      totalTriggersExecuted: 0,
+      totalTriggerRewardsTOURS: BigInt(0),
+      lastEntryAt: undefined,
+      lastWinAt: timestamp,
+    });
+  }
+
+  // Update global stats
+  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  if (globalStats) {
+    await context.DailyLotteryGlobalStats.set({
+      ...globalStats,
+      totalWMONPaidOut: globalStats.totalWMONPaidOut + wmonPrize,
+      totalTOURSPaidOut: globalStats.totalTOURSPaidOut + toursBonus,
+      lastUpdated: timestamp,
+    });
+  }
+
+  const wmonFormatted = (Number(wmonPrize) / 1e18).toFixed(2);
+  const toursFormatted = (Number(toursBonus) / 1e18).toFixed(2);
+  context.log.info(`🏆 Lottery winner selected! Round #${roundId}: ${winner.slice(0, 8)}... won ${wmonFormatted} WMON + ${toursFormatted} TOURS bonus (${totalEntries} entries)`);
 });

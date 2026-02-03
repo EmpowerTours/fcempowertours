@@ -1238,3 +1238,83 @@ type EPKBooking @entity {
   blockNumber: BigInt!
   txHash: String!
 }
+
+# =============================================
+# DAILY LOTTERY V2 - Pyth Entropy Randomness
+# =============================================
+
+type DailyLotteryRound @entity {
+  id: ID!                                 # round-{chainId}-{roundId}
+  roundId: String!
+  startTime: BigInt!
+  endTime: BigInt!
+  prizePool: BigInt!                      # Current WMON prize pool
+  ticketCount: Int!                       # Total tickets in this round
+  participantCount: Int!                  # Unique participants
+  status: String!                         # Active, DrawPending, Completed, RolledOver
+  winner: String                          # Winner address
+  winnerFid: BigInt                       # Winner's Farcaster ID
+  wmonPrize: BigInt                       # WMON prize amount (90% of pool)
+  toursBonus: BigInt                      # TOURS bonus for winner (10-100)
+  triggeredBy: String                     # Address that triggered the draw
+  triggerReward: BigInt                   # TOURS reward for trigger (5-50)
+  drawSequenceNumber: BigInt              # Pyth Entropy sequence number
+  createdAt: Timestamp!
+  completedAt: Timestamp
+  blockNumber: BigInt!
+  txHash: String!
+  tickets: [DailyLotteryTicket!]! @derivedFrom(field: "round")
+}
+
+type DailyLotteryTicket @entity {
+  id: ID!                                 # ticket-{chainId}-{roundId}-{txHash}-{logIndex}
+  round: DailyLotteryRound!
+  roundId: String!
+  buyer: String!                          # Address that paid
+  beneficiary: String!                    # Address that gets tickets (User Safe)
+  userFid: BigInt!                        # Farcaster ID
+  ticketCount: Int!                       # Number of tickets purchased
+  totalCost: BigInt!                      # Total WMON paid
+  purchasedAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type DailyLotteryWinner @entity {
+  id: ID!                                 # winner-{chainId}-{roundId}
+  roundId: String!
+  winner: String!
+  winnerFid: BigInt!
+  wmonPrize: BigInt!
+  toursBonus: BigInt!
+  totalEntries: Int!
+  wonAt: Timestamp!
+  blockNumber: BigInt!
+  txHash: String!
+}
+
+type DailyLotteryUserStats @entity {
+  id: ID!                                 # user-{chainId}-{address}
+  user: String!
+  totalTicketsPurchased: Int!
+  totalSpentWMON: BigInt!
+  totalWins: Int!
+  totalWonWMON: BigInt!
+  totalWonTOURS: BigInt!
+  totalTriggersExecuted: Int!
+  totalTriggerRewardsTOURS: BigInt!
+  lastEntryAt: Timestamp
+  lastWinAt: Timestamp
+}
+
+type DailyLotteryGlobalStats @entity {
+  id: ID!                                 # lottery-stats-{chainId}
+  totalRounds: Int!
+  totalTicketsSold: Int!
+  totalWMONCollected: BigInt!
+  totalWMONPaidOut: BigInt!
+  totalTOURSPaidOut: BigInt!
+  totalUniqueParticipants: Int!
+  currentRoundId: String
+  lastUpdated: Timestamp!
+}

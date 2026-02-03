@@ -107,6 +107,8 @@ export async function POST(req: NextRequest) {
       'lottery_claim',
       'lottery_enter_mon',
       'lottery_enter_wmon',    // WMON lottery entry
+      'daily_lottery_buy',     // DailyLottery: buy tickets with WMON (Pyth Entropy)
+      'daily_lottery_draw',    // DailyLottery: request draw (pays Pyth Entropy fee)
       'music-subscribe',       // Daily gate requirement
       'faucet_claim',          // WMON faucet claim
       'mint_passport',         // Daily gate requirement
@@ -5309,6 +5311,134 @@ ${enjoyText}
           action,
           userAddress,
           message: `Proposal executed! Contract deployed via DAO governance.`,
+        });
+      }
+
+      // ==================== DAILY LOTTERY - BUY TICKETS (PYTH ENTROPY) ====================
+      case 'daily_lottery_buy': {
+        console.log('🎰 Action: daily_lottery_buy (Pyth Entropy)');
+
+        const DAILY_LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_DAILY_LOTTERY as Address;
+        const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
+
+        if (!DAILY_LOTTERY_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'Daily lottery not configured' },
+            { status: 500 }
+          );
+        }
+
+        const ticketCount = params?.ticketCount || 1;
+        const userFid = BigInt(params?.fid || fid || 1);
+
+        if (ticketCount < 1 || ticketCount > 100) {
+          return NextResponse.json(
+            { success: false, error: 'Ticket count must be between 1 and 100' },
+            { status: 400 }
+          );
+        }
+
+        // 2 WMON per ticket
+        const ticketPrice = parseEther('2');
+        const totalCost = ticketPrice * BigInt(ticketCount);
+
+        console.log('🎰 Buying daily lottery tickets:', {
+          ticketCount,
+          totalCost: formatEther(totalCost) + ' WMON',
+          beneficiary: userAddress,
+          userFid: userFid.toString(),
+        });
+
+        // Platform Safe pays for tickets (gasless for user)
+        const dailyLotteryBuyCalls: Call[] = [
+          // Step 1: Wrap MON to WMON
+          {
+            to: WMON_ADDRESS,
+            value: totalCost,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+            }) as Hex,
+          },
+          // Step 2: Approve lottery to spend WMON
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [DAILY_LOTTERY_ADDRESS, totalCost],
+            }) as Hex,
+          },
+          // Step 3: Buy tickets for user (beneficiary pattern)
+          {
+            to: DAILY_LOTTERY_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function buyTicketsFor(address beneficiary, uint256 userFid, uint256 ticketCount) external']),
+              functionName: 'buyTicketsFor',
+              args: [userAddress as Address, userFid, BigInt(ticketCount)],
+            }) as Hex,
+          },
+        ];
+
+        const dailyLotteryBuyTxHash = await executeTransaction(dailyLotteryBuyCalls, userAddress as Address);
+        console.log('✅ Bought daily lottery tickets, TX:', dailyLotteryBuyTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: dailyLotteryBuyTxHash,
+          action,
+          userAddress,
+          ticketCount,
+          totalCost: formatEther(totalCost),
+          message: `Bought ${ticketCount} lottery ticket${ticketCount > 1 ? 's' : ''} for ${formatEther(totalCost)} WMON (gasless)`,
+        });
+      }
+
+      // ==================== DAILY LOTTERY - REQUEST DRAW (PYTH ENTROPY) ====================
+      case 'daily_lottery_draw': {
+        console.log('🎲 Action: daily_lottery_draw (Pyth Entropy)');
+
+        const DAILY_LOTTERY_DRAW_ADDRESS = process.env.NEXT_PUBLIC_DAILY_LOTTERY as Address;
+
+        if (!DAILY_LOTTERY_DRAW_ADDRESS) {
+          return NextResponse.json(
+            { success: false, error: 'Daily lottery not configured' },
+            { status: 500 }
+          );
+        }
+
+        // Pyth Entropy fee is approximately 0.4 MON - send 0.5 to be safe (excess refunded)
+        const entropyFee = parseEther('0.5');
+
+        console.log('🎲 Requesting daily lottery draw:', {
+          lotteryAddress: DAILY_LOTTERY_DRAW_ADDRESS,
+          entropyFee: formatEther(entropyFee) + ' MON',
+          triggeredBy: userAddress,
+        });
+
+        // Request draw - caller gets 5-50 TOURS reward
+        const dailyLotteryDrawCalls: Call[] = [
+          {
+            to: DAILY_LOTTERY_DRAW_ADDRESS,
+            value: entropyFee,
+            data: encodeFunctionData({
+              abi: parseAbi(['function requestDraw() external payable']),
+              functionName: 'requestDraw',
+            }) as Hex,
+          },
+        ];
+
+        const dailyLotteryDrawTxHash = await executeTransaction(dailyLotteryDrawCalls, userAddress as Address);
+        console.log('✅ Requested daily lottery draw, TX:', dailyLotteryDrawTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: dailyLotteryDrawTxHash,
+          action,
+          userAddress,
+          message: `Lottery draw requested! You'll receive 5-50 TOURS bonus for triggering the draw.`,
         });
       }
 
