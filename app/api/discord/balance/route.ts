@@ -3,6 +3,9 @@ import { Redis } from '@upstash/redis';
 import { createPublicClient, http, parseEther, formatEther, verifyMessage } from 'viem';
 import { activeChain } from '@/app/chains';
 
+// Lottery contract for reading ticket price
+const DAILY_LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_DAILY_LOTTERY as `0x${string}` | undefined;
+
 const redis = Redis.fromEnv();
 
 const client = createPublicClient({
@@ -264,7 +267,21 @@ export async function POST(req: NextRequest) {
     // ==================== BUY LOTTERY TICKETS ====================
     if (action === 'buy_lottery') {
       const tickets = ticketCount || 1;
-      const ticketPriceWei = parseEther('2'); // 2 WMON per ticket
+
+      // Read ticket price from contract (or fallback to 5 MON)
+      let ticketPriceWei = parseEther('5'); // Default 5 MON
+      if (DAILY_LOTTERY_ADDRESS) {
+        try {
+          const priceResult = await client.readContract({
+            address: DAILY_LOTTERY_ADDRESS,
+            abi: [{ name: 'ticketPrice', type: 'function', inputs: [], outputs: [{ type: 'uint256' }] }],
+            functionName: 'ticketPrice',
+          });
+          ticketPriceWei = priceResult as bigint;
+        } catch (e) {
+          console.log('[Discord Lottery] Using fallback ticket price');
+        }
+      }
       const totalCostWei = ticketPriceWei * BigInt(tickets);
 
       const currentBalance = await redis.get<string>(balanceKey(discordId)) || '0';
