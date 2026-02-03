@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Address } from 'viem';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 import { sanitizeInput } from '@/lib/auth';
 import {
@@ -7,10 +8,12 @@ import {
   recordAgentAction,
   addEvent,
 } from '@/lib/world/state';
+import { getTokenHoldings } from '@/lib/world/token-gate';
 import {
   WorldRateLimits,
   WorldActionType,
   ACTION_MAP,
+  EMPTOURS_TOKEN,
 } from '@/lib/world/types';
 
 const APP_URL =
@@ -68,6 +71,19 @@ export async function POST(req: NextRequest) {
           success: false,
           error:
             'Agent not registered. Pay the entry fee first via POST /api/world/enter',
+        },
+        { status: 403 }
+      );
+    }
+
+    // EMPTOURS Token Gate: Agents must hold EMPTOURS to perform actions
+    const holdings = await getTokenHoldings(agentAddress as Address);
+    if (holdings.emptours.balanceRaw === 0n) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `EMPTOURS token required to perform actions. ` +
+            `You need to hold EMPTOURS. Buy at: https://nad.fun/tokens/${EMPTOURS_TOKEN}`,
         },
         { status: 403 }
       );

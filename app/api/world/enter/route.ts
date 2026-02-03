@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseEther, formatEther } from 'viem';
+import { createPublicClient, http, parseEther, formatEther, Address } from 'viem';
 import { monadMainnet } from '@/app/chains';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 import { sanitizeInput } from '@/lib/auth';
 import { registerAgent, isAgentRegistered } from '@/lib/world/state';
+import { getTokenHoldings } from '@/lib/world/token-gate';
+import { EMPTOURS_TOKEN } from '@/lib/world/types';
 import {
   WORLD_ENTRY_FEE,
   WORLD_FEE_RECEIVER,
   WorldRateLimits,
   WorldAgent,
 } from '@/lib/world/types';
+
+/** Minimum EMPTOURS required for other agents to enter the world */
+const MIN_EMPTOURS_FOR_AGENT_ENTRY = BigInt(1) * BigInt(10 ** 18); // 1 EMPTOURS minimum
 
 const client = createPublicClient({
   chain: monadMainnet,
@@ -58,6 +63,22 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // EMPTOURS Token Gate: Other agents must hold EMPTOURS to enter the world
+    const holdings = await getTokenHoldings(address as Address);
+    if (holdings.emptours.balanceRaw < MIN_EMPTOURS_FOR_AGENT_ENTRY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `EMPTOURS token required to enter the world. ` +
+            `You need at least 1 EMPTOURS. Current balance: ${holdings.emptours.balance} EMPTOURS. ` +
+            `Buy EMPTOURS at: https://nad.fun/tokens/${EMPTOURS_TOKEN}`,
+        },
+        { status: 403 }
+      );
+    }
+
+    console.log(`[World] Agent ${address} passed EMPTOURS gate (${holdings.emptours.balance} EMPTOURS)`);
 
     // Check if already registered
     if (await isAgentRegistered(address)) {
