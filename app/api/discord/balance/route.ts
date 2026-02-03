@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
-import { createPublicClient, http, parseEther, formatEther } from 'viem';
+import { createPublicClient, http, parseEther, formatEther, verifyMessage } from 'viem';
 import { activeChain } from '@/app/chains';
 
 const redis = Redis.fromEnv();
@@ -17,10 +17,12 @@ const AGENT_WALLET = '0x868469E5D124f81cf63e1A3808795649cA6c3D77';
 const balanceKey = (discordId: string) => `discord:balance:${discordId}`;
 const depositKey = (txHash: string) => `discord:deposit:${txHash.toLowerCase()}`;
 const ticketsKey = (roundId: string, discordId: string) => `discord:tickets:${roundId}:${discordId}`;
+const walletKey = (discordId: string) => `discord:wallet:${discordId}`;
+const challengeKey = (discordId: string) => `discord:challenge:${discordId}`;
 
 /**
  * GET /api/discord/balance?discordId=...
- * Returns user's internal MON balance
+ * Returns user's internal MON balance and linked wallet
  */
 export async function GET(req: NextRequest) {
   try {
@@ -35,12 +37,14 @@ export async function GET(req: NextRequest) {
 
     const balanceWei = await redis.get<string>(balanceKey(discordId)) || '0';
     const balanceMon = formatEther(BigInt(balanceWei));
+    const linkedWallet = await redis.get<string>(walletKey(discordId));
 
     return NextResponse.json({
       success: true,
       discordId,
       balanceWei,
       balanceMon,
+      linkedWallet: linkedWallet || null,
     });
   } catch (err: any) {
     console.error('[Discord Balance] GET error:', err);
@@ -53,18 +57,112 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/discord/balance
- * Actions: deposit (confirm), withdraw, buy_lottery
+ * Actions: link_wallet, verify_signature, deposit, withdraw, buy_lottery
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, discordId, txHash, amount, toAddress, ticketCount, roundId } = body;
+    const { action, discordId, txHash, amount, toAddress, ticketCount, roundId, walletAddress, signature } = body;
 
     if (!discordId) {
       return NextResponse.json(
         { success: false, error: 'Missing discordId' },
         { status: 400 }
       );
+    }
+
+    // ==================== LINK WALLET (Step 1: Generate Challenge) ====================
+    if (action === 'link_wallet') {
+      if (!walletAddress) {
+        return NextResponse.json(
+          { success: false, error: 'Missing walletAddress' },
+          { status: 400 }
+        );
+      }
+
+      // Validate address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid wallet address format' },
+          { status: 400 }
+        );
+      }
+
+      // Generate a unique challenge message
+      const timestamp = Date.now();
+      const challenge = `EmpowerTours Wallet Verification\n\nDiscord ID: ${discordId}\nWallet: ${walletAddress}\nTimestamp: ${timestamp}\n\nSign this message to link your wallet.`;
+
+      // Store challenge with 10 minute expiry
+      await redis.set(challengeKey(discordId), JSON.stringify({
+        walletAddress: walletAddress.toLowerCase(),
+        challenge,
+        timestamp,
+      }), { ex: 600 }); // 10 min expiry
+
+      console.log(`[Discord Link] Challenge generated for ${discordId} → ${walletAddress}`);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Sign this message with your wallet',
+        challenge,
+        walletAddress,
+        expiresIn: '10 minutes',
+      });
+    }
+
+    // ==================== VERIFY SIGNATURE (Step 2: Complete Linking) ====================
+    if (action === 'verify_signature') {
+      if (!signature) {
+        return NextResponse.json(
+          { success: false, error: 'Missing signature' },
+          { status: 400 }
+        );
+      }
+
+      // Get pending challenge
+      const challengeData = await redis.get<string>(challengeKey(discordId));
+      if (!challengeData) {
+        return NextResponse.json(
+          { success: false, error: 'No pending wallet link. Use "link wallet 0x..." first.' },
+          { status: 400 }
+        );
+      }
+
+      const { walletAddress, challenge } = JSON.parse(challengeData);
+
+      // Verify signature
+      try {
+        const isValid = await verifyMessage({
+          address: walletAddress as `0x${string}`,
+          message: challenge,
+          signature: signature as `0x${string}`,
+        });
+
+        if (!isValid) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid signature. Make sure you signed with the correct wallet.' },
+            { status: 400 }
+          );
+        }
+
+        // Link wallet to Discord ID
+        await redis.set(walletKey(discordId), walletAddress.toLowerCase());
+        await redis.del(challengeKey(discordId)); // Clean up challenge
+
+        console.log(`[Discord Link] Wallet linked: ${discordId} → ${walletAddress}`);
+
+        return NextResponse.json({
+          success: true,
+          message: `Wallet ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)} linked successfully!`,
+          linkedWallet: walletAddress,
+        });
+      } catch (verifyErr: any) {
+        console.error('[Discord Link] Signature verification error:', verifyErr);
+        return NextResponse.json(
+          { success: false, error: 'Signature verification failed' },
+          { status: 400 }
+        );
+      }
     }
 
     // ==================== CONFIRM DEPOSIT ====================
@@ -74,6 +172,15 @@ export async function POST(req: NextRequest) {
           { success: false, error: 'Missing txHash' },
           { status: 400 }
         );
+      }
+
+      // Check if user has linked wallet
+      const linkedWallet = await redis.get<string>(walletKey(discordId));
+      if (!linkedWallet) {
+        return NextResponse.json({
+          success: false,
+          error: 'No wallet linked. First use "link wallet 0x..." to link your wallet for security.',
+        }, { status: 400 });
       }
 
       // Check if deposit already processed
@@ -105,6 +212,14 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // ✅ SECURITY: Verify sender matches linked wallet
+        if (tx.from.toLowerCase() !== linkedWallet.toLowerCase()) {
+          return NextResponse.json({
+            success: false,
+            error: `Transaction must be from your linked wallet (${linkedWallet.slice(0, 6)}...${linkedWallet.slice(-4)}). This tx is from ${tx.from.slice(0, 6)}...${tx.from.slice(-4)}.`,
+          }, { status: 400 });
+        }
+
         const depositAmount = tx.value;
         if (depositAmount <= 0n) {
           return NextResponse.json(
@@ -120,6 +235,7 @@ export async function POST(req: NextRequest) {
         await redis.set(balanceKey(discordId), newBalance);
         await redis.set(depositKey(txHash), JSON.stringify({
           discordId,
+          from: tx.from.toLowerCase(),
           amount: depositAmount.toString(),
           timestamp: Date.now(),
         }));
@@ -127,7 +243,7 @@ export async function POST(req: NextRequest) {
         const depositMon = formatEther(depositAmount);
         const newBalanceMon = formatEther(BigInt(newBalance));
 
-        console.log(`[Discord Deposit] ${discordId} deposited ${depositMon} MON (tx: ${txHash})`);
+        console.log(`[Discord Deposit] ${discordId} deposited ${depositMon} MON from ${tx.from} (tx: ${txHash})`);
 
         return NextResponse.json({
           success: true,
@@ -285,7 +401,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: 'Invalid action. Use: deposit, buy_lottery, withdraw' },
+      { success: false, error: 'Invalid action. Use: link_wallet, verify_signature, deposit, buy_lottery, withdraw' },
       { status: 400 }
     );
   } catch (err: any) {

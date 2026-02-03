@@ -353,14 +353,18 @@ The Discord agent should post these announcements with user instructions:
 🏆 Winner gets 90% of pool + 10-100 TOURS bonus!
 
 **How to Play (Discord Users):**
-1️⃣ Type `@EmpowerTours deposit` to get deposit address
-2️⃣ Send MON to the agent's wallet
-3️⃣ Type `@EmpowerTours confirm deposit 0xYourTxHash`
-4️⃣ Type `@EmpowerTours buy lottery ticket`
+1️⃣ `@EmpowerTours link wallet 0xYourWallet` - Link wallet (one-time)
+2️⃣ Sign the message to prove ownership
+3️⃣ `@EmpowerTours verify signature 0xSig` - Complete linking
+4️⃣ `@EmpowerTours deposit` - Get deposit address
+5️⃣ Send MON from your linked wallet
+6️⃣ `@EmpowerTours confirm deposit 0xTxHash`
+7️⃣ `@EmpowerTours buy lottery ticket`
 
 **Commands:**
-• `@EmpowerTours lottery` - Check status
-• `@EmpowerTours my balance` - Check your balance
+• `@EmpowerTours link wallet 0x...` - Link wallet (required)
+• `@EmpowerTours my balance` - Check balance & linked wallet
+• `@EmpowerTours lottery` - Check lottery status
 • `@EmpowerTours buy 5 lottery tickets` - Buy multiple
 • `@EmpowerTours withdraw 5 mon to 0x...` - Withdraw
 

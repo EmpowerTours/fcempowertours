@@ -72,6 +72,8 @@ DeFi Actions (Gasless):
 - "signal demand <eventId>" - Show interest in event
 Daily Lottery (Discord Custodial):
 - "lottery" - Check current lottery status
+- "link wallet 0x..." - Link your wallet (one-time)
+- "verify signature 0x..." - Complete wallet linking
 - "deposit" - Get deposit address for MON
 - "confirm deposit 0x..." - Confirm your deposit
 - "my balance" - Check your deposited balance
@@ -210,20 +212,170 @@ To play: "deposit" → send MON → "buy lottery ticket"`
       }
     }
 
+    // ==================== LINK WALLET COMMAND (Step 1) ====================
+    if (lowerCommand.startsWith('link wallet')) {
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
+        });
+      }
+
+      // Extract wallet address
+      const walletMatch = originalCommand.match(/link wallet\s+(0x[a-fA-F0-9]{40})/i);
+      if (!walletMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "link wallet 0xYourWalletAddress"'
+        });
+      }
+
+      const walletAddress = walletMatch[1];
+
+      try {
+        const response = await fetch(`${APP_URL}/api/discord/balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'link_wallet',
+            discordId,
+            walletAddress,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `🔐 **Wallet Verification Required**
+
+Sign this message with your wallet to prove ownership:
+
+\`\`\`
+${result.challenge}
+\`\`\`
+
+**How to sign:**
+1. Go to etherscan.io/verifiedSignatures or use your wallet's "Sign Message" feature
+2. Paste the message above and sign it
+3. Copy the signature and reply with:
+   \`verify signature 0xYOUR_SIGNATURE\`
+
+⏰ Expires in 10 minutes`
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ ${result.error}`
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to start wallet linking: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== VERIFY SIGNATURE COMMAND (Step 2) ====================
+    if (lowerCommand.startsWith('verify signature') || lowerCommand.startsWith('verify sig')) {
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
+        });
+      }
+
+      // Extract signature
+      const sigMatch = originalCommand.match(/verify (?:signature|sig)\s+(0x[a-fA-F0-9]+)/i);
+      if (!sigMatch) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid format. Use: "verify signature 0xYOUR_SIGNATURE"'
+        });
+      }
+
+      const signature = sigMatch[1];
+
+      try {
+        const response = await fetch(`${APP_URL}/api/discord/balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'verify_signature',
+            discordId,
+            signature,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `✅ **Wallet Linked Successfully!**
+
+Wallet: ${result.linkedWallet}
+
+You can now deposit MON:
+1. Type \`deposit\` to get the deposit address
+2. Send MON from your linked wallet
+3. Type \`confirm deposit 0xTxHash\`
+
+Only deposits from your linked wallet will be accepted.`
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ ${result.error}`
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Verification failed: ${err.message}`
+        });
+      }
+    }
+
     // ==================== DEPOSIT COMMAND (show deposit address) ====================
     if (lowerCommand === 'deposit' || lowerCommand === 'deposit mon') {
+      // Check if wallet is linked first
+      if (discordId) {
+        try {
+          const balRes = await fetch(`${APP_URL}/api/discord/balance?discordId=${discordId}`);
+          const balData = await balRes.json();
+          if (!balData.linkedWallet) {
+            return NextResponse.json({
+              success: true,
+              action: 'info',
+              message: `🔐 **Link Your Wallet First**
+
+For security, you must link your wallet before depositing.
+
+Type: \`link wallet 0xYourWalletAddress\`
+
+This ensures only YOU can claim your deposits.`
+            });
+          }
+        } catch (e) {}
+      }
+
       return NextResponse.json({
         success: true,
         action: 'info',
-        message: `💰 Deposit MON to Play Lottery
+        message: `💰 **Deposit MON to Play Lottery**
 
 Send MON to this address:
 \`${AGENT_WALLET}\`
 
-After sending, confirm with:
-"confirm deposit 0xYOUR_TX_HASH"
+⚠️ **Important:** Send from your linked wallet only!
 
-Example: "confirm deposit 0xabc123..."
+After sending, confirm with:
+\`confirm deposit 0xYOUR_TX_HASH\`
 
 Your MON will be credited to your Discord balance for buying lottery tickets!`
       });
@@ -302,17 +454,22 @@ Now you can buy lottery tickets:
         const result = await response.json();
 
         if (result.success) {
+          const walletStatus = result.linkedWallet
+            ? `🔗 Linked: ${result.linkedWallet.slice(0, 6)}...${result.linkedWallet.slice(-4)}`
+            : `⚠️ No wallet linked - use "link wallet 0x..."`;
+
           return NextResponse.json({
             success: true,
             action: 'info',
-            message: `💳 Your Lottery Balance
+            message: `💳 **Your Lottery Balance**
 
 Balance: ${result.balanceMon} MON
+${walletStatus}
 
 Commands:
-• "deposit" - Add more MON
-• "buy lottery ticket" - Buy tickets (2 MON each)
-• "withdraw 5 mon to 0x..." - Withdraw to wallet`
+• \`deposit\` - Add more MON
+• \`buy lottery ticket\` - Buy tickets (2 MON each)
+• \`withdraw 5 mon to 0x...\` - Withdraw to wallet`
           });
         } else {
           return NextResponse.json({
