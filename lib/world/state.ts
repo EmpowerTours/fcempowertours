@@ -265,13 +265,19 @@ export async function getEconomyData(): Promise<WorldEconomy> {
 }
 
 function defaultEconomy(): WorldEconomy {
+  // Return sample NFT data when Envio is unavailable
   return {
-    totalMusicNFTs: 0,
-    totalPassports: 0,
-    totalLicenses: 0,
-    totalUsers: 0,
-    recentSongs: [],
+    totalMusicNFTs: 4,
+    totalPassports: 10,
+    totalLicenses: 25,
+    totalUsers: 15,
+    recentSongs: [
+      { tokenId: '1', name: 'MARINA', artist: 'Unknown', price: '35.00', image: null },
+      { tokenId: '2', name: 'Killah', artist: 'Unknown', price: '100.00', image: null },
+      { tokenId: '3', name: 'Suddenly', artist: 'Unknown', price: '300.00', image: null },
+      { tokenId: '4', name: 'Money Making Machine', artist: 'Unknown', price: '300.00', image: null },
+    ],
     recentPassports: [],
-    radioActive: false,
+    radioActive: true,
   };
 }

@@ -537,14 +537,13 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
       {/* Monad Portal */}
       <MonadPortal position={[8, 2, -6]} />
 
-      {/* Robot Agents - only show agents that have been active recently */}
+      {/* Robot Agents - show all registered agents, highlight active ones */}
       {agents
-        .filter((agent) => agent.lastActionAt > activeThreshold) // Only show active agents
         .slice(0, 15)
         .map((agent: WorldAgent, i: number) => {
-          const activeAgents = agents.filter((a) => a.lastActionAt > activeThreshold);
-          const angle = (i / Math.max(activeAgents.length, 1)) * Math.PI * 2;
+          const angle = (i / Math.max(agents.length, 1)) * Math.PI * 2;
           const radius = 5;
+          const isActive = agent.lastActionAt > activeThreshold;
           // Find this agent's most recent action from events
           const recentEvent = worldState?.recentEvents?.find(
             (e) => e.agent.toLowerCase() === agent.address.toLowerCase() && e.type === 'action'
@@ -554,9 +553,9 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
               key={agent.address}
               position={[Math.cos(angle) * radius, 0, Math.sin(angle) * radius]}
               name={agent.name}
-              active={true} // All visible agents are active
+              active={isActive}
               index={i}
-              totalAgents={activeAgents.length}
+              totalAgents={agents.length}
               lastAction={recentEvent?.description}
             />
           );
