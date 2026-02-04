@@ -18,8 +18,8 @@ export const TOURS_TOKEN = (process.env.NEXT_PUBLIC_TOURS_TOKEN || '0x45b76a1271
 export const EMPTOURS_TOKEN = (process.env.NEXT_PUBLIC_EMPTOURS_TOKEN || '0x8F2D9BaE2445Db65491b0a8E199f1487f9eA7777') as Address;
 
 /** nad.fun contracts on Monad */
-export const NADFUN_LENS = '0x8C29C83105c71FFadF4C87115A285f40b2052fD8' as Address;
-export const NADFUN_ROUTER = '0xf8A52e45a0b2703f70f82B1A8D1FFD71D0E06E74' as Address;
+export const NADFUN_LENS = '0x8C29C83105c71ffadf4C87115A285f40b2052FD8' as Address;
+export const NADFUN_ROUTER = '0xf8a52e45a0b2703F70f82B1A8D1fFD71d0E06e74' as Address;
 
 // ============================================================================
 // REDIS KEY PREFIXES
