@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+
+commit_msg=$(cat "$1")
+
+# Block any mention of AI tools in commits
+if echo "$commit_msg" | grep -qiE "(claude|anthropic|chatgpt|openai|copilot)"; then
+  echo "❌ Commit message cannot mention AI tools"
+  echo "   Please remove any AI attribution from the commit message."
+  exit 1
+fi
+
+# Allow merge commits
+if echo "$commit_msg" | grep -qE "^Merge "; then
+  exit 0
+fi
+
+# Validate first line length (max 100 chars)
+first_line=$(echo "$commit_msg" | head -1)
+if [ ${#first_line} -gt 100 ]; then
+  echo "❌ Commit message first line too long (max 100 chars)"
+  echo "   Current length: ${#first_line}"
+  exit 1
+fi
+
+# Ensure message is not empty
+if [ -z "$first_line" ]; then
+  echo "❌ Commit message cannot be empty"
+  exit 1
+fi
+
+echo "✅ Commit message validated"

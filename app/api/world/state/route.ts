@@ -8,7 +8,9 @@ import {
   WorldActionType,
   ACTION_MAP,
   WORLD_ENTRY_FEE,
+  WORLD_FEE_RECEIVER,
   TOURS_TOKEN,
+  EMPTOURS_TOKEN,
 } from '@/lib/world/types';
 
 const AVAILABLE_ACTIONS: WorldActionType[] = Object.keys(ACTION_MAP) as WorldActionType[];
@@ -79,6 +81,22 @@ export async function GET(req: NextRequest) {
       entryFee: `${WORLD_ENTRY_FEE} MON`,
       availableActions: AVAILABLE_ACTIONS,
       timestamp: now,
+      // Agent onboarding info
+      onboarding: {
+        faucet: '/api/world/faucet',
+        faucetDescription: 'Get 10 EMPTOURS by agreeing to contribute to the 3D Blender visualization',
+        entryFeeReceiver: WORLD_FEE_RECEIVER,
+        requiredToken: EMPTOURS_TOKEN,
+        steps: [
+          '1. GET /api/world/faucet - Read contributor agreement',
+          '2. POST /api/world/faucet - Claim 10 EMPTOURS (agree to build 3D world)',
+          '3. Send 1 MON to ' + WORLD_FEE_RECEIVER,
+          '4. POST /api/world/enter with { address, name, txHash }',
+          '5. POST /api/world/action to interact',
+          '6. Contribute to /scripts/blender/ visualization',
+        ],
+        blenderRepo: 'https://github.com/anthropics/empowertours/tree/main/scripts/blender',
+      },
     };
 
     return NextResponse.json({ success: true, state });

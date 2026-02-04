@@ -190,6 +190,15 @@ export interface WorldState {
   entryFee: string;
   availableActions: WorldActionType[];
   timestamp: number;
+  /** Agent onboarding information */
+  onboarding?: {
+    faucet: string;
+    faucetDescription: string;
+    entryFeeReceiver: string;
+    requiredToken: string;
+    steps: string[];
+    blenderRepo: string;
+  };
 }
 
 /** Rate limit configs for world endpoints */

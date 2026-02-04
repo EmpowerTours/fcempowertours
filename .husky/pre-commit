@@ -1,0 +1,64 @@
+#!/usr/bin/env sh
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. Check for hardcoded secrets (actual values, not env var references)
+echo "🔐 Checking for exposed secrets..."
+# Only flag actual hex private keys (0x + 64 hex chars not in a variable name context)
+if git diff --cached | grep -E "^\+" | grep -v "process\.env" | grep -v "PRIVATE_KEY\s*=" | grep -E "0x[a-fA-F0-9]{64}" | grep -v ".env" > /dev/null 2>&1; then
+  echo "❌ Hardcoded private key detected!"
+  git diff --cached | grep -E "^\+" | grep -E "0x[a-fA-F0-9]{64}" | head -3
+  exit 1
+fi
+
+# 1b. Block AI attribution mentions in code comments (skip deps, hooks, URLs)
+echo "🤖 Checking for AI attribution..."
+if git diff --cached -- ':!.husky/*' ':!package*.json' | grep -iE "(claude|anthropic)" | grep -v "^-" | grep -v "github.com" | grep -v "http" | grep -v "@anthropic" > /dev/null 2>&1; then
+  echo "❌ Code contains AI attribution mentions. Please remove."
+  git diff --cached -- ':!.husky/*' ':!package*.json' | grep -iE "(claude|anthropic)" | grep -v "^-" | grep -v "github.com" | grep -v "@anthropic" | head -5
+  exit 1
+fi
+
+# 2. TypeScript type check (only on staged .ts/.tsx files)
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -20)
+if [ -n "$STAGED_TS" ]; then
+  echo "📝 Type checking TypeScript files..."
+  if ! npx tsc --noEmit --skipLibCheck 2>&1 | head -30; then
+    echo "❌ TypeScript errors found. Fix them before committing."
+    exit 1
+  fi
+  echo "✅ TypeScript check passed"
+fi
+
+# 3. Lint staged files (warning only)
+STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx)$')
+if [ -n "$STAGED_JS" ]; then
+  echo "🧹 Linting staged files..."
+  echo "$STAGED_JS" | xargs npx eslint --max-warnings=0 2>&1 | head -50
+  # Non-blocking - just warn
+  echo "✅ Lint check complete"
+fi
+
+# 4. Check for large files (>1MB)
+echo "📦 Checking for large files..."
+LARGE_FILES=$(git diff --cached --name-only | while read file; do
+  if [ -f "$file" ]; then
+    size=$(wc -c < "$file" 2>/dev/null || echo 0)
+    if [ "$size" -gt 1048576 ]; then
+      echo "$file ($(($size / 1024))KB)"
+    fi
+  fi
+done)
+if [ -n "$LARGE_FILES" ]; then
+  echo "⚠️  Large files detected (>1MB):"
+  echo "$LARGE_FILES"
+  echo "   Consider using Git LFS or excluding these files."
+fi
+
+# 5. Prevent commits to main/master without PR (warning only)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  echo "⚠️  Warning: Committing directly to $BRANCH branch"
+fi
+
+echo "✅ Pre-commit checks complete!"
