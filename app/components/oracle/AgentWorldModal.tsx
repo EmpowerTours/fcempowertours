@@ -213,9 +213,10 @@ export function AgentWorldModal({
       onClick={(e) => e.stopPropagation()}
     >
       <div
-        className={`absolute inset-0 ${
+        className={`${
           isDarkMode ? 'bg-gray-900' : 'bg-white'
         }`}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
       >
         {/* Header */}
         <div className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 ${
@@ -282,7 +283,7 @@ export function AgentWorldModal({
         </div>
 
         {/* 3D/2D Canvas */}
-        <div className="absolute inset-0 pt-14 pb-12">
+        <div style={{ position: 'absolute', top: '56px', left: 0, right: 0, bottom: '48px', width: '100%' }}>
           {hasError ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-900">
               <div className="text-center">
