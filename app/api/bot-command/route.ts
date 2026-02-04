@@ -823,6 +823,145 @@ Good luck! 🍀 Use \`lottery\` to check status`,
       }
     }
 
+    // ==================== DRAW LOTTERY COMMAND ====================
+    if (lowerCommand === 'draw lottery' || lowerCommand === 'trigger draw' || lowerCommand === 'lottery draw') {
+      console.log('[BOT-LOTTERY] Draw lottery command received:', { discordId });
+
+      try {
+        // Check lottery status first
+        const lotteryRes = await fetch(`${APP_URL}/api/lottery`);
+        const lotteryData = await lotteryRes.json();
+
+        if (!lotteryData.success) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to check lottery status'
+          });
+        }
+
+        const round = lotteryData.currentRound;
+        const config = lotteryData.config;
+
+        // Check if round has ended
+        if (round.timeRemaining > 0) {
+          const hoursLeft = Math.floor(round.timeRemaining / 3600);
+          const minsLeft = Math.floor((round.timeRemaining % 3600) / 60);
+          return NextResponse.json({
+            success: false,
+            message: `⏰ Round not ended yet!\n\nTime remaining: ${hoursLeft}h ${minsLeft}m\n\nWait for the timer to reach 0 before triggering the draw.`
+          });
+        }
+
+        // Check minimum entries
+        if (round.ticketCount < config.minEntries) {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `⚠️ **Not Enough Tickets**
+
+Current: ${round.ticketCount} tickets
+Minimum: ${config.minEntries} tickets
+
+If you trigger the draw now, the **${round.prizePool} WMON prize pool will roll over** to the next round.
+
+Do you want to proceed? Use \`force draw\` to trigger rollover.`
+          });
+        }
+
+        // Trigger the draw
+        console.log('[BOT-LOTTERY] Triggering lottery draw...');
+        const drawRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: '0x868469E5D124f81cf63e1A3808795649cA6c3D77', // Agent wallet as beneficiary for TOURS reward
+            action: 'daily_lottery_draw',
+            params: {},
+            fid: '1',
+          }),
+        });
+
+        const drawResult = await drawRes.json();
+
+        if (drawResult.success) {
+          const txLink = drawResult.txHash ? `https://monadscan.com/tx/${drawResult.txHash}` : '';
+          return NextResponse.json({
+            success: true,
+            action: 'transaction',
+            message: `🎲 **Lottery Draw Triggered!**
+
+The draw has been requested. Pyth Entropy will select a random winner.
+
+💰 Prize Pool: ${round.prizePool} WMON
+🎟️ Total Entries: ${round.ticketCount}
+🎁 You earned: 5-50 TOURS (trigger reward)
+${txLink ? `🔗 [View on Monadscan](${txLink})` : ''}
+
+Winner will be announced shortly!`,
+            txHash: drawResult.txHash,
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ Draw failed: ${drawResult.error}`
+          });
+        }
+      } catch (err: any) {
+        console.error('[BOT-LOTTERY] Draw error:', err);
+        return NextResponse.json({
+          success: false,
+          message: `Failed to trigger draw: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== FORCE DRAW (ROLLOVER) COMMAND ====================
+    if (lowerCommand === 'force draw' || lowerCommand === 'rollover') {
+      console.log('[BOT-LOTTERY] Force draw command received:', { discordId });
+
+      try {
+        // Trigger the draw regardless of minimum
+        const drawRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: '0x868469E5D124f81cf63e1A3808795649cA6c3D77',
+            action: 'daily_lottery_draw',
+            params: {},
+            fid: '1',
+          }),
+        });
+
+        const drawResult = await drawRes.json();
+
+        if (drawResult.success) {
+          const txLink = drawResult.txHash ? `https://monadscan.com/tx/${drawResult.txHash}` : '';
+          return NextResponse.json({
+            success: true,
+            action: 'transaction',
+            message: `🔄 **Lottery Rollover Triggered!**
+
+Prize pool will roll over to the next round.
+${txLink ? `🔗 [View on Monadscan](${txLink})` : ''}
+
+A new round will start shortly!`,
+            txHash: drawResult.txHash,
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ Rollover failed: ${drawResult.error}`
+          });
+        }
+      } catch (err: any) {
+        console.error('[BOT-LOTTERY] Rollover error:', err);
+        return NextResponse.json({
+          success: false,
+          message: `Failed to trigger rollover: ${err.message}`
+        });
+      }
+    }
+
     // ==================== WITHDRAW COMMAND ====================
     if (lowerCommand.startsWith('withdraw')) {
       if (!discordId) {
