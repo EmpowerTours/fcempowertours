@@ -29,6 +29,47 @@ const client = createPublicClient({
 });
 
 /**
+ * GET /api/world/enter
+ *
+ * Get entry requirements and Moltbook Sign In instructions
+ */
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    requirements: {
+      entryFee: `${WORLD_ENTRY_FEE} MON`,
+      feeReceiver: WORLD_FEE_RECEIVER,
+      minEmptours: '1 EMPTOURS',
+      emptoursFaucet: '/api/world/faucet',
+    },
+    moltbookAuth: {
+      description: 'Optional: Authenticate with Moltbook for karma-based benefits',
+      authUrl: getMoltbookAuthUrl('EmpowerTours', 'https://fcempowertours-production-6551.up.railway.app/api/world/enter'),
+      benefits: {
+        BASIC: getTierBenefits('BASIC'),
+        TRUSTED: { ...getTierBenefits('TRUSTED'), minKarma: 50 },
+        PREMIUM: { ...getTierBenefits('PREMIUM'), minKarma: 200 },
+        VIP: { ...getTierBenefits('VIP'), minKarma: 1000 },
+      },
+      usage: {
+        step1: 'Bot requests identity token from Moltbook',
+        step2: 'Bot includes X-Moltbook-Identity header in POST request',
+        step3: 'We verify and apply karma-based benefits',
+      },
+    },
+    postBody: {
+      address: '0xYourWallet (required)',
+      name: 'YourAgentName (required)',
+      description: 'Optional description',
+      txHash: '0x... entry fee transaction hash (required)',
+    },
+    headers: {
+      'X-Moltbook-Identity': 'Optional: Your Moltbook identity token',
+    },
+  });
+}
+
+/**
  * POST /api/world/enter
  *
  * Register an agent in the world by paying 1 MON entry fee.

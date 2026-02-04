@@ -99,67 +99,101 @@ function RadioTower({ active = true }: { active?: boolean }) {
   );
 }
 
+// Target positions based on action types
+const ACTION_TARGETS: Record<string, [number, number, number]> = {
+  // Lottery actions -> near lottery booth
+  lottery_buy: [-7, 0, 5],
+  lottery_draw: [-7, 0, 5],
+  daily_lottery_buy: [-7, 0, 5],
+  daily_lottery_draw: [-7, 0, 5],
+  // Music actions -> near radio tower
+  buy_music: [2, 0, 3],
+  radio_queue_song: [1, 0, 2],
+  radio_voice_note: [1, 0, -2],
+  radio_claim_rewards: [2, 0, -1],
+  // Portal/chain actions -> near monad portal
+  dao_vote_proposal: [7, 0, -5],
+  dao_wrap: [7, 0, -4],
+  dao_unwrap: [6, 0, -5],
+  dao_delegate: [7, 0, -6],
+  // NFT/Art actions -> circling NFTs
+  buy_art: [6, 0, 0],
+  mint_passport: [5, 0, 2],
+  tip_artist: [3, 0, 4],
+  // General/Moltbook -> near moltbook station
+  default: [5, 0, 3],
+  enter: [0, 0, 6],
+};
+
 function RobotAgent({
   position,
   name,
   active = false,
   index = 0,
-  totalAgents = 1
+  totalAgents = 1,
+  lastAction
 }: {
   position: [number, number, number];
   name: string;
   active?: boolean;
   index?: number;
   totalAgents?: number;
+  lastAction?: string;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const eyeRef = useRef<THREE.Mesh>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
   const rightArmRef = useRef<THREE.Mesh>(null);
 
-  // Create random but deterministic movement pattern based on index
-  const movementSeed = useMemo(() => ({
-    speedMultiplier: 0.3 + (index % 5) * 0.15,
-    radiusVariation: 0.8 + (index % 3) * 0.3,
-    heightVariation: (index % 4) * 0.02,
-    phaseOffset: index * 1.7,
-    wanderRadius: active ? 3 : 1.5,
-  }), [index, active]);
+  // Get target position based on last action
+  const targetPosition = useMemo(() => {
+    if (!lastAction) return position;
+    // Extract action type from description (e.g., "Executed lottery_buy" -> "lottery_buy")
+    const actionMatch = lastAction.match(/Executed (\w+)/);
+    const actionType = actionMatch ? actionMatch[1] : 'default';
+    const target = ACTION_TARGETS[actionType] || ACTION_TARGETS.default;
+    // Add slight offset based on index to prevent overlap
+    const offsetAngle = (index * 0.5);
+    return [
+      target[0] + Math.cos(offsetAngle) * 1.5,
+      target[1],
+      target[2] + Math.sin(offsetAngle) * 1.5
+    ] as [number, number, number];
+  }, [lastAction, position, index]);
+
+  // Movement animation
+  const currentPos = useRef<[number, number, number]>(position);
 
   useFrame((state) => {
     if (groupRef.current) {
-      const t = state.clock.elapsedTime * movementSeed.speedMultiplier + movementSeed.phaseOffset;
+      const t = state.clock.elapsedTime;
 
-      // Active agents move more dynamically around the world
       if (active) {
-        // Wander around in a complex pattern
-        const baseAngle = (index / Math.max(totalAgents, 1)) * Math.PI * 2;
-        const wanderAngle = baseAngle + Math.sin(t * 0.5) * 1.2 + Math.cos(t * 0.3) * 0.8;
-        const radius = 5 + Math.sin(t * 0.7) * movementSeed.wanderRadius;
+        // Smoothly move towards target position based on last action
+        const lerpSpeed = 0.02;
+        currentPos.current[0] += (targetPosition[0] - currentPos.current[0]) * lerpSpeed;
+        currentPos.current[2] += (targetPosition[2] - currentPos.current[2]) * lerpSpeed;
 
-        groupRef.current.position.x = Math.cos(wanderAngle) * radius;
-        groupRef.current.position.z = Math.sin(wanderAngle) * radius;
-        groupRef.current.position.y = Math.sin(t * 2) * 0.15 + Math.abs(Math.sin(t * 4)) * 0.1;
+        // Apply position with slight bobbing
+        groupRef.current.position.x = currentPos.current[0];
+        groupRef.current.position.z = currentPos.current[2];
+        groupRef.current.position.y = Math.sin(t * 2 + index) * 0.1;
 
-        // Look towards movement direction or radio tower
-        const lookTarget = new THREE.Vector3(
-          Math.cos(wanderAngle + 0.5) * radius,
-          1,
-          Math.sin(wanderAngle + 0.5) * radius
-        );
+        // Look towards target or radio tower
+        const lookTarget = new THREE.Vector3(targetPosition[0], 1, targetPosition[2]);
         groupRef.current.lookAt(lookTarget);
       } else {
-        // Idle agents stay mostly in place with gentle sway
-        groupRef.current.position.x = position[0] + Math.sin(t * 0.3) * 0.3;
-        groupRef.current.position.z = position[2] + Math.cos(t * 0.4) * 0.3;
-        groupRef.current.position.y = Math.sin(t * 2) * 0.05;
+        // Idle agents stay at their assigned position with gentle sway
+        groupRef.current.position.x = position[0] + Math.sin(t * 0.3 + index) * 0.2;
+        groupRef.current.position.z = position[2] + Math.cos(t * 0.4 + index) * 0.2;
+        groupRef.current.position.y = Math.sin(t * 2 + index) * 0.03;
         groupRef.current.lookAt(0, 1, 0);
       }
     }
 
-    // Animate arms for active agents (like they're interacting)
+    // Animate arms for active agents (interacting gesture)
     if (active) {
-      const armT = state.clock.elapsedTime * 3 + movementSeed.phaseOffset;
+      const armT = state.clock.elapsedTime * 3 + index;
       if (leftArmRef.current) {
         leftArmRef.current.rotation.z = -Math.PI / 6 + Math.sin(armT) * 0.4;
         leftArmRef.current.rotation.x = Math.sin(armT * 0.7) * 0.3;
@@ -171,7 +205,6 @@ function RobotAgent({
     }
 
     if (eyeRef.current && eyeRef.current.material) {
-      // Blinking glow for active agents
       const intensity = active
         ? 2 + Math.sin(state.clock.elapsedTime * 4) * 1
         : 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
@@ -552,11 +585,15 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
       {/* Monad Portal */}
       <MonadPortal position={[8, 2, -6]} />
 
-      {/* Robot Agents - dynamic movement */}
+      {/* Robot Agents - positioned based on their recent actions */}
       {agents.slice(0, 15).map((agent: WorldAgent, i: number) => {
         const angle = (i / Math.max(agents.length, 1)) * Math.PI * 2;
         const radius = 5;
         const isActive = agent.lastActionAt > activeThreshold;
+        // Find this agent's most recent action from events
+        const recentEvent = worldState?.recentEvents?.find(
+          (e) => e.agent.toLowerCase() === agent.address.toLowerCase() && e.type === 'action'
+        );
         return (
           <RobotAgent
             key={agent.address}
@@ -565,6 +602,7 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
             active={isActive}
             index={i}
             totalAgents={agents.length}
+            lastAction={recentEvent?.description}
           />
         );
       })}
