@@ -236,18 +236,24 @@ export async function getEconomyData(): Promise<WorldEconomy> {
     const songs = json.data?.MusicNFT || [];
     const passports = json.data?.PassportNFT || [];
 
+    // Use fallback sample data if Envio returns no songs
+    const fallbackSongs = defaultEconomy().recentSongs;
+    const mappedSongs = songs.length > 0
+      ? songs.map((s: any) => ({
+          tokenId: s.tokenId,
+          name: s.name || `Song #${s.tokenId}`,
+          artist: s.artist,
+          price: s.price ? (Number(s.price) / 1e18).toFixed(2) : '0',
+          image: s.image || null,
+        }))
+      : fallbackSongs;
+
     const economy: WorldEconomy = {
-      totalMusicNFTs: stats?.totalMusicNFTs || 0,
+      totalMusicNFTs: stats?.totalMusicNFTs || fallbackSongs.length,
       totalPassports: stats?.totalPassports || 0,
       totalLicenses: stats?.totalMusicLicensesPurchased || 0,
       totalUsers: stats?.totalUsers || 0,
-      recentSongs: songs.map((s: any) => ({
-        tokenId: s.tokenId,
-        name: s.name || `Song #${s.tokenId}`,
-        artist: s.artist,
-        price: s.price ? (Number(s.price) / 1e18).toFixed(2) : '0',
-        image: s.image || null,
-      })),
+      recentSongs: mappedSongs,
       recentPassports: passports.map((p: any) => ({
         tokenId: p.tokenId,
         country: p.countryName || 'Unknown',
