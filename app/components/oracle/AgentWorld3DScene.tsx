@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useMemo, useState } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { useRef, useMemo } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html, Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -288,7 +288,6 @@ function MusicNFTWithImage({
   index?: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const [textureError, setTextureError] = useState(false);
 
   useFrame((state) => {
     if (meshRef.current) {
@@ -302,28 +301,18 @@ function MusicNFTWithImage({
 
   // Convert IPFS URL to gateway URL
   const imageUrl = useMemo(() => {
-    if (!image || textureError) return null;
+    if (!image) return null;
     if (image.startsWith('ipfs://')) {
       return image.replace('ipfs://', 'https://ipfs.io/ipfs/');
     }
     return image;
-  }, [image, textureError]);
+  }, [image]);
 
   return (
     <group position={position}>
       <mesh ref={meshRef} castShadow>
         <boxGeometry args={[1.2, 1.2, 0.1]} />
-        {imageUrl ? (
-          <NFTTextureMaterial url={imageUrl} fallbackColor={fallbackColor} onError={() => setTextureError(true)} />
-        ) : (
-          <meshStandardMaterial
-            color={fallbackColor}
-            metalness={0.5}
-            roughness={0.3}
-            emissive={fallbackColor}
-            emissiveIntensity={0.3}
-          />
-        )}
+        <NFTMaterial imageUrl={imageUrl} fallbackColor={fallbackColor} />
       </mesh>
       <Html position={[0, -1, 0]} center>
         <div className="text-center">
@@ -340,23 +329,30 @@ function MusicNFTWithImage({
 // Separate component for texture loading to handle errors gracefully
 function NFTTextureMaterial({
   url,
-  fallbackColor,
-  onError
+  fallbackColor
 }: {
   url: string;
   fallbackColor: string;
-  onError: () => void;
 }) {
-  try {
-    const texture = useTexture(url, undefined, undefined, onError);
-    return (
-      <meshStandardMaterial
-        map={texture}
-        metalness={0.3}
-        roughness={0.4}
-      />
-    );
-  } catch {
+  const texture = useTexture(url);
+  return (
+    <meshStandardMaterial
+      map={texture}
+      metalness={0.3}
+      roughness={0.4}
+    />
+  );
+}
+
+// Wrapper that catches texture loading errors
+function NFTMaterial({
+  imageUrl,
+  fallbackColor
+}: {
+  imageUrl: string | null;
+  fallbackColor: string;
+}) {
+  if (!imageUrl) {
     return (
       <meshStandardMaterial
         color={fallbackColor}
@@ -367,6 +363,10 @@ function NFTTextureMaterial({
       />
     );
   }
+
+  return (
+    <NFTTextureMaterial url={imageUrl} fallbackColor={fallbackColor} />
+  );
 }
 
 function LotteryBooth({ position }: { position: [number, number, number] }) {

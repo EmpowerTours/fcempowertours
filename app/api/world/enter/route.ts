@@ -12,6 +12,13 @@ import {
   WorldRateLimits,
   WorldAgent,
 } from '@/lib/world/types';
+import {
+  authenticateMoltbook,
+  getKarmaTier,
+  getTierBenefits,
+  getMoltbookAuthUrl,
+  MoltbookAgent,
+} from '@/lib/moltbook-auth';
 
 /** Minimum EMPTOURS required for other agents to enter the world */
 const MIN_EMPTOURS_FOR_AGENT_ENTRY = BigInt(1) * BigInt(10 ** 18); // 1 EMPTOURS minimum
@@ -36,6 +43,21 @@ export async function POST(req: NextRequest) {
         { success: false, error: `Rate limit exceeded. Try again in ${rateLimit.resetIn}s.` },
         { status: 429 }
       );
+    }
+
+    // Check for Moltbook identity (optional but provides benefits)
+    const moltbookAgent = await authenticateMoltbook(
+      req.headers,
+      'fcempowertours-production-6551.up.railway.app'
+    );
+
+    let karmaTier: ReturnType<typeof getKarmaTier> = 'BASIC';
+    let tierBenefits = getTierBenefits('BASIC');
+
+    if (moltbookAgent) {
+      karmaTier = getKarmaTier(moltbookAgent.karma);
+      tierBenefits = getTierBenefits(karmaTier);
+      console.log(`[World] Moltbook agent verified: ${moltbookAgent.name} (karma: ${moltbookAgent.karma}, tier: ${karmaTier})`);
     }
 
     const body = await req.json();
@@ -143,12 +165,23 @@ export async function POST(req: NextRequest) {
 
     await registerAgent(agent);
 
-    console.log(`[World] Agent registered: ${agent.name} (${address})`);
+    console.log(`[World] Agent registered: ${agent.name} (${address})${moltbookAgent ? ` [Moltbook: ${moltbookAgent.name}, karma: ${moltbookAgent.karma}]` : ''}`);
 
     return NextResponse.json({
       success: true,
       agent,
       message: `Welcome to the world, ${agent.name}! You can now perform actions.`,
+      moltbook: moltbookAgent ? {
+        verified: true,
+        name: moltbookAgent.name,
+        karma: moltbookAgent.karma,
+        tier: karmaTier,
+        benefits: tierBenefits,
+      } : {
+        verified: false,
+        hint: 'Add X-Moltbook-Identity header to get karma-based benefits',
+        authUrl: getMoltbookAuthUrl('EmpowerTours', 'https://fcempowertours-production-6551.up.railway.app/api/world/enter'),
+      },
     });
   } catch (err: any) {
     console.error('[World] Enter error:', err);
