@@ -20,7 +20,13 @@ import { RockClimbingModal } from '@/app/components/oracle/RockClimbingModal';
 import { DevStudioModal } from '@/app/components/oracle/DevStudioModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { EPKModal } from '@/app/components/oracle/EPKModal';
-import { AgentWorldModal } from '@/app/components/oracle/AgentWorldModal';
+import dynamic from 'next/dynamic';
+
+// Dynamic import to prevent React version mismatch with Three.js libraries
+const AgentWorldModal = dynamic(
+  () => import('@/app/components/oracle/AgentWorldModal').then(mod => mod.AgentWorldModal),
+  { ssr: false }
+);
 import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { useRouter, useSearchParams } from 'next/navigation';
