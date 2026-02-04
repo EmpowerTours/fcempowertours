@@ -47,6 +47,10 @@ const TOKEN_CACHE_TTL = 10_000; // 10 seconds
 
 /** Get EMPTOURS token price and info from nad.fun Lens contract */
 export async function getTokenInfo(): Promise<TokenInfo | null> {
+  // nad.fun contracts not deployed on Monad mainnet yet - disable to prevent errors
+  // TODO: Re-enable when nad.fun is live on Monad
+  return null;
+
   if (!EMPTOURS_TOKEN) return null;
 
   const now = Date.now();
