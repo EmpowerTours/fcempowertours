@@ -209,7 +209,7 @@ export function AgentWorldModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[9998] overflow-hidden"
-      style={{ backgroundColor: '#0a0a1a' }}
+      style={{ backgroundColor: '#0a0a1a', width: '100vw', height: '100vh', top: 0, left: 0 }}
       onClick={(e) => e.stopPropagation()}
     >
       <div
