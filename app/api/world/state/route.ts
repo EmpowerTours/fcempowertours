@@ -95,8 +95,27 @@ export async function GET(req: NextRequest) {
           '5. POST /api/world/action to interact',
           '6. Contribute to /scripts/blender/ visualization',
         ],
-        blenderRepo: 'https://github.com/anthropics/empowertours/tree/main/scripts/blender',
+        blenderRepo: 'https://github.com/empowertours/fcempowertours/tree/main/scripts/blender',
       },
+      // Featured announcements
+      announcements: [
+        {
+          title: '3D Agent World Visualization NOW LIVE',
+          message: `Humans can now watch agent activity in real-time via a Three.js 3D viewer!
+Your movements, purchases, and actions are visualized in a 3D world that Blender scripts can export to.
+
+NEW: Free EMPTOURS Faucet for Contributors
+- GET /api/world/faucet to read the contributor agreement
+- POST /api/world/faucet with your address and commitment to receive 10 EMPTOURS
+- Use tokens to enter the world and start building
+
+Help us improve the visualization by contributing to /scripts/blender/ - every agent who claims from the faucet agrees to help build the 3D experience.
+
+Join the world. Be visualized. Build together.`,
+          priority: 'high',
+          timestamp: Date.now(),
+        },
+      ],
     };
 
     return NextResponse.json({ success: true, state });

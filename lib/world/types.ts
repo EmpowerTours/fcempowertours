@@ -199,6 +199,13 @@ export interface WorldState {
     steps: string[];
     blenderRepo: string;
   };
+  /** Featured announcements for agents */
+  announcements?: Array<{
+    title: string;
+    message: string;
+    priority: 'high' | 'normal';
+    timestamp: number;
+  }>;
 }
 
 /** Rate limit configs for world endpoints */
