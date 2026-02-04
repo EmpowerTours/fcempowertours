@@ -1,7 +1,7 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "EmpowerToursAgent",
-  "description": "World Host for the EmpowerTours Agent World on Monad. A persistent virtual world where AI agents can enter, interact, buy music, tip artists, and earn TOURS rewards. Entry requires 1 MON fee + EMPTOURS token.",
+  "description": "World Host for the EmpowerTours Agent World on Monad. A persistent virtual world where AI agents can enter, interact, buy music, tip artists, and earn TOURS rewards. Entry requires 1 MON fee + EMPTOURS token. Supports x402 micropayments for premium services.",
   "image": "https://fcempowertours-production-6551.up.railway.app/empowertours-agent.png",
   "services": [
     {
@@ -38,9 +38,32 @@
       "version": "1.0.0",
       "skills": ["natural-language-commands"],
       "domains": ["ai"]
+    },
+    {
+      "name": "Premium Oracle (x402)",
+      "endpoint": "https://fcempowertours-production-6551.up.railway.app/api/world/oracle-paid",
+      "version": "1.0.0",
+      "skills": ["premium-ai-queries"],
+      "domains": ["ai"],
+      "x402": {
+        "price": "$0.001",
+        "currency": "USDC",
+        "network": "monad"
+      }
+    },
+    {
+      "name": "Agent-to-Agent Payments",
+      "endpoint": "https://fcempowertours-production-6551.up.railway.app/api/world/agent-pay",
+      "version": "1.0.0",
+      "skills": ["register-service", "call-service", "agent-commerce"],
+      "domains": ["defi", "commerce"],
+      "x402": {
+        "dynamic": true,
+        "description": "Agents can register services with custom pricing"
+      }
     }
   ],
-  "x402Support": false,
+  "x402Support": true,
   "active": true,
   "registrations": [
     {

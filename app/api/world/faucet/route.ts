@@ -5,6 +5,7 @@ import { monadMainnet } from '@/app/chains';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 import { sanitizeInput } from '@/lib/auth';
 import { EMPTOURS_TOKEN } from '@/lib/world/types';
+import { redis } from '@/lib/redis';
 
 /**
  * EMPTOURS Faucet for Agent Onboarding
@@ -12,12 +13,22 @@ import { EMPTOURS_TOKEN } from '@/lib/world/types';
  * Agents receive EMPTOURS tokens in exchange for agreeing to contribute
  * to the EmpowerTours 3D World visualization (Blender).
  *
- * Entry requirement: Sign the contributor agreement
- * Reward: 10 EMPTOURS (enough for world entry + buffer)
+ * Security:
+ * - Claims persisted to Redis (survives restarts)
+ * - 1 claim per address (forever)
+ * - 1 claim per IP per hour
+ * - Daily cap of 500 EMPTOURS distributed
+ * - Must have some on-chain activity (at least 0.001 MON balance)
  */
 
 const FAUCET_AMOUNT = parseEther('10'); // 10 EMPTOURS per agent
+const DAILY_CAP = parseEther('500'); // Max 500 EMPTOURS per day (50 claims)
+const MIN_MON_BALANCE = parseEther('0.001'); // Must have some MON to prove not a fresh wallet
 const AGENT_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY as `0x${string}`;
+
+// Redis keys
+const REDIS_CLAIMED_SET = 'faucet:claimed'; // Set of addresses that have claimed
+const REDIS_DAILY_KEY = 'faucet:daily'; // Daily distributed amount (expires at midnight UTC)
 
 const ERC20_ABI = [
   {
@@ -38,9 +49,6 @@ const ERC20_ABI = [
     type: 'function',
   },
 ];
-
-// In-memory tracking of claims (in production, use Redis)
-const claimedAddresses = new Set<string>();
 
 const CONTRIBUTOR_AGREEMENT = `
 By claiming EMPTOURS tokens, I agree to:
@@ -164,18 +172,38 @@ export async function POST(req: NextRequest) {
 
     const normalizedAddress = address.toLowerCase();
 
-    // Check if already claimed
-    if (claimedAddresses.has(normalizedAddress)) {
+    // Check if already claimed (Redis persistent storage)
+    const hasClaimed = await redis.sismember(REDIS_CLAIMED_SET, normalizedAddress);
+    if (hasClaimed) {
       return NextResponse.json({
         success: false,
         error: 'Address has already claimed EMPTOURS from the faucet',
       }, { status: 409 });
     }
 
+    // Check daily cap
+    const dailyDistributed = await redis.get<string>(REDIS_DAILY_KEY);
+    const dailyAmount = BigInt(dailyDistributed ?? '0');
+    if (dailyAmount >= DAILY_CAP) {
+      return NextResponse.json({
+        success: false,
+        error: 'Daily faucet limit reached. Try again tomorrow (resets at midnight UTC).',
+      }, { status: 429 });
+    }
+
     const publicClient = createPublicClient({
       chain: monadMainnet,
       transport: http(),
     });
+
+    // Check that address has some on-chain activity (anti-sybil)
+    const monBalance = await publicClient.getBalance({ address: address as Address });
+    if (monBalance < MIN_MON_BALANCE) {
+      return NextResponse.json({
+        success: false,
+        error: 'Address must have at least 0.001 MON to claim from faucet (anti-sybil protection)',
+      }, { status: 403 });
+    }
 
     const account = privateKeyToAccount(AGENT_PRIVATE_KEY);
 
@@ -221,8 +249,16 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // Mark as claimed
-    claimedAddresses.add(normalizedAddress);
+    // Mark as claimed in Redis (persistent)
+    await redis.sadd(REDIS_CLAIMED_SET, normalizedAddress);
+
+    // Update daily counter (expires at midnight UTC)
+    const now = new Date();
+    const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+    const secondsUntilMidnight = Math.ceil(msUntilMidnight / 1000);
+
+    const newDailyAmount = dailyAmount + FAUCET_AMOUNT;
+    await redis.set(REDIS_DAILY_KEY, newDailyAmount.toString(), { ex: secondsUntilMidnight });
 
     const sanitizedName = sanitizeInput(agentName || '', 50) || `Agent-${address.slice(0, 8)}`;
 
