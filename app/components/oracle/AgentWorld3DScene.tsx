@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Html, Environment } from '@react-three/drei';
+import { useRef, useMemo, useState } from 'react';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { OrbitControls, Html, Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 
 // =============================================================================
@@ -21,7 +21,7 @@ interface WorldState {
   agents: { total: number; active: number };
   economy: {
     radioActive: boolean;
-    recentSongs: Array<{ tokenId: string; name: string; price: string }>;
+    recentSongs: Array<{ tokenId: string; name: string; price: string; image?: string | null }>;
   };
   recentEvents: Array<{
     id: string;
@@ -103,26 +103,78 @@ function RobotAgent({
   position,
   name,
   active = false,
-  index = 0
+  index = 0,
+  totalAgents = 1
 }: {
   position: [number, number, number];
   name: string;
   active?: boolean;
   index?: number;
+  totalAgents?: number;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const eyeRef = useRef<THREE.Mesh>(null);
+  const leftArmRef = useRef<THREE.Mesh>(null);
+  const rightArmRef = useRef<THREE.Mesh>(null);
+
+  // Create random but deterministic movement pattern based on index
+  const movementSeed = useMemo(() => ({
+    speedMultiplier: 0.3 + (index % 5) * 0.15,
+    radiusVariation: 0.8 + (index % 3) * 0.3,
+    heightVariation: (index % 4) * 0.02,
+    phaseOffset: index * 1.7,
+    wanderRadius: active ? 3 : 1.5,
+  }), [index, active]);
 
   useFrame((state) => {
     if (groupRef.current) {
-      // Gentle bobbing
-      groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2 + index) * 0.05;
-      // Look towards center
-      groupRef.current.lookAt(0, 1, 0);
+      const t = state.clock.elapsedTime * movementSeed.speedMultiplier + movementSeed.phaseOffset;
+
+      // Active agents move more dynamically around the world
+      if (active) {
+        // Wander around in a complex pattern
+        const baseAngle = (index / Math.max(totalAgents, 1)) * Math.PI * 2;
+        const wanderAngle = baseAngle + Math.sin(t * 0.5) * 1.2 + Math.cos(t * 0.3) * 0.8;
+        const radius = 5 + Math.sin(t * 0.7) * movementSeed.wanderRadius;
+
+        groupRef.current.position.x = Math.cos(wanderAngle) * radius;
+        groupRef.current.position.z = Math.sin(wanderAngle) * radius;
+        groupRef.current.position.y = Math.sin(t * 2) * 0.15 + Math.abs(Math.sin(t * 4)) * 0.1;
+
+        // Look towards movement direction or radio tower
+        const lookTarget = new THREE.Vector3(
+          Math.cos(wanderAngle + 0.5) * radius,
+          1,
+          Math.sin(wanderAngle + 0.5) * radius
+        );
+        groupRef.current.lookAt(lookTarget);
+      } else {
+        // Idle agents stay mostly in place with gentle sway
+        groupRef.current.position.x = position[0] + Math.sin(t * 0.3) * 0.3;
+        groupRef.current.position.z = position[2] + Math.cos(t * 0.4) * 0.3;
+        groupRef.current.position.y = Math.sin(t * 2) * 0.05;
+        groupRef.current.lookAt(0, 1, 0);
+      }
     }
-    if (eyeRef.current && active && eyeRef.current.material) {
+
+    // Animate arms for active agents (like they're interacting)
+    if (active) {
+      const armT = state.clock.elapsedTime * 3 + movementSeed.phaseOffset;
+      if (leftArmRef.current) {
+        leftArmRef.current.rotation.z = -Math.PI / 6 + Math.sin(armT) * 0.4;
+        leftArmRef.current.rotation.x = Math.sin(armT * 0.7) * 0.3;
+      }
+      if (rightArmRef.current) {
+        rightArmRef.current.rotation.z = Math.PI / 6 - Math.sin(armT + 1) * 0.4;
+        rightArmRef.current.rotation.x = Math.cos(armT * 0.7) * 0.3;
+      }
+    }
+
+    if (eyeRef.current && eyeRef.current.material) {
       // Blinking glow for active agents
-      const intensity = 2 + Math.sin(state.clock.elapsedTime * 4) * 1;
+      const intensity = active
+        ? 2 + Math.sin(state.clock.elapsedTime * 4) * 1
+        : 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
       (eyeRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = intensity;
     }
   });
@@ -181,16 +233,30 @@ function RobotAgent({
       </mesh>
       <mesh position={[0, 1.6, 0]}>
         <sphereGeometry args={[0.04, 8, 8]} />
-        <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={1} />
+        <meshStandardMaterial
+          color={active ? "#00ff88" : "#00ffff"}
+          emissive={active ? "#00ff88" : "#00ffff"}
+          emissiveIntensity={active ? 2 : 1}
+        />
       </mesh>
 
-      {/* Arms */}
-      <mesh position={[0.3, 0.5, 0]} rotation={[0, 0, Math.PI / 6]}>
+      {/* Arms - animated for active agents */}
+      <mesh ref={leftArmRef} position={[0.3, 0.5, 0]} rotation={[0, 0, Math.PI / 6]}>
         <boxGeometry args={[0.1, 0.4, 0.1]} />
         <meshStandardMaterial color={color} metalness={0.7} roughness={0.3} />
       </mesh>
-      <mesh position={[-0.3, 0.5, 0]} rotation={[0, 0, -Math.PI / 6]}>
+      <mesh ref={rightArmRef} position={[-0.3, 0.5, 0]} rotation={[0, 0, -Math.PI / 6]}>
         <boxGeometry args={[0.1, 0.4, 0.1]} />
+        <meshStandardMaterial color={color} metalness={0.7} roughness={0.3} />
+      </mesh>
+
+      {/* Legs */}
+      <mesh position={[0.12, 0.05, 0]}>
+        <boxGeometry args={[0.12, 0.3, 0.12]} />
+        <meshStandardMaterial color={color} metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[-0.12, 0.05, 0]}>
+        <boxGeometry args={[0.12, 0.3, 0.12]} />
         <meshStandardMaterial color={color} metalness={0.7} roughness={0.3} />
       </mesh>
 
@@ -200,24 +266,29 @@ function RobotAgent({
           active ? 'bg-green-500/80 text-white' : 'bg-gray-700/80 text-gray-300'
         }`}>
           {name.length > 12 ? name.slice(0, 12) + '...' : name}
+          {active && <span className="ml-1 animate-pulse">●</span>}
         </div>
       </Html>
     </group>
   );
 }
 
-function MusicNFT({
+// NFT with IPFS image texture
+function MusicNFTWithImage({
   position,
   name,
   price,
+  image,
   index = 0
 }: {
   position: [number, number, number];
   name: string;
   price: string;
+  image: string | null;
   index?: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const [textureError, setTextureError] = useState(false);
 
   useFrame((state) => {
     if (meshRef.current) {
@@ -227,19 +298,32 @@ function MusicNFT({
   });
 
   const priceNum = parseFloat(price);
-  const color = priceNum >= 300 ? '#ffd700' : priceNum >= 100 ? '#a855f7' : '#3b82f6';
+  const fallbackColor = priceNum >= 300 ? '#ffd700' : priceNum >= 100 ? '#a855f7' : '#3b82f6';
+
+  // Convert IPFS URL to gateway URL
+  const imageUrl = useMemo(() => {
+    if (!image || textureError) return null;
+    if (image.startsWith('ipfs://')) {
+      return image.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    }
+    return image;
+  }, [image, textureError]);
 
   return (
     <group position={position}>
       <mesh ref={meshRef} castShadow>
         <boxGeometry args={[1.2, 1.2, 0.1]} />
-        <meshStandardMaterial
-          color={color}
-          metalness={0.5}
-          roughness={0.3}
-          emissive={color}
-          emissiveIntensity={0.3}
-        />
+        {imageUrl ? (
+          <NFTTextureMaterial url={imageUrl} fallbackColor={fallbackColor} onError={() => setTextureError(true)} />
+        ) : (
+          <meshStandardMaterial
+            color={fallbackColor}
+            metalness={0.5}
+            roughness={0.3}
+            emissive={fallbackColor}
+            emissiveIntensity={0.3}
+          />
+        )}
       </mesh>
       <Html position={[0, -1, 0]} center>
         <div className="text-center">
@@ -251,6 +335,38 @@ function MusicNFT({
       </Html>
     </group>
   );
+}
+
+// Separate component for texture loading to handle errors gracefully
+function NFTTextureMaterial({
+  url,
+  fallbackColor,
+  onError
+}: {
+  url: string;
+  fallbackColor: string;
+  onError: () => void;
+}) {
+  try {
+    const texture = useTexture(url, undefined, undefined, onError);
+    return (
+      <meshStandardMaterial
+        map={texture}
+        metalness={0.3}
+        roughness={0.4}
+      />
+    );
+  } catch {
+    return (
+      <meshStandardMaterial
+        color={fallbackColor}
+        metalness={0.5}
+        roughness={0.3}
+        emissive={fallbackColor}
+        emissiveIntensity={0.3}
+      />
+    );
+  }
 }
 
 function LotteryBooth({ position }: { position: [number, number, number] }) {
@@ -339,6 +455,52 @@ function MonadPortal({ position }: { position: [number, number, number] }) {
   );
 }
 
+// Moltbook station where agents interact
+function MoltbookStation({ position }: { position: [number, number, number] }) {
+  const screenRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (screenRef.current && screenRef.current.material) {
+      // Flickering screen effect
+      const flicker = 0.8 + Math.sin(state.clock.elapsedTime * 10) * 0.1;
+      (screenRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = flicker;
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Desk */}
+      <mesh position={[0, 0.4, 0]} castShadow>
+        <boxGeometry args={[2, 0.1, 1]} />
+        <meshStandardMaterial color="#4a3728" roughness={0.8} />
+      </mesh>
+
+      {/* Computer monitor */}
+      <mesh ref={screenRef} position={[0, 1.1, -0.2]} castShadow>
+        <boxGeometry args={[1.2, 0.8, 0.05]} />
+        <meshStandardMaterial
+          color="#1a1a2e"
+          emissive="#4361ee"
+          emissiveIntensity={0.8}
+        />
+      </mesh>
+
+      {/* Monitor stand */}
+      <mesh position={[0, 0.6, -0.2]}>
+        <cylinderGeometry args={[0.05, 0.08, 0.4, 8]} />
+        <meshStandardMaterial color="#333" metalness={0.8} />
+      </mesh>
+
+      {/* Label */}
+      <Html position={[0, 1.8, 0]} center>
+        <div className="px-2 py-1 bg-blue-600 rounded text-[10px] text-white font-bold">
+          MOLTBOOK
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 // =============================================================================
 // SCENE
 // =============================================================================
@@ -365,16 +527,20 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
       {/* Radio Tower (center) */}
       <RadioTower active={radioActive} />
 
-      {/* Music NFTs (circle around tower) */}
-      {songs.slice(0, 4).map((song: { tokenId: string; name: string; price: string }, i: number) => {
+      {/* Moltbook Station - where agents interact */}
+      <MoltbookStation position={[6, 0, 4]} />
+
+      {/* Music NFTs (circle around tower) - now with IPFS images */}
+      {songs.slice(0, 4).map((song, i: number) => {
         const angle = (i / 4) * Math.PI * 2 - Math.PI / 2;
         const radius = 8;
         return (
-          <MusicNFT
+          <MusicNFTWithImage
             key={song.tokenId}
             position={[Math.cos(angle) * radius, 2, Math.sin(angle) * radius]}
             name={song.name}
             price={song.price}
+            image={song.image || null}
             index={i}
           />
         );
@@ -386,8 +552,8 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
       {/* Monad Portal */}
       <MonadPortal position={[8, 2, -6]} />
 
-      {/* Robot Agents */}
-      {agents.slice(0, 10).map((agent: WorldAgent, i: number) => {
+      {/* Robot Agents - dynamic movement */}
+      {agents.slice(0, 15).map((agent: WorldAgent, i: number) => {
         const angle = (i / Math.max(agents.length, 1)) * Math.PI * 2;
         const radius = 5;
         const isActive = agent.lastActionAt > activeThreshold;
@@ -398,6 +564,7 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
             name={agent.name}
             active={isActive}
             index={i}
+            totalAgents={agents.length}
           />
         );
       })}

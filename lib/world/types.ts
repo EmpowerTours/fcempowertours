@@ -146,6 +146,7 @@ export interface WorldEconomy {
     name: string;
     artist: string;
     price: string;
+    image: string | null;
   }>;
   recentPassports: Array<{
     tokenId: string;

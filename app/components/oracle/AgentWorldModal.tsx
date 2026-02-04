@@ -152,7 +152,6 @@ export function AgentWorldModal({
   setMinimized
 }: AgentWorldModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [use3D, setUse3D] = useState(true);
 
   // Fetch world state
   const { data: stateData, error: stateError, isLoading: stateLoading, mutate: refreshState } = useSWR(
@@ -228,7 +227,7 @@ export function AgentWorldModal({
             </div>
             <div>
               <h2 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Agent World {use3D ? '3D' : '2D'}
+                Agent World 3D
               </h2>
               <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 {worldState?.agents?.total || 0} agents • {worldState?.agents?.active || 0} active
@@ -238,16 +237,6 @@ export function AgentWorldModal({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 3D/2D Toggle */}
-            <button
-              onClick={() => setUse3D(!use3D)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                use3D ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300'
-              }`}
-            >
-              {use3D ? '3D' : '2D'}
-            </button>
-
             {/* Refresh */}
             <button
               onClick={handleRefresh}
@@ -282,7 +271,7 @@ export function AgentWorldModal({
           </div>
         </div>
 
-        {/* 3D/2D Canvas */}
+        {/* 3D Canvas */}
         <div style={{ position: 'absolute', top: '56px', left: 0, right: 0, bottom: '48px', width: '100%' }}>
           {hasError ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -293,9 +282,16 @@ export function AgentWorldModal({
                 </button>
               </div>
             </div>
-          ) : use3D ? (
+          ) : (
             <ThreeErrorBoundary
-              fallback={<Fallback2DView worldState={worldState} agents={agents} activeThreshold={activeThreshold} />}
+              fallback={
+                <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                  <div className="text-center">
+                    <p className="text-yellow-400 mb-2">3D rendering unavailable</p>
+                    <p className="text-gray-500 text-sm">WebGL may not be supported</p>
+                  </div>
+                </div>
+              }
             >
               <Suspense fallback={
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -308,8 +304,6 @@ export function AgentWorldModal({
                 <ThreeScene worldState={worldState} agents={agents} />
               </Suspense>
             </ThreeErrorBoundary>
-          ) : (
-            <Fallback2DView worldState={worldState} agents={agents} activeThreshold={activeThreshold} />
           )}
         </div>
 

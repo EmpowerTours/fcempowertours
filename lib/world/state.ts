@@ -210,6 +210,7 @@ export async function getEconomyData(): Promise<WorldEconomy> {
           name
           artist
           price
+          image
         }
         PassportNFT(limit: 5, order_by: { mintedAt: desc }) {
           tokenId
@@ -245,6 +246,7 @@ export async function getEconomyData(): Promise<WorldEconomy> {
         name: s.name || `Song #${s.tokenId}`,
         artist: s.artist,
         price: s.price ? (Number(s.price) / 1e18).toFixed(2) : '0',
+        image: s.image || null,
       })),
       recentPassports: passports.map((p: any) => ({
         tokenId: p.tokenId,
