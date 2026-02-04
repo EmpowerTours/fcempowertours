@@ -692,10 +692,10 @@ Commands:
 
         if (lotteryData.success && lotteryData.currentRound) {
           const round = lotteryData.currentRound;
-          const endsAt = new Date(round.endsAt);
-          const now = new Date();
-          const hoursLeft = Math.max(0, Math.floor((endsAt.getTime() - now.getTime()) / (1000 * 60 * 60)));
-          const minsLeft = Math.max(0, Math.floor(((endsAt.getTime() - now.getTime()) % (1000 * 60 * 60)) / (1000 * 60)));
+          const config = lotteryData.config;
+          // timeRemaining is in seconds
+          const hoursLeft = Math.floor(round.timeRemaining / 3600);
+          const minsLeft = Math.floor((round.timeRemaining % 3600) / 60);
 
           return NextResponse.json({
             success: true,
@@ -703,16 +703,16 @@ Commands:
             message: `🎰 **Daily Lottery - Round #${round.roundId}**
 
 💰 Prize Pool: ${round.prizePool} WMON
-🎟️ Tickets Sold: ${round.totalEntries}
+🎟️ Tickets Sold: ${round.ticketCount}
 ⏰ Time Left: ${hoursLeft}h ${minsLeft}m
-🎫 Ticket Price: 2 MON
+🎫 Ticket Price: ${config.ticketPrice} WMON
 
 **Your Options:**
 • \`buy lottery ticket\` - Buy 1 ticket
 • \`buy 5 lottery tickets\` - Buy multiple
 • \`my balance\` - Check your balance
 
-Minimum 5 tickets needed for draw!`
+Minimum ${config.minEntries} tickets needed for draw!`
           });
         } else {
           return NextResponse.json({
@@ -793,17 +793,18 @@ No active round found. A new round may be starting soon!
         console.log('[BOT-LOTTERY] Balance API result:', { success: result.success, error: result.error, txHash: result.txHash?.slice(0, 10) });
 
         if (result.success) {
+          const txLink = result.txHash ? `https://monadscan.com/tx/${result.txHash}` : '';
           return NextResponse.json({
             success: true,
             action: 'transaction',
-            message: `🎟️ Lottery Tickets Purchased!
+            message: `🎟️ **Lottery Tickets Purchased!**
 
-Tickets: ${result.ticketCount}
-Cost: ${result.cost} MON
+🎫 Tickets: ${result.ticketCount}
+💵 Cost: ${result.cost} MON
 💳 Balance: ${result.newBalance} MON
-Tx: ${result.txHash?.slice(0, 10)}...
+${txLink ? `🔗 [View on Monadscan](${txLink})` : ''}
 
-Good luck! 🍀 Check "lottery" for status`,
+Good luck! 🍀 Use \`lottery\` to check status`,
             txHash: result.txHash,
           });
         } else {
