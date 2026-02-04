@@ -69,6 +69,12 @@ curl -s -X POST $API/api/bot-command \
 | `tip artist <addr> <amt>` | Tip artist |
 | `buy music <tokenId>` | Buy music NFT |
 | `check balance` | Check balances |
+| `lottery` | Show current lottery status |
+| `buy lottery ticket` | Buy lottery tickets |
+| `draw lottery` / `trigger draw` | Trigger lottery draw (if ended) |
+| `force draw` / `rollover` | Force draw without min entries |
+| `my safe` / `safe` | Check User Safe address/balance |
+| `fund safe` | Get Safe funding instructions |
 | `help` | Show commands |
 
 ## PROACTIVE BEHAVIOR

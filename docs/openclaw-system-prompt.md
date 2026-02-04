@@ -91,6 +91,10 @@ curl -s -X POST $API_URL/api/bot-command \
 | `buy lottery ticket` | Buy 1 ticket (2 MON) |
 | `buy 5 lottery tickets` | Buy multiple tickets |
 | `withdraw 5 mon to 0x...` | Withdraw MON to wallet |
+| `my safe` / `safe` | Check your User Safe address and balance |
+| `fund safe` | Get instructions to fund your gasless Safe wallet |
+| `draw lottery` / `trigger draw` | Trigger lottery draw (if round ended and min entries met) |
+| `force draw` / `rollover` | Force lottery draw even without minimum entries |
 | `help` | Show all commands |
 
 ## RESPONSE FORMAT
@@ -107,6 +111,43 @@ If the API returns an error:
 - Parse the error message from the response
 - Provide a helpful explanation to the user
 - Suggest next steps (e.g., "Try linking your wallet first")
+
+## LOTTERY DRAW COMMANDS
+
+The lottery has automatic and manual draw mechanics:
+
+**`draw lottery` / `trigger draw`**
+- Use when the round timer has ended (timeRemaining = 0)
+- Requires minimum 5 entries to trigger a draw
+- Uses Pyth Entropy for provably fair random winner selection
+- Winner gets 90% of pool, 5% to treasury, 5% to deployer
+
+**`force draw` / `rollover`**
+- Use when the round ended but has LESS than 5 entries
+- This triggers a rollover - no winner is selected
+- All entries carry forward to the next round
+- Use this to "unstick" rounds that can't meet minimum entries
+
+When users ask about drawing or rolling over the lottery, forward the command to the API:
+```bash
+curl -s -X POST $API_URL/api/bot-command \
+  -H "Content-Type: application/json" \
+  -d '{"command": "draw lottery", "discordId": "123456789"}'
+```
+
+## USER SAFE COMMANDS
+
+Users can view their gasless transaction wallet (User Safe):
+
+**`my safe` / `safe` / `safe info`**
+- Shows the user's deterministic Safe address (derived from linked wallet)
+- Displays current Safe balance and deployment status
+- Requires wallet to be linked first
+
+**`fund safe`**
+- Shows instructions for funding the Safe
+- Provides the Safe address to send MON to
+- Once funded, users can do gasless transactions
 
 ## LOTTERY ANNOUNCEMENTS
 

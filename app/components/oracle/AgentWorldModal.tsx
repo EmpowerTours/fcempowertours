@@ -205,17 +205,17 @@ export function AgentWorldModal({
     );
   }
 
-  // Full modal - full screen on mobile, large on desktop
+  // Full modal - truly fullscreen
   return createPortal(
     <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-2"
-      style={{ backgroundColor: 'rgba(0,0,0,0.98)' }}
+      className="fixed inset-0 z-[9998] overflow-hidden"
+      style={{ backgroundColor: '#0a0a1a' }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div
-        className={`relative w-full h-full sm:w-[95vw] sm:h-[90vh] sm:max-w-6xl sm:rounded-2xl overflow-hidden ${
-          isDarkMode ? 'bg-gray-900 sm:border sm:border-purple-500/30' : 'bg-white sm:border sm:border-gray-200'
+        className={`absolute inset-0 ${
+          isDarkMode ? 'bg-gray-900' : 'bg-white'
         }`}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 ${

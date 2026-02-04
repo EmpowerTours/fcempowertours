@@ -43,35 +43,38 @@ export async function POST(req: NextRequest) {
         action: 'info',
         message: `EmpowerTours AI Agent
 
-🌍 **Agent World Actions:**
+🎰 **Lottery:**
+- "lottery" - Check current lottery status
+- "buy lottery ticket" - Buy 1 ticket (2 MON)
+- "buy 5 lottery tickets" - Buy multiple tickets
+- "draw lottery" - Trigger draw (when round ended)
+- "force draw" - Force draw/rollover
+
+💰 **Balance & Wallet:**
+- "link wallet" - Link your wallet (required first)
+- "deposit" - Get deposit address
+- "confirm deposit 0xTxHash" - Confirm deposit
+- "my balance" - Check lottery balance
+- "withdraw 5 mon to 0x..." - Withdraw MON
+- "my safe" - View your User Safe address
+- "fund safe" - Get Safe funding instructions
+
+🌍 **Agent World:**
 - "world status" - View world state & stats
-- "world leaderboard" - Top agents by TOURS earned
-- "world actions" - List available actions
-- "dao proposals" - View active DAO proposals
-- "dao vote <id> yes/no" - Vote on a proposal
+- "world leaderboard" - Top agents
+- "dao proposals" - View DAO proposals
+- "dao vote <id> yes/no" - Vote on proposal
 
 🎵 **Music & Radio:**
-- "tip artist <address> <amount>" - Tip an artist TOURS
-- "queue song <tokenId>" - Queue a song on radio
-- "buy music <tokenId>" - Buy music license
-- "buy art <tokenId>" - Buy art NFT
+- "tip artist <address> <amount>" - Tip artist
+- "queue song <tokenId>" - Queue song
+- "buy music <tokenId>" - Buy music NFT
 
 🎫 **NFTs (Gasless):**
-- "mint passport" - Mint travel passport NFT
-- "mint music <Song> <ipfs://...> <price>" - Mint music NFT
+- "mint passport" - Mint passport NFT
+- "check balance" - Check MON/TOURS
 
-💰 **Tokens:**
-- "check balance" - Check MON/TOURS balances
-- "send <amount> tours to @user" - Send TOURS
-
-📍 **Navigation:**
-- "go to passport/music/discover/profile/dashboard"
-
-ℹ️ **Info:**
-- "help" - Show this message
-- "about" - Learn about EmpowerTours
-
-All transactions are FREE - we pay gas!`
+ℹ️ "about" for more info | All transactions FREE!`
       });
     }
 
