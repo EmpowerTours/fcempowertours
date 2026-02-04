@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbi } from 'viem';
-import { monad } from '@/lib/chains';
+import { createPublicClient, http, parseAbi, defineChain } from 'viem';
+
+// Define Monad chain
+const monad = defineChain({
+  id: 143,
+  name: 'Monad',
+  nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://rpc.monad.xyz'] },
+  },
+  blockExplorers: {
+    default: { name: 'Monadscan', url: 'https://monadscan.com' },
+  },
+});
 
 // ERC-8004 Registry addresses on Monad
 const IDENTITY_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const;
