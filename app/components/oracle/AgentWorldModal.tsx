@@ -282,7 +282,7 @@ export function AgentWorldModal({
         </div>
 
         {/* 3D/2D Canvas */}
-        <div className="w-full h-full pt-14">
+        <div className="absolute inset-0 pt-14 pb-12">
           {hasError ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-900">
               <div className="text-center">
