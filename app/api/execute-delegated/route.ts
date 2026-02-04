@@ -5150,7 +5150,9 @@ ${enjoyText}
         }
 
         const ticketCount = params?.ticketCount || 1;
-        const userFid = BigInt(params?.fid || fid || 1);
+        // Contract requires userFid > 0, so ensure we have a valid value
+        const rawFid = params?.fid || fid;
+        const userFid = BigInt(rawFid && Number(rawFid) > 0 ? rawFid : 1);
 
         if (ticketCount < 1 || ticketCount > 100) {
           return NextResponse.json(

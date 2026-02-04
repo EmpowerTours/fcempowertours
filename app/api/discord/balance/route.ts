@@ -321,7 +321,7 @@ export async function POST(req: NextRequest) {
           userAddress: AGENT_WALLET,
           action: 'daily_lottery_buy',
           params: { ticketCount: tickets },
-          fid: '0',
+          fid: '1', // Discord users use placeholder FID (contract requires fid > 0)
         }),
       });
 
@@ -437,7 +437,7 @@ export async function POST(req: NextRequest) {
             to: toAddress,
             amount: amount.toString(),
           },
-          fid: '0',
+          fid: '1', // Discord users use placeholder FID (contract requires fid > 0)
         }),
       });
 
