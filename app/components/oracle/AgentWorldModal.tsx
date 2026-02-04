@@ -217,8 +217,42 @@ export function AgentWorldModal({
         }`}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
       >
+        {/* Activity Ticker - animated marquee at top */}
+        <div className="absolute top-0 left-0 right-0 z-20 overflow-hidden bg-gradient-to-r from-purple-900/90 via-gray-900/90 to-purple-900/90 py-1">
+          <div
+            className="flex gap-8 animate-marquee whitespace-nowrap"
+            style={{
+              animation: 'marquee 30s linear infinite',
+            }}
+          >
+            {(worldState?.recentEvents || []).concat(worldState?.recentEvents || []).map((event: WorldEvent, idx: number) => (
+              <span
+                key={`${event.id}-${idx}`}
+                className={`inline-flex items-center gap-2 text-xs ${
+                  event.type === 'enter' ? 'text-green-400' :
+                  event.type === 'action' ? 'text-yellow-400' :
+                  'text-cyan-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                <span className="font-medium">{event.agentName}</span>
+                <span className="text-gray-400">{event.description}</span>
+              </span>
+            ))}
+            {(!worldState?.recentEvents || worldState.recentEvents.length === 0) && (
+              <span className="text-gray-500 text-xs">Waiting for agent activity...</span>
+            )}
+          </div>
+          <style jsx>{`
+            @keyframes marquee {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+          `}</style>
+        </div>
+
         {/* Header */}
-        <div className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 ${
+        <div className={`absolute top-6 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 ${
           isDarkMode ? 'bg-gray-900/80' : 'bg-white/80'
         } backdrop-blur-sm border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
           <div className="flex items-center gap-3">
@@ -272,7 +306,7 @@ export function AgentWorldModal({
         </div>
 
         {/* 3D Canvas */}
-        <div style={{ position: 'absolute', top: '56px', left: 0, right: 0, bottom: '48px', width: '100%' }}>
+        <div style={{ position: 'absolute', top: '80px', left: 0, right: 0, bottom: 0, width: '100%' }}>
           {hasError ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-900">
               <div className="text-center">
@@ -307,29 +341,6 @@ export function AgentWorldModal({
           )}
         </div>
 
-        {/* Event Feed */}
-        <div className={`absolute bottom-0 left-0 right-0 z-10 px-4 py-2 ${
-          isDarkMode ? 'bg-gray-900/80' : 'bg-white/80'
-        } backdrop-blur-sm border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <span className="text-xs font-medium text-gray-500">Recent:</span>
-            {(worldState?.recentEvents || []).slice(0, 3).map((event: WorldEvent) => (
-              <div
-                key={event.id}
-                className={`flex-shrink-0 px-2 py-1 rounded-full text-xs ${
-                  event.type === 'enter' ? 'bg-green-500/20 text-green-400' :
-                  event.type === 'action' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-blue-500/20 text-blue-400'
-                }`}
-              >
-                {event.agentName}: {event.description.slice(0, 30)}...
-              </div>
-            ))}
-            {(!worldState?.recentEvents || worldState.recentEvents.length === 0) && (
-              <span className="text-xs text-gray-600">No recent events</span>
-            )}
-          </div>
-        </div>
       </div>
     </div>,
     document.body
