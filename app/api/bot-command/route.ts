@@ -684,6 +684,56 @@ Commands:
       }
     }
 
+    // ==================== LOTTERY STATUS COMMAND ====================
+    if (lowerCommand === 'lottery' || lowerCommand === 'lottery status') {
+      try {
+        const lotteryRes = await fetch(`${APP_URL}/api/lottery`);
+        const lotteryData = await lotteryRes.json();
+
+        if (lotteryData.success && lotteryData.currentRound) {
+          const round = lotteryData.currentRound;
+          const endsAt = new Date(round.endsAt);
+          const now = new Date();
+          const hoursLeft = Math.max(0, Math.floor((endsAt.getTime() - now.getTime()) / (1000 * 60 * 60)));
+          const minsLeft = Math.max(0, Math.floor(((endsAt.getTime() - now.getTime()) % (1000 * 60 * 60)) / (1000 * 60)));
+
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `🎰 **Daily Lottery - Round #${round.roundId}**
+
+💰 Prize Pool: ${round.prizePool} WMON
+🎟️ Tickets Sold: ${round.totalEntries}
+⏰ Time Left: ${hoursLeft}h ${minsLeft}m
+🎫 Ticket Price: 2 MON
+
+**Your Options:**
+• \`buy lottery ticket\` - Buy 1 ticket
+• \`buy 5 lottery tickets\` - Buy multiple
+• \`my balance\` - Check your balance
+
+Minimum 5 tickets needed for draw!`
+          });
+        } else {
+          return NextResponse.json({
+            success: true,
+            action: 'info',
+            message: `🎰 **Daily Lottery**
+
+No active round found. A new round may be starting soon!
+
+• \`buy lottery ticket\` - Buy tickets when available
+• \`my balance\` - Check your balance`
+          });
+        }
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          message: `Failed to get lottery status: ${err.message}`
+        });
+      }
+    }
+
     // ==================== BUY LOTTERY TICKETS COMMAND (CUSTODIAL) ====================
     if (lowerCommand.includes('buy') && lowerCommand.includes('lottery')) {
       console.log('[BOT-LOTTERY] Buy lottery command received:', { command: lowerCommand, discordId });
