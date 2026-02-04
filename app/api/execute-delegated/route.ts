@@ -5170,7 +5170,8 @@ ${enjoyText}
           userFid: userFid.toString(),
         });
 
-        // Platform Safe pays for tickets (gasless for user)
+        // Platform Safe pays for tickets (custodial model - user already paid via Discord balance)
+        // IMPORTANT: Always use Platform Safe here, NOT User Safe, because users pay via custodial deposit
         const dailyLotteryBuyCalls: Call[] = [
           // Step 1: Wrap MON to WMON
           {
@@ -5203,7 +5204,9 @@ ${enjoyText}
           },
         ];
 
-        const dailyLotteryBuyTxHash = await executeTransaction(dailyLotteryBuyCalls, userAddress as Address);
+        // Use Platform Safe directly (not User Safe) since this is custodial lottery
+        console.log('🏢 Using PLATFORM Safe for custodial lottery purchase');
+        const dailyLotteryBuyTxHash = await sendSafeTransaction(dailyLotteryBuyCalls);
         console.log('✅ Bought daily lottery tickets, TX:', dailyLotteryBuyTxHash);
 
         return NextResponse.json({
@@ -5240,6 +5243,7 @@ ${enjoyText}
         });
 
         // Request draw - caller gets 5-50 TOURS reward
+        // Use Platform Safe since this pays the Pyth Entropy fee
         const dailyLotteryDrawCalls: Call[] = [
           {
             to: DAILY_LOTTERY_DRAW_ADDRESS,
@@ -5251,7 +5255,8 @@ ${enjoyText}
           },
         ];
 
-        const dailyLotteryDrawTxHash = await executeTransaction(dailyLotteryDrawCalls, userAddress as Address);
+        console.log('🏢 Using PLATFORM Safe for lottery draw');
+        const dailyLotteryDrawTxHash = await sendSafeTransaction(dailyLotteryDrawCalls);
         console.log('✅ Requested daily lottery draw, TX:', dailyLotteryDrawTxHash);
 
         return NextResponse.json({
