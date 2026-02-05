@@ -19,6 +19,7 @@ import {
   getMoltbookAuthUrl,
   MoltbookAgent,
 } from '@/lib/moltbook-auth';
+import { notifyAgentEntry } from '@/lib/discord-notify';
 
 /** Minimum EMPTOURS required for other agents to enter the world */
 const MIN_EMPTOURS_FOR_AGENT_ENTRY = BigInt(1) * BigInt(10 ** 18); // 1 EMPTOURS minimum
@@ -207,6 +208,14 @@ export async function POST(req: NextRequest) {
     await registerAgent(agent);
 
     console.log(`[World] Agent registered: ${agent.name} (${address})${moltbookAgent ? ` [Moltbook: ${moltbookAgent.name}, karma: ${moltbookAgent.karma}]` : ''}`);
+
+    // Notify Discord of new agent entry
+    notifyAgentEntry({
+      agentName: agent.name,
+      agentAddress: address,
+      description: agent.description,
+      txHash,
+    }).catch(err => console.error('[World] Discord notify error:', err));
 
     return NextResponse.json({
       success: true,

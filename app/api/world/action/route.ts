@@ -8,6 +8,7 @@ import {
   recordAgentAction,
   addEvent,
 } from '@/lib/world/state';
+import { notifyAgentAction } from '@/lib/discord-notify';
 import { getTokenHoldings } from '@/lib/world/token-gate';
 import {
   WorldRateLimits,
@@ -156,6 +157,15 @@ export async function POST(req: NextRequest) {
       txHash: result.txHash,
       timestamp: Date.now(),
     });
+
+    // Notify Discord of agent action
+    notifyAgentAction({
+      agentName: agent?.name || agentAddress.slice(0, 10),
+      agentAddress,
+      action: actionType,
+      toursEarned,
+      txHash: result.txHash,
+    }).catch(err => console.error('[World] Discord notify error:', err));
 
     return NextResponse.json({
       success: true,
