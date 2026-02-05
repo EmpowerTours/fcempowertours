@@ -44,7 +44,7 @@ const COINFLIP_ABI = [
 ] as const;
 
 const AGENT_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY as `0x${string}`;
-const FLIP_AMOUNT = '0.01'; // Small amount to execute flip
+const FLIP_AMOUNT = '0.1'; // Minimum required by AicoinflipMON contract
 
 const publicClient = createPublicClient({
   chain: monadMainnet,
