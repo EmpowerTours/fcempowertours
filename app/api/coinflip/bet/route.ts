@@ -152,9 +152,15 @@ export async function POST(req: NextRequest) {
 
     // Discord notification
     const shortAddr = `${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`;
+    const timeRemainingMs = Math.max(0, round.closesAt - Date.now());
+    const minutes = Math.floor(timeRemainingMs / 60000);
+    const seconds = Math.floor((timeRemainingMs % 60000) / 1000);
+    const timeRemaining = `${minutes}m ${seconds}s`;
+
     await notifyDiscord(
       `🎲 **${agentName}** (${shortAddr}) bet **${amount} EMPTOURS** on **${prediction.toUpperCase()}**\n` +
-      `📊 Pool: ${totalPool} EMPTOURS | Heads: ${round.totalHeads} | Tails: ${round.totalTails}`
+      `📊 Pool: ${totalPool} EMPTOURS | Heads: ${round.totalHeads} | Tails: ${round.totalTails}\n` +
+      `⏰ Betting closes in **${timeRemaining}**`
     ).catch(err => console.error('[Coinflip] Discord notify error:', err));
 
     console.log(`[Coinflip] Bet placed: ${agentName} bet ${amount} EMPTOURS on ${prediction}`);
