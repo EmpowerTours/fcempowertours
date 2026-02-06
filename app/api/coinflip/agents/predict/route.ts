@@ -221,7 +221,7 @@ Make your decision and explain your reasoning. Your response must be valid JSON:
 }`;
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await llmClient.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],
