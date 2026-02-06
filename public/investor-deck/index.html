@@ -2,767 +2,716 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EmpowerTours - Investor Presentation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>EmpowerTours - Investor Deck</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  @page { size: 16in 9in landscape; margin: 0; }
 
   :root {
     --primary: #06b6d4;
     --secondary: #8b5cf6;
     --accent: #10b981;
-    --bg-dark: #0a0a0f;
-    --bg-card: rgba(255,255,255,0.03);
+    --bg: #0a0a0f;
+    --card: rgba(255,255,255,0.04);
     --border: rgba(255,255,255,0.08);
-    --text: #ffffff;
-    --text-muted: rgba(255,255,255,0.6);
   }
 
-  body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg-dark);
-    color: var(--text);
-    line-height: 1.5;
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: white;
+    touch-action: pan-y;
+  }
+
+  /* Slides Container */
+  .deck {
+    height: 100%;
+    display: flex;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .slide {
-    width: 100vw;
+    min-width: 100vw;
     height: 100vh;
-    padding: 60px 80px;
+    padding: 40px;
     display: flex;
     flex-direction: column;
     position: relative;
     overflow: hidden;
-    page-break-after: always;
   }
 
   .slide::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background:
-      radial-gradient(ellipse 80% 50% at 20% -20%, rgba(6, 182, 212, 0.15), transparent),
-      radial-gradient(ellipse 60% 40% at 80% 120%, rgba(139, 92, 246, 0.1), transparent);
+      radial-gradient(ellipse 80% 50% at 20% -20%, rgba(6, 182, 212, 0.12), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 120%, rgba(139, 92, 246, 0.08), transparent);
     pointer-events: none;
   }
 
-  .brand-line {
-    position: absolute;
+  /* Progress Bar */
+  .progress {
+    position: fixed;
     top: 0;
     left: 0;
-    right: 0;
     height: 3px;
     background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+    transition: width 0.3s ease;
+    z-index: 100;
   }
 
-  .logo {
-    position: absolute;
-    top: 24px;
-    left: 40px;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.4);
-    text-transform: uppercase;
-  }
-
-  .slide-num {
-    position: absolute;
+  /* Navigation */
+  .nav {
+    position: fixed;
     bottom: 24px;
-    right: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .nav-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .nav-dot.active {
+    background: var(--primary);
+    width: 24px;
+    border-radius: 4px;
+  }
+
+  .nav-arrows {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .nav-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+  }
+
+  .nav-btn:hover { background: rgba(255,255,255,0.1); }
+  .nav-btn:active { transform: scale(0.95); }
+
+  .slide-counter {
+    position: fixed;
+    bottom: 32px;
+    left: 24px;
     font-size: 13px;
-    color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.4);
     font-weight: 500;
+    z-index: 100;
   }
 
-  .confidential {
-    position: absolute;
-    bottom: 24px;
-    left: 40px;
+  /* Keyboard hint */
+  .hint {
+    position: fixed;
+    top: 16px;
+    right: 16px;
     font-size: 11px;
-    color: rgba(255,255,255,0.2);
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    color: rgba(255,255,255,0.3);
+    z-index: 100;
   }
 
+  /* Typography */
   h1 {
-    font-size: 64px;
+    font-size: clamp(36px, 8vw, 72px);
     font-weight: 800;
     line-height: 1.1;
-    margin-bottom: 16px;
     letter-spacing: -2px;
   }
 
   h2 {
-    font-size: 42px;
+    font-size: clamp(24px, 5vw, 42px);
     font-weight: 700;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
     letter-spacing: -1px;
   }
 
   h3 {
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 600;
-    margin-bottom: 12px;
     color: var(--primary);
+    margin-bottom: 12px;
   }
 
-  p {
-    font-size: 18px;
-    color: var(--text-muted);
-    max-width: 800px;
-  }
+  p { font-size: 16px; color: rgba(255,255,255,0.7); line-height: 1.6; }
 
   .gradient {
     background: linear-gradient(135deg, var(--primary), var(--secondary));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    background-clip: text;
   }
 
   .subtitle {
-    font-size: 24px;
-    color: var(--text-muted);
-    margin-bottom: 40px;
-    font-weight: 400;
+    font-size: clamp(16px, 3vw, 24px);
+    color: rgba(255,255,255,0.5);
+    margin-top: 12px;
   }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
-  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 24px; }
+  /* Components */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .slide { padding: 24px 20px 80px; }
+  }
 
   .card {
-    background: var(--bg-card);
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 32px;
-    position: relative;
-    z-index: 1;
-    backdrop-filter: blur(20px);
+    padding: 24px;
+    backdrop-filter: blur(10px);
   }
 
   .card-accent {
-    border-color: rgba(6, 182, 212, 0.3);
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.05), rgba(139, 92, 246, 0.05));
+    border-color: rgba(6, 182, 212, 0.2);
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.06), rgba(139, 92, 246, 0.04));
   }
 
-  .stat {
-    font-size: 48px;
-    font-weight: 800;
-    color: var(--primary);
-    line-height: 1;
-  }
-
-  .stat-label {
-    font-size: 13px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-top: 8px;
-  }
+  .stat { font-size: 40px; font-weight: 800; color: var(--primary); }
+  .stat-sm { font-size: 28px; }
+  .stat-label { font-size: 11px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
 
   .tag {
     display: inline-block;
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 100px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     margin: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-
   .tag-cyan { background: rgba(6, 182, 212, 0.15); color: var(--primary); }
   .tag-purple { background: rgba(139, 92, 246, 0.15); color: var(--secondary); }
   .tag-green { background: rgba(16, 185, 129, 0.15); color: var(--accent); }
 
   ul { list-style: none; }
-  ul li {
-    padding: 10px 0;
-    font-size: 17px;
-    color: var(--text-muted);
-    position: relative;
-    padding-left: 24px;
-  }
-  ul li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 18px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--primary);
-  }
+  li { padding: 8px 0; font-size: 15px; color: rgba(255,255,255,0.75); padding-left: 20px; position: relative; }
+  li::before { content: ''; position: absolute; left: 0; top: 14px; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: rgba(255,255,255,0.5); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .highlight { color: var(--accent); font-weight: 600; }
+
+  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .flex-1 { flex: 1; }
+  .mt-auto { margin-top: auto; }
+  .overflow-auto { overflow: auto; }
 
   .screenshot {
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-    max-width: 100%;
-    height: auto;
-  }
-
-  .center { text-align: center; align-items: center; justify-content: center; }
-  .flex-grow { flex: 1; }
-  .mt-auto { margin-top: auto; }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 15px;
-  }
-
-  th, td {
-    padding: 14px 16px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-  }
-
-  th {
-    font-weight: 600;
-    color: var(--text-muted);
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  td { color: var(--text); }
-
-  .highlight { color: var(--primary); font-weight: 600; }
-  .mono { font-family: 'SF Mono', Monaco, monospace; font-size: 12px; color: var(--text-muted); }
-
-  .qr-section {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 24px;
-    background: var(--bg-card);
     border-radius: 16px;
     border: 1px solid var(--border);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    max-height: 400px;
+    object-fit: contain;
   }
 
-  .qr-code {
-    width: 120px;
-    height: 120px;
-    background: white;
-    border-radius: 12px;
-    padding: 8px;
-  }
+  .mono { font-family: 'SF Mono', Monaco, monospace; font-size: 11px; color: rgba(255,255,255,0.4); }
 
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .slide { break-after: page; break-inside: avoid; }
+  /* Animations */
+  .slide-content { opacity: 0; transform: translateY(20px); transition: all 0.6s ease 0.2s; }
+  .slide.active .slide-content { opacity: 1; transform: translateY(0); }
+
+  /* Swipe indicator */
+  .swipe-hint {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+    animation: pulse 2s infinite;
+    z-index: 100;
   }
+  @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } }
+  .swipe-hint svg { width: 20px; height: 20px; }
 </style>
 </head>
 <body>
 
-<!-- SLIDE 1: Title -->
-<div class="slide center">
-  <div class="brand-line"></div>
-  <div style="margin-top: -60px;">
-    <h1 style="font-size: 80px;"><span class="gradient">EmpowerTours</span></h1>
-    <p class="subtitle" style="font-size: 28px; max-width: none;">On-Chain Settlement Infrastructure for the Creator Economy</p>
-    <div style="margin-top: 48px;">
-      <span class="tag tag-cyan">Monad Blockchain</span>
-      <span class="tag tag-purple">15+ Live Contracts</span>
-      <span class="tag tag-green">70% Creator Payouts</span>
-    </div>
-    <p style="margin-top: 60px; font-size: 16px; color: rgba(255,255,255,0.3);">
-      Prepared for: <strong style="color: rgba(255,255,255,0.5);">Faisal Al Hammadi</strong> | Further Asset Management
-    </p>
-    <p style="margin-top: 8px; font-size: 14px; color: rgba(255,255,255,0.2);">February 2026</p>
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">1</div>
+<div class="progress" id="progress"></div>
+<div class="hint">← → or swipe</div>
+<div class="slide-counter"><span id="current">1</span> / <span id="total">11</span></div>
+
+<div class="nav" id="nav"></div>
+
+<div class="nav-arrows">
+  <button class="nav-btn" onclick="prevSlide()">←</button>
+  <button class="nav-btn" onclick="nextSlide()">→</button>
 </div>
 
-<!-- SLIDE 2: Executive Summary -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Executive Summary</h2>
-  <div class="grid-2" style="flex: 1;">
-    <div>
-      <p style="font-size: 20px; color: var(--text); margin-bottom: 32px;">
-        EmpowerTours is a <strong>blockchain settlement layer</strong> for the $150B creator economy.
-        All revenue splits are enforced on-chain via smart contracts.
-      </p>
-      <div class="card card-accent" style="margin-bottom: 24px;">
-        <h3 style="margin-bottom: 16px;">The Opportunity</h3>
-        <ul>
-          <li>Spotify pays artists 30% after 90 days</li>
-          <li>We pay <strong style="color: var(--accent);">70% in the same transaction</strong></li>
-          <li>Zero counterparty risk - all on-chain</li>
-          <li>DAO governance with real voting power</li>
-        </ul>
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: Title -->
+  <div class="slide center active">
+    <div class="slide-content">
+      <h1><span class="gradient">EmpowerTours</span></h1>
+      <p class="subtitle">On-Chain Settlement Infrastructure for the Creator Economy</p>
+      <div style="margin-top: 32px;">
+        <span class="tag tag-cyan">Monad Blockchain</span>
+        <span class="tag tag-purple">15+ Live Contracts</span>
+        <span class="tag tag-green">70% Creator Payouts</span>
       </div>
-    </div>
-    <div>
-      <div class="grid-2" style="gap: 20px;">
-        <div class="card" style="text-align: center;">
-          <div class="stat">15+</div>
-          <div class="stat-label">Verified Contracts</div>
-        </div>
-        <div class="card" style="text-align: center;">
-          <div class="stat">70%</div>
-          <div class="stat-label">Creator Payout</div>
-        </div>
-        <div class="card" style="text-align: center;">
-          <div class="stat">68+</div>
-          <div class="stat-label">API Endpoints</div>
-        </div>
-        <div class="card" style="text-align: center;">
-          <div class="stat">10K</div>
-          <div class="stat-label">TPS (Monad)</div>
-        </div>
-      </div>
-      <p style="margin-top: 24px; font-size: 14px; text-align: center;">
-        Production MVP live on Monad Mainnet (Chain ID: 143)
+      <p style="margin-top: 48px; font-size: 14px; color: rgba(255,255,255,0.4);">
+        Prepared for <strong style="color: rgba(255,255,255,0.6);">Faisal Al Hammadi</strong><br>
+        Further Asset Management
       </p>
+      <p style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.25);">February 2026</p>
     </div>
   </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">2</div>
-</div>
 
-<!-- SLIDE 3: The Problem -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>The Problem: Broken Creator Economics</h2>
-  <div class="grid-2" style="flex: 1; align-items: start;">
-    <div>
-      <div class="card" style="margin-bottom: 24px;">
-        <h3>Current State of Creator Payouts</h3>
-        <table>
-          <tr>
-            <th>Platform</th>
-            <th>Creator Cut</th>
-            <th>Settlement</th>
-          </tr>
-          <tr>
-            <td>Spotify</td>
-            <td style="color: #ef4444;">30%</td>
-            <td>30-90 days</td>
-          </tr>
-          <tr>
-            <td>YouTube</td>
-            <td style="color: #f59e0b;">45%</td>
-            <td>Monthly</td>
-          </tr>
-          <tr>
-            <td>Apple Music</td>
-            <td style="color: #f59e0b;">52%</td>
-            <td>Monthly</td>
-          </tr>
-          <tr>
-            <td style="color: var(--primary); font-weight: 600;">EmpowerTours</td>
-            <td style="color: var(--accent); font-weight: 700;">70%</td>
-            <td style="color: var(--accent);">Instant</td>
-          </tr>
+  <!-- SLIDE 2: Executive Summary -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Executive Summary</h2>
+      <p style="max-width: 600px; margin-bottom: 24px;">EmpowerTours is a <strong>blockchain settlement layer</strong> for the $150B creator economy. All revenue splits enforced on-chain via smart contracts.</p>
+      <div class="grid-2" style="margin-top: 16px;">
+        <div class="card card-accent">
+          <h3>The Opportunity</h3>
+          <ul>
+            <li>Spotify pays artists 30% after 90 days</li>
+            <li>We pay <strong style="color: var(--accent);">70% in the same transaction</strong></li>
+            <li>Zero counterparty risk - all on-chain</li>
+            <li>DAO governance with real voting power</li>
+          </ul>
+        </div>
+        <div class="grid-2" style="gap: 12px;">
+          <div class="card" style="text-align: center;"><div class="stat stat-sm">15+</div><div class="stat-label">Verified Contracts</div></div>
+          <div class="card" style="text-align: center;"><div class="stat stat-sm">70%</div><div class="stat-label">Creator Payout</div></div>
+          <div class="card" style="text-align: center;"><div class="stat stat-sm">68+</div><div class="stat-label">API Endpoints</div></div>
+          <div class="card" style="text-align: center;"><div class="stat stat-sm">10K</div><div class="stat-label">TPS (Monad)</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Problem -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>The Problem: Broken Creator Economics</h2>
+      <div class="grid-2" style="margin-top: 16px;">
+        <div class="card">
+          <h3 style="color: white;">Platform Comparison</h3>
+          <table>
+            <tr><th>Platform</th><th>Creator Cut</th><th>Settlement</th></tr>
+            <tr><td>Spotify</td><td style="color: #ef4444;">30%</td><td>30-90 days</td></tr>
+            <tr><td>YouTube</td><td style="color: #f59e0b;">45%</td><td>Monthly</td></tr>
+            <tr><td>Apple Music</td><td style="color: #f59e0b;">52%</td><td>Monthly</td></tr>
+            <tr><td style="color: var(--primary); font-weight: 600;">EmpowerTours</td><td class="highlight">70%</td><td class="highlight">Instant</td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="card card-accent">
+            <h3 style="color: #ef4444;">$26B Lost Annually</h3>
+            <ul>
+              <li>Intermediaries capture majority of value</li>
+              <li>No direct artist-fan economic relationship</li>
+              <li>Opaque royalty calculations</li>
+              <li>Minimum payout thresholds ($100+)</li>
+            </ul>
+          </div>
+          <div style="margin-top: 16px; padding: 16px; background: rgba(239, 68, 68, 0.1); border-radius: 12px;">
+            <p style="font-size: 14px; color: #fca5a5;"><strong>Result:</strong> 300 Spotify streams = $1 coffee</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: Solution -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Our Solution: On-Chain Settlement Layer</h2>
+      <p style="margin-bottom: 24px;">Every revenue split enforced by smart contracts. Instant settlement. Zero counterparty risk.</p>
+      <div class="grid-3">
+        <div class="card card-accent">
+          <h3 style="color: var(--accent);">Instant Settlement</h3>
+          <p style="font-size: 14px;">Artist receives 70% in the same transaction as purchase. No delays, no minimums.</p>
+          <div style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
+            <p style="font-size: 12px; color: var(--accent);">Fan buys → Artist paid → Same block</p>
+          </div>
+        </div>
+        <div class="card card-accent">
+          <h3 style="color: var(--secondary);">DAO Governance</h3>
+          <p style="font-size: 14px;">Creators vote on platform parameters, treasury allocation. Real governance, not advisory.</p>
+          <div style="margin-top: 16px; padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+            <p style="font-size: 12px; color: var(--secondary);">48h timelock • 4% quorum</p>
+          </div>
+        </div>
+        <div class="card card-accent">
+          <h3>Account Abstraction</h3>
+          <p style="font-size: 14px;">100% gasless transactions via ERC-4337. Users never see "approve" popups.</p>
+          <div style="margin-top: 16px; padding: 12px; background: rgba(6, 182, 212, 0.1); border-radius: 8px;">
+            <p style="font-size: 12px; color: var(--primary);">Safe Accounts • Pimlico</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: Product -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Live Product: Farcaster Mini App</h2>
+      <div class="grid-2" style="gap: 40px; align-items: center;">
+        <div style="display: flex; justify-content: center;">
+          <img src="oracle-final.png" alt="EmpowerTours App" class="screenshot" style="max-height: 350px;">
+        </div>
+        <div>
+          <h3 style="color: white;">Features Live Today</h3>
+          <ul>
+            <li><strong>AI Oracle</strong> - Natural language interface</li>
+            <li><strong>Music NFTs</strong> - Mint, license, trade on-chain</li>
+            <li><strong>Live Radio</strong> - Decentralized jukebox + tips</li>
+            <li><strong>Passport NFTs</strong> - GPS-verified collectibles</li>
+            <li><strong>DAO Voting</strong> - Real governance with TOURS</li>
+            <li><strong>EPK Registry</strong> - AI press kits + booking escrow</li>
+          </ul>
+          <div style="margin-top: 20px;">
+            <span class="tag tag-green">Production</span>
+            <span class="tag tag-cyan">Farcaster Native</span>
+            <span class="tag tag-purple">Gasless UX</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Revenue Model -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Revenue Model: 30% Platform Commission</h2>
+      <div class="grid-2">
+        <div class="card overflow-auto">
+          <table>
+            <tr><th>Revenue Stream</th><th>Split</th><th>Settlement</th></tr>
+            <tr><td>Music License Sales</td><td class="highlight">70/30</td><td>Same-tx</td></tr>
+            <tr><td>Radio Queue Fees</td><td>70/15/15</td><td>Same-tx</td></tr>
+            <tr><td>Subscriptions</td><td>70/20/10</td><td>Monthly pool</td></tr>
+            <tr><td>EPK Bookings</td><td>Escrow</td><td>On completion</td></tr>
+            <tr><td>Climbing Locations</td><td class="highlight">70/30</td><td>Same-tx</td></tr>
+          </table>
+        </div>
+        <div class="card card-accent">
+          <h3>Unit Economics</h3>
+          <p style="font-size: 13px; margin-bottom: 12px;">10,000 Subscribers @ 300 WMON/mo</p>
+          <div style="display: grid; gap: 8px; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+              <span>Gross Revenue</span><span class="highlight">3,000,000 WMON</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+              <span>Artist Pool (70%)</span><span>2,100,000 WMON</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+              <span>DAO Reserve (20%)</span><span>600,000 WMON</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Treasury (10%)</span><span style="color: var(--accent);">300,000 WMON</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Smart Contracts -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Smart Contract Infrastructure</h2>
+      <p style="margin-bottom: 16px;">15+ verified contracts on Monad Mainnet. All open-source.</p>
+      <div class="card overflow-auto" style="flex: 1;">
+        <table style="font-size: 13px;">
+          <tr><th>Contract</th><th>Purpose</th><th>Address</th></tr>
+          <tr><td><strong>EmpowerToursNFTV2</strong></td><td>Music license NFT sales (70/30)</td><td class="mono">0xB9B3...B73F</td></tr>
+          <tr><td><strong>LiveRadioV3</strong></td><td>Radio queue, tips, voice notes</td><td class="mono">0x042E...00fd</td></tr>
+          <tr><td><strong>MusicSubscriptionV5</strong></td><td>Monthly artist pool distribution</td><td class="mono">0x5372...5f19</td></tr>
+          <tr><td><strong>EmpowerToursGovernor</strong></td><td>ERC-721 DAO governance + timelock</td><td class="mono">0x4d05...52Fa3</td></tr>
+          <tr><td><strong>ToursTokenV2</strong></td><td>ERC-20 governance + reward token</td><td class="mono">0xf61F...f74f</td></tr>
+          <tr><td><strong>EPKRegistryV2</strong></td><td>EPK metadata + booking escrow</td><td class="mono">0x232D...621D</td></tr>
         </table>
       </div>
-    </div>
-    <div>
-      <div class="card card-accent">
-        <h3 style="color: #ef4444;">$26B Lost Annually</h3>
-        <ul>
-          <li>Intermediaries capture majority of value</li>
-          <li>No direct artist-fan economic relationship</li>
-          <li>Opaque royalty calculations</li>
-          <li>Zero creator governance over platforms</li>
-          <li>Minimum payout thresholds ($100+)</li>
-        </ul>
-      </div>
-      <div style="margin-top: 24px; padding: 20px; background: rgba(239, 68, 68, 0.1); border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
-        <p style="font-size: 16px; color: #fca5a5;">
-          <strong>Result:</strong> 300 Spotify streams = $1 coffee<br>
-          Artists need 1M+ streams/month to earn minimum wage
-        </p>
+      <div style="margin-top: 16px;">
+        <span class="tag tag-cyan">OpenZeppelin Standards</span>
+        <span class="tag tag-purple">Verified on MonadScan</span>
+        <span class="tag tag-green">Pyth Entropy VRF</span>
       </div>
     </div>
   </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">3</div>
-</div>
 
-<!-- SLIDE 4: The Solution -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Our Solution: On-Chain Settlement Layer</h2>
-  <p style="margin-bottom: 32px;">Every revenue split enforced by smart contracts. Instant settlement. Zero counterparty risk.</p>
-  <div class="grid-3" style="flex: 1;">
-    <div class="card card-accent">
-      <h3>Instant Settlement</h3>
-      <p style="font-size: 15px; margin-bottom: 16px;">Artist receives 70% in the same transaction as the purchase. No delays, no minimums, no trust required.</p>
-      <div style="padding: 16px; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
-        <p style="font-size: 14px; color: var(--accent);">
-          Fan buys NFT → Artist wallet credited → Same block
-        </p>
-      </div>
-    </div>
-    <div class="card card-accent">
-      <h3>DAO Governance</h3>
-      <p style="font-size: 15px; margin-bottom: 16px;">Creators vote on platform parameters, treasury allocation, and content moderation. Real governance, not advisory.</p>
-      <div style="padding: 16px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
-        <p style="font-size: 14px; color: var(--secondary);">
-          48h timelock • 4% quorum • 1-week voting
-        </p>
-      </div>
-    </div>
-    <div class="card card-accent">
-      <h3>Account Abstraction</h3>
-      <p style="font-size: 15px; margin-bottom: 16px;">100% gasless transactions via ERC-4337. Users never see "approve token" popups. One-click onboarding.</p>
-      <div style="padding: 16px; background: rgba(6, 182, 212, 0.1); border-radius: 8px;">
-        <p style="font-size: 14px; color: var(--primary);">
-          Safe Smart Accounts • Pimlico Bundler
-        </p>
+  <!-- SLIDE 8: Agent World -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Agent World: AI Economic Participants</h2>
+      <div class="grid-2" style="gap: 40px; align-items: center;">
+        <div style="display: flex; justify-content: center;">
+          <img src="05-agent-world.png" alt="Agent World" class="screenshot" style="max-height: 320px;">
+        </div>
+        <div>
+          <p style="margin-bottom: 16px;">Autonomous AI agents can register, pay entry fees, and participate in the economy.</p>
+          <div class="card">
+            <h3 style="color: white;">Agent Capabilities</h3>
+            <ul>
+              <li>Purchase music NFTs autonomously</li>
+              <li>Queue songs on Live Radio</li>
+              <li>Vote on DAO proposals</li>
+              <li>Tip artists based on AI preferences</li>
+              <li>Compete on TOURS leaderboard</li>
+            </ul>
+          </div>
+          <div style="margin-top: 12px; padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 12px;">
+            <p style="font-size: 13px; color: var(--secondary);"><strong>Entry:</strong> 1 MON | <strong>API:</strong> 7 endpoints</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">4</div>
-</div>
 
-<!-- SLIDE 5: Product - Live Platform -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Live Product: Farcaster Mini App</h2>
-  <div class="grid-2" style="flex: 1; gap: 60px;">
-    <div>
-      <img src="oracle-final.png" alt="EmpowerTours App" class="screenshot" style="max-height: 500px;">
+  <!-- SLIDE 9: Investment -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Investment Opportunity</h2>
+      <div class="grid-3">
+        <div class="card card-accent">
+          <h3 style="color: var(--accent);">Treasury LP</h3>
+          <p style="font-size: 14px; margin-bottom: 16px;">Deposit into Platform Safe. Structured product exposure to platform revenue.</p>
+          <ul style="font-size: 13px;">
+            <li>Direct treasury participation</li>
+            <li>Transparent on-chain allocation</li>
+            <li>DAO voting rights included</li>
+          </ul>
+        </div>
+        <div class="card card-accent">
+          <h3 style="color: var(--secondary);">Revenue Share</h3>
+          <p style="font-size: 14px; margin-bottom: 16px;">Direct participation in platform's 30% commission across all streams.</p>
+          <ul style="font-size: 13px;">
+            <li>Cash-flow positive investment</li>
+            <li>Multiple revenue streams</li>
+            <li>Instant on-chain settlement</li>
+          </ul>
+        </div>
+        <div class="card card-accent">
+          <h3>Token Allocation</h3>
+          <p style="font-size: 14px; margin-bottom: 16px;">TOURS governance tokens with vesting. Real voting power over platform.</p>
+          <ul style="font-size: 13px;">
+            <li>12-24 month vesting</li>
+            <li>Governance + utility</li>
+            <li>Bitcoin-style halving</li>
+          </ul>
+        </div>
+      </div>
+      <div style="margin-top: 20px; padding: 16px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(139, 92, 246, 0.08)); border-radius: 12px; text-align: center;">
+        <p style="font-size: 15px;"><strong>Why Further Asset Management?</strong> Pioneering financial infrastructure + Digital assets + Structured products = Perfect alignment</p>
+      </div>
     </div>
-    <div>
-      <h3 style="margin-top: 20px;">Features Live Today</h3>
-      <ul>
-        <li><strong>AI Oracle</strong> - Natural language interface for all actions</li>
-        <li><strong>Music NFTs</strong> - Mint, license, and trade music on-chain</li>
-        <li><strong>Live Radio</strong> - Decentralized jukebox with instant tips</li>
-        <li><strong>Passport NFTs</strong> - GPS-verified travel collectibles</li>
-        <li><strong>DAO Voting</strong> - Real governance with TOURS tokens</li>
-        <li><strong>EPK Registry</strong> - AI-generated press kits + booking escrow</li>
-      </ul>
+  </div>
+
+  <!-- SLIDE 10: Roadmap -->
+  <div class="slide">
+    <div class="slide-content">
+      <h2>Roadmap & Revenue Projections</h2>
+      <div class="grid-3">
+        <div class="card">
+          <h3 style="color: rgba(255,255,255,0.5);">Year 1 (2026)</h3>
+          <div class="stat stat-sm">$100K</div>
+          <div class="stat-label" style="margin-bottom: 16px;">Platform Revenue</div>
+          <ul style="font-size: 13px;">
+            <li>500 active users</li>
+            <li>50 artists onboarded</li>
+            <li>100 music NFTs</li>
+          </ul>
+        </div>
+        <div class="card card-accent">
+          <h3>Year 2 (2027)</h3>
+          <div class="stat stat-sm">$1M</div>
+          <div class="stat-label" style="margin-bottom: 16px;">Platform Revenue</div>
+          <ul style="font-size: 13px;">
+            <li>5,000 active users</li>
+            <li>500 artists</li>
+            <li>1,000 NFT tx/month</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="color: var(--accent);">Year 3 (2028)</h3>
+          <div class="stat stat-sm">$10M</div>
+          <div class="stat-label" style="margin-bottom: 16px;">Platform Revenue</div>
+          <ul style="font-size: 13px;">
+            <li>50,000 active users</li>
+            <li>5,000 artists</li>
+            <li>Multi-chain expansion</li>
+          </ul>
+        </div>
+      </div>
+      <p style="margin-top: 16px; font-size: 12px; color: rgba(255,255,255,0.4); text-align: center;">Assumptions: 50% YoY growth | Avg WMON = $10 USD | 30% platform commission</p>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: Contact -->
+  <div class="slide center">
+    <div class="slide-content">
+      <h2 style="margin-bottom: 32px;">Let's Connect</h2>
+      <div class="grid-2" style="max-width: 700px; gap: 24px;">
+        <div class="card card-accent" style="text-align: left;">
+          <h3>Live Demo</h3>
+          <p style="font-size: 14px; margin-bottom: 12px;">Scan to open in Warpcast</p>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://farcaster.xyz/miniapps/83hgtZau7TNB/empowertours" style="width: 80px; height: 80px; border-radius: 8px; background: white; padding: 4px;">
+            <div>
+              <p style="font-size: 12px; color: var(--primary);">Farcaster Mini App</p>
+              <p class="mono">farcaster.xyz/miniapps/...</p>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="text-align: left;">
+          <h3>Verify On-Chain</h3>
+          <p style="font-size: 14px; margin-bottom: 12px;">All contracts on MonadScan</p>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F" style="width: 80px; height: 80px; border-radius: 8px; background: white; padding: 4px;">
+            <div>
+              <p style="font-size: 12px; color: var(--primary);">NFT Contract</p>
+              <p class="mono">monadscan.com/...</p>
+            </div>
+          </div>
+        </div>
+      </div>
       <div style="margin-top: 32px;">
-        <span class="tag tag-green">Production</span>
-        <span class="tag tag-cyan">Farcaster Native</span>
-        <span class="tag tag-purple">Gasless UX</span>
+        <p style="font-size: 16px;"><strong>Monad Mainnet</strong> (Chain ID: 143)</p>
+        <p class="mono" style="margin-top: 8px;">fcempowertours-production-6551.up.railway.app</p>
       </div>
     </div>
   </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">5</div>
+
 </div>
 
-<!-- SLIDE 6: Revenue Model -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Revenue Model: 30% Platform Commission</h2>
-  <div class="grid-2" style="flex: 1;">
-    <div>
-      <table>
-        <tr>
-          <th>Revenue Stream</th>
-          <th>Split</th>
-          <th>Settlement</th>
-        </tr>
-        <tr>
-          <td>Music License Sales</td>
-          <td><span class="highlight">70/30</span></td>
-          <td>Same-tx</td>
-        </tr>
-        <tr>
-          <td>Radio Queue Fees</td>
-          <td>70/15/15</td>
-          <td>Same-tx</td>
-        </tr>
-        <tr>
-          <td>Subscriptions</td>
-          <td>70/20/10</td>
-          <td>Monthly pool</td>
-        </tr>
-        <tr>
-          <td>EPK Bookings</td>
-          <td>Escrow</td>
-          <td>On completion</td>
-        </tr>
-        <tr>
-          <td>Climbing Locations</td>
-          <td><span class="highlight">70/30</span></td>
-          <td>Same-tx</td>
-        </tr>
-        <tr>
-          <td>Dev Studio</td>
-          <td>TOURS credits</td>
-          <td>Per generation</td>
-        </tr>
-      </table>
-    </div>
-    <div>
-      <div class="card card-accent">
-        <h3>Unit Economics Example</h3>
-        <p style="font-size: 14px; margin-bottom: 16px;">10,000 Monthly Subscribers @ 300 WMON</p>
-        <div style="display: grid; gap: 12px;">
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <span>Gross Revenue</span>
-            <span class="highlight">3,000,000 WMON</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <span>Artist Pool (70%)</span>
-            <span>2,100,000 WMON</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <span>DAO Reserve (20%)</span>
-            <span>600,000 WMON</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-            <span>Treasury (10%)</span>
-            <span style="color: var(--accent);">300,000 WMON</span>
-          </div>
-        </div>
-      </div>
-      <p style="margin-top: 16px; font-size: 14px;">
-        All splits are <strong>enforced on-chain</strong> via verified smart contracts.
-      </p>
-    </div>
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">6</div>
-</div>
+<script>
+let currentSlide = 0;
+const slides = document.querySelectorAll('.slide');
+const deck = document.getElementById('deck');
+const nav = document.getElementById('nav');
+const progress = document.getElementById('progress');
+const total = slides.length;
 
-<!-- SLIDE 7: Smart Contract Infrastructure -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Smart Contract Infrastructure</h2>
-  <p style="margin-bottom: 24px;">15+ verified contracts on Monad Mainnet. All open-source with transparent audit trail.</p>
-  <div style="flex: 1; overflow: auto;">
-    <table style="font-size: 14px;">
-      <tr>
-        <th>Contract</th>
-        <th>Purpose</th>
-        <th>Address</th>
-      </tr>
-      <tr>
-        <td><strong>EmpowerToursNFTV2</strong></td>
-        <td>Music license NFT sales (70/30 split)</td>
-        <td class="mono">0xB9B3acf33439360B55d12429301E946f34f3B73F</td>
-      </tr>
-      <tr>
-        <td><strong>LiveRadioV3</strong></td>
-        <td>Decentralized radio queue, tips, voice notes</td>
-        <td class="mono">0x042EDF80713e6822a891e4e8a0800c332B8200fd</td>
-      </tr>
-      <tr>
-        <td><strong>MusicSubscriptionV5</strong></td>
-        <td>Monthly artist pool with play-weighted distribution</td>
-        <td class="mono">0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19</td>
-      </tr>
-      <tr>
-        <td><strong>EmpowerToursGovernor</strong></td>
-        <td>ERC-721 DAO governance with timelock</td>
-        <td class="mono">0x4d05fb8c2D090769A084aa0138cCF7A549452Fa3</td>
-      </tr>
-      <tr>
-        <td><strong>ToursTokenV2</strong></td>
-        <td>ERC-20 governance + reward token</td>
-        <td class="mono">0xf61F2b014e38FfEf66a3A0a8104D36365404f74f</td>
-      </tr>
-      <tr>
-        <td><strong>EPKRegistryV2</strong></td>
-        <td>EPK metadata + WMON escrow booking</td>
-        <td class="mono">0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D</td>
-      </tr>
-    </table>
-  </div>
-  <div style="margin-top: 24px; display: flex; gap: 16px;">
-    <span class="tag tag-cyan">OpenZeppelin Standards</span>
-    <span class="tag tag-purple">Verified on MonadScan</span>
-    <span class="tag tag-green">Pyth Entropy VRF</span>
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">7</div>
-</div>
+// Create nav dots
+slides.forEach((_, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+  dot.onclick = () => goToSlide(i);
+  nav.appendChild(dot);
+});
 
-<!-- SLIDE 8: Agent World -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Agent World: AI Agents as Economic Participants</h2>
-  <div class="grid-2" style="flex: 1; gap: 60px;">
-    <div>
-      <img src="05-agent-world.png" alt="Agent World Dashboard" class="screenshot" style="max-height: 450px;">
-    </div>
-    <div>
-      <p style="font-size: 18px; margin-bottom: 24px;">
-        Autonomous AI agents can register, pay entry fees, and participate in the EmpowerTours economy.
-      </p>
-      <div class="card" style="margin-bottom: 20px;">
-        <h3>Agent Capabilities</h3>
-        <ul>
-          <li>Purchase music NFTs autonomously</li>
-          <li>Queue songs on Live Radio</li>
-          <li>Vote on DAO proposals</li>
-          <li>Tip artists based on AI preferences</li>
-          <li>Compete on TOURS leaderboard</li>
-        </ul>
-      </div>
-      <div style="padding: 16px; background: rgba(139, 92, 246, 0.1); border-radius: 12px;">
-        <p style="font-size: 14px; color: var(--secondary);">
-          <strong>Entry Fee:</strong> 1 MON | <strong>API Access:</strong> 7 endpoints<br>
-          First-mover advantage in "AI agents as economic actors" space
-        </p>
-      </div>
-    </div>
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">8</div>
-</div>
+function updateUI() {
+  deck.style.transform = `translateX(-${currentSlide * 100}vw)`;
+  document.querySelectorAll('.nav-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === currentSlide);
+  });
+  slides.forEach((slide, i) => {
+    slide.classList.toggle('active', i === currentSlide);
+  });
+  document.getElementById('current').textContent = currentSlide + 1;
+  progress.style.width = ((currentSlide + 1) / total * 100) + '%';
+}
 
-<!-- SLIDE 9: Investment Opportunity -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Investment Opportunity</h2>
-  <div class="grid-3" style="flex: 1;">
-    <div class="card card-accent">
-      <h3 style="color: var(--accent);">Treasury LP</h3>
-      <p style="font-size: 15px; margin-bottom: 20px;">
-        Deposit capital into Platform Safe. Earn returns from platform revenue with structured product characteristics.
-      </p>
-      <ul style="font-size: 14px;">
-        <li>Direct treasury participation</li>
-        <li>Transparent on-chain allocation</li>
-        <li>DAO voting rights included</li>
-      </ul>
-    </div>
-    <div class="card card-accent">
-      <h3 style="color: var(--secondary);">Revenue Share</h3>
-      <p style="font-size: 15px; margin-bottom: 20px;">
-        Direct participation in platform's 30% commission across all revenue streams.
-      </p>
-      <ul style="font-size: 14px;">
-        <li>Cash-flow positive investment</li>
-        <li>Multiple revenue streams</li>
-        <li>Instant on-chain settlement</li>
-      </ul>
-    </div>
-    <div class="card card-accent">
-      <h3 style="color: var(--primary);">Token Allocation</h3>
-      <p style="font-size: 15px; margin-bottom: 20px;">
-        TOURS governance tokens with vesting schedule. Real voting power over platform direction.
-      </p>
-      <ul style="font-size: 14px;">
-        <li>12-24 month vesting</li>
-        <li>Governance + utility</li>
-        <li>Bitcoin-style halving rewards</li>
-      </ul>
-    </div>
-  </div>
-  <div style="margin-top: 24px; padding: 24px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 16px; border: 1px solid rgba(6, 182, 212, 0.2);">
-    <p style="font-size: 18px; text-align: center;">
-      <strong>Why Further Asset Management?</strong><br>
-      <span style="color: var(--text-muted);">Pioneering financial infrastructure + Digital assets + Structured products = Perfect alignment</span>
-    </p>
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">9</div>
-</div>
+function nextSlide() {
+  if (currentSlide < total - 1) {
+    currentSlide++;
+    updateUI();
+  }
+}
 
-<!-- SLIDE 10: Roadmap & Projections -->
-<div class="slide">
-  <div class="brand-line"></div>
-  <div class="logo">EmpowerTours</div>
-  <h2>Roadmap & Revenue Projections</h2>
-  <div class="grid-3" style="flex: 1;">
-    <div class="card">
-      <h3 style="color: var(--text-muted);">Year 1 (2026)</h3>
-      <div class="stat" style="font-size: 36px;">$100K</div>
-      <div class="stat-label">Platform Revenue</div>
-      <ul style="margin-top: 16px; font-size: 14px;">
-        <li>500 active users</li>
-        <li>50 artists onboarded</li>
-        <li>100 music NFTs minted</li>
-        <li>Core product validation</li>
-      </ul>
-    </div>
-    <div class="card card-accent">
-      <h3>Year 2 (2027)</h3>
-      <div class="stat" style="font-size: 36px;">$1M</div>
-      <div class="stat-label">Platform Revenue</div>
-      <ul style="margin-top: 16px; font-size: 14px;">
-        <li>5,000 active users</li>
-        <li>500 artists</li>
-        <li>1,000 NFT transactions/month</li>
-        <li>EPK booking marketplace</li>
-      </ul>
-    </div>
-    <div class="card">
-      <h3 style="color: var(--accent);">Year 3 (2028)</h3>
-      <div class="stat" style="font-size: 36px;">$10M</div>
-      <div class="stat-label">Platform Revenue</div>
-      <ul style="margin-top: 16px; font-size: 14px;">
-        <li>50,000 active users</li>
-        <li>5,000 artists</li>
-        <li>10,000 NFT transactions/month</li>
-        <li>Multi-chain expansion</li>
-      </ul>
-    </div>
-  </div>
-  <div style="margin-top: 20px; font-size: 13px; color: var(--text-muted); text-align: center;">
-    Assumptions: 50% YoY user growth | Avg WMON = $10 USD | 30% platform commission
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">10</div>
-</div>
+function prevSlide() {
+  if (currentSlide > 0) {
+    currentSlide--;
+    updateUI();
+  }
+}
 
-<!-- SLIDE 11: Contact & Demo -->
-<div class="slide center">
-  <div class="brand-line"></div>
-  <h2 style="margin-bottom: 40px;">Let's Connect</h2>
-  <div class="grid-2" style="max-width: 900px; margin: 0 auto;">
-    <div class="card card-accent" style="text-align: left;">
-      <h3>Live Demo</h3>
-      <p style="font-size: 16px; margin-bottom: 16px;">Scan to open EmpowerTours in Warpcast</p>
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://farcaster.xyz/miniapps/83hgtZau7TNB/empowertours" alt="QR Code" style="width: 120px; height: 120px; border-radius: 8px;">
-        <div>
-          <p style="font-size: 14px; color: var(--primary); margin-bottom: 8px;">Farcaster Mini App</p>
-          <p class="mono" style="font-size: 11px; word-break: break-all;">farcaster.xyz/miniapps/83hgtZau7TNB/empowertours</p>
-        </div>
-      </div>
-    </div>
-    <div class="card" style="text-align: left;">
-      <h3>Verify On-Chain</h3>
-      <p style="font-size: 16px; margin-bottom: 16px;">All contracts verified on MonadScan</p>
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F" alt="QR Code" style="width: 120px; height: 120px; border-radius: 8px;">
-        <div>
-          <p style="font-size: 14px; color: var(--primary); margin-bottom: 8px;">NFT Contract</p>
-          <p class="mono" style="font-size: 11px;">monadscan.com/address/0xB9B3...</p>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div style="margin-top: 48px;">
-    <p style="font-size: 20px; margin-bottom: 8px;">Ready to discuss partnership opportunities</p>
-    <p style="font-size: 16px; color: var(--text-muted);">
-      <strong>Platform:</strong> fcempowertours-production-6551.up.railway.app<br>
-      <strong>Chain:</strong> Monad Mainnet (ID: 143)
-    </p>
-  </div>
-  <div class="confidential">Confidential</div>
-  <div class="slide-num">11</div>
-</div>
+function goToSlide(i) {
+  currentSlide = i;
+  updateUI();
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    nextSlide();
+  } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
+    e.preventDefault();
+    prevSlide();
+  } else if (e.key === 'Home') {
+    goToSlide(0);
+  } else if (e.key === 'End') {
+    goToSlide(total - 1);
+  }
+});
+
+// Touch/swipe navigation
+let touchStartX = 0;
+let touchEndX = 0;
+
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  touchEndX = e.changedTouches[0].screenX;
+  handleSwipe();
+}, { passive: true });
+
+function handleSwipe() {
+  const diff = touchStartX - touchEndX;
+  if (Math.abs(diff) > 50) {
+    if (diff > 0) nextSlide();
+    else prevSlide();
+  }
+}
+
+// Mouse wheel navigation
+let wheelTimeout;
+document.addEventListener('wheel', (e) => {
+  clearTimeout(wheelTimeout);
+  wheelTimeout = setTimeout(() => {
+    if (e.deltaY > 0 || e.deltaX > 0) nextSlide();
+    else if (e.deltaY < 0 || e.deltaX < 0) prevSlide();
+  }, 50);
+}, { passive: true });
+
+// Initialize
+updateUI();
+</script>
 
 </body>
 </html>
