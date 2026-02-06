@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EmpowerTours - One Pager</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { size: A4; margin: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0a0f;
+    color: white;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  h1 {
+    font-size: 36px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  .tagline {
+    font-size: 16px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .section {
+    margin-bottom: 28px;
+  }
+
+  h2 {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #06b6d4;
+    margin-bottom: 12px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .stat {
+    font-size: 32px;
+    font-weight: 800;
+    color: #06b6d4;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  ul {
+    list-style: none;
+  }
+
+  li {
+    padding: 6px 0;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    padding-left: 16px;
+    position: relative;
+  }
+
+  li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #06b6d4;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  th {
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .highlight { color: #10b981; font-weight: 600; }
+
+  .footer {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .qr {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .qr img {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+  }
+
+  .qr-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .mono {
+    font-family: monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>EmpowerTours</h1>
+      <p class="tagline">On-Chain Settlement Infrastructure for the Creator Economy</p>
+    </div>
+
+    <div class="section">
+      <h2>The Opportunity</h2>
+      <div class="grid-2">
+        <div>
+          <p style="font-size: 14px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
+            <strong>$150B creator economy</strong> with broken economics. Spotify pays artists 30% after 90 days.
+            We pay <span class="highlight">70% in the same transaction</span>.
+          </p>
+          <ul>
+            <li>All revenue splits enforced on-chain</li>
+            <li>Zero counterparty risk</li>
+            <li>DAO governance with real voting power</li>
+            <li>Account abstraction (gasless UX)</li>
+          </ul>
+        </div>
+        <div class="grid-2" style="gap: 12px;">
+          <div class="card" style="text-align: center;">
+            <div class="stat">70%</div>
+            <div class="stat-label">Creator Payout</div>
+          </div>
+          <div class="card" style="text-align: center;">
+            <div class="stat">15+</div>
+            <div class="stat-label">Live Contracts</div>
+          </div>
+          <div class="card" style="text-align: center;">
+            <div class="stat">10K</div>
+            <div class="stat-label">TPS (Monad)</div>
+          </div>
+          <div class="card" style="text-align: center;">
+            <div class="stat">$0</div>
+            <div class="stat-label">Gas for Users</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Revenue Model</h2>
+      <table>
+        <tr>
+          <th>Stream</th>
+          <th>Split</th>
+          <th>Settlement</th>
+        </tr>
+        <tr>
+          <td>Music License Sales</td>
+          <td><span class="highlight">70/30</span> (Artist/Platform)</td>
+          <td>Same transaction</td>
+        </tr>
+        <tr>
+          <td>Subscriptions</td>
+          <td>70% Artist Pool / 20% DAO / 10% Treasury</td>
+          <td>Monthly distribution</td>
+        </tr>
+        <tr>
+          <td>Radio Queue Fees</td>
+          <td>70% Artist / 15% Platform Safe / 15% Wallet</td>
+          <td>Instant</td>
+        </tr>
+        <tr>
+          <td>EPK Bookings</td>
+          <td>Escrow-based</td>
+          <td>On completion</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Investment Structures</h2>
+      <div class="grid-2" style="grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+        <div class="card">
+          <h3 style="font-size: 14px; color: #10b981; margin-bottom: 8px;">Treasury LP</h3>
+          <p style="font-size: 12px; color: rgba(255,255,255,0.6);">
+            Deposit into Platform Safe. Structured product exposure to platform revenue.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="font-size: 14px; color: #8b5cf6; margin-bottom: 8px;">Revenue Share</h3>
+          <p style="font-size: 12px; color: rgba(255,255,255,0.6);">
+            Direct participation in 30% platform commission across all streams.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="font-size: 14px; color: #06b6d4; margin-bottom: 8px;">Token Allocation</h3>
+          <p style="font-size: 12px; color: rgba(255,255,255,0.6);">
+            TOURS governance tokens with 12-24 month vesting. Real voting power.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="qr">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=https://farcaster.xyz/miniapps/83hgtZau7TNB/empowertours" alt="QR">
+        <div>
+          <p style="font-size: 13px; color: white; font-weight: 600;">Try the Live App</p>
+          <p class="qr-text">Farcaster Mini App</p>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <p style="font-size: 13px; color: white; font-weight: 600;">Monad Mainnet (Chain 143)</p>
+        <p class="mono">fcempowertours-production-6551.up.railway.app</p>
+        <p style="font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 8px;">February 2026 | Confidential</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
