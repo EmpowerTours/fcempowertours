@@ -1,9 +1,31 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html, Environment } from '@react-three/drei';
 import * as THREE from 'three';
+
+// Movement intentions from AI agents
+interface MovementIntention {
+  agentId: string;
+  agentName: string;
+  action: 'walk_to' | 'interact' | 'idle' | 'celebrate';
+  target: string | null;
+  reason?: string;
+  timestamp: number;
+}
+
+// Zone positions in 3D space
+const AI_ZONE_POSITIONS: Record<string, [number, number, number]> = {
+  radio_tower: [0, 0, 0],
+  lottery_booth: [-8, 0, 6],
+  coinflip_arena: [-6, 0, -6],
+  betting_desk: [-4, 0, -3],
+  moltbook_station: [6, 0, 4],
+  monad_portal: [8, 0, -6],
+  nft_gallery: [5, 0, 3],
+  center: [0, 0, 0],
+};
 
 // =============================================================================
 // TYPES
@@ -138,7 +160,8 @@ function RobotAgent({
   active = false,
   index = 0,
   totalAgents = 1,
-  lastAction
+  lastAction,
+  aiMovement
 }: {
   position: [number, number, number];
   name: string;
@@ -146,27 +169,45 @@ function RobotAgent({
   index?: number;
   totalAgents?: number;
   lastAction?: string;
+  aiMovement?: MovementIntention;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const eyeRef = useRef<THREE.Mesh>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
   const rightArmRef = useRef<THREE.Mesh>(null);
 
-  // Get target position based on last action
+  // Get target position - AI movement takes priority over event-based movement
   const targetPosition = useMemo(() => {
-    if (!lastAction) return position;
-    // Extract action type from description (e.g., "Executed lottery_buy" -> "lottery_buy")
-    const actionMatch = lastAction.match(/Executed (\w+)/);
-    const actionType = actionMatch ? actionMatch[1] : 'default';
-    const target = ACTION_TARGETS[actionType] || ACTION_TARGETS.default;
-    // Add slight offset based on index to prevent overlap
-    const offsetAngle = (index * 0.5);
-    return [
-      target[0] + Math.cos(offsetAngle) * 1.5,
-      target[1],
-      target[2] + Math.sin(offsetAngle) * 1.5
-    ] as [number, number, number];
-  }, [lastAction, position, index]);
+    // Priority 1: AI movement intention from AWS agent
+    if (aiMovement && aiMovement.target) {
+      const aiTarget = AI_ZONE_POSITIONS[aiMovement.target] || AI_ZONE_POSITIONS.center;
+      // Add slight offset based on index to prevent overlap
+      const offsetAngle = (index * 0.6);
+      return [
+        aiTarget[0] + Math.cos(offsetAngle) * 1.2,
+        aiTarget[1],
+        aiTarget[2] + Math.sin(offsetAngle) * 1.2
+      ] as [number, number, number];
+    }
+
+    // Priority 2: Event-based movement from blockchain actions
+    if (lastAction) {
+      const actionMatch = lastAction.match(/Executed (\w+)/);
+      const actionType = actionMatch ? actionMatch[1] : 'default';
+      const target = ACTION_TARGETS[actionType] || ACTION_TARGETS.default;
+      const offsetAngle = (index * 0.5);
+      return [
+        target[0] + Math.cos(offsetAngle) * 1.5,
+        target[1],
+        target[2] + Math.sin(offsetAngle) * 1.5
+      ] as [number, number, number];
+    }
+
+    return position;
+  }, [aiMovement, lastAction, position, index]);
+
+  // Determine if agent is actively moving (AI-controlled or event-based)
+  const isAIControlled = !!aiMovement && (Date.now() - aiMovement.timestamp < 60000);
 
   // Movement animation
   const currentPos = useRef<[number, number, number]>(position);
@@ -175,24 +216,43 @@ function RobotAgent({
     if (groupRef.current) {
       const t = state.clock.elapsedTime;
 
-      if (active) {
-        // Smoothly move towards target position based on last action - FASTER
+      // AI-controlled agents have priority movement
+      if (isAIControlled) {
+        // Fast, purposeful movement towards AI target
+        const lerpSpeed = 0.08; // Faster for AI-controlled
+        currentPos.current[0] += (targetPosition[0] - currentPos.current[0]) * lerpSpeed;
+        currentPos.current[2] += (targetPosition[2] - currentPos.current[2]) * lerpSpeed;
+
+        groupRef.current.position.x = currentPos.current[0];
+        groupRef.current.position.z = currentPos.current[2];
+
+        // More dramatic bobbing when AI-controlled
+        groupRef.current.position.y = Math.sin(t * 4 + index) * 0.2;
+
+        // Look towards target with determination
+        const lookTarget = new THREE.Vector3(targetPosition[0], 1, targetPosition[2]);
+        groupRef.current.lookAt(lookTarget);
+
+        // Celebrate action - jump!
+        if (aiMovement?.action === 'celebrate') {
+          groupRef.current.position.y = Math.abs(Math.sin(t * 6)) * 0.8;
+        }
+      } else if (active) {
+        // Event-based active movement (from blockchain actions)
         const lerpSpeed = 0.05;
         currentPos.current[0] += (targetPosition[0] - currentPos.current[0]) * lerpSpeed;
         currentPos.current[2] += (targetPosition[2] - currentPos.current[2]) * lerpSpeed;
 
-        // Apply position with visible bobbing
         groupRef.current.position.x = currentPos.current[0];
         groupRef.current.position.z = currentPos.current[2];
         groupRef.current.position.y = Math.sin(t * 3 + index) * 0.15;
 
-        // Look towards target
         const lookTarget = new THREE.Vector3(targetPosition[0], 1, targetPosition[2]);
         groupRef.current.lookAt(lookTarget);
       } else {
-        // Idle agents WANDER around their area - more movement!
+        // Idle agents WANDER around their area
         const wanderRadius = 1.5;
-        const wanderSpeed = 0.15 + (index * 0.03); // Different speeds per agent
+        const wanderSpeed = 0.15 + (index * 0.03);
         const wanderX = Math.sin(t * wanderSpeed + index * 2.5) * wanderRadius;
         const wanderZ = Math.cos(t * wanderSpeed * 0.8 + index * 1.7) * wanderRadius;
 
@@ -200,36 +260,39 @@ function RobotAgent({
         groupRef.current.position.z = position[2] + wanderZ;
         groupRef.current.position.y = Math.sin(t * 2.5 + index) * 0.08;
 
-        // Look in the direction they're walking
         const lookX = position[0] + Math.sin(t * wanderSpeed + index * 2.5 + 0.5) * wanderRadius;
         const lookZ = position[2] + Math.cos(t * wanderSpeed * 0.8 + index * 1.7 + 0.5) * wanderRadius;
         groupRef.current.lookAt(lookX, 0.5, lookZ);
       }
     }
 
-    // Animate arms - active agents gesture more, idle agents swing gently
-    const armT = state.clock.elapsedTime * (active ? 3 : 1.5) + index;
+    // Animate arms - AI-controlled and active agents gesture more
+    const armSpeed = isAIControlled ? 4 : active ? 3 : 1.5;
+    const armT = state.clock.elapsedTime * armSpeed + index;
     if (leftArmRef.current) {
-      const swing = active ? 0.4 : 0.15;
+      const swing = isAIControlled ? 0.5 : active ? 0.4 : 0.15;
       leftArmRef.current.rotation.z = -Math.PI / 6 + Math.sin(armT) * swing;
       leftArmRef.current.rotation.x = Math.sin(armT * 0.7) * swing * 0.7;
     }
     if (rightArmRef.current) {
-      const swing = active ? 0.4 : 0.15;
+      const swing = isAIControlled ? 0.5 : active ? 0.4 : 0.15;
       rightArmRef.current.rotation.z = Math.PI / 6 - Math.sin(armT + 1) * swing;
       rightArmRef.current.rotation.x = Math.cos(armT * 0.7) * swing * 0.7;
     }
 
     if (eyeRef.current && eyeRef.current.material) {
-      const intensity = active
-        ? 2 + Math.sin(state.clock.elapsedTime * 4) * 1
-        : 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
+      const intensity = isAIControlled
+        ? 3 + Math.sin(state.clock.elapsedTime * 6) * 1.5
+        : active
+          ? 2 + Math.sin(state.clock.elapsedTime * 4) * 1
+          : 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
       (eyeRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = intensity;
     }
   });
 
-  const color = active ? '#00ff88' : '#6b7280';
-  const emissive = active ? '#00ff88' : '#000000';
+  // AI-controlled = purple, active = green, idle = gray
+  const color = isAIControlled ? '#a855f7' : active ? '#00ff88' : '#6b7280';
+  const emissive = isAIControlled ? '#a855f7' : active ? '#00ff88' : '#000000';
 
   return (
     <group ref={groupRef} position={position}>
@@ -312,11 +375,21 @@ function RobotAgent({
       {/* Name label */}
       <Html position={[0, 1.9, 0]} center>
         <div className={`px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap ${
-          active ? 'bg-green-500/80 text-white' : 'bg-gray-700/80 text-gray-300'
+          isAIControlled
+            ? 'bg-purple-500/90 text-white border border-purple-300'
+            : active
+              ? 'bg-green-500/80 text-white'
+              : 'bg-gray-700/80 text-gray-300'
         }`}>
+          {isAIControlled && <span className="mr-1">🤖</span>}
           {name.length > 12 ? name.slice(0, 12) + '...' : name}
-          {active && <span className="ml-1 animate-pulse">●</span>}
+          {(active || isAIControlled) && <span className="ml-1 animate-pulse">●</span>}
         </div>
+        {isAIControlled && aiMovement?.reason && (
+          <div className="mt-1 px-1 py-0.5 bg-black/70 rounded text-[7px] text-purple-200 max-w-[80px] truncate">
+            {aiMovement.reason}
+          </div>
+        )}
       </Html>
     </group>
   );
@@ -683,10 +756,25 @@ function FloatingSymbols({ position, show = false }: {
 // SCENE
 // =============================================================================
 
-function Scene({ worldState, agents }: { worldState: WorldState | null; agents: WorldAgent[] }) {
+function Scene({
+  worldState,
+  agents,
+  aiMovements
+}: {
+  worldState: WorldState | null;
+  agents: WorldAgent[];
+  aiMovements: MovementIntention[];
+}) {
   const radioActive = worldState?.economy?.radioActive ?? true;
   const songs = worldState?.economy?.recentSongs ?? [];
   const activeThreshold = Date.now() - 5 * 60 * 1000;
+
+  // Create a lookup map for AI movements by agent address
+  const movementMap = useMemo(() => {
+    const map = new Map<string, MovementIntention>();
+    aiMovements.forEach(m => map.set(m.agentId.toLowerCase(), m));
+    return map;
+  }, [aiMovements]);
 
   return (
     <>
@@ -746,6 +834,8 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
           const recentEvent = worldState?.recentEvents?.find(
             (e) => e.agent.toLowerCase() === agent.address.toLowerCase() && e.type === 'action'
           );
+          // Get AI movement intention if any
+          const aiMovement = movementMap.get(agent.address.toLowerCase());
           return (
             <RobotAgent
               key={agent.address}
@@ -755,6 +845,7 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
               index={i}
               totalAgents={agents.length}
               lastAction={recentEvent?.description}
+              aiMovement={aiMovement}
             />
           );
         })}
@@ -777,6 +868,33 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
 // =============================================================================
 
 export default function AgentWorld3DScene({ worldState, agents }: { worldState: WorldState | null; agents: WorldAgent[] }) {
+  const [aiMovements, setAiMovements] = useState<MovementIntention[]>([]);
+
+  // Poll for AI movement intentions every 5 seconds
+  useEffect(() => {
+    const fetchMovements = async () => {
+      try {
+        const res = await fetch('/api/world/agent-movement');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.movements) {
+            setAiMovements(data.movements);
+          }
+        }
+      } catch (err) {
+        console.error('[AgentWorld3D] Failed to fetch movements:', err);
+      }
+    };
+
+    // Initial fetch
+    fetchMovements();
+
+    // Poll every 5 seconds
+    const interval = setInterval(fetchMovements, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div style={{
       position: 'absolute',
@@ -798,8 +916,18 @@ export default function AgentWorld3DScene({ worldState, agents }: { worldState: 
           height: '100%'
         }}
       >
-        <Scene worldState={worldState} agents={agents} />
+        <Scene worldState={worldState} agents={agents} aiMovements={aiMovements} />
       </Canvas>
+
+      {/* AI Movement Activity Indicator */}
+      {aiMovements.length > 0 && (
+        <div className="absolute bottom-4 left-4 bg-purple-900/80 rounded-lg px-3 py-2 text-xs">
+          <div className="flex items-center gap-2 text-purple-200">
+            <span className="animate-pulse">🤖</span>
+            <span>{aiMovements.length} AI-controlled agent{aiMovements.length > 1 ? 's' : ''}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

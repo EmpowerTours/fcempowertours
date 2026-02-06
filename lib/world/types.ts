@@ -42,7 +42,49 @@ export const REDIS_KEYS = {
   rateRead: 'world:rate:read',
   /** Rate limit for world chat */
   rateChat: 'world:rate:chat',
+  /** Agent movement intentions hash */
+  agentMovements: 'world:agent-movements',
 } as const;
+
+// ============================================================================
+// MOVEMENT TYPES
+// ============================================================================
+
+/** Valid zone targets in the 3D world */
+export type WorldZoneTarget =
+  | 'radio_tower'
+  | 'lottery_booth'
+  | 'coinflip_arena'
+  | 'betting_desk'
+  | 'moltbook_station'
+  | 'monad_portal'
+  | 'nft_gallery'
+  | 'center';
+
+/** Action types for agent movement */
+export type AgentMovementAction = 'walk_to' | 'interact' | 'idle' | 'celebrate';
+
+/** Movement intention submitted by an agent */
+export interface AgentMovementIntention {
+  agentId: string;
+  agentName: string;
+  action: AgentMovementAction;
+  target: WorldZoneTarget | null;
+  reason?: string;
+  timestamp: number;
+}
+
+/** Zone positions in 3D space [x, y, z] */
+export const ZONE_POSITIONS: Record<WorldZoneTarget, [number, number, number]> = {
+  radio_tower: [0, 0, 0],
+  lottery_booth: [-8, 0, 6],
+  coinflip_arena: [-6, 0, -6],
+  betting_desk: [-4, 0, -3],
+  moltbook_station: [6, 0, 4],
+  monad_portal: [8, 0, -6],
+  nft_gallery: [5, 0, 3],
+  center: [0, 0, 0],
+};
 
 /** Max chat messages to keep */
 export const MAX_CHAT_MESSAGES = 500;
