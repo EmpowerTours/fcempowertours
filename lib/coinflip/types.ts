@@ -5,8 +5,8 @@
 
 import { Address } from 'viem';
 
-// AicoinflipMON contract on Monad
-export const COINFLIP_CONTRACT = '0xfE2ff247FCF671A59e69F1608E0A2eEda05139b4' as Address;
+// AicoinflipMON contract on Monad (updated 2024-02-06)
+export const COINFLIP_CONTRACT = '0xf01dfcA848a37B76025fc416d2b681c5aa057544' as Address;
 
 // EMPTOURS token for betting
 export const EMPTOURS_TOKEN = '0x8F2D9BaE2445Db65491b0a8E199f1487f9eA7777' as Address;
@@ -59,6 +59,7 @@ export interface CoinflipRoundResult {
   tailsBets: number;
   winners: CoinflipPayout[];
   losers: string[]; // addresses
+  consolationPrizes?: ConsolationPrize[]; // TOURS prizes for losers
 }
 
 // Redis keys
@@ -68,6 +69,21 @@ export const COINFLIP_REDIS_KEYS = {
   roundHistory: 'coinflip:history',
   agentStats: (address: string) => `coinflip:stats:${address.toLowerCase()}`,
 } as const;
+
+// TOURS token for consolation prizes
+export const TOURS_TOKEN = '0x45b76a127167fD7FC7Ed264ad490144300eCfcBF' as Address;
+
+// Consolation prize settings (TOURS tokens for losers)
+// Using tx hash as entropy seed (free, vs 0.4 MON Pyth Entropy fee)
+export const CONSOLATION_BASE_AMOUNT = '1'; // 1 TOURS base
+export const CONSOLATION_MAX_MULTIPLIER = 5; // Up to 5x (1-5 TOURS)
+
+export interface ConsolationPrize {
+  agentAddress: string;
+  agentName: string;
+  amount: string; // TOURS amount won
+  multiplier: number; // The random multiplier (1-5x)
+}
 
 // Rate limits
 export const CoinflipRateLimits = {
