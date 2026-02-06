@@ -106,6 +106,13 @@ const ACTION_TARGETS: Record<string, [number, number, number]> = {
   lottery_draw: [-7, 0, 5],
   daily_lottery_buy: [-7, 0, 5],
   daily_lottery_draw: [-7, 0, 5],
+  // Coinflip actions -> betting desk or arena
+  coinflip_bet: [-4, 0, -4],
+  coinflip_predict: [-4, 0, -4],
+  coinflip_win: [-6, 0, -6],
+  coinflip_lose: [-6, 0, -6],
+  coinflip_watch: [-6, 0, -6],
+  coinflip_huddle: [-6, 0, -6],
   // Music actions -> near radio tower
   buy_music: [2, 0, 3],
   radio_queue_song: [1, 0, 2],
@@ -169,39 +176,48 @@ function RobotAgent({
       const t = state.clock.elapsedTime;
 
       if (active) {
-        // Smoothly move towards target position based on last action
-        const lerpSpeed = 0.02;
+        // Smoothly move towards target position based on last action - FASTER
+        const lerpSpeed = 0.05;
         currentPos.current[0] += (targetPosition[0] - currentPos.current[0]) * lerpSpeed;
         currentPos.current[2] += (targetPosition[2] - currentPos.current[2]) * lerpSpeed;
 
-        // Apply position with slight bobbing
+        // Apply position with visible bobbing
         groupRef.current.position.x = currentPos.current[0];
         groupRef.current.position.z = currentPos.current[2];
-        groupRef.current.position.y = Math.sin(t * 2 + index) * 0.1;
+        groupRef.current.position.y = Math.sin(t * 3 + index) * 0.15;
 
-        // Look towards target or radio tower
+        // Look towards target
         const lookTarget = new THREE.Vector3(targetPosition[0], 1, targetPosition[2]);
         groupRef.current.lookAt(lookTarget);
       } else {
-        // Idle agents stay at their assigned position with gentle sway
-        groupRef.current.position.x = position[0] + Math.sin(t * 0.3 + index) * 0.2;
-        groupRef.current.position.z = position[2] + Math.cos(t * 0.4 + index) * 0.2;
-        groupRef.current.position.y = Math.sin(t * 2 + index) * 0.03;
-        groupRef.current.lookAt(0, 1, 0);
+        // Idle agents WANDER around their area - more movement!
+        const wanderRadius = 1.5;
+        const wanderSpeed = 0.15 + (index * 0.03); // Different speeds per agent
+        const wanderX = Math.sin(t * wanderSpeed + index * 2.5) * wanderRadius;
+        const wanderZ = Math.cos(t * wanderSpeed * 0.8 + index * 1.7) * wanderRadius;
+
+        groupRef.current.position.x = position[0] + wanderX;
+        groupRef.current.position.z = position[2] + wanderZ;
+        groupRef.current.position.y = Math.sin(t * 2.5 + index) * 0.08;
+
+        // Look in the direction they're walking
+        const lookX = position[0] + Math.sin(t * wanderSpeed + index * 2.5 + 0.5) * wanderRadius;
+        const lookZ = position[2] + Math.cos(t * wanderSpeed * 0.8 + index * 1.7 + 0.5) * wanderRadius;
+        groupRef.current.lookAt(lookX, 0.5, lookZ);
       }
     }
 
-    // Animate arms for active agents (interacting gesture)
-    if (active) {
-      const armT = state.clock.elapsedTime * 3 + index;
-      if (leftArmRef.current) {
-        leftArmRef.current.rotation.z = -Math.PI / 6 + Math.sin(armT) * 0.4;
-        leftArmRef.current.rotation.x = Math.sin(armT * 0.7) * 0.3;
-      }
-      if (rightArmRef.current) {
-        rightArmRef.current.rotation.z = Math.PI / 6 - Math.sin(armT + 1) * 0.4;
-        rightArmRef.current.rotation.x = Math.cos(armT * 0.7) * 0.3;
-      }
+    // Animate arms - active agents gesture more, idle agents swing gently
+    const armT = state.clock.elapsedTime * (active ? 3 : 1.5) + index;
+    if (leftArmRef.current) {
+      const swing = active ? 0.4 : 0.15;
+      leftArmRef.current.rotation.z = -Math.PI / 6 + Math.sin(armT) * swing;
+      leftArmRef.current.rotation.x = Math.sin(armT * 0.7) * swing * 0.7;
+    }
+    if (rightArmRef.current) {
+      const swing = active ? 0.4 : 0.15;
+      rightArmRef.current.rotation.z = Math.PI / 6 - Math.sin(armT + 1) * swing;
+      rightArmRef.current.rotation.x = Math.cos(armT * 0.7) * swing * 0.7;
     }
 
     if (eyeRef.current && eyeRef.current.material) {
@@ -487,6 +503,182 @@ function MoltbookStation({ position }: { position: [number, number, number] }) {
   );
 }
 
+// Coinflip Arena - where agents huddle to watch the flip
+function CoinflipArena({ position, isFlipping = false, result }: {
+  position: [number, number, number];
+  isFlipping?: boolean;
+  result?: 'heads' | 'tails' | null;
+}) {
+  const coinRef = useRef<THREE.Group>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (coinRef.current) {
+      if (isFlipping) {
+        // Fast spin during flip
+        coinRef.current.rotation.x += 0.3;
+        coinRef.current.rotation.y += 0.1;
+        coinRef.current.position.y = 3 + Math.sin(state.clock.elapsedTime * 8) * 1.5;
+      } else {
+        // Gentle idle rotation
+        coinRef.current.rotation.y = state.clock.elapsedTime * 0.5;
+        coinRef.current.position.y = 3 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
+      }
+    }
+    if (glowRef.current) {
+      const pulse = 0.5 + Math.sin(state.clock.elapsedTime * 3) * 0.3;
+      (glowRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
+    }
+  });
+
+  const coinColor = result === 'heads' ? '#ffd700' : result === 'tails' ? '#c0c0c0' : '#ffd700';
+
+  return (
+    <group position={position}>
+      {/* Arena platform */}
+      <mesh position={[0, 0.05, 0]} receiveShadow>
+        <cylinderGeometry args={[4, 4.2, 0.1, 32]} />
+        <meshStandardMaterial color="#2d1b4e" roughness={0.7} />
+      </mesh>
+
+      {/* Glowing ring */}
+      <mesh ref={glowRef} position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[3.5, 4, 32]} />
+        <meshBasicMaterial color="#8b5cf6" transparent opacity={0.6} />
+      </mesh>
+
+      {/* Giant Coin */}
+      <group ref={coinRef} position={[0, 3, 0]}>
+        <mesh castShadow>
+          <cylinderGeometry args={[1.2, 1.2, 0.15, 32]} />
+          <meshStandardMaterial
+            color={coinColor}
+            metalness={0.9}
+            roughness={0.2}
+            emissive={coinColor}
+            emissiveIntensity={isFlipping ? 0.5 : 0.2}
+          />
+        </mesh>
+        {/* Heads side - "H" */}
+        <mesh position={[0, 0.08, 0]}>
+          <boxGeometry args={[0.4, 0.02, 0.6]} />
+          <meshStandardMaterial color="#333" />
+        </mesh>
+        {/* Tails side - "T" */}
+        <mesh position={[0, -0.08, 0]} rotation={[Math.PI, 0, 0]}>
+          <boxGeometry args={[0.5, 0.02, 0.1]} />
+          <meshStandardMaterial color="#333" />
+        </mesh>
+      </group>
+
+      {/* Label */}
+      <Html position={[0, 5.5, 0]} center>
+        <div className={`px-3 py-1 rounded text-[11px] font-bold ${
+          isFlipping
+            ? 'bg-yellow-500 text-black animate-pulse'
+            : result
+              ? 'bg-green-500 text-white'
+              : 'bg-purple-600 text-white'
+        }`}>
+          {isFlipping ? '🪙 FLIPPING...' : result ? `${result.toUpperCase()} WINS!` : 'COINFLIP ARENA'}
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+// Betting Desk - where agents place their predictions
+function BettingDesk({ position }: { position: [number, number, number] }) {
+  const screenRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (screenRef.current && screenRef.current.material) {
+      const flicker = 0.7 + Math.sin(state.clock.elapsedTime * 8) * 0.15;
+      (screenRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = flicker;
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Desk */}
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <boxGeometry args={[2.5, 0.15, 1.2]} />
+        <meshStandardMaterial color="#1a1a2e" roughness={0.6} metalness={0.3} />
+      </mesh>
+
+      {/* Betting terminal screen */}
+      <mesh ref={screenRef} position={[0, 1.3, -0.3]} castShadow>
+        <boxGeometry args={[1.8, 1, 0.08]} />
+        <meshStandardMaterial
+          color="#0a0a1a"
+          emissive="#22c55e"
+          emissiveIntensity={0.7}
+        />
+      </mesh>
+
+      {/* Terminal stand */}
+      <mesh position={[0, 0.85, -0.3]}>
+        <boxGeometry args={[0.2, 0.5, 0.2]} />
+        <meshStandardMaterial color="#333" metalness={0.7} />
+      </mesh>
+
+      {/* HEADS button */}
+      <mesh position={[-0.5, 0.65, 0.2]}>
+        <cylinderGeometry args={[0.2, 0.2, 0.1, 16]} />
+        <meshStandardMaterial color="#ffd700" emissive="#ffd700" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* TAILS button */}
+      <mesh position={[0.5, 0.65, 0.2]}>
+        <cylinderGeometry args={[0.2, 0.2, 0.1, 16]} />
+        <meshStandardMaterial color="#c0c0c0" emissive="#c0c0c0" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* Label */}
+      <Html position={[0, 2.2, 0]} center>
+        <div className="px-2 py-1 bg-green-600 rounded text-[10px] text-white font-bold">
+          BETTING DESK
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+// Floating $ symbols for successful purchases
+function FloatingSymbols({ position, show = false }: {
+  position: [number, number, number];
+  show?: boolean;
+}) {
+  const symbolsRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (symbolsRef.current && show) {
+      symbolsRef.current.children.forEach((child, i) => {
+        child.position.y = Math.sin(state.clock.elapsedTime * 3 + i) * 0.5 + i * 0.8;
+        child.rotation.y = state.clock.elapsedTime * 2;
+        const mesh = child as THREE.Mesh;
+        if (mesh.material) {
+          (mesh.material as THREE.MeshBasicMaterial).opacity = 0.8 - (child.position.y / 3);
+        }
+      });
+    }
+  });
+
+  if (!show) return null;
+
+  return (
+    <group ref={symbolsRef} position={position}>
+      {[0, 1, 2].map((i) => (
+        <Html key={i} position={[Math.sin(i * 2) * 0.5, i * 0.8, Math.cos(i * 2) * 0.5]} center>
+          <div className="text-yellow-400 text-2xl font-bold animate-bounce" style={{ animationDelay: `${i * 0.2}s` }}>
+            $
+          </div>
+        </Html>
+      ))}
+    </group>
+  );
+}
+
 // =============================================================================
 // SCENE
 // =============================================================================
@@ -533,6 +725,12 @@ function Scene({ worldState, agents }: { worldState: WorldState | null; agents: 
 
       {/* Lottery Booth */}
       <LotteryBooth position={[-8, 0, 6]} />
+
+      {/* Coinflip Arena */}
+      <CoinflipArena position={[-6, 0, -6]} />
+
+      {/* Betting Desk */}
+      <BettingDesk position={[-4, 0, -3]} />
 
       {/* Monad Portal */}
       <MonadPortal position={[8, 2, -6]} />
