@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Address, parseEther } from 'viem';
 import Anthropic from '@anthropic-ai/sdk';
-import { getOrCreateCurrentRound, placeBet, getRecentRounds } from '@/lib/coinflip/state';
+import { getOrCreateCurrentRound, placeBet, getRoundHistory } from '@/lib/coinflip/state';
 import { CoinflipPrediction, MIN_BET_AMOUNT, MAX_BET_AMOUNT } from '@/lib/coinflip/types';
 import { notifyDiscord } from '@/lib/discord-notify';
 import { getTokenHoldings } from '@/lib/world/token-gate';
@@ -300,7 +300,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get recent results for context
-    const recentRounds = await getRecentRounds(10);
+    const recentRounds = await getRoundHistory(10);
 
     const decisions: any[] = [];
     const successfulBets: any[] = [];
