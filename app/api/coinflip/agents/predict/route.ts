@@ -482,9 +482,10 @@ export async function PUT(req: NextRequest) {
       const memory = await getAgentMemory(agentId);
 
       // Check if agent bet on this round
-      if (memory.lastDecision?.roundId === roundId) {
-        const won = memory.lastDecision.prediction === result;
-        const amount = memory.lastDecision.amount;
+      const lastDecision = memory.lastDecision;
+      if (lastDecision && lastDecision.roundId === roundId) {
+        const won = lastDecision.prediction === result;
+        const amount = lastDecision.amount;
 
         // Update memory
         memory.totalBets++;
@@ -503,7 +504,7 @@ export async function PUT(req: NextRequest) {
         // Add to outcomes history (keep last 20)
         memory.lastOutcomes.push({
           roundId,
-          prediction: memory.lastDecision.prediction,
+          prediction: lastDecision.prediction,
           result,
           won,
           amount,
@@ -517,7 +518,7 @@ export async function PUT(req: NextRequest) {
         updates.push({
           agentId,
           agentName: personality.name,
-          prediction: memory.lastDecision.prediction,
+          prediction: lastDecision.prediction,
           result,
           won,
           newRecord: `${memory.wins}W-${memory.losses}L`,
