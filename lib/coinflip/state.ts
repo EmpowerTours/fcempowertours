@@ -10,13 +10,16 @@ import {
   CoinflipPrediction,
   CoinflipPayout,
   CoinflipRoundResult,
+  ConsolationPrize,
   COINFLIP_REDIS_KEYS,
   ROUND_DURATION_MS,
   BETTING_WINDOW_MS,
   MIN_BET_AMOUNT,
   MAX_BET_AMOUNT,
+  CONSOLATION_BASE_AMOUNT,
+  CONSOLATION_MAX_MULTIPLIER,
 } from './types';
-import { parseEther, formatEther } from 'viem';
+import { keccak256, toBytes, parseEther, formatEther } from 'viem';
 
 /**
  * Generate a unique round ID
@@ -283,6 +286,26 @@ export async function resolveRound(
 }
 
 /**
+ * Force reset a stuck round and start fresh
+ * Use when a round gets stuck in executing/closed status
+ */
+export async function forceResetRound(): Promise<CoinflipRound> {
+  const currentRound = await getCurrentRound();
+
+  if (currentRound) {
+    // Archive the stuck round as cancelled
+    currentRound.status = 'resolved';
+    currentRound.result = undefined;
+    currentRound.resolvedAt = Date.now();
+    await redis.set(COINFLIP_REDIS_KEYS.round(currentRound.id), currentRound);
+    console.log(`[Coinflip] Force reset stuck round: ${currentRound.id}`);
+  }
+
+  // Create fresh round
+  return createNewRound();
+}
+
+/**
  * Get round by ID
  */
 export async function getRound(roundId: string): Promise<CoinflipRound | null> {
@@ -355,4 +378,37 @@ export async function updateAgentStats(
   stats.totalWagered = formatEther(newTotalWagered);
 
   await redis.set(COINFLIP_REDIS_KEYS.agentStats(address), stats);
+}
+
+/**
+ * Calculate consolation prizes for losers using tx hash as entropy
+ * Each loser gets 1-5 TOURS based on deterministic random from tx hash
+ */
+export function calculateConsolationPrizes(
+  round: CoinflipRound,
+  result: CoinflipPrediction,
+  flipTxHash: string
+): ConsolationPrize[] {
+  const losers = round.bets.filter(b => b.prediction !== result);
+  const prizes: ConsolationPrize[] = [];
+
+  for (const loser of losers) {
+    // Generate deterministic random using tx hash + address
+    const seed = keccak256(toBytes(`${flipTxHash}:${loser.agentAddress}`));
+    // Take last byte and mod by max multiplier to get 0-4, then add 1 for 1-5
+    const seedNum = parseInt(seed.slice(-2), 16);
+    const multiplier = (seedNum % CONSOLATION_MAX_MULTIPLIER) + 1;
+
+    const baseAmount = parseEther(CONSOLATION_BASE_AMOUNT);
+    const prizeAmount = baseAmount * BigInt(multiplier);
+
+    prizes.push({
+      agentAddress: loser.agentAddress,
+      agentName: loser.agentName,
+      amount: formatEther(prizeAmount),
+      multiplier,
+    });
+  }
+
+  return prizes;
 }

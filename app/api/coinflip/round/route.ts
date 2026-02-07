@@ -3,6 +3,8 @@ import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 import {
   getOrCreateCurrentRound,
   getRoundHistory,
+  forceResetRound,
+  createNewRound,
 } from '@/lib/coinflip/state';
 import {
   CoinflipRateLimits,
@@ -92,4 +94,64 @@ function formatTime(ms: number): string {
   const minutes = Math.floor(ms / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
   return `${minutes}m ${seconds}s`;
+}
+
+/**
+ * POST /api/coinflip/round
+ *
+ * Admin actions: start new round, force reset stuck round
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const adminKey = req.headers.get('x-admin-key');
+    const expectedKey = process.env.KEEPER_SECRET || process.env.COINFLIP_SECRET;
+
+    if (!adminKey || adminKey !== expectedKey) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const { action } = body;
+
+    if (action === 'reset' || action === 'force-reset') {
+      const newRound = await forceResetRound();
+      return NextResponse.json({
+        success: true,
+        message: 'Round force reset',
+        round: {
+          id: newRound.id,
+          status: newRound.status,
+          closesAt: newRound.closesAt,
+        },
+      });
+    }
+
+    if (action === 'start') {
+      const newRound = await createNewRound();
+      return NextResponse.json({
+        success: true,
+        message: 'New round started',
+        round: {
+          id: newRound.id,
+          status: newRound.status,
+          closesAt: newRound.closesAt,
+        },
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Invalid action. Use "start" or "reset"' },
+      { status: 400 }
+    );
+
+  } catch (err: any) {
+    console.error('[Coinflip] Round POST error:', err);
+    return NextResponse.json(
+      { success: false, error: 'Failed to process request' },
+      { status: 500 }
+    );
+  }
 }
