@@ -12,6 +12,41 @@ import {
   MIN_BET_AMOUNT,
   MAX_BET_AMOUNT,
 } from '@/lib/coinflip/types';
+import { redis } from '@/lib/redis';
+
+// Constants for autonomous agent triggering
+const AGENT_TRIGGER_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between auto-triggers
+const MIN_TIME_BEFORE_CLOSE_MS = 10 * 60 * 1000; // Don't trigger if less than 10 min left
+
+/**
+ * Trigger agent predictions internally (no HTTP call needed)
+ * This is called automatically when someone views the round
+ */
+async function triggerAgentPredictions() {
+  const adminKey = process.env.KEEPER_SECRET || process.env.COINFLIP_SECRET;
+  if (!adminKey) return;
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VERCEL_URL ||
+    'https://fcempowertours-production-6551.up.railway.app';
+
+  console.log('[Coinflip] Auto-triggering agent predictions...');
+
+  try {
+    const response = await fetch(`${baseUrl}/api/coinflip/agents/predict`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+    });
+
+    const data = await response.json();
+    console.log(`[Coinflip] Auto-trigger result: ${data.successfulBets?.length || 0} bets placed`);
+  } catch (err) {
+    console.error('[Coinflip] Auto-trigger fetch error:', err);
+  }
+}
 
 /**
  * GET /api/coinflip/round
@@ -36,6 +71,24 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const timeRemaining = Math.max(0, round.closesAt - now);
     const bettingOpen = round.status === 'open' && timeRemaining > 0;
+
+    // AUTONOMOUS AGENT TRIGGER: Wake up agents when someone views the round
+    // This makes agents truly autonomous - no cron needed!
+    if (bettingOpen && timeRemaining > MIN_TIME_BEFORE_CLOSE_MS) {
+      const lastTrigger = await redis.get<number>('coinflip:lastAgentTrigger');
+      const cooldownExpired = !lastTrigger || (now - lastTrigger) > AGENT_TRIGGER_COOLDOWN_MS;
+
+      // Only trigger if cooldown expired and not too many agents have bet
+      const agentBetCount = round.bets.length;
+
+      if (cooldownExpired && agentBetCount < 4) {
+        // Trigger agents in background (don't block response)
+        triggerAgentPredictions().catch(err =>
+          console.error('[Coinflip] Auto-trigger failed:', err)
+        );
+        await redis.set('coinflip:lastAgentTrigger', now);
+      }
+    }
 
     return NextResponse.json({
       success: true,
