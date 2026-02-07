@@ -229,13 +229,28 @@ Make your decision and explain your reasoning. Your response must be valid JSON:
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
 
-    // Parse JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
+    // Parse JSON from response - use non-greedy match to get first complete JSON object
+    // Also handle markdown code blocks
+    let jsonStr = text;
+
+    // Remove markdown code blocks if present
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1];
     }
 
-    const decision = JSON.parse(jsonMatch[0]) as AgentDecision;
+    // Find JSON object
+    const jsonMatch = jsonStr.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+    if (!jsonMatch) {
+      throw new Error(`No JSON found in response: ${text.slice(0, 100)}`);
+    }
+
+    let decision: AgentDecision;
+    try {
+      decision = JSON.parse(jsonMatch[0]) as AgentDecision;
+    } catch (parseErr) {
+      throw new Error(`Invalid JSON: ${jsonMatch[0].slice(0, 100)}`);
+    }
 
     // Validate decision
     if (decision.action === 'bet') {
@@ -252,12 +267,13 @@ Make your decision and explain your reasoning. Your response must be valid JSON:
 
     return decision;
   } catch (err: any) {
-    console.error(`[AgentPredict] Claude error for ${agentId}:`, err.message);
+    const errorMsg = err?.message || String(err) || 'Unknown error';
+    console.error(`[AgentPredict] Claude error for ${agentId}:`, errorMsg);
 
     // Fallback to skip if Claude fails
     return {
       action: 'skip',
-      reasoning: `Decision system error: ${err.message}. Sitting out this round for safety.`,
+      reasoning: `Decision system error: ${errorMsg}. Sitting out this round for safety.`,
       confidence: 0,
     };
   }
@@ -421,7 +437,8 @@ export async function POST(req: NextRequest) {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
       } catch (err: any) {
-        errors.push(`${personality.name}: ${err.message}`);
+        const errorMsg = err?.message || String(err) || 'Unknown error';
+        errors.push(`${personality.name}: ${errorMsg}`);
       }
     }
 
