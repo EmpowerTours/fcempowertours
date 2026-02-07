@@ -18,3 +18,8 @@ export { EventOracle } from './EventOracle';
 export { DAOModal } from './DAOModal';
 export { CrystalBall } from './CrystalBall';
 export { EPKModal } from './EPKModal';
+
+// AgentWorld Radio Components
+export { default as AgentRadio } from './AgentRadio';
+export { default as AgentMusicReaction, AnimatedAgentWithReaction } from './AgentMusicReaction';
+export { default as RadioUI, RadioUICompact } from './RadioUI';

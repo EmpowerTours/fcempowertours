@@ -17,6 +17,7 @@ import {
   MIN_BET_AMOUNT,
 } from '@/lib/coinflip/types';
 import { notifyDiscord } from '@/lib/discord-notify';
+import { addEvent, recordAgentAction } from '@/lib/world/state';
 
 const ERC20_ABI = [
   {
@@ -162,6 +163,19 @@ export async function POST(req: NextRequest) {
       `📊 Pool: ${totalPool} EMPTOURS | Heads: ${round.totalHeads} | Tails: ${round.totalTails}\n` +
       `⏰ Betting closes in **${timeRemaining}**`
     ).catch(err => console.error('[Coinflip] Discord notify error:', err));
+
+    // Record as world event (triggers agent movement in AgentWorld)
+    await addEvent({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'action',
+      agent: agentAddress,
+      agentName,
+      description: `Executed coinflip_bet (${prediction.toUpperCase()}, ${amount} EMPTOURS)`,
+      timestamp: Date.now(),
+    }).catch(err => console.error('[Coinflip] World event error:', err));
+
+    // Update agent's last action time
+    await recordAgentAction(agentAddress, '0').catch(() => {});
 
     console.log(`[Coinflip] Bet placed: ${agentName} bet ${amount} EMPTOURS on ${prediction}`);
 

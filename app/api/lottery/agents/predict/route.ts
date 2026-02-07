@@ -497,7 +497,7 @@ export async function POST(req: NextRequest) {
                 address: DAILY_LOTTERY_ADDRESS,
                 abi: parseAbi(['function buyTicketsFor(address beneficiary, uint256 userFid, uint256 ticketCount) external']),
                 functionName: 'buyTicketsFor',
-                args: [wallet.address, BigInt(0), BigInt(decision.ticketCount)], // fid=0 for non-Farcaster agents
+                args: [wallet.address, BigInt(1), BigInt(decision.ticketCount)], // fid=1 for non-Farcaster (contract requires fid > 0)
               });
               await publicClient.waitForTransactionReceipt({ hash });
 

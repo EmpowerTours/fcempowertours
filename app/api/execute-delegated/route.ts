@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
       'withdraw_to_user',      // Withdraw from own Safe to own wallet
       'create_climb',          // Create climbing location (35 WMON)
       'purchase_climb',        // Purchase climbing location access
+      'flip_coin',             // Play flip coin game (external contract)
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -5267,6 +5268,72 @@ ${enjoyText}
           action,
           userAddress,
           message: `Lottery draw requested! You'll receive 5-50 TOURS bonus for triggering the draw.`,
+        });
+      }
+
+      // ==================== FLIP COIN GAME ====================
+      case 'flip_coin': {
+        console.log('🪙 Action: flip_coin (external game contract)');
+
+        const FLIP_COIN_CONTRACT = '0xfE2ff247FCF671A59e69F1608E0A2eEda05139b4' as Address;
+
+        // Get bet parameters
+        const choice = params?.choice === 'heads' || params?.choice === true; // true = heads, false = tails
+        const betAmountMon = params?.betAmount || '0.1'; // Default 0.1 MON
+
+        // Validate bet amount
+        const betAmountWei = parseEther(betAmountMon);
+        const minBet = parseEther('0.0001'); // 0.0001 MON
+        const maxBet = parseEther('100'); // 100 MON
+
+        if (betAmountWei < minBet || betAmountWei > maxBet) {
+          return NextResponse.json({
+            success: false,
+            error: `Bet amount must be between 0.0001 and 100 MON. You tried to bet ${betAmountMon} MON.`
+          }, { status: 400 });
+        }
+
+        console.log('🪙 Flip coin game:', {
+          choice: choice ? 'HEADS' : 'TAILS',
+          betAmount: betAmountMon + ' MON',
+          contract: FLIP_COIN_CONTRACT,
+          player: userAddress,
+        });
+
+        // Call flip(bool choice) with value
+        const flipCoinCalls: Call[] = [
+          {
+            to: FLIP_COIN_CONTRACT,
+            value: betAmountWei,
+            data: encodeFunctionData({
+              abi: parseAbi(['function flip(bool choice) external payable returns (bool won, uint256 payout, bool resultWasHeads)']),
+              functionName: 'flip',
+              args: [choice],
+            }) as Hex,
+          },
+        ];
+
+        // Execute through User Safe (user pays from their Safe balance)
+        const flipCoinTxHash = await executeTransaction(flipCoinCalls, userAddress as Address, betAmountWei);
+
+        // Read the result by checking balance change
+        // Note: We can't easily decode the return value, so we return the tx hash
+        // and let the frontend parse the logs or check balance
+
+        if (requiresDelegation) {
+          await incrementTransactionCount(userAddress);
+        }
+
+        console.log('🪙 Flip coin tx sent:', flipCoinTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: flipCoinTxHash,
+          action,
+          userAddress,
+          choice: choice ? 'HEADS' : 'TAILS',
+          betAmount: betAmountMon,
+          message: `Coin flipped! You bet ${betAmountMon} MON on ${choice ? 'HEADS' : 'TAILS'}. Check tx for result.`,
         });
       }
 

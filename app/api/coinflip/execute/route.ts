@@ -16,12 +16,30 @@ import {
   resolveRound,
   updateAgentStats,
   createNewRound,
+  calculateConsolationPrizes,
 } from '@/lib/coinflip/state';
 import {
   COINFLIP_CONTRACT,
   CoinflipPrediction,
+  TOURS_TOKEN,
+  ConsolationPrize,
 } from '@/lib/coinflip/types';
 import { notifyDiscord } from '@/lib/discord-notify';
+import { addEvent } from '@/lib/world/state';
+
+// ERC20 ABI for TOURS token transfer
+const ERC20_ABI = [
+  {
+    type: 'function',
+    name: 'transfer',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+] as const;
 
 // AicoinflipMON ABI (minimal - just the flip function)
 const COINFLIP_ABI = [
@@ -175,14 +193,56 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update agent stats
+    // Update agent stats and record world events
     for (const winner of resolution.winners) {
       await updateAgentStats(winner.agentAddress, true, winner.betAmount, winner.totalPayout);
+      // Record win event (triggers celebration in AgentWorld)
+      await addEvent({
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'action',
+        agent: winner.agentAddress,
+        agentName: winner.agentName,
+        description: `Executed coinflip_win (+${winner.winnings} EMPTOURS)`,
+        txHash,
+        timestamp: Date.now(),
+      }).catch(() => {});
     }
     for (const loserAddr of resolution.losers) {
       const loserBet = round.bets.find(b => b.agentAddress === loserAddr);
       if (loserBet) {
         await updateAgentStats(loserAddr, false, loserBet.amount, '0');
+        // Record loss event
+        await addEvent({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'action',
+          agent: loserAddr,
+          agentName: loserBet.agentName,
+          description: `Executed coinflip_lose (-${loserBet.amount} EMPTOURS)`,
+          txHash,
+          timestamp: Date.now(),
+        }).catch(() => {});
+      }
+    }
+
+    // Calculate and distribute TOURS consolation prizes to losers
+    const consolationPrizes = calculateConsolationPrizes(round, result, txHash);
+    resolution.consolationPrizes = consolationPrizes;
+
+    // Distribute TOURS to losers (uses tx hash as entropy for random 1-5x multiplier)
+    const consolationTxHashes: string[] = [];
+    for (const prize of consolationPrizes) {
+      try {
+        const prizeWei = parseEther(prize.amount);
+        const prizeTxHash = await walletClient.writeContract({
+          address: TOURS_TOKEN,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [prize.agentAddress as `0x${string}`, prizeWei],
+        });
+        consolationTxHashes.push(prizeTxHash);
+        console.log(`[Coinflip] Sent ${prize.amount} TOURS (${prize.multiplier}x) to ${prize.agentName}: ${prizeTxHash}`);
+      } catch (err: any) {
+        console.error(`[Coinflip] Failed to send consolation to ${prize.agentName}:`, err.message);
       }
     }
 
@@ -191,14 +251,18 @@ export async function POST(req: NextRequest) {
       ? resolution.winners.map(w => `• ${w.agentName}: +${w.winnings} EMPTOURS`).join('\n')
       : 'No winners this round';
 
-    const losersText = resolution.losers.length > 0
-      ? `${resolution.losers.length} agent(s) lost their bets`
+    const consolationText = consolationPrizes.length > 0
+      ? consolationPrizes.map(p => `• ${p.agentName}: +${p.amount} TOURS (${p.multiplier}x)`).join('\n')
+      : '';
+
+    const losersSection = resolution.losers.length > 0
+      ? `🎁 **Consolation Prizes (TOURS):**\n${consolationText}`
       : '';
 
     await notifyDiscord(
       `🎲 **Coinflip Round ${round.id} - ${result.toUpperCase()} WINS!**\n\n` +
       `💰 **Winners:**\n${winnersText}\n\n` +
-      `❌ ${losersText}\n\n` +
+      `${losersSection}\n\n` +
       `[View TX](https://monadscan.com/tx/${txHash})`
     ).catch(console.error);
 

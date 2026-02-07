@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       movement,
-      position: target ? ZONE_POSITIONS[target as WorldZoneTarget] : ZONE_POSITIONS.center,
+      position: target ? ZONE_POSITIONS[target as keyof typeof ZONE_POSITIONS] : ZONE_POSITIONS.center,
       message: `Movement recorded: ${action}${target ? ` to ${target}` : ''}`,
     });
   } catch (err: unknown) {

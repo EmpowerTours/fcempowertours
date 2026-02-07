@@ -50,6 +50,11 @@ export async function POST(req: NextRequest) {
 - "draw lottery" - Trigger draw (when round ended)
 - "force draw" - Force draw/rollover
 
+🪙 **Flip Coin Game:**
+- "flip coin" - Flip a coin (0.1 MON bet)
+- "flip coin heads 0.5" - Bet 0.5 MON on heads
+- "flip coin tails 1" - Bet 1 MON on tails
+
 💰 **Balance & Wallet:**
 - "link wallet" - Link your wallet (required first)
 - "deposit" - Get deposit address
@@ -961,6 +966,136 @@ A new round will start shortly!`,
         return NextResponse.json({
           success: false,
           message: `Failed to trigger rollover: ${err.message}`
+        });
+      }
+    }
+
+    // ==================== FLIP COIN COMMAND ====================
+    if (lowerCommand.startsWith('flip coin') || lowerCommand.startsWith('flip ')) {
+      console.log('[BOT-FLIP] Flip coin command received:', { command: lowerCommand, discordId });
+
+      if (!discordId) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discord ID not found. Please try again.'
+        });
+      }
+
+      // Parse: "flip coin", "flip coin heads", "flip coin tails 0.5", "flip heads 1"
+      let choice = Math.random() > 0.5; // Random if not specified
+      let betAmount = '0.1'; // Default 0.1 MON
+
+      // Check for heads/tails choice
+      if (lowerCommand.includes('heads')) {
+        choice = true;
+      } else if (lowerCommand.includes('tails')) {
+        choice = false;
+      }
+
+      // Check for bet amount
+      const amountMatch = lowerCommand.match(/(\d+\.?\d*)\s*(?:mon)?$/i);
+      if (amountMatch) {
+        betAmount = amountMatch[1];
+      }
+
+      // Validate bet amount
+      const betNum = parseFloat(betAmount);
+      if (betNum < 0.0001 || betNum > 100) {
+        return NextResponse.json({
+          success: false,
+          message: `Invalid bet amount. Must be between 0.0001 and 100 MON. You tried: ${betAmount} MON`
+        });
+      }
+
+      try {
+        // First check if user has a linked wallet with a Safe
+        const safeInfoRes = await fetch(`${APP_URL}/api/discord/balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'get_safe_info',
+            discordId,
+          }),
+        });
+
+        const safeInfo = await safeInfoRes.json();
+
+        if (!safeInfo.success || !safeInfo.safeAddress) {
+          return NextResponse.json({
+            success: false,
+            message: `🪙 **Flip Coin - Wallet Required**
+
+You need to link your wallet first to play.
+
+1️⃣ \`link wallet\` - Get wallet linking page
+2️⃣ Fund your Safe with MON
+3️⃣ Come back and \`flip coin\`!`
+          });
+        }
+
+        // Check Safe balance
+        const safeBalance = parseFloat(safeInfo.balance || '0');
+        if (safeBalance < betNum + 0.01) { // Need bet + small gas buffer
+          return NextResponse.json({
+            success: false,
+            message: `🪙 **Insufficient Balance**
+
+Your Safe has ${safeBalance.toFixed(4)} MON.
+You need at least ${(betNum + 0.01).toFixed(4)} MON to bet ${betAmount} MON.
+
+Use \`fund safe\` to add more MON.`
+          });
+        }
+
+        console.log('[BOT-FLIP] Executing flip coin:', {
+          choice: choice ? 'HEADS' : 'TAILS',
+          betAmount,
+          userAddress: safeInfo.linkedWallet,
+        });
+
+        // Execute the flip coin action
+        const flipRes = await fetch(`${APP_URL}/api/execute-delegated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: safeInfo.linkedWallet,
+            action: 'flip_coin',
+            params: {
+              choice: choice ? 'heads' : 'tails',
+              betAmount,
+            },
+          }),
+        });
+
+        const flipResult = await flipRes.json();
+
+        if (flipResult.success) {
+          const txLink = `https://monadscan.com/tx/${flipResult.txHash}`;
+          return NextResponse.json({
+            success: true,
+            action: 'transaction',
+            message: `🪙 **Coin Flipped!**
+
+🎲 Choice: ${choice ? 'HEADS' : 'TAILS'}
+💰 Bet: ${betAmount} MON
+📍 Contract: 0xfE2...9b4
+
+🔗 [View result on Monadscan](${txLink})
+
+Check the transaction to see if you won! Win = 2x payout minus house edge.`,
+            txHash: flipResult.txHash,
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            message: `❌ Flip failed: ${flipResult.error}`
+          });
+        }
+      } catch (err: any) {
+        console.error('[BOT-FLIP] Error:', err);
+        return NextResponse.json({
+          success: false,
+          message: `Failed to flip coin: ${err.message}`
         });
       }
     }
