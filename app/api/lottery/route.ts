@@ -1,8 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, formatEther, Address } from 'viem';
 import { activeChain } from '@/app/chains';
+import { redis } from '@/lib/redis';
 
 const DAILY_LOTTERY_ADDRESS = process.env.NEXT_PUBLIC_DAILY_LOTTERY as Address;
+
+// Auto-trigger lottery agents every 2 hours
+const LOTTERY_AGENT_TRIGGER_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Trigger lottery agent predictions (autonomous, no cron needed)
+ */
+async function triggerLotteryAgents() {
+  const adminKey = process.env.KEEPER_SECRET || process.env.COINFLIP_SECRET;
+  if (!adminKey) return;
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VERCEL_URL ||
+    'https://fcempowertours-production-6551.up.railway.app';
+
+  console.log('[Lottery] Auto-triggering agent predictions...');
+
+  try {
+    const response = await fetch(`${baseUrl}/api/lottery/agents/predict`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+    });
+
+    const data = await response.json();
+    console.log(`[Lottery] Auto-trigger result: ${data.successfulPurchases?.length || 0} agents bought tickets`);
+  } catch (err) {
+    console.error('[Lottery] Auto-trigger fetch error:', err);
+  }
+}
 
 const client = createPublicClient({
   chain: activeChain,
@@ -133,6 +166,21 @@ export async function GET(req: NextRequest) {
     ]);
 
     const [roundId, startTime, endTime, prizePool, ticketCount, timeRemaining, canDraw, willRollover] = currentRound;
+
+    // AUTONOMOUS AGENT TRIGGER: Wake up lottery agents periodically
+    const now = Date.now();
+    const timeRemainingNum = Number(timeRemaining);
+    if (timeRemainingNum > 3600) { // More than 1 hour left
+      const lastTrigger = await redis.get<number>('lottery:lastAgentTrigger');
+      const cooldownExpired = !lastTrigger || (now - lastTrigger) > LOTTERY_AGENT_TRIGGER_COOLDOWN_MS;
+
+      if (cooldownExpired) {
+        triggerLotteryAgents().catch(err =>
+          console.error('[Lottery] Auto-trigger failed:', err)
+        );
+        await redis.set('lottery:lastAgentTrigger', now);
+      }
+    }
 
     const response: any = {
       success: true,
