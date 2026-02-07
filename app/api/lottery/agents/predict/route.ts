@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, formatEther, parseEther, createPublicClient, createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { Address, formatEther, parseEther, createPublicClient, http } from 'viem';
 import Anthropic from '@anthropic-ai/sdk';
 import { activeChain } from '@/app/chains';
 import { notifyDiscord } from '@/lib/discord-notify';
@@ -456,23 +455,29 @@ export async function POST(req: NextRequest) {
           // Calculate cost
           const totalCost = ticketCost * BigInt(decision.ticketCount);
 
-          if (balance >= totalCost + parseEther('0.01')) { // Keep some for gas
-            // Execute purchase
-            const account = privateKeyToAccount(wallet.privateKey as `0x${string}`);
-            const walletClient = createWalletClient({
-              account,
-              chain: activeChain,
-              transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
-            });
-
+          if (balance >= totalCost + parseEther('0.5')) { // Keep enough for gas + entropy fee
+            // Execute purchase via world action API (handles WMON wrapping)
             try {
-              const hash = await walletClient.writeContract({
-                address: DAILY_LOTTERY_ADDRESS,
-                abi: LOTTERY_ABI,
-                functionName: 'buyTickets',
-                args: [BigInt(decision.ticketCount)],
-                value: totalCost,
+              const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                'https://fcempowertours-production-6551.up.railway.app';
+
+              const actionResponse = await fetch(`${baseUrl}/api/world/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  agentAddress: wallet.address,
+                  action: 'daily_lottery_buy',
+                  params: { ticketCount: decision.ticketCount }
+                }),
               });
+
+              const actionResult = await actionResponse.json();
+
+              if (!actionResult.success) {
+                throw new Error(actionResult.error || 'Action failed');
+              }
+
+              const hash = actionResult.txHash;
 
               // Update memory
               memory.totalRoundsPlayed++;
