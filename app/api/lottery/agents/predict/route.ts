@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, formatEther, parseEther, createPublicClient, http } from 'viem';
+import { Address, formatEther, parseEther, createPublicClient, createWalletClient, http, encodeFunctionData, parseAbi } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import Anthropic from '@anthropic-ai/sdk';
+
+const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701') as Address;
 import { activeChain } from '@/app/chains';
 import { notifyDiscord } from '@/lib/discord-notify';
 import { redis } from '@/lib/redis';
@@ -455,29 +458,48 @@ export async function POST(req: NextRequest) {
           // Calculate cost
           const totalCost = ticketCost * BigInt(decision.ticketCount);
 
-          if (balance >= totalCost + parseEther('0.5')) { // Keep enough for gas + entropy fee
-            // Execute purchase via world action API (handles WMON wrapping)
+          if (balance >= totalCost + parseEther('0.5')) { // Keep enough for gas
+            // Execute purchase with agent's own wallet
+            // Steps: 1) Wrap MON to WMON, 2) Approve lottery, 3) Buy tickets
             try {
-              const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
-                'https://fcempowertours-production-6551.up.railway.app';
-
-              const actionResponse = await fetch(`${baseUrl}/api/world/action`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  agentAddress: wallet.address,
-                  action: 'daily_lottery_buy',
-                  params: { ticketCount: decision.ticketCount }
-                }),
+              const account = privateKeyToAccount(wallet.privateKey as `0x${string}`);
+              const walletClient = createWalletClient({
+                account,
+                chain: activeChain,
+                transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
               });
 
-              const actionResult = await actionResponse.json();
+              // Step 1: Wrap MON to WMON
+              console.log(`[LotteryAgent] ${personality.name} wrapping ${formatEther(totalCost)} MON to WMON...`);
+              const wrapHash = await walletClient.sendTransaction({
+                to: WMON_ADDRESS,
+                value: totalCost,
+                data: encodeFunctionData({
+                  abi: parseAbi(['function deposit() external payable']),
+                  functionName: 'deposit',
+                }),
+              });
+              await publicClient.waitForTransactionReceipt({ hash: wrapHash });
 
-              if (!actionResult.success) {
-                throw new Error(actionResult.error || 'Action failed');
-              }
+              // Step 2: Approve lottery to spend WMON
+              console.log(`[LotteryAgent] ${personality.name} approving lottery contract...`);
+              const approveHash = await walletClient.writeContract({
+                address: WMON_ADDRESS,
+                abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+                functionName: 'approve',
+                args: [DAILY_LOTTERY_ADDRESS, totalCost],
+              });
+              await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-              const hash = actionResult.txHash;
+              // Step 3: Buy tickets with WMON
+              console.log(`[LotteryAgent] ${personality.name} buying ${decision.ticketCount} tickets...`);
+              const hash = await walletClient.writeContract({
+                address: DAILY_LOTTERY_ADDRESS,
+                abi: parseAbi(['function buyTicketsWithWMON(uint256 ticketCount) external']),
+                functionName: 'buyTicketsWithWMON',
+                args: [BigInt(decision.ticketCount)],
+              });
+              await publicClient.waitForTransactionReceipt({ hash });
 
               // Update memory
               memory.totalRoundsPlayed++;
