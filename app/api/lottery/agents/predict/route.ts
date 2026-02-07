@@ -558,8 +558,14 @@ export async function POST(req: NextRequest) {
         .map(p => `**${p.agentName}** (${p.confidence}% confident)\n└ Bought: ${p.ticketCount} ticket(s) for ${p.totalCost} WMON\n└ "${p.reasoning.slice(0, 100)}..."`)
         .join('\n\n');
 
+      // Calculate updated totals after purchases
+      const totalNewTickets = successfulPurchases.reduce((sum, p) => sum + p.ticketCount, 0);
+      const totalNewSpent = successfulPurchases.reduce((sum, p) => sum + parseFloat(p.totalCost), 0);
+      const updatedPrizePool = (parseFloat(lotteryState.prizePool) + totalNewSpent).toFixed(0);
+      const updatedTicketCount = lotteryState.ticketCount + totalNewTickets;
+
       await notifyDiscord(
-        `🎰 **Autonomous Lottery Decisions - Round #${lotteryState.roundId}**\n\n${summary}\n\n💰 Prize Pool: ${lotteryState.prizePool} WMON | 🎟️ Total Tickets: ${lotteryState.ticketCount + successfulPurchases.reduce((sum, p) => sum + p.ticketCount, 0)}`
+        `🎰 **Autonomous Lottery Decisions - Round #${lotteryState.roundId}**\n\n${summary}\n\n💰 Prize Pool: ${updatedPrizePool} WMON | 🎟️ Total Tickets: ${updatedTicketCount}`
       ).catch((err) => console.error('[LotteryAgent] Discord error:', err));
     }
 
