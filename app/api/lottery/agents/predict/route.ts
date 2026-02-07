@@ -491,13 +491,13 @@ export async function POST(req: NextRequest) {
               });
               await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-              // Step 3: Buy tickets with WMON
+              // Step 3: Buy tickets with WMON (using buyTicketsFor - agent buys for itself)
               console.log(`[LotteryAgent] ${personality.name} buying ${decision.ticketCount} tickets...`);
               const hash = await walletClient.writeContract({
                 address: DAILY_LOTTERY_ADDRESS,
-                abi: parseAbi(['function buyTicketsWithWMON(uint256 ticketCount) external']),
-                functionName: 'buyTicketsWithWMON',
-                args: [BigInt(decision.ticketCount)],
+                abi: parseAbi(['function buyTicketsFor(address beneficiary, uint256 userFid, uint256 ticketCount) external']),
+                functionName: 'buyTicketsFor',
+                args: [wallet.address, BigInt(0), BigInt(decision.ticketCount)], // fid=0 for non-Farcaster agents
               });
               await publicClient.waitForTransactionReceipt({ hash });
 
