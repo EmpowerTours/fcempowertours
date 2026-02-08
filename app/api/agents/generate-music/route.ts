@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, formatEther, createWalletClient, createPublicClient, http, parseAbi } from 'viem';
+import { Address, formatEther, parseEther, createWalletClient, createPublicClient, http, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import Anthropic from '@anthropic-ai/sdk';
 import { redis } from '@/lib/redis';
@@ -29,8 +29,25 @@ const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 // AgentMusicNFT ABI for mintMusic function
 const AGENT_MUSIC_NFT_ABI = parseAbi([
   'function mintMusic(address creator, string calldata agentId, string calldata agentName, string calldata title, string calldata genre, string calldata mood, uint256 tempo, string calldata musicalKey, string calldata lyrics, string calldata tokenURI) external returns (uint256)',
+  'function listForSale(uint256 tokenId, uint256 price) external',
+  'function minSalePrice() external view returns (uint256)',
   'event MusicMinted(uint256 indexed tokenId, address indexed creator, string agentId, string title)',
 ]);
+
+// Agent private keys for listing NFTs
+const AGENT_PRIVATE_KEYS: Record<string, string> = {
+  chaos: process.env.CHAOS_AGENT_KEY || '',
+  conservative: process.env.CONSERVATIVE_AGENT_KEY || '',
+  whale: process.env.WHALE_AGENT_KEY || '',
+  lucky: process.env.LUCKY_AGENT_KEY || '',
+  analyst: process.env.ANALYST_AGENT_KEY || '',
+  martingale: process.env.MARTINGALE_AGENT_KEY || '',
+  pessimist: process.env.PESSIMIST_AGENT_KEY || '',
+  contrarian: process.env.CONTRARIAN_AGENT_KEY || '',
+};
+
+// Default listing price in EMPTOURS (50 EMPTOURS)
+const DEFAULT_LISTING_PRICE = parseEther('50');
 
 // Agent personalities for music creation
 const AGENT_PERSONALITIES: Record<string, {
@@ -253,7 +270,7 @@ async function mintAgentMusicNFT(
   agentName: string,
   music: MusicCreation,
   tokenURI: string
-): Promise<{ success: boolean; tokenId?: number; txHash?: string; error?: string }> {
+): Promise<{ success: boolean; tokenId?: number; txHash?: string; listingTxHash?: string; listingPrice?: string; error?: string }> {
   // Check if NFT contract is configured
   if (!AGENT_MUSIC_NFT_ADDRESS) {
     console.log('[MusicGen] NEXT_PUBLIC_AGENT_MUSIC_NFT not configured, skipping mint');
@@ -334,10 +351,59 @@ async function mintAgentMusicNFT(
 
     console.log(`[MusicGen] NFT minted successfully! Token ID: ${tokenId}, TX: ${hash}`);
 
+    // Auto-list the NFT for sale so other agents can buy it
+    let listingTxHash: string | undefined;
+    if (tokenId !== undefined) {
+      const agentPrivateKey = AGENT_PRIVATE_KEYS[agentId];
+      if (agentPrivateKey) {
+        try {
+          console.log(`[MusicGen] Listing token ${tokenId} for sale...`);
+
+          const agentAccount = privateKeyToAccount(agentPrivateKey as `0x${string}`);
+          const agentWalletClient = createWalletClient({
+            account: agentAccount,
+            chain: activeChain,
+            transport: http(MONAD_RPC),
+          });
+
+          // Get minimum sale price from contract
+          let listingPrice = DEFAULT_LISTING_PRICE;
+          try {
+            const minPrice = await publicClient.readContract({
+              address: AGENT_MUSIC_NFT_ADDRESS,
+              abi: AGENT_MUSIC_NFT_ABI,
+              functionName: 'minSalePrice',
+            }) as bigint;
+            if (minPrice > listingPrice) {
+              listingPrice = minPrice;
+            }
+          } catch {
+            // Use default if can't read
+          }
+
+          const listHash = await agentWalletClient.writeContract({
+            address: AGENT_MUSIC_NFT_ADDRESS,
+            abi: AGENT_MUSIC_NFT_ABI,
+            functionName: 'listForSale',
+            args: [BigInt(tokenId), listingPrice],
+          });
+
+          await publicClient.waitForTransactionReceipt({ hash: listHash });
+          listingTxHash = listHash;
+
+          console.log(`[MusicGen] NFT listed for ${formatEther(listingPrice)} EMPTOURS! TX: ${listHash}`);
+        } catch (listErr: any) {
+          console.error('[MusicGen] Failed to list NFT for sale:', listErr.message);
+        }
+      }
+    }
+
     return {
       success: true,
       tokenId,
       txHash: hash,
+      listingTxHash,
+      listingPrice: formatEther(DEFAULT_LISTING_PRICE),
     };
   } catch (err: any) {
     console.error('[MusicGen] NFT minting failed:', err);
