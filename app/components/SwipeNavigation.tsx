@@ -31,8 +31,7 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
     // /nft = Create NFT page
     // /dashboard = User Dashboard
     // /passport = Passport Minting
-    // /staking = DeFi Staking
-    const basePages = ['/', '/nft', '/dashboard', '/passport', '/staking'];
+    const basePages = ['/', '/nft', '/dashboard', '/passport'];
     if (user) {
       return [...basePages, '/profile'];
     }
