@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 import { getAllAgents, getAgent } from '@/lib/world/state';
 import { WorldRateLimits } from '@/lib/world/types';
+import { getAgentDisplayName } from '@/lib/agents/personalities';
 
 /**
  * GET /api/world/agents
@@ -39,16 +40,28 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      return NextResponse.json({ success: true, agent });
+      // Use personality name for known AI agents
+      const agentWithDisplayName = {
+        ...agent,
+        name: getAgentDisplayName(agent.address, agent.name),
+      };
+
+      return NextResponse.json({ success: true, agent: agentWithDisplayName });
     }
 
-    // List all agents
+    // List all agents with correct personality names
     const agents = await getAllAgents();
+
+    // Map agents to use personality names for known AI agents
+    const agentsWithDisplayNames = agents.map((agent) => ({
+      ...agent,
+      name: getAgentDisplayName(agent.address, agent.name),
+    }));
 
     return NextResponse.json({
       success: true,
-      total: agents.length,
-      agents,
+      total: agentsWithDisplayNames.length,
+      agents: agentsWithDisplayNames,
     });
   } catch (err: any) {
     console.error('[World] Agents error:', err);

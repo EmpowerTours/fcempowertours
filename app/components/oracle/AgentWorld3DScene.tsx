@@ -392,7 +392,6 @@ function RobotAgent({
               ? 'bg-green-500/80 text-white'
               : 'bg-gray-700/80 text-gray-300'
         }`}>
-          {isAIControlled && <span className="mr-1">🤖</span>}
           {name.length > 12 ? name.slice(0, 12) + '...' : name}
           {(active || isAIControlled) && <span className="ml-1 animate-pulse">●</span>}
         </div>

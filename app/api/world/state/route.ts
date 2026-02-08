@@ -12,6 +12,7 @@ import {
   TOURS_TOKEN,
   EMPTOURS_TOKEN,
 } from '@/lib/world/types';
+import { getAgentDisplayName } from '@/lib/agents/personalities';
 
 const AVAILABLE_ACTIONS: WorldActionType[] = Object.keys(ACTION_MAP) as WorldActionType[];
 
@@ -33,12 +34,18 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch data in parallel
-    const [agents, economy, token, events] = await Promise.all([
+    const [agents, economy, token, rawEvents] = await Promise.all([
       getAllAgents(),
       getEconomyData(),
       getTokenInfo(),
       getRecentEvents(20),
     ]);
+
+    // Fix agent names in events to use personality names
+    const events = rawEvents.map((event) => ({
+      ...event,
+      agentName: getAgentDisplayName(event.agent, event.agentName),
+    }));
 
     const now = Date.now();
     const activeThreshold = now - 5 * 60 * 1000; // Active in last 5 minutes
