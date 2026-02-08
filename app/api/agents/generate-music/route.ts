@@ -620,6 +620,23 @@ export async function POST(req: NextRequest) {
       (toursTxHash ? `\n🔗 [Reward TX](https://monadscan.com/tx/${toursTxHash})` : '')
     ).catch(() => {});
 
+    // Trigger autonomous music buying - agents with high appreciation will try to buy
+    // Fire and forget - don't block the response
+    if (mintedTokenId !== undefined) {
+      const buyMusicUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app'}/api/agents/buy-music`;
+      fetch(buyMusicUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': process.env.KEEPER_SECRET || '',
+        },
+      }).then(res => res.json()).then(data => {
+        if (data.successfulPurchases?.length > 0) {
+          console.log(`[MusicGen] Triggered ${data.successfulPurchases.length} autonomous purchases`);
+        }
+      }).catch(() => {});
+    }
+
     return NextResponse.json({
       success: true,
       songId,
