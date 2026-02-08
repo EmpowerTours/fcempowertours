@@ -169,7 +169,7 @@ export interface WorldChatMessage {
 /** World event log entry */
 export interface WorldEvent {
   id: string;
-  type: 'enter' | 'action' | 'chat' | 'achievement';
+  type: 'enter' | 'action' | 'chat' | 'achievement' | 'music';
   agent: string;
   agentName: string;
   description: string;

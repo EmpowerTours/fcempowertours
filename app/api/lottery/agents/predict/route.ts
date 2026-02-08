@@ -429,11 +429,27 @@ export async function POST(req: NextRequest) {
         // Check if can afford at least 1 ticket
         const ticketCost = parseEther(lotteryState.ticketPrice);
         if (balance < ticketCost) {
+          // Broke agent - trigger music generation to earn TOURS
+          console.log(`[LotteryAgent] ${personality.name} is broke - triggering music creation...`);
+
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fcempowertours-production-6551.up.railway.app';
+          fetch(`${baseUrl}/api/agents/generate-music`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-key': process.env.KEEPER_SECRET || '',
+            },
+            body: JSON.stringify({
+              agentId,
+              reason: `Can't afford lottery tickets (have ${balanceEth} MON, need ${lotteryState.ticketPrice} WMON per ticket)`,
+            }),
+          }).catch((err) => console.error(`[LotteryAgent] Music gen failed for ${agentId}:`, err));
+
           decisions.push({
             agentId,
             agentName: personality.name,
-            action: 'skip',
-            reasoning: 'Insufficient balance for tickets',
+            action: 'music',
+            reasoning: `Broke! Creating music to earn TOURS instead (balance: ${parseFloat(balanceEth).toFixed(4)} MON)`,
           });
           continue;
         }

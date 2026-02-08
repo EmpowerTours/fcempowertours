@@ -19,7 +19,7 @@ interface WorldAgent {
 
 interface WorldEvent {
   id: string;
-  type: 'enter' | 'action' | 'chat' | 'achievement';
+  type: 'enter' | 'action' | 'chat' | 'achievement' | 'music';
   agent: string;
   agentName: string;
   description: string;
@@ -222,7 +222,7 @@ export function AgentWorldModal({
           <div
             className="flex gap-8 animate-marquee whitespace-nowrap"
             style={{
-              animation: 'marquee 30s linear infinite',
+              animation: 'marquee 90s linear infinite',
             }}
           >
             {(worldState?.recentEvents || []).concat(worldState?.recentEvents || []).map((event: WorldEvent, idx: number) => (
@@ -231,6 +231,7 @@ export function AgentWorldModal({
                 className={`inline-flex items-center gap-2 text-xs ${
                   event.type === 'enter' ? 'text-green-400' :
                   event.type === 'action' ? 'text-yellow-400' :
+                  event.type === 'music' ? 'text-pink-400' :
                   'text-cyan-400'
                 }`}
               >

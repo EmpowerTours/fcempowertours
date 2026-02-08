@@ -354,11 +354,30 @@ export async function POST(req: NextRequest) {
         const balance = parseFloat(holdings.emptours.balance);
 
         if (balance < parseFloat(MIN_BET_AMOUNT)) {
+          // BROKE AGENT: Trigger autonomous music generation instead of skipping!
+          console.log(`[AgentPredict] ${personality.name} is broke - triggering music creation...`);
+
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+            'https://fcempowertours-production-6551.up.railway.app';
+
+          // Fire and forget - don't block the main loop
+          fetch(`${baseUrl}/api/agents/generate-music`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-key': process.env.KEEPER_SECRET || '',
+            },
+            body: JSON.stringify({
+              agentId,
+              reason: `Can't afford coinflip bet (have ${balance.toFixed(2)} EMPTOURS, need ${MIN_BET_AMOUNT})`,
+            }),
+          }).catch(() => {});
+
           decisions.push({
             agentId,
             agentName: personality.name,
-            action: 'skip',
-            reasoning: `Insufficient balance: ${balance.toFixed(2)} EMPTOURS (need ${MIN_BET_AMOUNT})`,
+            action: 'music',
+            reasoning: `Broke! Creating music to earn TOURS instead (balance: ${balance.toFixed(2)} EMPTOURS)`,
           });
           continue;
         }
