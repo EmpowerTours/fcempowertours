@@ -15,10 +15,26 @@ export async function GET(
   // Dynamic passport image with stamps from indexer
   const imageUrl = `${APP_URL}/api/passport/image/${tokenId}`;
 
-  // Target URL when frame button is clicked - opens mini app to profile
-  const targetUrl = `${APP_URL}/profile`;
+  // Target URL when frame button is clicked - opens mini app to passport page
+  const targetUrl = `${APP_URL}/passport?tokenId=${tokenId}`;
 
-  // Return HTML with Frame v2 meta tags
+  // Frame v2/vNext JSON format for mini app launch (same as music frame)
+  const frameData = {
+    version: 'next',
+    imageUrl: imageUrl,
+    button: {
+      title: '🎫 View Passport',
+      action: {
+        type: 'launch_frame',
+        name: 'EmpowerTours',
+        url: targetUrl,
+        splashImageUrl: `${APP_URL}/images/splash.png`,
+        splashBackgroundColor: '#353B48'
+      }
+    }
+  };
+
+  // Return HTML with Frame v2 meta tags (JSON format)
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -32,25 +48,29 @@ export async function GET(
   <meta property="og:image" content="${imageUrl}">
   <meta property="og:url" content="${APP_URL}/api/frames/passport/${tokenId}">
 
-  <!-- Farcaster Frame v2 / Mini App -->
-  <meta property="fc:frame" content="vNext">
-  <meta property="fc:frame:image" content="${imageUrl}">
-  <meta property="fc:frame:image:aspect_ratio" content="1.91:1">
-  <meta property="fc:frame:button:1" content="View Passport">
-  <meta property="fc:frame:button:1:action" content="launch_frame">
-  <meta property="fc:frame:button:1:target" content="${targetUrl}">
+  <!-- Twitter card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="EmpowerTours Passport #${tokenId}">
+  <meta name="twitter:image" content="${imageUrl}">
+
+  <!-- Farcaster Frame v2/vNext with Mini App Launch (JSON format) -->
+  <meta name="fc:frame" content='${JSON.stringify(frameData)}'>
+  <meta name="of:version" content="vNext">
+  <meta name="of:accepts:farcaster" content="vNext">
+  <meta name="of:image" content="${imageUrl}">
 </head>
-<body>
+<body style="background: #353B48; margin: 0; padding: 40px; font-family: system-ui, sans-serif; color: white; text-align: center;">
   <h1>EmpowerTours Passport #${tokenId}</h1>
   <p>Open in Warpcast to view this passport in the EmpowerTours mini app.</p>
+  <p><a href="${targetUrl}" style="color: #00d4ff;">View Passport</a></p>
 </body>
 </html>`;
 
   return new NextResponse(html, {
     status: 200,
     headers: {
-      'Content-Type': 'text/html',
-      'Cache-Control': 'public, max-age=60',
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
     },
   });
 }

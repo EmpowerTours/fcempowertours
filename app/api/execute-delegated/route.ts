@@ -472,32 +472,32 @@ export async function POST(req: NextRequest) {
         const mintTxHash = await executeTransaction(mintCalls, userAddress as Address);
         console.log('✅ Mint successful, TX:', mintTxHash);
 
+        // Parse tokenId from mint receipt Transfer event (ALWAYS, not just for casts)
+        let mintedTokenId = 0;
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { activeChain } = await import('@/app/chains');
+          const receiptClient = createPublicClient({
+            chain: activeChain,
+            transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz'),
+          });
+          const receipt = await receiptClient.getTransactionReceipt({ hash: mintTxHash as `0x${string}` });
+          // ERC-721 Transfer event: Transfer(address,address,uint256) - tokenId is topic[3]
+          const transferLog = receipt.logs.find(
+            (log) => log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+              && log.address.toLowerCase() === PASSPORT_NFT.toLowerCase()
+          );
+          if (transferLog && transferLog.topics[3]) {
+            mintedTokenId = Number(BigInt(transferLog.topics[3]));
+            console.log('🎫 Minted passport tokenId:', mintedTokenId);
+          }
+        } catch (receiptErr) {
+          console.warn('⚠️ Could not parse tokenId from receipt:', receiptErr);
+        }
+
         // ✅ POST CAST WITH MINI-APP FRAME EMBED (opens in Farcaster mini-app, not browser)
         if (params?.fid) {
           try {
-            // Parse tokenId from mint receipt Transfer event
-            let mintedTokenId = 0;
-            try {
-              const { createPublicClient, http } = await import('viem');
-              const { activeChain } = await import('@/app/chains');
-              const receiptClient = createPublicClient({
-                chain: activeChain,
-                transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz'),
-              });
-              const receipt = await receiptClient.getTransactionReceipt({ hash: mintTxHash as `0x${string}` });
-              // ERC-721 Transfer event: Transfer(address,address,uint256) - tokenId is topic[3]
-              const transferLog = receipt.logs.find(
-                (log) => log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
-                  && log.address.toLowerCase() === PASSPORT_NFT.toLowerCase()
-              );
-              if (transferLog && transferLog.topics[3]) {
-                mintedTokenId = Number(BigInt(transferLog.topics[3]));
-                console.log('🎫 Minted passport tokenId:', mintedTokenId);
-              }
-            } catch (receiptErr) {
-              console.warn('⚠️ Could not parse tokenId from receipt:', receiptErr);
-            }
-
             // Use frame endpoint which has proper fc:frame meta with launch_frame action
             const frameUrl = `${APP_URL}/api/frames/passport/${mintedTokenId}`;
             const castText = `🎫 New Travel Passport NFT Minted!
@@ -544,6 +544,7 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
         return NextResponse.json({
           success: true,
           txHash: mintTxHash,
+          tokenId: mintedTokenId,
           action,
           userAddress,
           message: `Passport minted successfully`,
