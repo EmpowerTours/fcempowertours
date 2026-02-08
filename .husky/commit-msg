@@ -2,10 +2,11 @@
 
 commit_msg=$(cat "$1")
 
-# Block any mention of AI tools in commits
-if echo "$commit_msg" | grep -qiE "(claude|anthropic|chatgpt|openai|copilot)"; then
-  echo "❌ Commit message cannot mention AI tools"
-  echo "   Please remove any AI attribution from the commit message."
+# Block AI tools as commit co-authors only (Co-Authored-By line)
+# Mentions in commit message body are allowed
+if echo "$commit_msg" | grep -qiE "Co-Authored-By:.*(claude|anthropic|chatgpt|openai|copilot)"; then
+  echo "❌ Cannot use AI tools as commit co-author"
+  echo "   Please remove the Co-Authored-By line mentioning AI tools."
   exit 1
 fi
 

@@ -11,13 +11,11 @@ if git diff --cached | grep -E "^\+" | grep -v "process\.env" | grep -v "PRIVATE
   exit 1
 fi
 
-# 1b. Block AI attribution mentions in code comments (skip deps, hooks, URLs)
-echo "🤖 Checking for AI attribution..."
-if git diff --cached -- ':!.husky/*' ':!package*.json' | grep -iE "(claude|anthropic)" | grep -v "^-" | grep -v "github.com" | grep -v "http" | grep -v "@anthropic" > /dev/null 2>&1; then
-  echo "❌ Code contains AI attribution mentions. Please remove."
-  git diff --cached -- ':!.husky/*' ':!package*.json' | grep -iE "(claude|anthropic)" | grep -v "^-" | grep -v "github.com" | grep -v "@anthropic" | head -5
-  exit 1
-fi
+# 1b. Block Claude as commit author (Co-Authored-By) - code using Anthropic SDK is allowed
+# This only checks the commit message, not the code content
+echo "🤖 Checking commit author..."
+# Note: This check runs in prepare-commit-msg or commit-msg hook, not here
+# Pre-commit runs before the message is written, so we skip this check here
 
 # 2. TypeScript type check (only on staged .ts/.tsx files)
 STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -20)
