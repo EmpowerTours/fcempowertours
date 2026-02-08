@@ -24,6 +24,8 @@ const AI_ZONE_POSITIONS: Record<string, [number, number, number]> = {
   moltbook_station: [6, 0, 4],
   monad_portal: [8, 0, -6],
   nft_gallery: [5, 0, 3],
+  music_studio: [-4, 0, 8],      // Music creation zone
+  breeding_chamber: [8, 0, 4],   // Breeding zone
   center: [0, 0, 0],
 };
 
@@ -135,11 +137,20 @@ const ACTION_TARGETS: Record<string, [number, number, number]> = {
   coinflip_lose: [-6, 0, -6],
   coinflip_watch: [-6, 0, -6],
   coinflip_huddle: [-6, 0, -6],
+  // Music creation -> music studio
+  music_create: [-4, 0, 8],
+  music_generation: [-4, 0, 8],
+  generate_music: [-4, 0, 8],
   // Music actions -> near radio tower
   buy_music: [2, 0, 3],
   radio_queue_song: [1, 0, 2],
   radio_voice_note: [1, 0, -2],
   radio_claim_rewards: [2, 0, -1],
+  music_appreciation: [1, 0, 1],
+  // Breeding -> breeding chamber
+  breeding: [8, 0, 4],
+  breed: [8, 0, 4],
+  baby_born: [8, 0, 4],
   // Portal/chain actions -> near monad portal
   dao_vote_proposal: [7, 0, -5],
   dao_wrap: [7, 0, -4],
@@ -576,6 +587,133 @@ function MoltbookStation({ position }: { position: [number, number, number] }) {
   );
 }
 
+// Music Studio - where broke agents create music
+function MusicStudio({ position }: { position: [number, number, number] }) {
+  const noteRefs = useRef<THREE.Mesh[]>([]);
+  const micRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    // Floating music notes
+    noteRefs.current.forEach((note, i) => {
+      if (note) {
+        const t = state.clock.elapsedTime * 1.5 + i * 2;
+        note.position.y = 2.5 + Math.sin(t) * 0.5;
+        note.position.x = Math.sin(t * 0.5 + i) * 1.5;
+        note.rotation.z = Math.sin(t * 0.3) * 0.3;
+      }
+    });
+    // Microphone pulse
+    if (micRef.current) {
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 4) * 0.05;
+      micRef.current.scale.set(pulse, pulse, pulse);
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Studio Platform */}
+      <mesh position={[0, 0.05, 0]} receiveShadow>
+        <cylinderGeometry args={[2.5, 2.7, 0.1, 6]} />
+        <meshStandardMaterial color="#1a1a2e" roughness={0.8} />
+      </mesh>
+
+      {/* Microphone */}
+      <group position={[0, 0, 0]}>
+        <mesh position={[0, 1.5, 0]}>
+          <cylinderGeometry args={[0.03, 0.03, 1.5, 8]} />
+          <meshStandardMaterial color="#333" metalness={0.9} />
+        </mesh>
+        <mesh ref={micRef} position={[0, 2.4, 0]}>
+          <sphereGeometry args={[0.2, 16, 16]} />
+          <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.3} />
+        </mesh>
+        {/* Mic glow ring */}
+        <mesh position={[0, 2.4, 0]}>
+          <torusGeometry args={[0.25, 0.02, 8, 32]} />
+          <meshBasicMaterial color="#ff6b9d" transparent opacity={0.8} />
+        </mesh>
+      </group>
+
+      {/* Floating Music Notes */}
+      {['#ff6b9d', '#a855f7', '#06b6d4'].map((color, i) => (
+        <mesh key={i} ref={(el) => { if (el) noteRefs.current[i] = el; }} position={[0, 2.5, 0]}>
+          <sphereGeometry args={[0.15, 8, 8]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+        </mesh>
+      ))}
+
+      {/* Label */}
+      <Html position={[0, 3.5, 0]} center>
+        <div className="px-2 py-1 bg-pink-600 rounded text-[10px] text-white font-bold flex items-center gap-1">
+          <span>🎵</span> MUSIC STUDIO
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+// Breeding Chamber - where agents with high mutual appreciation breed
+function BreedingChamber({ position }: { position: [number, number, number] }) {
+  const heartRefs = useRef<THREE.Mesh[]>([]);
+  const ringRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    // Floating hearts
+    heartRefs.current.forEach((heart, i) => {
+      if (heart) {
+        const t = state.clock.elapsedTime * 2 + i * 1.5;
+        heart.position.y = 2 + Math.sin(t) * 0.8;
+        heart.position.x = Math.cos(t * 0.7 + i * 2) * 1.2;
+        heart.position.z = Math.sin(t * 0.7 + i * 2) * 1.2;
+        heart.rotation.y = t * 0.5;
+        const scale = 0.8 + Math.sin(t * 2) * 0.2;
+        heart.scale.set(scale, scale, scale);
+      }
+    });
+    // Rotating ring
+    if (ringRef.current) {
+      ringRef.current.rotation.z = state.clock.elapsedTime * 0.3;
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Chamber Platform */}
+      <mesh position={[0, 0.05, 0]} receiveShadow>
+        <cylinderGeometry args={[2.5, 2.7, 0.1, 32]} />
+        <meshStandardMaterial color="#3d1a1a" roughness={0.7} />
+      </mesh>
+
+      {/* Glowing Ring */}
+      <mesh ref={ringRef} position={[0, 0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[2, 0.08, 16, 32]} />
+        <meshStandardMaterial color="#ff4d6d" emissive="#ff4d6d" emissiveIntensity={0.8} />
+      </mesh>
+
+      {/* Central Pedestal */}
+      <mesh position={[0, 0.6, 0]}>
+        <cylinderGeometry args={[0.5, 0.7, 1, 16]} />
+        <meshStandardMaterial color="#2d1b2e" roughness={0.6} />
+      </mesh>
+
+      {/* Floating Hearts */}
+      {['#ff4d6d', '#ff6b9d', '#ff8fab'].map((color, i) => (
+        <mesh key={i} ref={(el) => { if (el) heartRefs.current[i] = el; }} position={[0, 2, 0]}>
+          <sphereGeometry args={[0.2, 16, 16]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
+        </mesh>
+      ))}
+
+      {/* Label */}
+      <Html position={[0, 3.5, 0]} center>
+        <div className="px-2 py-1 bg-red-600 rounded text-[10px] text-white font-bold flex items-center gap-1">
+          <span>💕</span> BREEDING CHAMBER
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 // Coinflip Arena - where agents huddle to watch the flip
 function CoinflipArena({ position, isFlipping = false, result }: {
   position: [number, number, number];
@@ -822,6 +960,12 @@ function Scene({
 
       {/* Monad Portal */}
       <MonadPortal position={[8, 2, -6]} />
+
+      {/* Music Studio - where broke agents create music */}
+      <MusicStudio position={[-4, 0, 8]} />
+
+      {/* Breeding Chamber - where agents with high appreciation breed */}
+      <BreedingChamber position={[8, 0, 4]} />
 
       {/* Robot Agents - show all registered agents, highlight active ones */}
       {agents

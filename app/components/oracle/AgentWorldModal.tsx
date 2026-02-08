@@ -2,8 +2,9 @@
 
 import React, { useRef, useEffect, useState, Suspense, Component, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Minimize2, Maximize2, Radio, Users, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { X, Minimize2, Maximize2, Radio, Users, Loader2, RefreshCw, AlertTriangle, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import useSWR from 'swr';
+import { AgentEconomyPanel } from './AgentEconomyPanel';
 
 // =============================================================================
 // TYPES
@@ -152,6 +153,7 @@ export function AgentWorldModal({
   setMinimized
 }: AgentWorldModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [showEconomyPanel, setShowEconomyPanel] = useState(true);
 
   // Fetch world state
   const { data: stateData, error: stateError, isLoading: stateLoading, mutate: refreshState } = useSWR(
@@ -272,6 +274,17 @@ export function AgentWorldModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Toggle Economy Panel */}
+            <button
+              onClick={() => setShowEconomyPanel(!showEconomyPanel)}
+              className={`p-2 rounded-full transition-colors ${
+                isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+              } ${showEconomyPanel ? 'bg-purple-600/20 text-purple-400' : ''}`}
+              title={showEconomyPanel ? 'Hide Economy Panel' : 'Show Economy Panel'}
+            >
+              {showEconomyPanel ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+            </button>
+
             {/* Refresh */}
             <button
               onClick={handleRefresh}
@@ -306,39 +319,49 @@ export function AgentWorldModal({
           </div>
         </div>
 
-        {/* 3D Canvas */}
-        <div style={{ position: 'absolute', top: '80px', left: 0, right: 0, bottom: 0, width: '100%' }}>
-          {hasError ? (
-            <div className="w-full h-full flex items-center justify-center bg-gray-900">
-              <div className="text-center">
-                <p className="text-red-400 mb-2">Failed to load world data</p>
-                <button onClick={handleRefresh} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm">
-                  Retry
-                </button>
+        {/* 3D Canvas + Economy Panel */}
+        <div style={{ position: 'absolute', top: '80px', left: 0, right: 0, bottom: 0, display: 'flex' }}>
+          {/* 3D Scene */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            {hasError ? (
+              <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                <div className="text-center">
+                  <p className="text-red-400 mb-2">Failed to load world data</p>
+                  <button onClick={handleRefresh} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm">
+                    Retry
+                  </button>
+                </div>
               </div>
+            ) : (
+              <ThreeErrorBoundary
+                fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                    <div className="text-center">
+                      <p className="text-yellow-400 mb-2">3D rendering unavailable</p>
+                      <p className="text-gray-500 text-sm">WebGL may not be supported</p>
+                    </div>
+                  </div>
+                }
+              >
+                <Suspense fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-2" />
+                      <p className="text-gray-400 text-sm">Loading 3D World...</p>
+                    </div>
+                  </div>
+                }>
+                  <ThreeScene worldState={worldState} agents={agents} />
+                </Suspense>
+              </ThreeErrorBoundary>
+            )}
+          </div>
+
+          {/* Economy Panel */}
+          {showEconomyPanel && (
+            <div className="w-[340px] flex-shrink-0 border-l border-gray-700 overflow-hidden">
+              <AgentEconomyPanel className="h-full rounded-none border-0" />
             </div>
-          ) : (
-            <ThreeErrorBoundary
-              fallback={
-                <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                  <div className="text-center">
-                    <p className="text-yellow-400 mb-2">3D rendering unavailable</p>
-                    <p className="text-gray-500 text-sm">WebGL may not be supported</p>
-                  </div>
-                </div>
-              }
-            >
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                  <div className="text-center">
-                    <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-2" />
-                    <p className="text-gray-400 text-sm">Loading 3D World...</p>
-                  </div>
-                </div>
-              }>
-                <ThreeScene worldState={worldState} agents={agents} />
-              </Suspense>
-            </ThreeErrorBoundary>
           )}
         </div>
 

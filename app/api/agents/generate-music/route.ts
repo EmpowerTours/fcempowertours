@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, formatEther } from 'viem';
+import { Address, formatEther, createWalletClient, createPublicClient, http, parseAbi } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import Anthropic from '@anthropic-ai/sdk';
 import { redis } from '@/lib/redis';
 import { notifyDiscord } from '@/lib/discord-notify';
 import { addEvent } from '@/lib/world/state';
 import { rewardAgentAction } from '@/lib/agents/rewards';
+import { generateAgentMusicNFTAssets } from '@/lib/agents/music-art';
+import { activeChain } from '@/app/chains';
 
 /**
  * AUTONOMOUS BROKE AGENT MUSIC GENERATION
@@ -17,6 +20,17 @@ import { rewardAgentAction } from '@/lib/agents/rewards';
 const llmClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
+
+// AgentMusicNFT contract configuration
+const AGENT_MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_AGENT_MUSIC_NFT as Address | undefined;
+const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}` | undefined;
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+
+// AgentMusicNFT ABI for mintMusic function
+const AGENT_MUSIC_NFT_ABI = parseAbi([
+  'function mintMusic(address creator, string calldata agentId, string calldata agentName, string calldata title, string calldata genre, string calldata mood, uint256 tempo, string calldata musicalKey, string calldata lyrics, string calldata tokenURI) external returns (uint256)',
+  'event MusicMinted(uint256 indexed tokenId, address indexed creator, string agentId, string title)',
+]);
 
 // Agent personalities for music creation
 const AGENT_PERSONALITIES: Record<string, {
@@ -230,6 +244,111 @@ Respond with ONLY a JSON object:
 }
 
 /**
+ * Mint an AgentMusicNFT for the created song
+ * Only mints if NEXT_PUBLIC_AGENT_MUSIC_NFT is configured and tokenURI is available
+ */
+async function mintAgentMusicNFT(
+  creatorAddress: Address,
+  agentId: string,
+  agentName: string,
+  music: MusicCreation,
+  tokenURI: string
+): Promise<{ success: boolean; tokenId?: number; txHash?: string; error?: string }> {
+  // Check if NFT contract is configured
+  if (!AGENT_MUSIC_NFT_ADDRESS) {
+    console.log('[MusicGen] NEXT_PUBLIC_AGENT_MUSIC_NFT not configured, skipping mint');
+    return { success: false, error: 'NFT contract not configured' };
+  }
+
+  if (!DEPLOYER_PRIVATE_KEY) {
+    console.error('[MusicGen] DEPLOYER_PRIVATE_KEY not configured');
+    return { success: false, error: 'Deployer key not configured' };
+  }
+
+  if (!tokenURI) {
+    console.log('[MusicGen] No tokenURI available, skipping mint');
+    return { success: false, error: 'No tokenURI available' };
+  }
+
+  try {
+    console.log(`[MusicGen] Minting AgentMusicNFT for "${music.title}"...`);
+
+    // Create wallet client with deployer key
+    const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
+    const walletClient = createWalletClient({
+      account,
+      chain: activeChain,
+      transport: http(MONAD_RPC),
+    });
+
+    const publicClient = createPublicClient({
+      chain: activeChain,
+      transport: http(MONAD_RPC),
+    });
+
+    // Call mintMusic on the contract
+    const hash = await walletClient.writeContract({
+      address: AGENT_MUSIC_NFT_ADDRESS,
+      abi: AGENT_MUSIC_NFT_ABI,
+      functionName: 'mintMusic',
+      chain: activeChain,
+      args: [
+        creatorAddress,
+        agentId,
+        agentName,
+        music.title,
+        music.genre,
+        music.mood,
+        BigInt(music.tempo),
+        music.key,
+        music.lyrics,
+        tokenURI,
+      ],
+    });
+
+    console.log(`[MusicGen] NFT mint TX sent: ${hash}`);
+
+    // Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    if (receipt.status !== 'success') {
+      throw new Error('NFT mint transaction failed');
+    }
+
+    // Extract tokenId from MusicMinted event
+    let tokenId: number | undefined;
+    for (const log of receipt.logs) {
+      try {
+        // Check if this log is from our contract
+        if (log.address.toLowerCase() === AGENT_MUSIC_NFT_ADDRESS.toLowerCase()) {
+          // The first topic is the event signature, second is indexed tokenId
+          if (log.topics[1]) {
+            tokenId = Number(BigInt(log.topics[1]));
+            break;
+          }
+        }
+      } catch {
+        // Skip logs that don't match
+      }
+    }
+
+    console.log(`[MusicGen] NFT minted successfully! Token ID: ${tokenId}, TX: ${hash}`);
+
+    return {
+      success: true,
+      tokenId,
+      txHash: hash,
+    };
+  } catch (err: any) {
+    console.error('[MusicGen] NFT minting failed:', err);
+    return {
+      success: false,
+      error: err.message || 'Minting failed',
+    };
+  }
+}
+
+/**
  * POST /api/agents/generate-music
  *
  * Called when a broke agent needs to create music to earn tokens
@@ -267,7 +386,57 @@ export async function POST(req: NextRequest) {
     // Create song ID
     const songId = `song_${agentId}_${Date.now()}`;
 
-    // Store song in Redis
+    // Generate cover art with Gemini and upload to IPFS
+    let coverIpfsHash: string | undefined;
+    let coverIpfsUrl: string | undefined;
+    let tokenURI: string | undefined;
+
+    console.log(`[MusicGen] Generating NFT assets for "${music.title}"...`);
+    const nftAssets = await generateAgentMusicNFTAssets(
+      agentId,
+      personality.name,
+      agentAddress || '',
+      music
+    );
+
+    // Track NFT minting results
+    let mintedTokenId: number | undefined;
+    let mintTxHash: string | undefined;
+    let mintingFailed = false;
+    let mintingError: string | undefined;
+
+    if (nftAssets.success) {
+      coverIpfsHash = nftAssets.coverIpfsHash;
+      coverIpfsUrl = nftAssets.coverIpfsUrl;
+      tokenURI = nftAssets.tokenURI;
+      console.log(`[MusicGen] NFT assets created: ${tokenURI}`);
+      console.log(`[MusicGen] Cover art: ${coverIpfsUrl}`);
+
+      // Mint NFT if contract is configured and tokenURI is available
+      if (AGENT_MUSIC_NFT_ADDRESS && tokenURI && agentAddress) {
+        const mintResult = await mintAgentMusicNFT(
+          agentAddress as Address,
+          agentId,
+          personality.name,
+          music,
+          tokenURI
+        );
+
+        if (mintResult.success) {
+          mintedTokenId = mintResult.tokenId;
+          mintTxHash = mintResult.txHash;
+          console.log(`[MusicGen] NFT minted! Token ID: ${mintedTokenId}`);
+        } else {
+          mintingFailed = true;
+          mintingError = mintResult.error;
+          console.warn(`[MusicGen] NFT minting failed: ${mintResult.error}`);
+        }
+      }
+    } else {
+      console.warn(`[MusicGen] Failed to create NFT assets: ${nftAssets.error}`);
+    }
+
+    // Store song in Redis (includes NFT metadata and minting info)
     await redis.set(`music:${songId}`, JSON.stringify({
       ...music,
       creatorId: agentId,
@@ -277,6 +446,13 @@ export async function POST(req: NextRequest) {
       purchases: 0,
       totalAppreciation: 0,
       appreciationCount: 0,
+      coverIpfsHash,
+      coverIpfsUrl,
+      tokenURI,
+      // NFT minting info
+      nftTokenId: mintedTokenId,
+      nftTxHash: mintTxHash,
+      nftMintingFailed: mintingFailed,
     }));
 
     // Add to music feed
@@ -372,7 +548,10 @@ export async function POST(req: NextRequest) {
       `📝 Lyrics:\n\`\`\`${music.lyrics}\`\`\`\n\n` +
       `👥 **Agent Reactions:**\n${topAppreciators}\n\n` +
       `💰 **Earned: ${toursEarned} TOURS** | Avg Appreciation: ${avgAppreciation.toFixed(0)}%` +
-      (toursTxHash ? `\n🔗 [View TX](https://monad.xyz/tx/${toursTxHash})` : '')
+      (mintedTokenId !== undefined ? `\n🎨 **NFT Minted: Token #${mintedTokenId}**` : '') +
+      (coverIpfsUrl ? `\n🖼️ [Cover Art](${coverIpfsUrl})` : '') +
+      (mintTxHash ? `\n🔗 [NFT TX](https://monadscan.com/tx/${mintTxHash})` : '') +
+      (toursTxHash ? `\n🔗 [Reward TX](https://monadscan.com/tx/${toursTxHash})` : '')
     ).catch(() => {});
 
     return NextResponse.json({
@@ -383,7 +562,18 @@ export async function POST(req: NextRequest) {
       avgAppreciation: avgAppreciation.toFixed(1),
       toursEarned,
       toursTxHash,
-      message: `${personality.name} created "${music.title}" and earned ${toursEarned} TOURS`,
+      // NFT assets (on IPFS, referenced by on-chain tokenURI)
+      coverIpfsHash,
+      coverIpfsUrl,
+      tokenURI,
+      // NFT minting result
+      nftTokenId: mintedTokenId,
+      nftTxHash: mintTxHash,
+      nftMintingFailed: mintingFailed,
+      nftMintingError: mintingError,
+      message: `${personality.name} created "${music.title}" and earned ${toursEarned} TOURS` +
+        (mintedTokenId !== undefined ? ` (NFT #${mintedTokenId})` : '') +
+        (mintingFailed ? ` (NFT minting failed: ${mintingError})` : ''),
     });
 
   } catch (err: any) {
