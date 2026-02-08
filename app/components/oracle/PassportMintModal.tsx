@@ -174,10 +174,13 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
 
   const modalContent = (
     <div
-      className={`fixed inset-0 modal-backdrop flex items-center justify-center p-4 overflow-y-auto ${isDarkMode ? 'bg-black/90' : 'bg-black/50'}`}
-      style={{ zIndex: 9999 }}
+      className={`fixed inset-0 modal-backdrop flex items-center justify-center p-4 overflow-y-auto`}
+      style={{ zIndex: 9999, backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.6)' }}
     >
-      <div className={`w-full max-w-lg rounded-3xl shadow-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-black border-cyan-500/50 shadow-cyan-500/20' : 'bg-white border-purple-300 shadow-purple-200/50'}`}>
+      <div
+        className={`w-full max-w-lg rounded-3xl shadow-2xl border-2 ${isDarkMode ? 'border-cyan-500/50 shadow-cyan-500/20' : 'border-purple-300 shadow-purple-200/50'}`}
+        style={{ backgroundColor: isDarkMode ? '#0a0a0f' : '#ffffff' }}
+      >
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
