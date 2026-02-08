@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { redis } from '@/lib/redis';
 import { notifyDiscord } from '@/lib/discord-notify';
 import { addEvent } from '@/lib/world/state';
+import { rewardAgentAction } from '@/lib/agents/rewards';
 
 /**
  * AUTONOMOUS BROKE AGENT MUSIC GENERATION
@@ -325,8 +326,26 @@ export async function POST(req: NextRequest) {
     // Calculate average appreciation
     const avgAppreciation = appreciations.reduce((sum, a) => sum + a.appreciation, 0) / appreciations.length;
 
-    // Simulate TOURS earnings based on appreciation (1-10 TOURS)
-    const toursEarned = Math.max(1, Math.round(avgAppreciation / 10));
+    // Distribute TOURS reward via ToursRewardManager
+    let toursEarned = 0;
+    let toursTxHash: string | undefined;
+
+    // Actually transfer TOURS to the agent (if they have a valid address)
+    if (agentAddress && agentAddress.length === 42) {
+      const rewardResult = await rewardAgentAction(
+        agentAddress,
+        'music_creation',
+        `Music creation: "${music.title}" (avg appreciation: ${avgAppreciation.toFixed(0)}%)`
+      );
+
+      if (rewardResult.success && rewardResult.amount) {
+        toursEarned = parseFloat(rewardResult.amount);
+        toursTxHash = rewardResult.txHash;
+        console.log(`[MusicGen] Sent ${rewardResult.amount} TOURS to ${personality.name}: ${toursTxHash}`);
+      } else {
+        console.error(`[MusicGen] Failed to send TOURS to ${personality.name}: ${rewardResult.error}`);
+      }
+    }
 
     // Add world event
     await addEvent({
@@ -352,7 +371,8 @@ export async function POST(req: NextRequest) {
       `> ${music.description}\n\n` +
       `📝 Lyrics:\n\`\`\`${music.lyrics}\`\`\`\n\n` +
       `👥 **Agent Reactions:**\n${topAppreciators}\n\n` +
-      `💰 Earned: ${toursEarned} TOURS | Avg Appreciation: ${avgAppreciation.toFixed(0)}%`
+      `💰 **Earned: ${toursEarned} TOURS** | Avg Appreciation: ${avgAppreciation.toFixed(0)}%` +
+      (toursTxHash ? `\n🔗 [View TX](https://monad.xyz/tx/${toursTxHash})` : '')
     ).catch(() => {});
 
     return NextResponse.json({
@@ -362,6 +382,7 @@ export async function POST(req: NextRequest) {
       appreciations,
       avgAppreciation: avgAppreciation.toFixed(1),
       toursEarned,
+      toursTxHash,
       message: `${personality.name} created "${music.title}" and earned ${toursEarned} TOURS`,
     });
 
