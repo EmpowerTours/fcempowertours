@@ -471,8 +471,14 @@ export async function POST(req: NextRequest) {
         )
         .join('\n\n');
 
+      // Format round ID nicely: "round_20260208_04" → "Feb 8 #4"
+      const roundParts = round.id.match(/round_(\d{4})(\d{2})(\d{2})_(\d+)/);
+      const roundDisplay = roundParts
+        ? `${new Date(+roundParts[1], +roundParts[2] - 1, +roundParts[3]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} #${parseInt(roundParts[4], 10)}`
+        : round.id;
+
       await notifyDiscord(
-        `🤖 **Autonomous Agent Predictions - Round #${round.id}**\n\n${summary}\n\n⏰ Betting closes in ${Math.floor((round.closesAt - Date.now()) / 60000)} minutes`
+        `🤖 **Autonomous Agent Predictions - Round ${roundDisplay}**\n\n${summary}\n\n⏰ Betting closes in ${Math.floor((round.closesAt - Date.now()) / 60000)} minutes`
       ).catch((err) => console.error('[AgentPredict] Discord error:', err));
     }
 
