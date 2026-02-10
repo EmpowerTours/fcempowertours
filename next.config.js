@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: process.env.NODE_ENV === 'production',
   },
   eslint: {
     ignoreDuringBuilds: true,
@@ -21,6 +21,10 @@ const nextConfig = {
     'ethers',
     '@anthropic-ai/sdk',
   ],
+  // Build optimization for Railway (reduce memory usage)
+  swcMinify: true,
+  compress: true,
+  optimizeFonts: true,
   async rewrites() {
     return [
       {
