@@ -360,7 +360,7 @@ export async function POST(req: NextRequest) {
           const now = Date.now();
 
           if (lastCreated) {
-            const daysSince = (now - parseInt(lastCreated)) / (1000 * 60 * 60 * 24);
+            const daysSince = (now - parseInt(lastCreated as string)) / (1000 * 60 * 60 * 24);
             const MUSIC_COOLDOWN_DAYS = 30;
             if (daysSince < MUSIC_COOLDOWN_DAYS) {
               // Still in cooldown - skip music generation

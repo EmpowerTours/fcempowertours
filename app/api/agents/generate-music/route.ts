@@ -645,8 +645,8 @@ export async function POST(req: NextRequest) {
     const musicCooldownKey = `agent:${agentId}:music:lastCreated`;
     const musicUnsoldKey = `agent:${agentId}:music:unsoldCount`;
     const THIRTY_DAYS_SECONDS = 30 * 86400;
-    await redis.set(musicCooldownKey, Date.now().toString(), 'EX', THIRTY_DAYS_SECONDS);
-    await redis.set(musicUnsoldKey, '1', 'EX', THIRTY_DAYS_SECONDS);
+    await redis.set(musicCooldownKey, Date.now().toString(), { ex: THIRTY_DAYS_SECONDS });
+    await redis.set(musicUnsoldKey, '1', { ex: THIRTY_DAYS_SECONDS });
 
     return NextResponse.json({
       success: true,
