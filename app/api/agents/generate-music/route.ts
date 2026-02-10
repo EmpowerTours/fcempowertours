@@ -641,11 +641,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Track music generation timestamp for cooldown enforcement
-    // Agents can only create 1 song per 24 hours
+    // Agents can only create 1 song per month (30 days)
     const musicCooldownKey = `agent:${agentId}:music:lastCreated`;
     const musicUnsoldKey = `agent:${agentId}:music:unsoldCount`;
-    await redis.set(musicCooldownKey, Date.now().toString());
-    await redis.set(musicUnsoldKey, '1', 'EX', 86400 * 7); // Track for 7 days max
+    const THIRTY_DAYS_SECONDS = 30 * 86400;
+    await redis.set(musicCooldownKey, Date.now().toString(), 'EX', THIRTY_DAYS_SECONDS);
+    await redis.set(musicUnsoldKey, '1', 'EX', THIRTY_DAYS_SECONDS);
 
     return NextResponse.json({
       success: true,
