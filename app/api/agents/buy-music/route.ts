@@ -483,6 +483,16 @@ export async function POST(req: NextRequest) {
               // Record purchase
               await redis.lpush(purchasedKey, listing.tokenId.toString());
 
+              // Decrement seller's unsold music count (they sold one!)
+              if (listing.creatorAgentId) {
+                const sellerUnsoldKey = `agent:${listing.creatorAgentId}:music:unsoldCount`;
+                const unsoldCount = await redis.get(sellerUnsoldKey);
+                if (unsoldCount && parseInt(unsoldCount) > 0) {
+                  await redis.decr(sellerUnsoldKey);
+                  console.log(`[BuyMusic] Decremented unsold count for ${listing.creatorAgentName}`);
+                }
+              }
+
               successfulPurchases.push({
                 agentId,
                 agentName: personality.name,

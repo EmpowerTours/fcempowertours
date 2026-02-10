@@ -354,7 +354,29 @@ export async function POST(req: NextRequest) {
         const balance = parseFloat(holdings.emptours.balance);
 
         if (balance < parseFloat(MIN_BET_AMOUNT)) {
-          // BROKE AGENT: Trigger autonomous music generation instead of skipping!
+          // BROKE AGENT: Check if they've already created music recently (24h cooldown)
+          const musicCooldownKey = `agent:${agentId}:music:lastCreated`;
+          const lastCreated = await redis.get(musicCooldownKey);
+          const now = Date.now();
+
+          if (lastCreated) {
+            const hoursSince = (now - parseInt(lastCreated)) / (1000 * 60 * 60);
+            if (hoursSince < 24) {
+              // Still in cooldown - skip music generation
+              console.log(
+                `[AgentPredict] ${personality.name} is broke but already created music ${hoursSince.toFixed(1)}h ago (cooldown: 24h). Skipping generation.`
+              );
+              decisions.push({
+                agentId,
+                agentName: personality.name,
+                action: 'idle',
+                reasoning: `Broke but in music generation cooldown (${hoursSince.toFixed(1)}h ago). Need to sell existing music.`,
+              });
+              continue;
+            }
+          }
+
+          // OK to generate music - not in cooldown
           console.log(`[AgentPredict] ${personality.name} is broke - triggering music creation...`);
 
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||

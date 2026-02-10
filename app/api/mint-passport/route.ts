@@ -85,6 +85,16 @@ const PASSPORT_ABI = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "address", name: "user", type: "address" }],
+    name: "getCooldownStatus",
+    outputs: [
+      { internalType: "bool", name: "isOnCooldown", type: "bool" },
+      { internalType: "uint256", name: "timeRemaining", type: "uint256" }
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: "uint256", name: "tokenId", type: "uint256" },
@@ -351,6 +361,45 @@ export async function POST(req: NextRequest) {
       continent: countryInfo.continent,
       fid: fid || 0
     });
+
+    // ============================================
+    // 🛡️ CHECK 24-HOUR CONTRACT-LEVEL COOLDOWN
+    // ============================================
+    try {
+      const [isOnCooldown, timeRemaining] = await publicClient.readContract({
+        address: PASSPORT_NFT_ADDRESS as Address,
+        abi: PASSPORT_ABI,
+        functionName: 'getCooldownStatus',
+        args: [recipientAddress as Address],
+      }) as [boolean, bigint];
+
+      if (isOnCooldown) {
+        const seconds = Number(timeRemaining);
+        const hours = Math.ceil(seconds / 3600);
+        const minutes = Math.ceil((seconds % 3600) / 60);
+        
+        let timeText = "";
+        if (hours > 0) {
+          timeText = `${hours} hour${hours > 1 ? 's' : ''}`;
+          if (minutes > 0) {
+            timeText += ` and ${minutes} minute${minutes > 1 ? 's' : ''}`;
+          }
+        } else {
+          timeText = `${seconds} second${seconds > 1 ? 's' : ''}`;
+        }
+
+        await redis.del(lockKey); // Release lock
+        return NextResponse.json({
+          error: `You already minted a passport recently. Please wait ${timeText} to mint another passport.`,
+          cooldownReason: "24-hour cooldown between passports (anti-gaming measure)",
+          timeRemaining: seconds,
+          timeText: timeText
+        }, { status: 429 });
+      }
+    } catch (cooldownCheckError) {
+      console.error('❌ Error checking contract cooldown:', cooldownCheckError);
+      // Don't block on error - let transaction fail gracefully
+    }
 
     const mintData = encodeFunctionData({
       abi: PASSPORT_VIEM_ABI,

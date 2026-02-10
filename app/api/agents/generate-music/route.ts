@@ -354,46 +354,49 @@ async function mintAgentMusicNFT(
     // Auto-list the NFT for sale so other agents can buy it
     let listingTxHash: string | undefined;
     if (tokenId !== undefined) {
-      const agentPrivateKey = AGENT_PRIVATE_KEYS[agentId];
-      if (agentPrivateKey) {
+      try {
+        console.log(`[MusicGen] Listing token ${tokenId} for sale...`);
+
+        // Create wallet client with deployer key (deployer owns the minted NFT)
+        const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
+        const deployerWalletClient = createWalletClient({
+          account,
+          chain: activeChain,
+          transport: http(MONAD_RPC),
+        });
+
+        // Get minimum sale price from contract
+        let listingPrice = DEFAULT_LISTING_PRICE;
         try {
-          console.log(`[MusicGen] Listing token ${tokenId} for sale...`);
-
-          const agentAccount = privateKeyToAccount(agentPrivateKey as `0x${string}`);
-          const agentWalletClient = createWalletClient({
-            account: agentAccount,
-            chain: activeChain,
-            transport: http(MONAD_RPC),
-          });
-
-          // Get minimum sale price from contract
-          let listingPrice = DEFAULT_LISTING_PRICE;
-          try {
-            const minPrice = await publicClient.readContract({
-              address: AGENT_MUSIC_NFT_ADDRESS,
-              abi: AGENT_MUSIC_NFT_ABI,
-              functionName: 'minSalePrice',
-            }) as bigint;
-            if (minPrice > listingPrice) {
-              listingPrice = minPrice;
-            }
-          } catch {
-            // Use default if can't read
-          }
-
-          const listHash = await agentWalletClient.writeContract({
+          const minPrice = await publicClient.readContract({
             address: AGENT_MUSIC_NFT_ADDRESS,
             abi: AGENT_MUSIC_NFT_ABI,
-            functionName: 'listForSale',
-            args: [BigInt(tokenId), listingPrice],
-          });
+            functionName: 'minSalePrice',
+          }) as bigint;
+          if (minPrice > listingPrice) {
+            listingPrice = minPrice;
+          }
+        } catch {
+          // Use default if can't read
+        }
 
-          await publicClient.waitForTransactionReceipt({ hash: listHash });
-          listingTxHash = listHash;
+        // Deployer lists the NFT for sale (deployer is the owner from minting)
+        const listHash = await deployerWalletClient.writeContract({
+          address: AGENT_MUSIC_NFT_ADDRESS,
+          abi: AGENT_MUSIC_NFT_ABI,
+          functionName: 'listForSale',
+          args: [BigInt(tokenId), listingPrice],
+        });
 
-          console.log(`[MusicGen] NFT listed for ${formatEther(listingPrice)} EMPTOURS! TX: ${listHash}`);
-        } catch (listErr: any) {
-          console.error('[MusicGen] Failed to list NFT for sale:', listErr.message);
+        await publicClient.waitForTransactionReceipt({ hash: listHash });
+        listingTxHash = listHash;
+
+        console.log(`[MusicGen] NFT listed for ${formatEther(listingPrice)} EMPTOURS! TX: ${listHash}`);
+      } catch (listErr: any) {
+        console.error('[MusicGen] Failed to list NFT for sale:', listErr.message);
+        // Log the specific error for debugging but don't fail the entire operation
+        if (listErr.message?.includes('Not for sale')) {
+          console.error('[MusicGen] Note: "Not for sale" error suggests ownership/approval issue - verify contract logic');
         }
       }
     }
@@ -636,6 +639,13 @@ export async function POST(req: NextRequest) {
         }
       }).catch(() => {});
     }
+
+    // Track music generation timestamp for cooldown enforcement
+    // Agents can only create 1 song per 24 hours
+    const musicCooldownKey = `agent:${agentId}:music:lastCreated`;
+    const musicUnsoldKey = `agent:${agentId}:music:unsoldCount`;
+    await redis.set(musicCooldownKey, Date.now().toString());
+    await redis.set(musicUnsoldKey, '1', 'EX', 86400 * 7); // Track for 7 days max
 
     return NextResponse.json({
       success: true,
