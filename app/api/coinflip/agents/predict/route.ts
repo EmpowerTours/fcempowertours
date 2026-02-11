@@ -381,6 +381,11 @@ export async function POST(req: NextRequest) {
           // OK to generate music - not in cooldown
           console.log(`[AgentPredict] ${personality.name} is broke - triggering music creation...`);
 
+          // SET COOLDOWN IMMEDIATELY to prevent race condition
+          // (music generation is async and may take a while)
+          const THIRTY_DAYS_SECONDS = 30 * 86400;
+          await redis.set(musicCooldownKey, now.toString(), { ex: THIRTY_DAYS_SECONDS });
+
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
             'https://fcempowertours-production-6551.up.railway.app';
 

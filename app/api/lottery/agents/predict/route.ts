@@ -429,8 +429,35 @@ export async function POST(req: NextRequest) {
         // Check if can afford at least 1 ticket
         const ticketCost = parseEther(lotteryState.ticketPrice);
         if (balance < ticketCost) {
-          // Broke agent - trigger music generation to earn TOURS
+          // Check 30-day music creation cooldown
+          const musicCooldownKey = `agent:${agentId}:music:lastCreated`;
+          const lastCreated = await redis.get(musicCooldownKey);
+          const now = Date.now();
+
+          if (lastCreated) {
+            const daysSince = (now - parseInt(lastCreated as string)) / (1000 * 60 * 60 * 24);
+            const MUSIC_COOLDOWN_DAYS = 30;
+            if (daysSince < MUSIC_COOLDOWN_DAYS) {
+              const daysRemaining = (MUSIC_COOLDOWN_DAYS - daysSince).toFixed(1);
+              console.log(
+                `[LotteryAgent] ${personality.name} is broke but already created music ${daysSince.toFixed(1)}d ago (cooldown: ${MUSIC_COOLDOWN_DAYS}d). ${daysRemaining}d remaining. Skipping generation.`
+              );
+              decisions.push({
+                agentId,
+                agentName: personality.name,
+                action: 'idle',
+                reasoning: `Broke but in music generation cooldown (${daysSince.toFixed(1)}d ago, ${daysRemaining}d remaining). Need to focus on selling existing music.`,
+              });
+              continue;
+            }
+          }
+
+          // OK to generate music - trigger music generation to earn TOURS
           console.log(`[LotteryAgent] ${personality.name} is broke - triggering music creation...`);
+
+          // SET COOLDOWN IMMEDIATELY to prevent race condition
+          const THIRTY_DAYS_SECONDS = 30 * 86400;
+          await redis.set(musicCooldownKey, now.toString(), { ex: THIRTY_DAYS_SECONDS });
 
           const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fcempowertours-production-6551.up.railway.app';
           fetch(`${baseUrl}/api/agents/generate-music`, {
