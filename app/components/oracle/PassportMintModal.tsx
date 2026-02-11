@@ -253,7 +253,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
                 <div className="mb-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/30 flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-blue-400" />
                   <p className="text-sm text-blue-400">
-                    Detected: {location.countryName} {location.city ? `(${location.city})` : ''}
+                    Detected: {getCountryByCode(location.country)?.flag} {location.countryName} {location.city ? `(${location.city})` : ''}
                   </p>
                 </div>
               ) : null}

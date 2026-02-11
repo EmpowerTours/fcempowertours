@@ -54,7 +54,10 @@ export function useGeolocation() {
 
         // Extract country code from address
         const countryCode = geoData.address?.country_code?.toUpperCase() || 'US';
-        const countryName = geoData.address?.country || 'United States';
+        // Use our country database for consistent naming (e.g., "Hong Kong SAR" instead of "Hong Kong China")
+        const { getCountryByCode } = await import('./passport/countries');
+        const countryInfo = getCountryByCode(countryCode);
+        const countryName = countryInfo?.name || geoData.address?.country || 'United States';
         const city = geoData.address?.city || geoData.address?.town || geoData.address?.village;
         const region = geoData.address?.state || geoData.address?.province;
 
