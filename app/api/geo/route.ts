@@ -68,15 +68,23 @@ export async function GET(request: NextRequest) {
       country: data.country,
     });
 
+    // Special case: IPInfo returns "CN" for Hong Kong IPs (administrative classification)
+    // but we want to use "HK" for Hong Kong SAR
+    let countryCode = data.country || 'US';
+    if (countryCode === 'CN' && data.city && data.city.toLowerCase().includes('hong kong')) {
+      countryCode = 'HK';
+      console.log('✅ Hong Kong detected - overriding CN → HK');
+    }
+
     // Get full country info from our 195 countries database
-    const countryInfo = getCountryByCode(data.country);
+    const countryInfo = getCountryByCode(countryCode);
     const countryName = countryInfo?.name || 'United States';
 
     console.log('🌍 Country:', countryInfo?.flag, countryName);
 
     // Return in the format the passport page expects
     return NextResponse.json({
-      country: data.country || 'US',
+      country: countryCode,
       country_name: countryName,
       city: data.city,
       region: data.region,
