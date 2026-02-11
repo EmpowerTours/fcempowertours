@@ -167,6 +167,9 @@ presentation/
 
 # Development guides (local only)
 CONSTRAINTS.md
+CLAUDE.md
+CONSENSUS_NFT_DEPLOYMENT.md
+HACKATHON.md
 
 # Dune Analytics queries (local only)
 dune-analytics/
