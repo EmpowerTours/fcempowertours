@@ -181,7 +181,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify the requested country matches the user's actual location
-    if (geoData.country !== countryCode) {
+    // Special case: IPinfo returns "CN" for Hong Kong IPs (administrative classification)
+    // but client geolocation correctly detects "HK", so allow this mismatch
+    const isHongKongOverride = geoData.country === "CN" && countryCode === "HK";
+    
+    if (geoData.country !== countryCode && !isHongKongOverride) {
       console.warn(`🚨 GEO MISMATCH: User IP is in ${geoData.country} but requested ${countryCode}`);
       return NextResponse.json({
         error: `Location mismatch! You can only mint a passport for your current country.`,
@@ -191,7 +195,11 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    console.log(`✅ Geo verified: User is in ${geoData.country}`);
+    if (isHongKongOverride) {
+      console.log(`✅ Geo verified: Hong Kong override (IPinfo CN → HK)`);
+    } else {
+      console.log(`✅ Geo verified: User is in ${geoData.country}`);
+    }
 
     // ============================================
     // 🛡️ ANTI-GAMING: Rate limiting & cooldown

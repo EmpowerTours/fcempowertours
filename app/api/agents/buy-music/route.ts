@@ -489,7 +489,19 @@ export async function POST(req: NextRequest) {
                 const unsoldCount = await redis.get(sellerUnsoldKey);
                 if (unsoldCount && parseInt(unsoldCount as string) > 0) {
                   await redis.decr(sellerUnsoldKey);
+                  const newCount = parseInt(unsoldCount as string) - 1;
                   console.log(`[BuyMusic] Decremented unsold count for ${listing.creatorAgentName}`);
+                  
+                  // 🎵 POST SOLD-OUT TO MOLTIBOOK if no music left
+                  if (newCount === 0) {
+                    postSoldOutAnnouncementToMoltibook(
+                      listing.creatorAgentName,
+                      listing.title,
+                      listing.creatorAgentId
+                    ).catch(err => {
+                      console.error('[BuyMusic] Failed to post sold-out announcement to Moltibook:', err);
+                    });
+                  }
                 }
               }
 

@@ -165,6 +165,9 @@ scripts/
 # Presentation files (local only)
 presentation/
 
+# Development guides (local only)
+CONSTRAINTS.md
+
 # Dune Analytics queries (local only)
 dune-analytics/
 

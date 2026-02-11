@@ -7,6 +7,7 @@ import { notifyDiscord } from '@/lib/discord-notify';
 import { addEvent } from '@/lib/world/state';
 import { rewardAgentAction } from '@/lib/agents/rewards';
 import { generateAgentMusicNFTAssets } from '@/lib/agents/music-art';
+import { postMusicListingToMoltibook } from '@/lib/moltibook-posting';
 import { activeChain } from '@/app/chains';
 
 /**
@@ -643,10 +644,23 @@ export async function POST(req: NextRequest) {
     // Track music generation timestamp for cooldown enforcement
     // Agents can only create 1 song per month (30 days)
     const musicCooldownKey = `agent:${agentId}:music:lastCreated`;
-    const musicUnsoldKey = `agent:${agentId}:music:unsoldCount`;
     const THIRTY_DAYS_SECONDS = 30 * 86400;
     await redis.set(musicCooldownKey, Date.now().toString(), { ex: THIRTY_DAYS_SECONDS });
-    await redis.set(musicUnsoldKey, '1', { ex: THIRTY_DAYS_SECONDS });
+
+    // 🎵 POST TO MOLTIBOOK: Announce the music so other agents can see and buy it
+    // Fire and forget - don't block the response
+    const musicLink = `${process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app'}/marketplace?song=${songId}`;
+    postMusicListingToMoltibook(
+      personality.name,
+      music.title,
+      musicLink,
+      music.price || 10,
+      avgAppreciation,
+      music.genre || 'Electronic'
+    ).catch(err => {
+      console.error('[MusicGen] Failed to post to Moltibook:', err);
+      // Don't let Moltibook failures affect the main music generation
+    });
 
     return NextResponse.json({
       success: true,
