@@ -1199,7 +1199,7 @@ function extractLocationFromQuery(message: string): { city: string | null; count
     'los angeles': 'USA', 'sydney': 'Australia', 'barcelona': 'Spain',
     'rome': 'Italy', 'berlin': 'Germany', 'bangkok': 'Thailand',
     'singapore': 'Singapore', 'dubai': 'UAE', 'miami': 'USA',
-    'amsterdam': 'Netherlands', 'seoul': 'South Korea', 'hong kong': 'China',
+    'amsterdam': 'Netherlands', 'seoul': 'South Korea', 'hong kong': 'Hong Kong SAR',
     'istanbul': 'Turkey', 'cairo': 'Egypt', 'mumbai': 'India',
     'bali': 'Indonesia', 'lisbon': 'Portugal', 'athens': 'Greece',
   };
