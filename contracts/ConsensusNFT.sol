@@ -10,10 +10,15 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * @title ConsensusNFT
  * @notice One-time Consensus Hong Kong 2026 Commemorative NFT
  * 
+ * Minting Model:
+ * - Backend service calls mint() on behalf of user
+ * - NFT is minted to beneficiary address (monadAddress)
+ * - Payment (100 WMON) is handled separately via UserSafe
+ * - One-time per Ethereum address (proof of attendance)
+ * 
  * Security Features:
  * - ReentrancyGuard on mint to prevent reentrancy attacks
  * - One-time per Ethereum address enforced on-chain
- * - Authorized minters only (backend service authentication)
  * - Input validation on all parameters
  * - Event logging for audit trail
  */
@@ -23,91 +28,65 @@ contract ConsensusNFT is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // Track which Ethereum addresses have already minted (prevents double-minting)
     mapping(address => bool) public hasMinted;
 
-    // Authorized minter (backend service only)
-    mapping(address => bool) public authorizedMinters;
-
     // Events for audit trail
     event ConsensusMinted(
         uint256 indexed tokenId,
-        address indexed monadAddress,
+        address indexed beneficiary,
         address indexed ethereumAddress,
         uint256 timestamp
     );
 
-    event MinterAuthorized(address indexed minter);
-    event MinterRevoked(address indexed minter);
-
-    constructor() ERC721("Consensus Hong Kong 2026", "CONSENSUS-HK-26") {
-        authorizedMinters[msg.sender] = true;
-    }
-
-    /**
-     * @notice Authorize an address to mint Consensus NFTs
-     * Only owner can call - prevents unauthorized minting
-     */
-    function authorizeMinter(address minter) external onlyOwner {
-        require(minter != address(0), "Invalid minter address");
-        authorizedMinters[minter] = true;
-        emit MinterAuthorized(minter);
-    }
-
-    /**
-     * @notice Revoke minting authorization
-     * Only owner can call - emergency revocation capability
-     */
-    function revokeMinter(address minter) external onlyOwner {
-        require(minter != address(0), "Invalid minter address");
-        authorizedMinters[minter] = false;
-        emit MinterRevoked(minter);
-    }
+    constructor() ERC721("Consensus Hong Kong 2026", "CONSENSUS-HK-26") Ownable(msg.sender) {}
 
     /**
      * @notice Mint a Consensus NFT for an Ethereum address holder
      * 
+     * Minting flow:
+     * 1. Backend receives mint request from frontend
+     * 2. Verifies Ethereum address owns Consensus NFT on Ethereum
+     * 3. Processes 100 WMON payment via UserSafe (off-chain)
+     * 4. Calls this function to mint NFT to beneficiary
+     * 
      * Security checks:
-     * - Only authorized minters (backend service)
      * - Address validation
      * - One-time per Ethereum address (enforced on-chain)
      * - Reentrancy protection
-     * - TokenURI validation
+     * - MetadataURI validation
      * 
-     * @param monadAddress The Monad address receiving the NFT
+     * @param beneficiary The address receiving the NFT (monad address)
      * @param ethereumAddress The Ethereum address that owns the Consensus NFT (proof of attendance)
-     * @param tokenURI IPFS URI for the commemorative artwork
+     * @param metadataURI IPFS URI for the commemorative artwork
      * 
      * @return tokenId The newly minted token ID
      */
     function mint(
-        address monadAddress,
+        address beneficiary,
         address ethereumAddress,
-        string calldata tokenURI
+        string calldata metadataURI
     ) external nonReentrant returns (uint256) {
-        // Validate caller is authorized minter
-        require(authorizedMinters[msg.sender], "Not authorized to mint");
-        
         // Validate input addresses
-        require(monadAddress != address(0), "Invalid Monad address");
+        require(beneficiary != address(0), "Invalid beneficiary address");
         require(ethereumAddress != address(0), "Invalid Ethereum address");
         
         // Prevent double-minting: enforce one-time per Ethereum address
         require(!hasMinted[ethereumAddress], "Already minted - one per address only");
         
-        // Validate tokenURI is not empty
-        require(bytes(tokenURI).length > 0, "TokenURI cannot be empty");
+        // Validate metadataURI is not empty
+        require(bytes(metadataURI).length > 0, "MetadataURI cannot be empty");
 
         uint256 tokenId = _tokenIdCounter++;
 
         // Mark as minted BEFORE transfer (prevent reentrancy)
         hasMinted[ethereumAddress] = true;
 
-        // Mint the NFT to the Monad address
-        _safeMint(monadAddress, tokenId);
+        // Mint the NFT to the beneficiary
+        _safeMint(beneficiary, tokenId);
         
         // Set metadata
-        _setTokenURI(tokenId, tokenURI);
+        _setTokenURI(tokenId, metadataURI);
 
         // Emit event for transparency and audit trail
-        emit ConsensusMinted(tokenId, monadAddress, ethereumAddress, block.timestamp);
+        emit ConsensusMinted(tokenId, beneficiary, ethereumAddress, block.timestamp);
 
         return tokenId;
     }

@@ -12,19 +12,17 @@ import "../contracts/ConsensusNFT.sol";
  *   --rpc-url https://rpc.monad.xyz \
  *   --private-key YOUR_PRIVATE_KEY \
  *   --broadcast \
- *   --verify \
- *   --verifier etherscan \
- *   --etherscan-api-key YOUR_MONADSCAN_API_KEY \
- *   --chain 10143
+ *   --chain 143
  * 
  * After deployment:
  * 1. Get the contract address from the output
  * 2. Set NEXT_PUBLIC_CONSENSUS_NFT in Railway env
- * 3. Call authorizeMinter(backendAddress) to authorize the API minter
+ * 3. Set NEXT_PUBLIC_CONSENSUS_TREASURY in Railway env
+ * 4. Backend API will call mint() without authorization
  */
 contract DeployConsensusNFT is Script {
     function run() public {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         
         vm.startBroadcast(deployerPrivateKey);
         
