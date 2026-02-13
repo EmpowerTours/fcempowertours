@@ -87,9 +87,17 @@ export async function notifyAgentEntry(data: AgentEntryNotification): Promise<vo
 
 /**
  * Notify Discord of lottery events
+ * Automatically strips Farcaster FID mentions like <@1> and replaces with addresses
  */
 export async function notifyLotteryEvent(message: string): Promise<void> {
-  await sendDiscordNotification(message);
+  // Strip any Farcaster FID mentions that don't work in Discord
+  // Pattern: <@1>, <@!1>, etc. - single digit FIDs that are invalid Discord user IDs
+  const cleanedMessage = message.replace(/<@!?(\d{1,3})>/g, (match, fid) => {
+    // If FID is very small (1-999), it's likely a Farcaster ID, not Discord
+    return `User(FID:${fid})`;
+  });
+  
+  await sendDiscordNotification(cleanedMessage);
 }
 
 /**
