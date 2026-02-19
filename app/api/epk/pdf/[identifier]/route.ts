@@ -27,13 +27,27 @@ function resolveIpfsUrl(uri: string): string {
 
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {
   if (!url) return null;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
-  } catch {
-    return null;
+  // Build a list of URLs to try (primary + fallback gateways for IPFS)
+  const urls: string[] = [url];
+  const ipfsCidMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+  if (ipfsCidMatch) {
+    urls.push(`https://ipfs.io/ipfs/${ipfsCidMatch[1]}`);
+    urls.push(`https://gateway.pinata.cloud/ipfs/${ipfsCidMatch[1]}`);
   }
+  for (const tryUrl of urls) {
+    try {
+      const res = await fetch(tryUrl, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        console.log(`[EPK PDF] Image fetched (${buf.length} bytes) from ${tryUrl}`);
+        return buf;
+      }
+    } catch {
+      // try next
+    }
+  }
+  console.warn(`[EPK PDF] Image fetch failed for all gateways: ${url}`);
+  return null;
 }
 
 async function fetchArtistNFTs(
@@ -66,14 +80,20 @@ async function fetchArtistNFTs(
     const data = await res.json();
     const nfts: any[] = data?.data?.EmpowerToursNFT_MasterMinted || [];
 
+    console.log(`[EPK PDF] NFTs from Envio for ${artistAddress}:`, nfts.map((n: any) => ({ id: n.tokenId, title: n.title, coverImage: n.coverImage })));
+
     // Fetch cover images in parallel (failures return null)
     return await Promise.all(
-      nfts.map(async (nft) => ({
-        tokenId: nft.tokenId,
-        title: nft.title || `Track #${nft.tokenId}`,
-        coverImage: nft.coverImage || '',
-        imageBuffer: await fetchImageBuffer(resolveIpfsUrl(nft.coverImage || '')),
-      }))
+      nfts.map(async (nft) => {
+        const resolvedUrl = resolveIpfsUrl(nft.coverImage || '');
+        console.log(`[EPK PDF] Fetching cover for token #${nft.tokenId}: raw="${nft.coverImage}" resolved="${resolvedUrl}"`);
+        return {
+          tokenId: nft.tokenId,
+          title: nft.title || `Track #${nft.tokenId}`,
+          coverImage: nft.coverImage || '',
+          imageBuffer: await fetchImageBuffer(resolvedUrl),
+        };
+      })
     );
   } catch (err) {
     console.warn('[EPK PDF] NFT fetch failed:', (err as Error).message);
@@ -101,6 +121,7 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
+    const BG     = '#0f0a2a'; // deep navy background
     const PURPLE = '#a78bfa';
     const WHITE  = '#ffffff';
     const MUTED  = '#94a3b8';
@@ -109,6 +130,9 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
     const DARK   = '#1e1b4b';
     const W      = doc.page.width - 80;
     const PAGE_H = doc.page.height;
+
+    // ── Full-page dark background ──────────────────────────────────────────────
+    doc.rect(0, 0, doc.page.width, PAGE_H).fill(BG);
 
     // ── Header ────────────────────────────────────────────────────────────────
     doc.fillColor(WHITE).fontSize(24).font('Helvetica-Bold').text(s(epk.artist.name), 40, 40);
