@@ -3,36 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, ArrowRightLeft, Zap, Activity, ExternalLink, ChevronDown } from 'lucide-react';
-import { encodeFunctionData, parseEther } from 'viem';
 import { useWalletContext } from '@/app/hooks/useWalletContext';
 
 const AUCTION_CONTRACT = '0x0992f5E8a2d9709d7897F413Ef294c47a18D029e' as const;
 const EXPLORER = 'https://monadscan.com';
-const DEST_CHAIN = 143;
 
-const TOKENS = {
-  USDC:  { address: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603' as `0x${string}`, decimals: 6  },
-  USDT0: { address: '0xe7cd86e13AC4309349F30B3435a9d337750fC82D' as `0x${string}`, decimals: 6  },
-  WETH:  { address: '0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242' as `0x${string}`, decimals: 18 },
-  WBTC:  { address: '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c' as `0x${string}`, decimals: 8  },
-  WMON:  { address: '0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A' as `0x${string}`, decimals: 18 },
-} as const;
-
-type TokenKey = keyof typeof TOKENS;
-
-const AUCTION_ABI = [{
-  name: 'postIntent',
-  type: 'function' as const,
-  inputs: [
-    { name: 'tokenIn',   type: 'address' },
-    { name: 'tokenOut',  type: 'address' },
-    { name: 'destChain', type: 'uint32'  },
-    { name: 'minOut',    type: 'uint256' },
-    { name: 'amountIn',  type: 'uint256' },
-  ],
-  outputs: [{ name: '', type: 'uint256' }],
-  stateMutability: 'payable' as const,
-}];
+const TOKEN_KEYS = ['USDC', 'USDT0', 'WETH', 'WBTC', 'WMON'] as const;
+type TokenKey = typeof TOKEN_KEYS[number];
 
 interface RecentIntent {
   intentId: string;
@@ -48,7 +25,7 @@ interface IntentAuctionModalProps {
 }
 
 export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps) {
-  const { walletAddress, sendTransaction } = useWalletContext();
+  const { walletAddress } = useWalletContext();
   const [mounted, setMounted] = useState(false);
 
   // Form state
@@ -103,29 +80,25 @@ export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps)
     setTxHash(null);
 
     try {
-      const amountWei = parseEther(amount);
-      const data = encodeFunctionData({
-        abi:          AUCTION_ABI,
-        functionName: 'postIntent',
-        args: [
-          '0x0000000000000000000000000000000000000000',
-          TOKENS[tokenOut].address,
-          DEST_CHAIN,
-          0n,
-          amountWei,
-        ],
+      // Route through UserSafe via execute-delegated — consistent with all other oracle transactions
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'post_intent',
+          params: { amountMon: amount, tokenOut },
+        }),
       });
 
-      const result = await sendTransaction({
-        to:    AUCTION_CONTRACT,
-        data,
-        value: amountWei.toString(),
-      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Transaction failed');
+      }
 
-      const hash = result?.transactionHash ?? result?.hash ?? result;
-      if (typeof hash === 'string') setTxHash(hash);
+      if (typeof data.txHash === 'string') setTxHash(data.txHash);
     } catch (e: any) {
-      setError(e?.shortMessage ?? e?.message?.slice(0, 120) ?? 'Transaction failed');
+      setError(e?.message?.slice(0, 160) ?? 'Transaction failed');
     } finally {
       setPosting(false);
     }
@@ -133,7 +106,7 @@ export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps)
 
   if (!mounted || !isOpen) return null;
 
-  const tokenKeys = Object.keys(TOKENS) as TokenKey[];
+  const tokenKeys = TOKEN_KEYS;
 
   const content = (
     <div
@@ -225,13 +198,13 @@ export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps)
             </div>
           </div>
 
-          {/* Wallet funding note */}
+          {/* UserSafe funding note */}
           <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-xl p-3 flex items-start gap-2">
             <span className="text-yellow-500 text-sm flex-shrink-0">⚡</span>
             <p className="text-xs text-yellow-500/80">
-              MON is sent directly from your <span className="text-yellow-400 font-medium">Warpcast wallet</span> — not your User Safe.
-              Fund your Warpcast wallet with MON on{' '}
-              <span className="text-yellow-400 font-medium">Monad mainnet</span> before swapping.
+              MON is sent from your <span className="text-yellow-400 font-medium">User Safe</span>.
+              Deposit MON into your Safe via the{' '}
+              <span className="text-yellow-400 font-medium">Deposit</span> button before swapping.
             </p>
           </div>
 

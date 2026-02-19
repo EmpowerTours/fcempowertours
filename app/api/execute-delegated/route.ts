@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
       'create_climb',          // Create climbing location (35 WMON)
       'purchase_climb',        // Purchase climbing location access
       'flip_coin',             // Play flip coin game (external contract)
+      'post_intent',           // Intent Auction: post swap intent from UserSafe
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -5335,6 +5336,98 @@ ${enjoyText}
           choice: choice ? 'HEADS' : 'TAILS',
           betAmount: betAmountMon,
           message: `Coin flipped! You bet ${betAmountMon} MON on ${choice ? 'HEADS' : 'TAILS'}. Check tx for result.`,
+        });
+      }
+
+      case 'post_intent': {
+        console.log('🔄 Action: post_intent (Intent Auction from UserSafe)');
+
+        const AUCTION_CONTRACT_V2 = '0x0992f5E8a2d9709d7897F413Ef294c47a18D029e' as Address;
+        const DEST_CHAIN_ID = 143; // Monad → Monad intra-chain swap
+
+        const { amountMon, tokenOut: intentTokenOut } = params || {};
+
+        if (!amountMon || !intentTokenOut) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: amountMon, tokenOut' },
+            { status: 400 }
+          );
+        }
+
+        const intentAmountWei = parseEther(amountMon);
+        const minBetAuction = parseEther('0.001');
+        const maxBetAuction = parseEther('10000');
+
+        if (intentAmountWei < minBetAuction || intentAmountWei > maxBetAuction) {
+          return NextResponse.json({
+            success: false,
+            error: `Amount must be between 0.001 and 10000 MON. Got: ${amountMon} MON.`
+          }, { status: 400 });
+        }
+
+        // Supported tokenOut addresses on Monad mainnet
+        const TOKEN_ADDRESSES: Record<string, Address> = {
+          USDC:  '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
+          USDT0: '0xe7cd86e13AC4309349F30B3435a9d337750fC82D',
+          WETH:  '0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242',
+          WBTC:  '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c',
+          WMON:  '0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A',
+        };
+
+        const tokenOutAddress = TOKEN_ADDRESSES[intentTokenOut as string];
+        if (!tokenOutAddress) {
+          return NextResponse.json({
+            success: false,
+            error: `Unsupported tokenOut: ${intentTokenOut}. Supported: ${Object.keys(TOKEN_ADDRESSES).join(', ')}`
+          }, { status: 400 });
+        }
+
+        console.log('🔄 Intent Auction post:', {
+          user: userAddress,
+          amountMon,
+          tokenOut: intentTokenOut,
+          tokenOutAddress,
+          contract: AUCTION_CONTRACT_V2,
+        });
+
+        // Single call: postIntent(tokenIn=address(0) for native MON, tokenOut, destChain, minOut=0, amountIn)
+        // UserSafe sends native MON as value — no approval needed
+        const postIntentCalls: Call[] = [
+          {
+            to: AUCTION_CONTRACT_V2,
+            value: intentAmountWei,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                'function postIntent(address tokenIn, address tokenOut, uint32 destChain, uint256 minOut, uint256 amountIn) external payable returns (uint256)',
+              ]),
+              functionName: 'postIntent',
+              args: [
+                '0x0000000000000000000000000000000000000000', // address(0) = native MON
+                tokenOutAddress,
+                DEST_CHAIN_ID,
+                0n,            // minOut = 0 (agents compete for best rate)
+                intentAmountWei,
+              ],
+            }) as Hex,
+          },
+        ];
+
+        const postIntentTxHash = await executeTransaction(
+          postIntentCalls,
+          userAddress as Address,
+          intentAmountWei
+        );
+
+        console.log('✅ Intent posted via UserSafe, TX:', postIntentTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: postIntentTxHash,
+          action,
+          userAddress,
+          amountMon,
+          tokenOut: intentTokenOut,
+          message: `Intent posted! ${amountMon} MON locked — AI agents are competing for your swap.`,
         });
       }
 
