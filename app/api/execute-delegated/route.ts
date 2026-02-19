@@ -5238,8 +5238,22 @@ ${enjoyText}
           );
         }
 
-        // Pyth Entropy fee is approximately 0.4 MON - send 0.5 to be safe (excess refunded)
-        const entropyFee = parseEther('0.5');
+        // Query actual Pyth Entropy fee from the lottery contract (excess is refunded by contract)
+        let entropyFee: bigint;
+        try {
+          const queriedFee = await client.readContract({
+            address: DAILY_LOTTERY_DRAW_ADDRESS,
+            abi: parseAbi(['function getEntropyFee() view returns (uint256)']),
+            functionName: 'getEntropyFee',
+          }) as bigint;
+          // Add 20% buffer to handle minor fee fluctuations; contract refunds excess
+          entropyFee = (queriedFee * 120n) / 100n;
+          console.log(`🎲 Pyth entropy fee: ${formatEther(queriedFee)} MON (sending ${formatEther(entropyFee)} MON with buffer)`);
+        } catch {
+          // Fallback to 1 MON if query fails — contract always refunds excess
+          entropyFee = parseEther('1');
+          console.warn('🎲 Could not query entropy fee, falling back to 1 MON');
+        }
 
         console.log('🎲 Requesting daily lottery draw:', {
           lotteryAddress: DAILY_LOTTERY_DRAW_ADDRESS,
