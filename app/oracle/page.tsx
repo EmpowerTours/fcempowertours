@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon, Mountain, Code, Vote, Users } from 'lucide-react';
+import { Send, Sparkles, X, Globe, Loader2, Music2, User, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon, Mountain, Code, Vote, Users, ArrowRightLeft } from 'lucide-react';
 import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
 import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
 import { MirrorMate } from '@/app/components/oracle/MirrorMate';
@@ -20,6 +20,7 @@ import { RockClimbingModal } from '@/app/components/oracle/RockClimbingModal';
 import { DevStudioModal } from '@/app/components/oracle/DevStudioModal';
 import { DAOModal } from '@/app/components/oracle/DAOModal';
 import { EPKModal } from '@/app/components/oracle/EPKModal';
+import { IntentAuctionModal } from '@/app/components/oracle/IntentAuctionModal';
 import dynamic from 'next/dynamic';
 
 // Dynamic import for Agent World (uses Three.js which needs client-only loading)
@@ -112,6 +113,7 @@ export default function OraclePage() {
   const [showEPKModal, setShowEPKModal] = useState(false);
   const [showAgentWorldModal, setShowAgentWorldModal] = useState(false);
   const [agentWorldMinimized, setAgentWorldMinimized] = useState(false);
+  const [showAuctionModal, setShowAuctionModal] = useState(false);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [viewingUserAddress, setViewingUserAddress] = useState<string | null>(null);
@@ -188,6 +190,7 @@ export default function OraclePage() {
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
     setShowCreateExperienceModal(false);
+    setShowAuctionModal(false);
     setSelectedNFT(null);
     setPaymentRequired(null);
   }, []);
@@ -1115,6 +1118,13 @@ export default function OraclePage() {
               <Users className="w-3.5 h-3.5" />
               Agent World
             </button>
+            <button
+              onClick={() => openModal(() => setShowAuctionModal(true))}
+              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              Intent Swap
+            </button>
           </div>
 
         </div>
@@ -1553,6 +1563,13 @@ export default function OraclePage() {
           setMinimized={setAgentWorldMinimized}
         />
       )}
+
+      {/* Intent Auction Modal */}
+      <IntentAuctionModal
+        isOpen={showAuctionModal}
+        onClose={() => setShowAuctionModal(false)}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Deposit Modal */}
       {showDepositModal && (
