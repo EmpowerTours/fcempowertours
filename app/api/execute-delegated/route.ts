@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
       'purchase_climb',        // Purchase climbing location access
       'flip_coin',             // Play flip coin game (external contract)
       'post_intent',           // Intent Auction: post swap intent from UserSafe
+      'claim_intent_refund',   // Intent Auction: claim refund on expired unexecuted intent
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -5444,6 +5445,48 @@ ${enjoyText}
           amountMon,
           tokenOut: intentTokenOut,
           message: `Intent posted! ${amountMon} MON locked — AI agents are competing for your swap.`,
+        });
+      }
+
+      case 'claim_intent_refund': {
+        console.log('🔄 Action: claim_intent_refund');
+
+        const AUCTION_CONTRACT_V2 = '0x0992f5E8a2d9709d7897F413Ef294c47a18D029e' as Address;
+        const { intentId } = params || {};
+
+        if (!intentId) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameter: intentId' },
+            { status: 400 }
+          );
+        }
+
+        const refundCalls: Call[] = [
+          {
+            to: AUCTION_CONTRACT_V2,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function claimRefund(uint256 intentId) external']),
+              functionName: 'claimRefund',
+              args: [BigInt(intentId)],
+            }) as Hex,
+          },
+        ];
+
+        const refundTxHash = await executeTransaction(
+          refundCalls,
+          userAddress as Address,
+          0n
+        );
+
+        console.log('✅ Refund claimed for intent #' + intentId + ', TX:', refundTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: refundTxHash,
+          action,
+          intentId,
+          message: `Refund claimed for intent #${intentId} — MON returned to your Safe.`,
         });
       }
 
