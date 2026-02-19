@@ -5,7 +5,7 @@ import { X, Loader2, ArrowRightLeft, Zap, Activity, ExternalLink, ChevronDown } 
 import { encodeFunctionData, parseEther, parseUnits } from 'viem';
 import { useWalletContext } from '@/app/hooks/useWalletContext';
 
-const AUCTION_CONTRACT = '0x735054d42cf974930C68B490B212321DF2154C59' as const;
+const AUCTION_CONTRACT = '0x0992f5E8a2d9709d7897F413Ef294c47a18D029e' as const;
 const RELAY_URL = 'ws://3.144.30.149:3000';
 const EXPLORER = 'https://monadscan.com';
 const DEST_CHAIN = 143; // Monad mainnet
