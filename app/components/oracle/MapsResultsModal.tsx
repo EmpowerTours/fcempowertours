@@ -136,6 +136,11 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   const [proximityResult, setProximityResult] = useState<{ tooFar: boolean; distance: string } | null>(null);
   const [proximityError, setProximityError] = useState<string | null>(null);
 
+  // Live arrival tracking
+  const [arrivedAtPlace, setArrivedAtPlace] = useState(false);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const watchIdRef = useRef<number | null>(null);
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -237,7 +242,57 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
   useEffect(() => {
     setProximityResult(null);
     setProximityError(null);
+    setArrivedAtPlace(false);
   }, [selectedIndex]);
+
+  // Live arrival tracking — start watchPosition when directions are active
+  useEffect(() => {
+    const stopWatch = () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation?.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      setTrackingActive(false);
+    };
+
+    if (!directionsMode || !selectedSource || !onCreateExperience) {
+      stopWatch();
+      setArrivedAtPlace(false);
+      return;
+    }
+
+    if (!navigator.geolocation) return;
+
+    const rawPlaceId = selectedSource.placeId || '';
+    const cleanPlaceId = rawPlaceId.replace(/^places\//, '');
+    const details = placeDetails[rawPlaceId] || placeDetails[cleanPlaceId] || null;
+    if (!details?.location) return;
+
+    const destLat = details.location.lat;
+    const destLng = details.location.lng;
+
+    setTrackingActive(true);
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const result = isWithinProximity(
+          pos.coords.latitude, pos.coords.longitude,
+          destLat, destLng,
+          500
+        );
+        if (result.isWithin) {
+          setArrivedAtPlace(true);
+          stopWatch(); // stop polling once arrived
+        }
+      },
+      (err) => {
+        console.warn('[MapsWidget] watchPosition error:', err.message);
+        setTrackingActive(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+
+    return stopWatch;
+  }, [directionsMode, selectedSource, placeDetails, onCreateExperience]);
 
   // Load Google Maps JavaScript API
   useEffect(() => {
@@ -668,6 +723,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     setOsmDirectionsPolyline([]);
     setProximityResult(null);
     setProximityError(null);
+    setArrivedAtPlace(false);
 
     // Remove directions renderer
     if (directionsRendererRef.current) {
@@ -1386,9 +1442,36 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
                   </>
                 )}
 
-                {/* "I'm Here - Create Experience" button in directions panel */}
-                {onCreateExperience && directionsSummary && selectedSource && (
+                {/* Arrival detected — auto-triggered banner */}
+                {arrivedAtPlace && onCreateExperience && selectedSource && (
+                  <div className="mt-3 pt-3 border-t border-green-500/30 animate-pulse-once">
+                    <div className="p-3 bg-green-500/15 border border-green-500/40 rounded-xl mb-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                        <span className="text-green-400 text-sm font-bold">You've arrived at {selectedSource.title}!</span>
+                      </div>
+                      <p className="text-green-400/70 text-xs pl-6">Share your experience and earn WMON when others visit.</p>
+                    </div>
+                    <button
+                      onClick={() => handleCreateExperienceCheck(selectedSource)}
+                      disabled={proximityChecking}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-green-500/30 to-cyan-500/30 hover:from-green-500/40 hover:to-cyan-500/40 border border-green-500/50 text-green-300 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-green-500/10"
+                    >
+                      {proximityChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      Create Experience — Earn WMON
+                    </button>
+                  </div>
+                )}
+
+                {/* "I'm Here - Create Experience" button in directions panel (manual fallback) */}
+                {onCreateExperience && directionsSummary && selectedSource && !arrivedAtPlace && (
                   <div className="mt-3 pt-3 border-t border-gray-700/50">
+                    {trackingActive && (
+                      <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                        Tracking your location…
+                      </div>
+                    )}
                     <button
                       onClick={() => handleCreateExperienceCheck(selectedSource)}
                       disabled={proximityChecking}
