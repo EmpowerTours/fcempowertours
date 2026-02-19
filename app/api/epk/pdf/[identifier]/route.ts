@@ -6,18 +6,90 @@ import type { EPKMetadata } from '@/lib/epk/types';
 
 const redis = Redis.fromEnv();
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || '';
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 
 // Safe string coercion for IPFS data
 const s = (val: unknown): string => (val == null ? '' : String(val));
 
-async function generatePDFBuffer(epk: EPKMetadata): Promise<Buffer> {
+interface NFTTrack {
+  tokenId: number;
+  title: string;
+  coverImage: string;
+  imageBuffer: Buffer | null;
+}
+
+function resolveIpfsUrl(uri: string): string {
+  if (!uri) return '';
+  if (uri.startsWith('ipfs://')) return `https://${PINATA_GATEWAY}/ipfs/${uri.slice(7)}`;
+  if (/^(Qm|bafy|bafk)/i.test(uri)) return `https://${PINATA_GATEWAY}/ipfs/${uri}`;
+  return uri;
+}
+
+async function fetchImageBuffer(url: string): Promise<Buffer | null> {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+async function fetchArtistNFTs(
+  artistAddress: string,
+  envioEndpoint: string
+): Promise<NFTTrack[]> {
+  if (!envioEndpoint) return [];
+
+  const query = `
+    query ArtistNFTs($artist: String!) {
+      EmpowerToursNFT_MasterMinted(
+        where: { artist: { _eq: $artist } }
+        order_by: { tokenId: desc }
+        limit: 1
+      ) {
+        tokenId
+        title
+        coverImage
+      }
+    }
+  `;
+
+  try {
+    const res = await fetch(envioEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables: { artist: artistAddress.toLowerCase() } }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = await res.json();
+    const nfts: any[] = data?.data?.EmpowerToursNFT_MasterMinted || [];
+
+    // Fetch cover images in parallel (failures return null)
+    return await Promise.all(
+      nfts.map(async (nft) => ({
+        tokenId: nft.tokenId,
+        title: nft.title || `Track #${nft.tokenId}`,
+        coverImage: nft.coverImage || '',
+        imageBuffer: await fetchImageBuffer(resolveIpfsUrl(nft.coverImage || '')),
+      }))
+    );
+  } catch (err) {
+    console.warn('[EPK PDF] NFT fetch failed:', (err as Error).message);
+    return [];
+  }
+}
+
+async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Buffer> {
   // Use @react-pdf/pdfkit directly — no React dependency, no dual-instance issue
   const { default: PDFDocument } = await import('@react-pdf/pdfkit' as any);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
-      margin: 50,
+      margin: 40,
       size: 'A4',
+      autoFirstPage: true,
       info: {
         Title: `${s(epk.artist.name)} — Electronic Press Kit`,
         Author: 'EmpowerTours',
@@ -29,142 +101,154 @@ async function generatePDFBuffer(epk: EPKMetadata): Promise<Buffer> {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    const BG       = '#0f172a';
-    const PURPLE   = '#a78bfa';
-    const WHITE    = '#ffffff';
-    const MUTED    = '#94a3b8';
-    const LIGHT    = '#cbd5e1';
-    const GREEN    = '#22c55e';
-    const W        = doc.page.width - 100; // usable width
+    const PURPLE = '#a78bfa';
+    const WHITE  = '#ffffff';
+    const MUTED  = '#94a3b8';
+    const LIGHT  = '#cbd5e1';
+    const GREEN  = '#22c55e';
+    const DARK   = '#1e1b4b';
+    const W      = doc.page.width - 80;
+    const PAGE_H = doc.page.height;
 
-    const section = (title: string) => {
-      doc.moveDown(0.5)
-        .fillColor(PURPLE).fontSize(14).font('Helvetica-Bold').text(title)
-        .moveDown(0.2)
-        .fillColor(MUTED).fontSize(9).text('─'.repeat(80))
-        .moveDown(0.4);
-    };
+    // ── Header ────────────────────────────────────────────────────────────────
+    doc.fillColor(WHITE).fontSize(24).font('Helvetica-Bold').text(s(epk.artist.name), 40, 40);
 
-    const body = (text: string, color = LIGHT) => {
-      doc.fillColor(color).fontSize(10).font('Helvetica').text(s(text), { width: W, lineGap: 2 });
-    };
-
-    const bullet = (text: string) => {
-      doc.fillColor(LIGHT).fontSize(10).font('Helvetica').text(`• ${s(text)}`, { indent: 12, width: W - 12 });
-    };
-
-    // ── Page 1: Hero + Bio + Press ────────────────────────────────────────────
-    doc.rect(0, 0, doc.page.width, doc.page.height).fill(BG);
-    doc.fillColor(WHITE).fontSize(28).font('Helvetica-Bold')
-      .text(s(epk.artist.name), 50, 50);
-
-    doc.fillColor(MUTED).fontSize(13).font('Helvetica')
-      .text(s(epk.artist.location), 50, 90);
-
-    const genres: string[] = (epk.artist.genre || []).map(s);
-    if (genres.length) {
-      doc.fillColor(PURPLE).fontSize(10).text(genres.join('  ·  '), 50, 112);
+    const genres = (epk.artist.genre || []).map(s).join('  ·  ');
+    const locationLine = [s(epk.artist.location), genres].filter(Boolean).join('   |   ');
+    if (locationLine) {
+      doc.fillColor(MUTED).fontSize(10).font('Helvetica').text(locationLine, 40, 70);
     }
 
     if (epk.onChain?.ipfsCid) {
-      doc.fillColor(GREEN).fontSize(9)
-        .text(`✓ On-chain verified · IPFS: ${String(epk.onChain.ipfsCid).slice(0, 20)}...`, 50, 130);
+      doc.fillColor(GREEN).fontSize(8)
+        .text(`✓ On-chain verified · ${String(epk.onChain.ipfsCid).slice(0, 24)}...`, 40, 86);
     }
 
-    doc.moveTo(50, 150).lineTo(doc.page.width - 50, 150).strokeColor(PURPLE).stroke();
-    doc.y = 160;
+    doc.moveTo(40, 100).lineTo(doc.page.width - 40, 100).strokeColor(PURPLE).lineWidth(1).stroke();
 
-    section('About');
-    body(s(epk.artist.bio));
+    // ── Two-column layout ─────────────────────────────────────────────────────
+    const colL = 40;
+    const colR = doc.page.width / 2 + 10;
+    const colW = doc.page.width / 2 - 55;
+    const COL_TOP = 108;
 
-    if ((epk.press || []).length > 0) {
-      section('Press');
-      for (const article of (epk.press || [])) {
-        doc.fillColor(PURPLE).fontSize(9).font('Helvetica-Bold').text(s(article.outlet), { width: W });
-        doc.fillColor(WHITE).fontSize(11).font('Helvetica-Bold').text(s(article.title), { width: W });
-        doc.fillColor(MUTED).fontSize(9).font('Helvetica').text(s(article.excerpt), { width: W });
-        doc.fillColor('#475569').fontSize(8).text(s(article.date), { width: W });
-        doc.moveDown(0.5);
+    // Left column: Bio + Press
+    doc.fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('ABOUT', colL, COL_TOP);
+    doc.moveDown(0.15);
+    doc.fillColor(LIGHT).fontSize(8.5).font('Helvetica')
+      .text(s(epk.artist.bio), colL, doc.y, { width: colW, lineGap: 1.5 });
+
+    const pressArticles = (epk.press || []).slice(0, 3);
+    if (pressArticles.length) {
+      doc.moveDown(0.5).fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('PRESS', colL, doc.y);
+      doc.moveDown(0.15);
+      for (const a of pressArticles) {
+        doc.fillColor(PURPLE).fontSize(8).font('Helvetica-Bold').text(s(a.outlet), colL, doc.y, { width: colW });
+        doc.fillColor(WHITE).fontSize(8.5).font('Helvetica-Bold').text(s(a.title), colL, doc.y, { width: colW });
+        if (a.excerpt) doc.fillColor(MUTED).fontSize(8).font('Helvetica').text(s(a.excerpt), colL, doc.y, { width: colW, lineGap: 1 });
+        doc.moveDown(0.3);
       }
     }
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica')
-      .text(`${s(epk.artist.name)} | Electronic Press Kit | EmpowerTours on Monad`,
-        50, doc.page.height - 40, { align: 'center', width: W });
+    // Right column: Booking + Riders + Contact
+    let rY = COL_TOP;
 
-    // ── Page 2: Riders ────────────────────────────────────────────────────────
-    doc.addPage();
-    doc.rect(0, 0, doc.page.width, doc.page.height).fill(BG);
-    doc.y = 50;
-
-    const techSections = Object.values(epk.technicalRider || {}) as any[];
-    if (techSections.length) {
-      section('Technical Rider');
-      for (const sec of techSections) {
-        doc.fillColor(WHITE).fontSize(11).font('Helvetica-Bold').text(s(sec.title), { width: W });
-        doc.moveDown(0.2);
-        for (const item of (sec.items || [])) bullet(item);
-        doc.moveDown(0.4);
+    if (epk.booking?.pricing || (epk.booking?.availableFor || []).length) {
+      doc.fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('BOOKING', colR, rY, { width: colW });
+      rY = doc.y + 2;
+      if (epk.booking?.pricing) {
+        doc.fillColor(LIGHT).fontSize(8.5).font('Helvetica').text(s(epk.booking.pricing), colR, rY, { width: colW });
+        rY = doc.y + 2;
       }
-    }
-
-    const hospSections = Object.values(epk.hospitalityRider || {}) as any[];
-    if (hospSections.length) {
-      section('Hospitality Rider');
-      for (const sec of hospSections) {
-        doc.fillColor(WHITE).fontSize(11).font('Helvetica-Bold').text(s(sec.title), { width: W });
-        doc.moveDown(0.2);
-        for (const item of (sec.items || [])) bullet(item);
-        doc.moveDown(0.4);
+      for (const item of (epk.booking?.availableFor || []).slice(0, 4)) {
+        doc.fillColor(LIGHT).fontSize(8).font('Helvetica').text(`• ${s(item)}`, colR, rY, { width: colW });
+        rY = doc.y;
       }
+      rY += 6;
     }
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica')
-      .text(`${s(epk.artist.name)} | Electronic Press Kit | EmpowerTours on Monad`,
-        50, doc.page.height - 40, { align: 'center', width: W });
-
-    // ── Page 3: Booking + Contact ─────────────────────────────────────────────
-    doc.addPage();
-    doc.rect(0, 0, doc.page.width, doc.page.height).fill(BG);
-    doc.y = 50;
-
-    section('Booking Information');
-
-    if (epk.booking?.pricing) {
-      doc.fillColor(PURPLE).fontSize(11).font('Helvetica-Bold').text('Pricing', { width: W });
-      body(s(epk.booking.pricing));
-      doc.moveDown(0.3);
+    const techSecs = Object.values(epk.technicalRider || {}) as any[];
+    if (techSecs.length) {
+      doc.fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('TECHNICAL RIDER', colR, rY, { width: colW });
+      rY = doc.y + 2;
+      for (const sec of techSecs.slice(0, 3)) {
+        doc.fillColor(WHITE).fontSize(8.5).font('Helvetica-Bold').text(s(sec.title), colR, rY, { width: colW });
+        rY = doc.y;
+        for (const item of (sec.items || []).slice(0, 3)) {
+          doc.fillColor(LIGHT).fontSize(8).font('Helvetica').text(`• ${s(item)}`, colR, rY, { width: colW });
+          rY = doc.y;
+        }
+      }
+      rY += 6;
     }
 
-    if ((epk.booking?.availableFor || []).length) {
-      doc.fillColor(PURPLE).fontSize(11).font('Helvetica-Bold').text('Available For', { width: W }).moveDown(0.2);
-      for (const item of (epk.booking?.availableFor || [])) bullet(item);
-      doc.moveDown(0.3);
+    const contactParts = [`empowertours.xyz/epk/${s(epk.artist.slug)}`];
+    if (epk.socials?.farcaster) contactParts.push(`Farcaster: @${s(epk.socials.farcaster)}`);
+    if (epk.socials?.twitter)   contactParts.push(`X: @${s(epk.socials.twitter)}`);
+    if (epk.socials?.website)   contactParts.push(s(epk.socials.website));
+    doc.fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('CONTACT', colR, rY, { width: colW });
+    rY = doc.y + 2;
+    for (const line of contactParts) {
+      doc.fillColor(LIGHT).fontSize(8.5).font('Helvetica').text(line, colR, rY, { width: colW });
+      rY = doc.y;
     }
 
-    if ((epk.booking?.targetEvents || []).length) {
-      doc.fillColor(PURPLE).fontSize(11).font('Helvetica-Bold').text('Target Events', { width: W }).moveDown(0.2);
-      for (const item of (epk.booking?.targetEvents || [])) bullet(item);
-      doc.moveDown(0.3);
+    // ── Discography strip (NFT cover art) ─────────────────────────────────────
+    const hasNFTs = nfts.length > 0;
+    const DISC_SECTION_H = hasNFTs ? 105 : 0; // reserve space above footer
+    const FOOTER_H = 34;
+    const discY = PAGE_H - FOOTER_H - DISC_SECTION_H - 6;
+
+    if (hasNFTs) {
+      // Section divider
+      doc.moveTo(40, discY).lineTo(doc.page.width - 40, discY)
+        .strokeColor(PURPLE).lineWidth(0.4).stroke();
+
+      doc.fillColor(PURPLE).fontSize(10).font('Helvetica-Bold')
+        .text('LATEST RELEASE', 40, discY + 5, { characterSpacing: 0.5 });
+
+      // Single latest NFT — larger thumbnail on the left, title/label on the right
+      const nft = nfts[0];
+      const THUMB = 72;
+      const thumbX = 40;
+      const thumbStartY = discY + 16;
+
+      if (nft.imageBuffer) {
+        try {
+          doc.image(nft.imageBuffer, thumbX, thumbStartY, {
+            width: THUMB,
+            height: THUMB,
+            fit: [THUMB, THUMB],
+          });
+        } catch {
+          doc.rect(thumbX, thumbStartY, THUMB, THUMB).fillAndStroke(DARK, PURPLE);
+          doc.fillColor(MUTED).fontSize(20).font('Helvetica')
+            .text('♪', thumbX, thumbStartY + THUMB / 2 - 10, { width: THUMB, align: 'center' });
+        }
+      } else {
+        doc.rect(thumbX, thumbStartY, THUMB, THUMB).fillAndStroke(DARK, PURPLE);
+        doc.fillColor(MUTED).fontSize(20).font('Helvetica')
+          .text('♪', thumbX, thumbStartY + THUMB / 2 - 10, { width: THUMB, align: 'center' });
+      }
+
+      const infoX = thumbX + THUMB + 12;
+      const infoW = W - THUMB - 12;
+      doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold')
+        .text(s(nft.title), infoX, thumbStartY + 4, { width: infoW });
+      doc.fillColor(MUTED).fontSize(8).font('Helvetica')
+        .text(`Latest release · Token #${nft.tokenId} · EmpowerTours on Monad`, infoX, doc.y + 2, { width: infoW });
     }
 
-    if ((epk.booking?.territories || []).length) {
-      doc.fillColor(PURPLE).fontSize(11).font('Helvetica-Bold').text('Territories', { width: W }).moveDown(0.2);
-      for (const item of (epk.booking?.territories || [])) bullet(item);
-      doc.moveDown(0.3);
-    }
-
-    section('Contact');
-    body(`Booking inquiries: empowertours.xyz/epk/${s(epk.artist.slug)}`);
-    body('WMON deposit required for booking confirmation');
-    if (epk.socials?.farcaster) {
-      body(`Farcaster: @${s(epk.socials.farcaster)}`);
-    }
-
-    doc.fillColor('#475569').fontSize(8).font('Helvetica')
-      .text(`${s(epk.artist.name)} | Electronic Press Kit | EmpowerTours on Monad`,
-        50, doc.page.height - 40, { align: 'center', width: W });
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const footerLineY = PAGE_H - FOOTER_H;
+    doc.moveTo(40, footerLineY).lineTo(doc.page.width - 40, footerLineY)
+      .strokeColor(PURPLE).lineWidth(0.3).stroke();
+    doc.fillColor(MUTED).fontSize(7.5).font('Helvetica')
+      .text(
+        `${s(epk.artist.name)} · Electronic Press Kit · EmpowerTours on Monad`,
+        40, footerLineY + 6,
+        { align: 'center', width: W }
+      );
 
     doc.end();
   });
@@ -212,7 +296,10 @@ export async function GET(
       return NextResponse.json({ error: 'EPK metadata not found' }, { status: 404 });
     }
 
-    const pdfBuffer = await generatePDFBuffer(epkMetadata);
+    // Fetch NFTs in parallel with PDF generation prep
+    const nfts = await fetchArtistNFTs(artistAddress, ENVIO_ENDPOINT);
+
+    const pdfBuffer = await generatePDFBuffer(epkMetadata, nfts);
 
     return new NextResponse(pdfBuffer, {
       headers: {
