@@ -229,7 +229,10 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error('[EPK PDF] Error:', error);
-    return NextResponse.json({ error: error.message || 'PDF generation failed' }, { status: 500 });
+    console.error('[EPK PDF] Error:', error?.message, error?.stack);
+    return NextResponse.json({
+      error: error?.message || 'PDF generation failed',
+      stack: process.env.NODE_ENV !== 'production' ? error?.stack : undefined,
+    }, { status: 500 });
   }
 }
