@@ -38,9 +38,18 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
     try {
       const res = await fetch(tryUrl, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer());
-        console.log(`[EPK PDF] Image fetched (${buf.length} bytes) from ${tryUrl}`);
-        return buf;
+        const raw = Buffer.from(await res.arrayBuffer());
+        console.log(`[EPK PDF] Image fetched (${raw.length} bytes) from ${tryUrl}`);
+        // pdfkit only supports JPEG and PNG — convert any format (WebP, etc.) to PNG via sharp
+        try {
+          const { default: sharp } = await import('sharp');
+          const png = await sharp(raw).png().toBuffer();
+          console.log(`[EPK PDF] Converted to PNG (${png.length} bytes)`);
+          return png;
+        } catch (convErr) {
+          console.warn(`[EPK PDF] sharp conversion failed, returning raw buffer:`, (convErr as Error).message);
+          return raw;
+        }
       }
     } catch {
       // try next

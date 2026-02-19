@@ -22,6 +22,8 @@ const nextConfig = {
     '@anthropic-ai/sdk',
     // EPK PDF: use pdfkit directly (no React), externalized to avoid bundling issues
     '@react-pdf/pdfkit',
+    // Image conversion for EPK PDF (native module, must not be bundled)
+    'sharp',
   ],
   // Build optimization for Railway (reduce memory usage)
   swcMinify: true,
