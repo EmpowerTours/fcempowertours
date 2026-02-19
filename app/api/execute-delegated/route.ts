@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
       'flip_coin',             // Play flip coin game (external contract)
       'post_intent',           // Intent Auction: post swap intent from UserSafe
       'claim_intent_refund',   // Intent Auction: claim refund on expired unexecuted intent
+      'platform_send_mon',     // Admin: send native MON from Platform Safe to any address
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -3624,6 +3625,24 @@ ${enjoyText}
           amount,
           message: `Funded Safe with ${amount} TOURS!`,
         });
+      }
+
+      // ==================== PLATFORM: SEND NATIVE MON TO ADDRESS ====================
+      case 'platform_send_mon': {
+        // Admin-only: send native MON from Platform Safe to any address (for gas funding etc.)
+        console.log('💸 Action: platform_send_mon');
+        const { recipient: monRecipient, amount: monAmount } = params || {};
+        if (!monRecipient || !monAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing recipient or amount' },
+            { status: 400 }
+          );
+        }
+        const monAmountWei = parseEther(monAmount.toString());
+        const monCalls: Call[] = [{ to: monRecipient as Address, value: monAmountWei, data: '0x' as Hex }];
+        const monTxHash = await sendSafeTransaction(monCalls);
+        console.log('✅ MON sent from Platform Safe, TX:', monTxHash);
+        return NextResponse.json({ success: true, txHash: monTxHash, action, recipient: monRecipient, amount: monAmount });
       }
 
       // ==================== DAO: WRAP TOURS TO vTOURS ====================
