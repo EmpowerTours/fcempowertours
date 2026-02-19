@@ -67,14 +67,14 @@ async function fetchArtistNFTs(
 
   const query = `
     query ArtistNFTs($artist: String!) {
-      EmpowerToursNFT_MasterMinted(
-        where: { artist: { _eq: $artist } }
+      MusicNFT(
+        where: { artist: { _eq: $artist }, isBurned: { _eq: false } }
         order_by: { tokenId: desc }
         limit: 1
       ) {
         tokenId
-        title
-        coverImage
+        name
+        imageUrl
       }
     }
   `;
@@ -87,19 +87,19 @@ async function fetchArtistNFTs(
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json();
-    const nfts: any[] = data?.data?.EmpowerToursNFT_MasterMinted || [];
+    const nfts: any[] = data?.data?.MusicNFT || [];
 
-    console.log(`[EPK PDF] NFTs from Envio for ${artistAddress}:`, nfts.map((n: any) => ({ id: n.tokenId, title: n.title, coverImage: n.coverImage })));
+    console.log(`[EPK PDF] NFTs from Envio for ${artistAddress}:`, nfts.map((n: any) => ({ id: n.tokenId, name: n.name, imageUrl: n.imageUrl })));
 
     // Fetch cover images in parallel (failures return null)
     return await Promise.all(
       nfts.map(async (nft) => {
-        const resolvedUrl = resolveIpfsUrl(nft.coverImage || '');
-        console.log(`[EPK PDF] Fetching cover for token #${nft.tokenId}: raw="${nft.coverImage}" resolved="${resolvedUrl}"`);
+        const resolvedUrl = resolveIpfsUrl(nft.imageUrl || '');
+        console.log(`[EPK PDF] Fetching cover for token #${nft.tokenId}: raw="${nft.imageUrl}" resolved="${resolvedUrl}"`);
         return {
           tokenId: nft.tokenId,
-          title: nft.title || `Track #${nft.tokenId}`,
-          coverImage: nft.coverImage || '',
+          title: nft.name || `Track #${nft.tokenId}`,
+          coverImage: nft.imageUrl || '',
           imageBuffer: await fetchImageBuffer(resolvedUrl),
         };
       })
@@ -141,7 +141,17 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
     const W      = doc.page.width - 80;
     const PAGE_H = doc.page.height;
 
-    // Fill dark background on every page (including auto-added overflow pages)
+    // Pre-compute layout geometry so we can clamp text heights (prevents page overflow)
+    const FOOTER_H_CONST  = 34;
+    const hasNFTs_const   = nfts.length > 0;
+    const DISC_H_CONST    = hasNFTs_const ? 105 : 0;
+    const discY_const     = PAGE_H - FOOTER_H_CONST - DISC_H_CONST - 6; // ~697 with NFTs
+    const COL_TOP         = 108;
+    const MAX_TEXT_Y      = discY_const - 12; // stop text here to avoid running into disc strip
+    const PRESS_RESERVE   = 130; // approx pts needed for 3 press articles
+    const BIO_MAX_H       = Math.max(60, MAX_TEXT_Y - COL_TOP - PRESS_RESERVE);
+
+    // Fill dark background on every page (including any auto-added overflow pages)
     const fillPageBG = () => doc.rect(0, 0, doc.page.width, doc.page.height).fill(BG);
     doc.on('pageAdded', fillPageBG);
 
@@ -168,22 +178,22 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
     const colL = 40;
     const colR = doc.page.width / 2 + 10;
     const colW = doc.page.width / 2 - 55;
-    const COL_TOP = 108;
 
-    // Left column: Bio + Press
+    // Left column: Bio + Press (bio clamped to BIO_MAX_H to prevent page overflow)
     doc.fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('ABOUT', colL, COL_TOP);
     doc.moveDown(0.15);
     doc.fillColor(LIGHT).fontSize(8.5).font('Helvetica')
-      .text(s(epk.artist.bio), colL, doc.y, { width: colW, lineGap: 1.5 });
+      .text(s(epk.artist.bio), colL, doc.y, { width: colW, lineGap: 1.5, height: BIO_MAX_H, ellipsis: true });
 
     const pressArticles = (epk.press || []).slice(0, 3);
-    if (pressArticles.length) {
+    if (pressArticles.length && doc.y < MAX_TEXT_Y - 60) {
       doc.moveDown(0.5).fillColor(PURPLE).fontSize(10).font('Helvetica-Bold').text('PRESS', colL, doc.y);
       doc.moveDown(0.15);
       for (const a of pressArticles) {
+        if (doc.y >= MAX_TEXT_Y - 30) break; // stop if near bottom
         doc.fillColor(PURPLE).fontSize(8).font('Helvetica-Bold').text(s(a.outlet), colL, doc.y, { width: colW });
         doc.fillColor(WHITE).fontSize(8.5).font('Helvetica-Bold').text(s(a.title), colL, doc.y, { width: colW });
-        if (a.excerpt) doc.fillColor(MUTED).fontSize(8).font('Helvetica').text(s(a.excerpt), colL, doc.y, { width: colW, lineGap: 1 });
+        if (a.excerpt && doc.y < MAX_TEXT_Y - 20) doc.fillColor(MUTED).fontSize(8).font('Helvetica').text(s(a.excerpt), colL, doc.y, { width: colW, lineGap: 1, height: 30, ellipsis: true });
         doc.moveDown(0.3);
       }
     }
@@ -232,14 +242,12 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
     }
 
     // ── Switch back to page 1 so NFT strip and footer always land on page 1 ───
-    // (bio/press text may have auto-added overflow pages)
     doc.switchToPage(0);
 
     // ── Discography strip (NFT cover art) ─────────────────────────────────────
-    const hasNFTs = nfts.length > 0;
-    const DISC_SECTION_H = hasNFTs ? 105 : 0; // reserve space above footer
-    const FOOTER_H = 34;
-    const discY = PAGE_H - FOOTER_H - DISC_SECTION_H - 6;
+    const hasNFTs   = hasNFTs_const;
+    const FOOTER_H  = FOOTER_H_CONST;
+    const discY     = discY_const;
 
     if (hasNFTs) {
       // Section divider
@@ -257,12 +265,9 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
 
       if (nft.imageBuffer) {
         try {
-          doc.image(nft.imageBuffer, thumbX, thumbStartY, {
-            width: THUMB,
-            height: THUMB,
-            fit: [THUMB, THUMB],
-          });
-        } catch {
+          doc.image(nft.imageBuffer, thumbX, thumbStartY, { fit: [THUMB, THUMB] });
+        } catch (imgErr) {
+          console.warn('[EPK PDF] doc.image() failed:', (imgErr as Error).message);
           doc.rect(thumbX, thumbStartY, THUMB, THUMB).fillAndStroke(DARK, PURPLE);
           doc.fillColor(MUTED).fontSize(20).font('Helvetica')
             .text('♪', thumbX, thumbStartY + THUMB / 2 - 10, { width: THUMB, align: 'center' });
