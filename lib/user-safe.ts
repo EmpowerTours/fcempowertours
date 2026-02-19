@@ -507,6 +507,58 @@ export async function registerUserSafeOnV2Contracts(
 }
 
 /**
+ * Send a transaction from an existing known Safe address (bypasses derivation lookup).
+ * Use this when you know the exact Safe address (e.g. from on-chain intent.user).
+ * The botSigner must be an owner of that Safe.
+ */
+export async function sendFromExistingSafe(
+  safeAddress: Address,
+  calls: Array<{ to: Address; value: bigint; data: Hex }>
+): Promise<{ txHash: string }> {
+  const botSigner = getBotSignerAccount();
+
+  console.log('📤 [USER-SAFE] Sending from known Safe:', safeAddress);
+
+  const safeAccount = await toSafeSmartAccount({
+    client: publicClient,
+    owners: [botSigner],
+    entryPoint: {
+      address: ENTRYPOINT_ADDRESS,
+      version: '0.7',
+    },
+    version: '1.4.1',
+    address: safeAddress,
+  } as any);
+
+  const gasPrices = await getPimlicoGasPrices();
+
+  const client = createSmartAccountClient({
+    account: safeAccount,
+    chain: activeChain,
+    bundlerTransport: http(PIMLICO_BUNDLER_URL, { timeout: 120000 }),
+    pollingInterval: 2000,
+  });
+
+  const userOpHash = await client.sendUserOperation({
+    account: safeAccount as any,
+    calls,
+    maxFeePerGas: gasPrices.maxFeePerGas,
+    maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+  });
+
+  console.log('✅ UserOp submitted:', userOpHash);
+
+  const receipt = await client.waitForUserOperationReceipt({
+    hash: userOpHash,
+    timeout: 300_000,
+  });
+
+  const txHash = receipt.receipt.transactionHash;
+  console.log('✅ Confirmed TX:', txHash);
+  return { txHash };
+}
+
+/**
  * Ensure user Safe is registered on V2 contracts before first operation.
  */
 export async function ensureUserSafeRegistered(

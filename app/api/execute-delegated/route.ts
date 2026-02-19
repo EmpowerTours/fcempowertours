@@ -5449,14 +5449,14 @@ ${enjoyText}
       }
 
       case 'claim_intent_refund': {
-        // claimRefund must be called from the same Safe that posted the intent.
-        // intent.user = 0xCE1E82bBa89F444e7852Da08b2d24081130FE1FF (Safe owned by 0x8dF64bACf6b70F7787f8d14429b258B3fF958ec1)
-        console.log('🔄 Action: claim_intent_refund (via user Safe owner)');
+        // claimRefund must be called from the exact Safe that posted the intent (intent.user).
+        // Use sendFromExistingSafe to call directly from the known Safe address.
+        console.log('🔄 Action: claim_intent_refund (via sendFromExistingSafe)');
 
         const AUCTION_CONTRACT_V2 = '0x0992f5E8a2d9709d7897F413Ef294c47a18D029e' as Address;
-        const { intentId, safeOwner } = params || {};
-        // Default to the known Safe owner if not passed
-        const intentSafeOwner = (safeOwner as string) || '0x8dF64bACf6b70F7787f8d14429b258B3fF958ec1';
+        const { intentId, intentUserSafe } = params || {};
+        // Default to the Safe that posted intents #1 and #2
+        const safeAddr = ((intentUserSafe as string) || '0xCE1E82bBa89F444e7852Da08b2d24081130FE1FF') as Address;
 
         if (!intentId) {
           return NextResponse.json(
@@ -5477,8 +5477,8 @@ ${enjoyText}
           },
         ];
 
-        // Call directly via sendUserSafeTransaction (skip balance check — zero-value recovery)
-        const refundResult = await sendUserSafeTransaction(intentSafeOwner, refundCalls);
+        const { sendFromExistingSafe } = await import('@/lib/user-safe');
+        const refundResult = await sendFromExistingSafe(safeAddr, refundCalls);
         const refundTxHash = refundResult.txHash;
 
         console.log('✅ Refund claimed for intent #' + intentId + ', TX:', refundTxHash);
@@ -5488,7 +5488,7 @@ ${enjoyText}
           txHash: refundTxHash,
           action,
           intentId,
-          message: `Refund claimed for intent #${intentId} — MON returned to your Safe.`,
+          message: `Refund claimed for intent #${intentId} — MON returned to Safe.`,
         });
       }
 
