@@ -48,7 +48,7 @@ interface IntentAuctionModalProps {
 }
 
 export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps) {
-  const { walletAddress, sendTransaction, switchChain } = useWalletContext();
+  const { walletAddress, sendTransaction } = useWalletContext();
   const [mounted, setMounted] = useState(false);
 
   // Form state
@@ -103,8 +103,6 @@ export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps)
     setTxHash(null);
 
     try {
-      await switchChain({ chainId: 143 });
-
       const amountWei = parseEther(amount);
       const data = encodeFunctionData({
         abi:          AUCTION_ABI,
@@ -225,6 +223,16 @@ export function IntentAuctionModal({ isOpen, onClose }: IntentAuctionModalProps)
               <div className="flex gap-2"><span className="text-cyan-600 font-mono">3</span><span>Winning agent executes the swap, delivers {tokenOut} directly to you</span></div>
               <div className="flex gap-2"><span className="text-cyan-600 font-mono">4</span><span>Full refund if no bids — zero counterparty risk</span></div>
             </div>
+          </div>
+
+          {/* Wallet funding note */}
+          <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-xl p-3 flex items-start gap-2">
+            <span className="text-yellow-500 text-sm flex-shrink-0">⚡</span>
+            <p className="text-xs text-yellow-500/80">
+              MON is sent directly from your <span className="text-yellow-400 font-medium">Warpcast wallet</span> — not your User Safe.
+              Fund your Warpcast wallet with MON on{' '}
+              <span className="text-yellow-400 font-medium">Monad mainnet</span> before swapping.
+            </p>
           </div>
 
           {/* Error */}

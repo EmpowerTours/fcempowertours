@@ -313,7 +313,12 @@ export function useFarcasterContext() {
 
   const switchChain = async (params: { chainId: number }) => {
     if (!sdk) throw new Error('SDK not loaded');
-    return await sdk.actions.switchChain(params);
+    // Farcaster SDK does not always expose switchChain (depends on client version).
+    // EmpowerTours is Monad-only so silently succeed — the wallet is already on the right chain.
+    if (typeof sdk.actions?.switchChain === 'function') {
+      return await sdk.actions.switchChain(params);
+    }
+    console.log('[WalletContext] sdk.actions.switchChain unavailable — already on Monad, continuing');
   };
 
   const getWalletAddress = (): string | null => {
