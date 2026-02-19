@@ -255,7 +255,8 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
       setTrackingActive(false);
     };
 
-    if (!directionsMode || !selectedSource || !onCreateExperience) {
+    const currentSource = sources[selectedIndex];
+    if (!directionsMode || !currentSource || !onCreateExperience) {
       stopWatch();
       setArrivedAtPlace(false);
       return;
@@ -263,7 +264,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
 
     if (!navigator.geolocation) return;
 
-    const rawPlaceId = selectedSource.placeId || '';
+    const rawPlaceId = currentSource.placeId || '';
     const cleanPlaceId = rawPlaceId.replace(/^places\//, '');
     const details = placeDetails[rawPlaceId] || placeDetails[cleanPlaceId] || null;
     if (!details?.location) return;
@@ -292,7 +293,7 @@ export const MapsResultsModal: React.FC<MapsResultsModalProps> = ({
     );
 
     return stopWatch;
-  }, [directionsMode, selectedSource, placeDetails, onCreateExperience]);
+  }, [directionsMode, selectedIndex, sources, placeDetails, onCreateExperience]);
 
   // Load Google Maps JavaScript API
   useEffect(() => {
