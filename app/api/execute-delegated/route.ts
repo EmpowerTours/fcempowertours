@@ -5449,7 +5449,8 @@ ${enjoyText}
       }
 
       case 'claim_intent_refund': {
-        console.log('🔄 Action: claim_intent_refund');
+        // Intents were posted by the Platform Safe, so claimRefund must come from it too
+        console.log('🔄 Action: claim_intent_refund (via Platform Safe)');
 
         const AUCTION_CONTRACT_V2 = '0x0992f5E8a2d9709d7897F413Ef294c47a18D029e' as Address;
         const { intentId } = params || {};
@@ -5473,11 +5474,7 @@ ${enjoyText}
           },
         ];
 
-        const refundTxHash = await executeTransaction(
-          refundCalls,
-          userAddress as Address,
-          0n
-        );
+        const refundTxHash = await sendSafeTransaction(refundCalls);
 
         console.log('✅ Refund claimed for intent #' + intentId + ', TX:', refundTxHash);
 
@@ -5486,7 +5483,7 @@ ${enjoyText}
           txHash: refundTxHash,
           action,
           intentId,
-          message: `Refund claimed for intent #${intentId} — MON returned to your Safe.`,
+          message: `Refund claimed for intent #${intentId} — MON returned to Platform Safe.`,
         });
       }
 
