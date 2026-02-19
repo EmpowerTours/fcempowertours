@@ -297,6 +297,13 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
         { align: 'center', width: W }
       );
 
+    // Drop any overflow pages — EPK is always a single page
+    const buf = (doc as any)._pageBuffer;
+    if (Array.isArray(buf) && buf.length > 1) {
+      console.log(`[EPK PDF] Trimming ${buf.length - 1} overflow page(s) to keep single page`);
+      buf.splice(1);
+    }
+
     doc.flushPages(); // required when bufferPages: true
     doc.end();
   });
