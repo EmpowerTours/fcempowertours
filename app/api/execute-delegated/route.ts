@@ -5241,7 +5241,9 @@ ${enjoyText}
         // Query actual Pyth Entropy fee from the lottery contract (excess is refunded by contract)
         let entropyFee: bigint;
         try {
-          const queriedFee = await client.readContract({
+          const { createPublicClient, http } = await import('viem');
+          const feeClient = createPublicClient({ transport: http(process.env.MONAD_RPC || 'https://rpc.monad.xyz') });
+          const queriedFee = await feeClient.readContract({
             address: DAILY_LOTTERY_DRAW_ADDRESS,
             abi: parseAbi(['function getEntropyFee() view returns (uint256)']),
             functionName: 'getEntropyFee',
