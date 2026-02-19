@@ -119,6 +119,7 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
       margin: 40,
       size: 'A4',
       autoFirstPage: true,
+      bufferPages: true, // allow switchToPage() so we can pin footer/NFT to page 1
       info: {
         Title: `${s(epk.artist.name)} — Electronic Press Kit`,
         Author: 'EmpowerTours',
@@ -140,8 +141,12 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
     const W      = doc.page.width - 80;
     const PAGE_H = doc.page.height;
 
-    // ── Full-page dark background ──────────────────────────────────────────────
-    doc.rect(0, 0, doc.page.width, PAGE_H).fill(BG);
+    // Fill dark background on every page (including auto-added overflow pages)
+    const fillPageBG = () => doc.rect(0, 0, doc.page.width, doc.page.height).fill(BG);
+    doc.on('pageAdded', fillPageBG);
+
+    // ── Full-page dark background (page 1) ────────────────────────────────────
+    fillPageBG();
 
     // ── Header ────────────────────────────────────────────────────────────────
     doc.fillColor(WHITE).fontSize(24).font('Helvetica-Bold').text(s(epk.artist.name), 40, 40);
@@ -226,6 +231,10 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
       rY = doc.y;
     }
 
+    // ── Switch back to page 1 so NFT strip and footer always land on page 1 ───
+    // (bio/press text may have auto-added overflow pages)
+    doc.switchToPage(0);
+
     // ── Discography strip (NFT cover art) ─────────────────────────────────────
     const hasNFTs = nfts.length > 0;
     const DISC_SECTION_H = hasNFTs ? 105 : 0; // reserve space above footer
@@ -283,6 +292,7 @@ async function generatePDFBuffer(epk: EPKMetadata, nfts: NFTTrack[]): Promise<Bu
         { align: 'center', width: W }
       );
 
+    doc.flushPages(); // required when bufferPages: true
     doc.end();
   });
 }
