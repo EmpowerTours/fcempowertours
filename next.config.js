@@ -20,11 +20,8 @@ const nextConfig = {
     '@farcaster/miniapp-sdk',
     'ethers',
     '@anthropic-ai/sdk',
-    '@react-pdf/renderer',
-    // Keep react external so @react-pdf/renderer and the EPK PDF route share
-    // the same Node.js-loaded React instance (prevents dual-React error #31)
-    'react',
-    'react-dom',
+    // EPK PDF: use pdfkit directly (no React), externalized to avoid bundling issues
+    '@react-pdf/pdfkit',
   ],
   // Build optimization for Railway (reduce memory usage)
   swcMinify: true,
