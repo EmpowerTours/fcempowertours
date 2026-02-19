@@ -20,6 +20,7 @@ const nextConfig = {
     '@farcaster/miniapp-sdk',
     'ethers',
     '@anthropic-ai/sdk',
+    '@react-pdf/renderer',
   ],
   // Build optimization for Railway (reduce memory usage)
   swcMinify: true,
