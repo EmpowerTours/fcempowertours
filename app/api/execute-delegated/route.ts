@@ -5477,7 +5477,7 @@ ${enjoyText}
         // Default to the Safe that posted intents #1 and #2
         const safeAddr = ((intentUserSafe as string) || '0xCE1E82bBa89F444e7852Da08b2d24081130FE1FF') as Address;
 
-        if (!intentId) {
+        if (intentId == null) {
           return NextResponse.json(
             { success: false, error: 'Missing required parameter: intentId' },
             { status: 400 }
