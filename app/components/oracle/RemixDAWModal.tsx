@@ -9,7 +9,7 @@ import {
   SkipBack, SkipForward, Shuffle
 } from 'lucide-react';
 import { useWalletContext } from '@/app/hooks/useWalletContext';
-import { parseEther, encodeFunctionData } from 'viem';
+
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -73,22 +73,6 @@ const STUDIO_PRICES: Record<number, { wmon: string; label: string }> = {
   3: { wmon: '0.30', label: '0.30 WMON' },
 };
 
-const WMON_ABI = [
-  { name: 'approve', type: 'function', stateMutability: 'nonpayable',
-    inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
-    outputs: [{ name: '', type: 'bool' }] },
-] as const;
-
-const REMIX_DAW_ABI = [
-  { name: 'startSession', type: 'function', stateMutability: 'nonpayable',
-    inputs: [{ name: 'originalTokenId', type: 'uint256' }], outputs: [] },
-  { name: 'mintRemix', type: 'function', stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'originalTokenId', type: 'uint256' },
-      { name: 'tokenURI_', type: 'string' },
-      { name: 'price', type: 'uint256' },
-    ], outputs: [{ name: 'newTokenId', type: 'uint256' }] },
-] as const;
 
 // ── Component ─────────────────────────────────────────────────────────────
 
@@ -96,7 +80,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
   onClose,
   isDarkMode = true,
 }) => {
-  const { walletAddress, sendTransaction } = useWalletContext();
+  const { walletAddress } = useWalletContext();
   const [mounted, setMounted] = useState(false);
 
   // Mode: 'remix' = manual DAW, 'genre' = AI genre transform
@@ -531,9 +515,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
     setMintTxHash(null);
 
     try {
-      const priceWei = parseEther(mintPrice);
-
-      // Build metadata JSON and pin it
+      // Build metadata JSON and pin to IPFS
       const metadata = {
         name: `Remix of ${selectedNFT.name}`,
         description: `AI remix created in EmpowerStudio`,
@@ -556,36 +538,34 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
       const pinData = await pinRes.json();
       const tokenURI = `ipfs://${pinData.IpfsHash}`;
 
-      // 1. Approve WMON
-      const approveTx = encodeFunctionData({
-        abi: WMON_ABI,
-        functionName: 'approve',
-        args: [REMIX_DAW_ADDRESS, priceWei],
+      // Mint via UserSafe (approve + startSession + mintRemix batched)
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'studio_mint_remix',
+          params: {
+            originalTokenId: selectedNFT.tokenId,
+            tokenURI,
+            priceMon: mintPrice,
+          },
+        }),
       });
-      await sendTransaction({ to: WMON_ADDRESS, data: approveTx });
 
-      // 2. startSession
-      const sessionTx = encodeFunctionData({
-        abi: REMIX_DAW_ABI,
-        functionName: 'startSession',
-        args: [BigInt(selectedNFT.tokenId)],
-      });
-      await sendTransaction({ to: REMIX_DAW_ADDRESS, data: sessionTx });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Mint failed');
+      }
 
-      // 3. mintRemix
-      const mintTx = encodeFunctionData({
-        abi: REMIX_DAW_ABI,
-        functionName: 'mintRemix',
-        args: [BigInt(selectedNFT.tokenId), tokenURI, priceWei],
-      });
-      const txHash = await sendTransaction({ to: REMIX_DAW_ADDRESS, data: mintTx });
-      setMintTxHash(txHash || 'confirmed');
+      console.log(`[RemixDAW] Mint confirmed: ${data.message} (TX: ${data.txHash})`);
+      setMintTxHash(data.txHash || 'confirmed');
     } catch (err: any) {
       setMintError(err.message || 'Mint failed');
     } finally {
       setMinting(false);
     }
-  }, [exportedUrl, selectedNFT, walletAddress, mintPrice, sendTransaction]);
+  }, [exportedUrl, selectedNFT, walletAddress, mintPrice]);
 
   // ── Genre Transform ───────────────────────────────────────────────────
   const handleGenreTransform = useCallback(async () => {

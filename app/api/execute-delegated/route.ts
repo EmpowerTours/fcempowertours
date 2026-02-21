@@ -5605,6 +5605,99 @@ ${enjoyText}
         });
       }
 
+      // ==================== EMPOWERSTUDIO MINT REMIX NFT ====================
+      case 'studio_mint_remix': {
+        const REMIX_DAW = (process.env.NEXT_PUBLIC_REMIX_DAW || '0x6E0B20564f0114fF72268d443538b185430414EA') as Address;
+        const WMON_MINT = process.env.NEXT_PUBLIC_WMON as Address;
+
+        const { originalTokenId, tokenURI: mintTokenURI, priceMon } = params || {};
+        if (!originalTokenId || !mintTokenURI || !priceMon) {
+          return NextResponse.json(
+            { success: false, error: 'originalTokenId, tokenURI, and priceMon are required' },
+            { status: 400 }
+          );
+        }
+
+        const mintPriceWei = parseEther(priceMon);
+        console.log(`🎵 Minting remix NFT: original=#${originalTokenId}, price=${priceMon} WMON`);
+
+        const { createPublicClient, http } = await import('viem');
+        const mintClient = createPublicClient({
+          chain: activeChain,
+          transport: http(activeChain.rpcUrls.default.http[0]),
+        });
+
+        // Check user Safe WMON balance
+        const userSafeForMint = await getUserSafeAddress(userAddress);
+        const safeWmonMint = await mintClient.readContract({
+          address: WMON_MINT,
+          abi: parseAbi(['function balanceOf(address account) view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [userSafeForMint],
+        });
+
+        const mintCalls: Call[] = [];
+
+        // Wrap MON → WMON if needed
+        if (safeWmonMint < mintPriceWei) {
+          const wrapAmount = mintPriceWei - safeWmonMint;
+          console.log(`🎵 Wrapping ${formatEther(wrapAmount)} MON → WMON for mint`);
+          mintCalls.push({
+            to: WMON_MINT,
+            value: wrapAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          });
+        }
+
+        // Approve WMON for RemixDAW
+        mintCalls.push({
+          to: WMON_MINT,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) returns (bool)']),
+            functionName: 'approve',
+            args: [REMIX_DAW, mintPriceWei],
+          }) as Hex,
+        });
+
+        // startSession
+        mintCalls.push({
+          to: REMIX_DAW,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function startSession(uint256 originalTokenId) external']),
+            functionName: 'startSession',
+            args: [BigInt(originalTokenId)],
+          }) as Hex,
+        });
+
+        // mintRemix
+        mintCalls.push({
+          to: REMIX_DAW,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function mintRemix(uint256 originalTokenId, string tokenURI_, uint256 price) external returns (uint256)']),
+            functionName: 'mintRemix',
+            args: [BigInt(originalTokenId), mintTokenURI, mintPriceWei],
+          }) as Hex,
+        });
+
+        const mintRemixTxHash = await executeTransaction(mintCalls, userAddress as Address);
+        console.log(`✅ Remix NFT minted, TX: ${mintRemixTxHash}`);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: mintRemixTxHash,
+          action,
+          message: `Remix NFT minted for ${priceMon} WMON!`,
+        });
+      }
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
