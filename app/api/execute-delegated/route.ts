@@ -138,6 +138,9 @@ export async function POST(req: NextRequest) {
       'flip_coin',             // Play flip coin game (external contract)
       'post_intent',           // Intent Auction: post swap intent from UserSafe
       'claim_intent_refund',   // Intent Auction: claim refund on expired unexecuted intent
+      'vault_deposit',         // Agent Vault: deposit WMON into AI vault
+      'vault_withdraw',        // Agent Vault: withdraw shares from AI vault
+      'vault_emergency_withdraw', // Agent Vault: emergency withdraw (dormant agents only)
       'platform_send_mon',     // Admin: send native MON from Platform Safe to any address
       'studio_pay',            // EmpowerStudio AI feature payment
       'studio_mint_remix',     // EmpowerStudio mint remix NFT
@@ -5783,6 +5786,176 @@ ${enjoyText}
           txHash: mintRemixTxHash,
           action,
           message: `Remix NFT minted for ${priceMon} WMON!`,
+        });
+      }
+
+      // ==================== AI AGENT VAULTS ====================
+
+      case 'vault_deposit': {
+        console.log('🏦 Action: vault_deposit (AI Vault deposit WMON)');
+
+        const VAULT = (process.env.VAULT_CONTRACT || '') as Address;
+        const WMON_TOKEN = '0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A' as Address;
+
+        const { agentId: depositAgentId, amount: depositAmount } = params || {};
+
+        if (depositAgentId == null || !depositAmount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: agentId, amount' },
+            { status: 400 }
+          );
+        }
+
+        const agentIdNum = Number(depositAgentId);
+        if (isNaN(agentIdNum) || agentIdNum < 0 || agentIdNum > 7) {
+          return NextResponse.json(
+            { success: false, error: 'agentId must be 0-7' },
+            { status: 400 }
+          );
+        }
+
+        const depositWei = parseEther(depositAmount);
+        if (depositWei <= 0n) {
+          return NextResponse.json(
+            { success: false, error: 'Amount must be greater than 0' },
+            { status: 400 }
+          );
+        }
+
+        console.log('🏦 Vault deposit:', { agentId: agentIdNum, amount: depositAmount, vault: VAULT });
+
+        // Two calls: 1) approve WMON, 2) deposit into vault
+        const vaultDepositCalls: Call[] = [
+          {
+            to: WMON_TOKEN,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [VAULT, depositWei],
+            }) as Hex,
+          },
+          {
+            to: VAULT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit(uint8 agentId, uint256 amount, uint256 minSharesOut) external']),
+              functionName: 'deposit',
+              args: [agentIdNum, depositWei, 0n], // minSharesOut=0 for simplicity
+            }) as Hex,
+          },
+        ];
+
+        const vaultDepositTxHash = await executeTransaction(vaultDepositCalls, userAddress as Address);
+        console.log('✅ Vault deposit TX:', vaultDepositTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: vaultDepositTxHash,
+          action,
+          agentId: agentIdNum,
+          amount: depositAmount,
+          message: `Deposited ${depositAmount} WMON into vault ${agentIdNum}!`,
+        });
+      }
+
+      case 'vault_withdraw': {
+        console.log('🏦 Action: vault_withdraw (AI Vault withdraw shares)');
+
+        const VAULT = (process.env.VAULT_CONTRACT || '') as Address;
+        const { agentId: withdrawAgentId, shares: sharesToBurn } = params || {};
+
+        if (withdrawAgentId == null || !sharesToBurn) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameters: agentId, shares' },
+            { status: 400 }
+          );
+        }
+
+        const wAgentId = Number(withdrawAgentId);
+        if (isNaN(wAgentId) || wAgentId < 0 || wAgentId > 7) {
+          return NextResponse.json(
+            { success: false, error: 'agentId must be 0-7' },
+            { status: 400 }
+          );
+        }
+
+        const sharesWei = parseEther(sharesToBurn);
+
+        console.log('🏦 Vault withdraw:', { agentId: wAgentId, shares: sharesToBurn, vault: VAULT });
+
+        const vaultWithdrawCalls: Call[] = [
+          {
+            to: VAULT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function withdraw(uint8 agentId, uint256 sharesToBurn, uint256 minAmountOut) external']),
+              functionName: 'withdraw',
+              args: [wAgentId, sharesWei, 0n], // minAmountOut=0 for simplicity
+            }) as Hex,
+          },
+        ];
+
+        const vaultWithdrawTxHash = await executeTransaction(vaultWithdrawCalls, userAddress as Address);
+        console.log('✅ Vault withdraw TX:', vaultWithdrawTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: vaultWithdrawTxHash,
+          action,
+          agentId: wAgentId,
+          shares: sharesToBurn,
+          message: `Withdrew ${sharesToBurn} shares from vault ${wAgentId}!`,
+        });
+      }
+
+      case 'vault_emergency_withdraw': {
+        console.log('🚨 Action: vault_emergency_withdraw (AI Vault emergency)');
+
+        const VAULT = (process.env.VAULT_CONTRACT || '') as Address;
+        const { agentId: emergencyAgentId } = params || {};
+
+        if (emergencyAgentId == null) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameter: agentId' },
+            { status: 400 }
+          );
+        }
+
+        const eAgentId = Number(emergencyAgentId);
+        if (isNaN(eAgentId) || eAgentId < 0 || eAgentId > 7) {
+          return NextResponse.json(
+            { success: false, error: 'agentId must be 0-7' },
+            { status: 400 }
+          );
+        }
+
+        console.log('🚨 Vault emergency withdraw:', { agentId: eAgentId, vault: VAULT });
+
+        const emergencyWithdrawCalls: Call[] = [
+          {
+            to: VAULT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function emergencyWithdraw(uint8 agentId) external']),
+              functionName: 'emergencyWithdraw',
+              args: [eAgentId],
+            }) as Hex,
+          },
+        ];
+
+        const emergencyTxHash = await executeTransaction(emergencyWithdrawCalls, userAddress as Address);
+        console.log('✅ Emergency withdraw TX:', emergencyTxHash);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: emergencyTxHash,
+          action,
+          agentId: eAgentId,
+          message: `Emergency withdrawal from vault ${eAgentId} complete!`,
         });
       }
 
