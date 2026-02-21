@@ -60,9 +60,9 @@ type GenreKey = typeof GENRES[number]['key'];
 
 type DawMode = 'remix' | 'genre' | 'vocal' | 'freestyle';
 
-const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701') as `0x${string}`;
-const REMIX_DAW_ADDRESS = (process.env.NEXT_PUBLIC_REMIX_DAW || '0x6E0B20564f0114fF72268d443538b185430414EA') as `0x${string}`;
-const STUDIO_PAYMENTS_ADDRESS = (process.env.NEXT_PUBLIC_STUDIO_PAYMENTS || '0x770A44Cc793c4bDC06D68D3E608742A794D85E1C') as `0x${string}`;
+const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as `0x${string}`;
+const REMIX_DAW_ADDRESS = process.env.NEXT_PUBLIC_REMIX_DAW as `0x${string}`;
+const STUDIO_PAYMENTS_ADDRESS = process.env.NEXT_PUBLIC_STUDIO_PAYMENTS as `0x${string}`;
 
 // Action enum matches EmpowerStudioPayments.sol
 const STUDIO_ACTION = { StemSeparation: 0, GenreTransform: 1, VocalSynth: 2, Freestyle: 3 } as const;

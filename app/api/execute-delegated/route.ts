@@ -5513,7 +5513,7 @@ ${enjoyText}
 
       // ==================== EMPOWERSTUDIO AI ACTION PAYMENT ====================
       case 'studio_pay': {
-        const STUDIO_PAYMENTS = (process.env.NEXT_PUBLIC_STUDIO_PAYMENTS || '0x770A44Cc793c4bDC06D68D3E608742A794D85E1C') as Address;
+        const STUDIO_PAYMENTS = process.env.NEXT_PUBLIC_STUDIO_PAYMENTS as Address;
         const WMON_STUDIO = process.env.NEXT_PUBLIC_WMON as Address;
 
         const { actionType } = params || {};
@@ -5607,7 +5607,7 @@ ${enjoyText}
 
       // ==================== EMPOWERSTUDIO MINT REMIX NFT ====================
       case 'studio_mint_remix': {
-        const REMIX_DAW = (process.env.NEXT_PUBLIC_REMIX_DAW || '0x6E0B20564f0114fF72268d443538b185430414EA') as Address;
+        const REMIX_DAW = process.env.NEXT_PUBLIC_REMIX_DAW as Address;
         const WMON_MINT = process.env.NEXT_PUBLIC_WMON as Address;
 
         const { originalTokenId, tokenURI: mintTokenURI, priceMon } = params || {};
