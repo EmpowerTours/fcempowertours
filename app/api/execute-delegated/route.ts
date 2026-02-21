@@ -3210,11 +3210,11 @@ ${enjoyText}
 
         console.log('💰 Claiming payouts for months:', claimMonthIds, 'claimTours:', shouldClaimTours);
 
-        const claimCalls: Call[] = [];
+        const artistClaimCalls: Call[] = [];
         const monthIdsBigInt = claimMonthIds.map((id: number) => BigInt(id));
 
         // Batch claim WMON artist payouts
-        claimCalls.push({
+        artistClaimCalls.push({
           to: CLAIM_SUBSCRIPTION,
           value: 0n,
           data: encodeFunctionData({
@@ -3226,7 +3226,7 @@ ${enjoyText}
 
         // Optionally batch claim TOURS rewards too
         if (shouldClaimTours) {
-          claimCalls.push({
+          artistClaimCalls.push({
             to: CLAIM_SUBSCRIPTION,
             value: 0n,
             data: encodeFunctionData({
@@ -3237,14 +3237,14 @@ ${enjoyText}
           });
         }
 
-        const claimTxHash = await executeTransaction(claimCalls, userAddress as Address, 0n);
+        const artistClaimTxHash = await executeTransaction(artistClaimCalls, userAddress as Address, 0n);
         await incrementTransactionCount(userAddress);
 
-        console.log('✅ Artist payout claim successful, TX:', claimTxHash);
+        console.log('✅ Artist payout claim successful, TX:', artistClaimTxHash);
 
         return NextResponse.json({
           success: true,
-          txHash: claimTxHash,
+          txHash: artistClaimTxHash,
           action,
           userAddress,
           monthIds: claimMonthIds,
