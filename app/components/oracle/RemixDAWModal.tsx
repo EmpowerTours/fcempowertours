@@ -60,8 +60,18 @@ type GenreKey = typeof GENRES[number]['key'];
 
 type DawMode = 'remix' | 'genre' | 'vocal' | 'freestyle';
 
-const WMON_ADDRESS = '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701' as const;
-const REMIX_DAW_ADDRESS = '0x6E0B20564f0114fF72268d443538b185430414EA' as const;
+const WMON_ADDRESS = (process.env.NEXT_PUBLIC_WMON || '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701') as `0x${string}`;
+const REMIX_DAW_ADDRESS = (process.env.NEXT_PUBLIC_REMIX_DAW || '0x6E0B20564f0114fF72268d443538b185430414EA') as `0x${string}`;
+const STUDIO_PAYMENTS_ADDRESS = (process.env.NEXT_PUBLIC_STUDIO_PAYMENTS || '0x770A44Cc793c4bDC06D68D3E608742A794D85E1C') as `0x${string}`;
+
+// Action enum matches EmpowerStudioPayments.sol
+const STUDIO_ACTION = { StemSeparation: 0, GenreTransform: 1, VocalSynth: 2, Freestyle: 3 } as const;
+const STUDIO_PRICES: Record<number, { wmon: string; label: string }> = {
+  0: { wmon: '0.15', label: '0.15 WMON' },
+  1: { wmon: '0.25', label: '0.25 WMON' },
+  2: { wmon: '0.20', label: '0.20 WMON' },
+  3: { wmon: '0.30', label: '0.30 WMON' },
+};
 
 const WMON_ABI = [
   { name: 'approve', type: 'function', stateMutability: 'nonpayable',
@@ -171,6 +181,52 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
   const freestyleStartTimeRef = useRef<number>(0); // ctx.currentTime when first bar should play
   const freestyleAbortRef = useRef<AbortController | null>(null);
 
+  // Payment state
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Shared payment callback — routes through UserSafe via execute-delegated API
+  const payForAction = useCallback(async (actionType: number): Promise<boolean> => {
+    if (!walletAddress) {
+      setPaymentError('Connect your wallet to use AI features.');
+      return false;
+    }
+    const priceInfo = STUDIO_PRICES[actionType];
+    if (!priceInfo) return false;
+
+    setPaymentProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const res = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          action: 'studio_pay',
+          params: { actionType },
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Payment failed');
+      }
+
+      console.log(`[RemixDAW] Payment confirmed: ${data.message} (TX: ${data.txHash})`);
+      return true;
+    } catch (err: any) {
+      if (err?.message?.includes('Insufficient balance')) {
+        setPaymentError(err.message);
+      } else {
+        setPaymentError(err?.message || 'Payment failed. Please try again.');
+      }
+      return false;
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }, [walletAddress]);
+
   useEffect(() => {
     setMounted(true);
     return () => {
@@ -248,6 +304,10 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
   // ── Stem Separation ───────────────────────────────────────────────────
   const handleSeparate = useCallback(async () => {
     if (!selectedNFT) return;
+
+    // Payment gate
+    const paid = await payForAction(STUDIO_ACTION.StemSeparation);
+    if (!paid) return;
 
     // Resolve audio URL from tokenURI metadata
     let audioUrl = selectedNFT.audioUrl;
@@ -336,12 +396,16 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
         })
       );
       setStems(loaded);
+
+      // Calculate actual duration from loaded buffers (more accurate than backend estimate)
+      const maxBufDuration = Math.max(...loaded.map(s => s.buffer ? s.buffer.duration : 0));
+      if (maxBufDuration > 0) setDurationSec(maxBufDuration);
     } catch (err: any) {
       setSeparateError(err.message || 'Stem separation failed');
     } finally {
       setSeparating(false);
     }
-  }, [selectedNFT, getAudioCtx, fetchBuffer, drawWaveform]);
+  }, [selectedNFT, getAudioCtx, fetchBuffer, drawWaveform, payForAction]);
 
   // ── Playback ─────────────────────────────────────────────────────────
   const stopPlayback = useCallback(() => {
@@ -527,6 +591,10 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
   const handleGenreTransform = useCallback(async () => {
     if (!selectedNFT) return;
 
+    // Payment gate
+    const paid = await payForAction(STUDIO_ACTION.GenreTransform);
+    if (!paid) return;
+
     let audioUrl = selectedNFT.audioUrl;
     if (!audioUrl && selectedNFT.tokenURI) {
       try {
@@ -581,12 +649,16 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
     } finally {
       setGenreTransforming(false);
     }
-  }, [selectedNFT, selectedGenre, vocalGain, instrumentalGain]);
+  }, [selectedNFT, selectedGenre, vocalGain, instrumentalGain, payForAction]);
 
   // ── Vocal Synth ───────────────────────────────────────────────────────
   const handleVocalSynth = useCallback(async () => {
     if (!jobId) return;
     if (!lyrics.trim()) { setVocalSynthError('Enter some lyrics first.'); return; }
+
+    // Payment gate
+    const paid = await payForAction(STUDIO_ACTION.VocalSynth);
+    if (!paid) return;
 
     setVocalSynthing(true);
     setVocalSynthError(null);
@@ -623,7 +695,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
     } finally {
       setVocalSynthing(false);
     }
-  }, [jobId, lyrics, beatsPerLine, introBeats, cloneVoice, vocalSynthGain, mixWithInstrumental, instrumentalGainVS]);
+  }, [jobId, lyrics, beatsPerLine, introBeats, cloneVoice, vocalSynthGain, mixWithInstrumental, instrumentalGainVS, payForAction]);
 
   const toggleVocalPreview = useCallback(() => {
     if (!vocalSynthResult?.gatewayUrl) return;
@@ -643,6 +715,10 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
   // ── Freestyle Mode ────────────────────────────────────────────────────
   const handleFreestyle = useCallback(async () => {
     if (!jobId) return;
+
+    // Payment gate
+    const paid = await payForAction(STUDIO_ACTION.Freestyle);
+    if (!paid) return;
 
     // Reset state
     setFreestyling(true);
@@ -756,7 +832,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
         setFreestyling(false);
       }
     }
-  }, [jobId, freestyleTheme, freestyleGenreHint, freestyleMaxBars, freestyleBeatsPerBar, freestyleIntroBeats, freestyleCloneVoice]);
+  }, [jobId, freestyleTheme, freestyleGenreHint, freestyleMaxBars, freestyleBeatsPerBar, freestyleIntroBeats, freestyleCloneVoice, payForAction]);
 
   const stopFreestyle = useCallback(() => {
     freestyleAbortRef.current?.abort();
@@ -837,6 +913,17 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
           ))}
         </div>
 
+        {/* Payment Error Banner */}
+        {paymentError && (
+          <div className="mx-4 sm:mx-5 mt-3 flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30">
+            <span className="text-sm text-red-400 flex-1">{paymentError}</span>
+            <button onClick={() => setPaymentError(null)}
+              className="text-red-400 hover:text-red-300 p-0.5">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         <div className="p-4 sm:p-5 flex flex-col gap-5">
 
           {/* ── NFT Selector ────────────────────────────────────────────── */}
@@ -896,13 +983,15 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
               {selectedNFT && stems.length === 0 && (
                 <button
                   onClick={handleSeparate}
-                  disabled={separating}
+                  disabled={separating || paymentProcessing || !walletAddress}
                   className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-semibold text-sm transition-all disabled:opacity-60"
                   style={{ background: 'linear-gradient(135deg, #00d4ff, #7c3aed)', color: 'white' }}
                 >
-                  {separating
+                  {paymentProcessing
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Confirming payment...</>
+                    : separating
                     ? <><Loader2 className="w-4 h-4 animate-spin" /> Separating stems (may take 2–3 min)...</>
-                    : <><Zap className="w-4 h-4" /> Separate Stems with Demucs AI</>
+                    : <><Zap className="w-4 h-4" /> Separate Stems ({STUDIO_PRICES[0].label})</>
                   }
                 </button>
               )}
@@ -1187,7 +1276,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
 
               {/* Transform Button */}
               {selectedNFT && (
-                <button onClick={handleGenreTransform} disabled={genreTransforming}
+                <button onClick={handleGenreTransform} disabled={genreTransforming || paymentProcessing || !walletAddress}
                   className="flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold text-sm transition-all disabled:opacity-60"
                   style={{
                     background: genreInfo
@@ -1196,7 +1285,12 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                     color: 'white',
                     boxShadow: genreInfo ? `0 0 30px ${genreInfo.color}44` : undefined,
                   }}>
-                  {genreTransforming ? (
+                  {paymentProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Confirming payment...
+                    </>
+                  ) : genreTransforming ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Isolating vocals + generating {genreInfo?.label} instrumentals... (3–5 min)
@@ -1204,7 +1298,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                   ) : (
                     <>
                       <Wand2 className="w-4 h-4" />
-                      Transform to {genreInfo?.emoji} {genreInfo?.label}
+                      Transform to {genreInfo?.emoji} {genreInfo?.label} ({STUDIO_PRICES[1].label})
                     </>
                   )}
                 </button>
@@ -1229,6 +1323,9 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                       Genre Transform Complete! ({GENRES.find(g => g.key === genreResult.genre)?.emoji} {genreResult.genre})
                     </span>
                   </div>
+
+                  {/* Audio preview player */}
+                  <audio controls className="w-full mb-3 h-10" src={genreResult.gatewayUrl} />
 
                   <a href={genreResult.gatewayUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs text-cyan-400 hover:underline mb-4 break-all">
@@ -1440,11 +1537,16 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                   </div>
 
                   {/* Synthesise button */}
-                  <button onClick={handleVocalSynth} disabled={vocalSynthing || !lyrics.trim()}
+                  <button onClick={handleVocalSynth} disabled={vocalSynthing || !lyrics.trim() || paymentProcessing || !walletAddress}
                     className="flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold text-sm transition-all disabled:opacity-60"
                     style={{ background: 'linear-gradient(135deg, #34d399, #7c3aed)', color: 'white',
                       boxShadow: vocalSynthing ? 'none' : '0 0 30px rgba(52,211,153,0.3)' }}>
-                    {vocalSynthing ? (
+                    {paymentProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Confirming payment...
+                      </>
+                    ) : vocalSynthing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Cloning voice + syncing to beat... (3–5 min)
@@ -1452,7 +1554,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                     ) : (
                       <>
                         <Mic className="w-4 h-4" />
-                        Synthesise Vocals
+                        Synthesize Vocals ({STUDIO_PRICES[2].label})
                       </>
                     )}
                   </button>
@@ -1667,7 +1769,8 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                   {/* Go / Stop button */}
                   <button
                     onClick={freestyling ? stopFreestyle : handleFreestyle}
-                    className="flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold text-sm transition-all"
+                    disabled={!freestyling && (paymentProcessing || !walletAddress)}
+                    className="flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold text-sm transition-all disabled:opacity-60"
                     style={{
                       background: freestyling
                         ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
@@ -1675,10 +1778,12 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                       color: 'white',
                       boxShadow: freestyling ? '0 0 30px rgba(239,68,68,0.4)' : '0 0 30px rgba(168,85,247,0.4)',
                     }}>
-                    {freestyling ? (
+                    {paymentProcessing ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Confirming payment...</>
+                    ) : freestyling ? (
                       <><Square className="w-4 h-4" /> Stop Freestyle</>
                     ) : (
-                      <><Zap className="w-4 h-4" /> Start Freestyle</>
+                      <><Zap className="w-4 h-4" /> Start Freestyle ({STUDIO_PRICES[3].label})</>
                     )}
                   </button>
 

@@ -5511,6 +5511,100 @@ ${enjoyText}
         });
       }
 
+      // ==================== EMPOWERSTUDIO AI ACTION PAYMENT ====================
+      case 'studio_pay': {
+        const STUDIO_PAYMENTS = (process.env.NEXT_PUBLIC_STUDIO_PAYMENTS || '0x770A44Cc793c4bDC06D68D3E608742A794D85E1C') as Address;
+        const WMON_STUDIO = process.env.NEXT_PUBLIC_WMON as Address;
+
+        const { actionType } = params || {};
+        if (actionType === undefined || actionType === null || actionType < 0 || actionType > 3) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid action type (0=Stem, 1=Genre, 2=Vocal, 3=Freestyle)' },
+            { status: 400 }
+          );
+        }
+
+        const ACTION_NAMES = ['Stem Separation', 'Genre Transform', 'Vocal Synth', 'Freestyle'];
+        console.log(`🎵 Studio payment: ${ACTION_NAMES[actionType]} (action=${actionType})`);
+
+        // Read price from contract
+        const { createPublicClient, http } = await import('viem');
+        const studioClient = createPublicClient({
+          chain: activeChain,
+          transport: http(activeChain.rpcUrls.default.http[0]),
+        });
+
+        const priceWei = await studioClient.readContract({
+          address: STUDIO_PAYMENTS,
+          abi: parseAbi(['function actionPrice(uint8 action) view returns (uint256)']),
+          functionName: 'actionPrice',
+          args: [actionType],
+        });
+
+        console.log(`🎵 Price for ${ACTION_NAMES[actionType]}: ${formatEther(priceWei)} WMON`);
+
+        // Check user Safe WMON balance
+        const userSafeForStudio = await getUserSafeAddress(userAddress);
+        const safeWmonStudio = await studioClient.readContract({
+          address: WMON_STUDIO,
+          abi: parseAbi(['function balanceOf(address account) view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [userSafeForStudio],
+        });
+
+        const studioCalls: Call[] = [];
+
+        // Wrap MON → WMON if needed
+        if (safeWmonStudio < priceWei) {
+          const wrapAmount = priceWei - safeWmonStudio;
+          console.log(`🎵 Wrapping ${formatEther(wrapAmount)} MON → WMON`);
+          studioCalls.push({
+            to: WMON_STUDIO,
+            value: wrapAmount,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() payable']),
+              functionName: 'deposit',
+              args: [],
+            }) as Hex,
+          });
+        }
+
+        // Approve WMON
+        studioCalls.push({
+          to: WMON_STUDIO,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function approve(address spender, uint256 amount) returns (bool)']),
+            functionName: 'approve',
+            args: [STUDIO_PAYMENTS, priceWei],
+          }) as Hex,
+        });
+
+        // payForAction
+        studioCalls.push({
+          to: STUDIO_PAYMENTS,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function payForAction(uint8 action) external']),
+            functionName: 'payForAction',
+            args: [actionType],
+          }) as Hex,
+        });
+
+        const studioTxHash = await executeTransaction(studioCalls, userAddress as Address);
+        console.log(`✅ Studio payment complete: ${ACTION_NAMES[actionType]}, TX: ${studioTxHash}`);
+
+        await incrementTransactionCount(userAddress);
+        return NextResponse.json({
+          success: true,
+          txHash: studioTxHash,
+          action,
+          actionType,
+          actionName: ACTION_NAMES[actionType],
+          message: `Paid ${formatEther(priceWei)} WMON for ${ACTION_NAMES[actionType]}`,
+        });
+      }
+
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
