@@ -139,6 +139,30 @@ export async function POST(req: NextRequest) {
       'post_intent',           // Intent Auction: post swap intent from UserSafe
       'claim_intent_refund',   // Intent Auction: claim refund on expired unexecuted intent
       'platform_send_mon',     // Admin: send native MON from Platform Safe to any address
+      'studio_pay',            // EmpowerStudio AI feature payment
+      'studio_mint_remix',     // EmpowerStudio mint remix NFT
+      'claim_artist_payouts',  // Claim subscription artist payouts (WMON + TOURS)
+      'mint_collector',        // Mint collector edition NFT
+      'send_tours',            // Transfer TOURS tokens
+      'send_mon',              // Transfer native MON
+      'swap_mon_for_tours',    // Swap MON for TOURS
+      'wrap_mon',              // Wrap MON to WMON
+      'approve_wmon_for_passport', // Approve WMON for passport mint
+      'stake_music',           // Stake music NFT for rewards
+      'unstake_music',         // Unstake music NFT and claim rewards
+      'burn_music',            // Burn music NFT
+      'burn_nft',              // Generic NFT burn
+      'create_experience',     // Create experience NFT
+      'create_single_experience', // Create single experience
+      'mint_itinerary',        // Mint itinerary NFT
+      'purchase_itinerary',    // Purchase itinerary access
+      'checkin_itinerary',     // Check in to itinerary location
+      'complete_location',     // Mark location as complete
+      'burn_itinerary',        // Burn itinerary NFT
+      'buy_resale',            // Purchase resale NFT from secondary market
+      'book_guide',            // Book a MirrorMate tour guide
+      'mark_tour_complete',    // Mark tour as completed
+      'confirm_and_rate',      // Confirm and rate experience
     ];
     const requiresDelegation = !publicActions.includes(action);
 
@@ -3161,6 +3185,70 @@ ${enjoyText}
           userAddress,
           tier: subTier,
           message: 'Music subscription activated!',
+        });
+
+      // ==================== CLAIM ARTIST PAYOUTS ====================
+      case 'claim_artist_payouts':
+        console.log('💰 Action: claim_artist_payouts');
+
+        const { monthIds: claimMonthIds, claimTours: shouldClaimTours } = params || {};
+
+        if (!claimMonthIds || !Array.isArray(claimMonthIds) || claimMonthIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameter: monthIds (array of month IDs)' },
+            { status: 400 }
+          );
+        }
+
+        const CLAIM_SUBSCRIPTION = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
+        if (!CLAIM_SUBSCRIPTION) {
+          return NextResponse.json(
+            { success: false, error: 'Music subscription contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        console.log('💰 Claiming payouts for months:', claimMonthIds, 'claimTours:', shouldClaimTours);
+
+        const claimCalls: Call[] = [];
+        const monthIdsBigInt = claimMonthIds.map((id: number) => BigInt(id));
+
+        // Batch claim WMON artist payouts
+        claimCalls.push({
+          to: CLAIM_SUBSCRIPTION,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function batchClaimArtistPayouts(uint256[] calldata monthIds) external']),
+            functionName: 'batchClaimArtistPayouts',
+            args: [monthIdsBigInt],
+          }) as Hex,
+        });
+
+        // Optionally batch claim TOURS rewards too
+        if (shouldClaimTours) {
+          claimCalls.push({
+            to: CLAIM_SUBSCRIPTION,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function batchClaimToursRewards(uint256[] calldata monthIds) external']),
+              functionName: 'batchClaimToursRewards',
+              args: [monthIdsBigInt],
+            }) as Hex,
+          });
+        }
+
+        const claimTxHash = await executeTransaction(claimCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        console.log('✅ Artist payout claim successful, TX:', claimTxHash);
+
+        return NextResponse.json({
+          success: true,
+          txHash: claimTxHash,
+          action,
+          userAddress,
+          monthIds: claimMonthIds,
+          message: `Artist payouts claimed for ${claimMonthIds.length} month(s)!`,
         });
 
       // ==================== WMON FAUCET CLAIM ====================

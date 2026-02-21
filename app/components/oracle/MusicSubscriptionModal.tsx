@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Music2, Sparkles, Clock, AlertTriangle, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { Music2, Sparkles, Clock, AlertTriangle, CheckCircle2, X, Loader2, Wallet, TrendingUp } from 'lucide-react';
 import { ethers } from 'ethers';
 
 interface SubscriptionStatus {
@@ -11,6 +11,30 @@ interface SubscriptionStatus {
   daysRemaining: number;
   totalPlays: number;
   tier: number;
+}
+
+interface UnclaimedMonth {
+  monthId: number;
+  playCount: number;
+  estimatedPayout: string;
+  toursClaimed: boolean;
+}
+
+interface ArtistClaimsData {
+  currentMonthId: number;
+  unclaimedMonths: UnclaimedMonth[];
+  totalUnclaimed: string;
+  toursEligible: boolean;
+  masterCount: number;
+  lifetimePlays: number;
+}
+
+interface ArtistEarningsData {
+  totalRadioEarnings: string;
+  totalTips: string;
+  totalLicenseSales: string;
+  totalPlays: number;
+  totalLicenseCount: number;
 }
 
 interface MusicSubscriptionModalProps {
@@ -48,6 +72,77 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   const [monBalance, setMonBalance] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [artistClaims, setArtistClaims] = useState<ArtistClaimsData | null>(null);
+  const [artistEarnings, setArtistEarnings] = useState<ArtistEarningsData | null>(null);
+  const [claiming, setClaiming] = useState(false);
+
+  // Fetch artist claims & earnings data
+  useEffect(() => {
+    if (!userAddress) return;
+
+    const fetchArtistData = async () => {
+      try {
+        const [claimsRes, earningsRes] = await Promise.all([
+          fetch(`/api/artist-claims?address=${userAddress}`),
+          fetch(`/api/artist-earnings?address=${userAddress}`),
+        ]);
+        if (claimsRes.ok) {
+          const data = await claimsRes.json();
+          setArtistClaims(data);
+        }
+        if (earningsRes.ok) {
+          const data = await earningsRes.json();
+          setArtistEarnings(data);
+        }
+      } catch (err) {
+        console.error('[Subscription] Failed to fetch artist data:', err);
+      }
+    };
+
+    fetchArtistData();
+  }, [userAddress]);
+
+  const handleClaimPayouts = async () => {
+    if (!userAddress || !artistClaims || artistClaims.unclaimedMonths.length === 0) return;
+
+    setClaiming(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const monthIds = artistClaims.unclaimedMonths.map(m => m.monthId);
+      const hasUnclaimedTours = artistClaims.toursEligible &&
+        artistClaims.unclaimedMonths.some(m => !m.toursClaimed);
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'claim_artist_payouts',
+          userAddress,
+          params: {
+            monthIds,
+            claimTours: hasUnclaimedTours,
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Claim failed');
+      }
+
+      setSuccess(`Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`);
+      // Refresh claims data
+      setArtistClaims(prev => prev ? { ...prev, unclaimedMonths: [], totalUnclaimed: '0' } : null);
+    } catch (err: any) {
+      console.error('Claim error:', err);
+      setError(err.message || 'Failed to claim payouts');
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   // Fetch subscription status
   useEffect(() => {
@@ -179,6 +274,11 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
   // Active subscription view
   if (subscriptionStatus?.isActive) {
+    const totalEarned = artistEarnings
+      ? (parseFloat(artistEarnings.totalRadioEarnings) + parseFloat(artistEarnings.totalTips) + parseFloat(artistEarnings.totalLicenseSales))
+      : 0;
+    const hasUnclaimed = artistClaims && artistClaims.unclaimedMonths.length > 0;
+
     return (
       <div className="bg-gradient-to-br from-green-900/20 via-black to-cyan-900/20 border border-green-500/30 rounded-2xl p-6">
         <div className="flex justify-between items-center mb-4">
@@ -205,10 +305,129 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
           <Clock className="w-4 h-4" />
           <span>Expires: {new Date(subscriptionStatus.expiry * 1000).toLocaleDateString()}</span>
         </div>
+
+        {/* Artist Earnings Section */}
+        {artistEarnings && totalEarned > 0 && (
+          <div className="border-t border-gray-700 pt-4 mt-2">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-5 h-5 text-purple-400" />
+              <h4 className="text-sm font-bold text-white">Artist Earnings</h4>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="bg-gray-800/80 rounded-lg p-2 text-center">
+                <div className="text-[10px] text-gray-500">Radio</div>
+                <div className="text-sm font-bold text-indigo-400">
+                  {parseFloat(artistEarnings.totalRadioEarnings).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-gray-500">WMON</div>
+              </div>
+              <div className="bg-gray-800/80 rounded-lg p-2 text-center">
+                <div className="text-[10px] text-gray-500">Tips</div>
+                <div className="text-sm font-bold text-pink-400">
+                  {parseFloat(artistEarnings.totalTips).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-gray-500">WMON</div>
+              </div>
+              <div className="bg-gray-800/80 rounded-lg p-2 text-center">
+                <div className="text-[10px] text-gray-500">Sales</div>
+                <div className="text-sm font-bold text-emerald-400">
+                  {parseFloat(artistEarnings.totalLicenseSales).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-gray-500">WMON</div>
+              </div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-2 text-center mb-3">
+              <div className="text-[10px] text-gray-500">Total Earned</div>
+              <div className="text-lg font-bold text-white">{totalEarned.toFixed(4)} WMON</div>
+            </div>
+          </div>
+        )}
+
+        {/* Unclaimed Payouts - Claim Button */}
+        {hasUnclaimed && (
+          <div className="border-t border-gray-700 pt-4 mt-2">
+            <div className="flex items-center gap-2 mb-3">
+              <Wallet className="w-5 h-5 text-yellow-400" />
+              <h4 className="text-sm font-bold text-white">Unclaimed Payouts</h4>
+            </div>
+            <div className="space-y-2 mb-3">
+              {artistClaims!.unclaimedMonths.map(month => (
+                <div key={month.monthId} className="flex justify-between items-center bg-gray-800/60 rounded-lg px-3 py-2">
+                  <div>
+                    <span className="text-xs text-gray-400">Month #{month.monthId}</span>
+                    <span className="text-[10px] text-gray-500 ml-2">({month.playCount} plays)</span>
+                  </div>
+                  <span className="text-sm font-bold text-yellow-400">
+                    {parseFloat(month.estimatedPayout).toFixed(4)} WMON
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-3 text-center">
+              <div className="text-xs text-gray-400">Total Claimable</div>
+              <div className="text-xl font-bold text-yellow-400">{artistClaims!.totalUnclaimed} WMON</div>
+              {artistClaims!.toursEligible && (
+                <div className="text-[10px] text-green-400 mt-1">+ TOURS rewards eligible</div>
+              )}
+            </div>
+
+            {/* Error/Success Messages */}
+            {error && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <span className="text-sm text-red-300">{error}</span>
+              </div>
+            )}
+            {success && (
+              <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                <span className="text-sm text-green-300">{success}</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleClaimPayouts}
+              disabled={claiming}
+              className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {claiming ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Claiming...
+                </>
+              ) : (
+                <>
+                  <Wallet className="w-5 h-5" />
+                  Claim All ({artistClaims!.totalUnclaimed} WMON)
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* No unclaimed but show eligibility info */}
+        {!hasUnclaimed && artistClaims && (
+          <div className="border-t border-gray-700 pt-3 mt-2">
+            {success && (
+              <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                <span className="text-sm text-green-300">{success}</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-500 text-center">
+              No unclaimed payouts. Earnings are distributed monthly.
+            </div>
+            {artistClaims.toursEligible && (
+              <div className="text-[10px] text-green-400/70 text-center mt-1">
+                TOURS eligible ({artistClaims.masterCount} masters, {artistClaims.lifetimePlays} plays)
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
