@@ -79,7 +79,10 @@ export class GoogleMapsProvider implements MapProvider {
         try {
           const fields =
             'displayName,rating,userRatingCount,formattedAddress,types,currentOpeningHours,photos,location';
-          const url = `https://places.googleapis.com/v1/places/${placeId}?fields=${fields}&key=${GOOGLE_MAPS_SERVER_KEY}`;
+          // Strip "places/" prefix — Grounding API returns "places/ChIJ..." but the
+          // Places API (New) URL already includes "places/" in the path template.
+          const cleanId = placeId.replace(/^places\//, '');
+          const url = `https://places.googleapis.com/v1/places/${cleanId}?fields=${fields}&key=${GOOGLE_MAPS_SERVER_KEY}`;
 
           const response = await fetch(url, {
             headers: { 'X-Goog-FieldMask': fields },
