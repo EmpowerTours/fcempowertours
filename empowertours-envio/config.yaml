@@ -79,7 +79,7 @@ networks:
 
       - name: PassportNFTV2
         address:
-          - "0xbd3F487D511c0d3772d14d6D4dE7e6584843dfc4"  # Mainnet PassportNFTV3
+          - "0x93126e59004692B01961BE505aa04F55d5bd1851"  # Mainnet PassportNFTV3
         handler: src/EventHandlers.ts
         events:
           # Passport minting with country data, region, continent, and FID
