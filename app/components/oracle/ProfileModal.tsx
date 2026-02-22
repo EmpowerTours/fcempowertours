@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown, Download } from 'lucide-react';
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown, Download, Radio, TrendingUp } from 'lucide-react';
 import { getAddressExplorerUrl } from '@/app/chains';
 import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
 import { EPKModal } from './EPKModal';
@@ -95,6 +95,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [showEPKSubmodal, setShowEPKSubmodal] = useState(false);
   const [showEPKViewModal, setShowEPKViewModal] = useState(false);
 
+  // Artist earnings state
+  const [earnings, setEarnings] = useState<{
+    totalRadioEarnings: string;
+    totalTips: string;
+    totalLicenseSales: string;
+    totalPlays: number;
+    totalLicenseCount: number;
+    songBreakdown: { tokenId: string; name: string; plays: number; earnings: string; tips: string }[];
+  } | null>(null);
+  const [claims, setClaims] = useState<{
+    unclaimedMonths: { monthId: number; playCount: number; estimatedPayout: string; toursClaimed: boolean }[];
+    totalUnclaimed: string;
+    toursEligible: boolean;
+  } | null>(null);
+  const [earningsLoading, setEarningsLoading] = useState(false);
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimResult, setClaimResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -146,6 +164,69 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       console.error('[ProfileModal] EPK status load error:', error);
     } finally {
       setEpkLoading(false);
+    }
+  };
+
+  // Load artist earnings when we know they've created music
+  const loadArtistEarnings = async (address: string) => {
+    setEarningsLoading(true);
+    try {
+      const [earningsRes, claimsRes] = await Promise.all([
+        fetch(`/api/artist-earnings?address=${address}`),
+        fetch(`/api/artist-claims?address=${address}`),
+      ]);
+      const earningsData = await earningsRes.json();
+      const claimsData = await claimsRes.json();
+      if (!earningsData.error) setEarnings(earningsData);
+      if (!claimsData.error) setClaims(claimsData);
+    } catch (error) {
+      console.error('[ProfileModal] Earnings load error:', error);
+    } finally {
+      setEarningsLoading(false);
+    }
+  };
+
+  // Trigger earnings fetch when stats are loaded and user has music
+  useEffect(() => {
+    if (stats && stats.musicCreated > 0 && walletAddress && !earnings) {
+      loadArtistEarnings(walletAddress);
+    }
+  }, [stats, walletAddress]);
+
+  const handleClaimPayouts = async () => {
+    if (!claims || claims.unclaimedMonths.length === 0 || !walletAddress) return;
+    setClaimLoading(true);
+    setClaimResult(null);
+    try {
+      const monthIds = claims.unclaimedMonths.map(m => m.monthId);
+      const hasUnclaimedTours = claims.toursEligible &&
+        claims.unclaimedMonths.some(m => !m.toursClaimed);
+
+      const response = await fetch('/api/execute-delegated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'claim_artist_payouts',
+          userAddress: walletAddress,
+          params: { monthIds, claimTours: hasUnclaimedTours },
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setClaimResult({ success: true, message: 'Payouts claimed!' });
+        // Refresh claims data
+        const claimsRes = await fetch(`/api/artist-claims?address=${walletAddress}`);
+        const claimsData = await claimsRes.json();
+        if (!claimsData.error) setClaims(claimsData);
+        // Refresh safe balance
+        loadSafeBalance(walletAddress);
+      } else {
+        setClaimResult({ success: false, message: data.error || 'Claim failed' });
+      }
+    } catch (error: any) {
+      setClaimResult({ success: false, message: error.message || 'Claim failed' });
+    } finally {
+      setClaimLoading(false);
     }
   };
 
@@ -475,6 +556,120 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <StatBox icon={<Palette className="w-5 h-5" />} value={stats.artCreated} label="Art Created" color="amber" />
                 <StatBox icon={<Ticket className="w-5 h-5" />} value={stats.musicPurchased} label="Purchased" color="pink" />
               </div>
+
+              {/* Artist Earnings - only for music creators */}
+              {stats.musicCreated > 0 && (
+                <div className="bg-gradient-to-br from-green-900/40 to-emerald-900/40 border border-green-700/50 rounded-xl p-4">
+                  <h4 className="font-medium text-white flex items-center gap-2 mb-3">
+                    <DollarSign className="w-5 h-5 text-green-400" />
+                    Artist Earnings
+                  </h4>
+
+                  {earningsLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
+                      <span className="ml-2 text-sm text-gray-400">Loading earnings...</span>
+                    </div>
+                  ) : earnings ? (
+                    <div className="space-y-3">
+                      {/* Earnings Breakdown */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-black/30 rounded-lg p-2.5 text-center">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <Radio className="w-3 h-3 text-pink-400" />
+                          </div>
+                          <p className="text-sm font-bold text-white">{parseFloat(earnings.totalRadioEarnings).toFixed(4)}</p>
+                          <p className="text-[10px] text-gray-400">Radio WMON</p>
+                        </div>
+                        <div className="bg-black/30 rounded-lg p-2.5 text-center">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <TrendingUp className="w-3 h-3 text-amber-400" />
+                          </div>
+                          <p className="text-sm font-bold text-white">{parseFloat(earnings.totalTips).toFixed(4)}</p>
+                          <p className="text-[10px] text-gray-400">Tips WMON</p>
+                        </div>
+                        <div className="bg-black/30 rounded-lg p-2.5 text-center">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <Music className="w-3 h-3 text-blue-400" />
+                          </div>
+                          <p className="text-sm font-bold text-white">{parseFloat(earnings.totalLicenseSales).toFixed(4)}</p>
+                          <p className="text-[10px] text-gray-400">Sales WMON</p>
+                        </div>
+                      </div>
+
+                      {/* Total */}
+                      <div className="bg-black/30 rounded-lg p-3 flex items-center justify-between">
+                        <span className="text-sm text-gray-300">Total Earned</span>
+                        <span className="text-lg font-bold text-green-400">
+                          {(parseFloat(earnings.totalRadioEarnings) + parseFloat(earnings.totalTips) + parseFloat(earnings.totalLicenseSales)).toFixed(4)} WMON
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        <span>{earnings.totalPlays} plays</span>
+                        <span>{earnings.totalLicenseCount} licenses sold</span>
+                      </div>
+
+                      {/* Top Songs */}
+                      {earnings.songBreakdown.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-500 font-medium">Top Songs</p>
+                          {earnings.songBreakdown.slice(0, 3).map((song) => (
+                            <div key={song.tokenId} className="flex items-center justify-between bg-black/20 rounded-lg px-3 py-1.5">
+                              <span className="text-xs text-gray-300 truncate flex-1 mr-2">{song.name}</span>
+                              <span className="text-xs text-green-400 font-medium whitespace-nowrap">
+                                {parseFloat(song.earnings).toFixed(4)} WMON
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Claim Section */}
+                      {claims && parseFloat(claims.totalUnclaimed) > 0 && (
+                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-sm font-medium text-green-400">Unclaimed Payouts</p>
+                              <p className="text-xs text-gray-400">
+                                {claims.unclaimedMonths.length} month{claims.unclaimedMonths.length !== 1 ? 's' : ''}
+                                {claims.toursEligible && ' + TOURS rewards'}
+                              </p>
+                            </div>
+                            <p className="text-lg font-bold text-green-400">{parseFloat(claims.totalUnclaimed).toFixed(4)} WMON</p>
+                          </div>
+                          <button
+                            onClick={handleClaimPayouts}
+                            disabled={claimLoading}
+                            className="w-full py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            {claimLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Claiming...
+                              </>
+                            ) : (
+                              <>
+                                <DollarSign className="w-4 h-4" />
+                                Claim All ({parseFloat(claims.totalUnclaimed).toFixed(4)} WMON)
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Claim result feedback */}
+                      {claimResult && (
+                        <div className={`text-xs text-center py-2 rounded-lg ${claimResult.success ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                          {claimResult.message}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-2">No earnings data available</p>
+                  )}
+                </div>
+              )}
 
               {/* EPK Button - only show for artists (musicCreated > 0) */}
               {stats.musicCreated > 0 && (
