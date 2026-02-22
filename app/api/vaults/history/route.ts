@@ -21,6 +21,7 @@ const TOKEN_NAMES: Record<string, string> = {
   '0xe7cd86e13ac4309349f30b3435a9d337750fc82d': 'USDT0',
   '0xee8c0e9f1bffb4eb878d8f15f368a02a35481242': 'WETH',
   '0x0555e30da8f98308edb960aa94c0db47230d2b9c': 'WBTC',
+  '0x00000000efe302beaa2b3e6e1b18d08d69a9012a': 'AUSD',
 };
 
 const TOKEN_DECIMALS: Record<string, number> = {
@@ -29,6 +30,7 @@ const TOKEN_DECIMALS: Record<string, number> = {
   '0xe7cd86e13ac4309349f30b3435a9d337750fc82d': 6,
   '0xee8c0e9f1bffb4eb878d8f15f368a02a35481242': 18,
   '0x0555e30da8f98308edb960aa94c0db47230d2b9c': 8,
+  '0x00000000efe302beaa2b3e6e1b18d08d69a9012a': 6,
 };
 
 const TradeExecutedAbi = parseAbiItem(
