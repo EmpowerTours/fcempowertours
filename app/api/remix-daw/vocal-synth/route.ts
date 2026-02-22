@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 min — XTTS synthesis is slow (14+ lines)
+export const dynamic = 'force-dynamic';
+
 const EC2_API = process.env.REMIX_DAW_EC2_URL || 'http://18.190.218.92:8000';
 
 export async function POST(req: NextRequest) {

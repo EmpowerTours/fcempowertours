@@ -1,5 +1,9 @@
 import { NextRequest } from 'next/server';
 
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 min — SSE stream with XTTS per bar
+export const dynamic = 'force-dynamic';
+
 const EC2_API = process.env.REMIX_DAW_EC2_URL || 'http://18.190.218.92:8000';
 
 /**
