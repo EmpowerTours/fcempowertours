@@ -225,18 +225,35 @@ async function fetchGuidesFromContract(): Promise<GuideObject[]> {
   }] as const;
 
   try {
-    // Get GuideRegistered events from the contract (last 500000 blocks to capture older registrations)
+    // Get GuideRegistered events from the contract (paginated - Monad RPC limits to 100 blocks)
     const currentBlock = await publicClient.getBlockNumber();
-    const fromBlock = currentBlock > 500000n ? currentBlock - 500000n : 0n;
+    // Look back 5000 blocks (~4 hours). For older guides, Envio primary path handles it.
+    const fromBlock = currentBlock > 5000n ? currentBlock - 5000n : 0n;
+    const CHUNK = 100n;
 
-    console.log(`[get-guides] Fetching GuideRegistered events from block ${fromBlock} to ${currentBlock}`);
+    console.log(`[get-guides] Fetching GuideRegistered events from block ${fromBlock} to ${currentBlock} (paginated)`);
 
-    const logs = await publicClient.getLogs({
-      address: REGISTRY_ADDRESS,
-      event: eventAbi[0],
-      fromBlock,
-      toBlock: currentBlock,
-    });
+    // Build chunk ranges and fetch in parallel batches of 10
+    const ranges: { from: bigint; to: bigint }[] = [];
+    for (let start = fromBlock; start <= currentBlock; start += CHUNK) {
+      const end = start + CHUNK - 1n > currentBlock ? currentBlock : start + CHUNK - 1n;
+      ranges.push({ from: start, to: end });
+    }
+
+    const logs: any[] = [];
+    const BATCH = 10;
+    for (let i = 0; i < ranges.length; i += BATCH) {
+      const batch = ranges.slice(i, i + BATCH);
+      const results = await Promise.all(
+        batch.map(r => publicClient.getLogs({
+          address: REGISTRY_ADDRESS,
+          event: eventAbi[0],
+          fromBlock: r.from,
+          toBlock: r.to,
+        }))
+      );
+      for (const chunk of results) logs.push(...chunk);
+    }
 
     console.log(`Found ${logs.length} GuideRegistered events`);
 

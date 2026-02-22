@@ -4,6 +4,7 @@ import { createPublicClient, http, parseAbiItem, formatEther, formatUnits } from
 const VAULT_CONTRACT = (process.env.VAULT_CONTRACT || '') as `0x${string}`;
 // Force public RPC for getLogs - Alchemy free tier has 10-block range limit
 const MONAD_RPC = 'https://rpc.monad.xyz';
+const LOGS_CHUNK_SIZE = 100n; // Monad public RPC limits eth_getLogs to 100 blocks
 
 const WMON_ADDRESS = '0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A'.toLowerCase();
 
@@ -63,28 +64,39 @@ export async function GET(req: NextRequest) {
   try {
     const client = createPublicClient({ transport: http(MONAD_RPC) });
     const latestBlock = await client.getBlockNumber();
-    // Look back ~6000 blocks (~5 hours at ~3s blocks on Monad)
-    const fromBlock = latestBlock > 6000n ? latestBlock - 6000n : 0n;
+    // Look back ~2000 blocks (~1.5 hours at ~3s blocks on Monad)
+    const fromBlock = latestBlock > 2000n ? latestBlock - 2000n : 0n;
+
+    // Paginated getLogs helper (Monad RPC limits to 100 blocks per request)
+    // Fetches in parallel batches of 10 for performance
+    async function getLogsPaginated(params: { event: any; args?: any }): Promise<any[]> {
+      const ranges: { from: bigint; to: bigint }[] = [];
+      for (let start = fromBlock; start <= latestBlock; start += LOGS_CHUNK_SIZE) {
+        const end = start + LOGS_CHUNK_SIZE - 1n > latestBlock ? latestBlock : start + LOGS_CHUNK_SIZE - 1n;
+        ranges.push({ from: start, to: end });
+      }
+      const allLogs: any[] = [];
+      const BATCH = 10;
+      for (let i = 0; i < ranges.length; i += BATCH) {
+        const batch = ranges.slice(i, i + BATCH);
+        const results = await Promise.all(
+          batch.map(r => client.getLogs({
+            address: VAULT_CONTRACT,
+            event: params.event,
+            fromBlock: r.from,
+            toBlock: r.to,
+            args: params.args,
+          }))
+        );
+        for (const chunk of results) allLogs.push(...chunk);
+      }
+      return allLogs;
+    }
 
     const [tradeLogs, depositLogs, withdrawLogs] = await Promise.all([
-      client.getLogs({
-        address: VAULT_CONTRACT,
-        event: TradeExecutedAbi,
-        fromBlock,
-        args: { agentId },
-      }),
-      client.getLogs({
-        address: VAULT_CONTRACT,
-        event: DepositedAbi,
-        fromBlock,
-        args: { agentId },
-      }),
-      client.getLogs({
-        address: VAULT_CONTRACT,
-        event: WithdrawnAbi,
-        fromBlock,
-        args: { agentId },
-      }),
+      getLogsPaginated({ event: TradeExecutedAbi, args: { agentId } }),
+      getLogsPaginated({ event: DepositedAbi, args: { agentId } }),
+      getLogsPaginated({ event: WithdrawnAbi, args: { agentId } }),
     ]);
 
     const trades = tradeLogs.map(log => {
