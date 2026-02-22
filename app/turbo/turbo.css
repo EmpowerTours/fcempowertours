@@ -1,0 +1,372 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* ── Reset: override root layout styles within turbo-page ── */
+.turbo-page,
+.turbo-page *,
+.turbo-page *::before,
+.turbo-page *::after {
+  box-sizing: border-box;
+  -webkit-text-fill-color: unset;
+}
+
+.turbo-page {
+  --c: #06b6d4;
+  --p: #8b5cf6;
+  --a: #f59e0b;
+  font-family: 'DM Sans', sans-serif;
+  background: #060608 !important;
+  color: #d4d4d8;
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* ── Typography ── */
+.turbo-page .syne {
+  font-family: 'Syne', sans-serif;
+}
+
+/* ── Animated gradient text ── */
+.turbo-page .gt {
+  background: linear-gradient(135deg, var(--c), var(--p), var(--a));
+  background-size: 200% 200%;
+  animation: tShift 5s ease infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes tShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ── Hero entrance ── */
+@keyframes tUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.turbo-page .hero-enter {
+  animation: tUp 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.turbo-page .hero-enter-d1 { animation-delay: 0.1s; }
+.turbo-page .hero-enter-d2 { animation-delay: 0.25s; }
+.turbo-page .hero-enter-d3 { animation-delay: 0.4s; }
+.turbo-page .hero-enter-d4 { animation-delay: 0.55s; }
+
+/* ── Scroll reveal ── */
+.turbo-page .reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.turbo-page .reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Glow orbs ── */
+.turbo-page .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* ── Section divider ── */
+.turbo-page .divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #27272a, transparent);
+}
+
+/* ── Tier cards ── */
+.turbo-page .tier-card {
+  position: relative;
+  border: 1px solid #1c1c22;
+  border-radius: 16px;
+  background: #0a0a0f;
+  padding: 32px;
+  transition: border-color 0.4s, transform 0.3s, box-shadow 0.4s;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.turbo-page .tier-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 60px -15px rgba(0,0,0,0.5);
+}
+.turbo-page .tier-card.popular {
+  border-color: rgba(139, 92, 246, 0.3);
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.04) 0%, #0a0a0f 50%);
+}
+
+/* ── Phase cards ── */
+.turbo-page .phase-card {
+  position: relative;
+  border: 1px solid #1c1c22;
+  border-radius: 16px;
+  background: #0a0a0f;
+  padding: 32px;
+  transition: border-color 0.4s;
+  height: 100%;
+  overflow: hidden;
+}
+.turbo-page .phase-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-color);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.turbo-page .phase-card:hover {
+  border-color: #27272a;
+}
+.turbo-page .phase-card:hover::after {
+  opacity: 1;
+}
+
+/* ── FAQ ── */
+.turbo-page .faq-item {
+  border: 1px solid #1c1c22;
+  border-radius: 12px;
+  background: #0a0a0f;
+  transition: border-color 0.3s;
+}
+.turbo-page .faq-item:hover {
+  border-color: #27272a;
+}
+.turbo-page .faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.3s,
+              padding 0.4s;
+  padding: 0 20px;
+}
+.turbo-page .faq-answer.open {
+  max-height: 200px;
+  opacity: 1;
+  padding: 0 20px 20px;
+}
+
+/* ── Form inputs ── */
+.turbo-page input,
+.turbo-page textarea {
+  font-family: 'DM Sans', sans-serif;
+  background: #0a0a0f !important;
+  border: 1px solid #1c1c22 !important;
+  color: #e4e4e7 !important;
+  -webkit-text-fill-color: #e4e4e7 !important;
+  border-radius: 12px;
+  padding: 12px 16px;
+  width: 100%;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.turbo-page input:focus,
+.turbo-page textarea:focus {
+  border-color: #06b6d4 !important;
+}
+.turbo-page input::placeholder,
+.turbo-page textarea::placeholder {
+  color: #3f3f46 !important;
+  -webkit-text-fill-color: #3f3f46 !important;
+}
+
+/* ── CTA button ── */
+.turbo-page .cta-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 40px;
+  border-radius: 100px;
+  background: linear-gradient(135deg, var(--c), var(--p));
+  color: #000;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: transform 0.2s, box-shadow 0.3s;
+  cursor: pointer;
+  border: none;
+}
+.turbo-page .cta-primary:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.2), 0 0 60px rgba(139, 92, 246, 0.1);
+}
+.turbo-page .cta-primary:active {
+  transform: scale(0.98);
+}
+
+.turbo-page .cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 40px;
+  border-radius: 100px;
+  background: transparent;
+  color: #71717a;
+  border: 1px solid #27272a;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: border-color 0.3s, color 0.3s;
+  cursor: pointer;
+}
+.turbo-page .cta-secondary:hover {
+  border-color: #52525b;
+  color: #d4d4d8;
+}
+
+/* ── Pipeline ── */
+.turbo-page .pipeline-box {
+  border: 1px solid #1c1c22;
+  border-radius: 16px;
+  background: #0a0a0f;
+  padding: 32px;
+}
+
+/* ── Boost bar (scroll progress) ── */
+.turbo-page .boost-bar {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 160px;
+  background: #18181b;
+  border-radius: 3px;
+  z-index: 50;
+  overflow: hidden;
+}
+.turbo-page .boost-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  border-radius: 3px;
+  background: linear-gradient(to top, var(--c), var(--p));
+  transition: height 0.15s linear;
+}
+
+/* ── Governance cards ── */
+.turbo-page .gov-card {
+  border: 1px solid #1c1c22;
+  border-radius: 16px;
+  background: #0a0a0f;
+  padding: 28px;
+  transition: border-color 0.4s;
+}
+.turbo-page .gov-card:hover {
+  border-color: #27272a;
+}
+.turbo-page .gov-flow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+}
+.turbo-page .gov-step-card {
+  position: relative;
+  border: 1px solid #1c1c22;
+  border-radius: 14px;
+  background: #0a0a0f;
+  padding: 24px;
+  transition: border-color 0.4s;
+}
+.turbo-page .gov-step-card:hover {
+  border-color: #27272a;
+}
+.turbo-page .gov-step-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Payment Tracker ── */
+.turbo-page .payment-track {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  height: 28px;
+}
+.turbo-page .payment-bar {
+  border-radius: 4px;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+.turbo-page .payment-bar:hover {
+  transform: scaleY(1.15);
+  transition: transform 0.15s;
+}
+
+/* ── NFT Card ── */
+.turbo-page .nft-card-wrapper {
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid #1c1c22;
+  background: linear-gradient(180deg, #0c0c12 0%, #080810 100%);
+}
+.turbo-page .nft-card-img {
+  width: 280px;
+  max-width: 100%;
+  border-radius: 16px;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.6));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.turbo-page .nft-card-img:hover {
+  transform: scale(1.03) translateY(-4px);
+}
+@keyframes nftReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.turbo-page .nft-card-reveal {
+  animation: nftReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes nftSpin {
+  to { transform: rotate(360deg); }
+}
+.turbo-page .nft-card-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #27272a;
+  border-top-color: #06b6d4;
+  border-radius: 50%;
+  animation: nftSpin 0.8s linear infinite;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .turbo-page .boost-bar { display: none; }
+  .turbo-page .nft-card-img { width: 240px; }
+}

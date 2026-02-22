@@ -18,7 +18,7 @@ echo "🤖 Checking commit author..."
 # Pre-commit runs before the message is written, so we skip this check here
 
 # 2. TypeScript type check (only on staged .ts/.tsx files)
-STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -20)
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -20 || true)
 if [ -n "$STAGED_TS" ]; then
   echo "📝 Type checking TypeScript files..."
   if ! npx tsc --noEmit --skipLibCheck 2>&1 | head -30; then
@@ -29,7 +29,7 @@ if [ -n "$STAGED_TS" ]; then
 fi
 
 # 3. Lint staged files (warning only)
-STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx)$')
+STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx)$' || true)
 if [ -n "$STAGED_JS" ]; then
   echo "🧹 Linting staged files..."
   echo "$STAGED_JS" | xargs npx eslint --max-warnings=0 2>&1 | head -50

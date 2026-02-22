@@ -39,6 +39,9 @@ export const env = {
   NFT_ADDRESS: process.env.NEXT_PUBLIC_NFT_CONTRACT || '',
   PASSPORT_NFT: process.env.NEXT_PUBLIC_PASSPORT_NFT || '',
 
+  // TURBO Cohort
+  TURBO_COHORT: process.env.NEXT_PUBLIC_TURBO_COHORT || '',
+
   // External APIs
   NEYNAR_API_KEY: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || process.env.NEYNAR_API_KEY || '',
   PINATA_API_KEY: process.env.NEXT_PUBLIC_PINATA_API_KEY || '',

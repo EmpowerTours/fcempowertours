@@ -156,6 +156,67 @@ export async function POST(req: NextRequest) {
         ];
         break;
 
+      // ==================== TURBO: APPROVE WMON FOR COHORT ====================
+      case 'turbo_approve_wmon': {
+        const TURBO_COHORT = (process.env.NEXT_PUBLIC_TURBO_COHORT) as Address;
+        if (!params?.amount) {
+          return NextResponse.json({
+            success: false,
+            error: 'Missing amount',
+            safeAddress: userSafeAddress,
+          }, { status: 400 });
+        }
+
+        const approveAmount = parseEther(params.amount.toString());
+
+        calls = [
+          {
+            to: WMON_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [TURBO_COHORT, approveAmount],
+            }) as Hex,
+          },
+        ];
+        break;
+      }
+
+      // ==================== TURBO: PAY MONTHLY ====================
+      case 'turbo_pay_monthly': {
+        const TURBO_COHORT_ADDR = (process.env.NEXT_PUBLIC_TURBO_COHORT) as Address;
+        if (!params?.tier) {
+          return NextResponse.json({
+            success: false,
+            error: 'Missing tier (1=Explorer, 2=Builder, 3=Founder)',
+            safeAddress: userSafeAddress,
+          }, { status: 400 });
+        }
+
+        const tierValue = parseInt(params.tier);
+        if (![1, 2, 3].includes(tierValue)) {
+          return NextResponse.json({
+            success: false,
+            error: 'Invalid tier. Must be 1 (Explorer), 2 (Builder), or 3 (Founder)',
+            safeAddress: userSafeAddress,
+          }, { status: 400 });
+        }
+
+        calls = [
+          {
+            to: TURBO_COHORT_ADDR,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function payMonthly(uint8 tier) external']),
+              functionName: 'payMonthly',
+              args: [tierValue],
+            }) as Hex,
+          },
+        ];
+        break;
+      }
+
       default:
         return NextResponse.json({
           success: false,
