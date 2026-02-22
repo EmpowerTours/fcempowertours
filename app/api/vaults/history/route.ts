@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, parseAbiItem, formatEther, formatUnits } from 'viem';
 
 const VAULT_CONTRACT = (process.env.VAULT_CONTRACT || '') as `0x${string}`;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+// Force public RPC for getLogs - Alchemy free tier has 10-block range limit
+const MONAD_RPC = 'https://rpc.monad.xyz';
 
 const WMON_ADDRESS = '0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A'.toLowerCase();
 

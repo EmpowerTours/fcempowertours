@@ -3,7 +3,8 @@ import { createPublicClient, http, parseAbi, Address } from 'viem';
 import { activeChain } from '@/app/chains';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC;
+// Force public RPC for getLogs - Alchemy free tier has 10-block range limit
+const MONAD_RPC = 'https://rpc.monad.xyz';
 const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 
