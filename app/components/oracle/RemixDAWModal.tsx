@@ -622,8 +622,12 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Genre transform failed');
+        let errMsg = 'Genre transform failed';
+        try {
+          const err = await res.json();
+          errMsg = err.error || err.detail || errMsg;
+        } catch { /* response not JSON */ }
+        throw new Error(errMsg);
       }
 
       const data = await res.json();
