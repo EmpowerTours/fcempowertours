@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbiItem, formatEther, formatUnits } from 'viem';
+import { createPublicClient, http, parseAbiItem, formatEther, formatUnits, defineChain } from 'viem';
 
 const VAULT_CONTRACT = (process.env.VAULT_CONTRACT || '') as `0x${string}`;
 // Force public RPC for getLogs - Alchemy free tier has 10-block range limit
 const MONAD_RPC = 'https://rpc.monad.xyz';
-const LOGS_CHUNK_SIZE = 100n; // Monad public RPC limits eth_getLogs to 100 blocks
+const LOGS_CHUNK = 100n; // Monad public RPC limits eth_getLogs to 100 blocks
+
+const monad = defineChain({
+  id: 143,
+  name: 'Monad',
+  nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+  rpcUrls: { default: { http: [MONAD_RPC] } },
+});
 
 const WMON_ADDRESS = '0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A'.toLowerCase();
 
@@ -62,44 +69,44 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const client = createPublicClient({ transport: http(MONAD_RPC) });
+    const client = createPublicClient({ chain: monad, transport: http(MONAD_RPC) });
     const latestBlock = await client.getBlockNumber();
-    // Look back ~2000 blocks (~1.5 hours at ~3s blocks on Monad)
-    const fromBlock = latestBlock > 2000n ? latestBlock - 2000n : 0n;
+    // Look back ~1000 blocks (~50 min at ~3s blocks on Monad)
+    const fromBlock = latestBlock > 1000n ? latestBlock - 1000n : 0n;
 
-    // Paginated getLogs helper (Monad RPC limits to 100 blocks per request)
-    // Fetches in parallel batches of 10 for performance
-    async function getLogsPaginated(params: { event: any; args?: any }): Promise<any[]> {
-      const ranges: { from: bigint; to: bigint }[] = [];
-      for (let start = fromBlock; start <= latestBlock; start += LOGS_CHUNK_SIZE) {
-        const end = start + LOGS_CHUNK_SIZE - 1n > latestBlock ? latestBlock : start + LOGS_CHUNK_SIZE - 1n;
-        ranges.push({ from: start, to: end });
-      }
+    // Paginated getLogs: Monad RPC limits eth_getLogs to 100 blocks per request
+    async function getLogsPaginated(event: any): Promise<any[]> {
       const allLogs: any[] = [];
-      const BATCH = 10;
-      for (let i = 0; i < ranges.length; i += BATCH) {
-        const batch = ranges.slice(i, i + BATCH);
-        const results = await Promise.all(
-          batch.map(r => client.getLogs({
+      for (let start = fromBlock; start <= latestBlock; start += LOGS_CHUNK) {
+        const end = start + LOGS_CHUNK - 1n > latestBlock ? latestBlock : start + LOGS_CHUNK - 1n;
+        try {
+          const chunk = await client.getLogs({
             address: VAULT_CONTRACT,
-            event: params.event,
-            fromBlock: r.from,
-            toBlock: r.to,
-            args: params.args,
-          }))
-        );
-        for (const chunk of results) allLogs.push(...chunk);
+            event,
+            fromBlock: start,
+            toBlock: end,
+          });
+          allLogs.push(...chunk);
+        } catch (chunkErr: any) {
+          console.warn(`[VaultHistory] Chunk ${start}-${end} failed:`, chunkErr.message?.slice(0, 100));
+        }
       }
       return allLogs;
     }
 
     const [tradeLogs, depositLogs, withdrawLogs] = await Promise.all([
-      getLogsPaginated({ event: TradeExecutedAbi, args: { agentId } }),
-      getLogsPaginated({ event: DepositedAbi, args: { agentId } }),
-      getLogsPaginated({ event: WithdrawnAbi, args: { agentId } }),
+      getLogsPaginated(TradeExecutedAbi),
+      getLogsPaginated(DepositedAbi),
+      getLogsPaginated(WithdrawnAbi),
     ]);
 
-    const trades = tradeLogs.map(log => {
+    // Filter by agentId client-side (more compatible than RPC-level args filter)
+    const filterByAgent = (logs: any[]) => logs.filter(l => Number(l.args?.agentId) === agentId);
+    const filteredTrades = filterByAgent(tradeLogs);
+    const filteredDeposits = filterByAgent(depositLogs);
+    const filteredWithdrawals = filterByAgent(withdrawLogs);
+
+    const trades = filteredTrades.map(log => {
       const tokenIn = (log.args.tokenIn as string).toLowerCase();
       const tokenOut = (log.args.tokenOut as string).toLowerCase();
       const amountIn = log.args.amountIn as bigint;
@@ -121,7 +128,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const deposits = depositLogs.map(log => ({
+    const deposits = filteredDeposits.map(log => ({
       type: 'deposit',
       user: log.args.user as string,
       amount: formatEther(log.args.amount as bigint),
@@ -130,7 +137,7 @@ export async function GET(req: NextRequest) {
       txHash: log.transactionHash,
     }));
 
-    const withdrawals = withdrawLogs.map(log => ({
+    const withdrawals = filteredWithdrawals.map(log => ({
       type: 'withdrawal',
       user: log.args.user as string,
       sharesBurned: formatEther(log.args.sharesBurned as bigint),
@@ -158,6 +165,10 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[VaultHistory] Error:', err.message);
     if (caches[agentId]?.data) return NextResponse.json(caches[agentId].data);
-    return NextResponse.json({ error: 'Failed to fetch vault history' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to fetch vault history',
+      detail: err.message?.slice(0, 200),
+      vault: VAULT_CONTRACT?.slice(0, 10) + '...',
+    }, { status: 500 });
   }
 }
