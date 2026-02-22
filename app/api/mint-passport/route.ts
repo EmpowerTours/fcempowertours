@@ -134,7 +134,12 @@ async function uploadMetadataToPinata(metadata: any, countryCode: string, tokenI
   try {
     const response = await axios.post(
       PINATA_API_URL,
-      metadata,
+      {
+        pinataContent: metadata,
+        pinataMetadata: {
+          name: `passport-${countryCode}-${tokenId}`,
+        },
+      },
       {
         headers: {
           Authorization: `Bearer ${PINATA_JWT}`,
