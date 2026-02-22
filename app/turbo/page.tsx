@@ -878,7 +878,7 @@ export default function TurboPage() {
                     <div className="text-[10px] text-zinc-600">Membership, payments, pool, soulbound NFTs</div>
                   </div>
                   <a
-                    href={`https://testnet.monadexplorer.com/address/${CONTRACTS.cohort}`}
+                    href={`https://monadscan.com/address/${CONTRACTS.cohort}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-mono text-[11px] text-cyan-500/70 hover:text-cyan-400 transition-colors break-all"
@@ -892,7 +892,7 @@ export default function TurboPage() {
                     <div className="text-[10px] text-zinc-600">Council voting, proposals, admin passthrough</div>
                   </div>
                   <a
-                    href={`https://testnet.monadexplorer.com/address/${CONTRACTS.governance}`}
+                    href={`https://monadscan.com/address/${CONTRACTS.governance}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-mono text-[11px] text-purple-500/70 hover:text-purple-400 transition-colors break-all"
