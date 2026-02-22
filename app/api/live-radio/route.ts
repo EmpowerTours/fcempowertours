@@ -146,7 +146,7 @@ async function recordRadioPlays(tokenId: string, duration: number) {
 
     // Get active listeners from ZSET
     const cutoff = Date.now() - (LISTENER_HEARTBEAT_EXPIRY * 1000);
-    const listeners = await redis.zrangebyscore(ACTIVE_LISTENERS_ZSET, cutoff, '+inf') as string[];
+    const listeners = await redis.zrange(ACTIVE_LISTENERS_ZSET, cutoff, '+inf', { byScore: true }) as string[];
 
     if (listeners.length === 0) {
       console.log('[LiveRadio] No active listeners to record plays for');
