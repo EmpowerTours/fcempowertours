@@ -149,6 +149,7 @@ export async function GET() {
         let imageUrl = '';
         let name = nft.isArt ? `Art #${nft.tokenId}` : `Track #${nft.tokenId}`;
 
+        let audioUrl: string | undefined;
         try {
           const metadataUrl = resolveIPFS(nft.tokenURI);
           if (metadataUrl) {
@@ -160,6 +161,11 @@ export async function GET() {
               }
               if (metadata.name) {
                 name = metadata.name;
+              }
+              // Prefer external_url (full track) over animation_url (3s preview)
+              const rawAudio = metadata.external_url || metadata.audio_url || metadata.audio || metadata.animation_url;
+              if (rawAudio) {
+                audioUrl = resolveIPFS(rawAudio);
               }
             }
           }
@@ -182,6 +188,7 @@ export async function GET() {
           price: priceInWMON,
           contractAddress: process.env.NEXT_PUBLIC_NFT_CONTRACT || '',
           tokenURI: nft.tokenURI, // Include for fetching audio metadata
+          audioUrl, // Full track audio URL (external_url preferred over animation_url preview)
           artistUsername, // Farcaster username of the artist
         };
       })

@@ -293,7 +293,8 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
     const paid = await payForAction(STUDIO_ACTION.StemSeparation);
     if (!paid) return;
 
-    // Resolve audio URL from tokenURI metadata
+    // Resolve FULL audio URL from tokenURI metadata
+    // Priority: external_url (full track) > animation_url (may be 3s preview)
     let audioUrl = selectedNFT.audioUrl;
     if (!audioUrl && selectedNFT.tokenURI) {
       try {
@@ -301,7 +302,8 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
           ? selectedNFT.tokenURI.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
           : selectedNFT.tokenURI;
         const meta = await fetch(metaUrl).then(r => r.json());
-        audioUrl = meta.animation_url || meta.audio_url || meta.audio;
+        // Prefer external_url (full track) over animation_url (3s preview)
+        audioUrl = meta.external_url || meta.audio_url || meta.audio || meta.animation_url;
         if (audioUrl?.startsWith('ipfs://')) {
           audioUrl = audioUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
         }
@@ -575,6 +577,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
     const paid = await payForAction(STUDIO_ACTION.GenreTransform);
     if (!paid) return;
 
+    // Resolve FULL audio URL from tokenURI metadata
     let audioUrl = selectedNFT.audioUrl;
     if (!audioUrl && selectedNFT.tokenURI) {
       try {
@@ -582,7 +585,8 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
           ? selectedNFT.tokenURI.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
           : selectedNFT.tokenURI;
         const meta = await fetch(metaUrl).then(r => r.json());
-        audioUrl = meta.animation_url || meta.audio_url || meta.audio;
+        // Prefer external_url (full track) over animation_url (3s preview)
+        audioUrl = meta.external_url || meta.audio_url || meta.audio || meta.animation_url;
         if (audioUrl?.startsWith('ipfs://')) {
           audioUrl = audioUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
         }
