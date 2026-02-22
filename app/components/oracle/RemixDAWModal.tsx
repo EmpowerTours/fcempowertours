@@ -164,6 +164,7 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
   const freestyleCtxRef = useRef<AudioContext | null>(null);
   const freestyleStartTimeRef = useRef<number>(0); // ctx.currentTime when first bar should play
   const freestyleAbortRef = useRef<AbortController | null>(null);
+  const freestyleInstrRef = useRef<AudioBufferSourceNode[]>([]);
 
   // Payment state
   const [paymentProcessing, setPaymentProcessing] = useState(false);
@@ -715,6 +716,23 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
     // Create a fresh AudioContext for this session
     if (freestyleCtxRef.current) freestyleCtxRef.current.close();
     freestyleCtxRef.current = new AudioContext();
+    freestyleInstrRef.current = [];
+
+    const ctx = freestyleCtxRef.current;
+
+    // Pre-load instrumental stems (non-vocal) in parallel with SSE stream
+    const stemBufferPromises = stems
+      .filter(s => s.name !== 'vocals' && s.url)
+      .map(async (stem) => {
+        try {
+          const resp = await fetch(stem.url);
+          const ab = await resp.arrayBuffer();
+          return await ctx.decodeAudioData(ab);
+        } catch (e) {
+          console.warn(`[Freestyle] Failed to load stem: ${stem.name}`, e);
+          return null;
+        }
+      });
 
     const abort = new AbortController();
     freestyleAbortRef.current = abort;
@@ -781,8 +799,23 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
                 setFreestyleBarDuration(barDur);
                 // Schedule playback start: now + small buffer
                 if (!firstBarScheduled) {
-                  freestyleStartTimeRef.current = freestyleCtxRef.current!.currentTime + 0.5 + introDur;
+                  freestyleStartTimeRef.current = ctx.currentTime + 0.5 + introDur;
                   firstBarScheduled = true;
+
+                  // Play instrumental stems alongside freestyle vocals
+                  Promise.all(stemBufferPromises).then(buffers => {
+                    const instrStart = freestyleStartTimeRef.current - introDur;
+                    for (const buf of buffers) {
+                      if (!buf || !freestyleCtxRef.current) continue;
+                      const src = freestyleCtxRef.current.createBufferSource();
+                      src.buffer = buf;
+                      const gainNode = freestyleCtxRef.current.createGain();
+                      gainNode.gain.value = 0.5; // Lower instrumental so vocals stand out
+                      src.connect(gainNode).connect(freestyleCtxRef.current.destination);
+                      src.start(Math.max(instrStart, freestyleCtxRef.current.currentTime));
+                      freestyleInstrRef.current.push(src);
+                    }
+                  });
                 }
                 continue;
               }
@@ -793,14 +826,14 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
 
                 // Decode base64 WAV
                 const wavBytes = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
-                const audioBuffer = await freestyleCtxRef.current!.decodeAudioData(wavBytes.buffer.slice(0));
+                const audioBuffer = await ctx.decodeAudioData(wavBytes.buffer.slice(0));
 
                 // Schedule this bar to play at the correct beat offset
-                const source = freestyleCtxRef.current!.createBufferSource();
+                const source = ctx.createBufferSource();
                 source.buffer = audioBuffer;
-                source.connect(freestyleCtxRef.current!.destination);
+                source.connect(ctx.destination);
                 const playAt = freestyleStartTimeRef.current + timeOffset - introDur;
-                source.start(Math.max(playAt, freestyleCtxRef.current!.currentTime));
+                source.start(Math.max(playAt, ctx.currentTime));
 
                 setFreestyleBars(prev => [...prev, { bar, line: lyric, timeOffset }]);
               }
@@ -816,10 +849,13 @@ export const RemixDAWModal: React.FC<RemixDAWModalProps> = ({
         setFreestyling(false);
       }
     }
-  }, [jobId, freestyleTheme, freestyleGenreHint, freestyleMaxBars, freestyleBeatsPerBar, freestyleIntroBeats, freestyleCloneVoice, payForAction]);
+  }, [jobId, freestyleTheme, freestyleGenreHint, freestyleMaxBars, freestyleBeatsPerBar, freestyleIntroBeats, freestyleCloneVoice, payForAction, stems]);
 
   const stopFreestyle = useCallback(() => {
     freestyleAbortRef.current?.abort();
+    // Stop instrumental stem sources
+    freestyleInstrRef.current.forEach(s => { try { s.stop(); } catch {} });
+    freestyleInstrRef.current = [];
     freestyleCtxRef.current?.close();
     freestyleCtxRef.current = null;
     setFreestyling(false);
