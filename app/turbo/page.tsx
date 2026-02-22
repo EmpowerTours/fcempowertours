@@ -212,6 +212,13 @@ export default function TurboPage() {
     lastPaymentTime: number; isFounder: boolean; tokenId: number;
   } | null>(null);
   const [tierPrices, setTierPrices] = useState<{ explorer: string; builder: string; founder: string } | null>(null);
+  const [copiedField, setCopiedField] = useState('');
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(''), 2000);
+  };
   const [loadingMember, setLoadingMember] = useState(false);
   const [selectedPayTier, setSelectedPayTier] = useState(form.tier);
   const [upgradeStep, setUpgradeStep] = useState<'idle' | 'upgrading' | 'success' | 'error'>('idle');
@@ -1040,6 +1047,16 @@ export default function TurboPage() {
                       placeholder="0x..."
                       className="flex-1"
                     />
+                    {walletAddress && (
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(walletAddress, 'wallet')}
+                        className="cta-secondary text-[11px] px-2 whitespace-nowrap"
+                        title="Copy address"
+                      >
+                        {copiedField === 'wallet' ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -1057,9 +1074,17 @@ export default function TurboPage() {
 
                   {safeInfo && (
                     <div className="mt-3 p-3 rounded-lg border border-zinc-800/40 bg-zinc-900/30 text-[12px]">
-                      <div className="flex justify-between mb-1">
+                      <div className="flex justify-between items-center mb-1">
                         <span className="text-zinc-600">Safe Address</span>
-                        <span className="text-zinc-400 font-mono text-[10px]">{safeInfo.safeAddress.slice(0, 6)}...{safeInfo.safeAddress.slice(-4)}</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(safeInfo.safeAddress, 'safe')}
+                          className="flex items-center gap-1.5 text-zinc-400 font-mono text-[10px] hover:text-cyan-400 transition-colors cursor-pointer bg-transparent border-none p-0"
+                          title="Click to copy full address"
+                        >
+                          {safeInfo.safeAddress.slice(0, 6)}...{safeInfo.safeAddress.slice(-4)}
+                          <span className="text-[9px]">{copiedField === 'safe' ? '\u2713' : '\u2398'}</span>
+                        </button>
                       </div>
                       <div className="flex justify-between mb-1">
                         <span className="text-zinc-600">WMON Balance</span>
