@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { formatEther } from 'viem';
+import { createPublicClient, http, parseAbi, formatEther, type Address } from 'viem';
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
+const MUSIC_SUBSCRIPTION = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 
 interface SongBreakdown {
   tokenId: string;
@@ -89,14 +91,11 @@ export async function GET(req: NextRequest) {
     const tips = tipsResult.data?.RadioTip || [];
     const licenses = licensesResult.data?.MusicLicense || [];
 
-    // Aggregate radio earnings
+    // Aggregate radio play counts (artistPayout from events is always 0 — real payouts come from subscription contract)
     let totalRadioEarningsWei = BigInt(0);
     const songPlays = new Map<string, { name: string; plays: number; earnings: bigint; tips: bigint }>();
 
     for (const play of plays) {
-      const payout = BigInt(play.artistPayout || '0');
-      totalRadioEarningsWei += payout;
-
       const tokenId = play.masterTokenId;
       const existing = songPlays.get(tokenId) || {
         name: play.masterToken?.name || `Song #${tokenId}`,
@@ -105,9 +104,58 @@ export async function GET(req: NextRequest) {
         tips: BigInt(0),
       };
       existing.plays += 1;
-      existing.earnings += payout;
       songPlays.set(tokenId, existing);
     }
+
+    // Fetch real earnings from MusicSubscription contract (monthly distribution)
+    let subscriptionEarningsWei = BigInt(0);
+    if (MUSIC_SUBSCRIPTION) {
+      try {
+        const { activeChain } = await import('@/app/chains');
+        const client = createPublicClient({ chain: activeChain, transport: http(MONAD_RPC) });
+        const subAbi = parseAbi([
+          'function getCurrentMonthStats() view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)',
+          'function getArtistMonthlyStats(address artist, uint256 monthId) view returns (uint256 playCount, uint256 payout, bool claimed)',
+          'function monthlyStats(uint256 monthId) view returns (uint256 totalRevenue, uint256 totalPlays, uint256 distributedAmount, bool finalized)',
+        ]);
+
+        const currentMonth = await client.readContract({
+          address: MUSIC_SUBSCRIPTION, abi: subAbi, functionName: 'getCurrentMonthStats',
+        });
+        const currentMonthId = Number(currentMonth[0]);
+
+        // Check last 12 months for earnings (both claimed and unclaimed)
+        for (let i = 0; i < 12; i++) {
+          const monthId = currentMonthId - i;
+          if (monthId < 0) break;
+          try {
+            const [artistStats, monthStats] = await Promise.all([
+              client.readContract({
+                address: MUSIC_SUBSCRIPTION, abi: subAbi,
+                functionName: 'getArtistMonthlyStats',
+                args: [artistLower as Address, BigInt(monthId)],
+              }),
+              client.readContract({
+                address: MUSIC_SUBSCRIPTION, abi: subAbi,
+                functionName: 'monthlyStats',
+                args: [BigInt(monthId)],
+              }),
+            ]);
+            const playCount = Number(artistStats[0]);
+            const totalPlaysMonth = Number(monthStats[1]);
+            const distributedAmount = monthStats[2] as bigint;
+            if (playCount > 0 && totalPlaysMonth > 0) {
+              const payout = (BigInt(playCount) * distributedAmount) / BigInt(totalPlaysMonth);
+              subscriptionEarningsWei += payout;
+            }
+          } catch { /* skip uninitialized months */ }
+        }
+      } catch (err: any) {
+        console.warn('[ArtistEarnings] Subscription query failed:', err.message?.slice(0, 80));
+      }
+    }
+
+    totalRadioEarningsWei = subscriptionEarningsWei;
 
     // Aggregate tips
     let totalTipsWei = BigInt(0);

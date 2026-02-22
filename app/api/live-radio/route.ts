@@ -22,6 +22,9 @@ const redis = new Redis({
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE;
+const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION;
+const ORACLE_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
 const RADIO_STATE_KEY = 'live-radio:state';
 const RADIO_QUEUE_KEY = 'live-radio:queue';
@@ -115,6 +118,69 @@ interface ListenerStats {
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
+
+// Record plays on-chain for active radio listeners when a song finishes
+async function recordRadioPlays(tokenId: string, duration: number) {
+  if (!PLAY_ORACLE_ADDRESS || !ORACLE_PRIVATE_KEY) {
+    console.log('[LiveRadio] Skipping recordPlay: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY');
+    return;
+  }
+
+  try {
+    const { JsonRpcProvider, Wallet, Contract } = await import('ethers');
+    const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+    const provider = new JsonRpcProvider(MONAD_RPC);
+    const wallet = new Wallet(ORACLE_PRIVATE_KEY, provider);
+
+    const oracleAbi = [
+      'function recordPlay(address user, uint256 masterTokenId, uint256 duration) external',
+      'function canPlay(address user, uint256 masterTokenId) view returns (bool)',
+    ];
+    const subscriptionAbi = [
+      'function hasActiveSubscription(address user) view returns (bool)',
+    ];
+    const oracle = new Contract(PLAY_ORACLE_ADDRESS, oracleAbi, wallet);
+    const subscription = MUSIC_SUBSCRIPTION_ADDRESS
+      ? new Contract(MUSIC_SUBSCRIPTION_ADDRESS, subscriptionAbi, provider)
+      : null;
+
+    // Get active listeners from ZSET
+    const cutoff = Date.now() - (LISTENER_HEARTBEAT_EXPIRY * 1000);
+    const listeners = await redis.zrangebyscore(ACTIVE_LISTENERS_ZSET, cutoff, '+inf') as string[];
+
+    if (listeners.length === 0) {
+      console.log('[LiveRadio] No active listeners to record plays for');
+      return;
+    }
+
+    console.log(`[LiveRadio] Recording plays for ${listeners.length} active listeners, tokenId=${tokenId}`);
+
+    // Process listeners sequentially to avoid nonce conflicts
+    let recorded = 0;
+    for (const listener of listeners) {
+      try {
+        // Check subscription
+        if (subscription) {
+          const hasSub = await subscription.hasActiveSubscription(listener);
+          if (!hasSub) continue;
+        }
+        // Check canPlay (anti-replay)
+        const canPlay = await oracle.canPlay(listener, tokenId);
+        if (!canPlay) continue;
+
+        const tx = await oracle.recordPlay(listener, tokenId, Math.min(duration, 600));
+        await tx.wait();
+        recorded++;
+        console.log(`[LiveRadio] Recorded play for ${listener.slice(0, 10)}... tx=${tx.hash.slice(0, 10)}`);
+      } catch (err: any) {
+        console.warn(`[LiveRadio] recordPlay failed for ${listener.slice(0, 10)}:`, err.message?.slice(0, 80));
+      }
+    }
+    console.log(`[LiveRadio] Recorded ${recorded}/${listeners.length} plays for tokenId=${tokenId}`);
+  } catch (err: any) {
+    console.error('[LiveRadio] recordRadioPlays error:', err.message?.slice(0, 120));
+  }
+}
 
 // GET - Get current radio state
 export async function GET(req: NextRequest) {
@@ -710,6 +776,12 @@ export async function POST(req: NextRequest) {
       // Verify this is the current song
       if (state.currentSong && state.currentSong.tokenId === tokenId) {
         console.log('[LiveRadio] Client reported song ended:', state.currentSong.name);
+
+        // Record plays on-chain for active listeners (non-blocking)
+        const songDuration = Math.max(30, Math.floor((Date.now() - state.currentSong.startedAt) / 1000));
+        recordRadioPlays(state.currentSong.tokenId, songDuration).catch(err =>
+          console.error('[LiveRadio] Background recordRadioPlays error:', err.message)
+        );
 
         // Clear current song - scheduler will pick next one
         state.currentSong = null;
