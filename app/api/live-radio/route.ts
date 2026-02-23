@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { broadcastRadioUpdate } from '@/lib/event-manager';
+import { hasRightsClearance } from '@/lib/rights-declaration';
 import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { activeChain } from '@/app/chains';
@@ -491,6 +492,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { success: false, error: 'Missing song details' },
           { status: 400 }
+        );
+      }
+
+      // Check rights status — revoked songs cannot be queued
+      const cleared = await hasRightsClearance(redis, tokenId);
+      if (!cleared) {
+        return NextResponse.json(
+          { success: false, error: 'This song has been revoked and cannot be played on radio.' },
+          { status: 403 }
         );
       }
 

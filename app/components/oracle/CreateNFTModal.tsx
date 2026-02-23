@@ -11,11 +11,12 @@ interface CreateNFTModalProps {
   isDarkMode?: boolean;
 }
 
-const steps = [
+const allSteps = [
   { number: 1, title: 'Choose Type', icon: '🎨' },
   { number: 2, title: 'Upload Files', icon: '📁' },
   { number: 3, title: 'Set Details', icon: '✏️' },
-  { number: 4, title: 'Review & Mint', icon: '🚀' },
+  { number: 4, title: 'Rights', icon: '📜' },
+  { number: 5, title: 'Review & Mint', icon: '🚀' },
 ];
 
 export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalProps) {
@@ -45,6 +46,27 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
   const [isCollectorEdition, setIsCollectorEdition] = useState(false);
   const [collectorPrice, setCollectorPrice] = useState('500');
   const [maxEditions, setMaxEditions] = useState('100');
+
+  // Rights Declaration state (music NFTs only)
+  const [rightsNotPro, setRightsNotPro] = useState(false);
+  const [rightsOwnsComposition, setRightsOwnsComposition] = useState(false);
+  const [rightsOwnsMaster, setRightsOwnsMaster] = useState(false);
+  const [rightsGrantsPerformance, setRightsGrantsPerformance] = useState(false);
+  const [rightsGrantsMechanical, setRightsGrantsMechanical] = useState(false);
+  const [rightsGrantsMasterUse, setRightsGrantsMasterUse] = useState(false);
+  const [rightsContainsSamples, setRightsContainsSamples] = useState(false);
+  const [rightsSamplesCleared, setRightsSamplesCleared] = useState(false);
+  const [rightsIsrcCode, setRightsIsrcCode] = useState('');
+  const [rightsShowAgreement, setRightsShowAgreement] = useState(false);
+
+  const rightsAccepted = rightsNotPro && rightsOwnsComposition && rightsOwnsMaster &&
+    rightsGrantsPerformance && rightsGrantsMechanical && rightsGrantsMasterUse &&
+    (!rightsContainsSamples || rightsSamplesCleared);
+
+  // Dynamic steps: art NFTs skip the Rights step
+  const steps = nftType === 'art'
+    ? allSteps.filter(s => s.number !== 4).map((s, i) => ({ ...s, number: i + 1 }))
+    : allSteps;
 
   // Use portal to render at document body level
   useEffect(() => {
@@ -318,6 +340,26 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
         formData.append('collectorTitle', title);
       }
 
+      // Pass rights declaration for music NFTs
+      if (nftType === 'music' && rightsAccepted) {
+        const rightsDeclaration = {
+          notPro: rightsNotPro,
+          ownsComposition: rightsOwnsComposition,
+          ownsMaster: rightsOwnsMaster,
+          grantsPerformance: rightsGrantsPerformance,
+          grantsMechanical: rightsGrantsMechanical,
+          grantsMasterUse: rightsGrantsMasterUse,
+          containsSamples: rightsContainsSamples,
+          samplesCleared: rightsSamplesCleared,
+          isrcCode: rightsIsrcCode,
+          artistAddress: walletAddress,
+          artistFid: farcasterFid,
+          accepted: true,
+          acceptedAt: new Date().toISOString(),
+        };
+        formData.append('rightsDeclaration', JSON.stringify(rightsDeclaration));
+      }
+
       setProgressStage('Uploading to IPFS...');
       setProgressPercent(20);
 
@@ -356,6 +398,23 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
       setProgressPercent(80);
       setProgressStage('Sending to blockchain...');
 
+      // Build rights declaration object for passing to mint command
+      const mintRightsDeclaration = (nftType === 'music' && rightsAccepted) ? {
+        notPro: rightsNotPro,
+        ownsComposition: rightsOwnsComposition,
+        ownsMaster: rightsOwnsMaster,
+        grantsPerformance: rightsGrantsPerformance,
+        grantsMechanical: rightsGrantsMechanical,
+        grantsMasterUse: rightsGrantsMasterUse,
+        containsSamples: rightsContainsSamples,
+        samplesCleared: rightsSamplesCleared,
+        isrcCode: rightsIsrcCode,
+        artistAddress: walletAddress,
+        artistFid: farcasterFid,
+        accepted: true,
+        acceptedAt: new Date().toISOString(),
+      } : undefined;
+
       if (isCollectorEdition) {
         // Collector edition mint
         const command = `mint_collector ${title.slice(0, 50)} ${tokenURI} ${price}`;
@@ -367,6 +426,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           collectorPrice,
           maxEditions,
           is_art: nftType === 'art',
+          rightsDeclaration: mintRightsDeclaration,
         });
       } else {
         // Standard mint
@@ -376,6 +436,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           title,
           tokenURI,
           is_art: nftType === 'art',
+          rightsDeclaration: mintRightsDeclaration,
         });
       }
 
@@ -1041,22 +1102,149 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                 )}
 
                 <button
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => setCurrentStep(nftType === 'music' ? 4 : 5)}
                   disabled={!title || !price}
                   className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all"
                 >
-                  Review & Mint →
+                  {nftType === 'music' ? 'Continue to Rights Declaration →' : 'Review & Mint →'}
                 </button>
               </div>
             )}
 
-            {/* STEP 4: Review & Mint */}
-            {currentStep === 4 && (
+            {/* STEP 4: Rights Declaration (music NFTs only) */}
+            {currentStep === 4 && nftType === 'music' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Rights Declaration</h2>
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
+                  </button>
+                </div>
+
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  To stream on EmpowerTours Live Radio, confirm your rights status. All fields are required.
+                </p>
+
+                <div className={`space-y-3 p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  {[
+                    { checked: rightsNotPro, set: setRightsNotPro, label: 'I am NOT affiliated with any PRO (ASCAP, BMI, SESAC, GMR, or international equivalent)' },
+                    { checked: rightsOwnsComposition, set: setRightsOwnsComposition, label: 'I own 100% of the musical composition (melody, harmony, lyrics)' },
+                    { checked: rightsOwnsMaster, set: setRightsOwnsMaster, label: 'I own 100% of the master recording (sound recording)' },
+                    { checked: rightsGrantsPerformance, set: setRightsGrantsPerformance, label: 'I grant EmpowerTours a non-exclusive streaming performance license' },
+                    { checked: rightsGrantsMechanical, set: setRightsGrantsMechanical, label: 'I grant EmpowerTours a mechanical reproduction license for streaming delivery' },
+                    { checked: rightsGrantsMasterUse, set: setRightsGrantsMasterUse, label: 'I grant EmpowerTours a master use license for streaming and promotional clips' },
+                  ].map(({ checked, set, label }) => (
+                    <label key={label} className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => set(e.target.checked)}
+                        className="mt-1 w-5 h-5 rounded border-2 border-purple-500 text-purple-600 focus:ring-purple-500 cursor-pointer flex-shrink-0"
+                      />
+                      <span className={`text-sm leading-tight ${isDarkMode ? 'text-gray-300 group-hover:text-white' : 'text-gray-700 group-hover:text-gray-900'}`}>
+                        {label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Samples toggle */}
+                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={rightsContainsSamples}
+                      onChange={(e) => {
+                        setRightsContainsSamples(e.target.checked);
+                        if (!e.target.checked) setRightsSamplesCleared(false);
+                      }}
+                      className="mt-1 w-5 h-5 rounded border-2 border-yellow-500 text-yellow-600 focus:ring-yellow-500 cursor-pointer flex-shrink-0"
+                    />
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      This track contains samples from third-party recordings
+                    </span>
+                  </label>
+                  {rightsContainsSamples && (
+                    <label className="flex items-start gap-3 cursor-pointer group mt-3 ml-8">
+                      <input
+                        type="checkbox"
+                        checked={rightsSamplesCleared}
+                        onChange={(e) => setRightsSamplesCleared(e.target.checked)}
+                        className="mt-1 w-5 h-5 rounded border-2 border-green-500 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
+                      />
+                      <span className={`text-sm ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>
+                        All samples have been properly cleared and licensed
+                      </span>
+                    </label>
+                  )}
+                </div>
+
+                {/* Optional ISRC */}
+                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    ISRC Code (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={rightsIsrcCode}
+                    onChange={(e) => setRightsIsrcCode(e.target.value.toUpperCase())}
+                    placeholder="e.g., USRC17607839"
+                    maxLength={15}
+                    className={`w-full px-4 py-2 rounded-lg border text-sm ${
+                      isDarkMode
+                        ? 'bg-gray-900 border-gray-600 text-white placeholder-gray-500'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                    }`}
+                  />
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    International Standard Recording Code — if you have one
+                  </p>
+                </div>
+
+                {/* View Full Agreement */}
+                <div className={`rounded-xl border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <button
+                    onClick={() => setRightsShowAgreement(!rightsShowAgreement)}
+                    className={`w-full p-3 text-left text-sm font-medium flex items-center justify-between ${isDarkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-700'}`}
+                  >
+                    <span>View Full Agreement</span>
+                    <span>{rightsShowAgreement ? '▲' : '▼'}</span>
+                  </button>
+                  {rightsShowAgreement && (
+                    <div className={`p-4 border-t text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto ${isDarkMode ? 'border-gray-700 text-gray-400 bg-gray-900/50' : 'border-gray-200 text-gray-600 bg-gray-50'}`}>
+                      {`EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
+Version 1.0
+
+The Artist declares they are not affiliated with any PRO, own 100% of both the composition and master recording, and grant EmpowerTours non-exclusive licenses for streaming performance, mechanical reproduction, and master use.
+
+The Artist retains 90% of license sales, 100% of tips, and earns TOURS rewards on Live Radio plays. This license can be revoked at any time with 48-hour notice.
+
+Full agreement text is stored on IPFS and referenced in the NFT metadata as a cryptographic hash (keccak256).`}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setCurrentStep(5)}
+                  disabled={!rightsAccepted}
+                  className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all"
+                >
+                  {rightsAccepted ? 'Continue to Review →' : 'Check all required boxes to continue'}
+                </button>
+              </div>
+            )}
+
+            {/* STEP 5: Review & Mint */}
+            {currentStep === 5 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Review Your NFT</h2>
                   <button
-                    onClick={() => setCurrentStep(3)}
+                    onClick={() => setCurrentStep(nftType === 'music' ? 4 : 3)}
                     className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -1117,6 +1305,20 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                     </div>
                   )}
                 </div>
+
+                {/* Rights Declaration Summary (music NFTs only) */}
+                {nftType === 'music' && rightsAccepted && (
+                  <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'}`}>
+                    <p className={`text-sm font-bold mb-2 ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>Rights Declaration</p>
+                    <div className={`space-y-1 text-xs ${isDarkMode ? 'text-green-300/80' : 'text-green-800'}`}>
+                      <p>Not PRO affiliated | Owns composition | Owns master</p>
+                      <p>Performance, mechanical & master use licenses granted</p>
+                      {rightsContainsSamples && <p>Contains samples (cleared)</p>}
+                      {rightsIsrcCode && <p>ISRC: {rightsIsrcCode}</p>}
+                      <p className={`text-xs ${isDarkMode ? 'text-green-500/60' : 'text-green-600'}`}>Agreement hash stored on IPFS</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Mint Button */}
                 <button

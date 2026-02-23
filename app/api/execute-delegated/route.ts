@@ -13,6 +13,7 @@ import { createShortUrl } from '@/lib/url-shortener';
 import { activeChain } from '@/app/chains';
 import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
 import { validateCountryCode, sanitizeInput, sanitizeErrorForResponse, VALID_COUNTRY_CODES } from '@/lib/auth';
+import { storeRightsStatus, type RightsDeclaration } from '@/lib/rights-declaration';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
@@ -692,6 +693,24 @@ ${params.countryCode || 'US'} ${params.countryName || 'United States'}
           }
         } catch (extractError: any) {
           console.warn('⚠️ Could not extract token ID, using indexer fallback:', extractError.message);
+        }
+
+        // ✅ Store rights declaration in Redis (non-blocking)
+        if (params.rightsDeclaration && extractedTokenId !== '0') {
+          try {
+            const { Redis } = await import('@upstash/redis');
+            const rightsRedis = new Redis({
+              url: process.env.UPSTASH_REDIS_REST_URL!,
+              token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+            });
+            const declaration: RightsDeclaration = typeof params.rightsDeclaration === 'string'
+              ? JSON.parse(params.rightsDeclaration)
+              : params.rightsDeclaration;
+            await storeRightsStatus(rightsRedis, extractedTokenId, declaration);
+            console.log('📜 Rights status stored in Redis for token:', extractedTokenId);
+          } catch (rightsErr: any) {
+            console.warn('⚠️ Failed to store rights status (non-fatal):', rightsErr.message);
+          }
         }
 
         // ✅ POST CAST WITH FRAME - Link to artist profile

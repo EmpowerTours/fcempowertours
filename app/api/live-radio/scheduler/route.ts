@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { broadcastRadioUpdate } from '@/lib/event-manager';
+import { hasRightsClearance } from '@/lib/rights-declaration';
 
 /**
  * Live Radio Scheduler
@@ -138,12 +139,27 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
     const songs = data.data?.MusicNFT || [];
 
     // Map fullAudioUrl to audioUrl and filter out any without valid audio
-    return songs
+    const allSongs = songs
       .filter((song: any) => song.fullAudioUrl && song.fullAudioUrl.length > 0)
       .map((song: any) => ({
         ...song,
         audioUrl: song.fullAudioUrl,
       }));
+
+    // Filter out songs with revoked rights status
+    const clearedSongs: SongFromEnvio[] = [];
+    for (const song of allSongs) {
+      const cleared = await hasRightsClearance(redis, song.tokenId);
+      if (cleared) {
+        clearedSongs.push(song);
+      }
+    }
+
+    if (clearedSongs.length < allSongs.length) {
+      console.log(`[RadioScheduler] Filtered ${allSongs.length - clearedSongs.length} revoked songs from pool`);
+    }
+
+    return clearedSongs;
   } catch (error) {
     console.error('[RadioScheduler] Failed to fetch song pool:', error);
     return [];

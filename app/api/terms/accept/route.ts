@@ -1,5 +1,12 @@
-// app/api/terms/accept/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+const TERMS_KEY_PREFIX = 'terms:accepted:';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,15 +19,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user's IP address
-    const ip = request.headers.get('x-forwarded-for') || 
-               request.headers.get('x-real-ip') || 
+    const ip = request.headers.get('x-forwarded-for') ||
+               request.headers.get('x-real-ip') ||
                'unknown';
 
-    // Get user agent
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    // Log acceptance (you should store this in a database)
     const acceptanceRecord = {
       address: address.toLowerCase(),
       timestamp,
@@ -30,13 +34,13 @@ export async function POST(request: NextRequest) {
       acceptedAt: new Date().toISOString(),
     };
 
-    console.log('📝 Terms Accepted:', acceptanceRecord);
+    // Store in Redis
+    await redis.set(
+      `${TERMS_KEY_PREFIX}${address.toLowerCase()}`,
+      JSON.stringify(acceptanceRecord)
+    );
 
-    // TODO: Store in database
-    // await db.termsAcceptance.create({ data: acceptanceRecord });
-
-    // Optional: Store on-chain for legal proof
-    // await recordOnChain(address, timestamp);
+    console.log('[Terms] Acceptance recorded:', address.toLowerCase());
 
     return NextResponse.json({
       success: true,
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
       record: acceptanceRecord,
     });
   } catch (error: any) {
-    console.error('Failed to record terms acceptance:', error);
+    console.error('[Terms] Failed to record acceptance:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to record acceptance' },
       { status: 500 }
@@ -52,7 +56,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Optional: Endpoint to check if user has accepted
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -65,17 +68,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Check database
-    // const hasAccepted = await db.termsAcceptance.findFirst({
-    //   where: { address: address.toLowerCase() }
-    // });
+    const record = await redis.get<string>(`${TERMS_KEY_PREFIX}${address.toLowerCase()}`);
 
     return NextResponse.json({
-      hasAccepted: false, // Update with actual database check
+      hasAccepted: !!record,
       address,
+      record: record ? (typeof record === 'string' ? JSON.parse(record) : record) : null,
     });
   } catch (error: any) {
-    console.error('Failed to check terms acceptance:', error);
+    console.error('[Terms] Failed to check acceptance:', error);
     return NextResponse.json(
       { error: error.message },
       { status: 500 }

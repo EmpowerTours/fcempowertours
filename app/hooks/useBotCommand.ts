@@ -34,6 +34,7 @@ export function useBotCommand() {
         collectorTokenURI?: string; // Collector edition token URI
         collectorPrice?: string; // Collector edition price in WMON
         maxEditions?: string; // Max collector editions
+        rightsDeclaration?: object; // Rights declaration for music NFTs
       }
     ): Promise<BotCommandResponse> => {
       setLoading(true);
@@ -69,6 +70,7 @@ export function useBotCommand() {
             collectorTokenURI: options?.collectorTokenURI,
             collectorPrice: options?.collectorPrice,
             maxEditions: options?.maxEditions,
+            rightsDeclaration: options?.rightsDeclaration,
           }),
         });
 

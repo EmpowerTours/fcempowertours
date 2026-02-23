@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     // Extract all params from request body including collector edition fields
     const body = await req.json();
-    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest, is_art, discordId } = body;
+    const { command, userAddress, location, fid: bodyFid, imageUrl: imageUrlFromRequest, title: titleFromRequest, tokenURI: tokenURIFromRequest, is_art, discordId, rightsDeclaration: rightsDeclarationFromRequest } = body;
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
@@ -1818,6 +1818,7 @@ Or go to the Music page to upload files.`
               price: price.toString(),
               fid, // ✅ PASS FID FOR CASTING
               is_art, // ✅ PASS: NFT type for conditional cast
+              rightsDeclaration: rightsDeclarationFromRequest, // ✅ PASS: Rights declaration for Redis storage
             }
           })
         });

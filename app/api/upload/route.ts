@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
 import { GoogleGenAI } from '@google/genai';
+import { generateAgreementHash, buildFilledAgreement, RIGHTS_AGREEMENT_VERSION, type RightsDeclaration } from '@/lib/rights-declaration';
 
 const PINATA_API_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
 
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     const address = formData.get('address') as string;
     const isCollectorEdition = formData.get('isCollectorEdition') === 'true';
     const collectorTitle = formData.get('collectorTitle') as string;
+    const rightsDeclarationRaw = formData.get('rightsDeclaration') as string | null;
 
     // Support art-only NFTs: only cover, description, and address are required
     if (!coverFile || !description || !address) {
@@ -371,6 +373,57 @@ The result should look like a premium physical collector's vinyl or art print �
       );
     }
 
+    // ✅ Embed rights declaration in metadata (music NFTs only)
+    let rightsAgreementCid: string | null = null;
+    if (rightsDeclarationRaw) {
+      try {
+        const declaration: RightsDeclaration = JSON.parse(rightsDeclarationRaw);
+        console.log('📜 Processing rights declaration...');
+
+        // Generate agreement text and hash
+        const filledAgreement = buildFilledAgreement(declaration);
+        const agreementHash = generateAgreementHash(filledAgreement, fid || '0', address);
+
+        // Upload full agreement JSON to IPFS
+        const agreementPayload = {
+          version: RIGHTS_AGREEMENT_VERSION,
+          agreementText: filledAgreement,
+          declaration,
+          hash: agreementHash,
+          artistAddress: address,
+          artistFid: fid,
+          createdAt: new Date().toISOString(),
+        };
+
+        const agreementRes = await axios.post(PINATA_JSON_URL, agreementPayload, {
+          headers: {
+            'Authorization': `Bearer ${PINATA_JWT}`,
+            'Content-Type': 'application/json',
+            'Connection': 'keep-alive',
+          },
+          timeout: 60000,
+          httpsAgent: httpsAgent,
+        });
+
+        if (agreementRes.data.IpfsHash) {
+          rightsAgreementCid = agreementRes.data.IpfsHash;
+          console.log('📜 Rights agreement uploaded to IPFS:', rightsAgreementCid);
+
+          // Add rights attributes to NFT metadata
+          metadata.attributes.push(
+            { trait_type: 'Rights Agreement Hash', value: agreementHash },
+            { trait_type: 'Rights Agreement CID', value: rightsAgreementCid },
+            { trait_type: 'Rights Version', value: RIGHTS_AGREEMENT_VERSION },
+            { trait_type: 'PRO Affiliated', value: 'false' },
+            { trait_type: 'Rights Status', value: 'cleared' }
+          );
+        }
+      } catch (rightsError: any) {
+        console.error('⚠️ Rights declaration processing failed (non-fatal):', rightsError.message);
+        // Non-fatal — NFT still gets minted without rights metadata
+      }
+    }
+
     console.log('📝 Metadata prepared:', {
       name: metadata.name,
       image: metadata.image,
@@ -426,6 +479,11 @@ The result should look like a premium physical collector's vinyl or art print �
       response.fullCid = fullCid;
       response.previewUrl = `https://${PINATA_GATEWAY}/ipfs/${previewCid}`;
       response.fullUrl = `https://${PINATA_GATEWAY}/ipfs/${fullCid}`;
+    }
+
+    // Include rights agreement CID if generated
+    if (rightsAgreementCid) {
+      response.rightsAgreementCid = rightsAgreementCid;
     }
 
     // Include collector edition data if generated
