@@ -35,7 +35,7 @@ c) MASTER USE RIGHT: Use the master recording of the Work for all streaming purp
 COMPENSATION
 - The Artist retains 90% of all WMON license sales revenue.
 - The Artist receives a proportional share of the monthly WMON streaming pool (70% of all subscription revenue), calculated as (Artist's play count / Total platform plays) x Artist Pool. The remaining subscription revenue is allocated 10% to platform treasury and 20% to DAO reserve.
-- The Artist receives 100% of TOURS tips sent by fans through the platform.
+- The Artist receives 100% of WMON tips sent by fans through the platform.
 - Eligible artists (10+ master NFTs, 100+ lifetime plays) may claim monthly TOURS rewards via the ToursRewardManager.
 - This license does not transfer any ownership rights in the Work.
 
