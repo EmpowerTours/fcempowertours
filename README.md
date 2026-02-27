@@ -428,7 +428,7 @@ Journal entries earn TOURS rewards with a random 1–10x multiplier.
 
 ### 8. TOURS Rewards
 
-**Contract**: `ToursRewardManager` — [`0x7fff35BB27307806B92Fb1D1FBe52D168093eF87`](https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87)
+**Contract**: `ToursRewardManagerV2` — [`0x056452a44d81AB502e24510b2e4FB1789C6faf85`](https://monadscan.com/address/0x056452a44d81AB502e24510b2e4FB1789C6faf85)
 
 TOURS is the platform reward token with a **Bitcoin-style halving** schedule.
 
@@ -447,6 +447,12 @@ TOURS is the platform reward token with a **Bitcoin-style halving** schedule.
 | Action | TOURS Earned | Requirements |
 |--------|-------------|--------------|
 | Monthly artist reward | 1 | ≥10 Masters uploaded + ≥100 lifetime plays |
+
+**Venue Operator Rewards:**
+
+| Action | TOURS Earned | Details |
+|--------|-------------|---------|
+| Venue hosts a song play | 0.05 | Per song played through venue, combo multiplier up to 3x |
 
 **Halving schedule:**
 - Rewards halve every ~365 days (epoch-based)
@@ -733,7 +739,8 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | PlayOracleV3 | [`0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf`](https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf) | On-chain play tracking and anti-spam |
 | ItineraryNFTV2 | [`0x97529316356A5bcAd81D85E9a0eF941958c4b020`](https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020) | Travel itinerary NFT marketplace |
 | ClimbingLocationsV2 | [`0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3`](https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3) | Climbing location database with dual-NFT system |
-| ToursRewardManager | [`0x7fff35BB27307806B92Fb1D1FBe52D168093eF87`](https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87) | TOURS reward distribution with halving |
+| ToursRewardManagerV2 | [`0x056452a44d81AB502e24510b2e4FB1789C6faf85`](https://monadscan.com/address/0x056452a44d81AB502e24510b2e4FB1789C6faf85) | TOURS reward distribution with halving + venue operator rewards |
+| VenueRegistry | [`0x73264a3570e35dAed1Adc2ec83A502E2517a43B5`](https://monadscan.com/address/0x73264a3570e35dAed1Adc2ec83A502E2517a43B5) | Venue registration, commit-reveal playlists, batch play submission, TOURS mining |
 | ToursTokenV2 | [`0xf61F2b014e38FfEf66a3A0a8104D36365404f74f`](https://monadscan.com/address/0xf61F2b014e38FfEf66a3A0a8104D36365404f74f) | ERC-20 platform reward token |
 | WMON | [`0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A`](https://monadscan.com/address/0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A) | Wrapped Monad (payment token) |
 | EmpowerTours Passport V3 | [`0x93126e59004692B01961BE505aa04F55d5bd1851`](https://monadscan.com/address/0x93126e59004692B01961BE505aa04F55d5bd1851) | Travel passport NFTs (195 countries) |
