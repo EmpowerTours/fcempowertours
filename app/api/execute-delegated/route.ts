@@ -3207,6 +3207,139 @@ ${enjoyText}
           message: 'Music subscription activated!',
         });
 
+      // ==================== VENUE REGISTER ====================
+      case 'venue_register': {
+        console.log('🏢 Action: venue_register');
+
+        const { name: venueName, userFid: venueUserFid } = params || {};
+
+        if (!venueName) {
+          return NextResponse.json(
+            { success: false, error: 'Missing required parameter: name' },
+            { status: 400 }
+          );
+        }
+
+        const VENUE_REGISTRY = process.env.NEXT_PUBLIC_VENUE_REGISTRY as Address;
+        if (!VENUE_REGISTRY) {
+          return NextResponse.json(
+            { success: false, error: 'Venue registry contract not configured' },
+            { status: 500 }
+          );
+        }
+
+        const WMON_TOKEN_VR = process.env.NEXT_PUBLIC_WMON as Address;
+
+        // Read registration fee from contract
+        const { createPublicClient: createVRClient, http: vrHttp } = await import('viem');
+        const { activeChain: vrActiveChain } = await import('@/app/chains');
+        const vrRpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC;
+        const vrPublicClient = createVRClient({
+          chain: vrActiveChain,
+          transport: vrHttp(vrRpcUrl),
+        });
+
+        const venueRegFee = await vrPublicClient.readContract({
+          address: VENUE_REGISTRY,
+          abi: parseAbi(['function registrationFee() external view returns (uint256)']),
+          functionName: 'registrationFee',
+        });
+
+        console.log('🏢 Registration fee:', venueRegFee.toString());
+
+        const vrSafeAddress = USE_USER_SAFES
+          ? await getUserSafeAddress(userAddress as Address)
+          : SAFE_ACCOUNT as Address;
+
+        // Check Safe's WMON balance
+        const safeWmonBalanceVR = await vrPublicClient.readContract({
+          address: WMON_TOKEN_VR,
+          abi: parseAbi(['function balanceOf(address account) external view returns (uint256)']),
+          functionName: 'balanceOf',
+          args: [vrSafeAddress],
+        });
+
+        console.log('🏢 Safe WMON balance:', safeWmonBalanceVR.toString(), 'needed:', venueRegFee.toString());
+
+        const vrCalls: Call[] = [];
+
+        // If Safe doesn't have enough WMON, wrap MON to WMON first
+        if (safeWmonBalanceVR < venueRegFee) {
+          const wrapAmountVR = venueRegFee - safeWmonBalanceVR;
+          console.log('🏢 Wrapping MON to WMON:', formatEther(wrapAmountVR));
+
+          const safeMonBalanceVR = await vrPublicClient.getBalance({ address: vrSafeAddress });
+          if (safeMonBalanceVR < wrapAmountVR) {
+            return NextResponse.json(
+              { success: false, error: `Insufficient balance. Your Safe needs ${formatEther(wrapAmountVR)} more MON to register. Current MON: ${formatEther(safeMonBalanceVR)}` },
+              { status: 400 }
+            );
+          }
+
+          vrCalls.push({
+            to: WMON_TOKEN_VR,
+            value: wrapAmountVR,
+            data: encodeFunctionData({
+              abi: parseAbi(['function deposit() external payable']),
+              functionName: 'deposit',
+            }) as Hex,
+          });
+        }
+
+        // Approve VenueRegistry for WMON
+        if (venueRegFee > 0n) {
+          vrCalls.push({
+            to: WMON_TOKEN_VR,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi(['function approve(address spender, uint256 amount) external returns (bool)']),
+              functionName: 'approve',
+              args: [VENUE_REGISTRY, venueRegFee],
+            }) as Hex,
+          });
+        }
+
+        // Register venue (stores under userAddress EOA)
+        vrCalls.push({
+          to: VENUE_REGISTRY,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: parseAbi(['function registerVenueFor(address user, string calldata name, uint256 fid) external']),
+            functionName: 'registerVenueFor',
+            args: [userAddress as Address, venueName, BigInt(venueUserFid || 0)],
+          }) as Hex,
+        });
+
+        const vrTxHash = await executeTransaction(vrCalls, userAddress as Address, 0n);
+        await incrementTransactionCount(userAddress);
+
+        // Also create Redis records (API key, playback state)
+        const { Redis: VRRedis } = await import('@upstash/redis');
+        const { registerVenue: registerVenueRedis } = await import('@/lib/venue');
+        const vrRedis = new VRRedis({
+          url: process.env.UPSTASH_REDIS_REST_URL!,
+          token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        });
+        const { venue: registeredVenue, apiKey: venueApiKey } = await registerVenueRedis(
+          vrRedis,
+          userAddress,
+          venueName,
+          venueUserFid ? Number(venueUserFid) : undefined
+        );
+
+        console.log('✅ Venue registered, TX:', vrTxHash, 'venueId:', registeredVenue.venueId);
+
+        return NextResponse.json({
+          success: true,
+          txHash: vrTxHash,
+          action,
+          userAddress,
+          venueId: registeredVenue.venueId,
+          apiKey: venueApiKey,
+          message: 'Venue registered successfully!',
+        });
+      }
+
       // ==================== CLAIM ARTIST PAYOUTS ====================
       case 'claim_artist_payouts':
         console.log('💰 Action: claim_artist_payouts');
