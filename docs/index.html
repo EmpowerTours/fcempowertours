@@ -434,7 +434,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
       <div class="payout-card reveal">
         <div class="payout-left">
           <h3>TOURS Rewards</h3>
-          <a class="contract-addr" href="https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87" target="_blank" rel="noopener">ToursRewardManager<br>0x7fff...eF87</a>
+          <a class="contract-addr" href="https://monadscan.com/address/0x056452a44d81AB502e24510b2e4FB1789C6faf85" target="_blank" rel="noopener">ToursRewardManagerV2<br>0x0564...f85</a>
         </div>
         <div class="payout-right">
           <table class="tours-table">
@@ -445,9 +445,10 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
             <tr><td>7-day listening streak</td><td>10</td></tr>
             <tr><td>Complete an itinerary</td><td>50</td></tr>
             <tr><td>Artist monthly reward *</td><td>1</td></tr>
+            <tr><td>Venue hosts a song play **</td><td>0.05</td></tr>
           </table>
           <div class="payout-example">
-            * Requires &ge;10 Masters uploaded + &ge;100 lifetime plays. <strong>Bitcoin-style halving</strong> every ~365 days (epoch-based). Minimum reward floor prevents dust. DAO can override rates.
+            * Requires &ge;10 Masters uploaded + &ge;100 lifetime plays. ** Per song played through venue, combo multiplier up to 3x. <strong>Bitcoin-style halving</strong> every ~365 days (epoch-based). Minimum reward floor prevents dust. DAO can override rates.
           </div>
         </div>
       </div>
@@ -694,9 +695,14 @@ flowchart TD
             <td class="purpose">Climbing locations + dual-NFT system</td>
           </tr>
           <tr>
-            <td class="name">ToursRewardManager</td>
-            <td><a class="addr" href="https://monadscan.com/address/0x7fff35BB27307806B92Fb1D1FBe52D168093eF87" target="_blank" rel="noopener">0x7fff35BB27307806B92Fb1D1FBe52D168093eF87</a></td>
-            <td class="purpose">TOURS reward distribution + halving</td>
+            <td class="name">ToursRewardManagerV2</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x056452a44d81AB502e24510b2e4FB1789C6faf85" target="_blank" rel="noopener">0x056452a44d81AB502e24510b2e4FB1789C6faf85</a></td>
+            <td class="purpose">TOURS reward distribution + halving + venue operator rewards</td>
+          </tr>
+          <tr>
+            <td class="name">VenueRegistry</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x73264a3570e35dAed1Adc2ec83A502E2517a43B5" target="_blank" rel="noopener">0x73264a3570e35dAed1Adc2ec83A502E2517a43B5</a></td>
+            <td class="purpose">Venue registration, commit-reveal playlists, batch play submission, TOURS mining</td>
           </tr>
           <tr>
             <td class="name">EPKRegistryV2</td>
