@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 /**
  * Venue Owner Dashboard
@@ -66,6 +66,7 @@ export default function VenueDashboardPage() {
   // Registration form state
   const [regName, setRegName] = useState('');
   const [registering, setRegistering] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   // Check venue registration
   const checkRegistration = useCallback(async () => {
@@ -130,47 +131,30 @@ export default function VenueDashboardPage() {
     fetchCatalog();
   }, [venue, apiKey, tab]);
 
-  // Register venue
-  const { signMessageAsync } = useSignMessage();
-
+  // Register venue via on-chain VenueRegistry
   const handleRegister = async () => {
     if (!address || !regName.trim()) return;
     setRegistering(true);
     setError(null);
 
     try {
-      // Get nonce
-      const nonceRes = await fetch(`/api/venue/register?action=nonce&address=${address}`);
-      const nonceData = await nonceRes.json();
-      if (!nonceData.success) throw new Error(nonceData.error);
-
-      const timestamp = Date.now();
-      const nonce = nonceData.nonce;
-      const message = `EmpowerTours Action Request\n\nAddress: ${address.toLowerCase()}\nAction: Register Venue\nDetails: Venue: ${regName.trim()}\nTimestamp: ${timestamp}\nNonce: ${nonce}\n\nSign this message to authorize this action.`;
-
-      const signature = await signMessageAsync({ message });
-
-      const res = await fetch('/api/venue/register', {
+      const res = await fetch('/api/execute-delegated', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          address,
-          signature,
-          timestamp,
-          nonce,
-          name: regName.trim(),
+          action: 'venue_register',
+          userAddress: address,
+          params: { name: regName.trim() },
         }),
       });
 
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
 
-      // Store API key
       setNewApiKey(data.apiKey);
       setApiKey(data.apiKey);
+      setTxHash(data.txHash);
       localStorage.setItem(`venue-key:${data.venueId}`, data.apiKey);
-
-      // Refresh
       await checkRegistration();
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -283,6 +267,7 @@ export default function VenueDashboardPage() {
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 24 }}>
             Stream PRO-free music for a flat WMON subscription.
             100% of revenue flows to artists.
+            Registration fee: <strong style={{ color: '#8b5cf6' }}>100 WMON</strong>
           </p>
 
           {error && (
@@ -323,6 +308,16 @@ export default function VenueDashboardPage() {
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>
                 This key will not be shown again.
               </p>
+              {txHash && (
+                <a
+                  href={`https://monadscan.com/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: '#8b5cf6', marginTop: 8, display: 'inline-block' }}
+                >
+                  View transaction on MonadScan
+                </a>
+              )}
             </div>
           )}
 
@@ -361,9 +356,6 @@ export default function VenueDashboardPage() {
             {registering ? 'Registering...' : 'Register Venue'}
           </button>
 
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 16, textAlign: 'center' }}>
-            Requires active music subscription
-          </p>
         </div>
       </div>
     );
