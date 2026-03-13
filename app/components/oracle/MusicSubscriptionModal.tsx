@@ -560,7 +560,9 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       {/* Info */}
       <div className="mt-4 text-xs text-gray-500 space-y-1">
         <p>• Stream any music NFT on the platform</p>
-        <p>• Artists are paid based on your listening activity</p>
+        <p>• Artists earn 70% of subscription revenue based on play counts</p>
+        <p>• <span className="text-amber-400 font-medium">Listeners earn WMON from the 20% listener pool</span> — proportional to songs heard</p>
+        <p>• Artists who also listen earn up to 90% (70% artist + 20% listener pool)</p>
         <p>• Cancel anytime - no long-term commitment</p>
       </div>
     </div>

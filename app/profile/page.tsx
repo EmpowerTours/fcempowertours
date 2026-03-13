@@ -1217,7 +1217,7 @@ export default function ProfilePage() {
                       <p className="text-xl font-bold text-emerald-700">
                         {parseFloat(artistEarnings.totalLicenseSales).toFixed(4)}
                       </p>
-                      <p className="text-xs text-gray-400">WMON (70% cut)</p>
+                      <p className="text-xs text-gray-400">WMON (70% artist pool &middot; up to 90% if you listen)</p>
                       <p className="text-xs text-emerald-400 mt-1">{artistEarnings.totalLicenseCount} sold</p>
                     </div>
                   </div>

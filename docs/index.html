@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EmpowerTours — Decentralized Music, Travel & Climbing on Monad</title>
-<meta name="description" content="Stream music, sell itineraries, and discover climbing locations on Monad. Artists earn 70%. Gasless. On-chain.">
+<meta name="description" content="Stream music, sell itineraries, and discover climbing locations on Monad. Artists earn 70%. Active listeners earn WMON from the 20% DAO reserve. Gasless. On-chain.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -216,15 +216,16 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
   <div class="hero-content">
     <div class="hero-badge">Live on Monad Mainnet</div>
     <h1>Empower<em>Tours</em></h1>
-    <p class="hero-sub">Decentralized music streaming, travel itineraries, and climbing adventures on Monad. Artists earn 70%. Fans pay zero gas. Everything on-chain.</p>
+    <p class="hero-sub">Decentralized music streaming, travel itineraries, and climbing adventures on Monad. Artists earn 70%. Listeners earn WMON from the 20% DAO reserve. Artists who listen earn up to 90%. Zero gas. On-chain.</p>
     <div class="hero-actions">
       <a href="https://farcaster.xyz/miniapps/83hgtZau7TNB/empowertours" class="btn-primary" target="_blank" rel="noopener">Launch App &rarr;</a>
       <a href="#payouts" class="btn-secondary">View Payout Rates</a>
     </div>
     <div class="hero-stats">
       <div class="hero-stat"><div class="num">70%</div><div class="label">To Artists</div></div>
-      <div class="hero-stat"><div class="num">0</div><div class="label">Gas Fees for Users</div></div>
-      <div class="hero-stat"><div class="num">18</div><div class="label">Verified Contracts</div></div>
+      <div class="hero-stat"><div class="num">20%</div><div class="label">To Listeners</div></div>
+      <div class="hero-stat"><div class="num">90%</div><div class="label">Artists Who Listen</div></div>
+      <div class="hero-stat"><div class="num">0</div><div class="label">Gas Fees</div></div>
     </div>
   </div>
 </section>
@@ -242,7 +243,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
       <div class="how-card reveal reveal-delay-1">
         <div class="icon">&#9835;</div>
         <h3>Listen & Earn</h3>
-        <p>Stream music from independent artists. Earn TOURS rewards for every play, daily first-listens, and listening streaks. Subscribe for unlimited access across tiers.</p>
+        <p>Stream music from independent artists. Earn TOURS rewards per play, plus <strong>WMON from the 20% listener pool</strong> proportional to songs heard. Artists who also listen earn up to 90% of subscription revenue. Subscribe for unlimited access across tiers.</p>
       </div>
       <div class="how-card reveal reveal-delay-2">
         <div class="icon">&#9998;</div>
@@ -271,7 +272,8 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
         <div class="subtitle">Creators &middot; Musicians &middot; Guides</div>
         <ul>
           <li><div><strong>70% of every sale</strong><span class="desc">Music licenses, itineraries, climbing access badges</span></div></li>
-          <li><div><strong>Subscription pool payouts</strong><span class="desc">Monthly revenue split by your play count share</span></div></li>
+          <li><div><strong>Subscription pool payouts</strong><span class="desc">Monthly revenue split by your play count share (70%)</span></div></li>
+          <li><div><strong>Up to 90% as artist-listener</strong><span class="desc">Earn the 20% listener pool too by tuning into Live Radio</span></div></li>
           <li><div><strong>TOURS rewards</strong><span class="desc">Earn monthly artist rewards for active catalogs</span></div></li>
           <li><div><strong>No minimum withdrawal</strong><span class="desc">Claim anytime after month finalization</span></div></li>
           <li><div><strong>Gasless transactions</strong><span class="desc">Platform covers all gas via account abstraction</span></div></li>
@@ -285,6 +287,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
           <li><div><strong>No gas fees</strong><span class="desc">Every action is gasless via Safe + Pimlico (ERC-4337)</span></div></li>
           <li><div><strong>No wallet setup</strong><span class="desc">Farcaster embedded wallet, no MetaMask needed</span></div></li>
           <li><div><strong>Earn TOURS by listening</strong><span class="desc">0.1 per song, 5 for first listen/day, streak bonuses</span></div></li>
+          <li><div><strong>Earn WMON from the 20% listener pool</strong><span class="desc">Monthly share proportional to songs heard &mdash; artists who also listen earn up to 90%</span></div></li>
           <li><div><strong>Subscription access</strong><span class="desc">Daily, weekly, monthly, or yearly plans for all music</span></div></li>
           <li><div><strong>Tip artists directly</strong><span class="desc">100% goes to the artist, zero platform cut</span></div></li>
           <li><div><strong>No token approvals</strong><span class="desc">No popups, no signing prompts, no seed phrases</span></div></li>
@@ -449,7 +452,8 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
             <tr><td>Venue hosts a song play **</td><td>0.05</td></tr>
           </table>
           <div class="payout-example">
-            * Requires &ge;10 Masters uploaded + &ge;100 lifetime plays. ** Per song played through venue, combo multiplier up to 3x. <strong>Bitcoin-style halving</strong> every ~365 days (epoch-based). Minimum reward floor prevents dust. DAO can override rates.
+            * Requires &ge;10 Masters uploaded + &ge;100 lifetime plays. ** Per song played through venue, combo multiplier up to 3x. <strong>Bitcoin-style halving</strong> every ~365 days (epoch-based). Minimum reward floor prevents dust. DAO can override rates.<br><br>
+            <strong>Note:</strong> TOURS rewards above are separate from <strong>WMON listener rewards</strong> (20% of subscription revenue). Active listeners earn both TOURS <em>and</em> WMON.
           </div>
         </div>
       </div>
@@ -517,7 +521,7 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
             </div>
             <div class="wallet-item">
               <h4>Minimum Payout</h4>
-              <p>None. Artists receive their share in the same transaction as the fan's payment.</p>
+              <p>None. Artists receive their share in the same transaction as the fan's payment. Listener WMON claims are also gasless.</p>
             </div>
           </div>
         </div>

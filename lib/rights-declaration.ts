@@ -34,7 +34,9 @@ c) MASTER USE RIGHT: Use the master recording of the Work for all streaming purp
 
 COMPENSATION
 - The Artist retains 90% of all WMON license sales revenue.
-- The Artist receives a proportional share of the monthly WMON streaming pool (70% of all subscription revenue), calculated as (Artist's play count / Total platform plays) x Artist Pool. The remaining subscription revenue is allocated 10% to platform treasury and 20% to DAO reserve.
+- The Artist receives a proportional share of the monthly WMON streaming pool (70% of all subscription revenue), calculated as (Artist's play count / Total platform plays) x Artist Pool.
+- 20% of subscription revenue is allocated to the Listener Reward Pool (ListenerRewardPool contract). Active radio listeners — including artists who listen — earn WMON proportional to songs heard each month. Artists who are also active listeners may earn up to 90% of subscription revenue (70% artist pool + 20% listener pool).
+- 10% of subscription revenue is allocated to the platform treasury.
 - The Artist receives 100% of WMON tips sent by fans through the platform.
 - Eligible artists (10+ master NFTs, 100+ lifetime plays) may claim monthly TOURS rewards via the ToursRewardManager.
 - This license does not transfer any ownership rights in the Work.
@@ -151,4 +153,29 @@ export async function hasRightsClearance(
   // Legacy NFTs (no record) pass through
   if (!status) return true;
   return status.status === 'cleared';
+}
+
+/**
+ * Get all tokenIds with explicit 'cleared' rights status.
+ * Used by Venue Player to build the PRO-free catalog.
+ * Unlike hasRightsClearance(), this does NOT pass legacy NFTs through.
+ */
+export async function getClearedTokenIds(redis: Redis): Promise<string[]> {
+  // Scan for all rights:status:* keys
+  const cleared: string[] = [];
+  let cursor = 0;
+  do {
+    const [nextCursor, keys] = await redis.scan(cursor, { match: 'rights:status:*', count: 100 });
+    cursor = typeof nextCursor === 'string' ? parseInt(nextCursor) : nextCursor;
+
+    for (const key of keys) {
+      const tokenId = (key as string).replace('rights:status:', '');
+      const status = await getRightsStatus(redis, tokenId);
+      if (status && status.status === 'cleared') {
+        cleared.push(tokenId);
+      }
+    }
+  } while (cursor !== 0);
+
+  return cleared;
 }
