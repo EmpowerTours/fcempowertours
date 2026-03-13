@@ -174,7 +174,7 @@ export default function InvestorDeck() {
             <tbody>
               <tr><td>Music License Sales</td><td className="highlight">70/30</td><td>Same-tx</td></tr>
               <tr><td>Radio Queue Fees</td><td>70/15/15</td><td>Same-tx</td></tr>
-              <tr><td>Subscriptions</td><td>70/20/10</td><td>Monthly pool</td></tr>
+              <tr><td>Subscriptions</td><td>70/20/10</td><td>Monthly pool (20% → listeners)</td></tr>
               <tr><td>EPK Bookings</td><td>Escrow</td><td>On completion</td></tr>
               <tr><td>Climbing Locations</td><td className="highlight">70/30</td><td>Same-tx</td></tr>
             </tbody>
@@ -186,7 +186,7 @@ export default function InvestorDeck() {
           <div className="economics">
             <div className="econ-row"><span>Gross Revenue</span><span className="highlight">3,000,000 WMON</span></div>
             <div className="econ-row"><span>Artist Pool (70%)</span><span>2,100,000 WMON</span></div>
-            <div className="econ-row"><span>DAO Reserve (20%)</span><span>600,000 WMON</span></div>
+            <div className="econ-row"><span>Listener Pool (20%) — active radio listeners</span><span>600,000 WMON</span></div>
             <div className="econ-row last"><span>Treasury (10%)</span><span className="green">300,000 WMON</span></div>
           </div>
         </div>
@@ -204,6 +204,7 @@ export default function InvestorDeck() {
             <tr><td><strong>EmpowerToursNFTV2</strong></td><td>Music license NFT sales (70/30)</td><td className="mono">0xB9B3...B73F</td></tr>
             <tr><td><strong>LiveRadioV3</strong></td><td>Radio queue, tips, voice notes</td><td className="mono">0x042E...00fd</td></tr>
             <tr><td><strong>MusicSubscriptionV5</strong></td><td>Monthly artist pool distribution</td><td className="mono">0x5372...5f19</td></tr>
+            <tr><td><strong>ListenerRewardPool</strong></td><td>20% DAO reserve → active listener WMON</td><td className="mono">0x98c0...51A7</td></tr>
             <tr><td><strong>EmpowerToursGovernor</strong></td><td>ERC-721 DAO governance + timelock</td><td className="mono">0x4d05...52Fa3</td></tr>
             <tr><td><strong>ToursTokenV2</strong></td><td>ERC-20 governance + reward token</td><td className="mono">0xf61F...f74f</td></tr>
             <tr><td><strong>EPKRegistryV2</strong></td><td>EPK metadata + booking escrow</td><td className="mono">0x232D...621D</td></tr>

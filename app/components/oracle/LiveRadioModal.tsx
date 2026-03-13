@@ -32,6 +32,7 @@ import {
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useRadioStream } from '@/app/hooks/useRadioStream';
 import { MusicSubscriptionModal } from './MusicSubscriptionModal';
+import ListenerRewardsClaim from '@/components/radio/ListenerRewardsClaim';
 
 interface RadioState {
   isLive: boolean;
@@ -1449,9 +1450,14 @@ export function LiveRadioModal({ onClose, isDarkMode = true, minimized: external
                     </button>
                   )}
                   <p className="text-xs text-gray-500 text-center mt-2">
-                    Earn 0.1 TOURS/song • 10 TOURS for 7-day streak
+                    Earn 0.1 TOURS/song • 10 TOURS for 7-day streak • WMON from 20% reserve (monthly)
                   </p>
                 </div>
+              )}
+
+              {/* WMON Rewards from 20% DAO Reserve */}
+              {walletAddress && (
+                <ListenerRewardsClaim />
               )}
 
               {/* Leaderboard & Recent Plays Section */}

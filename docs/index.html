@@ -363,11 +363,12 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
           <table style="margin-top:1rem">
             <tr><th>Revenue Split</th><th>Share</th></tr>
             <tr><td>Artist Pool</td><td class="highlight">70%</td></tr>
-            <tr><td>Reserve (DAO)</td><td>20%</td></tr>
+            <tr><td class="amber">Listener Pool (DAO)</td><td class="amber">20%</td></tr>
             <tr><td>Treasury</td><td>10%</td></tr>
           </table>
           <div class="payout-example">
-            <strong>Example:</strong> Month revenue = 10,000 WMON &rarr; Artist pool = 7,000 WMON. Artist with 500 of 5,000 total plays (10%) earns <strong>700 WMON</strong>. Claim anytime, no minimum.
+            <strong>Example:</strong> Month revenue = 10,000 WMON &rarr; Artist pool = 7,000 WMON. Artist with 500 of 5,000 total plays (10%) earns <strong>700 WMON</strong>. Claim anytime, no minimum.<br><br>
+            <strong>Listener Pool:</strong> The 20% (2,000 WMON) flows into the <strong>ListenerRewardPool</strong> contract. Active radio listeners earn WMON proportional to songs heard that month. If you listened to 50 of 5,000 total listens (1%), you earn <strong>20 WMON</strong>.
           </div>
         </div>
       </div>
@@ -453,7 +454,29 @@ footer{padding:4rem 2rem;border-top:1px solid rgba(255,255,255,.04);text-align:c
         </div>
       </div>
 
-      <!-- 8. Electronic Press Kit -->
+      <!-- 8. Listener WMON Rewards (20% DAO Reserve) -->
+      <div class="payout-card reveal">
+        <div class="payout-left">
+          <h3>Listener WMON Rewards</h3>
+          <a class="contract-addr" href="https://monadscan.com/address/0x98c07c35Cc99F0f78b60f001157B5aeC5e2051A7" target="_blank" rel="noopener">ListenerRewardPool<br>0x98c0...51A7</a>
+        </div>
+        <div class="payout-right">
+          <table>
+            <tr><th>Source</th><th>Amount</th></tr>
+            <tr><td>DAO Reserve (20% of subs)</td><td class="highlight amber">WMON</td></tr>
+            <tr><td>Distribution</td><td>Monthly, proportional to listens</td></tr>
+            <tr><td>Eligibility</td><td class="highlight">Active radio listener (heartbeat verified)</td></tr>
+            <tr><td>Claim</td><td>On-chain, per-month or batch</td></tr>
+          </table>
+          <div class="payout-example">
+            <strong>How it works:</strong> Each month, 20% of all subscription revenue (WMON) is transferred from MusicSubscriptionV5 into the ListenerRewardPool. Your share is proportional to songs you listened to vs. total listens across all listeners.<br><br>
+            <strong>Example:</strong> Month pool = 2,000 WMON. You listened to 100 songs out of 10,000 total (1%) &rarr; you earn <strong>20 WMON</strong>. Listeners also earn <strong>TOURS tokens</strong> separately (see above).<br><br>
+            Anti-gaming: Only heartbeat-verified listens count. Same anti-spam rules as PlayOracleV3 (30s minimum, 5-min replay cooldown, daily caps).
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. Electronic Press Kit -->
       <div class="payout-card reveal">
         <div class="payout-left">
           <h3>Electronic Press Kit (EPK)</h3>
@@ -542,13 +565,27 @@ flowchart LR
 flowchart TD
     S1(["Subscribers"]) -->|"15-3000 WMON"| Pool["MusicSubscriptionV5"]
     Pool -->|"70%"| AP["Artist Pool"]
-    Pool -->|"20%"| Res["Reserve / DAO"]
+    Pool -->|"20%"| LP["ListenerRewardPool"]
     Pool -->|"10%"| Tr["Treasury"]
     AP -->|"plays / total"| A1(["Artist A"])
     AP -->|"plays / total"| A2(["Artist B"])
+    LP -->|"listens / total"| L1(["Listener A"])
+    LP -->|"listens / total"| L2(["Listener B"])
         </pre>
       </div>
       <div class="arch-card reveal reveal-delay-1">
+        <h3>Listener WMON Rewards</h3>
+        <pre class="mermaid">
+flowchart TD
+    Sub["SubscriptionV5"] -->|"20% Reserve"| WD["withdrawReserveToDAO()"]
+    WD -->|"WMON"| Pool["ListenerRewardPool"]
+    Radio["Live Radio API"] -->|"Heartbeat stats"| Alloc["batchSetListenerPoints()"]
+    Alloc --> Pool
+    Pool -->|"Finalize month"| C{"Claimable"}
+    C -->|"listens / total"| L(["Listener claims WMON"])
+        </pre>
+      </div>
+      <div class="arch-card reveal">
         <h3>Play Recording Pipeline</h3>
         <pre class="mermaid">
 flowchart LR
@@ -693,6 +730,11 @@ flowchart TD
             <td class="name">ClimbingLocationsV2</td>
             <td><a class="addr" href="https://monadscan.com/address/0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3" target="_blank" rel="noopener">0x23e45acc278B5c9D1ECc374b39b7d313E781CBc3</a></td>
             <td class="purpose">Climbing locations + dual-NFT system</td>
+          </tr>
+          <tr>
+            <td class="name">ListenerRewardPool</td>
+            <td><a class="addr" href="https://monadscan.com/address/0x98c07c35Cc99F0f78b60f001157B5aeC5e2051A7" target="_blank" rel="noopener">0x98c07c35Cc99F0f78b60f001157B5aeC5e2051A7</a></td>
+            <td class="purpose">20% DAO reserve &rarr; active listener WMON distribution</td>
           </tr>
           <tr>
             <td class="name">ToursRewardManagerV2</td>
