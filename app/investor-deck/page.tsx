@@ -52,7 +52,7 @@ export default function InvestorDeck() {
       <p className="subtitle">On-Chain Settlement Infrastructure for the Creator Economy</p>
       <div className="tags">
         <span className="tag tag-cyan">Monad Blockchain</span>
-        <span className="tag tag-purple">15+ Live Contracts</span>
+        <span className="tag tag-purple">20 Live Contracts</span>
         <span className="tag tag-green">70% Creator Payouts</span>
       </div>
       <p className="prepared">Prepared for <strong>Faisal Al Hammadi</strong><br/>Further Asset Management</p>
@@ -74,7 +74,7 @@ export default function InvestorDeck() {
           </ul>
         </div>
         <div className="stats-grid">
-          <div className="card"><div className="stat">15+</div><div className="stat-label">Verified Contracts</div></div>
+          <div className="card"><div className="stat">20</div><div className="stat-label">Verified Contracts</div></div>
           <div className="card"><div className="stat">70%</div><div className="stat-label">Creator Payout</div></div>
           <div className="card"><div className="stat">68+</div><div className="stat-label">API Endpoints</div></div>
           <div className="card"><div className="stat">10K</div><div className="stat-label">TPS (Monad)</div></div>
@@ -196,18 +196,31 @@ export default function InvestorDeck() {
     // Slide 7: Contracts
     <div key="7" className="slide">
       <h2>Smart Contract Infrastructure</h2>
-      <p className="intro">15+ verified contracts on Monad Mainnet. All open-source.</p>
+      <p className="intro">20 verified contracts on Monad Mainnet. All open-source.</p>
       <div className="card">
         <table className="contracts-table">
           <thead><tr><th>Contract</th><th>Purpose</th><th>Address</th></tr></thead>
           <tbody>
             <tr><td><strong>EmpowerToursNFTV2</strong></td><td>Music license NFT sales (70/30)</td><td className="mono">0xB9B3...B73F</td></tr>
             <tr><td><strong>LiveRadioV3</strong></td><td>Radio queue, tips, voice notes</td><td className="mono">0x042E...00fd</td></tr>
-            <tr><td><strong>MusicSubscriptionV5</strong></td><td>Monthly artist pool distribution</td><td className="mono">0x5372...5f19</td></tr>
-            <tr><td><strong>ListenerRewardPool</strong></td><td>20% DAO reserve → active listener WMON</td><td className="mono">0x98c0...51A7</td></tr>
-            <tr><td><strong>EmpowerToursGovernor</strong></td><td>ERC-721 DAO governance + timelock</td><td className="mono">0x4d05...52Fa3</td></tr>
-            <tr><td><strong>ToursTokenV2</strong></td><td>ERC-20 governance + reward token</td><td className="mono">0xf61F...f74f</td></tr>
+            <tr><td><strong>MusicSubscriptionV5</strong></td><td>Monthly artist pool (70/20/10)</td><td className="mono">0x5372...5f19</td></tr>
+            <tr><td><strong>ListenerRewardPool</strong></td><td>20% reserve → active listener WMON</td><td className="mono">0x98c0...51A7</td></tr>
+            <tr><td><strong>PlayOracleV3</strong></td><td>On-chain play tracking &amp; anti-spam</td><td className="mono">0xe210...DCEf</td></tr>
+            <tr><td><strong>ToursRewardManagerV2</strong></td><td>TOURS rewards + halving schedule</td><td className="mono">0x0564...f85</td></tr>
+            <tr><td><strong>VenueRegistry</strong></td><td>Venue registration + TOURS mining</td><td className="mono">0x7326...43B5</td></tr>
+            <tr><td><strong>ItineraryNFTV2</strong></td><td>Travel itinerary marketplace</td><td className="mono">0x9752...b020</td></tr>
+            <tr><td><strong>ClimbingLocationsV2</strong></td><td>Climbing locations + dual-NFT</td><td className="mono">0x23e4...CBc3</td></tr>
             <tr><td><strong>EPKRegistryV2</strong></td><td>EPK metadata + booking escrow</td><td className="mono">0x232D...621D</td></tr>
+            <tr><td><strong>ToursTokenV2</strong></td><td>ERC-20 governance + reward token</td><td className="mono">0xf61F...f74f</td></tr>
+            <tr><td><strong>WMON</strong></td><td>Wrapped Monad (payment token)</td><td className="mono">0x3bd3...433A</td></tr>
+            <tr><td><strong>PassportNFTV3</strong></td><td>Travel passport NFTs (195 countries)</td><td className="mono">0x9312...1851</td></tr>
+            <tr><td><strong>VotingTOURS</strong></td><td>vTOURS governance voting token</td><td className="mono">0xe537...c44c</td></tr>
+            <tr><td><strong>EmpowerToursGovernor</strong></td><td>DAO governance + proposals</td><td className="mono">0x4d05...2fa3</td></tr>
+            <tr><td><strong>EmpowerToursTimelock</strong></td><td>Timelock controller for governance</td><td className="mono">0x4f7f...bd79</td></tr>
+            <tr><td><strong>DAOContractFactory</strong></td><td>DAO-governed deployment pipeline</td><td className="mono">0x627a...7968</td></tr>
+            <tr><td><strong>DeploymentNFT</strong></td><td>Provenance NFTs for contracts</td><td className="mono">0xfA00...A586</td></tr>
+            <tr><td><strong>EmpowerToursDevStudio</strong></td><td>AI contract generation credits</td><td className="mono">0xEC27...d880</td></tr>
+            <tr><td><strong>Platform Safe</strong></td><td>Treasury &amp; operations</td><td className="mono">0xf3b9...25bA</td></tr>
           </tbody>
         </table>
       </div>
