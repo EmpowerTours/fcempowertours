@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
           name: string;
           artist: string;
           artistFid?: string;
+          artistName?: string;
         }> = json?.data?.songs || [];
 
         if (!songs.length) {
@@ -116,11 +117,13 @@ export async function POST(req: NextRequest) {
           a && a.length > 12
             ? `${a.slice(0, 6)}…${a.slice(-4)}`
             : a || "Unknown artist";
+        const artistOf = (s: { artistName?: string; artist: string }) =>
+          s.artistName || shortAddr(s.artist);
         const top = songs.slice(0, 8);
         const list = top
           .map(
             (s) =>
-              `• **${s.name || "Untitled"}** — ${shortAddr(s.artist)}  (#${s.tokenId})`,
+              `• **${s.name || "Untitled"}** — ${artistOf(s)}  (#${s.tokenId})`,
           )
           .join("\n");
         const newest = songs[0];
@@ -130,7 +133,7 @@ export async function POST(req: NextRequest) {
           action: "info",
           message:
             `🎧 **EmpowerTours Radio** — ${songs.length} track${songs.length === 1 ? "" : "s"} on air\n\n` +
-            `🆕 Latest drop: **${newest.name || "Untitled"}** by ${shortAddr(newest.artist)}\n\n` +
+            `🆕 Latest drop: **${newest.name || "Untitled"}** by ${artistOf(newest)}\n\n` +
             `${list}\n\n` +
             `▶️ Listen: ${LISTEN_URL}`,
         });
