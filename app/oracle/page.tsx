@@ -1,42 +1,56 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { Send, Sparkles, X, Globe, Loader2, Music2, User, MapPin, CheckCircle2, Coins, BarChart3, Radio, Calendar, Wallet, Copy, ExternalLink, Plus, Sun, Moon, Mountain, Code, Vote, Users, Wand2, TrendingUp } from 'lucide-react';
-import { CrystalBall, OracleState } from '@/app/components/oracle/CrystalBall';
-import { MusicSubscriptionModal } from '@/app/components/oracle/MusicSubscriptionModal';
-import { MirrorMate } from '@/app/components/oracle/MirrorMate';
-import { CreateNFTModal } from '@/app/components/oracle/CreateNFTModal';
-import { PassportMintModal } from '@/app/components/oracle/PassportMintModal';
-import { MapsResultsModal } from '@/app/components/oracle/MapsResultsModal';
-import { CreateExperienceModal } from '@/app/components/oracle/CreateExperienceModal';
-import { ProfileModal } from '@/app/components/oracle/ProfileModal';
-import { DashboardModal } from '@/app/components/oracle/DashboardModal';
-import { UserProfileModal } from '@/app/components/oracle/UserProfileModal';
-import { MusicPlaylist } from '@/app/components/oracle/MusicPlaylist';
-import { LiveRadioModal } from '@/app/components/oracle/LiveRadioModal';
-import { EventOracle } from '@/app/components/oracle/EventOracle';
-import { RockClimbingModal } from '@/app/components/oracle/RockClimbingModal';
-import { DevStudioModal } from '@/app/components/oracle/DevStudioModal';
-import { DAOModal } from '@/app/components/oracle/DAOModal';
-import { EPKModal } from '@/app/components/oracle/EPKModal';
-import { AgentVaultModal } from '@/app/components/oracle/AgentVaultModal';
-import { RemixDAWModal } from '@/app/components/oracle/RemixDAWModal';
-import dynamic from 'next/dynamic';
-
-// Dynamic import for Agent World (uses Three.js which needs client-only loading)
-const AgentWorldModal = dynamic(
-  () => import('@/app/components/oracle/AgentWorldModal').then(mod => mod.AgentWorldModal),
-  { ssr: false }
-);
-import { useWalletContext } from '@/app/hooks/useWalletContext';
-import { useGeolocation } from '@/lib/useGeolocation';
-import { useRouter, useSearchParams } from 'next/navigation';
-import ConnectWalletButton from '@/app/components/ConnectWalletButton';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { createPortal } from "react-dom";
+import {
+  Send,
+  Sparkles,
+  X,
+  Globe,
+  Loader2,
+  Music2,
+  User,
+  MapPin,
+  CheckCircle2,
+  Coins,
+  BarChart3,
+  Radio,
+  Calendar,
+  Wallet,
+  Copy,
+  ExternalLink,
+  Plus,
+  Sun,
+  Moon,
+} from "lucide-react";
+import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
+import { MusicSubscriptionModal } from "@/app/components/oracle/MusicSubscriptionModal";
+import { MirrorMate } from "@/app/components/oracle/MirrorMate";
+import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
+import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
+import { MapsResultsModal } from "@/app/components/oracle/MapsResultsModal";
+import { CreateExperienceModal } from "@/app/components/oracle/CreateExperienceModal";
+import { ProfileModal } from "@/app/components/oracle/ProfileModal";
+import { DashboardModal } from "@/app/components/oracle/DashboardModal";
+import { UserProfileModal } from "@/app/components/oracle/UserProfileModal";
+import { MusicPlaylist } from "@/app/components/oracle/MusicPlaylist";
+import { LiveRadioModal } from "@/app/components/oracle/LiveRadioModal";
+import { EventOracle } from "@/app/components/oracle/EventOracle";
+import { EPKModal } from "@/app/components/oracle/EPKModal";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { useGeolocation } from "@/lib/useGeolocation";
+import { useRouter, useSearchParams } from "next/navigation";
+import ConnectWalletButton from "@/app/components/ConnectWalletButton";
 
 interface NFTObject {
   id: string;
-  type: 'ART' | 'MUSIC' | 'EXPERIENCE';
+  type: "ART" | "MUSIC" | "EXPERIENCE";
   tokenId: string;
   name: string;
   imageUrl: string;
@@ -53,7 +67,7 @@ interface MapsSource {
 }
 
 interface Message {
-  role: 'user' | 'oracle';
+  role: "user" | "oracle";
   content: string;
   action?: any;
   mapsSources?: MapsSource[];
@@ -68,10 +82,17 @@ interface Message {
 export default function OraclePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, walletAddress, sendTransaction, isFarcaster, isConnected, fid } = useWalletContext();
+  const {
+    user,
+    walletAddress,
+    sendTransaction,
+    isFarcaster,
+    isConnected,
+    fid,
+  } = useWalletContext();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [oracleState, setOracleState] = useState<OracleState>(OracleState.IDLE);
   const [isThinking, setIsThinking] = useState(false);
@@ -81,12 +102,15 @@ export default function OraclePage() {
   const [loadingNFTs, setLoadingNFTs] = useState(true);
   const [playingNFTId, setPlayingNFTId] = useState<string | null>(null);
   const [playingTokenId, setPlayingTokenId] = useState<string | null>(null);
-  const [activeGame, setActiveGame] = useState<'MIRROR' | null>(null);
+  const [activeGame, setActiveGame] = useState<"MIRROR" | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
   const [showPassportMintModal, setShowPassportMintModal] = useState(false);
-  const [paymentRequired, setPaymentRequired] = useState<{ message: string; estimatedCost: string } | null>(null);
-  const [pendingMessage, setPendingMessage] = useState<string>('');
+  const [paymentRequired, setPaymentRequired] = useState<{
+    message: string;
+    estimatedCost: string;
+  } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string>("");
   const [showMapsResults, setShowMapsResults] = useState(false);
   const [mapsMinimized, setMapsMinimized] = useState(false);
   const [radioMinimized, setRadioMinimized] = useState(false);
@@ -108,42 +132,48 @@ export default function OraclePage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showRadioModal, setShowRadioModal] = useState(false);
   const [showEventOracleModal, setShowEventOracleModal] = useState(false);
-  const [showRockClimbingModal, setShowRockClimbingModal] = useState(false);
-  const [showDevStudioModal, setShowDevStudioModal] = useState(false);
-  const [showDaoModal, setShowDaoModal] = useState(false);
   const [showEPKModal, setShowEPKModal] = useState(false);
-  const [showAgentWorldModal, setShowAgentWorldModal] = useState(false);
-  const [agentWorldMinimized, setAgentWorldMinimized] = useState(false);
-  const [showVaultModal, setShowVaultModal] = useState(false);
-  const [showRemixDAWModal, setShowRemixDAWModal] = useState(false);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
-  const [viewingUserAddress, setViewingUserAddress] = useState<string | null>(null);
-  const [userProfileSource, setUserProfileSource] = useState<'dashboard' | 'profile' | null>(null);
+  const [viewingUserAddress, setViewingUserAddress] = useState<string | null>(
+    null,
+  );
+  const [userProfileSource, setUserProfileSource] = useState<
+    "dashboard" | "profile" | null
+  >(null);
   const [itineraryCreating, setItineraryCreating] = useState(false);
   const [itineraryNotification, setItineraryNotification] = useState<{
-    type: 'creating' | 'created' | 'recommended';
+    type: "creating" | "created" | "recommended";
     title?: string;
     txHash?: string;
     price?: string;
   } | null>(null);
   // Create Experience modal (from Maps flow)
-  const [showCreateExperienceModal, setShowCreateExperienceModal] = useState(false);
+  const [showCreateExperienceModal, setShowCreateExperienceModal] =
+    useState(false);
   const [createExperiencePlaceData, setCreateExperiencePlaceData] = useState<{
-    name: string; placeId: string; googleMapsUri: string;
-    latitude: number; longitude: number;
-    address?: string; rating?: number; types?: string[];
+    name: string;
+    placeId: string;
+    googleMapsUri: string;
+    latitude: number;
+    longitude: number;
+    address?: string;
+    rating?: number;
+    types?: string[];
     isCustom?: boolean;
   } | null>(null);
 
   // User Safe balance and deposit modal
-  const [userSafeBalance, setUserSafeBalance] = useState<{ wmonBalance: string; monBalance: string } | null>(null);
+  const [userSafeBalance, setUserSafeBalance] = useState<{
+    wmonBalance: string;
+    monBalance: string;
+  } | null>(null);
   const [userSafeAddress, setUserSafeAddress] = useState<string | null>(null);
   const [showDepositModal, setShowDepositModal] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
+  const [depositAmount, setDepositAmount] = useState("");
   const [depositLoading, setDepositLoading] = useState(false);
-  const [depositError, setDepositError] = useState('');
-  const [depositSuccess, setDepositSuccess] = useState('');
+  const [depositError, setDepositError] = useState("");
+  const [depositSuccess, setDepositSuccess] = useState("");
 
   // Dark mode state
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -157,22 +187,18 @@ export default function OraclePage() {
   // Apply dark mode class to document
   useEffect(() => {
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
   }, [isDarkMode]);
 
   // Handle deep link query params to auto-open modals
   useEffect(() => {
-    const modal = searchParams.get('modal');
-    if (modal === 'radio') {
+    const modal = searchParams.get("modal");
+    if (modal === "radio") {
       setShowRadioModal(true);
-    } else if (modal === 'dev-studio') {
-      setShowDevStudioModal(true);
-    } else if (modal === 'dao') {
-      setShowDaoModal(true);
-    } else if (modal === 'epk') {
+    } else if (modal === "epk") {
       setShowEPKModal(true);
     }
   }, [searchParams]);
@@ -181,9 +207,6 @@ export default function OraclePage() {
   const closeNonMinimizableModals = useCallback(() => {
     setShowProfileModal(false);
     setShowEventOracleModal(false);
-    setShowRockClimbingModal(false);
-    setShowDevStudioModal(false);
-    setShowDaoModal(false);
     setShowEPKModal(false);
     setShowDashboardModal(false);
     setShowUserProfileModal(false);
@@ -192,8 +215,6 @@ export default function OraclePage() {
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
     setShowCreateExperienceModal(false);
-    setShowVaultModal(false);
-    setShowRemixDAWModal(false);
     setSelectedNFT(null);
     setPaymentRequired(null);
   }, []);
@@ -205,11 +226,14 @@ export default function OraclePage() {
   }, [showRadioModal, showMapsResults]);
 
   // Smart modal opener: minimizes Radio/Maps instead of closing, closes everything else
-  const openModal = useCallback((openFn: () => void) => {
-    closeNonMinimizableModals();
-    minimizeAllMinimizable();
-    openFn();
-  }, [closeNonMinimizableModals, minimizeAllMinimizable]);
+  const openModal = useCallback(
+    (openFn: () => void) => {
+      closeNonMinimizableModals();
+      minimizeAllMinimizable();
+      openFn();
+    },
+    [closeNonMinimizableModals, minimizeAllMinimizable],
+  );
 
   // Legacy closeAllModals for cases that truly need everything closed (e.g. Maps "View Places" button)
   const closeAllModals = useCallback(() => {
@@ -244,18 +268,18 @@ export default function OraclePage() {
     const fetchNFTs = async () => {
       try {
         // Add cache-busting to ensure fresh data after burns
-        const response = await fetch('/api/envio/get-nfts', {
-          cache: 'no-store',
+        const response = await fetch("/api/envio/get-nfts", {
+          cache: "no-store",
           headers: {
-            'Cache-Control': 'no-cache',
-          }
+            "Cache-Control": "no-cache",
+          },
         });
         const data = await response.json();
         if (data.success && data.nfts.length > 0) {
           setNftList(data.nfts);
         }
       } catch (error) {
-        console.error('Failed to fetch NFT list:', error);
+        console.error("Failed to fetch NFT list:", error);
       } finally {
         setLoadingNFTs(false);
       }
@@ -265,33 +289,39 @@ export default function OraclePage() {
 
   // Debug: Log wallet address changes
   useEffect(() => {
-    console.log('[OraclePage] walletAddress changed:', walletAddress);
-    console.log('[OraclePage] user:', user);
+    console.log("[OraclePage] walletAddress changed:", walletAddress);
+    console.log("[OraclePage] user:", user);
   }, [walletAddress, user]);
 
   // Debug: Log activeGame state changes
   useEffect(() => {
-    console.log('[OraclePage] activeGame state changed to:', activeGame);
+    console.log("[OraclePage] activeGame state changed to:", activeGame);
   }, [activeGame]);
 
   // Debug: Log showCreateNFTModal state changes
   useEffect(() => {
-    console.log('[OraclePage] showCreateNFTModal state changed to:', showCreateNFTModal);
+    console.log(
+      "[OraclePage] showCreateNFTModal state changed to:",
+      showCreateNFTModal,
+    );
   }, [showCreateNFTModal]);
 
   // Debug: Log showProfileModal state changes
   useEffect(() => {
-    console.log('[OraclePage] showProfileModal state changed to:', showProfileModal);
+    console.log(
+      "[OraclePage] showProfileModal state changed to:",
+      showProfileModal,
+    );
   }, [showProfileModal]);
 
   // Log geolocation status (from useGeolocation hook with IP fallback)
   useEffect(() => {
     if (!geoLoading && geoLocation) {
-      console.log('[Oracle] Location available:', {
+      console.log("[Oracle] Location available:", {
         city: geoLocation.city,
         country: geoLocation.country,
         lat: geoLocation.latitude,
-        lng: geoLocation.longitude
+        lng: geoLocation.longitude,
       });
     }
   }, [geoLocation, geoLoading]);
@@ -305,13 +335,13 @@ export default function OraclePage() {
         const data = await response.json();
         if (data.success) {
           setUserSafeBalance({
-            wmonBalance: data.wmonBalance || '0',
-            monBalance: data.balance || '0',
+            wmonBalance: data.wmonBalance || "0",
+            monBalance: data.balance || "0",
           });
           setUserSafeAddress(data.safeAddress || null);
         }
       } catch (error) {
-        console.error('[Oracle] Failed to fetch user safe balance:', error);
+        console.error("[Oracle] Failed to fetch user safe balance:", error);
       }
     };
     fetchUserSafeBalance();
@@ -327,33 +357,37 @@ export default function OraclePage() {
     const checkMusicAccess = async () => {
       try {
         // Check subscription status
-        const subResponse = await fetch(`/api/music/check-subscription?address=${walletAddress}`);
+        const subResponse = await fetch(
+          `/api/music/check-subscription?address=${walletAddress}`,
+        );
         const subData = await subResponse.json();
         if (subData.success) {
           setHasSubscription(subData.hasSubscription);
-          console.log('[Oracle] Subscription status:', subData.hasSubscription);
+          console.log("[Oracle] Subscription status:", subData.hasSubscription);
         }
 
         // Check owned music NFTs
-        const musicResponse = await fetch(`/api/music/get-user-licenses?address=${walletAddress}`);
+        const musicResponse = await fetch(
+          `/api/music/get-user-licenses?address=${walletAddress}`,
+        );
         const musicData = await musicResponse.json();
         if (musicData.success && musicData.songs?.length > 0) {
           setHasPurchasedMusic(true);
           // Convert songs to NFTObject format
           const musicNFTs: NFTObject[] = musicData.songs.map((song: any) => ({
             id: song.id,
-            type: 'MUSIC' as const,
+            type: "MUSIC" as const,
             tokenId: song.tokenId,
             name: song.title,
             imageUrl: song.imageUrl,
-            price: '0',
-            contractAddress: song.contractAddress || '',
+            price: "0",
+            contractAddress: song.contractAddress || "",
           }));
           setOwnedMusicNFTs(musicNFTs);
-          console.log('[Oracle] Owned music NFTs:', musicNFTs.length);
+          console.log("[Oracle] Owned music NFTs:", musicNFTs.length);
         }
       } catch (error) {
-        console.error('[Oracle] Failed to check music access:', error);
+        console.error("[Oracle] Failed to check music access:", error);
       }
     };
 
@@ -372,46 +406,51 @@ export default function OraclePage() {
   }, [isThinking, messages]);
 
   const handleConsult = async (directMessage?: string) => {
-    console.log('[Oracle] handleConsult START');
+    console.log("[Oracle] handleConsult START");
     const messageToSend = directMessage || input.trim();
     if (!messageToSend || isThinking) return;
 
     const userMessage = messageToSend;
-    console.log('[Oracle] User message:', userMessage);
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    console.log("[Oracle] User message:", userMessage);
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     // Trigger PROCESSING state (fast spin)
     setIsThinking(true);
 
     try {
-      console.log('[Oracle] Sending API request...');
-      const response = await fetch('/api/oracle/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      console.log("[Oracle] Sending API request...");
+      const response = await fetch("/api/oracle/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
           userAddress: walletAddress,
           userFid: fid,
-          userLocation: geoLocation ? {
-            latitude: geoLocation.latitude,
-            longitude: geoLocation.longitude,
-            city: geoLocation.city,
-            country: geoLocation.country
-          } : null,
+          userLocation: geoLocation
+            ? {
+                latitude: geoLocation.latitude,
+                longitude: geoLocation.longitude,
+                city: geoLocation.city,
+                country: geoLocation.country,
+              }
+            : null,
         }),
       });
 
-      console.log('[Oracle] API response received');
+      console.log("[Oracle] API response received");
       const data = await response.json();
-      console.log('[Oracle] Full API response data:', JSON.stringify(data, null, 2));
+      console.log(
+        "[Oracle] Full API response data:",
+        JSON.stringify(data, null, 2),
+      );
 
       // Handle payment required for Maps query - show confirmation dialog
       if (data.requiresPayment) {
-        console.log('[Oracle] Payment required for Maps query:', {
+        console.log("[Oracle] Payment required for Maps query:", {
           message: data.message,
           estimatedCost: data.estimatedCost,
-          userMessage
+          userMessage,
         });
         setPendingMessage(userMessage);
         setPaymentRequired({
@@ -423,154 +462,199 @@ export default function OraclePage() {
       }
 
       if (data.success) {
-        const { action, txHash, explorer, mapsSources, mapsWidgetToken, requestId } = data;
-        console.log('[Oracle] Action type:', action.type);
-        console.log('[Oracle] Full action object:', JSON.stringify(action, null, 2));
+        const {
+          action,
+          txHash,
+          explorer,
+          mapsSources,
+          mapsWidgetToken,
+          requestId,
+        } = data;
+        console.log("[Oracle] Action type:", action.type);
+        console.log(
+          "[Oracle] Full action object:",
+          JSON.stringify(action, null, 2),
+        );
 
         // Handle different action types
         switch (action.type) {
-          case 'navigate':
-            console.log('[Oracle] NAVIGATE case triggered');
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: `${action.message}\n\nNavigating to ${action.destination}...`,
-              action
-            }]);
+          case "navigate":
+            console.log("[Oracle] NAVIGATE case triggered");
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: `${action.message}\n\nNavigating to ${action.destination}...`,
+                action,
+              },
+            ]);
             setTimeout(() => router.push(action.destination), 1500);
             break;
 
-          case 'create_nft':
-            console.log('[Oracle] CREATE_NFT case triggered');
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: `${action.message}\n\nOpening NFT creation studio...`,
-              action
-            }]);
+          case "create_nft":
+            console.log("[Oracle] CREATE_NFT case triggered");
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: `${action.message}\n\nOpening NFT creation studio...`,
+                action,
+              },
+            ]);
             setTimeout(() => {
-              console.log('[Oracle] Setting showCreateNFTModal to true');
+              console.log("[Oracle] Setting showCreateNFTModal to true");
               setShowCreateNFTModal(true);
             }, 500);
             break;
 
-          case 'mint_passport':
+          case "mint_passport":
             if (txHash) {
               // Backend already minted successfully
-              setMessages(prev => [...prev, {
-                role: 'oracle',
-                content: `${action.message}`,
-                action,
-                txHash
-              }]);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "oracle",
+                  content: `${action.message}`,
+                  action,
+                  txHash,
+                },
+              ]);
             } else {
               // No txHash means we need the modal for manual mint
-              setMessages(prev => [...prev, {
-                role: 'oracle',
-                content: `${action.message}\n\nOpening passport minting...`,
-                action
-              }]);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "oracle",
+                  content: `${action.message}\n\nOpening passport minting...`,
+                  action,
+                },
+              ]);
               setTimeout(() => {
                 setShowPassportMintModal(true);
               }, 500);
             }
             break;
 
-          case 'game':
-            console.log('[Oracle] GAME case triggered');
-            console.log('[Oracle] Game action received:', action);
+          case "game":
+            console.log("[Oracle] GAME case triggered");
+            console.log("[Oracle] Game action received:", action);
             // Only support MirrorMate now
-            if (action.game === 'MIRROR') {
-              setMessages(prev => [...prev, {
-                role: 'oracle',
-                content: `${action.message}\n\nLaunching MirrorMate...`,
-                action
-              }]);
+            if (action.game === "MIRROR") {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "oracle",
+                  content: `${action.message}\n\nLaunching MirrorMate...`,
+                  action,
+                },
+              ]);
               setTimeout(() => {
-                setActiveGame('MIRROR');
+                setActiveGame("MIRROR");
               }, 1000);
             } else {
-              setMessages(prev => [...prev, {
-                role: 'oracle',
-                content: `Sorry, that game is not available right now. Try asking for MirrorMate!`,
-                action
-              }]);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "oracle",
+                  content: `Sorry, that game is not available right now. Try asking for MirrorMate!`,
+                  action,
+                },
+              ]);
             }
             break;
 
-          case 'withdraw':
-            console.log('[Oracle] WITHDRAW case triggered');
+          case "withdraw":
+            console.log("[Oracle] WITHDRAW case triggered");
             let withdrawMessage = action.message;
             if (txHash) {
               withdrawMessage += `\n\n✅ Withdrawal complete!`;
             }
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: withdrawMessage,
-              action,
-              txHash,
-              explorerUrl: explorer
-            }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: withdrawMessage,
+                action,
+                txHash,
+                explorerUrl: explorer,
+              },
+            ]);
             break;
 
-          case 'execute':
-            console.log('[Oracle] EXECUTE case triggered');
+          case "execute":
+            console.log("[Oracle] EXECUTE case triggered");
             let executeMessage = action.message;
             if (txHash) {
               // Don't include full URL - just indicate success
               executeMessage += `\n\n✅ Transaction executed!`;
             }
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: executeMessage,
-              action,
-              txHash,
-              explorerUrl: explorer
-            }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: executeMessage,
+                action,
+                txHash,
+                explorerUrl: explorer,
+              },
+            ]);
             break;
 
-          case 'create_epk':
-            console.log('[Oracle] CREATE_EPK case triggered');
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: `${action.message}\n\nOpening EPK creation wizard...`,
-              action
-            }]);
+          case "create_epk":
+            console.log("[Oracle] CREATE_EPK case triggered");
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: `${action.message}\n\nOpening EPK creation wizard...`,
+                action,
+              },
+            ]);
             setTimeout(() => {
               setShowEPKModal(true);
             }, 500);
             break;
 
-          case 'manage_epk':
-            console.log('[Oracle] MANAGE_EPK case triggered');
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: action.message,
-              action
-            }]);
+          case "manage_epk":
+            console.log("[Oracle] MANAGE_EPK case triggered");
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: action.message,
+                action,
+              },
+            ]);
             break;
 
-          case 'chat':
+          case "chat":
           default:
-            console.log('[Oracle] CHAT/DEFAULT case triggered');
-            setMessages(prev => [...prev, {
-              role: 'oracle',
-              content: action.message,
-              action,
-              mapsSources,
-              mapsWidgetToken
-            }]);
+            console.log("[Oracle] CHAT/DEFAULT case triggered");
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "oracle",
+                content: action.message,
+                action,
+                mapsSources,
+                mapsWidgetToken,
+              },
+            ]);
             break;
         }
       } else {
-        console.error('[Oracle] API returned success: false', data);
+        console.error("[Oracle] API returned success: false", data);
         throw new Error(data.error);
       }
-
     } catch (error: any) {
-      console.error('[Oracle] Error in handleConsult:', error);
-      setMessages(prev => [...prev, {
-        role: 'oracle',
-        content: `❌ Error: ${error.message}`
-      }]);
+      console.error("[Oracle] Error in handleConsult:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "oracle",
+          content: `❌ Error: ${error.message}`,
+        },
+      ]);
     } finally {
       // Turn off PROCESSING state (slow spin with response)
       setIsThinking(false);
@@ -578,30 +662,51 @@ export default function OraclePage() {
   };
 
   const handleNFTClick = useCallback((nft: NFTObject) => {
-    console.log('[OraclePage] handleNFTClick called with:', JSON.stringify(nft, null, 2));
-    console.log('[OraclePage] NFT type:', nft.type, '| Is ART?:', nft.type === 'ART', '| Is MUSIC?:', nft.type === 'MUSIC');
-    if (nft.type === 'MUSIC') {
+    console.log(
+      "[OraclePage] handleNFTClick called with:",
+      JSON.stringify(nft, null, 2),
+    );
+    console.log(
+      "[OraclePage] NFT type:",
+      nft.type,
+      "| Is ART?:",
+      nft.type === "ART",
+      "| Is MUSIC?:",
+      nft.type === "MUSIC",
+    );
+    if (nft.type === "MUSIC") {
       // For music NFTs, open the music player (not the modal)
-      console.log('[OraclePage] Setting music NFT for player');
+      console.log("[OraclePage] Setting music NFT for player");
       setSelectedNFT(null); // Close any open modal
       setClickedMusicNFTs([nft]);
     } else {
       // For ART and other NFTs, show the modal
-      console.log('[OraclePage] Showing modal for', nft.type, 'NFT - setting selectedNFT');
+      console.log(
+        "[OraclePage] Showing modal for",
+        nft.type,
+        "NFT - setting selectedNFT",
+      );
       setClickedMusicNFTs([]); // Close music player
       setSelectedNFT(nft);
-      console.log('[OraclePage] selectedNFT should now be set');
+      console.log("[OraclePage] selectedNFT should now be set");
     }
   }, []);
 
   // Debug: Log clickedMusicNFTs changes
   useEffect(() => {
-    console.log('[OraclePage] clickedMusicNFTs updated, count:', clickedMusicNFTs.length, clickedMusicNFTs);
+    console.log(
+      "[OraclePage] clickedMusicNFTs updated, count:",
+      clickedMusicNFTs.length,
+      clickedMusicNFTs,
+    );
   }, [clickedMusicNFTs]);
 
   // Debug: Log selectedNFT changes
   useEffect(() => {
-    console.log('[OraclePage] selectedNFT updated:', selectedNFT ? JSON.stringify(selectedNFT, null, 2) : 'null');
+    console.log(
+      "[OraclePage] selectedNFT updated:",
+      selectedNFT ? JSON.stringify(selectedNFT, null, 2) : "null",
+    );
   }, [selectedNFT]);
 
   const closeNFTModal = () => {
@@ -612,26 +717,28 @@ export default function OraclePage() {
   const handleConfirmPayment = async () => {
     if (!pendingMessage) return;
 
-    console.log('[Oracle] Confirming payment for Maps query via delegation');
+    console.log("[Oracle] Confirming payment for Maps query via delegation");
     const queryMessage = pendingMessage;
     setPaymentRequired(null);
     setIsThinking(true);
-    setItineraryNotification({ type: 'creating' });
+    setItineraryNotification({ type: "creating" });
 
     try {
-      const response = await fetch('/api/oracle/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/oracle/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: queryMessage,
           userAddress: walletAddress,
           userFid: fid,
-          userLocation: geoLocation ? {
-            latitude: geoLocation.latitude,
-            longitude: geoLocation.longitude,
-            city: geoLocation.city,
-            country: geoLocation.country
-          } : null,
+          userLocation: geoLocation
+            ? {
+                latitude: geoLocation.latitude,
+                longitude: geoLocation.longitude,
+                city: geoLocation.city,
+                country: geoLocation.country,
+              }
+            : null,
           confirmPayment: true,
         }),
       });
@@ -639,20 +746,29 @@ export default function OraclePage() {
       const data = await response.json();
 
       if (data.success) {
-        const { action, mapsSources, mapsWidgetToken, paymentTxHash, itineraryData, itineraryTxHash, mapsProvider, protocolExperiences } = data;
+        const {
+          action,
+          mapsSources,
+          mapsWidgetToken,
+          paymentTxHash,
+          itineraryData,
+          itineraryTxHash,
+          mapsProvider,
+          protocolExperiences,
+        } = data;
 
         // Handle itinerary creation notification
         if (itineraryData) {
           if (itineraryData.exists) {
             setItineraryNotification({
-              type: 'recommended',
+              type: "recommended",
               title: itineraryData.title,
-              price: itineraryData.price
+              price: itineraryData.price,
             });
           } else if (itineraryData.created) {
             setItineraryNotification({
-              type: 'created',
-              txHash: itineraryTxHash
+              type: "created",
+              txHash: itineraryTxHash,
             });
           }
           setTimeout(() => setItineraryNotification(null), 5000);
@@ -661,16 +777,21 @@ export default function OraclePage() {
         }
 
         // Add message with Maps data
-        setMessages(prev => [...prev, {
-          role: 'oracle',
-          content: action.message || `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
-          action,
-          mapsSources,
-          mapsWidgetToken,
-          mapsQuery: queryMessage,
-          mapsPaymentTxHash: paymentTxHash,
-          protocolExperiences,
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "oracle",
+            content:
+              action.message ||
+              `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
+            action,
+            mapsSources,
+            mapsWidgetToken,
+            mapsQuery: queryMessage,
+            mapsPaymentTxHash: paymentTxHash,
+            protocolExperiences,
+          },
+        ]);
 
         // Show the Maps Results Modal
         if (mapsSources && mapsSources.length > 0) {
@@ -685,52 +806,68 @@ export default function OraclePage() {
           setMapsMinimized(false);
           setShowMapsResults(true);
         } else {
-          setMessages(prev => [...prev, {
-            role: 'oracle',
-            content: action.message || 'No places found for your query.',
-            action
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "oracle",
+              content: action.message || "No places found for your query.",
+              action,
+            },
+          ]);
         }
       } else {
         throw new Error(data.error);
       }
     } catch (error: any) {
-      console.error('[Oracle] Payment failed:', error);
+      console.error("[Oracle] Payment failed:", error);
       setItineraryNotification(null);
-      setMessages(prev => [...prev, {
-        role: 'oracle',
-        content: `❌ Payment failed: ${error.message}. Please ensure your Safe has sufficient WMON balance.`
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "oracle",
+          content: `❌ Payment failed: ${error.message}. Please ensure your Safe has sufficient WMON balance.`,
+        },
+      ]);
     } finally {
       setIsThinking(false);
-      setPendingMessage('');
+      setPendingMessage("");
     }
   };
 
   // Handle "I'm Here" from Maps → open CreateExperienceModal
-  const handleCreateExperienceFromMaps = useCallback((placeData: {
-    name: string; placeId: string; googleMapsUri: string;
-    latitude: number; longitude: number;
-    address?: string; rating?: number; types?: string[];
-  }) => {
-    setShowMapsResults(false);
-    setMapsMinimized(false);
-    setMapsResultsData(null);
-    setCreateExperiencePlaceData(placeData);
-    setShowCreateExperienceModal(true);
-  }, []);
+  const handleCreateExperienceFromMaps = useCallback(
+    (placeData: {
+      name: string;
+      placeId: string;
+      googleMapsUri: string;
+      latitude: number;
+      longitude: number;
+      address?: string;
+      rating?: number;
+      types?: string[];
+    }) => {
+      setShowMapsResults(false);
+      setMapsMinimized(false);
+      setMapsResultsData(null);
+      setCreateExperiencePlaceData(placeData);
+      setShowCreateExperienceModal(true);
+    },
+    [],
+  );
 
   // Handle "Create Custom Experience" — no Google Maps required
   const handleCreateCustomExperience = useCallback(() => {
     setShowMapsResults(false);
     setMapsResultsData(null);
     setCreateExperiencePlaceData({
-      name: '',
-      placeId: '',
-      googleMapsUri: '',
+      name: "",
+      placeId: "",
+      googleMapsUri: "",
       latitude: geoLocation?.latitude || 0,
       longitude: geoLocation?.longitude || 0,
-      address: geoLocation?.city ? `${geoLocation.city}, ${geoLocation.country || ''}` : '',
+      address: geoLocation?.city
+        ? `${geoLocation.city}, ${geoLocation.country || ""}`
+        : "",
       isCustom: true,
     } as any);
     setShowCreateExperienceModal(true);
@@ -746,46 +883,56 @@ export default function OraclePage() {
 
   const handleCancelPayment = () => {
     setPaymentRequired(null);
-    setPendingMessage('');
-    setMessages(prev => [...prev, {
-      role: 'oracle',
-      content: '❌ Maps query cancelled.'
-    }]);
+    setPendingMessage("");
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "oracle",
+        content: "❌ Maps query cancelled.",
+      },
+    ]);
   };
 
   // Handle deposit to user safe
   const handleDeposit = async () => {
     if (!userSafeAddress || !depositAmount || !sendTransaction) {
-      setDepositError('Missing required information');
+      setDepositError("Missing required information");
       return;
     }
 
     const amount = parseFloat(depositAmount);
     if (isNaN(amount) || amount <= 0) {
-      setDepositError('Please enter a valid amount');
+      setDepositError("Please enter a valid amount");
       return;
     }
 
     setDepositLoading(true);
-    setDepositError('');
-    setDepositSuccess('');
+    setDepositError("");
+    setDepositSuccess("");
 
     try {
       // Convert amount to wei (hex)
       const amountInWei = BigInt(Math.floor(amount * 1e18));
-      console.log('[Oracle] Depositing', amount, 'MON to Safe:', userSafeAddress);
+      console.log(
+        "[Oracle] Depositing",
+        amount,
+        "MON to Safe:",
+        userSafeAddress,
+      );
 
       // Send transaction using Farcaster wallet
       const result = await sendTransaction({
         to: userSafeAddress,
-        value: '0x' + amountInWei.toString(16),
-        chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '143'),
+        value: "0x" + amountInWei.toString(16),
+        chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "143"),
       });
 
       const txHash = result?.transactionHash || result;
-      console.log('[Oracle] Deposit transaction sent:', txHash);
-      setDepositSuccess(`Deposited ${amount} MON! TX: ${typeof txHash === 'string' ? txHash.slice(0, 10) : ''}...`);
-      setDepositAmount('');
+      console.log("[Oracle] Deposit transaction sent:", txHash);
+      setDepositSuccess(
+        `Deposited ${amount} MON! TX: ${typeof txHash === "string" ? txHash.slice(0, 10) : ""}...`,
+      );
+      setDepositAmount("");
 
       // Refresh balance after a delay
       setTimeout(async () => {
@@ -793,14 +940,14 @@ export default function OraclePage() {
         const data = await response.json();
         if (data.success) {
           setUserSafeBalance({
-            wmonBalance: data.wmonBalance || '0',
-            monBalance: data.balance || '0',
+            wmonBalance: data.wmonBalance || "0",
+            monBalance: data.balance || "0",
           });
         }
       }, 3000);
     } catch (error: any) {
-      console.error('[Oracle] Deposit failed:', error);
-      setDepositError(error.message || 'Deposit failed');
+      console.error("[Oracle] Deposit failed:", error);
+      setDepositError(error.message || "Deposit failed");
     } finally {
       setDepositLoading(false);
     }
@@ -823,8 +970,6 @@ export default function OraclePage() {
       showDashboardModal ||
       (showRadioModal && !radioMinimized) ||
       showEventOracleModal ||
-      showRockClimbingModal ||
-      showDevStudioModal ||
       showDepositModal ||
       showSubscriptionModal ||
       showCreateNFTModal ||
@@ -832,28 +977,43 @@ export default function OraclePage() {
       (showMapsResults && !mapsMinimized) ||
       showCreateExperienceModal ||
       showUserProfileModal ||
-      (showAgentWorldModal && !agentWorldMinimized) ||
       selectedNFT !== null;
 
     if (hasActiveOverlay) {
       // Earth recedes: shrinks, moves up, fades, blurs
-      return 'scale-50 -translate-y-16 opacity-30 blur-[6px] grayscale-[60%]';
+      return "scale-50 -translate-y-16 opacity-30 blur-[6px] grayscale-[60%]";
     }
     // Earth is full size and clear (home state)
-    return 'scale-100 translate-y-0 opacity-100 blur-0 grayscale-0';
+    return "scale-100 translate-y-0 opacity-100 blur-0 grayscale-0";
   };
 
   return (
     <>
-      <div className={`relative w-screen overflow-hidden font-sans ${isDarkMode ? 'bg-black text-white' : 'bg-white text-gray-900'}`} style={{ height: '100dvh' }}>
+      <div
+        className={`relative w-screen overflow-hidden font-sans ${isDarkMode ? "bg-black text-white" : "bg-white text-gray-900"}`}
+        style={{ height: "100dvh" }}
+      >
         {/* Header Bar - Full width with items on each end */}
-        <header className={`fixed top-0 left-0 right-0 z-50 h-14 flex items-center px-4 ${isDarkMode ? 'bg-black/70' : 'bg-white/70'} backdrop-blur-sm`} style={{ width: '100%', maxWidth: '100%', display: 'flex' }}>
+        <header
+          className={`fixed top-0 left-0 right-0 z-50 h-14 flex items-center px-4 ${isDarkMode ? "bg-black/70" : "bg-white/70"} backdrop-blur-sm`}
+          style={{ width: "100%", maxWidth: "100%", display: "flex" }}
+        >
           {/* Logo Left */}
           <div className="flex items-center flex-shrink-0">
-            <Globe className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
+            <Globe
+              className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+            />
             <div className="ml-2">
-              <span className={`font-bold text-sm tracking-wide ${isDarkMode ? 'text-cyan-400' : 'text-gray-800'}`}>EMPOWERTOURS</span>
-              <div className={`text-[9px] ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Oracle Guide</div>
+              <span
+                className={`font-bold text-sm tracking-wide ${isDarkMode ? "text-cyan-400" : "text-gray-800"}`}
+              >
+                EMPOWERTOURS
+              </span>
+              <div
+                className={`text-[9px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}
+              >
+                Oracle Guide
+              </div>
             </div>
           </div>
 
@@ -864,27 +1024,47 @@ export default function OraclePage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Farcaster User Info */}
             {isFarcaster && user && walletAddress && (
-              <div className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? 'bg-gray-800/80' : 'bg-gray-100/80 border border-gray-200'}`}>
+              <div
+                className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? "bg-gray-800/80" : "bg-gray-100/80 border border-gray-200"}`}
+              >
                 {user.pfpUrl ? (
                   <img
                     src={user.pfpUrl}
-                    alt={user.username || 'User'}
+                    alt={user.username || "User"}
                     className="rounded-full object-cover border border-cyan-500/50"
-                    style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px', minHeight: '24px', maxHeight: '24px' }}
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      minWidth: "24px",
+                      maxWidth: "24px",
+                      minHeight: "24px",
+                      maxHeight: "24px",
+                    }}
                   />
                 ) : (
                   <div
                     className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold"
-                    style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px' }}
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      minWidth: "24px",
+                      maxWidth: "24px",
+                    }}
                   >
-                    {user.username?.charAt(0).toUpperCase() || '?'}
+                    {user.username?.charAt(0).toUpperCase() || "?"}
                   </div>
                 )}
                 <div className="text-right">
                   {user.username && (
-                    <div className={`text-[11px] font-medium ${isDarkMode ? 'text-cyan-400' : 'text-gray-800'}`}>@{user.username}</div>
+                    <div
+                      className={`text-[11px] font-medium ${isDarkMode ? "text-cyan-400" : "text-gray-800"}`}
+                    >
+                      @{user.username}
+                    </div>
                   )}
-                  <div className={`text-[9px] font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  <div
+                    className={`text-[9px] font-mono ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}
+                  >
                     {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
                   </div>
                 </div>
@@ -893,433 +1073,571 @@ export default function OraclePage() {
 
             {/* Standalone: wallet address display */}
             {!isFarcaster && isConnected && walletAddress && (
-              <div className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? 'bg-gray-800/80' : 'bg-gray-100/80 border border-gray-200'}`}>
+              <div
+                className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? "bg-gray-800/80" : "bg-gray-100/80 border border-gray-200"}`}
+              >
                 <div
                   className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold"
-                  style={{ width: '24px', height: '24px', minWidth: '24px', maxWidth: '24px' }}
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    minWidth: "24px",
+                    maxWidth: "24px",
+                  }}
                 >
                   {walletAddress.slice(2, 4).toUpperCase()}
                 </div>
-                <div className={`text-[10px] font-mono ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <div
+                  className={`text-[10px] font-mono ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                >
                   {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                 </div>
               </div>
             )}
 
             {/* Standalone: Connect Wallet button when not connected */}
-            {!isFarcaster && !isConnected && (
-              <ConnectWalletButton />
-            )}
+            {!isFarcaster && !isConnected && <ConnectWalletButton />}
 
             {/* Dark Mode Toggle */}
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`p-2 rounded-full transition-all ${isDarkMode ? 'bg-gray-800/80 hover:bg-gray-700 text-yellow-400' : 'bg-gray-100/80 hover:bg-gray-200 text-gray-700 border border-gray-200'}`}
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className={`p-2 rounded-full transition-all ${isDarkMode ? "bg-gray-800/80 hover:bg-gray-700 text-yellow-400" : "bg-gray-100/80 hover:bg-gray-200 text-gray-700 border border-gray-200"}`}
+              title={
+                isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"
+              }
             >
-              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {isDarkMode ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </button>
           </div>
         </header>
 
         <main className="relative z-10 w-full h-full flex flex-col items-center justify-start pt-16 pb-40 overflow-y-auto">
-        {/* Crystal Ball - Shrinks and moves up when content loads */}
-        <div className={`transition-all duration-700 ease-in-out ${getCrystalBallClasses()}`}>
-          <CrystalBall state={oracleState} onNFTClick={handleNFTClick} isDarkMode={isDarkMode} />
-        </div>
+          {/* Crystal Ball - Shrinks and moves up when content loads */}
+          <div
+            className={`transition-all duration-700 ease-in-out ${getCrystalBallClasses()}`}
+          >
+            <CrystalBall
+              state={oracleState}
+              onNFTClick={handleNFTClick}
+              isDarkMode={isDarkMode}
+            />
+          </div>
 
-        {/* Messages Container */}
-        {messages.length > 0 && (
-          <div className="w-full max-w-2xl px-6 mt-8 space-y-4">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+          {/* Messages Container */}
+          {messages.length > 0 && (
+            <div className="w-full max-w-2xl px-6 mt-8 space-y-4">
+              {messages.map((msg, idx) => (
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    msg.role === 'user'
-                      ? 'bg-cyan-500 text-white'
-                      : isDarkMode
-                        ? 'bg-gray-800 border border-gray-700 text-white'
-                        : 'bg-gray-100 border border-gray-300 text-gray-900'
+                  key={idx}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      msg.role === "user"
+                        ? "bg-cyan-500 text-white"
+                        : isDarkMode
+                          ? "bg-gray-800 border border-gray-700 text-white"
+                          : "bg-gray-100 border border-gray-300 text-gray-900"
+                    }`}
+                  >
+                    {msg.role === "oracle" && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className="w-4 h-4 text-cyan-500" />
+                        <span className="text-xs text-cyan-500 font-semibold">
+                          Oracle
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-sm whitespace-pre-wrap">
+                      {msg.content}
+                    </div>
+
+                    {/* Transaction Link - Show clickable "View TX" button */}
+                    {msg.explorerUrl && (
+                      <div className="mt-3">
+                        <button
+                          onClick={() => {
+                            // Open in external browser using Farcaster SDK or window.open
+                            if (
+                              typeof window !== "undefined" &&
+                              (window as any).farcaster?.openUrl
+                            ) {
+                              (window as any).farcaster.openUrl(
+                                msg.explorerUrl,
+                              );
+                            } else {
+                              window.open(
+                                msg.explorerUrl,
+                                "_blank",
+                                "noopener,noreferrer",
+                              );
+                            }
+                          }}
+                          className="w-full py-2 px-4 bg-emerald-500 hover:bg-emerald-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View Transaction
+                          {msg.txHash && (
+                            <span className="text-emerald-200 text-xs">
+                              ({msg.txHash.slice(0, 6)}...{msg.txHash.slice(-4)}
+                              )
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Google Maps Sources - Show "View Places" button */}
+                    {msg.mapsSources && msg.mapsSources.length > 0 && (
+                      <div className="mt-3">
+                        <button
+                          onClick={() => {
+                            closeAllModals();
+                            setMapsResultsData({
+                              sources: msg.mapsSources!,
+                              widgetToken: msg.mapsWidgetToken,
+                              query: msg.mapsQuery || "Places",
+                              paymentTxHash: msg.mapsPaymentTxHash,
+                              protocolExperiences: msg.protocolExperiences,
+                            });
+                            setMapsMinimized(false);
+                            setShowMapsResults(true);
+                          }}
+                          className="w-full py-2 px-4 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <MapPin className="w-4 h-4" />
+                          View {msg.mapsSources.length} Places
+                          {msg.protocolExperiences &&
+                            msg.protocolExperiences.length > 0 && (
+                              <span className="text-[10px] bg-green-500/30 px-1.5 py-0.5 rounded-full">
+                                +{msg.protocolExperiences.length} community
+                              </span>
+                            )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {isThinking && (
+                <div className="flex justify-start">
+                  <div
+                    className={`rounded-2xl px-4 py-3 ${isDarkMode ? "bg-gray-800 border border-gray-700" : "bg-gray-100 border border-gray-300"}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
+                      <span
+                        className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
+                      >
+                        Oracle is thinking...
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Input Field - Sleek floating design */}
+          <div className="w-full max-w-xl px-6 mt-8">
+            <div
+              className={`relative rounded-full p-1 ${isDarkMode ? "bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20" : "bg-gradient-to-r from-cyan-200/50 via-purple-200/50 to-cyan-200/50"}`}
+            >
+              <div
+                className={`flex items-center gap-2 rounded-full px-4 py-2 ${isDarkMode ? "bg-black/80" : "bg-white/90"}`}
+              >
+                <Sparkles
+                  className={`w-4 h-4 ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+                />
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && handleConsult()}
+                  placeholder="Ask the Oracle..."
+                  className={`flex-1 bg-transparent outline-none text-sm ${isDarkMode ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"}`}
+                  style={{ color: isDarkMode ? "#ffffff" : "#111827" }}
+                  disabled={isThinking}
+                />
+                <button
+                  onClick={() => handleConsult()}
+                  disabled={isThinking || !input.trim()}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                    isThinking || !input.trim()
+                      ? "bg-gray-600 cursor-not-allowed"
+                      : "bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400"
                   }`}
                 >
-                  {msg.role === 'oracle' && (
-                    <div className="flex items-center gap-2 mb-1">
-                      <Sparkles className="w-4 h-4 text-cyan-500" />
-                      <span className="text-xs text-cyan-500 font-semibold">Oracle</span>
-                    </div>
-                  )}
-                  <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-
-                  {/* Transaction Link - Show clickable "View TX" button */}
-                  {msg.explorerUrl && (
-                    <div className="mt-3">
-                      <button
-                        onClick={() => {
-                          // Open in external browser using Farcaster SDK or window.open
-                          if (typeof window !== 'undefined' && (window as any).farcaster?.openUrl) {
-                            (window as any).farcaster.openUrl(msg.explorerUrl);
-                          } else {
-                            window.open(msg.explorerUrl, '_blank', 'noopener,noreferrer');
-                          }
-                        }}
-                        className="w-full py-2 px-4 bg-emerald-500 hover:bg-emerald-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        View Transaction
-                        {msg.txHash && (
-                          <span className="text-emerald-200 text-xs">
-                            ({msg.txHash.slice(0, 6)}...{msg.txHash.slice(-4)})
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Google Maps Sources - Show "View Places" button */}
-                  {msg.mapsSources && msg.mapsSources.length > 0 && (
-                    <div className="mt-3">
-                      <button
-                        onClick={() => {
-                          closeAllModals();
-                          setMapsResultsData({
-                            sources: msg.mapsSources!,
-                            widgetToken: msg.mapsWidgetToken,
-                            query: msg.mapsQuery || 'Places',
-                            paymentTxHash: msg.mapsPaymentTxHash,
-                            protocolExperiences: msg.protocolExperiences,
-                          });
-                          setMapsMinimized(false);
-                          setShowMapsResults(true);
-                        }}
-                        className="w-full py-2 px-4 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
-                      >
-                        <MapPin className="w-4 h-4" />
-                        View {msg.mapsSources.length} Places
-                        {msg.protocolExperiences && msg.protocolExperiences.length > 0 && (
-                          <span className="text-[10px] bg-green-500/30 px-1.5 py-0.5 rounded-full">
-                            +{msg.protocolExperiences.length} community
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  <Send className="w-4 h-4 text-white" />
+                </button>
               </div>
-            ))}
-            {isThinking && (
-              <div className="flex justify-start">
-                <div className={`rounded-2xl px-4 py-3 ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-100 border border-gray-300'}`}>
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Oracle is thinking...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
 
-        {/* Input Field - Sleek floating design */}
-        <div className="w-full max-w-xl px-6 mt-8">
-          <div className={`relative rounded-full p-1 ${isDarkMode ? 'bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20' : 'bg-gradient-to-r from-cyan-200/50 via-purple-200/50 to-cyan-200/50'}`}>
-            <div className={`flex items-center gap-2 rounded-full px-4 py-2 ${isDarkMode ? 'bg-black/80' : 'bg-white/90'}`}>
-              <Sparkles className={`w-4 h-4 ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleConsult()}
-                placeholder="Ask the Oracle..."
-                className={`flex-1 bg-transparent outline-none text-sm ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
-                style={{ color: isDarkMode ? '#ffffff' : '#111827' }}
-                disabled={isThinking}
-              />
+            {/* Quick Actions - Minimal floating pills */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
               <button
-                onClick={() => handleConsult()}
-                disabled={isThinking || !input.trim()}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                  isThinking || !input.trim()
-                    ? 'bg-gray-600 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400'
-                }`}
+                onClick={() => openModal(() => setShowProfileModal(true))}
+                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-purple-400 hover:bg-purple-500/10" : "text-gray-500 hover:text-purple-600 hover:bg-purple-50"}`}
               >
-                <Send className="w-4 h-4 text-white" />
+                <User className="w-3.5 h-3.5" />
+                Profile
+              </button>
+              <button
+                onClick={() => openModal(() => setShowDashboardModal(true))}
+                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10" : "text-gray-500 hover:text-cyan-600 hover:bg-cyan-50"}`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Dashboard
+              </button>
+              <button
+                onClick={() => {
+                  // Opening Radio: minimize Maps if open, close non-minimizable modals, expand Radio
+                  closeNonMinimizableModals();
+                  if (showMapsResults) setMapsMinimized(true);
+                  setShowRadioModal(true);
+                  setRadioMinimized(false);
+                }}
+                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-pink-400 hover:bg-pink-500/10" : "text-gray-500 hover:text-pink-600 hover:bg-pink-50"}`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                Radio
+              </button>
+              <button
+                onClick={() => openModal(() => setShowCreateNFTModal(true))}
+                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10" : "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"}`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Create NFT
               </button>
             </div>
           </div>
 
-          {/* Quick Actions - Minimal floating pills */}
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
-            <button
-              onClick={() => openModal(() => setShowProfileModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
-            >
-              <User className="w-3.5 h-3.5" />
-              Profile
-            </button>
-            <button
-              onClick={() => openModal(() => setShowDashboardModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => {
-                // Opening Radio: minimize Maps if open, close non-minimizable modals, expand Radio
-                closeNonMinimizableModals();
-                if (showMapsResults) setMapsMinimized(true);
-                setShowRadioModal(true);
-                setRadioMinimized(false);
-              }}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-pink-400 hover:bg-pink-500/10' : 'text-gray-500 hover:text-pink-600 hover:bg-pink-50'}`}
-            >
-              <Radio className="w-3.5 h-3.5" />
-              Radio
-            </button>
-            <button
-              onClick={() => openModal(() => setShowCreateNFTModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-500 hover:text-emerald-600 hover:bg-emerald-50'}`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Create NFT
-            </button>
-            <button
-              onClick={() => openModal(() => setShowRockClimbingModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-orange-400 hover:bg-orange-500/10' : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50'}`}
-            >
-              <Mountain className="w-3.5 h-3.5" />
-              Rock Climbing
-            </button>
-            <button
-              onClick={() => openModal(() => setShowDevStudioModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
-            >
-              <Code className="w-3.5 h-3.5" />
-              Dev Studio
-            </button>
-            <button
-              onClick={() => openModal(() => setShowDaoModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-gray-500 hover:text-violet-600 hover:bg-violet-50'}`}
-            >
-              <Vote className="w-3.5 h-3.5" />
-              DAO
-            </button>
-            <button
-              onClick={() => {
-                closeNonMinimizableModals();
-                if (showMapsResults) setMapsMinimized(true);
-                if (showRadioModal) setRadioMinimized(true);
-                setShowAgentWorldModal(true);
-                setAgentWorldMinimized(false);
-              }}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Agent World
-            </button>
-            <button
-              onClick={() => openModal(() => setShowVaultModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              AI Vaults
-            </button>
-            <button
-              onClick={() => openModal(() => setShowRemixDAWModal(true))}
-              className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? 'text-gray-400 hover:text-cyan-400 hover:bg-purple-500/10' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
-            >
-              <Wand2 className="w-3.5 h-3.5" />
-              EmpowerStudio
-            </button>
-          </div>
-
-        </div>
-
-        {/* NFT List - Easy access to all NFTs */}
-        {!loadingNFTs && nftList.length > 0 && (
-          <div className="w-full max-w-4xl px-6 mt-8 mb-16">
-            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
-              <Sparkles className="w-5 h-5" />
-              Available NFTs
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {nftList.map((nft) => {
-                const isPlaying = playingTokenId === nft.tokenId;
-                return (
-                  <div
-                    key={nft.id}
-                    className={`rounded-xl overflow-hidden transition-all cursor-pointer group ${
-                      isDarkMode
-                        ? `bg-gray-800 border ${isPlaying ? 'border-cyan-500 shadow-lg shadow-cyan-500/50' : 'border-gray-700 hover:border-gray-600'}`
-                        : `bg-white border ${isPlaying ? 'border-cyan-500 shadow-lg shadow-cyan-500/30' : 'border-gray-300 hover:border-gray-400'}`
-                    }`}
-                    onClick={() => handleNFTClick(nft)}
-                  >
-                    <div className="aspect-square bg-gradient-to-br from-cyan-500/20 to-purple-600/20 overflow-hidden relative">
-                      {nft.imageUrl ? (
-                        <img
-                          src={nft.imageUrl}
-                          alt={nft.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-4xl">
-                          {nft.type === 'MUSIC' ? '🎵' : nft.type === 'ART' ? '🎨' : '✈️'}
-                        </div>
-                      )}
-                      {/* Animated Sound Wave Overlay for Playing Music */}
-                      {isPlaying && nft.type === 'MUSIC' && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <div className="flex gap-1 items-end h-10">
-                            <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '30%', animationDelay: '0s' }}></div>
-                            <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '80%', animationDelay: '0.1s' }}></div>
-                            <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '50%', animationDelay: '0.2s' }}></div>
-                            <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '70%', animationDelay: '0.3s' }}></div>
-                            <div className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '40%', animationDelay: '0.4s' }}></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-2">
-                      <p className="text-xs font-semibold truncate text-white">{nft.name}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-[10px] text-gray-400">{nft.type}</span>
-                        {isPlaying && (
-                          <span className="text-[10px] text-cyan-400 animate-pulse">Playing</span>
-                        )}
-                      </div>
-                      {/* Price and Buy Button */}
-                      <div className="flex items-center justify-between mt-2 gap-1">
-                        {nft.price !== '0' && nft.price !== '0.00' ? (
-                          <>
-                            <span className="text-[10px] text-green-400 font-bold">{nft.price} WMON</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleConsult(`Buy ${nft.type} NFT #${nft.tokenId}`);
-                              }}
-                              className="px-2 py-1 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-[10px] rounded-lg font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
-                            >
-                              Buy
-                            </button>
-                          </>
+          {/* NFT List - Easy access to all NFTs */}
+          {!loadingNFTs && nftList.length > 0 && (
+            <div className="w-full max-w-4xl px-6 mt-8 mb-16">
+              <h3
+                className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+              >
+                <Sparkles className="w-5 h-5" />
+                Available NFTs
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {nftList.map((nft) => {
+                  const isPlaying = playingTokenId === nft.tokenId;
+                  return (
+                    <div
+                      key={nft.id}
+                      className={`rounded-xl overflow-hidden transition-all cursor-pointer group ${
+                        isDarkMode
+                          ? `bg-gray-800 border ${isPlaying ? "border-cyan-500 shadow-lg shadow-cyan-500/50" : "border-gray-700 hover:border-gray-600"}`
+                          : `bg-white border ${isPlaying ? "border-cyan-500 shadow-lg shadow-cyan-500/30" : "border-gray-300 hover:border-gray-400"}`
+                      }`}
+                      onClick={() => handleNFTClick(nft)}
+                    >
+                      <div className="aspect-square bg-gradient-to-br from-cyan-500/20 to-purple-600/20 overflow-hidden relative">
+                        {nft.imageUrl ? (
+                          <img
+                            src={nft.imageUrl}
+                            alt={nft.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                          />
                         ) : (
-                          <span className="text-[10px] text-gray-500">Free to play</span>
+                          <div className="w-full h-full flex items-center justify-center text-4xl">
+                            {nft.type === "MUSIC"
+                              ? "🎵"
+                              : nft.type === "ART"
+                                ? "🎨"
+                                : "✈️"}
+                          </div>
+                        )}
+                        {/* Animated Sound Wave Overlay for Playing Music */}
+                        {isPlaying && nft.type === "MUSIC" && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <div className="flex gap-1 items-end h-10">
+                              <div
+                                className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]"
+                                style={{ height: "30%", animationDelay: "0s" }}
+                              ></div>
+                              <div
+                                className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]"
+                                style={{
+                                  height: "80%",
+                                  animationDelay: "0.1s",
+                                }}
+                              ></div>
+                              <div
+                                className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]"
+                                style={{
+                                  height: "50%",
+                                  animationDelay: "0.2s",
+                                }}
+                              ></div>
+                              <div
+                                className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]"
+                                style={{
+                                  height: "70%",
+                                  animationDelay: "0.3s",
+                                }}
+                              ></div>
+                              <div
+                                className="w-1.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_ease-in-out_infinite]"
+                                style={{
+                                  height: "40%",
+                                  animationDelay: "0.4s",
+                                }}
+                              ></div>
+                            </div>
+                          </div>
                         )}
                       </div>
+                      <div className="p-2">
+                        <p className="text-xs font-semibold truncate text-white">
+                          {nft.name}
+                        </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-gray-400">
+                            {nft.type}
+                          </span>
+                          {isPlaying && (
+                            <span className="text-[10px] text-cyan-400 animate-pulse">
+                              Playing
+                            </span>
+                          )}
+                        </div>
+                        {/* Price and Buy Button */}
+                        <div className="flex items-center justify-between mt-2 gap-1">
+                          {nft.price !== "0" && nft.price !== "0.00" ? (
+                            <>
+                              <span className="text-[10px] text-green-400 font-bold">
+                                {nft.price} WMON
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConsult(
+                                    `Buy ${nft.type} NFT #${nft.tokenId}`,
+                                  );
+                                }}
+                                className="px-2 py-1 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-[10px] rounded-lg font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
+                              >
+                                Buy
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-gray-500">
+                              Free to play
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* NFT Modal - Different layouts for ART vs MUSIC */}
-      {selectedNFT && portalMounted && createPortal(
-        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: isDarkMode ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)' }} onClick={closeNFTModal}>
-          {selectedNFT.type === 'ART' ? (
-            /* Art NFT - Full screen art viewer with visible card */
-            <div className={`relative max-w-3xl w-full rounded-2xl overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
-              {/* Close button */}
-              <button onClick={closeNFTModal} className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-colors ${isDarkMode ? 'bg-black/50 hover:bg-black/70 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-                <X className="w-6 h-6" />
-              </button>
-
-              {/* Art image */}
-              <div className={`w-full flex items-center justify-center min-h-[200px] ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                {selectedNFT.imageUrl ? (
-                  <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-auto max-h-[70vh] object-contain" />
-                ) : (
-                  <div className={`text-6xl p-12 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>🎨</div>
-                )}
-              </div>
-
-              {/* Info section */}
-              <div className={`p-6 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-                <div className="flex items-end justify-between gap-4">
-                  <div className="flex-1">
-                    <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.name}</h2>
-                    <p className="text-cyan-500 text-sm">Art NFT #{selectedNFT.tokenId}</p>
-                    {selectedNFT.artistUsername && (
-                      <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>by @{selectedNFT.artistUsername}</p>
-                    )}
-                    {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
-                      <p className={`font-bold mt-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.price} WMON</p>
-                    )}
-                  </div>
-                  <button
-                    className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all shadow-lg whitespace-nowrap"
-                    onClick={() => {
-                      closeNFTModal();
-                      handleConsult(`Buy ART NFT #${selectedNFT.tokenId}`);
-                    }}
-                  >
-                    Buy Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Music/Other NFT - Standard purchase modal */
-            <div className={`rounded-3xl max-w-md w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-200 shadow-lg'}`} onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.name}</h2>
-                  <p className="text-cyan-500 text-sm">{selectedNFT.type} NFT</p>
-                </div>
-                <button onClick={closeNFTModal} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="w-full h-64 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-2xl overflow-hidden mb-4">
-                <img src={selectedNFT.imageUrl} alt={selectedNFT.name} className="w-full h-full object-cover" />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Type</span>
-                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.type}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Token ID</span>
-                  <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>#{selectedNFT.tokenId}</span>
-                </div>
-                {selectedNFT.price && selectedNFT.price !== '0' && selectedNFT.price !== '0.00' && (
-                  <div className="flex justify-between items-center">
-                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Price</span>
-                    <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedNFT.price} WMON</span>
-                  </div>
-                )}
-                <button
-                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
-                  onClick={() => {
-                    closeNFTModal();
-                    handleConsult(`Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`);
-                  }}
-                >
-                  Buy Now
-                </button>
+                  );
+                })}
               </div>
             </div>
           )}
-        </div>,
-        document.body
-      )}
+        </main>
 
+        {/* NFT Modal - Different layouts for ART vs MUSIC */}
+        {selectedNFT &&
+          portalMounted &&
+          createPortal(
+            <div
+              className="fixed inset-0 flex items-center justify-center p-4"
+              style={{
+                zIndex: 10000,
+                backgroundColor: isDarkMode
+                  ? "rgba(0,0,0,0.95)"
+                  : "rgba(255,255,255,0.95)",
+              }}
+              onClick={closeNFTModal}
+            >
+              {selectedNFT.type === "ART" ? (
+                /* Art NFT - Full screen art viewer with visible card */
+                <div
+                  className={`relative max-w-3xl w-full rounded-2xl overflow-hidden ${isDarkMode ? "bg-gray-900 border border-cyan-500/30" : "bg-white border border-gray-200"}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Close button */}
+                  <button
+                    onClick={closeNFTModal}
+                    className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-colors ${isDarkMode ? "bg-black/50 hover:bg-black/70 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700"}`}
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+
+                  {/* Art image */}
+                  <div
+                    className={`w-full flex items-center justify-center min-h-[200px] ${isDarkMode ? "bg-gray-800" : "bg-gray-100"}`}
+                  >
+                    {selectedNFT.imageUrl ? (
+                      <img
+                        src={selectedNFT.imageUrl}
+                        alt={selectedNFT.name}
+                        className="w-full h-auto max-h-[70vh] object-contain"
+                      />
+                    ) : (
+                      <div
+                        className={`text-6xl p-12 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}
+                      >
+                        🎨
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info section */}
+                  <div
+                    className={`p-6 ${isDarkMode ? "bg-gray-900" : "bg-white"}`}
+                  >
+                    <div className="flex items-end justify-between gap-4">
+                      <div className="flex-1">
+                        <h2
+                          className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                        >
+                          {selectedNFT.name}
+                        </h2>
+                        <p className="text-cyan-500 text-sm">
+                          Art NFT #{selectedNFT.tokenId}
+                        </p>
+                        {selectedNFT.artistUsername && (
+                          <p
+                            className={`text-sm mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                          >
+                            by @{selectedNFT.artistUsername}
+                          </p>
+                        )}
+                        {selectedNFT.price &&
+                          selectedNFT.price !== "0" &&
+                          selectedNFT.price !== "0.00" && (
+                            <p
+                              className={`font-bold mt-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                            >
+                              {selectedNFT.price} WMON
+                            </p>
+                          )}
+                      </div>
+                      <button
+                        className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all shadow-lg whitespace-nowrap"
+                        onClick={() => {
+                          closeNFTModal();
+                          handleConsult(`Buy ART NFT #${selectedNFT.tokenId}`);
+                        }}
+                      >
+                        Buy Now
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Music/Other NFT - Standard purchase modal */
+                <div
+                  className={`rounded-3xl max-w-md w-full p-6 ${isDarkMode ? "bg-gray-900 border border-cyan-500/30" : "bg-white border border-gray-200 shadow-lg"}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h2
+                        className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                      >
+                        {selectedNFT.name}
+                      </h2>
+                      <p className="text-cyan-500 text-sm">
+                        {selectedNFT.type} NFT
+                      </p>
+                    </div>
+                    <button
+                      onClick={closeNFTModal}
+                      className={`${isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+
+                  <div className="w-full h-64 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-2xl overflow-hidden mb-4">
+                    <img
+                      src={selectedNFT.imageUrl}
+                      alt={selectedNFT.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span
+                        className={
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }
+                      >
+                        Type
+                      </span>
+                      <span
+                        className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                      >
+                        {selectedNFT.type}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span
+                        className={
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }
+                      >
+                        Token ID
+                      </span>
+                      <span
+                        className={isDarkMode ? "text-white" : "text-gray-900"}
+                      >
+                        #{selectedNFT.tokenId}
+                      </span>
+                    </div>
+                    {selectedNFT.price &&
+                      selectedNFT.price !== "0" &&
+                      selectedNFT.price !== "0.00" && (
+                        <div className="flex justify-between items-center">
+                          <span
+                            className={
+                              isDarkMode ? "text-gray-400" : "text-gray-600"
+                            }
+                          >
+                            Price
+                          </span>
+                          <span
+                            className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                          >
+                            {selectedNFT.price} WMON
+                          </span>
+                        </div>
+                      )}
+                    <button
+                      className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
+                      onClick={() => {
+                        closeNFTModal();
+                        handleConsult(
+                          `Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`,
+                        );
+                      }}
+                    >
+                      Buy Now
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>,
+            document.body,
+          )}
       </div>
 
       {/* MirrorMate Game */}
-      {activeGame === 'MIRROR' && (
-        <MirrorMate onClose={() => setActiveGame(null)} isDarkMode={isDarkMode} />
+      {activeGame === "MIRROR" && (
+        <MirrorMate
+          onClose={() => setActiveGame(null)}
+          isDarkMode={isDarkMode}
+        />
       )}
-
 
       {/* Music Subscription Modal - Centered Overlay */}
       {showSubscriptionModal && (
@@ -1334,49 +1652,62 @@ export default function OraclePage() {
 
       {/* Create NFT Modal */}
       {showCreateNFTModal && (
-        <CreateNFTModal onClose={() => setShowCreateNFTModal(false)} isDarkMode={isDarkMode} />
+        <CreateNFTModal
+          onClose={() => setShowCreateNFTModal(false)}
+          isDarkMode={isDarkMode}
+        />
       )}
 
       {/* Passport Mint Modal */}
       {showPassportMintModal && (
-        <PassportMintModal onClose={() => setShowPassportMintModal(false)} isDarkMode={isDarkMode} />
+        <PassportMintModal
+          onClose={() => setShowPassportMintModal(false)}
+          isDarkMode={isDarkMode}
+        />
       )}
 
       {/* Maps Results Modal */}
-      {showMapsResults && mapsResultsData && portalMounted && createPortal(
-        <MapsResultsModal
-          sources={mapsResultsData.sources}
-          widgetToken={mapsResultsData.widgetToken}
-          query={mapsResultsData.query}
-          paymentTxHash={mapsResultsData.paymentTxHash}
-          mapsProvider={mapsResultsData.mapsProvider as any}
-          protocolExperiences={mapsResultsData.protocolExperiences}
-          minimized={mapsMinimized}
-          setMinimized={(v: boolean) => {
-            if (!v) {
-              // Expanding from minimized: minimize Radio, close non-minimizable modals
-              closeNonMinimizableModals();
-              if (showRadioModal) setRadioMinimized(true);
+      {showMapsResults &&
+        mapsResultsData &&
+        portalMounted &&
+        createPortal(
+          <MapsResultsModal
+            sources={mapsResultsData.sources}
+            widgetToken={mapsResultsData.widgetToken}
+            query={mapsResultsData.query}
+            paymentTxHash={mapsResultsData.paymentTxHash}
+            mapsProvider={mapsResultsData.mapsProvider as any}
+            protocolExperiences={mapsResultsData.protocolExperiences}
+            minimized={mapsMinimized}
+            setMinimized={(v: boolean) => {
+              if (!v) {
+                // Expanding from minimized: minimize Radio, close non-minimizable modals
+                closeNonMinimizableModals();
+                if (showRadioModal) setRadioMinimized(true);
+              }
+              setMapsMinimized(v);
+            }}
+            userLocation={
+              geoLocation
+                ? {
+                    latitude: geoLocation.latitude,
+                    longitude: geoLocation.longitude,
+                    city: geoLocation.city,
+                    country: geoLocation.country,
+                  }
+                : undefined
             }
-            setMapsMinimized(v);
-          }}
-          userLocation={geoLocation ? {
-            latitude: geoLocation.latitude,
-            longitude: geoLocation.longitude,
-            city: geoLocation.city,
-            country: geoLocation.country,
-          } : undefined}
-          onClose={() => {
-            setShowMapsResults(false);
-            setMapsMinimized(false);
-            setMapsResultsData(null);
-          }}
-          onCreateExperience={handleCreateExperienceFromMaps}
-          onCreateCustomExperience={handleCreateCustomExperience}
-          onPurchaseExperience={handlePurchaseExperience}
-        />,
-        document.body
-      )}
+            onClose={() => {
+              setShowMapsResults(false);
+              setMapsMinimized(false);
+              setMapsResultsData(null);
+            }}
+            onCreateExperience={handleCreateExperienceFromMaps}
+            onCreateCustomExperience={handleCreateCustomExperience}
+            onPurchaseExperience={handlePurchaseExperience}
+          />,
+          document.body,
+        )}
 
       {/* Create Experience Modal (from Maps flow) */}
       {showCreateExperienceModal && createExperiencePlaceData && (
@@ -1390,7 +1721,7 @@ export default function OraclePage() {
             setShowCreateExperienceModal(false);
             setCreateExperiencePlaceData(null);
             setItineraryNotification({
-              type: 'created',
+              type: "created",
               txHash,
             });
             setTimeout(() => setItineraryNotification(null), 5000);
@@ -1399,92 +1730,144 @@ export default function OraclePage() {
       )}
 
       {/* Payment Confirmation Dialog - Shows cost before charging via delegation */}
-      {paymentRequired && portalMounted && createPortal(
-        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10001, backgroundColor: isDarkMode ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)' }} onClick={handleCancelPayment}>
-          <div className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? 'bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
-            <div className="text-center mb-6">
-              <div className="text-6xl mb-4">🗺️</div>
-              <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Google Maps Search</h2>
-              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{paymentRequired.message}</p>
-            </div>
+      {paymentRequired &&
+        portalMounted &&
+        createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{
+              zIndex: 10001,
+              backgroundColor: isDarkMode
+                ? "rgba(0,0,0,0.95)"
+                : "rgba(255,255,255,0.95)",
+            }}
+            onClick={handleCancelPayment}
+          >
+            <div
+              className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? "bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20" : "bg-white border border-gray-200"}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🗺️</div>
+                <h2
+                  className={`text-2xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  Google Maps Search
+                </h2>
+                <p
+                  className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                >
+                  {paymentRequired.message}
+                </p>
+              </div>
 
-            <div className={`rounded-2xl p-4 mb-6 ${isDarkMode ? 'bg-gray-800 border border-cyan-500/30' : 'bg-gray-50 border border-gray-200'}`}>
-              <div className={`rounded-lg p-3 mb-3 ${isDarkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-400 text-lg">ℹ️</span>
-                  <div className="flex-1">
-                    <p className={`text-xs font-semibold mb-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>Real-time Location Data</p>
-                    <p className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                      This query uses Google Maps to find nearby places based on your location.
-                    </p>
+              <div
+                className={`rounded-2xl p-4 mb-6 ${isDarkMode ? "bg-gray-800 border border-cyan-500/30" : "bg-gray-50 border border-gray-200"}`}
+              >
+                <div
+                  className={`rounded-lg p-3 mb-3 ${isDarkMode ? "bg-blue-500/10 border border-blue-500/30" : "bg-blue-50 border border-blue-200"}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-400 text-lg">ℹ️</span>
+                    <div className="flex-1">
+                      <p
+                        className={`text-xs font-semibold mb-1 ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}
+                      >
+                        Real-time Location Data
+                      </p>
+                      <p
+                        className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
+                      >
+                        This query uses Google Maps to find nearby places based
+                        on your location.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-2">
+                  <span
+                    className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    Service Cost
+                  </span>
+                  <span
+                    className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    {paymentRequired.estimatedCost} WMON
+                  </span>
+                </div>
+                <div
+                  className={`border-t mt-2 pt-2 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-cyan-500 text-sm font-semibold">
+                      Total (from Safe)
+                    </span>
+                    <span className="text-cyan-500 font-bold text-lg">
+                      {paymentRequired.estimatedCost} WMON
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Service Cost</span>
-                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{paymentRequired.estimatedCost} WMON</span>
+              <div className="space-y-3">
+                <button
+                  onClick={handleConfirmPayment}
+                  disabled={isThinking}
+                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {isThinking ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      ✅ Confirm & Search ({paymentRequired.estimatedCost} WMON)
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelPayment}
+                  disabled={isThinking}
+                  className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-900"}`}
+                >
+                  Cancel
+                </button>
               </div>
-              <div className={`border-t mt-2 pt-2 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-cyan-500 text-sm font-semibold">Total (from Safe)</span>
-                  <span className="text-cyan-500 font-bold text-lg">{paymentRequired.estimatedCost} WMON</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="space-y-3">
-              <button
-                onClick={handleConfirmPayment}
-                disabled={isThinking}
-                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              <p
+                className={`text-xs text-center mt-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
               >
-                {isThinking ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    ✅ Confirm & Search ({paymentRequired.estimatedCost} WMON)
-                  </>
-                )}
-              </button>
-              <button
-                onClick={handleCancelPayment}
-                disabled={isThinking}
-                className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
-              >
-                Cancel
-              </button>
+                Payment will be deducted from your Safe wallet via delegation.
+              </p>
             </div>
-
-            <p className={`text-xs text-center mt-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-              Payment will be deducted from your Safe wallet via delegation.
-            </p>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
 
       {/* Profile Modal */}
       {showProfileModal && (
         <>
-          {console.log('[OraclePage] Rendering ProfileModal, walletAddress:', walletAddress)}
+          {console.log(
+            "[OraclePage] Rendering ProfileModal, walletAddress:",
+            walletAddress,
+          )}
           <ProfileModal
-            walletAddress={walletAddress || ''}
+            walletAddress={walletAddress || ""}
             userFid={fid}
             username={user?.username}
             pfpUrl={user?.pfpUrl}
             isDarkMode={isDarkMode}
             onClose={() => {
-              console.log('[OraclePage] ProfileModal onClose called');
+              console.log("[OraclePage] ProfileModal onClose called");
               setShowProfileModal(false);
             }}
             onViewUserProfile={(address) => {
               setShowProfileModal(false);
               setViewingUserAddress(address);
-              setUserProfileSource('profile');
+              setUserProfileSource("profile");
               setShowUserProfileModal(true);
             }}
             onMintPassport={() => {
@@ -1498,7 +1881,10 @@ export default function OraclePage() {
       {/* Live Radio Modal */}
       {showRadioModal && (
         <LiveRadioModal
-          onClose={() => { setShowRadioModal(false); setRadioMinimized(false); }}
+          onClose={() => {
+            setShowRadioModal(false);
+            setRadioMinimized(false);
+          }}
           isDarkMode={isDarkMode}
           minimized={radioMinimized}
           setMinimized={(v) => {
@@ -1523,34 +1909,6 @@ export default function OraclePage() {
         />
       )}
 
-      {/* Rock Climbing Modal */}
-      {showRockClimbingModal && (
-        <RockClimbingModal
-          onClose={() => setShowRockClimbingModal(false)}
-          isDarkMode={isDarkMode}
-          walletAddress={walletAddress || undefined}
-          userFid={fid}
-        />
-      )}
-
-      {/* Dev Studio Modal */}
-      {showDevStudioModal && (
-        <DevStudioModal
-          onClose={() => setShowDevStudioModal(false)}
-          isDarkMode={isDarkMode}
-          userAddress={walletAddress || undefined}
-        />
-      )}
-
-      {/* DAO Governance Modal */}
-      {showDaoModal && (
-        <DAOModal
-          userAddress={walletAddress || ''}
-          onClose={() => setShowDaoModal(false)}
-          isDarkMode={isDarkMode}
-        />
-      )}
-
       {/* EPK Modal */}
       {showEPKModal && (
         <EPKModal
@@ -1561,45 +1919,14 @@ export default function OraclePage() {
         />
       )}
 
-      {/* Agent World Modal */}
-      {showAgentWorldModal && (
-        <AgentWorldModal
-          onClose={() => {
-            setShowAgentWorldModal(false);
-            setAgentWorldMinimized(false);
-          }}
-          isDarkMode={isDarkMode}
-          minimized={agentWorldMinimized}
-          setMinimized={setAgentWorldMinimized}
-        />
-      )}
-
-      {/* AI Agent Vault Modal */}
-      <AgentVaultModal
-        isOpen={showVaultModal}
-        onClose={() => setShowVaultModal(false)}
-        isDarkMode={isDarkMode}
-      />
-
-      {/* EmpowerStudio Modal */}
-      {showRemixDAWModal && portalMounted && createPortal(
-        <RemixDAWModal
-          onClose={() => setShowRemixDAWModal(false)}
-          isDarkMode={isDarkMode}
-          walletAddress={walletAddress || undefined}
-          userFid={fid}
-        />,
-        document.body
-      )}
-
       {/* Deposit Modal */}
       {showDepositModal && (
         <div
-          className={`fixed inset-0 flex items-center justify-center p-4 z-[100] ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+          className={`fixed inset-0 flex items-center justify-center p-4 z-[100] ${isDarkMode ? "bg-black" : "bg-white"}`}
           onClick={() => setShowDepositModal(false)}
         >
           <div
-            className={`rounded-2xl max-w-sm w-full p-6 ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200 shadow-lg'}`}
+            className={`rounded-2xl max-w-sm w-full p-6 ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200 shadow-lg"}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -1608,11 +1935,16 @@ export default function OraclePage() {
                   <Wallet className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Deposit to Safe</h3>
+                  <h3 className="text-lg font-bold text-white">
+                    Deposit to Safe
+                  </h3>
                   <p className="text-xs text-gray-400">Fund your User Safe</p>
                 </div>
               </div>
-              <button onClick={() => setShowDepositModal(false)} className="text-gray-400 hover:text-white">
+              <button
+                onClick={() => setShowDepositModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1640,13 +1972,18 @@ export default function OraclePage() {
             <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
               <p className="text-xs text-gray-400 mb-1">Current Balance</p>
               <p className="text-lg font-bold text-white">
-                {userSafeBalance ? parseFloat(userSafeBalance.monBalance).toFixed(4) : '0'} MON
+                {userSafeBalance
+                  ? parseFloat(userSafeBalance.monBalance).toFixed(4)
+                  : "0"}{" "}
+                MON
               </p>
             </div>
 
             {/* Deposit Amount Input */}
             <div className="mb-4">
-              <label className="text-xs text-gray-400 mb-1 block">Deposit Amount (MON)</label>
+              <label className="text-xs text-gray-400 mb-1 block">
+                Deposit Amount (MON)
+              </label>
               <input
                 type="number"
                 value={depositAmount}
@@ -1714,7 +2051,7 @@ export default function OraclePage() {
           isDarkMode={isDarkMode}
           onViewProfile={(address) => {
             setViewingUserAddress(address);
-            setUserProfileSource('dashboard');
+            setUserProfileSource("dashboard");
             setShowUserProfileModal(true);
             setShowDashboardModal(false);
           }}
@@ -1736,9 +2073,9 @@ export default function OraclePage() {
           onBack={() => {
             setShowUserProfileModal(false);
             setViewingUserAddress(null);
-            if (userProfileSource === 'dashboard') {
+            if (userProfileSource === "dashboard") {
               setShowDashboardModal(true);
-            } else if (userProfileSource === 'profile') {
+            } else if (userProfileSource === "profile") {
               setShowProfileModal(true);
             }
             setUserProfileSource(null);
@@ -1749,27 +2086,37 @@ export default function OraclePage() {
       {/* Itinerary Smart Contract Notification */}
       {itineraryNotification && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fadeIn">
-          <div className={`px-4 py-3 rounded-xl border shadow-xl  flex items-center gap-3 ${
-            itineraryNotification.type === 'creating'
-              ? 'bg-blue-500/20 border-blue-500/50'
-              : itineraryNotification.type === 'created'
-              ? 'bg-green-500/20 border-green-500/50'
-              : 'bg-purple-500/20 border-purple-500/50'
-          }`}>
-            {itineraryNotification.type === 'creating' ? (
+          <div
+            className={`px-4 py-3 rounded-xl border shadow-xl  flex items-center gap-3 ${
+              itineraryNotification.type === "creating"
+                ? "bg-blue-500/20 border-blue-500/50"
+                : itineraryNotification.type === "created"
+                  ? "bg-green-500/20 border-green-500/50"
+                  : "bg-purple-500/20 border-purple-500/50"
+            }`}
+          >
+            {itineraryNotification.type === "creating" ? (
               <>
                 <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
                 <div>
-                  <p className="text-blue-400 text-sm font-semibold">Creating Itinerary</p>
-                  <p className="text-xs text-gray-400">Smart contract interaction in progress...</p>
+                  <p className="text-blue-400 text-sm font-semibold">
+                    Creating Itinerary
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Smart contract interaction in progress...
+                  </p>
                 </div>
               </>
-            ) : itineraryNotification.type === 'created' ? (
+            ) : itineraryNotification.type === "created" ? (
               <>
                 <CheckCircle2 className="w-5 h-5 text-green-400" />
                 <div>
-                  <p className="text-green-400 text-sm font-semibold">Itinerary Created!</p>
-                  <p className="text-xs text-gray-400">You'll earn 70% from sales</p>
+                  <p className="text-green-400 text-sm font-semibold">
+                    Itinerary Created!
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    You'll earn 70% from sales
+                  </p>
                 </div>
                 {itineraryNotification.txHash && (
                   <a
@@ -1786,9 +2133,12 @@ export default function OraclePage() {
               <>
                 <MapPin className="w-5 h-5 text-purple-400" />
                 <div>
-                  <p className="text-purple-400 text-sm font-semibold">Recommended Itinerary</p>
+                  <p className="text-purple-400 text-sm font-semibold">
+                    Recommended Itinerary
+                  </p>
                   <p className="text-xs text-gray-400">
-                    "{itineraryNotification.title}" - {itineraryNotification.price} WMON
+                    "{itineraryNotification.title}" -{" "}
+                    {itineraryNotification.price} WMON
                   </p>
                 </div>
               </>
@@ -1811,7 +2161,7 @@ export default function OraclePage() {
         isSubscriber={hasSubscription}
         onPlayingChange={(nftId, isPlaying) => {
           setPlayingNFTId(isPlaying ? nftId : null);
-          const nft = nftList.find(n => n.id === nftId);
+          const nft = nftList.find((n) => n.id === nftId);
           setPlayingTokenId(isPlaying && nft ? nft.tokenId : null);
         }}
         onClose={() => setClickedMusicNFTs([])}

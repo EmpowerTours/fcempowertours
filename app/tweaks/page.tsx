@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
+import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import Link from "next/link";
 
 // Animation styles
 const styles = `
@@ -23,117 +23,123 @@ const styles = `
 `;
 
 // Contract address (deploy and update)
-const EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
+const EMPOWERTWEAKS_ADDRESS =
+  process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || "";
 
 // Category icons
 const categoryIcons: Record<string, string> = {
-  tweaks: '⚙️',
-  themes: '🎨',
-  utilities: '🔧',
-  apps: '📱',
-  widgets: '📊',
-  lockscreen: '🔒',
-  statusbar: '📶',
-  keyboard: '⌨️',
+  tweaks: "⚙️",
+  themes: "🎨",
+  utilities: "🔧",
+  apps: "📱",
+  widgets: "📊",
+  lockscreen: "🔒",
+  statusbar: "📶",
+  keyboard: "⌨️",
 };
 
 // Mock data for development (replace with contract calls)
 const mockTweaks = [
   {
     id: 1,
-    name: 'Snowboard',
-    description: 'Modern theming engine for iOS. Apply themes, icons, and more.',
-    developer: '0x1234...5678',
-    developerName: 'SparkDev',
-    priceInTours: '50',
-    priceInMon: '0.5',
-    category: 'themes',
-    iconHash: '',
+    name: "Snowboard",
+    description:
+      "Modern theming engine for iOS. Apply themes, icons, and more.",
+    developer: "0x1234...5678",
+    developerName: "SparkDev",
+    priceInTours: "50",
+    priceInMon: "0.5",
+    category: "themes",
+    iconHash: "",
     totalSales: 1542,
     rating: 4.8,
     reviewCount: 234,
     isVerified: true,
-    compatibleVersions: ['18.0', '18.1', '18.2'],
+    compatibleVersions: ["18.0", "18.1", "18.2"],
   },
   {
     id: 2,
-    name: 'Filza File Manager',
-    description: 'Full-featured file manager with root access. Browse, edit, and manage all files.',
-    developer: '0xabcd...efgh',
-    developerName: 'TIGI Software',
-    priceInTours: '100',
-    priceInMon: '1.0',
-    category: 'utilities',
-    iconHash: '',
+    name: "Filza File Manager",
+    description:
+      "Full-featured file manager with root access. Browse, edit, and manage all files.",
+    developer: "0xabcd...efgh",
+    developerName: "TIGI Software",
+    priceInTours: "100",
+    priceInMon: "1.0",
+    category: "utilities",
+    iconHash: "",
     totalSales: 3211,
     rating: 4.9,
     reviewCount: 567,
     isVerified: true,
-    compatibleVersions: ['18.0', '18.1'],
+    compatibleVersions: ["18.0", "18.1"],
   },
   {
     id: 3,
-    name: 'LocationFaker',
-    description: 'Fake your GPS location in any app. Perfect for Pokemon GO, location-locked apps.',
-    developer: '0x9876...5432',
-    developerName: 'Nepeta',
-    priceInTours: '75',
-    priceInMon: '0.75',
-    category: 'tweaks',
-    iconHash: '',
+    name: "LocationFaker",
+    description:
+      "Fake your GPS location in any app. Perfect for Pokemon GO, location-locked apps.",
+    developer: "0x9876...5432",
+    developerName: "Nepeta",
+    priceInTours: "75",
+    priceInMon: "0.75",
+    category: "tweaks",
+    iconHash: "",
     totalSales: 892,
     rating: 4.5,
     reviewCount: 123,
     isVerified: true,
-    compatibleVersions: ['18.0', '18.1', '18.2'],
+    compatibleVersions: ["18.0", "18.1", "18.2"],
   },
   {
     id: 4,
-    name: 'Prysm',
-    description: 'Complete control center replacement with customizable toggles and modules.',
-    developer: '0x1111...2222',
-    developerName: 'LaughingQuoll',
-    priceInTours: '150',
-    priceInMon: '1.5',
-    category: 'tweaks',
-    iconHash: '',
+    name: "Prysm",
+    description:
+      "Complete control center replacement with customizable toggles and modules.",
+    developer: "0x1111...2222",
+    developerName: "LaughingQuoll",
+    priceInTours: "150",
+    priceInMon: "1.5",
+    category: "tweaks",
+    iconHash: "",
     totalSales: 2156,
     rating: 4.7,
     reviewCount: 345,
     isVerified: true,
-    compatibleVersions: ['18.0', '18.1'],
+    compatibleVersions: ["18.0", "18.1"],
   },
   {
     id: 5,
-    name: 'Velvet',
-    description: 'Beautiful notification banners with blur effects and animations.',
-    developer: '0x3333...4444',
-    developerName: 'Chariz',
-    priceInTours: '25',
-    priceInMon: '0.25',
-    category: 'tweaks',
-    iconHash: '',
+    name: "Velvet",
+    description:
+      "Beautiful notification banners with blur effects and animations.",
+    developer: "0x3333...4444",
+    developerName: "Chariz",
+    priceInTours: "25",
+    priceInMon: "0.25",
+    category: "tweaks",
+    iconHash: "",
     totalSales: 445,
     rating: 4.3,
     reviewCount: 67,
     isVerified: false,
-    compatibleVersions: ['18.1', '18.2'],
+    compatibleVersions: ["18.1", "18.2"],
   },
   {
     id: 6,
-    name: 'PokeGo++ ',
-    description: 'Enhanced Pokemon GO with joystick, teleport, and IV checker.',
-    developer: '0x5555...6666',
-    developerName: 'Global++',
-    priceInTours: '200',
-    priceInMon: '2.0',
-    category: 'apps',
-    iconHash: '',
+    name: "PokeGo++ ",
+    description: "Enhanced Pokemon GO with joystick, teleport, and IV checker.",
+    developer: "0x5555...6666",
+    developerName: "Global++",
+    priceInTours: "200",
+    priceInMon: "2.0",
+    category: "apps",
+    iconHash: "",
     totalSales: 5678,
     rating: 4.6,
     reviewCount: 890,
     isVerified: true,
-    compatibleVersions: ['18.0', '18.1'],
+    compatibleVersions: ["18.0", "18.1"],
   },
 ];
 
@@ -155,13 +161,20 @@ interface Tweak {
 }
 
 export default function TweaksPage() {
-  const { user, walletAddress, isLoading: contextLoading, requestWallet } = useFarcasterContext();
+  const {
+    user,
+    walletAddress,
+    isLoading: contextLoading,
+    requestWallet,
+  } = useFarcasterContext();
 
   const [tweaks, setTweaks] = useState<Tweak[]>(mockTweaks);
   const [filteredTweaks, setFilteredTweaks] = useState<Tweak[]>(mockTweaks);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'popular' | 'newest' | 'price'>('popular');
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"popular" | "newest" | "price">(
+    "popular",
+  );
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [purchasing, setPurchasing] = useState<number | null>(null);
 
@@ -170,31 +183,37 @@ export default function TweaksPage() {
     let filtered = [...tweaks];
 
     // Category filter
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(t => t.category === selectedCategory);
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter((t) => t.category === selectedCategory);
     }
 
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(t =>
-        t.name.toLowerCase().includes(query) ||
-        t.description.toLowerCase().includes(query) ||
-        t.developerName.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (t) =>
+          t.name.toLowerCase().includes(query) ||
+          t.description.toLowerCase().includes(query) ||
+          t.developerName.toLowerCase().includes(query),
       );
     }
 
     // Sort
-    if (sortBy === 'popular') {
+    if (sortBy === "popular") {
       filtered.sort((a, b) => b.totalSales - a.totalSales);
-    } else if (sortBy === 'price') {
-      filtered.sort((a, b) => parseFloat(a.priceInTours) - parseFloat(b.priceInTours));
+    } else if (sortBy === "price") {
+      filtered.sort(
+        (a, b) => parseFloat(a.priceInTours) - parseFloat(b.priceInTours),
+      );
     }
 
     setFilteredTweaks(filtered);
   }, [tweaks, selectedCategory, searchQuery, sortBy]);
 
-  const handlePurchase = async (tweakId: number, paymentType: 'tours' | 'mon') => {
+  const handlePurchase = async (
+    tweakId: number,
+    paymentType: "tours" | "mon",
+  ) => {
     if (!walletAddress) {
       await requestWallet();
       return;
@@ -205,18 +224,30 @@ export default function TweaksPage() {
     try {
       // TODO: Implement actual contract call
       // For now, simulate purchase
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      alert(`Successfully purchased tweak #${tweakId} with ${paymentType.toUpperCase()}!`);
+      alert(
+        `Successfully purchased tweak #${tweakId} with ${paymentType.toUpperCase()}!`,
+      );
     } catch (error) {
-      console.error('Purchase failed:', error);
-      alert('Purchase failed. Please try again.');
+      console.error("Purchase failed:", error);
+      alert("Purchase failed. Please try again.");
     } finally {
       setPurchasing(null);
     }
   };
 
-  const categories = ['all', 'tweaks', 'themes', 'utilities', 'apps', 'widgets', 'lockscreen', 'statusbar', 'keyboard'];
+  const categories = [
+    "all",
+    "tweaks",
+    "themes",
+    "utilities",
+    "apps",
+    "widgets",
+    "lockscreen",
+    "statusbar",
+    "keyboard",
+  ];
 
   return (
     <>
@@ -231,7 +262,9 @@ export default function TweaksPage() {
                   <span className="text-4xl">📦</span>
                   EmpowerTweaks
                 </h1>
-                <p className="text-purple-300 mt-1">Decentralized Jailbreak Marketplace on Monad</p>
+                <p className="text-purple-300 mt-1">
+                  Decentralized Jailbreak Marketplace on Monad
+                </p>
               </div>
 
               <div className="flex items-center gap-4">
@@ -269,7 +302,9 @@ export default function TweaksPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full px-6 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
-                <span className="absolute right-4 top-3.5 text-gray-400">🔍</span>
+                <span className="absolute right-4 top-3.5 text-gray-400">
+                  🔍
+                </span>
               </div>
 
               <select
@@ -298,11 +333,13 @@ export default function TweaksPage() {
                       onClick={() => setSelectedCategory(cat)}
                       className={`w-full text-left px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
                         selectedCategory === cat
-                          ? 'bg-purple-600 text-white'
-                          : 'text-gray-300 hover:bg-white/10'
+                          ? "bg-purple-600 text-white"
+                          : "text-gray-300 hover:bg-white/10"
                       }`}
                     >
-                      <span>{cat === 'all' ? '📋' : categoryIcons[cat] || '📦'}</span>
+                      <span>
+                        {cat === "all" ? "📋" : categoryIcons[cat] || "📦"}
+                      </span>
                       <span className="capitalize">{cat}</span>
                     </button>
                   ))}
@@ -314,18 +351,22 @@ export default function TweaksPage() {
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Total Tweaks</span>
-                      <span className="text-white font-bold">{tweaks.length}</span>
+                      <span className="text-white font-bold">
+                        {tweaks.length}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Total Sales</span>
                       <span className="text-white font-bold">
-                        {tweaks.reduce((sum, t) => sum + t.totalSales, 0).toLocaleString()}
+                        {tweaks
+                          .reduce((sum, t) => sum + t.totalSales, 0)
+                          .toLocaleString()}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Developers</span>
                       <span className="text-white font-bold">
-                        {new Set(tweaks.map(t => t.developer)).size}
+                        {new Set(tweaks.map((t) => t.developer)).size}
                       </span>
                     </div>
                   </div>
@@ -334,7 +375,8 @@ export default function TweaksPage() {
                 {/* iOS Compatibility Notice */}
                 <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
                   <p className="text-yellow-300 text-xs">
-                    <strong>⚠️ Requires Jailbreak</strong><br />
+                    <strong>⚠️ Requires Jailbreak</strong>
+                    <br />
                     Tweaks require a jailbroken iOS device to install and use.
                   </p>
                 </div>
@@ -346,9 +388,19 @@ export default function TweaksPage() {
               {/* Results Header */}
               <div className="flex items-center justify-between mb-6">
                 <p className="text-gray-400">
-                  Showing <span className="text-white font-bold">{filteredTweaks.length}</span> tweaks
-                  {selectedCategory !== 'all' && (
-                    <span> in <span className="text-purple-400 capitalize">{selectedCategory}</span></span>
+                  Showing{" "}
+                  <span className="text-white font-bold">
+                    {filteredTweaks.length}
+                  </span>{" "}
+                  tweaks
+                  {selectedCategory !== "all" && (
+                    <span>
+                      {" "}
+                      in{" "}
+                      <span className="text-purple-400 capitalize">
+                        {selectedCategory}
+                      </span>
+                    </span>
                   )}
                 </p>
               </div>
@@ -366,24 +418,35 @@ export default function TweaksPage() {
                       <div className="flex items-start gap-3">
                         {/* Icon Placeholder */}
                         <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-2xl shrink-0">
-                          {categoryIcons[tweak.category] || '📦'}
+                          {categoryIcons[tweak.category] || "📦"}
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-white font-bold truncate">{tweak.name}</h3>
+                            <h3 className="text-white font-bold truncate">
+                              {tweak.name}
+                            </h3>
                             {tweak.isVerified && (
-                              <span className="text-blue-400 text-sm" title="Verified">✓</span>
+                              <span
+                                className="text-blue-400 text-sm"
+                                title="Verified"
+                              >
+                                ✓
+                              </span>
                             )}
                           </div>
-                          <p className="text-gray-400 text-sm">{tweak.developerName}</p>
+                          <p className="text-gray-400 text-sm">
+                            {tweak.developerName}
+                          </p>
                         </div>
                       </div>
                     </div>
 
                     {/* Description */}
                     <div className="p-4">
-                      <p className="text-gray-300 text-sm line-clamp-2">{tweak.description}</p>
+                      <p className="text-gray-300 text-sm line-clamp-2">
+                        {tweak.description}
+                      </p>
 
                       {/* iOS Versions */}
                       <div className="mt-3 flex flex-wrap gap-1">
@@ -402,7 +465,9 @@ export default function TweaksPage() {
                         <div className="flex items-center gap-1">
                           <span className="text-yellow-400">★</span>
                           <span className="text-white">{tweak.rating}</span>
-                          <span className="text-gray-500">({tweak.reviewCount})</span>
+                          <span className="text-gray-500">
+                            ({tweak.reviewCount})
+                          </span>
                         </div>
                         <div className="text-gray-400">
                           {tweak.totalSales.toLocaleString()} sales
@@ -414,21 +479,27 @@ export default function TweaksPage() {
                     <div className="p-4 bg-white/5 border-t border-white/10">
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <p className="text-purple-400 font-bold">{tweak.priceInTours} TOURS</p>
-                          <p className="text-gray-500 text-xs">or {tweak.priceInMon} MON</p>
+                          <p className="text-purple-400 font-bold">
+                            {tweak.priceInTours} TOURS
+                          </p>
+                          <p className="text-gray-500 text-xs">
+                            or {tweak.priceInMon} MON
+                          </p>
                         </div>
                       </div>
 
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handlePurchase(tweak.id, 'tours')}
+                          onClick={() => handlePurchase(tweak.id, "tours")}
                           disabled={purchasing === tweak.id}
                           className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-all"
                         >
-                          {purchasing === tweak.id ? '⏳ Processing...' : 'Buy with TOURS'}
+                          {purchasing === tweak.id
+                            ? "⏳ Processing..."
+                            : "Buy with TOURS"}
                         </button>
                         <button
-                          onClick={() => handlePurchase(tweak.id, 'mon')}
+                          onClick={() => handlePurchase(tweak.id, "mon")}
                           disabled={purchasing === tweak.id}
                           className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-all"
                         >
@@ -444,8 +515,12 @@ export default function TweaksPage() {
               {filteredTweaks.length === 0 && (
                 <div className="text-center py-16">
                   <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-xl font-bold text-white mb-2">No tweaks found</h3>
-                  <p className="text-gray-400">Try a different search or category</p>
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    No tweaks found
+                  </h3>
+                  <p className="text-gray-400">
+                    Try a different search or category
+                  </p>
                 </div>
               )}
             </div>
@@ -467,13 +542,16 @@ export default function TweaksPage() {
               Powered by Monad • IPFS Storage • NFT Ownership
             </p>
             <div className="mt-4 flex justify-center gap-6 text-sm">
-              <Link href="/world" className="text-purple-400 hover:text-purple-300">
-                Agent World
-              </Link>
-              <Link href="/market" className="text-purple-400 hover:text-purple-300">
+              <Link
+                href="/market"
+                className="text-purple-400 hover:text-purple-300"
+              >
                 Music NFTs
               </Link>
-              <Link href="/nft" className="text-purple-400 hover:text-purple-300">
+              <Link
+                href="/nft"
+                className="text-purple-400 hover:text-purple-300"
+              >
                 Create NFT
               </Link>
             </div>
@@ -491,12 +569,12 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    category: 'tweaks',
-    priceInTours: '50',
-    priceInMon: '0.5',
-    compatibleVersions: ['18.1'],
+    name: "",
+    description: "",
+    category: "tweaks",
+    priceInTours: "50",
+    priceInMon: "0.5",
+    compatibleVersions: ["18.1"],
     debFile: null as File | null,
     iconFile: null as File | null,
   });
@@ -508,7 +586,7 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
     }
 
     if (!formData.debFile || !formData.name) {
-      alert('Please fill in all required fields');
+      alert("Please fill in all required fields");
       return;
     }
 
@@ -516,13 +594,13 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
 
     try {
       // TODO: Implement actual upload to IPFS + contract call
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      alert('Tweak uploaded successfully!');
+      alert("Tweak uploaded successfully!");
       onClose();
     } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Upload failed. Please try again.');
+      console.error("Upload failed:", error);
+      alert("Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -546,11 +624,15 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
         <div className="p-6 space-y-6">
           {/* Tweak Name */}
           <div>
-            <label className="block text-white font-medium mb-2">Tweak Name *</label>
+            <label className="block text-white font-medium mb-2">
+              Tweak Name *
+            </label>
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               placeholder="e.g., MyAwesomeTweak"
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
@@ -558,10 +640,14 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
 
           {/* Description */}
           <div>
-            <label className="block text-white font-medium mb-2">Description *</label>
+            <label className="block text-white font-medium mb-2">
+              Description *
+            </label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               placeholder="Describe what your tweak does..."
               rows={3}
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -570,10 +656,14 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
 
           {/* Category */}
           <div>
-            <label className="block text-white font-medium mb-2">Category</label>
+            <label className="block text-white font-medium mb-2">
+              Category
+            </label>
             <select
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, category: e.target.value })
+              }
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <option value="tweaks">⚙️ Tweaks</option>
@@ -590,22 +680,30 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
           {/* Pricing */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-white font-medium mb-2">Price in TOURS</label>
+              <label className="block text-white font-medium mb-2">
+                Price in TOURS
+              </label>
               <input
                 type="number"
                 value={formData.priceInTours}
-                onChange={(e) => setFormData({ ...formData, priceInTours: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, priceInTours: e.target.value })
+                }
                 placeholder="50"
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
             <div>
-              <label className="block text-white font-medium mb-2">Price in MON</label>
+              <label className="block text-white font-medium mb-2">
+                Price in MON
+              </label>
               <input
                 type="number"
                 step="0.01"
                 value={formData.priceInMon}
-                onChange={(e) => setFormData({ ...formData, priceInMon: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, priceInMon: e.target.value })
+                }
                 placeholder="0.5"
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
@@ -614,12 +712,19 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
 
           {/* File Upload - .deb */}
           <div>
-            <label className="block text-white font-medium mb-2">.deb Package File *</label>
+            <label className="block text-white font-medium mb-2">
+              .deb Package File *
+            </label>
             <div className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center hover:border-purple-500/50 transition-all cursor-pointer">
               <input
                 type="file"
                 accept=".deb"
-                onChange={(e) => setFormData({ ...formData, debFile: e.target.files?.[0] || null })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    debFile: e.target.files?.[0] || null,
+                  })
+                }
                 className="hidden"
                 id="deb-upload"
               />
@@ -627,8 +732,12 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
                 {formData.debFile ? (
                   <div>
                     <div className="text-4xl mb-2">📦</div>
-                    <p className="text-green-400 font-medium">{formData.debFile.name}</p>
-                    <p className="text-gray-400 text-sm">{(formData.debFile.size / 1024).toFixed(0)} KB</p>
+                    <p className="text-green-400 font-medium">
+                      {formData.debFile.name}
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      {(formData.debFile.size / 1024).toFixed(0)} KB
+                    </p>
                   </div>
                 ) : (
                   <div>
@@ -643,12 +752,19 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
 
           {/* File Upload - Icon */}
           <div>
-            <label className="block text-white font-medium mb-2">Icon Image (Optional)</label>
+            <label className="block text-white font-medium mb-2">
+              Icon Image (Optional)
+            </label>
             <div className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center hover:border-purple-500/50 transition-all cursor-pointer">
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setFormData({ ...formData, iconFile: e.target.files?.[0] || null })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    iconFile: e.target.files?.[0] || null,
+                  })
+                }
                 className="hidden"
                 id="icon-upload"
               />
@@ -660,13 +776,17 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
                       alt="Icon preview"
                       className="w-20 h-20 rounded-xl mx-auto mb-2 object-cover"
                     />
-                    <p className="text-green-400 font-medium">{formData.iconFile.name}</p>
+                    <p className="text-green-400 font-medium">
+                      {formData.iconFile.name}
+                    </p>
                   </div>
                 ) : (
                   <div>
                     <div className="text-4xl mb-2">🖼️</div>
                     <p className="text-gray-300">Click to upload icon</p>
-                    <p className="text-gray-500 text-sm">PNG, JPG - Recommended 512x512</p>
+                    <p className="text-gray-500 text-sm">
+                      PNG, JPG - Recommended 512x512
+                    </p>
                   </div>
                 )}
               </label>
@@ -675,26 +795,37 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
 
           {/* iOS Compatibility */}
           <div>
-            <label className="block text-white font-medium mb-2">Compatible iOS Versions</label>
+            <label className="block text-white font-medium mb-2">
+              Compatible iOS Versions
+            </label>
             <div className="flex flex-wrap gap-2">
-              {['17.0', '17.1', '17.2', '18.0', '18.1', '18.2'].map((version) => (
-                <button
-                  key={version}
-                  onClick={() => {
-                    const versions = formData.compatibleVersions.includes(version)
-                      ? formData.compatibleVersions.filter(v => v !== version)
-                      : [...formData.compatibleVersions, version];
-                    setFormData({ ...formData, compatibleVersions: versions });
-                  }}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    formData.compatibleVersions.includes(version)
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                  }`}
-                >
-                  iOS {version}
-                </button>
-              ))}
+              {["17.0", "17.1", "17.2", "18.0", "18.1", "18.2"].map(
+                (version) => (
+                  <button
+                    key={version}
+                    onClick={() => {
+                      const versions = formData.compatibleVersions.includes(
+                        version,
+                      )
+                        ? formData.compatibleVersions.filter(
+                            (v) => v !== version,
+                          )
+                        : [...formData.compatibleVersions, version];
+                      setFormData({
+                        ...formData,
+                        compatibleVersions: versions,
+                      });
+                    }}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                      formData.compatibleVersions.includes(version)
+                        ? "bg-purple-600 text-white"
+                        : "bg-white/10 text-gray-300 hover:bg-white/20"
+                    }`}
+                  >
+                    iOS {version}
+                  </button>
+                ),
+              )}
             </div>
           </div>
         </div>
@@ -712,7 +843,7 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
             disabled={uploading || !formData.debFile || !formData.name}
             className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all"
           >
-            {uploading ? '⏳ Uploading to IPFS...' : '🚀 Publish Tweak'}
+            {uploading ? "⏳ Uploading to IPFS..." : "🚀 Publish Tweak"}
           </button>
         </div>
 
@@ -720,7 +851,8 @@ function UploadTweakModal({ onClose }: { onClose: () => void }) {
         <div className="px-6 pb-6">
           <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
             <p className="text-blue-300 text-sm">
-              <strong>Platform Fee:</strong> 2.5% on sales. You receive 97.5% of every purchase directly to your wallet.
+              <strong>Platform Fee:</strong> 2.5% on sales. You receive 97.5% of
+              every purchase directly to your wallet.
             </p>
           </div>
         </div>
