@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
-import { broadcastRadioUpdate } from '@/lib/event-manager';
-import { hasRightsClearance } from '@/lib/rights-declaration';
-import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { activeChain } from '@/app/chains';
+import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
+import { broadcastRadioUpdate } from "@/lib/event-manager";
+import { hasRightsClearance } from "@/lib/rights-declaration";
+import { createWalletClient, createPublicClient, http, parseAbi } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { activeChain } from "@/app/chains";
 
 /**
  * Live Radio API
@@ -13,8 +13,6 @@ import { activeChain } from '@/app/chains';
  * - Users pay WMON to queue songs
  * - Users can record 3-5 second voice shoutouts during breaks
  * - All listeners hear the same stream
- *
- * World Cup 2026 Feature: Tourism + Cultural Experience
  */
 
 const redis = new Redis({
@@ -22,20 +20,22 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const APP_URL =
+  process.env.NEXT_PUBLIC_URL ||
+  "https://fcempowertours-production-6551.up.railway.app";
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE;
 const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION;
 const ORACLE_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
-const RADIO_STATE_KEY = 'live-radio:state';
-const RADIO_QUEUE_KEY = 'live-radio:queue';
-const VOICE_NOTES_KEY = 'live-radio:voice-notes';
-const LISTENER_STATS_KEY = 'live-radio:listener-stats';
-const ACTIVE_LISTENERS_KEY = 'live-radio:active-listeners'; // Legacy - individual keys
-const ACTIVE_LISTENERS_ZSET = 'live-radio:active-listeners-zset'; // ZSET for efficient counting
-const DAILY_FIRST_LISTENER_KEY = 'live-radio:first-listener';
-const PLAY_HISTORY_KEY = 'live-radio:play-history'; // Recent plays list
-const PLAYBACK_PHASE_KEY = 'live-radio:playback-phase'; // 'song' | 'voice_note'
+const RADIO_STATE_KEY = "live-radio:state";
+const RADIO_QUEUE_KEY = "live-radio:queue";
+const VOICE_NOTES_KEY = "live-radio:voice-notes";
+const LISTENER_STATS_KEY = "live-radio:listener-stats";
+const ACTIVE_LISTENERS_KEY = "live-radio:active-listeners"; // Legacy - individual keys
+const ACTIVE_LISTENERS_ZSET = "live-radio:active-listeners-zset"; // ZSET for efficient counting
+const DAILY_FIRST_LISTENER_KEY = "live-radio:first-listener";
+const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
+const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const QUEUE_PRICE_WMON = 1; // 1 WMON to queue a song
 const VOICE_NOTE_PRICE_WMON = 0.5; // 0.5 WMON for a voice shoutout
 const VOICE_AD_PRICE_WMON = 2; // 2 WMON for 30-second ad
@@ -123,22 +123,25 @@ const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 // Record plays on-chain for active radio listeners when a song finishes
 async function recordRadioPlays(tokenId: string, duration: number) {
   if (!PLAY_ORACLE_ADDRESS || !ORACLE_PRIVATE_KEY) {
-    console.log('[LiveRadio] Skipping recordPlay: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY');
+    console.log(
+      "[LiveRadio] Skipping recordPlay: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY",
+    );
     return;
   }
 
   try {
-    const { JsonRpcProvider, Wallet, Contract } = await import('ethers');
-    const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+    const { JsonRpcProvider, Wallet, Contract } = await import("ethers");
+    const MONAD_RPC =
+      process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
     const provider = new JsonRpcProvider(MONAD_RPC);
     const wallet = new Wallet(ORACLE_PRIVATE_KEY, provider);
 
     const oracleAbi = [
-      'function recordPlay(address user, uint256 masterTokenId, uint256 duration) external',
-      'function canPlay(address user, uint256 masterTokenId) view returns (bool)',
+      "function recordPlay(address user, uint256 masterTokenId, uint256 duration) external",
+      "function canPlay(address user, uint256 masterTokenId) view returns (bool)",
     ];
     const subscriptionAbi = [
-      'function hasActiveSubscription(address user) view returns (bool)',
+      "function hasActiveSubscription(address user) view returns (bool)",
     ];
     const oracle = new Contract(PLAY_ORACLE_ADDRESS, oracleAbi, wallet);
     const subscription = MUSIC_SUBSCRIPTION_ADDRESS
@@ -146,15 +149,22 @@ async function recordRadioPlays(tokenId: string, duration: number) {
       : null;
 
     // Get active listeners from ZSET
-    const cutoff = Date.now() - (LISTENER_HEARTBEAT_EXPIRY * 1000);
-    const listeners = await redis.zrange(ACTIVE_LISTENERS_ZSET, cutoff, '+inf', { byScore: true }) as string[];
+    const cutoff = Date.now() - LISTENER_HEARTBEAT_EXPIRY * 1000;
+    const listeners = (await redis.zrange(
+      ACTIVE_LISTENERS_ZSET,
+      cutoff,
+      "+inf",
+      { byScore: true },
+    )) as string[];
 
     if (listeners.length === 0) {
-      console.log('[LiveRadio] No active listeners to record plays for');
+      console.log("[LiveRadio] No active listeners to record plays for");
       return;
     }
 
-    console.log(`[LiveRadio] Recording plays for ${listeners.length} active listeners, tokenId=${tokenId}`);
+    console.log(
+      `[LiveRadio] Recording plays for ${listeners.length} active listeners, tokenId=${tokenId}`,
+    );
 
     // Process listeners sequentially to avoid nonce conflicts
     let recorded = 0;
@@ -169,17 +179,31 @@ async function recordRadioPlays(tokenId: string, duration: number) {
         const canPlay = await oracle.canPlay(listener, tokenId);
         if (!canPlay) continue;
 
-        const tx = await oracle.recordPlay(listener, tokenId, Math.min(duration, 600));
+        const tx = await oracle.recordPlay(
+          listener,
+          tokenId,
+          Math.min(duration, 600),
+        );
         await tx.wait();
         recorded++;
-        console.log(`[LiveRadio] Recorded play for ${listener.slice(0, 10)}... tx=${tx.hash.slice(0, 10)}`);
+        console.log(
+          `[LiveRadio] Recorded play for ${listener.slice(0, 10)}... tx=${tx.hash.slice(0, 10)}`,
+        );
       } catch (err: any) {
-        console.warn(`[LiveRadio] recordPlay failed for ${listener.slice(0, 10)}:`, err.message?.slice(0, 80));
+        console.warn(
+          `[LiveRadio] recordPlay failed for ${listener.slice(0, 10)}:`,
+          err.message?.slice(0, 80),
+        );
       }
     }
-    console.log(`[LiveRadio] Recorded ${recorded}/${listeners.length} plays for tokenId=${tokenId}`);
+    console.log(
+      `[LiveRadio] Recorded ${recorded}/${listeners.length} plays for tokenId=${tokenId}`,
+    );
   } catch (err: any) {
-    console.error('[LiveRadio] recordRadioPlays error:', err.message?.slice(0, 120));
+    console.error(
+      "[LiveRadio] recordRadioPlays error:",
+      err.message?.slice(0, 120),
+    );
   }
 }
 
@@ -187,10 +211,10 @@ async function recordRadioPlays(tokenId: string, duration: number) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const action = searchParams.get('action');
+    const action = searchParams.get("action");
 
     // Debug: Test Envio connection and fetch available songs
-    if (action === 'debug-songs') {
+    if (action === "debug-songs") {
       try {
         const query = `
           query GetMusicNFTs {
@@ -206,8 +230,8 @@ export async function GET(req: NextRequest) {
         `;
 
         const response = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query }),
         });
 
@@ -237,31 +261,41 @@ export async function GET(req: NextRequest) {
     }
 
     // Get queue
-    if (action === 'queue') {
+    if (action === "queue") {
       const queue = await redis.lrange(RADIO_QUEUE_KEY, 0, 20);
       return NextResponse.json({
         success: true,
-        queue: queue.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item),
+        queue: queue.map((item: any) =>
+          typeof item === "string" ? JSON.parse(item) : item,
+        ),
       });
     }
 
     // Get voice notes (pending)
-    if (action === 'voice-notes') {
+    if (action === "voice-notes") {
       const notes = await redis.lrange(VOICE_NOTES_KEY, 0, 10);
       return NextResponse.json({
         success: true,
-        voiceNotes: notes.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item),
+        voiceNotes: notes.map((item: any) =>
+          typeof item === "string" ? JSON.parse(item) : item,
+        ),
       });
     }
 
     // Get listener stats
-    if (action === 'listener-stats') {
-      const userAddress = searchParams.get('address');
+    if (action === "listener-stats") {
+      const userAddress = searchParams.get("address");
       if (!userAddress) {
-        return NextResponse.json({ success: false, error: 'Address required' }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: "Address required" },
+          { status: 400 },
+        );
       }
 
-      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userAddress.toLowerCase());
+      const stats = await redis.hget<ListenerStats>(
+        LISTENER_STATS_KEY,
+        userAddress.toLowerCase(),
+      );
       return NextResponse.json({
         success: true,
         stats: stats || {
@@ -279,10 +313,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Get leaderboard - top listeners by songs listened
-    if (action === 'leaderboard') {
+    if (action === "leaderboard") {
       try {
         // Get all listener stats from the hash
-        const allStats = await redis.hgetall<Record<string, ListenerStats>>(LISTENER_STATS_KEY);
+        const allStats =
+          await redis.hgetall<Record<string, ListenerStats>>(
+            LISTENER_STATS_KEY,
+          );
 
         if (!allStats || Object.keys(allStats).length === 0) {
           return NextResponse.json({
@@ -302,7 +339,7 @@ export async function GET(req: NextRequest) {
             longestStreak: stats.longestStreak || 0,
             voiceNotesSubmitted: stats.voiceNotesSubmitted || 0,
           }))
-          .filter(entry => entry.totalSongsListened > 0)
+          .filter((entry) => entry.totalSongsListened > 0)
           .sort((a, b) => b.totalSongsListened - a.totalSongsListened)
           .slice(0, 20); // Top 20
 
@@ -312,7 +349,7 @@ export async function GET(req: NextRequest) {
           totalListeners: Object.keys(allStats).length,
         });
       } catch (error: any) {
-        console.error('[LiveRadio] Leaderboard error:', error);
+        console.error("[LiveRadio] Leaderboard error:", error);
         return NextResponse.json({
           success: true,
           leaderboard: [],
@@ -322,13 +359,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Get recent play history
-    if (action === 'play-history') {
+    if (action === "play-history") {
       try {
-        const limit = parseInt(searchParams.get('limit') || '20');
+        const limit = parseInt(searchParams.get("limit") || "20");
         const history = await redis.lrange(PLAY_HISTORY_KEY, 0, limit - 1);
 
         const plays = history.map((item: any) =>
-          typeof item === 'string' ? JSON.parse(item) : item
+          typeof item === "string" ? JSON.parse(item) : item,
         );
 
         return NextResponse.json({
@@ -337,7 +374,7 @@ export async function GET(req: NextRequest) {
           count: plays.length,
         });
       } catch (error: any) {
-        console.error('[LiveRadio] Play history error:', error);
+        console.error("[LiveRadio] Play history error:", error);
         return NextResponse.json({
           success: true,
           plays: [],
@@ -374,10 +411,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[LiveRadio] GET error:', error);
+    console.error("[LiveRadio] GET error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -387,23 +424,31 @@ async function handleAdminAction(action: string) {
   const LIVE_RADIO_ADDRESS = process.env.NEXT_PUBLIC_LIVE_RADIO;
   const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
-  if (action === 'start_radio') {
+  if (action === "start_radio") {
     if (LIVE_RADIO_ADDRESS && DEPLOYER_KEY) {
       try {
-        const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+        const rpcUrl =
+          process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
         const account = privateKeyToAccount(DEPLOYER_KEY as `0x${string}`);
-        const walletClient = createWalletClient({ account, chain: activeChain, transport: http(rpcUrl) });
-        const publicClient = createPublicClient({ chain: activeChain, transport: http(rpcUrl) });
+        const walletClient = createWalletClient({
+          account,
+          chain: activeChain,
+          transport: http(rpcUrl),
+        });
+        const publicClient = createPublicClient({
+          chain: activeChain,
+          transport: http(rpcUrl),
+        });
 
         const txHash = await walletClient.writeContract({
           address: LIVE_RADIO_ADDRESS as `0x${string}`,
-          abi: parseAbi(['function startRadio() external']),
-          functionName: 'startRadio',
+          abi: parseAbi(["function startRadio() external"]),
+          functionName: "startRadio",
         });
         await publicClient.waitForTransactionReceipt({ hash: txHash });
-        console.log('[LiveRadio] On-chain startRadio TX:', txHash);
+        console.log("[LiveRadio] On-chain startRadio TX:", txHash);
       } catch (err: any) {
-        console.error('[LiveRadio] On-chain startRadio failed:', err.message);
+        console.error("[LiveRadio] On-chain startRadio failed:", err.message);
       }
     }
 
@@ -417,33 +462,42 @@ async function handleAdminAction(action: string) {
       totalVoiceNotesPlayed: 0,
     };
     await redis.set(RADIO_STATE_KEY, state);
-    await redis.set('live-radio:playback-phase', 'song');
-    broadcastRadioUpdate('state_update', { type: 'radio_started', state });
+    await redis.set("live-radio:playback-phase", "song");
+    broadcastRadioUpdate("state_update", { type: "radio_started", state });
 
     return NextResponse.json({
       success: true,
-      message: 'Radio is now live! Call /api/live-radio/scheduler to start playback.',
+      message:
+        "Radio is now live! Call /api/live-radio/scheduler to start playback.",
       state,
     });
   }
 
-  if (action === 'stop_radio') {
+  if (action === "stop_radio") {
     if (LIVE_RADIO_ADDRESS && DEPLOYER_KEY) {
       try {
-        const rpcUrl = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+        const rpcUrl =
+          process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
         const account = privateKeyToAccount(DEPLOYER_KEY as `0x${string}`);
-        const walletClient = createWalletClient({ account, chain: activeChain, transport: http(rpcUrl) });
-        const publicClient = createPublicClient({ chain: activeChain, transport: http(rpcUrl) });
+        const walletClient = createWalletClient({
+          account,
+          chain: activeChain,
+          transport: http(rpcUrl),
+        });
+        const publicClient = createPublicClient({
+          chain: activeChain,
+          transport: http(rpcUrl),
+        });
 
         const txHash = await walletClient.writeContract({
           address: LIVE_RADIO_ADDRESS as `0x${string}`,
-          abi: parseAbi(['function stopRadio() external']),
-          functionName: 'stopRadio',
+          abi: parseAbi(["function stopRadio() external"]),
+          functionName: "stopRadio",
         });
         await publicClient.waitForTransactionReceipt({ hash: txHash });
-        console.log('[LiveRadio] On-chain stopRadio TX:', txHash);
+        console.log("[LiveRadio] On-chain stopRadio TX:", txHash);
       } catch (err: any) {
-        console.error('[LiveRadio] On-chain stopRadio failed:', err.message);
+        console.error("[LiveRadio] On-chain stopRadio failed:", err.message);
       }
     }
 
@@ -454,16 +508,19 @@ async function handleAdminAction(action: string) {
       state.currentVoiceNote = null;
       state.lastUpdated = Date.now();
       await redis.set(RADIO_STATE_KEY, state);
-      broadcastRadioUpdate('state_update', { type: 'radio_stopped', state });
+      broadcastRadioUpdate("state_update", { type: "radio_stopped", state });
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Radio stopped.',
+      message: "Radio stopped.",
     });
   }
 
-  return NextResponse.json({ success: false, error: 'Unknown admin action' }, { status: 400 });
+  return NextResponse.json(
+    { success: false, error: "Unknown admin action" },
+    { status: 400 },
+  );
 }
 
 // POST - Queue a song or submit a voice note
@@ -473,25 +530,34 @@ export async function POST(req: NextRequest) {
     const { action, userAddress, userFid } = body;
 
     // Admin actions (no userAddress required)
-    if (action === 'start_radio' || action === 'stop_radio') {
+    if (action === "start_radio" || action === "stop_radio") {
       return handleAdminAction(action);
     }
 
     if (!userAddress) {
       return NextResponse.json(
-        { success: false, error: 'User address required' },
-        { status: 400 }
+        { success: false, error: "User address required" },
+        { status: 400 },
       );
     }
 
     // Queue a song (requires WMON payment)
-    if (action === 'queue_song') {
-      const { tokenId, name, artist, artistAddress, audioUrl, imageUrl, txHash, duration } = body;
+    if (action === "queue_song") {
+      const {
+        tokenId,
+        name,
+        artist,
+        artistAddress,
+        audioUrl,
+        imageUrl,
+        txHash,
+        duration,
+      } = body;
 
       if (!tokenId || !audioUrl) {
         return NextResponse.json(
-          { success: false, error: 'Missing song details' },
-          { status: 400 }
+          { success: false, error: "Missing song details" },
+          { status: 400 },
         );
       }
 
@@ -499,30 +565,43 @@ export async function POST(req: NextRequest) {
       const cleared = await hasRightsClearance(redis, tokenId);
       if (!cleared) {
         return NextResponse.json(
-          { success: false, error: 'This song has been revoked and cannot be played on radio.' },
-          { status: 403 }
+          {
+            success: false,
+            error: "This song has been revoked and cannot be played on radio.",
+          },
+          { status: 403 },
         );
       }
 
       if (!txHash) {
         return NextResponse.json(
-          { success: false, error: `Queueing songs requires ${QUEUE_PRICE_WMON} WMON payment. Please submit with txHash.` },
-          { status: 400 }
+          {
+            success: false,
+            error: `Queueing songs requires ${QUEUE_PRICE_WMON} WMON payment. Please submit with txHash.`,
+          },
+          { status: 400 },
         );
       }
 
       // Use provided duration or default to 600s (10 min fallback - client reports actual end)
-      const songDuration = typeof duration === 'number' && duration > 0 ? Math.round(duration) : 600;
-      console.log('[LiveRadio] Queueing song with duration:', songDuration, 'seconds');
+      const songDuration =
+        typeof duration === "number" && duration > 0
+          ? Math.round(duration)
+          : 600;
+      console.log(
+        "[LiveRadio] Queueing song with duration:",
+        songDuration,
+        "seconds",
+      );
 
       const queuedSong: QueuedSong = {
         id: `${userAddress}-${tokenId}-${Date.now()}`,
         tokenId,
         name: name || `Song #${tokenId}`,
-        artist: artist || 'Unknown Artist',
-        artistAddress: artistAddress || artist || '',
+        artist: artist || "Unknown Artist",
+        artistAddress: artistAddress || artist || "",
         audioUrl,
-        imageUrl: imageUrl || '',
+        imageUrl: imageUrl || "",
         queuedBy: userAddress,
         queuedByFid: userFid || 0,
         queuedAt: Date.now(),
@@ -530,10 +609,10 @@ export async function POST(req: NextRequest) {
         duration: songDuration,
       };
 
-      console.log('[LiveRadio] Song queued:', name, 'by', userAddress);
+      console.log("[LiveRadio] Song queued:", name, "by", userAddress);
 
       // Immediately start playing the queued song (interrupts current)
-      const state = await redis.get<RadioState>(RADIO_STATE_KEY) || {
+      const state = (await redis.get<RadioState>(RADIO_STATE_KEY)) || {
         isLive: true,
         currentSong: null,
         currentVoiceNote: null,
@@ -554,24 +633,27 @@ export async function POST(req: NextRequest) {
       state.lastUpdated = Date.now();
 
       await redis.set(RADIO_STATE_KEY, state);
-      await redis.set(PLAYBACK_PHASE_KEY, 'song');
+      await redis.set(PLAYBACK_PHASE_KEY, "song");
 
       // Log to play history
-      await redis.lpush(PLAY_HISTORY_KEY, JSON.stringify({
-        tokenId: queuedSong.tokenId,
-        name: queuedSong.name,
-        artist: queuedSong.artist,
-        imageUrl: queuedSong.imageUrl,
-        queuedBy: userAddress,
-        queuedByFid: userFid || 0,
-        playedAt: Date.now(),
-        isRandom: false,
-        paidAmount: queuedSong.paidAmount,
-      }));
+      await redis.lpush(
+        PLAY_HISTORY_KEY,
+        JSON.stringify({
+          tokenId: queuedSong.tokenId,
+          name: queuedSong.name,
+          artist: queuedSong.artist,
+          imageUrl: queuedSong.imageUrl,
+          queuedBy: userAddress,
+          queuedByFid: userFid || 0,
+          playedAt: Date.now(),
+          isRandom: false,
+          paidAmount: queuedSong.paidAmount,
+        }),
+      );
       await redis.ltrim(PLAY_HISTORY_KEY, 0, 99);
 
       // Broadcast state update so all listeners switch to the new song
-      broadcastRadioUpdate('state_update', { type: 'song_playing', state });
+      broadcastRadioUpdate("state_update", { type: "song_playing", state });
 
       return NextResponse.json({
         success: true,
@@ -582,30 +664,37 @@ export async function POST(req: NextRequest) {
     }
 
     // Submit a voice note (requires WMON payment)
-    if (action === 'voice_note') {
+    if (action === "voice_note") {
       const { audioUrl, duration, message, username, txHash } = body;
 
       if (!audioUrl) {
         return NextResponse.json(
-          { success: false, error: 'Audio URL required' },
-          { status: 400 }
+          { success: false, error: "Audio URL required" },
+          { status: 400 },
         );
       }
 
       if (!txHash) {
         return NextResponse.json(
-          { success: false, error: `Voice notes require ${VOICE_NOTE_PRICE_WMON} WMON payment. Please submit with txHash.` },
-          { status: 400 }
+          {
+            success: false,
+            error: `Voice notes require ${VOICE_NOTE_PRICE_WMON} WMON payment. Please submit with txHash.`,
+          },
+          { status: 400 },
         );
       }
 
       // Ensure duration is a valid number, default to MAX if not provided
       // This fixes issues where client state may not capture the exact recording time
-      const validDuration = typeof duration === 'number' && duration > 0
-        ? Math.min(duration, MAX_VOICE_NOTE_SECONDS)
-        : MAX_VOICE_NOTE_SECONDS;
+      const validDuration =
+        typeof duration === "number" && duration > 0
+          ? Math.min(duration, MAX_VOICE_NOTE_SECONDS)
+          : MAX_VOICE_NOTE_SECONDS;
 
-      console.log('[LiveRadio] Voice note duration:', { received: duration, using: validDuration });
+      console.log("[LiveRadio] Voice note duration:", {
+        received: duration,
+        using: validDuration,
+      });
 
       const voiceNote: VoiceNote = {
         id: `${userAddress}-${Date.now()}`,
@@ -630,52 +719,65 @@ export async function POST(req: NextRequest) {
         await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
       }
 
-      console.log('[LiveRadio] Voice note submitted by', username || userAddress);
+      console.log(
+        "[LiveRadio] Voice note submitted by",
+        username || userAddress,
+      );
 
       // Broadcast voice notes update to SSE clients
       const updatedNotes = await redis.lrange(VOICE_NOTES_KEY, 0, 10);
-      const parsedNotes = updatedNotes.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
-      broadcastRadioUpdate('voice_notes_update', { type: 'voice_note_submitted', voiceNotes: parsedNotes });
+      const parsedNotes = updatedNotes.map((item: any) =>
+        typeof item === "string" ? JSON.parse(item) : item,
+      );
+      broadcastRadioUpdate("voice_notes_update", {
+        type: "voice_note_submitted",
+        voiceNotes: parsedNotes,
+      });
 
       // Post to Farcaster via bot (non-blocking)
       if (userFid) {
         fetch(`${APP_URL}/api/cast-nft`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            type: 'voice_note',
+            type: "voice_note",
             fid: userFid,
             txHash,
             params: {
-              noteType: 'shoutout',
+              noteType: "shoutout",
               duration: validDuration,
             },
           }),
-        }).catch(err => console.error('[LiveRadio] Cast failed:', err.message));
+        }).catch((err) =>
+          console.error("[LiveRadio] Cast failed:", err.message),
+        );
       }
 
       return NextResponse.json({
         success: true,
-        message: 'Voice note submitted! It will play during the next break.',
+        message: "Voice note submitted! It will play during the next break.",
         voiceNote,
       });
     }
 
     // Submit a voice ad (30 seconds, requires higher WMON payment)
-    if (action === 'voice_ad') {
+    if (action === "voice_ad") {
       const { audioUrl, message, username, txHash } = body;
 
       if (!audioUrl) {
         return NextResponse.json(
-          { success: false, error: 'Audio URL required' },
-          { status: 400 }
+          { success: false, error: "Audio URL required" },
+          { status: 400 },
         );
       }
 
       if (!txHash) {
         return NextResponse.json(
-          { success: false, error: `Voice ads require ${VOICE_AD_PRICE_WMON} WMON payment. Please submit with txHash.` },
-          { status: 400 }
+          {
+            success: false,
+            error: `Voice ads require ${VOICE_AD_PRICE_WMON} WMON payment. Please submit with txHash.`,
+          },
+          { status: 400 },
         );
       }
 
@@ -703,51 +805,61 @@ export async function POST(req: NextRequest) {
         await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
       }
 
-      console.log('[LiveRadio] Voice ad submitted by', username || userAddress);
+      console.log("[LiveRadio] Voice ad submitted by", username || userAddress);
 
       // Broadcast voice notes update to SSE clients
       const updatedAdNotes = await redis.lrange(VOICE_NOTES_KEY, 0, 10);
-      const parsedAdNotes = updatedAdNotes.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
-      broadcastRadioUpdate('voice_notes_update', { type: 'voice_ad_submitted', voiceNotes: parsedAdNotes });
+      const parsedAdNotes = updatedAdNotes.map((item: any) =>
+        typeof item === "string" ? JSON.parse(item) : item,
+      );
+      broadcastRadioUpdate("voice_notes_update", {
+        type: "voice_ad_submitted",
+        voiceNotes: parsedAdNotes,
+      });
 
       // Post to Farcaster via bot (non-blocking)
       if (userFid) {
         fetch(`${APP_URL}/api/cast-nft`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            type: 'voice_note',
+            type: "voice_note",
             fid: userFid,
             txHash,
             params: {
-              noteType: 'ad',
+              noteType: "ad",
               duration: MAX_VOICE_AD_SECONDS,
             },
           }),
-        }).catch(err => console.error('[LiveRadio] Cast failed:', err.message));
+        }).catch((err) =>
+          console.error("[LiveRadio] Cast failed:", err.message),
+        );
       }
 
       return NextResponse.json({
         success: true,
-        message: 'Voice ad submitted! It will play during the next ad break.',
+        message: "Voice ad submitted! It will play during the next ad break.",
         voiceAd,
       });
     }
 
     // Play next song (admin/automated)
-    if (action === 'next_song') {
+    if (action === "next_song") {
       // Pop next song from queue
       const nextSongJson = await redis.lpop(RADIO_QUEUE_KEY);
       if (!nextSongJson) {
         return NextResponse.json({
           success: false,
-          error: 'Queue is empty',
+          error: "Queue is empty",
         });
       }
 
-      const nextSong: QueuedSong = typeof nextSongJson === 'string' ? JSON.parse(nextSongJson) : nextSongJson;
+      const nextSong: QueuedSong =
+        typeof nextSongJson === "string"
+          ? JSON.parse(nextSongJson)
+          : nextSongJson;
 
-      const state = await redis.get<RadioState>(RADIO_STATE_KEY) || {
+      const state = (await redis.get<RadioState>(RADIO_STATE_KEY)) || {
         isLive: true,
         currentSong: null,
         listenerCount: 0,
@@ -765,32 +877,41 @@ export async function POST(req: NextRequest) {
       await redis.set(RADIO_STATE_KEY, state);
 
       // Broadcast state update to SSE clients
-      broadcastRadioUpdate('state_update', { type: 'song_playing', state });
+      broadcastRadioUpdate("state_update", { type: "song_playing", state });
 
       return NextResponse.json({
         success: true,
-        message: 'Now playing',
+        message: "Now playing",
         currentSong: state.currentSong,
       });
     }
 
     // Report song ended (client tells server when audio actually finishes)
-    if (action === 'song_ended') {
+    if (action === "song_ended") {
       const { songId, tokenId } = body;
 
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (!state) {
-        return NextResponse.json({ success: false, error: 'Radio not active' });
+        return NextResponse.json({ success: false, error: "Radio not active" });
       }
 
       // Verify this is the current song
       if (state.currentSong && state.currentSong.tokenId === tokenId) {
-        console.log('[LiveRadio] Client reported song ended:', state.currentSong.name);
+        console.log(
+          "[LiveRadio] Client reported song ended:",
+          state.currentSong.name,
+        );
 
         // Record plays on-chain for active listeners (non-blocking)
-        const songDuration = Math.max(30, Math.floor((Date.now() - state.currentSong.startedAt) / 1000));
-        recordRadioPlays(state.currentSong.tokenId, songDuration).catch(err =>
-          console.error('[LiveRadio] Background recordRadioPlays error:', err.message)
+        const songDuration = Math.max(
+          30,
+          Math.floor((Date.now() - state.currentSong.startedAt) / 1000),
+        );
+        recordRadioPlays(state.currentSong.tokenId, songDuration).catch((err) =>
+          console.error(
+            "[LiveRadio] Background recordRadioPlays error:",
+            err.message,
+          ),
         );
 
         // Clear current song - scheduler will pick next one
@@ -801,25 +922,25 @@ export async function POST(req: NextRequest) {
         await redis.set(RADIO_STATE_KEY, state);
 
         // Switch to voice_note phase so scheduler checks for pending voice notes
-        await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
+        await redis.set(PLAYBACK_PHASE_KEY, "voice_note");
 
         // Broadcast state update to SSE clients
-        broadcastRadioUpdate('state_update', { type: 'song_ended', state });
+        broadcastRadioUpdate("state_update", { type: "song_ended", state });
 
         return NextResponse.json({
           success: true,
-          message: 'Song marked as ended',
+          message: "Song marked as ended",
         });
       }
 
       return NextResponse.json({
         success: true,
-        message: 'Song already changed or not matching',
+        message: "Song already changed or not matching",
       });
     }
 
     // Heartbeat (listener tracking with rewards)
-    if (action === 'heartbeat') {
+    if (action === "heartbeat") {
       const { masterTokenId } = body;
       const userKey = userAddress.toLowerCase();
       const now = Date.now();
@@ -830,7 +951,7 @@ export async function POST(req: NextRequest) {
       await redis.zadd(ACTIVE_LISTENERS_ZSET, { score: now, member: userKey });
 
       // Remove listeners older than LISTENER_HEARTBEAT_EXPIRY seconds (1 Redis command)
-      const cutoffTime = now - (LISTENER_HEARTBEAT_EXPIRY * 1000);
+      const cutoffTime = now - LISTENER_HEARTBEAT_EXPIRY * 1000;
       await redis.zremrangebyscore(ACTIVE_LISTENERS_ZSET, 0, cutoffTime);
 
       // Count active listeners efficiently with ZCARD (1 Redis command)
@@ -846,12 +967,18 @@ export async function POST(req: NextRequest) {
 
         // Only broadcast if listener count actually changed (avoid spamming SSE)
         if (prevCount !== activeCount) {
-          broadcastRadioUpdate('state_update', { type: 'listener_count', state });
+          broadcastRadioUpdate("state_update", {
+            type: "listener_count",
+            state,
+          });
         }
       }
 
       // Get or create listener stats
-      let stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey) || {
+      let stats = (await redis.hget<ListenerStats>(
+        LISTENER_STATS_KEY,
+        userKey,
+      )) || {
         totalSongsListened: 0,
         totalRewardsEarned: 0,
         pendingRewards: 0,
@@ -864,20 +991,24 @@ export async function POST(req: NextRequest) {
       };
 
       let rewardEarned = 0;
-      let bonusType = '';
+      let bonusType = "";
 
       // Check if a song is ACTIVELY playing (not expired)
-      const isSongActive = state?.currentSong &&
-        (state.currentSong.startedAt + (state.currentSong.duration * 1000)) > now;
+      const isSongActive =
+        state?.currentSong &&
+        state.currentSong.startedAt + state.currentSong.duration * 1000 > now;
 
       // If current song has expired, clear it from state
       if (state?.currentSong && !isSongActive) {
-        console.log('[LiveRadio] Clearing expired currentSong:', state.currentSong.name);
+        console.log(
+          "[LiveRadio] Clearing expired currentSong:",
+          state.currentSong.name,
+        );
         state.currentSong = null;
         state.lastUpdated = now;
         await redis.set(RADIO_STATE_KEY, state);
         // Switch to voice_note phase so scheduler checks for pending voice notes
-        await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
+        await redis.set(PLAYBACK_PHASE_KEY, "voice_note");
       }
 
       // Only award rewards if a song is actually playing
@@ -889,8 +1020,13 @@ export async function POST(req: NextRequest) {
           await redis.setex(firstListenerKey, 86400, userKey); // Expires in 24h
           rewardEarned += FIRST_LISTENER_BONUS_TOURS;
           stats.firstListenerBonuses++;
-          bonusType = 'first_listener';
-          console.log('[LiveRadio] First listener of day:', userKey, 'Bonus:', FIRST_LISTENER_BONUS_TOURS);
+          bonusType = "first_listener";
+          console.log(
+            "[LiveRadio] First listener of day:",
+            userKey,
+            "Bonus:",
+            FIRST_LISTENER_BONUS_TOURS,
+          );
         }
 
         // Update streak
@@ -900,8 +1036,8 @@ export async function POST(req: NextRequest) {
           // Check for 7-day streak bonus
           if (stats.currentStreak === 7) {
             rewardEarned += STREAK_BONUS_TOURS;
-            bonusType = bonusType ? `${bonusType}+streak` : 'streak';
-            console.log('[LiveRadio] 7-day streak bonus for:', userKey);
+            bonusType = bonusType ? `${bonusType}+streak` : "streak";
+            console.log("[LiveRadio] 7-day streak bonus for:", userKey);
           }
         } else if (stats.lastListenDay < today - 1) {
           // Streak broken
@@ -920,7 +1056,7 @@ export async function POST(req: NextRequest) {
           rewardEarned += LISTEN_REWARD_TOURS;
           stats.totalSongsListened++;
           stats.lastRewardedSongId = currentSongId;
-          bonusType = bonusType ? `${bonusType}+listen` : 'listen';
+          bonusType = bonusType ? `${bonusType}+listen` : "listen";
         }
 
         stats.lastListenDay = today;
@@ -938,28 +1074,34 @@ export async function POST(req: NextRequest) {
         listenerCount: activeCount,
         stats,
         rewardEarned,
-        bonusType: bonusType || 'listen',
+        bonusType: bonusType || "listen",
       });
     }
 
     // Claim rewards (after successful TOURS transfer)
-    if (action === 'claim_rewards') {
+    if (action === "claim_rewards") {
       const { txHash, amount } = body;
       const userKey = userAddress.toLowerCase();
 
       if (!txHash) {
         return NextResponse.json(
-          { success: false, error: 'Transaction hash required for claim verification' },
-          { status: 400 }
+          {
+            success: false,
+            error: "Transaction hash required for claim verification",
+          },
+          { status: 400 },
         );
       }
 
       // Get current stats
-      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      const stats = await redis.hget<ListenerStats>(
+        LISTENER_STATS_KEY,
+        userKey,
+      );
       if (!stats || stats.pendingRewards <= 0) {
         return NextResponse.json(
-          { success: false, error: 'No pending rewards to claim' },
-          { status: 400 }
+          { success: false, error: "No pending rewards to claim" },
+          { status: 400 },
         );
       }
 
@@ -969,7 +1111,14 @@ export async function POST(req: NextRequest) {
       stats.pendingRewards = 0;
       await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
 
-      console.log('[LiveRadio] Rewards claimed:', claimedAmount, 'TOURS by', userAddress, 'TX:', txHash);
+      console.log(
+        "[LiveRadio] Rewards claimed:",
+        claimedAmount,
+        "TOURS by",
+        userAddress,
+        "TX:",
+        txHash,
+      );
 
       return NextResponse.json({
         success: true,
@@ -981,14 +1130,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Skip current song and play a new random one (called by execute-delegated after payment)
-    if (action === 'skip_to_random') {
+    if (action === "skip_to_random") {
       const { txHash } = body;
 
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (!state || !state.isLive) {
         return NextResponse.json(
-          { success: false, error: 'Radio is not live' },
-          { status: 400 }
+          { success: false, error: "Radio is not live" },
+          { status: 400 },
         );
       }
 
@@ -1009,19 +1158,19 @@ export async function POST(req: NextRequest) {
           }
         `;
         const envioRes = await fetch(ENVIO, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query }),
         });
         const envioData = await envioRes.json();
         const songs = (envioData.data?.MusicNFT || []).filter(
-          (s: any) => s.fullAudioUrl && s.fullAudioUrl.length > 0
+          (s: any) => s.fullAudioUrl && s.fullAudioUrl.length > 0,
         );
 
         if (songs.length === 0) {
           return NextResponse.json(
-            { success: false, error: 'No music NFTs available to play' },
-            { status: 400 }
+            { success: false, error: "No music NFTs available to play" },
+            { status: 400 },
           );
         }
 
@@ -1037,10 +1186,13 @@ export async function POST(req: NextRequest) {
           attempts < 5
         );
       } catch (envioErr: any) {
-        console.error('[LiveRadio] Envio fetch failed for skip:', envioErr.message);
+        console.error(
+          "[LiveRadio] Envio fetch failed for skip:",
+          envioErr.message,
+        );
         return NextResponse.json(
-          { success: false, error: 'Failed to fetch available songs' },
-          { status: 500 }
+          { success: false, error: "Failed to fetch available songs" },
+          { status: 500 },
         );
       }
 
@@ -1049,10 +1201,10 @@ export async function POST(req: NextRequest) {
       state.currentSong = {
         tokenId: randomSong.tokenId,
         name: randomSong.name || `Song #${randomSong.tokenId}`,
-        artist: randomSong.artist || 'Unknown Artist',
-        artistAddress: randomSong.artist || '',
+        artist: randomSong.artist || "Unknown Artist",
+        artistAddress: randomSong.artist || "",
         audioUrl: randomSong.fullAudioUrl,
-        imageUrl: randomSong.imageUrl || '',
+        imageUrl: randomSong.imageUrl || "",
         queuedBy: userAddress,
         queuedByFid: userFid || 0,
         startedAt: now,
@@ -1064,26 +1216,34 @@ export async function POST(req: NextRequest) {
       state.lastUpdated = now;
 
       await redis.set(RADIO_STATE_KEY, state);
-      await redis.set('live-radio:playback-phase', 'song');
+      await redis.set("live-radio:playback-phase", "song");
 
       // Log to play history
-      await redis.lpush('live-radio:play-history', JSON.stringify({
-        tokenId: randomSong.tokenId,
-        name: randomSong.name,
-        artist: randomSong.artist,
-        imageUrl: randomSong.imageUrl,
-        queuedBy: userAddress,
-        queuedByFid: userFid || 0,
-        playedAt: now,
-        isRandom: true,
-        skippedBy: userAddress,
-      }));
-      await redis.ltrim('live-radio:play-history', 0, 99);
+      await redis.lpush(
+        "live-radio:play-history",
+        JSON.stringify({
+          tokenId: randomSong.tokenId,
+          name: randomSong.name,
+          artist: randomSong.artist,
+          imageUrl: randomSong.imageUrl,
+          queuedBy: userAddress,
+          queuedByFid: userFid || 0,
+          playedAt: now,
+          isRandom: true,
+          skippedBy: userAddress,
+        }),
+      );
+      await redis.ltrim("live-radio:play-history", 0, 99);
 
       // Broadcast to all listeners
-      broadcastRadioUpdate('state_update', { type: 'song_skipped', state });
+      broadcastRadioUpdate("state_update", { type: "song_skipped", state });
 
-      console.log('[LiveRadio] Skipped to random song:', randomSong.name, 'by', userAddress);
+      console.log(
+        "[LiveRadio] Skipped to random song:",
+        randomSong.name,
+        "by",
+        userAddress,
+      );
 
       return NextResponse.json({
         success: true,
@@ -1094,14 +1254,14 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: 'Unknown action' },
-      { status: 400 }
+      { success: false, error: "Unknown action" },
+      { status: 400 },
     );
   } catch (error: any) {
-    console.error('[LiveRadio] POST error:', error);
+    console.error("[LiveRadio] POST error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
