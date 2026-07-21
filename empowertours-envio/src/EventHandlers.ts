@@ -1,20 +1,4 @@
-import {
-  EmpowerToursNFT,
-  PassportNFTV2,
-  ItineraryNFTV2,
-  PlayOracleV3,
-  MusicSubscriptionV5,
-  LiveRadioV3,
-  ClimbingLocationsV2,
-  ToursRewardManager,
-  VotingTOURS,
-  EmpowerToursGovernor,
-  EmpowerToursTimelock,
-  DAOContractFactory,
-  DeploymentNFT,
-  EmpowerToursDevStudio,
-  DailyLottery,
-} from "generated";
+import { indexer, EmpowerToursNFT, PassportNFTV2, ItineraryNFTV2, PlayOracleV3, MusicSubscriptionV5, LiveRadioV3, ClimbingLocationsV2, ToursRewardManager, VotingTOURS, EmpowerToursGovernor, EmpowerToursTimelock, DAOContractFactory, DeploymentNFT, EmpowerToursDevStudio, DailyLottery } from "envio";
 
 // ✅ Type definition for metadata
 interface MusicMetadata {
@@ -125,7 +109,9 @@ async function fetchMetadata(tokenURI: string, context: any): Promise<{
 // EMPOWER TOURS NFT EVENTS
 // ============================================
 
-EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "MasterMinted" },
+  async ({ event, context }) => {
   const { tokenId, artist, artistFid, tokenURI, price, nftType, royalty } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -265,18 +251,24 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
   }
 
   context.log.info(`✅ Music NFT #${tokenId} minted by ${artist} - "${metadata?.name || 'Untitled'}"`);
-});
+}
+);
 
 // ✅ Handle CollectorMasterMinted event
-EmpowerToursNFT.CollectorMasterMinted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "CollectorMasterMinted" },
+  async ({ event, context }) => {
   const { tokenId, artist, artistFid, maxEditions, collectorPrice } = event.params;
 
   context.log.info(`🎵 CollectorMaster #${tokenId} minted by ${artist} (FID: ${artistFid})`);
   context.log.info(`   Max Editions: ${maxEditions}, Collector Price: ${collectorPrice}`);
-});
+}
+);
 
 // ✅ Handle LicensePurchased event (with expiry timestamp)
-EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "LicensePurchased" },
+  async ({ event, context }) => {
   const { licenseId, masterTokenId, licenseeFid, buyer, expiry, isCollector } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
@@ -382,10 +374,13 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
   context.log.info(
     `💳 License #${licenseId} purchased for Music NFT #${masterTokenId} by ${buyer} (FID: ${licenseeFid}, Collector: ${isCollector}, Expiry: ${expiryDate})`
   );
-});
+}
+);
 
 // ✅ Handle LicenseSold event (resale/secondary market)
-EmpowerToursNFT.LicenseSold.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "LicenseSold" },
+  async ({ event, context }) => {
   const { licenseId, masterTokenId, seller, buyer, salePrice, royaltyPaid, royaltyRecipient } = event.params;
 
   const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
@@ -458,9 +453,12 @@ EmpowerToursNFT.LicenseSold.handler(async ({ event, context }) => {
   context.log.info(
     `🔄 License #${licenseId} RESOLD: ${seller} → ${buyer} for ${salePrice} (Royalty: ${royaltyPaid} to ${royaltyRecipient})`
   );
-});
+}
+);
 
-EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "Transfer" },
+  async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   if (from === "0x0000000000000000000000000000000000000000") {
@@ -477,13 +475,16 @@ EmpowerToursNFT.Transfer.handler(async ({ event, context }) => {
     });
     context.log.info(`🎵 Music NFT #${tokenId} transferred from ${from} to ${to}`);
   }
-});
+}
+);
 
 // ============================================
 // EMPOWERTOURSNFT V10: BURNING EVENTS
 // ============================================
 
-EmpowerToursNFT.NFTBurned.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "NFTBurned" },
+  async ({ event, context }) => {
   const { tokenId, burner, rewardReceived, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -514,16 +515,22 @@ EmpowerToursNFT.NFTBurned.handler(async ({ event, context }) => {
 
     context.log.info(`🔥 Music NFT #${tokenId} burned by ${burner}, reward: ${rewardReceived} TOURS`);
   }
-});
+}
+);
 
-EmpowerToursNFT.BurnRewardUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "BurnRewardUpdated" },
+  async ({ event, context }) => {
   const { newReward, timestamp } = event.params;
 
   context.log.info(`🔥 Burn reward updated to ${newReward} TOURS at ${timestamp}`);
-});
+}
+);
 
 // ✅ DAO Governance - Stolen Content Removal
-EmpowerToursNFT.StolenContentBurned.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "StolenContentBurned" },
+  async ({ event, context }) => {
   const { tokenId, originalOwner, reason, timestamp } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
@@ -556,17 +563,23 @@ EmpowerToursNFT.StolenContentBurned.handler(async ({ event, context }) => {
 
     context.log.info(`🚨 STOLEN CONTENT BURNED: NFT #${tokenId} owned by ${originalOwner} - Reason: ${reason}`);
   }
-});
+}
+);
 
 // ✅ Artist Song Cleared (allows reminting after burn)
-EmpowerToursNFT.ArtistSongCleared.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "ArtistSongCleared" },
+  async ({ event, context }) => {
   const { artist, title, timestamp } = event.params;
 
   context.log.info(`🎵 Artist song cleared for reminting - Artist: ${artist}, Title: "${title}" at ${timestamp}`);
-});
+}
+);
 
 // ✅ Royalty tracking
-EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "RoyaltyPaid" },
+  async ({ event, context }) => {
   const { masterTokenId, artist, amount } = event.params;
 
   const royaltyId = `royalty-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -609,10 +622,13 @@ EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
   }
 
   context.log.info(`💎 Royalty paid: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for song #${masterTokenId}`);
-});
+}
+);
 
 // ✅ Price update tracking
-EmpowerToursNFT.PriceUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursNFT", event: "PriceUpdated" },
+  async ({ event, context }) => {
   const { masterTokenId, newPrice } = event.params;
 
   const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
@@ -626,13 +642,16 @@ EmpowerToursNFT.PriceUpdated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`💰 Price updated for Music NFT #${masterTokenId}: ${newPrice}`);
-});
+}
+);
 
 // ============================================
 // PASSPORT NFT EVENTS
 // ============================================
 
-PassportNFTV2.PassportMinted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PassportNFTV2", event: "PassportMinted" },
+  async ({ event, context }) => {
   const { tokenId, owner, userFid, countryCode, countryName, region, continent, verified } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
@@ -740,9 +759,12 @@ PassportNFTV2.PassportMinted.handler(async ({ event, context }) => {
   context.log.info(
     `🎫 Passport NFT #${tokenId} minted for ${owner} - ${normalizedCountryCode} ${countryName} (${region}, ${continent})`
   );
-});
+}
+);
 
-PassportNFTV2.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PassportNFTV2", event: "Transfer" },
+  async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   if (from === "0x0000000000000000000000000000000000000000") {
@@ -759,16 +781,22 @@ PassportNFTV2.Transfer.handler(async ({ event, context }) => {
     });
     context.log.info(`🎫 Passport NFT #${tokenId} transferred from ${from} to ${to}`);
   }
-});
+}
+);
 
 // ✅ V2: Verification flow handlers (renamed events)
-PassportNFTV2.VerificationProofSubmitted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PassportNFTV2", event: "VerificationProofSubmitted" },
+  async ({ event, context }) => {
   const { tokenId, submitter, proofIPFSHash, timestamp } = event.params;
 
   context.log.info(`📸 Verification proof submitted for Passport #${tokenId} by ${submitter} - proof: ${proofIPFSHash}`);
-});
+}
+);
 
-PassportNFTV2.PassportVerified.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PassportNFTV2", event: "PassportVerified" },
+  async ({ event, context }) => {
   const { tokenId, verifier, verificationProof, timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
@@ -782,10 +810,13 @@ PassportNFTV2.PassportVerified.handler(async ({ event, context }) => {
   }
 
   context.log.info(`✅ Passport #${tokenId} verified by ${verifier} - proof: ${verificationProof}`);
-});
+}
+);
 
 // ✅ V2: Venue stamp handler (location, placeId, verified, timestamp)
-PassportNFTV2.VenueStampAdded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PassportNFTV2", event: "VenueStampAdded" },
+  async ({ event, context }) => {
   const { tokenId, location, placeId, verified, timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
@@ -826,10 +857,13 @@ PassportNFTV2.VenueStampAdded.handler(async ({ event, context }) => {
 
     context.log.info(`🎟️ Venue stamp added to Passport #${tokenId}: "${location}" (placeId: ${placeId}, verified: ${verified}, +${creditAdded} credit). New score: ${newCreditScore}`);
   }
-});
+}
+);
 
 // ✅ V2: Itinerary stamp handler (locationName, city, country, placeId, gpsVerified, timestamp)
-PassportNFTV2.ItineraryStampAdded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PassportNFTV2", event: "ItineraryStampAdded" },
+  async ({ event, context }) => {
   const { tokenId, itineraryId, locationName, city, country, placeId, gpsVerified, timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
@@ -847,13 +881,16 @@ PassportNFTV2.ItineraryStampAdded.handler(async ({ event, context }) => {
 
     context.log.info(`🗺️ Itinerary stamp added to Passport #${tokenId} for itinerary #${itineraryId}: "${locationName}" in ${city}, ${country} (placeId: ${placeId}, GPS: ${gpsVerified}, +${creditAdded} credit). New score: ${newCreditScore}`);
   }
-});
+}
+);
 
 // ============================================
 // ITINERARY NFT EVENTS
 // ============================================
 
-ItineraryNFTV2.ItineraryCreated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "ItineraryCreated" },
+  async ({ event, context }) => {
   const { itineraryId, creator, creatorFid, title, price, photoProof } = event.params;
 
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
@@ -947,9 +984,12 @@ ItineraryNFTV2.ItineraryCreated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🗺️ Itinerary #${itineraryId} created by ${creator} (FID: ${creatorFid}) - "${title}" (photo: ${photoProof})`);
-});
+}
+);
 
-ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "ItineraryPurchased" },
+  async ({ event, context }) => {
   const { itineraryId, buyer, buyerFid, price, creatorEarnings } = event.params;
 
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
@@ -1020,21 +1060,30 @@ ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎫 Itinerary #${itineraryId} purchased by ${buyer} (FID: ${buyerFid}) for ${price} (creator earned: ${creatorEarnings})`);
-});
+}
+);
 
-ItineraryNFTV2.LocationCompleted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "LocationCompleted" },
+  async ({ event, context }) => {
   const { itineraryId, user, locationIndex, placeId, photoProof } = event.params;
 
   context.log.info(`📍 Location ${locationIndex} completed for Itinerary #${itineraryId} by ${user.slice(0, 8)}... (placeId: ${placeId}, proof: ${photoProof})`);
-});
+}
+);
 
-ItineraryNFTV2.ItineraryCompleted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "ItineraryCompleted" },
+  async ({ event, context }) => {
   const { itineraryId, user } = event.params;
 
   context.log.info(`🏆 Itinerary #${itineraryId} fully completed by ${user.slice(0, 8)}...`);
-});
+}
+);
 
-ItineraryNFTV2.ItineraryRated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "ItineraryRated" },
+  async ({ event, context }) => {
   const { itineraryId, user, rating } = event.params;
 
   const itineraryEntityId = `itinerary-${event.chainId}-${itineraryId.toString()}`;
@@ -1054,15 +1103,21 @@ ItineraryNFTV2.ItineraryRated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`⭐ Itinerary #${itineraryId} rated ${rating}/500 by ${user.slice(0, 8)}...`);
-});
+}
+);
 
-ItineraryNFTV2.LocationAdded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "LocationAdded" },
+  async ({ event, context }) => {
   const { itineraryId, locationIndex, placeId } = event.params;
 
   context.log.info(`📌 Location added to Itinerary #${itineraryId}: index ${locationIndex}, placeId: ${placeId}`);
-});
+}
+);
 
-ItineraryNFTV2.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ItineraryNFTV2", event: "Transfer" },
+  async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   // Skip mint events
@@ -1071,13 +1126,16 @@ ItineraryNFTV2.Transfer.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🗺️ Itinerary NFT #${tokenId} transferred from ${from} to ${to}`);
-});
+}
+);
 
 // =============================================================================
 // ✅ PlayOracleV3 Event Handlers (Music Streaming Stats)
 // =============================================================================
 
-PlayOracleV3.PlayRecorded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PlayOracleV3", event: "PlayRecorded" },
+  async ({ event, context }) => {
   const { user, masterTokenId, duration, timestamp } = event.params;
 
   const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1120,23 +1178,32 @@ PlayOracleV3.PlayRecorded.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🎵 Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId} for ${duration}s`);
-});
+}
+);
 
-PlayOracleV3.OperatorAdded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PlayOracleV3", event: "OperatorAdded" },
+  async ({ event, context }) => {
   const { operator } = event.params;
   context.log.info(`➕ PlayOracle operator added: ${operator}`);
-});
+}
+);
 
-PlayOracleV3.OperatorRemoved.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "PlayOracleV3", event: "OperatorRemoved" },
+  async ({ event, context }) => {
   const { operator } = event.params;
   context.log.info(`➖ PlayOracle operator removed: ${operator}`);
-});
+}
+);
 
 // =============================================================================
 // ✅ MusicSubscriptionV5 Event Handlers (Artist Payouts & More Play Records)
 // =============================================================================
 
-MusicSubscriptionV5.Subscribed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "Subscribed" },
+  async ({ event, context }) => {
   const { user, userFid, tier, expiry, paidAmount } = event.params;
 
   const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
@@ -1156,9 +1223,12 @@ MusicSubscriptionV5.Subscribed.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🎵 User ${user.slice(0, 8)}... subscribed (FID: ${userFid}, Tier: ${tier}, Expiry: ${new Date(Number(expiry) * 1000).toISOString()})`);
-});
+}
+);
 
-MusicSubscriptionV5.SubscriptionRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "SubscriptionRenewed" },
+  async ({ event, context }) => {
   const { user, newExpiry } = event.params;
 
   const subscriptionId = `sub-${event.chainId}-${user.toLowerCase()}`;
@@ -1172,9 +1242,12 @@ MusicSubscriptionV5.SubscriptionRenewed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🔄 Subscription renewed for ${user.slice(0, 8)}... - new expiry: ${new Date(Number(newExpiry) * 1000).toISOString()}`);
-});
+}
+);
 
-MusicSubscriptionV5.PlayRecorded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "PlayRecorded" },
+  async ({ event, context }) => {
   const { user, masterTokenId, duration, timestamp } = event.params;
 
   // This may duplicate PlayOracle records, but creates from subscription contract too
@@ -1193,9 +1266,12 @@ MusicSubscriptionV5.PlayRecorded.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🎵 [Sub] Play recorded: User ${user.slice(0, 8)}... played song #${masterTokenId}`);
-});
+}
+);
 
-MusicSubscriptionV5.MonthlyDistributionFinalized.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "MonthlyDistributionFinalized" },
+  async ({ event, context }) => {
   const { monthId, totalRevenue, totalPlays, artistPool } = event.params;
 
   const distributionId = `distribution-${event.chainId}-${monthId.toString()}`;
@@ -1213,9 +1289,12 @@ MusicSubscriptionV5.MonthlyDistributionFinalized.handler(async ({ event, context
   });
 
   context.log.info(`📊 Monthly distribution #${monthId} finalized: Revenue: ${totalRevenue}, Plays: ${totalPlays}, Artist Pool: ${artistPool}`);
-});
+}
+);
 
-MusicSubscriptionV5.ArtistPayout.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "ArtistPayout" },
+  async ({ event, context }) => {
   const { monthId, artist, amount, playCount } = event.params;
 
   const payoutId = `payout-${event.chainId}-${monthId.toString()}-${artist.toLowerCase()}`;
@@ -1260,9 +1339,12 @@ MusicSubscriptionV5.ArtistPayout.handler(async ({ event, context }) => {
   });
 
   context.log.info(`💰 Artist payout: ${artist.slice(0, 8)}... received ${amountFormatted} WMON for ${playCount} plays in month ${monthId}`);
-});
+}
+);
 
-MusicSubscriptionV5.ArtistToursReward.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "ArtistToursReward" },
+  async ({ event, context }) => {
   const { monthId, artist, toursAmount } = event.params;
 
   // Update artist stats with TOURS rewards
@@ -1278,44 +1360,62 @@ MusicSubscriptionV5.ArtistToursReward.handler(async ({ event, context }) => {
 
   const toursFormatted = (Number(toursAmount) / 1e18).toFixed(2);
   context.log.info(`🎁 TOURS reward: ${artist.slice(0, 8)}... received ${toursFormatted} TOURS for month ${monthId}`);
-});
+}
+);
 
-MusicSubscriptionV5.ReserveAdded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "ReserveAdded" },
+  async ({ event, context }) => {
   const { monthId, amount, totalReserve } = event.params;
 
   context.log.info(`💰 Reserve added for month ${monthId}: ${amount} (total: ${totalReserve})`);
-});
+}
+);
 
-MusicSubscriptionV5.ReserveWithdrawnToDAO.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "ReserveWithdrawnToDAO" },
+  async ({ event, context }) => {
   const { dao, amount } = event.params;
 
   context.log.info(`💸 Reserve withdrawn to DAO ${dao}: ${amount}`);
-});
+}
+);
 
-MusicSubscriptionV5.AccountFlagged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "AccountFlagged" },
+  async ({ event, context }) => {
   const { user, reason } = event.params;
 
   context.log.info(`🚩 Account flagged: ${user} - reason: ${reason}`);
-});
+}
+);
 
-MusicSubscriptionV5.AccountUnflagged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "AccountUnflagged" },
+  async ({ event, context }) => {
   const { user } = event.params;
 
   context.log.info(`✅ Account unflagged: ${user}`);
-});
+}
+);
 
-MusicSubscriptionV5.VoteToFlag.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "MusicSubscriptionV5", event: "VoteToFlag" },
+  async ({ event, context }) => {
   const { voter, target, totalVotes } = event.params;
 
   context.log.info(`🗳️ Vote to flag: ${voter} voted to flag ${target} (total votes: ${totalVotes})`);
-});
+}
+);
 
 // ============================================
 // LIVE RADIO EVENTS (World Cup 2026 Jukebox)
 // ============================================
 
 // Radio lifecycle events
-LiveRadioV3.RadioStarted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "RadioStarted" },
+  async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
   let stats = await context.RadioGlobalStats.get(statsId);
@@ -1342,9 +1442,12 @@ LiveRadioV3.RadioStarted.handler(async ({ event, context }) => {
 
   await context.RadioGlobalStats.set(stats);
   context.log.info(`📻 LiveRadio started at ${event.block.timestamp}`);
-});
+}
+);
 
-LiveRadioV3.RadioStopped.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "RadioStopped" },
+  async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
   let stats = await context.RadioGlobalStats.get(statsId);
@@ -1357,10 +1460,13 @@ LiveRadioV3.RadioStopped.handler(async ({ event, context }) => {
   }
 
   context.log.info(`📻 LiveRadio stopped at ${event.block.timestamp}`);
-});
+}
+);
 
 // Song queuing
-LiveRadioV3.SongQueued.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "SongQueued" },
+  async ({ event, context }) => {
   const { queueId, masterTokenId, queuedBy, fid, paidAmount, tipAmount, hadLicense } = event.params;
 
   const queuedSongId = `queue-${event.chainId}-${queueId.toString()}`;
@@ -1424,10 +1530,13 @@ LiveRadioV3.SongQueued.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎵 Song #${masterTokenId} queued by ${queuedBy.slice(0, 8)}... (FID: ${fid}, paid: ${paidAmount})`);
-});
+}
+);
 
 // Song played (tracks all plays - queued and random)
-LiveRadioV3.SongPlayed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "SongPlayed" },
+  async ({ event, context }) => {
   const { queueId, masterTokenId, artist, artistPayout, wasRandom } = event.params;
 
   const playId = `play-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1473,10 +1582,13 @@ LiveRadioV3.SongPlayed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎶 Song #${masterTokenId} played on radio (${wasRandom ? 'random' : 'queued'}) - artist: ${artist.slice(0, 8)}...`);
-});
+}
+);
 
 // Voice notes
-LiveRadioV3.VoiceNoteSubmitted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "VoiceNoteSubmitted" },
+  async ({ event, context }) => {
   const { noteId, submitter, duration, paidAmount, isAd } = event.params;
 
   const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
@@ -1536,9 +1648,12 @@ LiveRadioV3.VoiceNoteSubmitted.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎤 Voice ${isAd ? 'ad' : 'note'} submitted by ${submitter.slice(0, 8)}... (${duration}s, paid: ${paidAmount})`);
-});
+}
+);
 
-LiveRadioV3.VoiceNotePlayed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "VoiceNotePlayed" },
+  async ({ event, context }) => {
   const { noteId, submitter, rewardPaid } = event.params;
 
   const voiceNoteId = `voicenote-${event.chainId}-${noteId.toString()}`;
@@ -1567,10 +1682,13 @@ LiveRadioV3.VoiceNotePlayed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎤 Voice note #${noteId} played - ${submitter.slice(0, 8)}... earned ${rewardPaid} TOURS`);
-});
+}
+);
 
 // Listener rewards
-LiveRadioV3.ListenerRewarded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "ListenerRewarded" },
+  async ({ event, context }) => {
   const { listener, amount, rewardType } = event.params;
 
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
@@ -1614,9 +1732,12 @@ LiveRadioV3.ListenerRewarded.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎧 Listener ${listener.slice(0, 8)}... rewarded ${amount} TOURS (${rewardType})`);
-});
+}
+);
 
-LiveRadioV3.StreakBonusClaimed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "StreakBonusClaimed" },
+  async ({ event, context }) => {
   const { listener, streakDays, bonusAmount } = event.params;
 
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
@@ -1638,9 +1759,12 @@ LiveRadioV3.StreakBonusClaimed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🔥 ${listener.slice(0, 8)}... claimed ${streakDays}-day streak bonus: ${bonusAmount} TOURS`);
-});
+}
+);
 
-LiveRadioV3.FirstListenerBonus.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "FirstListenerBonus" },
+  async ({ event, context }) => {
   const { listener, day, bonusAmount } = event.params;
 
   const firstListenerId = `firstlistener-${event.chainId}-${day.toString()}`;
@@ -1670,10 +1794,13 @@ LiveRadioV3.FirstListenerBonus.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🌟 ${listener.slice(0, 8)}... is first listener of day ${day} - bonus: ${bonusAmount} TOURS`);
-});
+}
+);
 
 // Tips
-LiveRadioV3.TipReceived.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "TipReceived" },
+  async ({ event, context }) => {
   const { masterTokenId, artist, tipper, amount } = event.params;
 
   const tipId = `tip-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -1713,39 +1840,54 @@ LiveRadioV3.TipReceived.handler(async ({ event, context }) => {
   }
 
   context.log.info(`💸 Tip: ${tipper.slice(0, 8)}... tipped ${amount} WMON to artist ${artist.slice(0, 8)}... for song #${masterTokenId}`);
-});
+}
+);
 
 // Random song selection (Pyth Entropy)
-LiveRadioV3.RandomSongRequested.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "RandomSongRequested" },
+  async ({ event, context }) => {
   const { sequenceNumber, requester } = event.params;
 
   context.log.info(`🎲 Random song requested - sequence: ${sequenceNumber}, requester: ${requester.slice(0, 8)}...`);
-});
+}
+);
 
-LiveRadioV3.RandomSongSelected.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "RandomSongSelected" },
+  async ({ event, context }) => {
   const { masterTokenId, randomValue } = event.params;
 
   context.log.info(`🎲 Random song selected: #${masterTokenId} (random: ${randomValue})`);
-});
+}
+);
 
 // Song pool management
-LiveRadioV3.SongAddedToPool.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "SongAddedToPool" },
+  async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➕ Song #${masterTokenId} added to radio pool`);
-});
+}
+);
 
-LiveRadioV3.SongRemovedFromPool.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LiveRadioV3", event: "SongRemovedFromPool" },
+  async ({ event, context }) => {
   const { masterTokenId } = event.params;
 
   context.log.info(`➖ Song #${masterTokenId} removed from radio pool`);
-});
+}
+);
 
 // ============================================
 // CLIMBING LOCATIONS V1 EVENTS (Rock Climbing)
 // ============================================
 
-ClimbingLocationsV2.LocationCreated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ClimbingLocationsV2", event: "LocationCreated" },
+  async ({ event, context }) => {
   const { locationId, creator, creatorFid, creatorTelegramId, name, photoProofIPFS, priceWmon } = event.params;
 
   const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
@@ -1820,9 +1962,12 @@ ClimbingLocationsV2.LocationCreated.handler(async ({ event, context }) => {
 
   const userType = creatorFid > BigInt(0) ? `FID: ${creatorFid}` : `TG: ${creatorTelegramId}`;
   context.log.info(`🧗 Climb location #${locationId} created by ${creator.slice(0, 8)}... (${userType}) - "${name}" @ ${priceWmon} WMON`);
-});
+}
+);
 
-ClimbingLocationsV2.AccessBadgeMinted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ClimbingLocationsV2", event: "AccessBadgeMinted" },
+  async ({ event, context }) => {
   const { tokenId, locationId, holder, holderFid, holderTelegramId } = event.params;
 
   const badgeId = `badge-${event.chainId}-${tokenId.toString()}`;
@@ -1887,9 +2032,12 @@ ClimbingLocationsV2.AccessBadgeMinted.handler(async ({ event, context }) => {
 
   const userType = holderFid > BigInt(0) ? `FID: ${holderFid}` : `TG: ${holderTelegramId}`;
   context.log.info(`🎫 Access Badge #${tokenId} minted for location #${locationId} to ${holder.slice(0, 8)}... (${userType})`);
-});
+}
+);
 
-ClimbingLocationsV2.ClimbProofMinted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ClimbingLocationsV2", event: "ClimbProofMinted" },
+  async ({ event, context }) => {
   const { tokenId, locationId, climber, photoIPFS, reward } = event.params;
 
   const proofId = `proof-${event.chainId}-${tokenId.toString()}`;
@@ -1958,9 +2106,12 @@ ClimbingLocationsV2.ClimbProofMinted.handler(async ({ event, context }) => {
 
   const rewardFormatted = (Number(reward) / 1e18).toFixed(2);
   context.log.info(`🏆 Climb Proof #${tokenId} minted for location #${locationId} - ${climber.slice(0, 8)}... earned ${rewardFormatted} TOURS`);
-});
+}
+);
 
-ClimbingLocationsV2.LocationDisabled.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ClimbingLocationsV2", event: "LocationDisabled" },
+  async ({ event, context }) => {
   const { locationId } = event.params;
 
   const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
@@ -1976,13 +2127,16 @@ ClimbingLocationsV2.LocationDisabled.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🚫 Climb location #${locationId} disabled by admin`);
-});
+}
+);
 
 // ============================================
 // TOURS REWARD MANAGER EVENTS (Bitcoin-style Halving)
 // ============================================
 
-ToursRewardManager.HalvingTriggered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "HalvingTriggered" },
+  async ({ event, context }) => {
   const { epoch, timestamp } = event.params;
 
   const epochId = `epoch-${event.chainId}-${epoch.toString()}`;
@@ -2016,9 +2170,12 @@ ToursRewardManager.HalvingTriggered.handler(async ({ event, context }) => {
   }
 
   context.log.info(`⚡ Halving triggered - Epoch ${epoch}`);
-});
+}
+);
 
-ToursRewardManager.EarlyHalvingTriggered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "EarlyHalvingTriggered" },
+  async ({ event, context }) => {
   const { newEpoch, triggeredBy } = event.params;
 
   const epochId = `epoch-${event.chainId}-${newEpoch.toString()}`;
@@ -2044,9 +2201,12 @@ ToursRewardManager.EarlyHalvingTriggered.handler(async ({ event, context }) => {
   }
 
   context.log.info(`⚡ Early halving triggered to epoch ${newEpoch} by ${triggeredBy}`);
-});
+}
+);
 
-ToursRewardManager.BaseRewardUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "BaseRewardUpdated" },
+  async ({ event, context }) => {
   const { rewardType, oldRate, newRate } = event.params;
 
   const updateId = `rate-update-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2063,9 +2223,12 @@ ToursRewardManager.BaseRewardUpdated.handler(async ({ event, context }) => {
   });
 
   context.log.info(`📊 Base reward updated - Type ${rewardType}: ${oldRate} → ${newRate}`);
-});
+}
+);
 
-ToursRewardManager.OverrideSet.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "OverrideSet" },
+  async ({ event, context }) => {
   const { rewardType, rate } = event.params;
 
   const updateId = `override-set-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2082,21 +2245,30 @@ ToursRewardManager.OverrideSet.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🔧 Override set - Type ${rewardType}: ${rate}`);
-});
+}
+);
 
-ToursRewardManager.OverrideCleared.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "OverrideCleared" },
+  async ({ event, context }) => {
   const { rewardType } = event.params;
 
   context.log.info(`🔧 Override cleared for reward type ${rewardType}`);
-});
+}
+);
 
-ToursRewardManager.DistributorUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "DistributorUpdated" },
+  async ({ event, context }) => {
   const { distributor, authorized } = event.params;
 
   context.log.info(`${authorized ? '✅' : '❌'} Distributor ${distributor} ${authorized ? 'authorized' : 'revoked'}`);
-});
+}
+);
 
-ToursRewardManager.DailyCapUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "DailyCapUpdated" },
+  async ({ event, context }) => {
   const { oldCap, newCap } = event.params;
 
   const configId = `reward-config-${event.chainId}`;
@@ -2110,9 +2282,12 @@ ToursRewardManager.DailyCapUpdated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`📊 Daily cap updated: ${oldCap} → ${newCap}`);
-});
+}
+);
 
-ToursRewardManager.DAOTimelockUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "DAOTimelockUpdated" },
+  async ({ event, context }) => {
   const { oldTimelock, newTimelock } = event.params;
 
   const configId = `reward-config-${event.chainId}`;
@@ -2126,9 +2301,12 @@ ToursRewardManager.DAOTimelockUpdated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🏛️ DAO Timelock updated: ${oldTimelock} → ${newTimelock}`);
-});
+}
+);
 
-ToursRewardManager.RewardDistributed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ToursRewardManager", event: "RewardDistributed" },
+  async ({ event, context }) => {
   const { recipient, rewardType, amount } = event.params;
 
   const distId = `tours-reward-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2145,13 +2323,16 @@ ToursRewardManager.RewardDistributed.handler(async ({ event, context }) => {
 
   const amountFormatted = (Number(amount) / 1e18).toFixed(2);
   context.log.info(`🎁 Reward distributed: ${recipient.slice(0, 8)}... received ${amountFormatted} TOURS (type: ${rewardType})`);
-});
+}
+);
 
 // ============================================
 // VOTING TOURS EVENTS (vTOURS Governance Token)
 // ============================================
 
-VotingTOURS.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "VotingTOURS", event: "Transfer" },
+  async ({ event, context }) => {
   const { from, to, value } = event.params;
 
   const transferId = `vtours-transfer-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2178,9 +2359,12 @@ VotingTOURS.Transfer.handler(async ({ event, context }) => {
   } else {
     context.log.info(`🗳️ vTOURS transferred: ${from.slice(0, 8)}... → ${to.slice(0, 8)}... (${value})`);
   }
-});
+}
+);
 
-VotingTOURS.DelegateChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "VotingTOURS", event: "DelegateChanged" },
+  async ({ event, context }) => {
   const { delegator, fromDelegate, toDelegate } = event.params;
 
   const delegateId = `delegate-${event.chainId}-${delegator.toLowerCase()}`;
@@ -2196,9 +2380,12 @@ VotingTOURS.DelegateChanged.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🗳️ Delegation changed: ${delegator.slice(0, 8)}... delegated to ${toDelegate.slice(0, 8)}...`);
-});
+}
+);
 
-VotingTOURS.DelegateVotesChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "VotingTOURS", event: "DelegateVotesChanged" },
+  async ({ event, context }) => {
   const { delegate, previousVotes, newVotes } = event.params;
 
   const powerId = `voting-power-${event.chainId}-${delegate.toLowerCase()}`;
@@ -2214,13 +2401,16 @@ VotingTOURS.DelegateVotesChanged.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🗳️ Voting power changed: ${delegate.slice(0, 8)}... ${previousVotes} → ${newVotes}`);
-});
+}
+);
 
 // ============================================
 // EMPOWER TOURS GOVERNOR EVENTS (DAO Proposals)
 // ============================================
 
-EmpowerToursGovernor.ProposalCreated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursGovernor", event: "ProposalCreated" },
+  async ({ event, context }) => {
   const { proposalId, proposer, targets, values, signatures, calldatas, voteStart, voteEnd, description } = event.params;
 
   const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
@@ -2247,9 +2437,12 @@ EmpowerToursGovernor.ProposalCreated.handler(async ({ event, context }) => {
   });
 
   context.log.info(`🏛️ Proposal #${proposalId} created by ${proposer.slice(0, 8)}... - "${description.slice(0, 80)}..."`);
-});
+}
+);
 
-EmpowerToursGovernor.VoteCast.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursGovernor", event: "VoteCast" },
+  async ({ event, context }) => {
   const { voter, proposalId, support, weight, reason } = event.params;
 
   const voteId = `vote-${event.chainId}-${proposalId.toString()}-${voter.toLowerCase()}`;
@@ -2285,9 +2478,12 @@ EmpowerToursGovernor.VoteCast.handler(async ({ event, context }) => {
 
   const supportLabel = Number(support) === 0 ? "Against" : Number(support) === 1 ? "For" : "Abstain";
   context.log.info(`🗳️ Vote cast on Proposal #${proposalId}: ${voter.slice(0, 8)}... voted ${supportLabel} (weight: ${weight})`);
-});
+}
+);
 
-EmpowerToursGovernor.ProposalQueued.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursGovernor", event: "ProposalQueued" },
+  async ({ event, context }) => {
   const { proposalId, etaSeconds } = event.params;
 
   const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
@@ -2303,9 +2499,12 @@ EmpowerToursGovernor.ProposalQueued.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🏛️ Proposal #${proposalId} queued - ETA: ${new Date(Number(etaSeconds) * 1000).toISOString()}`);
-});
+}
+);
 
-EmpowerToursGovernor.ProposalExecuted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursGovernor", event: "ProposalExecuted" },
+  async ({ event, context }) => {
   const { proposalId } = event.params;
 
   const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
@@ -2320,9 +2519,12 @@ EmpowerToursGovernor.ProposalExecuted.handler(async ({ event, context }) => {
   }
 
   context.log.info(`✅ Proposal #${proposalId} executed`);
-});
+}
+);
 
-EmpowerToursGovernor.ProposalCanceled.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursGovernor", event: "ProposalCanceled" },
+  async ({ event, context }) => {
   const { proposalId } = event.params;
 
   const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
@@ -2337,13 +2539,16 @@ EmpowerToursGovernor.ProposalCanceled.handler(async ({ event, context }) => {
   }
 
   context.log.info(`❌ Proposal #${proposalId} canceled`);
-});
+}
+);
 
 // ============================================
 // EMPOWER TOURS TIMELOCK EVENTS
 // ============================================
 
-EmpowerToursTimelock.CallScheduled.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursTimelock", event: "CallScheduled" },
+  async ({ event, context }) => {
   const { id, index, target, value, data, predecessor, delay } = event.params;
 
   const opId = `timelock-${event.chainId}-${id}-${index.toString()}`;
@@ -2366,9 +2571,12 @@ EmpowerToursTimelock.CallScheduled.handler(async ({ event, context }) => {
   });
 
   context.log.info(`⏰ Timelock call scheduled: ${target.slice(0, 8)}... (delay: ${delay}s)`);
-});
+}
+);
 
-EmpowerToursTimelock.CallExecuted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursTimelock", event: "CallExecuted" },
+  async ({ event, context }) => {
   const { id, index, target, value, data } = event.params;
 
   const opId = `timelock-${event.chainId}-${id}-${index.toString()}`;
@@ -2400,9 +2608,12 @@ EmpowerToursTimelock.CallExecuted.handler(async ({ event, context }) => {
   }
 
   context.log.info(`✅ Timelock call executed: ${target.slice(0, 8)}...`);
-});
+}
+);
 
-EmpowerToursTimelock.Cancelled.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursTimelock", event: "Cancelled" },
+  async ({ event, context }) => {
   const { id } = event.params;
 
   const cancelId = `timelock-cancel-${event.chainId}-${id}`;
@@ -2425,13 +2636,16 @@ EmpowerToursTimelock.Cancelled.handler(async ({ event, context }) => {
   });
 
   context.log.info(`❌ Timelock operation cancelled: ${id}`);
-});
+}
+);
 
 // ============================================
 // DAO CONTRACT FACTORY EVENTS
 // ============================================
 
-DAOContractFactory.ProposalRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "ProposalRegistered" },
+  async ({ event, context }) => {
   const { id, proposer, prompt, treasuryAllocation } = event.params;
 
   const proposalId = `factory-${event.chainId}-${id.toString()}`;
@@ -2457,9 +2671,12 @@ DAOContractFactory.ProposalRegistered.handler(async ({ event, context }) => {
   });
 
   context.log.info(`📋 Factory Proposal #${id} registered by ${proposer.slice(0, 8)}... - "${prompt.slice(0, 60)}..."`);
-});
+}
+);
 
-DAOContractFactory.GovernorProposalLinked.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "GovernorProposalLinked" },
+  async ({ event, context }) => {
   const { id, governorProposalId } = event.params;
 
   const proposalId = `factory-${event.chainId}-${id.toString()}`;
@@ -2473,9 +2690,12 @@ DAOContractFactory.GovernorProposalLinked.handler(async ({ event, context }) => 
   }
 
   context.log.info(`🔗 Factory Proposal #${id} linked to Governor Proposal #${governorProposalId}`);
-});
+}
+);
 
-DAOContractFactory.CodeGenerated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "CodeGenerated" },
+  async ({ event, context }) => {
   const { id, ipfsCID } = event.params;
 
   const proposalId = `factory-${event.chainId}-${id.toString()}`;
@@ -2490,9 +2710,12 @@ DAOContractFactory.CodeGenerated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`💻 Code generated for Factory Proposal #${id} - IPFS: ${ipfsCID}`);
-});
+}
+);
 
-DAOContractFactory.BytecodeCompiled.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "BytecodeCompiled" },
+  async ({ event, context }) => {
   const { id } = event.params;
 
   const proposalId = `factory-${event.chainId}-${id.toString()}`;
@@ -2507,9 +2730,12 @@ DAOContractFactory.BytecodeCompiled.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🔨 Bytecode compiled for Factory Proposal #${id}`);
-});
+}
+);
 
-DAOContractFactory.ContractDeployed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "ContractDeployed" },
+  async ({ event, context }) => {
   const { id, deployedContract, nftId } = event.params;
 
   const proposalId = `factory-${event.chainId}-${id.toString()}`;
@@ -2525,9 +2751,12 @@ DAOContractFactory.ContractDeployed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🚀 Contract deployed for Factory Proposal #${id} at ${deployedContract} (NFT #${nftId})`);
-});
+}
+);
 
-DAOContractFactory.TreasuryAllocated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "TreasuryAllocated" },
+  async ({ event, context }) => {
   const { id, recipient, amount } = event.params;
 
   const allocationId = `treasury-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2544,9 +2773,12 @@ DAOContractFactory.TreasuryAllocated.handler(async ({ event, context }) => {
 
   const amountFormatted = (Number(amount) / 1e18).toFixed(2);
   context.log.info(`💰 Treasury allocated for Proposal #${id}: ${amountFormatted} TOURS to ${recipient.slice(0, 8)}...`);
-});
+}
+);
 
-DAOContractFactory.RewardDistributed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "RewardDistributed" },
+  async ({ event, context }) => {
   const { id, proposer, amount } = event.params;
 
   const rewardId = `factory-reward-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2572,9 +2804,12 @@ DAOContractFactory.RewardDistributed.handler(async ({ event, context }) => {
 
   const amountFormatted = (Number(amount) / 1e18).toFixed(2);
   context.log.info(`🎁 Factory reward for Proposal #${id}: ${amountFormatted} TOURS to ${proposer.slice(0, 8)}...`);
-});
+}
+);
 
-DAOContractFactory.IntegrityHashesSet.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "IntegrityHashesSet" },
+  async ({ event, context }) => {
   const { id, sourceHash, bytecodeHash } = event.params;
 
   const proposalId = `factory-${event.chainId}-${id.toString()}`;
@@ -2589,19 +2824,25 @@ DAOContractFactory.IntegrityHashesSet.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🔐 Integrity hashes set for Proposal #${id}`);
-});
+}
+);
 
-DAOContractFactory.ProposalFeeUpdated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DAOContractFactory", event: "ProposalFeeUpdated" },
+  async ({ event, context }) => {
   const { oldFee, newFee } = event.params;
 
   context.log.info(`💰 Factory proposal fee updated: ${oldFee} → ${newFee}`);
-});
+}
+);
 
 // ============================================
 // DEPLOYMENT NFT EVENTS
 // ============================================
 
-DeploymentNFT.DeploymentRecorded.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DeploymentNFT", event: "DeploymentRecorded" },
+  async ({ event, context }) => {
   const { tokenId, proposalId, deployedContract, ipfsCodeHash } = event.params;
 
   const nftId = `deployment-nft-${event.chainId}-${tokenId.toString()}`;
@@ -2619,9 +2860,12 @@ DeploymentNFT.DeploymentRecorded.handler(async ({ event, context }) => {
   });
 
   context.log.info(`📜 Deployment NFT #${tokenId} recorded for Proposal #${proposalId} → ${deployedContract}`);
-});
+}
+);
 
-DeploymentNFT.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DeploymentNFT", event: "Transfer" },
+  async ({ event, context }) => {
   const { from, to, tokenId } = event.params;
 
   const nftId = `deployment-nft-${event.chainId}-${tokenId.toString()}`;
@@ -2640,13 +2884,16 @@ DeploymentNFT.Transfer.handler(async ({ event, context }) => {
   } else {
     context.log.info(`📜 Deployment NFT #${tokenId} transferred: ${from.slice(0, 8)}... → ${to.slice(0, 8)}...`);
   }
-});
+}
+);
 
 // ============================================
 // EMPOWER TOURS DEV STUDIO EVENTS
 // ============================================
 
-EmpowerToursDevStudio.CreditsPurchased.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursDevStudio", event: "CreditsPurchased" },
+  async ({ event, context }) => {
   const { user, amount, cost } = event.params;
 
   const purchaseId = `credit-purchase-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2706,9 +2953,12 @@ EmpowerToursDevStudio.CreditsPurchased.handler(async ({ event, context }) => {
 
   const costFormatted = (Number(cost) / 1e18).toFixed(2);
   context.log.info(`💳 Credits purchased: ${user.slice(0, 8)}... bought ${amount} credits for ${costFormatted} TOURS`);
-});
+}
+);
 
-EmpowerToursDevStudio.PromptGenerated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursDevStudio", event: "PromptGenerated" },
+  async ({ event, context }) => {
   const { user, tokenId, appType } = event.params;
 
   const appId = `dev-app-${event.chainId}-${tokenId.toString()}`;
@@ -2745,9 +2995,12 @@ EmpowerToursDevStudio.PromptGenerated.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🤖 App generated: ${user.slice(0, 8)}... created "${appType}" app (NFT #${tokenId})`);
-});
+}
+);
 
-EmpowerToursDevStudio.WhitelistMinted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursDevStudio", event: "WhitelistMinted" },
+  async ({ event, context }) => {
   const { user, tokenId, timestamp: eventTimestamp } = event.params;
 
   const mintId = `whitelist-mint-${event.chainId}-${tokenId.toString()}`;
@@ -2794,9 +3047,12 @@ EmpowerToursDevStudio.WhitelistMinted.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎫 Whitelist minted: ${user.slice(0, 8)}... received NFT #${tokenId}`);
-});
+}
+);
 
-EmpowerToursDevStudio.ToursAirdropped.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursDevStudio", event: "ToursAirdropped" },
+  async ({ event, context }) => {
   const { user, amount } = event.params;
 
   const airdropId = `airdrop-${event.chainId}-${event.transaction.hash}-${event.logIndex}`;
@@ -2833,9 +3089,12 @@ EmpowerToursDevStudio.ToursAirdropped.handler(async ({ event, context }) => {
 
   const amountFormatted = (Number(amount) / 1e18).toFixed(2);
   context.log.info(`🪂 TOURS airdropped: ${user.slice(0, 8)}... received ${amountFormatted} TOURS`);
-});
+}
+);
 
-EmpowerToursDevStudio.WhitelistClosed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EmpowerToursDevStudio", event: "WhitelistClosed" },
+  async ({ event, context }) => {
   const { finalCount, timestamp: eventTimestamp } = event.params;
 
   const globalId = `dev-studio-stats-${event.chainId}`;
@@ -2849,13 +3108,16 @@ EmpowerToursDevStudio.WhitelistClosed.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🔒 Dev Studio whitelist closed - Final count: ${finalCount}`);
-});
+}
+);
 
 // ============================================
 // DAILY LOTTERY EVENTS (Pyth Entropy Randomness)
 // ============================================
 
-DailyLottery.RoundStarted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DailyLottery", event: "RoundStarted" },
+  async ({ event, context }) => {
   const { roundId, startTime, endTime, initialPool } = event.params;
 
   const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
@@ -2909,9 +3171,12 @@ DailyLottery.RoundStarted.handler(async ({ event, context }) => {
 
   const poolFormatted = (Number(initialPool) / 1e18).toFixed(2);
   context.log.info(`🎰 Lottery Round #${roundId} started - Initial pool: ${poolFormatted} WMON`);
-});
+}
+);
 
-DailyLottery.RoundRolledOver.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DailyLottery", event: "RoundRolledOver" },
+  async ({ event, context }) => {
   const { roundId, poolAmount, ticketCount } = event.params;
 
   const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
@@ -2928,9 +3193,12 @@ DailyLottery.RoundRolledOver.handler(async ({ event, context }) => {
 
   const poolFormatted = (Number(poolAmount) / 1e18).toFixed(2);
   context.log.info(`🔄 Lottery Round #${roundId} rolled over - Pool: ${poolFormatted} WMON, Tickets: ${ticketCount}`);
-});
+}
+);
 
-DailyLottery.TicketPurchased.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DailyLottery", event: "TicketPurchased" },
+  async ({ event, context }) => {
   const { roundId, beneficiary, userFid, ticketCount, totalCost } = event.params;
 
   const ticketId = `ticket-${event.chainId}-${roundId.toString()}-${event.transaction.hash}-${event.logIndex}`;
@@ -3014,9 +3282,12 @@ DailyLottery.TicketPurchased.handler(async ({ event, context }) => {
 
   const costFormatted = (Number(totalCost) / 1e18).toFixed(2);
   context.log.info(`🎟️ Lottery tickets purchased: ${beneficiary.slice(0, 8)}... bought ${ticketCount} tickets for ${costFormatted} WMON (Round #${roundId})`);
-});
+}
+);
 
-DailyLottery.DrawRequested.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DailyLottery", event: "DrawRequested" },
+  async ({ event, context }) => {
   const { roundId, sequenceNumber, triggeredBy } = event.params;
 
   const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
@@ -3032,9 +3303,12 @@ DailyLottery.DrawRequested.handler(async ({ event, context }) => {
   }
 
   context.log.info(`🎲 Lottery draw requested: Round #${roundId} by ${triggeredBy.slice(0, 8)}... (Pyth seq: ${sequenceNumber})`);
-});
+}
+);
 
-DailyLottery.DrawTriggered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DailyLottery", event: "DrawTriggered" },
+  async ({ event, context }) => {
   const { roundId, triggeredBy, toursReward } = event.params;
 
   const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
@@ -3088,9 +3362,12 @@ DailyLottery.DrawTriggered.handler(async ({ event, context }) => {
 
   const rewardFormatted = (Number(toursReward) / 1e18).toFixed(2);
   context.log.info(`⚡ Lottery draw triggered: ${triggeredBy.slice(0, 8)}... earned ${rewardFormatted} TOURS for Round #${roundId}`);
-});
+}
+);
 
-DailyLottery.WinnerSelected.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "DailyLottery", event: "WinnerSelected" },
+  async ({ event, context }) => {
   const { roundId, winner, winnerFid, wmonPrize, toursBonus, totalEntries } = event.params;
 
   const roundEntityId = `round-${event.chainId}-${roundId.toString()}`;
@@ -3167,4 +3444,5 @@ DailyLottery.WinnerSelected.handler(async ({ event, context }) => {
   const wmonFormatted = (Number(wmonPrize) / 1e18).toFixed(2);
   const toursFormatted = (Number(toursBonus) / 1e18).toFixed(2);
   context.log.info(`🏆 Lottery winner selected! Round #${roundId}: ${winner.slice(0, 8)}... won ${wmonFormatted} WMON + ${toursFormatted} TOURS bonus (${totalEntries} entries)`);
-});
+}
+);
