@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
-import { broadcastRadioUpdate } from '@/lib/event-manager';
-import { hasRightsClearance } from '@/lib/rights-declaration';
+import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
+import { broadcastRadioUpdate } from "@/lib/event-manager";
+import { hasRightsClearance } from "@/lib/rights-declaration";
 
 /**
  * Live Radio Scheduler
@@ -28,19 +28,47 @@ const redis = new Redis({
 });
 
 // In-memory cache to reduce Redis reads
-let cachedState: { data: RadioState | null; timestamp: number } = { data: null, timestamp: 0 };
-let cachedPhase: { data: string; timestamp: number } = { data: 'song', timestamp: 0 };
+let cachedState: { data: RadioState | null; timestamp: number } = {
+  data: null,
+  timestamp: 0,
+};
+let cachedPhase: { data: string; timestamp: number } = {
+  data: "song",
+  timestamp: 0,
+};
 const CACHE_TTL_MS = 10000; // 10 second cache (scheduler runs every 30-60s anyway)
 
-const RADIO_STATE_KEY = 'live-radio:state';
-const RADIO_QUEUE_KEY = 'live-radio:queue';
-const VOICE_NOTES_KEY = 'live-radio:voice-notes';
-const SONG_POOL_KEY = 'live-radio:song-pool';
-const SCHEDULER_LOCK_KEY = 'live-radio:scheduler-lock';
-const PLAYBACK_PHASE_KEY = 'live-radio:playback-phase'; // 'song' | 'voice_note'
-const PLAY_HISTORY_KEY = 'live-radio:play-history'; // Recent plays list
+const RADIO_STATE_KEY = "live-radio:state";
+const RADIO_QUEUE_KEY = "live-radio:queue";
+const VOICE_NOTES_KEY = "live-radio:voice-notes";
+const SONG_POOL_KEY = "live-radio:song-pool";
+const SCHEDULER_LOCK_KEY = "live-radio:scheduler-lock";
+const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
+const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
+const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
 
-const KEEPER_SECRET = process.env.KEEPER_SECRET || '';
+// Fallback slot length used only until a client has reported a track's real
+// duration. Envio does not expose duration, so before this cache existed every
+// song sat in a flat 600s slot while the audio ran ~3-4 min — dead air, then an
+// abrupt cut when the scheduler finally advanced.
+const FALLBACK_DURATION = 600;
+
+/** Real duration for a track if any client has reported one. */
+async function getKnownDuration(tokenId: string): Promise<number | null> {
+  try {
+    const cached = await redis.hget<number>(
+      SONG_DURATIONS_KEY,
+      String(tokenId),
+    );
+    const seconds = Number(cached);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+  } catch (err) {
+    console.warn("[RadioScheduler] Duration lookup failed:", err);
+    return null;
+  }
+}
+
+const KEEPER_SECRET = process.env.KEEPER_SECRET || "";
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface RadioState {
@@ -130,8 +158,8 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
     `;
 
     const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
 
@@ -156,12 +184,14 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
     }
 
     if (clearedSongs.length < allSongs.length) {
-      console.log(`[RadioScheduler] Filtered ${allSongs.length - clearedSongs.length} revoked songs from pool`);
+      console.log(
+        `[RadioScheduler] Filtered ${allSongs.length - clearedSongs.length} revoked songs from pool`,
+      );
     }
 
     return clearedSongs;
   } catch (error) {
-    console.error('[RadioScheduler] Failed to fetch song pool:', error);
+    console.error("[RadioScheduler] Failed to fetch song pool:", error);
     return [];
   }
 }
@@ -178,15 +208,15 @@ async function selectRandomSong(): Promise<QueuedSong | null> {
     id: `random-${song.tokenId}-${Date.now()}`,
     tokenId: song.tokenId,
     name: song.name || `Song #${song.tokenId}`,
-    artist: song.artist || 'Unknown Artist',
+    artist: song.artist || "Unknown Artist",
     artistAddress: song.artist,
     audioUrl: song.audioUrl,
-    imageUrl: song.imageUrl || '',
-    queuedBy: 'radio',
+    imageUrl: song.imageUrl || "",
+    queuedBy: "radio",
     queuedByFid: 0,
     queuedAt: Date.now(),
-    paidAmount: '0',
-    duration: song.duration || 600, // Use metadata duration or 10 min fallback (client reports actual end)
+    paidAmount: "0",
+    duration: song.duration || FALLBACK_DURATION, // overridden by the reported real duration at schedule time
   };
 }
 
@@ -194,14 +224,18 @@ async function selectRandomSong(): Promise<QueuedSong | null> {
 async function getNextVoiceNote(): Promise<VoiceNote | null> {
   const noteJson = await redis.lpop(VOICE_NOTES_KEY);
   if (!noteJson) return null;
-  return typeof noteJson === 'string' ? JSON.parse(noteJson) as VoiceNote : noteJson as VoiceNote;
+  return typeof noteJson === "string"
+    ? (JSON.parse(noteJson) as VoiceNote)
+    : (noteJson as VoiceNote);
 }
 
 // Get next queued song
 async function getNextQueuedSong(): Promise<QueuedSong | null> {
   const songJson = await redis.lpop(RADIO_QUEUE_KEY);
   if (!songJson) return null;
-  return typeof songJson === 'string' ? JSON.parse(songJson) as QueuedSong : songJson as QueuedSong;
+  return typeof songJson === "string"
+    ? (JSON.parse(songJson) as QueuedSong)
+    : (songJson as QueuedSong);
 }
 
 export async function POST(req: NextRequest) {
@@ -209,23 +243,27 @@ export async function POST(req: NextRequest) {
     // Verify keeper secret
     const { secret } = await req.json();
     if (secret !== KEEPER_SECRET && KEEPER_SECRET) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
     }
 
     const now = Date.now();
 
     // OPTIMIZATION: Check cached state first to see if we need to do anything
     // This avoids hitting Redis if we know the song is still playing
-    if (cachedState.data && (now - cachedState.timestamp) < CACHE_TTL_MS) {
+    if (cachedState.data && now - cachedState.timestamp < CACHE_TTL_MS) {
       const state = cachedState.data;
       if (state.isLive && state.currentSong) {
-        const songEndTime = state.currentSong.startedAt + (state.currentSong.duration * 1000);
+        const songEndTime =
+          state.currentSong.startedAt + state.currentSong.duration * 1000;
         const remainingMs = songEndTime - now;
         // If song has more than 30 seconds left, skip Redis entirely
         if (remainingMs > 30000) {
           return NextResponse.json({
             success: true,
-            message: 'Song still playing (cached)',
+            message: "Song still playing (cached)",
             song: state.currentSong.name,
             remainingMs,
             cached: true,
@@ -233,12 +271,14 @@ export async function POST(req: NextRequest) {
         }
       }
       if (state.isLive && state.currentVoiceNote) {
-        const vnEndTime = state.currentVoiceNote.startedAt + (state.currentVoiceNote.duration * 1000);
+        const vnEndTime =
+          state.currentVoiceNote.startedAt +
+          state.currentVoiceNote.duration * 1000;
         const remainingMs = vnEndTime - now;
         if (remainingMs > 5000) {
           return NextResponse.json({
             success: true,
-            message: 'Voice note still playing (cached)',
+            message: "Voice note still playing (cached)",
             remainingMs,
             cached: true,
           });
@@ -247,9 +287,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Acquire lock to prevent concurrent scheduling (1 Redis command)
-    const lockAcquired = await redis.set(SCHEDULER_LOCK_KEY, Date.now(), { nx: true, ex: 30 });
+    const lockAcquired = await redis.set(SCHEDULER_LOCK_KEY, Date.now(), {
+      nx: true,
+      ex: 30,
+    });
     if (!lockAcquired) {
-      return NextResponse.json({ success: true, message: 'Scheduler already running' });
+      return NextResponse.json({
+        success: true,
+        message: "Scheduler already running",
+      });
     }
 
     try {
@@ -261,28 +307,32 @@ export async function POST(req: NextRequest) {
 
       if (!state || !state.isLive) {
         await redis.del(SCHEDULER_LOCK_KEY);
-        return NextResponse.json({ success: true, message: 'Radio not live' });
+        return NextResponse.json({ success: true, message: "Radio not live" });
       }
 
-      let action = 'none';
+      let action = "none";
       let details: any = {};
 
       // Get current playback phase (1 Redis command - but check cache first)
       let phase: string;
-      if (cachedPhase.timestamp > 0 && (now - cachedPhase.timestamp) < CACHE_TTL_MS) {
+      if (
+        cachedPhase.timestamp > 0 &&
+        now - cachedPhase.timestamp < CACHE_TTL_MS
+      ) {
         phase = cachedPhase.data;
       } else {
-        phase = await redis.get<string>(PLAYBACK_PHASE_KEY) || 'song';
+        phase = (await redis.get<string>(PLAYBACK_PHASE_KEY)) || "song";
         cachedPhase = { data: phase, timestamp: now };
       }
 
       // Check if voice note is playing and has ended
       if (state.currentVoiceNote) {
         const voiceNoteDuration = state.currentVoiceNote.duration || 5;
-        const voiceNoteEndTime = state.currentVoiceNote.startedAt + (voiceNoteDuration * 1000);
+        const voiceNoteEndTime =
+          state.currentVoiceNote.startedAt + voiceNoteDuration * 1000;
         const remainingMs = voiceNoteEndTime - now;
 
-        console.log('[RadioScheduler] Voice note check:', {
+        console.log("[RadioScheduler] Voice note check:", {
           id: state.currentVoiceNote.id,
           duration: voiceNoteDuration,
           startedAt: state.currentVoiceNote.startedAt,
@@ -293,57 +343,63 @@ export async function POST(req: NextRequest) {
 
         if (now >= voiceNoteEndTime) {
           // Voice note ended, switch to song phase
-          console.log('[RadioScheduler] Voice note ended after', voiceNoteDuration, 's, switching to song');
+          console.log(
+            "[RadioScheduler] Voice note ended after",
+            voiceNoteDuration,
+            "s, switching to song",
+          );
           state.currentVoiceNote = null;
           state.totalVoiceNotesPlayed = (state.totalVoiceNotesPlayed || 0) + 1;
-          phase = 'song';
-          await redis.set(PLAYBACK_PHASE_KEY, 'song');
-          cachedPhase = { data: 'song', timestamp: now };
+          phase = "song";
+          await redis.set(PLAYBACK_PHASE_KEY, "song");
+          cachedPhase = { data: "song", timestamp: now };
         } else {
           // Voice note still playing
           return NextResponse.json({
             success: true,
-            message: 'Voice note still playing',
-            remainingMs: voiceNoteEndTime - now
+            message: "Voice note still playing",
+            remainingMs: voiceNoteEndTime - now,
           });
         }
       }
 
       // Check if current song has ended
       if (state.currentSong) {
-        const songEndTime = state.currentSong.startedAt + (state.currentSong.duration * 1000);
+        const songEndTime =
+          state.currentSong.startedAt + state.currentSong.duration * 1000;
 
         if (now >= songEndTime) {
           // Song ended
-          console.log('[RadioScheduler] Song ended:', state.currentSong.name);
+          console.log("[RadioScheduler] Song ended:", state.currentSong.name);
           state.currentSong = null;
           state.totalSongsPlayed = (state.totalSongsPlayed || 0) + 1;
 
           // Switch to voice note phase (play voice note between songs)
-          phase = 'voice_note';
-          await redis.set(PLAYBACK_PHASE_KEY, 'voice_note');
-          cachedPhase = { data: 'voice_note', timestamp: now };
+          phase = "voice_note";
+          await redis.set(PLAYBACK_PHASE_KEY, "voice_note");
+          cachedPhase = { data: "voice_note", timestamp: now };
         } else {
           // Song still playing
           return NextResponse.json({
             success: true,
-            message: 'Song still playing',
+            message: "Song still playing",
             song: state.currentSong.name,
-            remainingMs: songEndTime - now
+            remainingMs: songEndTime - now,
           });
         }
       }
 
       // No song or voice note playing - advance playback
-      if (phase === 'voice_note') {
+      if (phase === "voice_note") {
         // Try to play a voice note
         const voiceNote = await getNextVoiceNote();
 
         if (voiceNote) {
           // Ensure duration is valid (default to 5 seconds if missing/invalid)
-          const validDuration = typeof voiceNote.duration === 'number' && voiceNote.duration > 0
-            ? voiceNote.duration
-            : 5;
+          const validDuration =
+            typeof voiceNote.duration === "number" && voiceNote.duration > 0
+              ? voiceNote.duration
+              : 5;
 
           state.currentVoiceNote = {
             id: voiceNote.id,
@@ -355,10 +411,19 @@ export async function POST(req: NextRequest) {
             startedAt: now,
             isAd: voiceNote.isAd,
           };
-          action = 'voice_note_started';
+          action = "voice_note_started";
           details = { voiceNote: state.currentVoiceNote };
-          console.log('[RadioScheduler] Playing voice note from:', voiceNote.username || voiceNote.userAddress, '| Duration:', validDuration, 's');
-          console.log('[RadioScheduler] Voice note audioUrl:', voiceNote.audioUrl);
+          console.log(
+            "[RadioScheduler] Playing voice note from:",
+            voiceNote.username || voiceNote.userAddress,
+            "| Duration:",
+            validDuration,
+            "s",
+          );
+          console.log(
+            "[RadioScheduler] Voice note audioUrl:",
+            voiceNote.audioUrl,
+          );
 
           // Save state and return immediately - let next scheduler call handle playback check
           state.lastUpdated = now;
@@ -366,7 +431,10 @@ export async function POST(req: NextRequest) {
           cachedState = { data: state, timestamp: now };
 
           // Broadcast voice note start to SSE clients
-          broadcastRadioUpdate('state_update', { type: 'voice_note_started', state });
+          broadcastRadioUpdate("state_update", {
+            type: "voice_note_started",
+            state,
+          });
 
           await redis.del(SCHEDULER_LOCK_KEY);
 
@@ -378,19 +446,19 @@ export async function POST(req: NextRequest) {
               isLive: state.isLive,
               currentSong: null,
               currentVoiceNote: state.currentVoiceNote.id,
-              phase: 'voice_note',
+              phase: "voice_note",
               durationMs: validDuration * 1000,
             },
           });
         } else {
           // No voice notes, skip to song phase
-          phase = 'song';
-          await redis.set(PLAYBACK_PHASE_KEY, 'song');
-          cachedPhase = { data: 'song', timestamp: now };
+          phase = "song";
+          await redis.set(PLAYBACK_PHASE_KEY, "song");
+          cachedPhase = { data: "song", timestamp: now };
         }
       }
 
-      if (phase === 'song' && !state.currentSong && !state.currentVoiceNote) {
+      if (phase === "song" && !state.currentSong && !state.currentVoiceNote) {
         // Try queued song first, then random
         let nextSong = await getNextQueuedSong();
         let isRandom = false;
@@ -402,10 +470,18 @@ export async function POST(req: NextRequest) {
         }
 
         if (nextSong) {
-          // Use song duration from queue/metadata, or default to 10 minutes as fallback
-          // Client will report actual song end via song_ended API, so this is just a safety net
-          const duration = nextSong.duration || 600; // 10 minutes max fallback
-          console.log('[RadioScheduler] Song duration:', duration, 'seconds for:', nextSong.name);
+          // Prefer the real duration a client measured off the audio element.
+          // Only fall back to the flat slot when nobody has played this track yet.
+          const knownDuration = await getKnownDuration(nextSong.tokenId);
+          const duration =
+            knownDuration ?? nextSong.duration ?? FALLBACK_DURATION;
+          console.log(
+            "[RadioScheduler] Song duration:",
+            duration,
+            knownDuration ? "seconds (measured)" : "seconds (fallback)",
+            "for:",
+            nextSong.name,
+          );
 
           state.currentSong = {
             tokenId: nextSong.tokenId,
@@ -420,9 +496,13 @@ export async function POST(req: NextRequest) {
             duration,
             isRandom,
           };
-          action = 'song_started';
+          action = "song_started";
           details = { song: state.currentSong, isRandom };
-          console.log('[RadioScheduler] Now playing:', nextSong.name, isRandom ? '(random)' : '(queued)');
+          console.log(
+            "[RadioScheduler] Now playing:",
+            nextSong.name,
+            isRandom ? "(random)" : "(queued)",
+          );
 
           // Log play to history for tracking and leaderboard
           const playEntry = {
@@ -439,7 +519,7 @@ export async function POST(req: NextRequest) {
           await redis.lpush(PLAY_HISTORY_KEY, JSON.stringify(playEntry));
           await redis.ltrim(PLAY_HISTORY_KEY, 0, 99);
         } else {
-          action = 'no_songs_available';
+          action = "no_songs_available";
         }
       }
 
@@ -449,8 +529,8 @@ export async function POST(req: NextRequest) {
       cachedState = { data: state, timestamp: now };
 
       // Broadcast state update to SSE clients
-      if (action !== 'no_action' && action !== 'no_songs_available') {
-        broadcastRadioUpdate('state_update', { type: action, state });
+      if (action !== "no_action" && action !== "no_songs_available") {
+        broadcastRadioUpdate("state_update", { type: action, state });
       }
 
       return NextResponse.json({
@@ -466,19 +546,17 @@ export async function POST(req: NextRequest) {
           totalVoiceNotesPlayed: state.totalVoiceNotesPlayed,
         },
       });
-
     } finally {
       // Release lock
       await redis.del(SCHEDULER_LOCK_KEY);
     }
-
   } catch (error: any) {
-    console.error('[RadioScheduler] Error:', error);
+    console.error("[RadioScheduler] Error:", error);
     // Release lock on error
     await redis.del(SCHEDULER_LOCK_KEY);
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -487,7 +565,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const state = await redis.get<RadioState>(RADIO_STATE_KEY);
-    const phase = await redis.get<string>(PLAYBACK_PHASE_KEY) || 'song';
+    const phase = (await redis.get<string>(PLAYBACK_PHASE_KEY)) || "song";
     const queueLength = await redis.llen(RADIO_QUEUE_KEY);
     const voiceNotesLength = await redis.llen(VOICE_NOTES_KEY);
 
@@ -496,12 +574,15 @@ export async function GET(req: NextRequest) {
     let voiceNoteTimeRemaining = 0;
 
     if (state?.currentSong) {
-      const endTime = state.currentSong.startedAt + (state.currentSong.duration * 1000);
+      const endTime =
+        state.currentSong.startedAt + state.currentSong.duration * 1000;
       songTimeRemaining = Math.max(0, endTime - now);
     }
 
     if (state?.currentVoiceNote) {
-      const endTime = state.currentVoiceNote.startedAt + (state.currentVoiceNote.duration * 1000);
+      const endTime =
+        state.currentVoiceNote.startedAt +
+        state.currentVoiceNote.duration * 1000;
       voiceNoteTimeRemaining = Math.max(0, endTime - now);
     }
 
@@ -510,23 +591,27 @@ export async function GET(req: NextRequest) {
       status: {
         isLive: state?.isLive || false,
         phase,
-        currentSong: state?.currentSong ? {
-          name: state.currentSong.name,
-          artist: state.currentSong.artist,
-          isRandom: state.currentSong.isRandom,
-          timeRemainingMs: songTimeRemaining,
-          timeRemainingSeconds: Math.ceil(songTimeRemaining / 1000),
-        } : null,
-        currentVoiceNote: state?.currentVoiceNote ? {
-          id: state.currentVoiceNote.id,
-          username: state.currentVoiceNote.username,
-          audioUrl: state.currentVoiceNote.audioUrl,
-          message: state.currentVoiceNote.message,
-          duration: state.currentVoiceNote.duration,
-          isAd: state.currentVoiceNote.isAd,
-          timeRemainingMs: voiceNoteTimeRemaining,
-          timeRemainingSeconds: Math.ceil(voiceNoteTimeRemaining / 1000),
-        } : null,
+        currentSong: state?.currentSong
+          ? {
+              name: state.currentSong.name,
+              artist: state.currentSong.artist,
+              isRandom: state.currentSong.isRandom,
+              timeRemainingMs: songTimeRemaining,
+              timeRemainingSeconds: Math.ceil(songTimeRemaining / 1000),
+            }
+          : null,
+        currentVoiceNote: state?.currentVoiceNote
+          ? {
+              id: state.currentVoiceNote.id,
+              username: state.currentVoiceNote.username,
+              audioUrl: state.currentVoiceNote.audioUrl,
+              message: state.currentVoiceNote.message,
+              duration: state.currentVoiceNote.duration,
+              isAd: state.currentVoiceNote.isAd,
+              timeRemainingMs: voiceNoteTimeRemaining,
+              timeRemainingSeconds: Math.ceil(voiceNoteTimeRemaining / 1000),
+            }
+          : null,
         queueLength,
         voiceNotesLength,
         totalSongsPlayed: state?.totalSongsPlayed || 0,
@@ -535,10 +620,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[RadioScheduler] GET error:', error);
+    console.error("[RadioScheduler] GET error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

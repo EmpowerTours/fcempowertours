@@ -36,6 +36,15 @@ const ACTIVE_LISTENERS_ZSET = "live-radio:active-listeners-zset"; // ZSET for ef
 const DAILY_FIRST_LISTENER_KEY = "live-radio:first-listener";
 const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
+const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
+
+// Envio has no duration field, so the scheduler used a flat 600s slot per song
+// while real tracks run ~3-4 min. Clients report the true length off the audio
+// element the first time they load a track; the scheduler then schedules against
+// that instead of the fallback. Bounds guard against junk metadata (Infinity,
+// NaN, 0 on a stalled load).
+const MIN_REPORTED_DURATION = 30;
+const MAX_REPORTED_DURATION = 1800;
 const QUEUE_PRICE_WMON = 1; // 1 WMON to queue a song
 const VOICE_NOTE_PRICE_WMON = 0.5; // 0.5 WMON for a voice shoutout
 const VOICE_AD_PRICE_WMON = 2; // 2 WMON for 30-second ad
@@ -884,6 +893,55 @@ export async function POST(req: NextRequest) {
         message: "Now playing",
         currentSong: state.currentSong,
       });
+    }
+
+    // Report a track's real duration, read off the client's audio element on
+    // loadedmetadata. Cheap, idempotent, and unauthenticated by design: it only
+    // ever writes a bounded number to a cache the scheduler reads.
+    if (action === "report_duration") {
+      const { tokenId, duration } = body;
+
+      if (
+        !tokenId ||
+        typeof duration !== "number" ||
+        !Number.isFinite(duration)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "tokenId and a finite duration are required",
+          },
+          { status: 400 },
+        );
+      }
+
+      const seconds = Math.round(duration);
+      if (seconds < MIN_REPORTED_DURATION || seconds > MAX_REPORTED_DURATION) {
+        return NextResponse.json({
+          success: false,
+          error: `duration ${seconds}s outside accepted range ${MIN_REPORTED_DURATION}-${MAX_REPORTED_DURATION}s`,
+        });
+      }
+
+      const existing = await redis.hget<number>(
+        SONG_DURATIONS_KEY,
+        String(tokenId),
+      );
+      if (existing && Math.abs(Number(existing) - seconds) <= 2) {
+        return NextResponse.json({
+          success: true,
+          cached: true,
+          duration: existing,
+        });
+      }
+
+      await redis.hset(SONG_DURATIONS_KEY, { [String(tokenId)]: seconds });
+      console.log(
+        `[LiveRadio] Duration reported for tokenId=${tokenId}: ${seconds}s` +
+          (existing ? ` (was ${existing}s)` : ""),
+      );
+
+      return NextResponse.json({ success: true, duration: seconds });
     }
 
     // Report song ended (client tells server when audio actually finishes)

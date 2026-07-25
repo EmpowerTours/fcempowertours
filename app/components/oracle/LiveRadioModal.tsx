@@ -104,6 +104,10 @@ interface LiveRadioModalProps {
 }
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+// Must match FALLBACK_DURATION in the scheduler: if the two disagree, the
+// client seeks against a different slot length than the server scheduled.
+const FALLBACK_DURATION = 600;
+
 // POLL_INTERVAL removed — replaced by SSE via useRadioStream (fallback at 5s)
 
 // Format seconds to mm:ss
@@ -213,6 +217,8 @@ export function LiveRadioModal({
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Track ids we've already measured, so a re-render or replay doesn't re-post.
+  const reportedDurationsRef = useRef<Set<string>>(new Set());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -551,7 +557,7 @@ export function LiveRadioModal({
           const now = Date.now();
           const elapsedSeconds =
             (now - radioState.currentSong.startedAt) / 1000;
-          const duration = radioState.currentSong.duration || 180;
+          const duration = radioState.currentSong.duration || FALLBACK_DURATION;
           if (elapsedSeconds < duration && elapsedSeconds >= 0) {
             audioRef.current.currentTime = elapsedSeconds;
           }
@@ -590,8 +596,38 @@ export function LiveRadioModal({
       }
     };
 
+    // Envio carries no duration, so the scheduler would otherwise give every
+    // track a flat 600s slot regardless of its real length. The audio element
+    // knows the truth once metadata loads — report it so the server can
+    // schedule against the real thing. Fire-and-forget; the server dedupes and
+    // bounds-checks, and a failure here must never interrupt playback.
+    const handleLoadedMetadata = () => {
+      const tokenId = radioState?.currentSong?.tokenId;
+      const measured = audio.duration;
+
+      if (!tokenId || !Number.isFinite(measured) || measured <= 0) return;
+      if (reportedDurationsRef.current.has(tokenId)) return;
+      reportedDurationsRef.current.add(tokenId);
+
+      fetch("/api/live-radio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "report_duration",
+          tokenId,
+          duration: measured,
+        }),
+      }).catch((err) =>
+        console.warn("[LiveRadio] Duration report failed:", err),
+      );
+    };
+
     audio.addEventListener("ended", handleEnded);
-    return () => audio.removeEventListener("ended", handleEnded);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    return () => {
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+    };
   }, [radioState?.currentSong, walletAddress]);
 
   useEffect(() => {
@@ -666,7 +702,7 @@ export function LiveRadioModal({
       if (isPlaying) {
         const now = Date.now();
         const elapsedSeconds = (now - radioState.currentSong.startedAt) / 1000;
-        const duration = radioState.currentSong.duration || 180;
+        const duration = radioState.currentSong.duration || FALLBACK_DURATION;
 
         if (elapsedSeconds < duration && elapsedSeconds >= 0) {
           audioRef.current.currentTime = elapsedSeconds;
@@ -689,7 +725,7 @@ export function LiveRadioModal({
     const updateProgress = () => {
       const now = Date.now();
       const startedAt = radioState.currentSong!.startedAt;
-      const duration = radioState.currentSong!.duration || 180;
+      const duration = radioState.currentSong!.duration || FALLBACK_DURATION;
       const elapsed = (now - startedAt) / 1000;
       const progress = Math.min(100, Math.max(0, (elapsed / duration) * 100));
       const remaining = Math.max(0, duration - elapsed);
@@ -711,7 +747,7 @@ export function LiveRadioModal({
     const now = Date.now();
     const startedAt = radioState.currentSong.startedAt;
     const elapsedSeconds = (now - startedAt) / 1000;
-    const duration = radioState.currentSong.duration || 180;
+    const duration = radioState.currentSong.duration || FALLBACK_DURATION;
 
     // If song should still be playing, seek to correct position
     if (elapsedSeconds < duration && elapsedSeconds >= 0) {
@@ -1382,7 +1418,7 @@ export function LiveRadioModal({
                         <span>
                           {formatTime(
                             Math.floor(
-                              ((radioState.currentSong.duration || 180) *
+                              ((radioState.currentSong.duration || FALLBACK_DURATION) *
                                 playbackProgress) /
                                 100,
                             ),
