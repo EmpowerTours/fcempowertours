@@ -104,6 +104,9 @@ interface LiveRadioModalProps {
 }
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+// How often a listening client pokes the scheduler. Short enough that the gap
+// between tracks is not audible, long enough to stay cheap.
+const SCHEDULER_TICK_INTERVAL = 15000; // 15 seconds
 // Must match FALLBACK_DURATION in the scheduler: if the two disagree, the
 // client seeks against a different slot length than the server scheduled.
 const FALLBACK_DURATION = 600;
@@ -522,6 +525,28 @@ export function LiveRadioModal({
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
   }, [isPlaying, sendHeartbeat]);
+
+  // Drive the scheduler while someone is listening.
+  //
+  // Nothing else calls /api/live-radio/scheduler — the railway.json cron array
+  // that was supposed to was never valid Railway config, so when a song ended
+  // the radio simply went silent until something happened to poke the endpoint.
+  // Polling from the client is the right shape for a radio anyway: if nobody is
+  // listening, nothing needs to advance. The endpoint holds a Redis lock, so
+  // concurrent listeners cannot double-advance it.
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const tick = () => {
+      fetch("/api/live-radio/scheduler", { method: "POST" }).catch((err) =>
+        console.warn("[LiveRadio] Scheduler tick failed:", err),
+      );
+    };
+
+    tick();
+    const id = setInterval(tick, SCHEDULER_TICK_INTERVAL);
+    return () => clearInterval(id);
+  }, [isPlaying]);
 
   // Auto-sync and switch between songs and voice notes
   const lastSongIdRef = useRef<string | null>(null);
@@ -1418,7 +1443,8 @@ export function LiveRadioModal({
                         <span>
                           {formatTime(
                             Math.floor(
-                              ((radioState.currentSong.duration || FALLBACK_DURATION) *
+                              ((radioState.currentSong.duration ||
+                                FALLBACK_DURATION) *
                                 playbackProgress) /
                                 100,
                             ),
@@ -1755,8 +1781,15 @@ export function LiveRadioModal({
                 </div>
               )}
 
-              {/* WMON Rewards from 20% DAO Reserve */}
-              {walletAddress && <ListenerRewardsClaim />}
+              {/* WMON Rewards from 20% DAO Reserve.
+                  Pass the Farcaster address explicitly — this surface has no
+                  wagmi connection, so the component would otherwise show
+                  "Connect wallet" to an already-connected user. */}
+              {walletAddress && (
+                <ListenerRewardsClaim
+                  address={walletAddress as `0x${string}`}
+                />
+              )}
 
               {/* Leaderboard & Recent Plays Section */}
               <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl overflow-hidden">

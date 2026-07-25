@@ -472,9 +472,11 @@ export async function POST(req: NextRequest) {
         if (nextSong) {
           // Prefer the real duration a client measured off the audio element.
           // Only fall back to the flat slot when nobody has played this track yet.
+          // `||` rather than `??` on nextSong.duration: a 0 here means "unknown",
+          // not "zero-length", and scheduling a 0s slot would spin the radio.
           const knownDuration = await getKnownDuration(nextSong.tokenId);
           const duration =
-            knownDuration ?? nextSong.duration ?? FALLBACK_DURATION;
+            knownDuration || nextSong.duration || FALLBACK_DURATION;
           console.log(
             "[RadioScheduler] Song duration:",
             duration,
