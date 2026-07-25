@@ -301,7 +301,7 @@ Every payment on EmpowerTours is handled by verified smart contracts on Monad. A
 
 ### 2. Radio Queue & Tips
 
-**Contract**: `LiveRadioV2` — [`0x26b32987cb5d7946D81e0Cc7459f26CdeC773101`](https://monadscan.com/address/0x26b32987cb5d7946D81e0Cc7459f26CdeC773101)
+**Contract**: `LiveRadioV3` — [`0x042EDF80713e6822a891e4e8a0800c332B8200fd`](https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd)
 
 | Detail | Value |
 |--------|-------|
@@ -651,7 +651,7 @@ flowchart TD
     subgraph Monad["Monad Mainnet (Chain 143)"]
         SAFE[Safe Smart Accounts]
         NFT[EmpowerToursNFTV2]
-        RADIO[LiveRadioV2]
+        RADIO[LiveRadioV3]
         SUB[MusicSubscriptionV5]
         PLAY[PlayOracleV3]
         EPKC[EPKRegistryV2]
@@ -722,7 +722,7 @@ flowchart TD
     TOURS([ToursToken<br/>Reward Token])
 
     WMON -->|Payments| NFT[EmpowerToursNFTV2]
-    WMON -->|Queue fees & tips| RADIO[LiveRadioV2]
+    WMON -->|Queue fees & tips| RADIO[LiveRadioV3]
     WMON -->|Subscriptions| SUB[MusicSubscriptionV5]
     WMON -->|Location fees| CLIMB[ClimbingLocationsV2]
     WMON -->|Itinerary sales| ITIN[ItineraryNFTV2]
@@ -763,7 +763,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Fan([Fan]) -->|1 WMON queue fee| Radio[LiveRadioV2]
+    Fan([Fan]) -->|1 WMON queue fee| Radio[LiveRadioV3]
     Fan -.->|Optional tip| Radio
     Radio -->|70% of queue| Artist([Artist])
     Radio -->|15%| PlatformSafe([Platform Safe])
@@ -869,7 +869,7 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | Contract | Address | Purpose |
 |----------|---------|---------|
 | EmpowerToursNFTV2 | [`0xB9B3acf33439360B55d12429301E946f34f3B73F`](https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F) | Music license NFT sales (70/30 split) |
-| LiveRadioV2 | [`0x26b32987cb5d7946D81e0Cc7459f26CdeC773101`](https://monadscan.com/address/0x26b32987cb5d7946D81e0Cc7459f26CdeC773101) | Decentralized radio queue, tips, voice notes |
+| LiveRadioV3 | [`0x042EDF80713e6822a891e4e8a0800c332B8200fd`](https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd) | Decentralized radio queue, tips, voice notes |
 | MusicSubscriptionV5 | [`0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19`](https://monadscan.com/address/0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19) | Subscription pool with monthly artist payouts |
 | PlayOracleV3 | [`0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf`](https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf) | On-chain play tracking and anti-spam |
 | ItineraryNFTV2 | [`0x97529316356A5bcAd81D85E9a0eF941958c4b020`](https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020) | Travel itinerary NFT marketplace |
