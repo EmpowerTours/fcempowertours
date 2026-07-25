@@ -1,12 +1,36 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, Copy, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown, Download, Radio, TrendingUp } from 'lucide-react';
-import { getAddressExplorerUrl } from '@/app/chains';
-import { getFlagEmoji, getCountryByCode } from '@/lib/passport/countries';
-import { EPKModal } from './EPKModal';
-import type { EPKMetadata, ArtistStreamingStats } from '@/lib/epk/types';
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import {
+  X,
+  Globe,
+  Music,
+  Palette,
+  MapPin,
+  Ticket,
+  Search,
+  Loader2,
+  User,
+  Wallet,
+  Copy,
+  ExternalLink,
+  FileText,
+  CheckCircle,
+  Edit3,
+  ChevronRight,
+  Play,
+  Users,
+  DollarSign,
+  ChevronDown,
+  Download,
+  Radio,
+  TrendingUp,
+} from "lucide-react";
+import { getAddressExplorerUrl } from "@/app/chains";
+import { getFlagEmoji, getCountryByCode } from "@/lib/passport/countries";
+import { EPKModal } from "./EPKModal";
+import type { EPKMetadata, ArtistStreamingStats } from "@/lib/epk/types";
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -49,7 +73,7 @@ interface SearchedUser {
   walletAddress?: string;
   bio?: string;
   followerCount?: number;
-  userType?: 'artist' | 'collector' | 'new';
+  userType?: "artist" | "collector" | "new";
   isPrivate?: boolean;
   stats?: {
     createdMusic?: number;
@@ -76,19 +100,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onViewUserProfile,
   onMintPassport,
-  isDarkMode = true
+  isDarkMode = true,
 }) => {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
   const [showFullProfile, setShowFullProfile] = useState(false);
   const [safeBalance, setSafeBalance] = useState<SafeBalance | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
-  const [selectedPassport, setSelectedPassport] = useState<PassportData | null>(null);
+  const [selectedPassport, setSelectedPassport] = useState<PassportData | null>(
+    null,
+  );
   const [epkData, setEpkData] = useState<EPKData | null>(null);
   const [epkLoading, setEpkLoading] = useState(false);
   const [showEPKModal, setShowEPKModal] = useState(false);
@@ -102,16 +128,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     totalLicenseSales: string;
     totalPlays: number;
     totalLicenseCount: number;
-    songBreakdown: { tokenId: string; name: string; plays: number; earnings: string; tips: string }[];
+    songBreakdown: {
+      tokenId: string;
+      name: string;
+      plays: number;
+      earnings: string;
+      tips: string;
+    }[];
   } | null>(null);
   const [claims, setClaims] = useState<{
-    unclaimedMonths: { monthId: number; playCount: number; estimatedPayout: string; toursClaimed: boolean }[];
+    unclaimedMonths: {
+      monthId: number;
+      playCount: number;
+      estimatedPayout: string;
+      toursClaimed: boolean;
+    }[];
     totalUnclaimed: string;
     toursEligible: boolean;
   } | null>(null);
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
-  const [claimResult, setClaimResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [claimResult, setClaimResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -133,15 +173,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       const data = await response.json();
       if (data.success) {
         setSafeBalance({
-          safeAddress: data.safeAddress || '',
-          monBalance: data.balance || '0',
-          wmonBalance: data.wmonBalance || '0',
-          toursBalance: data.toursBalance || '0',
-          toursWalletBalance: data.toursWalletBalance || '0',
+          safeAddress: data.safeAddress || "",
+          monBalance: data.balance || "0",
+          wmonBalance: data.wmonBalance || "0",
+          toursBalance: data.toursBalance || "0",
+          toursWalletBalance: data.toursWalletBalance || "0",
         });
       }
     } catch (error) {
-      console.error('[ProfileModal] Safe balance load error:', error);
+      console.error("[ProfileModal] Safe balance load error:", error);
     }
   };
 
@@ -153,15 +193,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       if (data.success && data.epk) {
         const epk = data.epk;
         setEpkData({
-          slug: epk.artist?.slug || '',
-          artistName: epk.artist?.name || '',
-          genre: Array.isArray(epk.artist?.genre) ? epk.artist.genre.join(', ') : (epk.artist?.genre || ''),
+          slug: epk.artist?.slug || "",
+          artistName: epk.artist?.name || "",
+          genre: Array.isArray(epk.artist?.genre)
+            ? epk.artist.genre.join(", ")
+            : epk.artist?.genre || "",
           fullEpk: epk,
           streamingStats: data.streamingStats || null,
         });
       }
     } catch (error) {
-      console.error('[ProfileModal] EPK status load error:', error);
+      console.error("[ProfileModal] EPK status load error:", error);
     } finally {
       setEpkLoading(false);
     }
@@ -180,7 +222,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       if (!earningsData.error) setEarnings(earningsData);
       if (!claimsData.error) setClaims(claimsData);
     } catch (error) {
-      console.error('[ProfileModal] Earnings load error:', error);
+      console.error("[ProfileModal] Earnings load error:", error);
     } finally {
       setEarningsLoading(false);
     }
@@ -194,37 +236,47 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   }, [stats, walletAddress]);
 
   const handleClaimPayouts = async () => {
-    if (!claims || claims.unclaimedMonths.length === 0 || !walletAddress) return;
+    if (!claims || claims.unclaimedMonths.length === 0 || !walletAddress)
+      return;
     setClaimLoading(true);
     setClaimResult(null);
     try {
-      const monthIds = claims.unclaimedMonths.map(m => m.monthId);
-      const hasUnclaimedTours = claims.toursEligible &&
-        claims.unclaimedMonths.some(m => !m.toursClaimed);
+      const monthIds = claims.unclaimedMonths.map((m) => m.monthId);
+      const hasUnclaimedTours =
+        claims.toursEligible &&
+        claims.unclaimedMonths.some((m) => !m.toursClaimed);
 
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: 'claim_artist_payouts',
+          action: "claim_artist_payouts",
           userAddress: walletAddress,
           params: { monthIds, claimTours: hasUnclaimedTours },
         }),
       });
       const data = await response.json();
       if (data.success) {
-        setClaimResult({ success: true, message: 'Payouts claimed!' });
+        setClaimResult({ success: true, message: "Payouts claimed!" });
         // Refresh claims data
-        const claimsRes = await fetch(`/api/artist-claims?address=${walletAddress}`);
+        const claimsRes = await fetch(
+          `/api/artist-claims?address=${walletAddress}`,
+        );
         const claimsData = await claimsRes.json();
         if (!claimsData.error) setClaims(claimsData);
         // Refresh safe balance
         loadSafeBalance(walletAddress);
       } else {
-        setClaimResult({ success: false, message: data.error || 'Claim failed' });
+        setClaimResult({
+          success: false,
+          message: data.error || "Claim failed",
+        });
       }
     } catch (error: any) {
-      setClaimResult({ success: false, message: error.message || 'Claim failed' });
+      setClaimResult({
+        success: false,
+        message: error.message || "Claim failed",
+      });
     } finally {
       setClaimLoading(false);
     }
@@ -258,19 +310,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       `;
 
       const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, variables: { address: address.toLowerCase() } })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query,
+          variables: { address: address.toLowerCase() },
+        }),
       });
 
       const result = await response.json();
       const data = result.data || {};
 
       const passportList: PassportData[] = (data.PassportNFT || [])
-        .filter((p: any) => p.countryCode && p.countryCode !== 'XX')
+        .filter((p: any) => p.countryCode && p.countryCode !== "XX")
         .map((p: any) => ({ tokenId: p.tokenId, countryCode: p.countryCode }));
 
-      const countries = [...new Set(passportList.map(p => p.countryCode))] as string[];
+      const countries = [
+        ...new Set(passportList.map((p) => p.countryCode)),
+      ] as string[];
 
       setStats({
         passports: (data.PassportNFT || []).length,
@@ -278,17 +335,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         artCreated: (data.CreatedArt || []).length,
         musicPurchased: (data.PurchasedMusic || []).length,
         countries,
-        passportList
+        passportList,
       });
     } catch (error) {
-      console.error('[ProfileModal] Stats load error:', error);
+      console.error("[ProfileModal] Stats load error:", error);
       setStats({
         passports: 0,
         musicCreated: 0,
         artCreated: 0,
         musicPurchased: 0,
         countries: [],
-        passportList: []
+        passportList: [],
       });
     } finally {
       setLoading(false);
@@ -302,7 +359,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setSearchError(null);
 
     try {
-      const response = await fetch(`/api/user/public-profile?username=${encodeURIComponent(searchQuery.trim())}`);
+      const response = await fetch(
+        `/api/user/public-profile?username=${encodeURIComponent(searchQuery.trim())}`,
+      );
       const data = await response.json();
 
       if (data.success && data.profile) {
@@ -316,14 +375,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           followerCount: data.profile.followerCount,
           userType: data.profile.userType,
           isPrivate: !data.profile.privacySettings?.isPublicProfile,
-          stats: data.profile.stats
+          stats: data.profile.stats,
         });
       } else {
-        setSearchError(data.error || 'User not found');
+        setSearchError(data.error || "User not found");
         setSearchedUser(null);
       }
     } catch (error) {
-      setSearchError('Search failed');
+      setSearchError("Search failed");
       setSearchedUser(null);
     } finally {
       setSearchLoading(false);
@@ -332,14 +391,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const clearSearch = () => {
     setSearchedUser(null);
-    setSearchQuery('');
+    setSearchQuery("");
     setSearchError(null);
     setShowFullProfile(false);
   };
 
   if (!mounted) return null;
 
-  const ProfilePicture = ({ src, alt, size = 48 }: { src?: string; alt: string; size?: number }) => (
+  const ProfilePicture = ({
+    src,
+    alt,
+    size = 48,
+  }: {
+    src?: string;
+    alt: string;
+    size?: number;
+  }) =>
     src ? (
       <img
         src={src}
@@ -352,42 +419,56 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         className="bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center flex-shrink-0"
         style={{ width: size, height: size, minWidth: size }}
       >
-        <User className="text-white" style={{ width: size * 0.5, height: size * 0.5 }} />
+        <User
+          className="text-white"
+          style={{ width: size * 0.5, height: size * 0.5 }}
+        />
       </div>
-    )
-  );
+    );
 
   // Modal with theme-aware background
   const modalContent = (
     <div
-      className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-      style={{ zIndex: 9999, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
+      className={`fixed inset-0 flex items-center justify-center p-4 ${isDarkMode ? "bg-black" : "bg-white"}`}
+      style={{
+        zIndex: 9999,
+        backgroundColor: isDarkMode ? "#000000" : "#ffffff",
+      }}
       onClick={onClose}
     >
       <div
-        className={`rounded-2xl w-full max-w-md max-h-[95vh] overflow-hidden shadow-2xl ${isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}
+        className={`rounded-2xl w-full max-w-md max-h-[95vh] overflow-hidden shadow-2xl ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className={`${isDarkMode ? 'bg-gray-800 border-b border-gray-700' : 'bg-gray-100 border-b border-gray-200'} p-4`}>
+        <div
+          className={`${isDarkMode ? "bg-gray-800 border-b border-gray-700" : "bg-gray-100 border-b border-gray-200"} p-4`}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <ProfilePicture
                 src={searchedUser?.pfpUrl || pfpUrl}
-                alt={searchedUser?.username || username || 'Profile'}
+                alt={searchedUser?.username || username || "Profile"}
               />
               <div className="min-w-0">
-                <h2 className={`text-lg font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {searchedUser?.displayName || searchedUser?.username || username || 'My Profile'}
+                <h2
+                  className={`text-lg font-bold truncate ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  {searchedUser?.displayName ||
+                    searchedUser?.username ||
+                    username ||
+                    "My Profile"}
                 </h2>
                 {(searchedUser?.username || username) && (
-                  <p className="text-sm text-purple-500">@{searchedUser?.username || username}</p>
+                  <p className="text-sm text-purple-500">
+                    @{searchedUser?.username || username}
+                  </p>
                 )}
               </div>
             </div>
             <button
               onClick={onClose}
-              className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'}`}
+              className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isDarkMode ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -400,10 +481,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="Search username..."
                 className="w-full pl-3 pr-9 py-2 rounded-lg text-sm focus:outline-none border"
-                style={{ backgroundColor: isDarkMode ? '#111827' : '#ffffff', color: isDarkMode ? '#ffffff' : '#111827', borderColor: isDarkMode ? '#4b5563' : '#d1d5db' }}
+                style={{
+                  backgroundColor: isDarkMode ? "#111827" : "#ffffff",
+                  color: isDarkMode ? "#ffffff" : "#111827",
+                  borderColor: isDarkMode ? "#4b5563" : "#d1d5db",
+                }}
               />
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             </div>
@@ -412,11 +497,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               disabled={searchLoading || !searchQuery.trim()}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-lg text-sm transition-colors"
             >
-              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+              {searchLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "Search"
+              )}
             </button>
           </div>
 
-          {searchError && <p className="text-red-400 text-xs mt-2">{searchError}</p>}
+          {searchError && (
+            <p className="text-red-400 text-xs mt-2">{searchError}</p>
+          )}
 
           {searchedUser && (
             <button
@@ -441,33 +532,60 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               ) : (
                 <>
                   {/* User Type */}
-                  <div className={`p-4 rounded-xl text-center ${
-                    searchedUser.userType === 'artist' ? 'bg-purple-900 border border-purple-700' :
-                    searchedUser.userType === 'collector' ? 'bg-cyan-900 border border-cyan-700' :
-                    'bg-gray-800 border border-gray-700'
-                  }`}>
+                  <div
+                    className={`p-4 rounded-xl text-center ${
+                      searchedUser.userType === "artist"
+                        ? "bg-purple-900 border border-purple-700"
+                        : searchedUser.userType === "collector"
+                          ? "bg-cyan-900 border border-cyan-700"
+                          : "bg-gray-800 border border-gray-700"
+                    }`}
+                  >
                     <div className="text-3xl mb-1">
-                      {searchedUser.userType === 'artist' ? '🎨' : searchedUser.userType === 'collector' ? '🏆' : '🌱'}
+                      {searchedUser.userType === "artist"
+                        ? "🎨"
+                        : searchedUser.userType === "collector"
+                          ? "🏆"
+                          : "🌱"}
                     </div>
                     <p className="font-bold text-white capitalize">
-                      {searchedUser.userType || 'Explorer'}
+                      {searchedUser.userType || "Explorer"}
                     </p>
                     {searchedUser.followerCount !== undefined && (
-                      <p className="text-xs text-gray-400 mt-1">{searchedUser.followerCount} followers</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {searchedUser.followerCount} followers
+                      </p>
                     )}
                   </div>
 
                   {/* Bio */}
                   {searchedUser.bio && (
-                    <p className="text-sm text-gray-300 bg-gray-800 rounded-lg p-3 border border-gray-700">{searchedUser.bio}</p>
+                    <p className="text-sm text-gray-300 bg-gray-800 rounded-lg p-3 border border-gray-700">
+                      {searchedUser.bio}
+                    </p>
                   )}
 
                   {/* Stats */}
                   {searchedUser.stats && (
                     <div className="grid grid-cols-3 gap-2">
-                      <StatBox icon={<Music className="w-4 h-4" />} value={searchedUser.stats.createdMusic || 0} label="Music" color="purple" />
-                      <StatBox icon={<Palette className="w-4 h-4" />} value={searchedUser.stats.createdArt || 0} label="Art" color="amber" />
-                      <StatBox icon={<Globe className="w-4 h-4" />} value={searchedUser.stats.passports || 0} label="Passports" color="cyan" />
+                      <StatBox
+                        icon={<Music className="w-4 h-4" />}
+                        value={searchedUser.stats.createdMusic || 0}
+                        label="Music"
+                        color="purple"
+                      />
+                      <StatBox
+                        icon={<Palette className="w-4 h-4" />}
+                        value={searchedUser.stats.createdArt || 0}
+                        label="Art"
+                        color="amber"
+                      />
+                      <StatBox
+                        icon={<Globe className="w-4 h-4" />}
+                        value={searchedUser.stats.passports || 0}
+                        label="Passports"
+                        color="cyan"
+                      />
                     </div>
                   )}
 
@@ -515,29 +633,42 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {/* Balances */}
                   <div className="grid grid-cols-3 gap-2 mb-3">
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-white">{parseFloat(safeBalance.monBalance).toFixed(2)}</p>
+                      <p className="text-xl font-bold text-white">
+                        {parseFloat(safeBalance.monBalance).toFixed(2)}
+                      </p>
                       <p className="text-xs text-gray-400">MON</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-cyan-400">{parseFloat(safeBalance.wmonBalance).toFixed(2)}</p>
+                      <p className="text-xl font-bold text-cyan-400">
+                        {parseFloat(safeBalance.wmonBalance).toFixed(2)}
+                      </p>
                       <p className="text-xs text-gray-400">WMON</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-green-400">{(parseFloat(safeBalance.toursBalance) + parseFloat(safeBalance.toursWalletBalance)).toFixed(0)}</p>
+                      <p className="text-xl font-bold text-green-400">
+                        {(
+                          parseFloat(safeBalance.toursBalance) +
+                          parseFloat(safeBalance.toursWalletBalance)
+                        ).toFixed(0)}
+                      </p>
                       <p className="text-xs text-gray-400">TOURS</p>
                     </div>
                   </div>
 
                   {/* Safe Address */}
                   <div className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2">
-                    <p className="text-xs text-gray-300 font-mono truncate flex-1">{safeBalance.safeAddress}</p>
+                    <p className="text-xs text-gray-300 font-mono truncate flex-1">
+                      {safeBalance.safeAddress}
+                    </p>
                     <button
                       onClick={() => copyAddress(safeBalance.safeAddress)}
                       className={`px-3 py-1 rounded text-sm font-medium transition-all ${
-                        copiedAddress ? 'bg-green-500 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                        copiedAddress
+                          ? "bg-green-500 text-white"
+                          : "bg-cyan-600 hover:bg-cyan-500 text-white"
                       }`}
                     >
-                      {copiedAddress ? '✓ Copied' : 'Copy'}
+                      {copiedAddress ? "✓ Copied" : "Copy"}
                     </button>
                   </div>
 
@@ -551,10 +682,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-3">
-                <StatBox icon={<Globe className="w-5 h-5" />} value={stats.passports} label="Passports" color="purple" />
-                <StatBox icon={<Music className="w-5 h-5" />} value={stats.musicCreated} label="Music Created" color="blue" />
-                <StatBox icon={<Palette className="w-5 h-5" />} value={stats.artCreated} label="Art Created" color="amber" />
-                <StatBox icon={<Ticket className="w-5 h-5" />} value={stats.musicPurchased} label="Purchased" color="pink" />
+                <StatBox
+                  icon={<Globe className="w-5 h-5" />}
+                  value={stats.passports}
+                  label="Passports"
+                  color="purple"
+                />
+                <StatBox
+                  icon={<Music className="w-5 h-5" />}
+                  value={stats.musicCreated}
+                  label="Music Created"
+                  color="blue"
+                />
+                <StatBox
+                  icon={<Palette className="w-5 h-5" />}
+                  value={stats.artCreated}
+                  label="Art Created"
+                  color="amber"
+                />
+                <StatBox
+                  icon={<Ticket className="w-5 h-5" />}
+                  value={stats.musicPurchased}
+                  label="Purchased"
+                  color="pink"
+                />
               </div>
 
               {/* Artist Earnings - only for music creators */}
@@ -568,7 +719,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {earningsLoading ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
-                      <span className="ml-2 text-sm text-gray-400">Loading earnings...</span>
+                      <span className="ml-2 text-sm text-gray-400">
+                        Loading earnings...
+                      </span>
                     </div>
                   ) : earnings ? (
                     <div className="space-y-3">
@@ -578,45 +731,72 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           <div className="flex items-center justify-center gap-1 mb-1">
                             <Radio className="w-3 h-3 text-pink-400" />
                           </div>
-                          <p className="text-sm font-bold text-white">{parseFloat(earnings.totalRadioEarnings).toFixed(4)}</p>
-                          <p className="text-[10px] text-gray-400">Radio WMON</p>
+                          <p className="text-sm font-bold text-white">
+                            {parseFloat(earnings.totalRadioEarnings).toFixed(4)}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            Radio WMON
+                          </p>
                         </div>
                         <div className="bg-black/30 rounded-lg p-2.5 text-center">
                           <div className="flex items-center justify-center gap-1 mb-1">
                             <TrendingUp className="w-3 h-3 text-amber-400" />
                           </div>
-                          <p className="text-sm font-bold text-white">{parseFloat(earnings.totalTips).toFixed(4)}</p>
+                          <p className="text-sm font-bold text-white">
+                            {parseFloat(earnings.totalTips).toFixed(4)}
+                          </p>
                           <p className="text-[10px] text-gray-400">Tips WMON</p>
                         </div>
                         <div className="bg-black/30 rounded-lg p-2.5 text-center">
                           <div className="flex items-center justify-center gap-1 mb-1">
                             <Music className="w-3 h-3 text-blue-400" />
                           </div>
-                          <p className="text-sm font-bold text-white">{parseFloat(earnings.totalLicenseSales).toFixed(4)}</p>
-                          <p className="text-[10px] text-gray-400">Sales WMON</p>
+                          <p className="text-sm font-bold text-white">
+                            {parseFloat(earnings.totalLicenseSales).toFixed(4)}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            Sales WMON
+                          </p>
                         </div>
                       </div>
 
                       {/* Total */}
                       <div className="bg-black/30 rounded-lg p-3 flex items-center justify-between">
-                        <span className="text-sm text-gray-300">Total Earned</span>
+                        <span className="text-sm text-gray-300">
+                          Total Earned
+                        </span>
                         <span className="text-lg font-bold text-green-400">
-                          {(parseFloat(earnings.totalRadioEarnings) + parseFloat(earnings.totalTips) + parseFloat(earnings.totalLicenseSales)).toFixed(4)} WMON
+                          {(
+                            parseFloat(earnings.totalRadioEarnings) +
+                            parseFloat(earnings.totalTips) +
+                            parseFloat(earnings.totalLicenseSales)
+                          ).toFixed(4)}{" "}
+                          WMON
                         </span>
                       </div>
 
+                      {/* Explicit separator rather than relying on flex gap,
+                          which was collapsing and rendering "0 plays3 licenses sold". */}
                       <div className="flex items-center gap-3 text-xs text-gray-400">
                         <span>{earnings.totalPlays} plays</span>
+                        <span aria-hidden="true">·</span>
                         <span>{earnings.totalLicenseCount} licenses sold</span>
                       </div>
 
                       {/* Top Songs */}
                       {earnings.songBreakdown.length > 0 && (
                         <div className="space-y-1">
-                          <p className="text-xs text-gray-500 font-medium">Top Songs</p>
+                          <p className="text-xs text-gray-500 font-medium">
+                            Top Songs
+                          </p>
                           {earnings.songBreakdown.slice(0, 3).map((song) => (
-                            <div key={song.tokenId} className="flex items-center justify-between bg-black/20 rounded-lg px-3 py-1.5">
-                              <span className="text-xs text-gray-300 truncate flex-1 mr-2">{song.name}</span>
+                            <div
+                              key={song.tokenId}
+                              className="flex items-center justify-between bg-black/20 rounded-lg px-3 py-1.5"
+                            >
+                              <span className="text-xs text-gray-300 truncate flex-1 mr-2">
+                                {song.name}
+                              </span>
                               <span className="text-xs text-green-400 font-medium whitespace-nowrap">
                                 {parseFloat(song.earnings).toFixed(4)} WMON
                               </span>
@@ -630,13 +810,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
                             <div>
-                              <p className="text-sm font-medium text-green-400">Unclaimed Payouts</p>
+                              <p className="text-sm font-medium text-green-400">
+                                Unclaimed Payouts
+                              </p>
                               <p className="text-xs text-gray-400">
-                                {claims.unclaimedMonths.length} month{claims.unclaimedMonths.length !== 1 ? 's' : ''}
-                                {claims.toursEligible && ' + TOURS rewards'}
+                                {claims.unclaimedMonths.length} month
+                                {claims.unclaimedMonths.length !== 1 ? "s" : ""}
+                                {claims.toursEligible && " + TOURS rewards"}
                               </p>
                             </div>
-                            <p className="text-lg font-bold text-green-400">{parseFloat(claims.totalUnclaimed).toFixed(4)} WMON</p>
+                            <p className="text-lg font-bold text-green-400">
+                              {parseFloat(claims.totalUnclaimed).toFixed(4)}{" "}
+                              WMON
+                            </p>
                           </div>
                           <button
                             onClick={handleClaimPayouts}
@@ -651,7 +837,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                             ) : (
                               <>
                                 <DollarSign className="w-4 h-4" />
-                                Claim All ({parseFloat(claims.totalUnclaimed).toFixed(4)} WMON)
+                                Claim All (
+                                {parseFloat(claims.totalUnclaimed).toFixed(
+                                  4,
+                                )}{" "}
+                                WMON)
                               </>
                             )}
                           </button>
@@ -660,13 +850,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                       {/* Claim result feedback */}
                       {claimResult && (
-                        <div className={`text-xs text-center py-2 rounded-lg ${claimResult.success ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                        <div
+                          className={`text-xs text-center py-2 rounded-lg ${claimResult.success ? "text-green-400 bg-green-500/10" : "text-red-400 bg-red-500/10"}`}
+                        >
                           {claimResult.message}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-400 text-center py-2">No earnings data available</p>
+                    <p className="text-sm text-gray-400 text-center py-2">
+                      No earnings data available
+                    </p>
                   )}
                 </div>
               )}
@@ -680,7 +874,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 >
                   <div className="flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-medium text-white">Press Kit</span>
+                    <span className="text-sm font-medium text-white">
+                      Press Kit
+                    </span>
                     {epkLoading ? (
                       <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
                     ) : epkData ? (
@@ -718,7 +914,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 mb-3">No passports yet. Mint your first one!</p>
+                  <p className="text-sm text-gray-400 mb-3">
+                    No passports yet. Mint your first one!
+                  </p>
                 )}
                 {onMintPassport && (
                   <button
@@ -729,12 +927,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </button>
                 )}
               </div>
-
             </div>
           ) : (
             <div className="text-center py-12">
               <div className="text-4xl mb-3">🔍</div>
-              <p className="text-gray-400">Search for a user or connect wallet</p>
+              <p className="text-gray-400">
+                Search for a user or connect wallet
+              </p>
             </div>
           )}
         </div>
@@ -743,178 +942,211 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   );
 
   // Passport Preview Modal - rendered as separate portal for proper z-index stacking
-  const passportPreviewModal = selectedPassport && mounted ? createPortal(
-    <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ zIndex: 10001, backgroundColor: isDarkMode ? '#000000' : '#f3f4f6' }}
-      onClick={() => setSelectedPassport(null)}
-    >
-      <div
-        className="rounded-2xl overflow-hidden max-w-md w-full shadow-2xl"
-        style={{ backgroundColor: isDarkMode ? '#111827' : '#ffffff' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Solid header bar */}
-        <div
-          className="flex items-center justify-between p-4 border-b"
-          style={{
-            backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
-            borderColor: isDarkMode ? '#374151' : '#e5e7eb'
-          }}
-        >
-          <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Passport Preview
-          </h3>
-          <button
-            onClick={() => setSelectedPassport(null)}
-            className={`p-2 rounded-full transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'}`}
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Passport SVG image - no padding, let SVG fill */}
-        <div style={{ backgroundColor: isDarkMode ? '#111827' : '#ffffff' }}>
-          <img
-            src={`/api/passport/image/${selectedPassport.tokenId}`}
-            alt={`Passport #${selectedPassport.tokenId}`}
-            className="w-full h-auto"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/images/passport-placeholder.png';
+  const passportPreviewModal =
+    selectedPassport && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{
+              zIndex: 10001,
+              backgroundColor: isDarkMode ? "#000000" : "#f3f4f6",
             }}
-          />
-        </div>
+            onClick={() => setSelectedPassport(null)}
+          >
+            <div
+              className="rounded-2xl overflow-hidden max-w-md w-full shadow-2xl"
+              style={{ backgroundColor: isDarkMode ? "#111827" : "#ffffff" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Solid header bar */}
+              <div
+                className="flex items-center justify-between p-4 border-b"
+                style={{
+                  backgroundColor: isDarkMode ? "#1f2937" : "#f9fafb",
+                  borderColor: isDarkMode ? "#374151" : "#e5e7eb",
+                }}
+              >
+                <h3
+                  className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  Passport Preview
+                </h3>
+                <button
+                  onClick={() => setSelectedPassport(null)}
+                  className={`p-2 rounded-full transition-colors ${isDarkMode ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-        {/* Solid footer bar */}
-        <div
-          className="p-3 border-t text-center"
-          style={{
-            backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
-            borderColor: isDarkMode ? '#374151' : '#e5e7eb'
-          }}
-        >
-          <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            {getFlagEmoji(selectedPassport.countryCode)} {getCountryByCode(selectedPassport.countryCode)?.name || selectedPassport.countryCode} • #{selectedPassport.tokenId}
-          </p>
-        </div>
-      </div>
-    </div>,
-    document.body
-  ) : null;
+              {/* Passport SVG image - no padding, let SVG fill */}
+              <div
+                style={{ backgroundColor: isDarkMode ? "#111827" : "#ffffff" }}
+              >
+                <img
+                  src={`/api/passport/image/${selectedPassport.tokenId}`}
+                  alt={`Passport #${selectedPassport.tokenId}`}
+                  className="w-full h-auto"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      "/images/passport-placeholder.png";
+                  }}
+                />
+              </div>
+
+              {/* Solid footer bar */}
+              <div
+                className="p-3 border-t text-center"
+                style={{
+                  backgroundColor: isDarkMode ? "#1f2937" : "#f9fafb",
+                  borderColor: isDarkMode ? "#374151" : "#e5e7eb",
+                }}
+              >
+                <p
+                  className={`text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                >
+                  {getFlagEmoji(selectedPassport.countryCode)}{" "}
+                  {getCountryByCode(selectedPassport.countryCode)?.name ||
+                    selectedPassport.countryCode}{" "}
+                  • #{selectedPassport.tokenId}
+                </p>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   // EPK Submodal - rendered as separate portal for proper z-index stacking
-  const epkSubmodal = showEPKSubmodal && mounted ? createPortal(
-    <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ zIndex: 10001, backgroundColor: 'rgba(0,0,0,0.85)' }}
-      onClick={() => setShowEPKSubmodal(false)}
-    >
-      <div
-        className="rounded-2xl overflow-hidden max-w-sm w-full shadow-2xl bg-gray-900 border border-gray-700"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-400" />
-            Press Kit
-          </h3>
-          <button
+  const epkSubmodal =
+    showEPKSubmodal && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{ zIndex: 10001, backgroundColor: "rgba(0,0,0,0.85)" }}
             onClick={() => setShowEPKSubmodal(false)}
-            className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4">
-          {epkData ? (
-            <>
-              {/* Has EPK - show summary + view/edit */}
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400 font-medium">Press Kit Live</span>
+            <div
+              className="rounded-2xl overflow-hidden max-w-sm w-full shadow-2xl bg-gray-900 border border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-purple-400" />
+                  Press Kit
+                </h3>
+                <button
+                  onClick={() => setShowEPKSubmodal(false)}
+                  className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <div>
-                <p className="text-white font-medium">{epkData.artistName}</p>
-                {epkData.genre && (
-                  <p className="text-sm text-gray-400 mt-0.5">{epkData.genre}</p>
+
+              <div className="p-4 space-y-4">
+                {epkData ? (
+                  <>
+                    {/* Has EPK - show summary + view/edit */}
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-400" />
+                      <span className="text-sm text-green-400 font-medium">
+                        Press Kit Live
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">
+                        {epkData.artistName}
+                      </p>
+                      {epkData.genre && (
+                        <p className="text-sm text-gray-400 mt-0.5">
+                          {epkData.genre}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowEPKSubmodal(false);
+                          setShowEPKViewModal(true);
+                        }}
+                        className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        View Press Kit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowEPKSubmodal(false);
+                          setShowEPKModal(true);
+                        }}
+                        className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Edit EPK
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* No EPK - show create prompt */}
+                    <div className="text-center py-2">
+                      <div className="w-12 h-12 bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <FileText className="w-6 h-6 text-purple-400" />
+                      </div>
+                      <p className="text-white font-medium mb-1">
+                        No Press Kit Yet
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Create a professional press kit to share with promoters
+                        and venues.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowEPKSubmodal(false);
+                        setShowEPKModal(true);
+                      }}
+                      className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-sm font-medium transition-all"
+                    >
+                      Generate Press Kit (5 WMON)
+                    </button>
+                  </>
                 )}
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowEPKSubmodal(false);
-                    setShowEPKViewModal(true);
-                  }}
-                  className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  View Press Kit
-                </button>
-                <button
-                  onClick={() => {
-                    setShowEPKSubmodal(false);
-                    setShowEPKModal(true);
-                  }}
-                  className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  Edit EPK
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* No EPK - show create prompt */}
-              <div className="text-center py-2">
-                <div className="w-12 h-12 bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <FileText className="w-6 h-6 text-purple-400" />
-                </div>
-                <p className="text-white font-medium mb-1">No Press Kit Yet</p>
-                <p className="text-sm text-gray-400">Create a professional press kit to share with promoters and venues.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowEPKSubmodal(false);
-                  setShowEPKModal(true);
-                }}
-                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-sm font-medium transition-all"
-              >
-                Generate Press Kit (5 WMON)
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
-  ) : null;
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   // EPK View Modal - full press kit view as scrollable sub-modal
-  const epkViewModal = showEPKViewModal && mounted && epkData?.fullEpk ? createPortal(
-    <div
-      className="fixed inset-0 flex items-end sm:items-center justify-center"
-      style={{ zIndex: 10002, backgroundColor: 'rgba(0,0,0,0.9)' }}
-      onClick={() => setShowEPKViewModal(false)}
-    >
-      <div
-        className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-2xl bg-[#0f172a]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <EPKViewContent
-          epk={epkData.fullEpk}
-          stats={epkData.streamingStats}
-          onClose={() => setShowEPKViewModal(false)}
-          onEdit={() => {
-            setShowEPKViewModal(false);
-            setShowEPKModal(true);
-          }}
-        />
-      </div>
-    </div>,
-    document.body
-  ) : null;
+  const epkViewModal =
+    showEPKViewModal && mounted && epkData?.fullEpk
+      ? createPortal(
+          <div
+            className="fixed inset-0 flex items-end sm:items-center justify-center"
+            style={{ zIndex: 10002, backgroundColor: "rgba(0,0,0,0.9)" }}
+            onClick={() => setShowEPKViewModal(false)}
+          >
+            <div
+              className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-2xl bg-[#0f172a]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <EPKViewContent
+                epk={epkData.fullEpk}
+                stats={epkData.streamingStats}
+                onClose={() => setShowEPKViewModal(false)}
+                onEdit={() => {
+                  setShowEPKViewModal(false);
+                  setShowEPKModal(true);
+                }}
+              />
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
@@ -939,13 +1171,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 };
 
 // Stat Box Component
-const StatBox = ({ icon, value, label, color }: { icon: React.ReactNode; value: number; label: string; color: string }) => {
+const StatBox = ({
+  icon,
+  value,
+  label,
+  color,
+}: {
+  icon: React.ReactNode;
+  value: number;
+  label: string;
+  color: string;
+}) => {
   const colors: Record<string, string> = {
-    purple: 'bg-purple-900 border-purple-700 text-purple-400',
-    blue: 'bg-blue-900 border-blue-700 text-blue-400',
-    amber: 'bg-amber-900 border-amber-700 text-amber-400',
-    pink: 'bg-pink-900 border-pink-700 text-pink-400',
-    cyan: 'bg-cyan-900 border-cyan-700 text-cyan-400',
+    purple: "bg-purple-900 border-purple-700 text-purple-400",
+    blue: "bg-blue-900 border-blue-700 text-blue-400",
+    amber: "bg-amber-900 border-amber-700 text-amber-400",
+    pink: "bg-pink-900 border-pink-700 text-pink-400",
+    cyan: "bg-cyan-900 border-cyan-700 text-cyan-400",
   };
 
   return (
@@ -982,7 +1224,7 @@ const EPKViewContent = ({
         </h3>
         <div className="flex items-center gap-2">
           <a
-            href={`/api/epk/pdf/${epk.artist.slug || 'epk'}`}
+            href={`/api/epk/pdf/${epk.artist.slug || "epk"}`}
             className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
             title="Download PDF"
           >
@@ -1014,10 +1256,15 @@ const EPKViewContent = ({
             </span>
           )}
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">{epk.artist.name}</h1>
+        <h1 className="text-2xl font-bold text-white mb-2">
+          {epk.artist.name}
+        </h1>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {epk.artist.genre.map((g) => (
-            <span key={g} className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-0.5">
+            <span
+              key={g}
+              className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-0.5"
+            >
               {g}
             </span>
           ))}
@@ -1031,42 +1278,56 @@ const EPKViewContent = ({
       <div className="px-4 pb-6 space-y-6">
         {/* About */}
         <section>
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">About</h2>
-          <p className="text-sm text-slate-300 leading-relaxed">{epk.artist.bio}</p>
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            About
+          </h2>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            {epk.artist.bio}
+          </p>
         </section>
 
         {/* Streaming Stats */}
         {stats && (stats.totalPlays > 0 || stats.totalSales > 0) && (
           <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">On-Chain Stats</h2>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              On-Chain Stats
+            </h2>
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
                   <Play className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-xs text-slate-400">Plays</span>
                 </div>
-                <p className="text-lg font-bold text-white">{stats.totalPlays.toLocaleString()}</p>
+                <p className="text-lg font-bold text-white">
+                  {stats.totalPlays.toLocaleString()}
+                </p>
               </div>
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
                   <Users className="w-3.5 h-3.5 text-blue-400" />
                   <span className="text-xs text-slate-400">Listeners</span>
                 </div>
-                <p className="text-lg font-bold text-white">{stats.uniqueListeners.toLocaleString()}</p>
+                <p className="text-lg font-bold text-white">
+                  {stats.uniqueListeners.toLocaleString()}
+                </p>
               </div>
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
                   <Music className="w-3.5 h-3.5 text-green-400" />
                   <span className="text-xs text-slate-400">Sales</span>
                 </div>
-                <p className="text-lg font-bold text-white">{stats.totalSales.toLocaleString()}</p>
+                <p className="text-lg font-bold text-white">
+                  {stats.totalSales.toLocaleString()}
+                </p>
               </div>
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="w-3.5 h-3.5 text-amber-400" />
                   <span className="text-xs text-slate-400">Revenue</span>
                 </div>
-                <p className="text-lg font-bold text-white">{stats.totalRevenue} WMON</p>
+                <p className="text-lg font-bold text-white">
+                  {stats.totalRevenue} WMON
+                </p>
               </div>
             </div>
           </section>
@@ -1075,7 +1336,9 @@ const EPKViewContent = ({
         {/* Press */}
         {epk.press.length > 0 && (
           <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Press</h2>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Press
+            </h2>
             <div className="space-y-2">
               {epk.press.map((article, i) => (
                 <a
@@ -1085,10 +1348,18 @@ const EPKViewContent = ({
                   rel="noopener noreferrer"
                   className="block bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
                 >
-                  <p className="text-xs font-semibold text-purple-400 uppercase tracking-wider">{article.outlet}</p>
-                  <p className="text-sm text-white font-medium mt-1 line-clamp-2">{article.title}</p>
+                  <p className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
+                    {article.outlet}
+                  </p>
+                  <p className="text-sm text-white font-medium mt-1 line-clamp-2">
+                    {article.title}
+                  </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {new Date(article.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {new Date(article.date).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </p>
                 </a>
               ))}
@@ -1099,7 +1370,9 @@ const EPKViewContent = ({
         {/* Media / Videos */}
         {epk.media.videos.length > 0 && (
           <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Media</h2>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Media
+            </h2>
             <div className="space-y-2">
               {epk.media.videos.map((video, i) => (
                 <a
@@ -1111,8 +1384,12 @@ const EPKViewContent = ({
                 >
                   <Play className="w-8 h-8 text-purple-400 flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{video.title}</p>
-                    <p className="text-xs text-slate-500 capitalize">{video.platform}</p>
+                    <p className="text-sm text-white font-medium truncate">
+                      {video.title}
+                    </p>
+                    <p className="text-xs text-slate-500 capitalize">
+                      {video.platform}
+                    </p>
                   </div>
                 </a>
               ))}
@@ -1123,23 +1400,36 @@ const EPKViewContent = ({
         {/* Booking Info */}
         {epk.booking.inquiryEnabled && (
           <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Booking</h2>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Booking
+            </h2>
             <div className="bg-[#1e293b] rounded-lg p-4 border border-white/5 space-y-3">
-              <p className="text-sm text-white font-medium">{epk.booking.pricing}</p>
+              <p className="text-sm text-white font-medium">
+                {epk.booking.pricing}
+              </p>
               {epk.booking.minimumDeposit && (
-                <p className="text-xs text-slate-400">Min. deposit: {epk.booking.minimumDeposit} WMON</p>
+                <p className="text-xs text-slate-400">
+                  Min. deposit: {epk.booking.minimumDeposit} WMON
+                </p>
               )}
               <div>
                 <p className="text-xs text-slate-500 mb-1">Available For</p>
                 <div className="flex flex-wrap gap-1">
                   {epk.booking.availableFor.map((item, i) => (
-                    <span key={i} className="text-xs text-slate-300 bg-white/5 rounded-full px-2.5 py-0.5">{item}</span>
+                    <span
+                      key={i}
+                      className="text-xs text-slate-300 bg-white/5 rounded-full px-2.5 py-0.5"
+                    >
+                      {item}
+                    </span>
                   ))}
                 </div>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Territories</p>
-                <p className="text-xs text-slate-300">{epk.booking.territories.join(', ')}</p>
+                <p className="text-xs text-slate-300">
+                  {epk.booking.territories.join(", ")}
+                </p>
               </div>
             </div>
           </section>
@@ -1148,23 +1438,43 @@ const EPKViewContent = ({
         {/* Technical Rider (collapsible) */}
         {epk.technicalRider && (
           <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Technical Rider</h2>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Technical Rider
+            </h2>
             <div className="space-y-1">
               {Object.values(epk.technicalRider).map((section: any) => (
-                <div key={section.title} className="bg-[#1e293b] rounded-lg border border-white/5 overflow-hidden">
+                <div
+                  key={section.title}
+                  className="bg-[#1e293b] rounded-lg border border-white/5 overflow-hidden"
+                >
                   <button
-                    onClick={() => setExpandedRider(expandedRider === `tech-${section.title}` ? null : `tech-${section.title}`)}
+                    onClick={() =>
+                      setExpandedRider(
+                        expandedRider === `tech-${section.title}`
+                          ? null
+                          : `tech-${section.title}`,
+                      )
+                    }
                     className="w-full flex items-center justify-between p-3 text-left hover:bg-white/5 transition-colors"
                   >
-                    <span className="text-sm text-white font-medium">{section.title}</span>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedRider === `tech-${section.title}` ? 'rotate-180' : ''}`} />
+                    <span className="text-sm text-white font-medium">
+                      {section.title}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform ${expandedRider === `tech-${section.title}` ? "rotate-180" : ""}`}
+                    />
                   </button>
                   {expandedRider === `tech-${section.title}` && (
                     <div className="px-3 pb-3 border-t border-white/5">
                       <ul className="space-y-1 mt-2">
                         {section.items.map((item: string, i: number) => (
-                          <li key={i} className="text-xs text-slate-400 flex items-start gap-2">
-                            <span className="text-purple-400 mt-0.5">&#8226;</span>
+                          <li
+                            key={i}
+                            className="text-xs text-slate-400 flex items-start gap-2"
+                          >
+                            <span className="text-purple-400 mt-0.5">
+                              &#8226;
+                            </span>
                             {item}
                           </li>
                         ))}
@@ -1180,23 +1490,43 @@ const EPKViewContent = ({
         {/* Hospitality Rider (collapsible) */}
         {epk.hospitalityRider && (
           <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Hospitality Rider</h2>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Hospitality Rider
+            </h2>
             <div className="space-y-1">
               {Object.values(epk.hospitalityRider).map((section: any) => (
-                <div key={section.title} className="bg-[#1e293b] rounded-lg border border-white/5 overflow-hidden">
+                <div
+                  key={section.title}
+                  className="bg-[#1e293b] rounded-lg border border-white/5 overflow-hidden"
+                >
                   <button
-                    onClick={() => setExpandedRider(expandedRider === `hosp-${section.title}` ? null : `hosp-${section.title}`)}
+                    onClick={() =>
+                      setExpandedRider(
+                        expandedRider === `hosp-${section.title}`
+                          ? null
+                          : `hosp-${section.title}`,
+                      )
+                    }
                     className="w-full flex items-center justify-between p-3 text-left hover:bg-white/5 transition-colors"
                   >
-                    <span className="text-sm text-white font-medium">{section.title}</span>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedRider === `hosp-${section.title}` ? 'rotate-180' : ''}`} />
+                    <span className="text-sm text-white font-medium">
+                      {section.title}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform ${expandedRider === `hosp-${section.title}` ? "rotate-180" : ""}`}
+                    />
                   </button>
                   {expandedRider === `hosp-${section.title}` && (
                     <div className="px-3 pb-3 border-t border-white/5">
                       <ul className="space-y-1 mt-2">
                         {section.items.map((item: string, i: number) => (
-                          <li key={i} className="text-xs text-slate-400 flex items-start gap-2">
-                            <span className="text-purple-400 mt-0.5">&#8226;</span>
+                          <li
+                            key={i}
+                            className="text-xs text-slate-400 flex items-start gap-2"
+                          >
+                            <span className="text-purple-400 mt-0.5">
+                              &#8226;
+                            </span>
                             {item}
                           </li>
                         ))}
@@ -1210,37 +1540,59 @@ const EPKViewContent = ({
         )}
 
         {/* Socials */}
-        {epk.socials && (epk.socials.farcaster || epk.socials.twitter || epk.socials.instagram || epk.socials.website) && (
-          <section>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Links</h2>
-            <div className="flex flex-wrap gap-2">
-              {epk.socials.farcaster && (
-                <a href={`https://farcaster.xyz/${epk.socials.farcaster}`} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-1.5 hover:bg-purple-500/20 transition-colors">
-                  Farcaster
-                </a>
-              )}
-              {epk.socials.twitter && (
-                <a href={`https://twitter.com/${epk.socials.twitter}`} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1.5 hover:bg-blue-500/20 transition-colors">
-                  Twitter
-                </a>
-              )}
-              {epk.socials.instagram && (
-                <a href={`https://instagram.com/${epk.socials.instagram}`} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-pink-300 bg-pink-500/10 border border-pink-500/20 rounded-full px-3 py-1.5 hover:bg-pink-500/20 transition-colors">
-                  Instagram
-                </a>
-              )}
-              {epk.socials.website && (
-                <a href={epk.socials.website} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 hover:bg-white/10 transition-colors">
-                  Website
-                </a>
-              )}
-            </div>
-          </section>
-        )}
+        {epk.socials &&
+          (epk.socials.farcaster ||
+            epk.socials.twitter ||
+            epk.socials.instagram ||
+            epk.socials.website) && (
+            <section>
+              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                Links
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {epk.socials.farcaster && (
+                  <a
+                    href={`https://farcaster.xyz/${epk.socials.farcaster}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-1.5 hover:bg-purple-500/20 transition-colors"
+                  >
+                    Farcaster
+                  </a>
+                )}
+                {epk.socials.twitter && (
+                  <a
+                    href={`https://twitter.com/${epk.socials.twitter}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1.5 hover:bg-blue-500/20 transition-colors"
+                  >
+                    Twitter
+                  </a>
+                )}
+                {epk.socials.instagram && (
+                  <a
+                    href={`https://instagram.com/${epk.socials.instagram}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-pink-300 bg-pink-500/10 border border-pink-500/20 rounded-full px-3 py-1.5 hover:bg-pink-500/20 transition-colors"
+                  >
+                    Instagram
+                  </a>
+                )}
+                {epk.socials.website && (
+                  <a
+                    href={epk.socials.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 hover:bg-white/10 transition-colors"
+                  >
+                    Website
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
 
         {/* On-Chain Info */}
         {verified && epk.onChain?.ipfsCid && (
@@ -1248,7 +1600,9 @@ const EPKViewContent = ({
             <p className="text-xs text-slate-500">
               IPFS: {epk.onChain.ipfsCid.slice(0, 16)}...
             </p>
-            <p className="text-xs text-slate-600 mt-1">Powered by EmpowerTours on Monad</p>
+            <p className="text-xs text-slate-600 mt-1">
+              Powered by EmpowerTours on Monad
+            </p>
           </div>
         )}
       </div>

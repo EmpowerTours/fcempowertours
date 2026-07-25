@@ -592,6 +592,16 @@ export function LiveRadioModal({
             .catch((e) =>
               console.warn("[LiveRadio] Post-voice-note autoplay blocked:", e),
             );
+        } else {
+          // Shoutout finished with no song queued up behind it. Poke the
+          // scheduler so it flips the phase back and picks one, instead of
+          // leaving dead air until the next tick.
+          fetch("/api/live-radio/scheduler", { method: "POST" }).catch((err) =>
+            console.warn(
+              "[LiveRadio] Post-voice-note scheduler tick failed:",
+              err,
+            ),
+          );
         }
       } else {
         // Song just finished naturally - tell server so it can move to next song
@@ -617,6 +627,15 @@ export function LiveRadioModal({
             console.error("[LiveRadio] Failed to report song end:", error);
           }
         }
+
+        // Advance immediately rather than waiting for the next 15s tick.
+        // A paid voice shoutout is only ~5 seconds, so it must follow the song
+        // that just finished without an audible gap in front of it — and once it
+        // ends the scheduler flips the phase back and a song resumes. Polling
+        // alone would leave up to 15s of silence ahead of a 5s shoutout.
+        fetch("/api/live-radio/scheduler", { method: "POST" }).catch((err) =>
+          console.warn("[LiveRadio] Post-song scheduler tick failed:", err),
+        );
         // Don't set isPlaying to false - we want to keep playing when next song arrives
       }
     };
