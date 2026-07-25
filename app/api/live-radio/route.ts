@@ -543,6 +543,55 @@ export async function POST(req: NextRequest) {
       return handleAdminAction(action);
     }
 
+    // Report a track's real duration, read off the client's audio element on
+    // loadedmetadata. Cheap, idempotent, and unauthenticated by design: it only
+    // ever writes a bounded number to a cache the scheduler reads.
+    if (action === "report_duration") {
+      const { tokenId, duration } = body;
+
+      if (
+        !tokenId ||
+        typeof duration !== "number" ||
+        !Number.isFinite(duration)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "tokenId and a finite duration are required",
+          },
+          { status: 400 },
+        );
+      }
+
+      const seconds = Math.round(duration);
+      if (seconds < MIN_REPORTED_DURATION || seconds > MAX_REPORTED_DURATION) {
+        return NextResponse.json({
+          success: false,
+          error: `duration ${seconds}s outside accepted range ${MIN_REPORTED_DURATION}-${MAX_REPORTED_DURATION}s`,
+        });
+      }
+
+      const existing = await redis.hget<number>(
+        SONG_DURATIONS_KEY,
+        String(tokenId),
+      );
+      if (existing && Math.abs(Number(existing) - seconds) <= 2) {
+        return NextResponse.json({
+          success: true,
+          cached: true,
+          duration: existing,
+        });
+      }
+
+      await redis.hset(SONG_DURATIONS_KEY, { [String(tokenId)]: seconds });
+      console.log(
+        `[LiveRadio] Duration reported for tokenId=${tokenId}: ${seconds}s` +
+          (existing ? ` (was ${existing}s)` : ""),
+      );
+
+      return NextResponse.json({ success: true, duration: seconds });
+    }
+
     if (!userAddress) {
       return NextResponse.json(
         { success: false, error: "User address required" },
@@ -895,54 +944,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Report a track's real duration, read off the client's audio element on
-    // loadedmetadata. Cheap, idempotent, and unauthenticated by design: it only
-    // ever writes a bounded number to a cache the scheduler reads.
-    if (action === "report_duration") {
-      const { tokenId, duration } = body;
-
-      if (
-        !tokenId ||
-        typeof duration !== "number" ||
-        !Number.isFinite(duration)
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "tokenId and a finite duration are required",
-          },
-          { status: 400 },
-        );
-      }
-
-      const seconds = Math.round(duration);
-      if (seconds < MIN_REPORTED_DURATION || seconds > MAX_REPORTED_DURATION) {
-        return NextResponse.json({
-          success: false,
-          error: `duration ${seconds}s outside accepted range ${MIN_REPORTED_DURATION}-${MAX_REPORTED_DURATION}s`,
-        });
-      }
-
-      const existing = await redis.hget<number>(
-        SONG_DURATIONS_KEY,
-        String(tokenId),
-      );
-      if (existing && Math.abs(Number(existing) - seconds) <= 2) {
-        return NextResponse.json({
-          success: true,
-          cached: true,
-          duration: existing,
-        });
-      }
-
-      await redis.hset(SONG_DURATIONS_KEY, { [String(tokenId)]: seconds });
-      console.log(
-        `[LiveRadio] Duration reported for tokenId=${tokenId}: ${seconds}s` +
-          (existing ? ` (was ${existing}s)` : ""),
-      );
-
-      return NextResponse.json({ success: true, duration: seconds });
-    }
 
     // Report song ended (client tells server when audio actually finishes)
     if (action === "song_ended") {
