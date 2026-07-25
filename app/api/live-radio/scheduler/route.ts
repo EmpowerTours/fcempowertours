@@ -197,12 +197,31 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
 }
 
 // Select a random song from the pool
-async function selectRandomSong(): Promise<QueuedSong | null> {
+/**
+ * @param excludeTokenId track to avoid picking, normally the one that just played
+ *
+ * Picking the same track twice in a row is not just a poor listen — it costs the
+ * artist money. MusicSubscriptionV5 enforces REPLAY_COOLDOWN of 300s per user per
+ * song, and tracks run ~3-4 minutes, so a consecutive repeat lands inside the
+ * cooldown and records no play at all. With a small catalogue that silently threw
+ * away a large share of play credit.
+ */
+async function selectRandomSong(
+  excludeTokenId?: string,
+): Promise<QueuedSong | null> {
   const songs = await fetchSongPool();
   if (songs.length === 0) return null;
 
-  const randomIndex = Math.floor(Math.random() * songs.length);
-  const song = songs[randomIndex];
+  // Only exclude when there is something else to play, so a single-track
+  // catalogue still works.
+  const candidates =
+    excludeTokenId && songs.length > 1
+      ? songs.filter((s) => s.tokenId !== excludeTokenId)
+      : songs;
+  const pool = candidates.length > 0 ? candidates : songs;
+
+  const randomIndex = Math.floor(Math.random() * pool.length);
+  const song = pool[randomIndex];
 
   return {
     id: `random-${song.tokenId}-${Date.now()}`,
@@ -464,8 +483,22 @@ export async function POST(req: NextRequest) {
         let isRandom = false;
 
         if (!nextSong) {
+          // Read the track that just played from history rather than from
+          // state.currentSong, which has already been cleared by the time we get
+          // here — and may have been cleared on an earlier tick entirely.
+          let lastTokenId: string | undefined;
+          try {
+            const [last] = await redis.lrange<string>(PLAY_HISTORY_KEY, 0, 0);
+            if (last) {
+              const parsed = typeof last === "string" ? JSON.parse(last) : last;
+              lastTokenId = parsed?.tokenId;
+            }
+          } catch (err) {
+            console.warn("[RadioScheduler] Play history lookup failed:", err);
+          }
+
           // No queued songs, select random
-          nextSong = await selectRandomSong();
+          nextSong = await selectRandomSong(lastTokenId);
           isRandom = true;
         }
 

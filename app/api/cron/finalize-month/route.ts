@@ -52,6 +52,19 @@ const CRON_SECRET = process.env.KEEPER_SECRET || process.env.CRON_SECRET;
 const DEFAULT_LOOKBACK = 12;
 const MAX_LOOKBACK = 60;
 
+/**
+ * Months whose stranded WMON has already been recovered via emergencyWithdraw.
+ *
+ * emergencyWithdraw moves tokens but does not touch monthlyStats, so these months
+ * still read "revenue, zero plays" on-chain forever and would be reported as
+ * stranded on every run. A warning that fires hourly about money that is no
+ * longer there is a warning nobody reads — and the next genuinely stranded month
+ * would be lost in it.
+ *
+ * 682 (45 WMON) and 683 (75 WMON) recovered 2026-07-25, tx 0xcf4ba6c2...
+ */
+const RECOVERED_MONTHS = new Set<number>([682, 683]);
+
 const SUBSCRIPTION_ABI = parseAbi([
   "function monthlyStats(uint256 monthId) view returns (uint256 totalRevenue, uint256 totalPlays, uint256 distributedAmount, bool finalized)",
   "function finalizeMonthlyDistribution(uint256 monthId) external",
@@ -62,6 +75,7 @@ type MonthVerdict =
   | "finalized"
   | "no-revenue"
   | "stranded"
+  | "recovered"
   | "ready"
   | "current";
 
@@ -196,6 +210,10 @@ async function handle(req: NextRequest) {
       }
       if (totalPlays === 0n) {
         // Terminal: plays can only be added during the month, which has passed.
+        if (RECOVERED_MONTHS.has(monthId)) {
+          reports.push({ ...base, verdict: "recovered" });
+          continue;
+        }
         reports.push({ ...base, verdict: "stranded" });
         console.error(
           `[FinalizeKeeper] STRANDED month ${monthId}: ${formatEther(totalRevenue)} WMON with zero plays. ` +
