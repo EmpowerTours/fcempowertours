@@ -7,11 +7,5 @@
     "startCommand": "npm run start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
-  },
-  "cron": [
-    {
-      "schedule": "0 * * * *",
-      "command": "curl -fsS -H \"x-cron-secret: $KEEPER_SECRET\" https://fcempowertours-production-6551.up.railway.app/api/cron/top-up-safe"
-    }
-  ]
+  }
 }

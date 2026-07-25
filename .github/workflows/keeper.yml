@@ -1,0 +1,81 @@
+name: Keeper
+
+# Railway's only cron field is deploy.cronSchedule, which runs the WHOLE service
+# on a schedule and then exits — setting it on the web service would take the site
+# down every hour. The `cron` array previously in railway.json was not valid
+# Railway config and never fired, which is why the dead finalize-lottery entry
+# 404'd unnoticed for months.
+#
+# So scheduling lives here instead: GitHub Actions pings the deployed endpoints,
+# which already do the work and are protected by KEEPER_SECRET.
+#
+# Requires repo secret KEEPER_SECRET, matching the Railway variable of the same
+# name. Add at: Settings > Secrets and variables > Actions.
+
+on:
+  schedule:
+    # Hourly. GitHub may delay runs under load; this job is idempotent, so a late
+    # or skipped tick only means the top-up happens on the next one.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "Dry run — report intended actions without sending transactions"
+        type: boolean
+        default: false
+
+concurrency:
+  # Never let a delayed run overlap a fresh one; both would try to sign with the
+  # same owner EOA and collide on nonce.
+  group: keeper
+  cancel-in-progress: false
+
+jobs:
+  top-up-safe:
+    name: Top up treasury Safe gas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          BASE_URL: https://fcempowertours-production-6551.up.railway.app
+          DRY: ${{ inputs.dry && '?dry=1' || '' }}
+        run: |
+          if [ -z "$KEEPER_SECRET" ]; then
+            echo "::error::KEEPER_SECRET is not set on this repository"
+            exit 1
+          fi
+
+          echo "Calling ${BASE_URL}/api/cron/top-up-safe${DRY}"
+          response=$(curl -sS --max-time 120 -w '\n%{http_code}' \
+            -H "x-cron-secret: ${KEEPER_SECRET}" \
+            "${BASE_URL}/api/cron/top-up-safe${DRY}")
+
+          body=$(printf '%s' "$response" | sed '$d')
+          code=$(printf '%s' "$response" | tail -n1)
+
+          echo "HTTP $code"
+          echo "$body"
+
+          # Surface the outcome on the run summary so a failing keeper is visible
+          # without opening logs.
+          {
+            echo "### Keeper result (HTTP $code)"
+            echo '```json'
+            echo "$body"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Keeper returned HTTP $code"
+            exit 1
+          fi
+
+          # The route answers 200 with success:false for conditions it handled but
+          # could not act on (no WMON to unwrap, Safe too thin to refill the owner).
+          # Treat that as a failure so it does not fail silently every hour.
+          if printf '%s' "$body" | grep -q '"success":false'; then
+            echo "::error::Keeper reported success:false"
+            exit 1
+          fi
