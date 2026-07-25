@@ -79,3 +79,58 @@ jobs:
             echo "::error::Keeper reported success:false"
             exit 1
           fi
+
+  finalize-month:
+    name: Finalize monthly distribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Both jobs sign with the same owner EOA, so they must not run
+    # concurrently or they collide on nonce. Gas first, then finalize.
+    needs: top-up-safe
+    steps:
+      - name: Call finalize keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          BASE_URL: https://fcempowertours-production-6551.up.railway.app
+          DRY: ${{ inputs.dry && '?dry=1' || '' }}
+        run: |
+          if [ -z "$KEEPER_SECRET" ]; then
+            echo "::error::KEEPER_SECRET is not set on this repository"
+            exit 1
+          fi
+
+          response=$(curl -sS --max-time 300 -w '\n%{http_code}' \
+            -H "x-cron-secret: ${KEEPER_SECRET}" \
+            "${BASE_URL}/api/cron/finalize-month${DRY}")
+
+          body=$(printf '%s' "$response" | sed '$d')
+          code=$(printf '%s' "$response" | tail -n1)
+
+          echo "HTTP $code"
+          echo "$body"
+
+          {
+            echo "### Finalize result (HTTP $code)"
+            echo '```json'
+            echo "$body"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Finalize keeper returned HTTP $code"
+            exit 1
+          fi
+
+          if printf '%s' "$body" | grep -q '"success":false'; then
+            echo "::error::Finalize keeper reported a failed month"
+            exit 1
+          fi
+
+          # Stranded months took revenue but recorded zero plays, so finalize can
+          # never succeed for them and the WMON is unrecoverable except via
+          # emergencyWithdraw. Not a run failure — but it must never pass silently.
+          stranded=$(printf '%s' "$body" | grep -o '"stranded":[0-9]*' | head -1 | cut -d: -f2)
+          if [ -n "$stranded" ] && [ "$stranded" -gt 0 ]; then
+            amount=$(printf '%s' "$body" | grep -o '"strandedWmon":"[^"]*"' | head -1 | cut -d'"' -f4)
+            echo "::warning::${stranded} month(s) stranded holding ${amount} WMON — unrecoverable via finalize"
+          fi
