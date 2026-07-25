@@ -144,13 +144,32 @@ On-chain play recording with artist royalty distribution via PlayOracleV3 contra
 
 ### Live Radio
 
-Community radio station with on-chain listener tracking via LiveRadioV3 contract.
+Community radio station with on-chain listener tracking.
 
 - **Queue Songs** - Pay WMON to add licensed tracks to the live radio queue
 - **Voice Shoutouts** - Record and broadcast 3-5 second voice notes (WMON)
 - **Skip to Random** - Pay 1 WMON to skip the current song and play a new random track
 - **Tip Artists** - 100% of tips go directly to the artist
-- **Listener Rewards** - Earn TOURS tokens for tuning in
+- **Listener Rewards** - Earn TOURS tokens for tuning in, plus WMON from the 20% reserve
+
+**How playback advances.** The radio has no server-side timer. `/api/live-radio/scheduler`
+holds the logic but requires `KEEPER_SECRET`, so listening clients poke
+`/api/live-radio/tick` instead — a public wrapper that injects the secret server-side.
+Clients tick every 15 seconds, and immediately when their audio ends, so a paid voice
+shoutout follows the track it was queued behind without an audible gap. If nobody is
+listening, nothing needs to advance. The scheduler holds a Redis lock, so concurrent
+listeners cannot double-advance it.
+
+**Track durations are measured, not assumed.** The indexer exposes no duration field,
+so clients report the real length off the audio element on `loadedmetadata` and the
+scheduler schedules against that. Until a track has been played once it falls back to a
+flat 600s slot. Getting this wrong is audible: a 600s slot around a 3-minute track means
+dead air followed by an abrupt cut.
+
+**The shuffle never repeats the previous track.** This is an economic constraint, not a
+taste one — `MusicSubscriptionV5` enforces a 300-second replay cooldown per user per
+song, so a consecutive repeat of a 3-4 minute track lands inside the cooldown and
+records **no play at all**, costing the artist their credit for it.
 
 ### Rock Climbing Adventures (ClimbingLocationsV2)
 
@@ -282,7 +301,7 @@ Every payment on EmpowerTours is handled by verified smart contracts on Monad. A
 
 ### 2. Radio Queue & Tips
 
-**Contract**: `LiveRadioV3` — [`0x042EDF80713e6822a891e4e8a0800c332B8200fd`](https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd)
+**Contract**: `LiveRadio` — [`0x26b32987cb5d7946D81e0Cc7459f26CdeC773101`](https://monadscan.com/address/0x26b32987cb5d7946D81e0Cc7459f26CdeC773101)
 
 | Detail | Value |
 |--------|-------|
@@ -343,6 +362,36 @@ Artist payout = (artist's plays / total plays) × artist pool amount
 >
 > Artists can claim anytime after the month is finalized. **No minimum withdrawal.**
 
+**Months are 30-day periods since the Unix epoch, not calendar months.** A month id
+is `block.timestamp / 30 days`, so boundaries drift relative to the calendar.
+
+**Nothing is distributed until the month is finalized.** Revenue accrues into
+`monthlyStats[monthId]` as subscribers pay, but the 70/20/10 split only happens when
+`finalizeMonthlyDistribution(monthId)` runs. Until then artists have nothing to
+claim and the payout section stays hidden in the UI. This is automated — see
+[Automated Keepers](#10-automated-keepers).
+
+The contract enforces four preconditions, and one of them is a trap:
+
+| Requirement | Meaning |
+|---|---|
+| `monthId < block.timestamp / 30 days` | the month must have ended |
+| `!finalized` | not already distributed |
+| `totalRevenue > 0` | somebody subscribed |
+| **`totalPlays > 0`** | **at least one play was recorded** |
+
+That last one is permanent. Plays can only be recorded *during* a month, so a month
+that takes subscription revenue but records **zero plays can never be finalized**,
+and its WMON is unreachable except through `emergencyWithdraw`. The finalize keeper
+watches for this and warns while the month is still open and the situation is still
+fixable.
+
+**Payouts are pull, not push.** Finalizing records what each artist is owed; it does
+not send it. Each artist calls `claimArtistPayout(monthId)` or
+`batchClaimArtistPayouts(monthIds)` themselves — in the app, the **Unclaimed Payouts**
+button, gas-sponsored through the delegated Safe. The treasury's 10% is the exception:
+it is transferred during finalization.
+
 ---
 
 ### 4. Play Tracking (Oracle)
@@ -361,6 +410,38 @@ Every music play is recorded on-chain through the Play Oracle, which feeds into 
 | Max plays per song per user per day | 100 |
 
 Plays are validated by the oracle before being counted toward an artist's monthly pool share.
+
+**How a play reaches the chain:**
+
+```
+listener finishes a track
+  → client POSTs { action: "song_ended" } to /api/live-radio
+  → recordRadioPlays() walks the active-listener set, and for each one checks
+      hasActiveSubscription(listener)      must hold a live subscription
+      canPlay(listener, tokenId)           anti-replay cooldown
+  → PlayOracleV3.recordPlay(user, tokenId, duration)
+  → MusicSubscriptionV5 increments
+      monthlyStats[monthId].totalPlays
+      artistMonthlyPlays[monthId][artist]
+      artistLifetimePlays[artist]
+```
+
+Radio plays and on-demand plays are identical here — there is no separate radio
+accounting. A play only counts if the listener holds an **active subscription** at the
+moment of playback; unsubscribed listening records nothing.
+
+**Required wiring — both directions must be set:**
+
+| Contract | Setting | Must point at |
+|---|---|---|
+| `PlayOracleV3` | `musicSubscription()` | the **current** MusicSubscription |
+| `MusicSubscriptionV5` | `oracle()` | `PlayOracleV3` |
+
+`MusicSubscriptionV5.recordPlay` is guarded by `require(msg.sender == oracle)`, so if
+either pointer is stale every play reverts with `"Only oracle can record plays"` —
+silently, since the failure happens inside a background call. If plays are not being
+counted, verify these two values first. Both are fixable with `setMusicSubscription`
+and `setOracle` respectively; both are owner-only.
 
 ---
 
@@ -476,6 +557,60 @@ EmpowerTours uses **gasless transactions** — users never pay gas fees or appro
 
 ---
 
+### 10. Automated Keepers
+
+Several parts of the economy need a privileged call that no user action triggers —
+closing out a month, moving the listener reserve, keeping the platform Safe in gas.
+These run as scheduled keepers, all owner-signed and all protected by `KEEPER_SECRET`.
+
+| Route | Does |
+|---|---|
+| `/api/cron/top-up-safe` | Unwraps WMON → native MON when the platform Safe drops below 10, topping up to 25 |
+| `/api/cron/finalize-month` | Classifies every month in the window and finalizes the ones that are ready |
+| `/api/cron/distribute-listener-rewards` | Moves the 20% reserve into the ListenerRewardPool, sets listen points, finalizes the month |
+
+**Scheduling lives in `.github/workflows/keeper.yml`, not Railway.**
+
+Railway has no `cron` array in `railway.json` — the only cron field is
+`deploy.cronSchedule`, which runs the *entire service* on a schedule and exits, so
+setting it on a web service takes the site down. A `cron` array there is silently
+ignored and never fires. Scheduling is therefore GitHub Actions, hitting the deployed
+endpoints hourly.
+
+The three jobs run **in sequence**, not in parallel:
+
+```
+top-up-safe  →  finalize-month  →  distribute-listener-rewards
+```
+
+Two reasons. The reserve only exists once finalize has split a month's revenue, and
+all three sign from the same owner EOA — running them concurrently races on nonce.
+
+**Gas keeper.** The platform Safe earns in WMON (radio queue payments, and the treasury
+share once distribution runs) but Pimlico sponsorship needs **native MON**, and the app
+refuses to build a UserOperation below 3 MON. So the Safe can hold thousands of WMON
+and still fail every transaction. The keeper unwraps the difference. It signs a Safe
+`execTransaction` directly with the owner EOA rather than going through Pimlico —
+that is the exact path that fails when the Safe is empty — so it recovers from a zero
+balance without manual intervention.
+
+**Finalize keeper.** Classifies each month as `finalized`, `no-revenue`, `stranded`,
+`recovered`, `ready`, or `current`, and only finalizes `ready` ones. Each is simulated
+first, so a revert costs no gas and surfaces its reason, and one bad month cannot block
+the others. It deliberately reports the **in-flight** month too, so a month accruing
+revenue with zero plays is visible while it can still be saved.
+
+**Listener distribution.** Reads listen counts from Redis, computes deltas against a
+snapshot so nobody is paid twice for the same songs, adds streak bonuses, then runs
+`withdrawReserveToDAO` → `approve` → `fundMonth` → `batchSetListenerPoints` →
+`finalizeMonth`. Its `success: false` is treated as benign — "already finalized", "no
+new listens" and "no reserve balance" are normal hourly outcomes.
+
+All three accept `?dry=1` except the listener distribution, which has no dry mode and
+is skipped on a dry dispatch.
+
+---
+
 ## Architecture Diagrams
 
 ### System Architecture Overview
@@ -516,7 +651,7 @@ flowchart TD
     subgraph Monad["Monad Mainnet (Chain 143)"]
         SAFE[Safe Smart Accounts]
         NFT[EmpowerToursNFTV2]
-        RADIO[LiveRadioV3]
+        RADIO[LiveRadio]
         SUB[MusicSubscriptionV5]
         PLAY[PlayOracleV3]
         EPKC[EPKRegistryV2]
@@ -587,7 +722,7 @@ flowchart TD
     TOURS([ToursToken<br/>Reward Token])
 
     WMON -->|Payments| NFT[EmpowerToursNFTV2]
-    WMON -->|Queue fees & tips| RADIO[LiveRadioV3]
+    WMON -->|Queue fees & tips| RADIO[LiveRadio]
     WMON -->|Subscriptions| SUB[MusicSubscriptionV5]
     WMON -->|Location fees| CLIMB[ClimbingLocationsV2]
     WMON -->|Itinerary sales| ITIN[ItineraryNFTV2]
@@ -628,7 +763,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Fan([Fan]) -->|1 WMON queue fee| Radio[LiveRadioV3]
+    Fan([Fan]) -->|1 WMON queue fee| Radio[LiveRadio]
     Fan -.->|Optional tip| Radio
     Radio -->|70% of queue| Artist([Artist])
     Radio -->|15%| PlatformSafe([Platform Safe])
@@ -734,7 +869,7 @@ All contracts are deployed on **Monad Mainnet** and verifiable on MonadScan.
 | Contract | Address | Purpose |
 |----------|---------|---------|
 | EmpowerToursNFTV2 | [`0xB9B3acf33439360B55d12429301E946f34f3B73F`](https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F) | Music license NFT sales (70/30 split) |
-| LiveRadioV3 | [`0x042EDF80713e6822a891e4e8a0800c332B8200fd`](https://monadscan.com/address/0x042EDF80713e6822a891e4e8a0800c332B8200fd) | Decentralized radio queue, tips, voice notes |
+| LiveRadio | [`0x26b32987cb5d7946D81e0Cc7459f26CdeC773101`](https://monadscan.com/address/0x26b32987cb5d7946D81e0Cc7459f26CdeC773101) | Decentralized radio queue, tips, voice notes |
 | MusicSubscriptionV5 | [`0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19`](https://monadscan.com/address/0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19) | Subscription pool with monthly artist payouts |
 | PlayOracleV3 | [`0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf`](https://monadscan.com/address/0xe210b31bBDf8B28B28c07D45E9b4FC886aafDCEf) | On-chain play tracking and anti-spam |
 | ItineraryNFTV2 | [`0x97529316356A5bcAd81D85E9a0eF941958c4b020`](https://monadscan.com/address/0x97529316356A5bcAd81D85E9a0eF941958c4b020) | Travel itinerary NFT marketplace |
