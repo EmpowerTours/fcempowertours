@@ -134,3 +134,61 @@ jobs:
             amount=$(printf '%s' "$body" | grep -o '"strandedWmon":"[^"]*"' | head -1 | cut -d'"' -f4)
             echo "::warning::${stranded} month(s) stranded holding ${amount} WMON — unrecoverable via finalize"
           fi
+
+  distribute-listener-rewards:
+    name: Distribute listener WMON rewards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Runs last: the reserve it distributes only exists once finalize-month has
+    # split a month's revenue, and all three jobs sign from the same owner EOA.
+    needs: finalize-month
+    steps:
+      - name: Call distribute keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          BASE_URL: https://fcempowertours-production-6551.up.railway.app
+        run: |
+          if [ -z "$KEEPER_SECRET" ]; then
+            echo "::error::KEEPER_SECRET is not set on this repository"
+            exit 1
+          fi
+
+          # No dry-run support on this route, so a dispatch with dry=true skips it
+          # rather than moving funds unexpectedly.
+          if [ "${{ inputs.dry }}" = "true" ]; then
+            echo "Dry run requested — skipping (this route has no dry mode)"
+            exit 0
+          fi
+
+          response=$(curl -sS --max-time 300 -w '\n%{http_code}' -X POST \
+            -H "x-cron-secret: ${KEEPER_SECRET}" \
+            "${BASE_URL}/api/cron/distribute-listener-rewards")
+
+          body=$(printf '%s' "$response" | sed '$d')
+          code=$(printf '%s' "$response" | tail -n1)
+
+          echo "HTTP $code"
+          echo "$body"
+
+          {
+            echo "### Listener distribution result (HTTP $code)"
+            echo '```json'
+            echo "$body"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Unlike the other two jobs, success:false here is usually benign —
+          # "already finalized", "no new listens", "no reserve balance" are all
+          # normal for an hourly run and would otherwise paint this permanently
+          # red. Only a non-200 is a real failure.
+          if [ "$code" != "200" ]; then
+            echo "::error::Distribute keeper returned HTTP $code"
+            exit 1
+          fi
+
+          if printf '%s' "$body" | grep -q '"success":true'; then
+            echo "::notice::Listener rewards distributed"
+          else
+            msg=$(printf '%s' "$body" | grep -o '"message":"[^"]*"' | head -1 | cut -d'"' -f4)
+            echo "Nothing to distribute: ${msg:-unknown}"
+          fi
