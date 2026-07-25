@@ -538,7 +538,7 @@ export function LiveRadioModal({
     if (!isPlaying) return;
 
     const tick = () => {
-      fetch("/api/live-radio/scheduler", { method: "POST" }).catch((err) =>
+      fetch("/api/live-radio/tick", { method: "POST" }).catch((err) =>
         console.warn("[LiveRadio] Scheduler tick failed:", err),
       );
     };
@@ -596,7 +596,7 @@ export function LiveRadioModal({
           // Shoutout finished with no song queued up behind it. Poke the
           // scheduler so it flips the phase back and picks one, instead of
           // leaving dead air until the next tick.
-          fetch("/api/live-radio/scheduler", { method: "POST" }).catch((err) =>
+          fetch("/api/live-radio/tick", { method: "POST" }).catch((err) =>
             console.warn(
               "[LiveRadio] Post-voice-note scheduler tick failed:",
               err,
@@ -633,7 +633,7 @@ export function LiveRadioModal({
         // that just finished without an audible gap in front of it — and once it
         // ends the scheduler flips the phase back and a song resumes. Polling
         // alone would leave up to 15s of silence ahead of a 5s shoutout.
-        fetch("/api/live-radio/scheduler", { method: "POST" }).catch((err) =>
+        fetch("/api/live-radio/tick", { method: "POST" }).catch((err) =>
           console.warn("[LiveRadio] Post-song scheduler tick failed:", err),
         );
         // Don't set isPlaying to false - we want to keep playing when next song arrives
