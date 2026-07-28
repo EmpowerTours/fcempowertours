@@ -41,7 +41,7 @@ export default function MusicPage() {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
-    tokenId: number;
+    tokenId: number | null;
     txHash: string;
     title: string;
     price: string;
@@ -459,10 +459,14 @@ export default function MusicPage() {
         throw new Error(mintData.error || mintData.message || "Mint failed");
       }
 
-      // Extract tokenId and txHash from bot response
-      const tokenId = mintData.tokenId
-        ? parseInt(String(mintData.tokenId))
-        : Math.floor(Math.random() * 10000);
+      // Extract tokenId from the bot response. It returns "0" when the mint
+      // receipt couldn't be parsed — never invent an ID, since a fabricated
+      // one points collectors at the wrong NFT.
+      const parsedTokenId = parseInt(String(mintData.tokenId));
+      const tokenId =
+        Number.isFinite(parsedTokenId) && parsedTokenId > 0
+          ? parsedTokenId
+          : null;
       const txHash = mintData.txHash || "";
 
       setSuccess({ tokenId, txHash, title, price });
@@ -609,9 +613,11 @@ export default function MusicPage() {
                   🎉 Music NFT Minted!
                 </p>
                 <div className="space-y-2 text-sm">
-                  <p className="text-green-700">
-                    <strong>Token ID:</strong> #{success.tokenId}
-                  </p>
+                  {success.tokenId !== null && (
+                    <p className="text-green-700">
+                      <strong>Token ID:</strong> #{success.tokenId}
+                    </p>
+                  )}
                   <p className="text-green-700">
                     <strong>Song:</strong> {success.title || "Untitled"}
                   </p>

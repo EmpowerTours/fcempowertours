@@ -42,7 +42,7 @@ export function CreateNFTModal({
   const [progressStage, setProgressStage] = useState<string>("");
   const [progressPercent, setProgressPercent] = useState(0);
   const [success, setSuccess] = useState<{
-    tokenId: number;
+    tokenId: number | null;
     txHash: string;
     title: string;
     price: string;
@@ -505,10 +505,14 @@ export function CreateNFTModal({
         throw new Error(mintData.error || mintData.message || "Mint failed");
       }
 
+      // The API returns "0" when it can't parse the token ID out of the mint
+      // receipt. Never invent one — a fabricated ID sends collectors to the
+      // wrong NFT. Fall back to null and show the tx hash instead.
+      const parsedTokenId = parseInt(String(mintData.tokenId));
       const tokenId =
-        mintData.tokenId != null
-          ? parseInt(String(mintData.tokenId))
-          : Math.floor(Math.random() * 10000);
+        Number.isFinite(parsedTokenId) && parsedTokenId > 0
+          ? parsedTokenId
+          : null;
       const txHash = mintData.txHash || "";
 
       setProgressPercent(100);
@@ -727,10 +731,12 @@ export function CreateNFTModal({
                 🎉 NFT Minted Successfully!
               </p>
               <div className="space-y-2 text-sm">
-                <p className="text-green-300">
-                  <strong className="text-green-400">Token ID:</strong> #
-                  {success.tokenId}
-                </p>
+                {success.tokenId !== null && (
+                  <p className="text-green-300">
+                    <strong className="text-green-400">Token ID:</strong> #
+                    {success.tokenId}
+                  </p>
+                )}
                 <p className="text-green-300">
                   <strong className="text-green-400">Title:</strong>{" "}
                   {success.title || "Untitled"}
