@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Music, Palette, Globe, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2, Crown } from 'lucide-react';
@@ -134,7 +135,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ query, variables: { address: walletAddress.toLowerCase() } }),
       });
 
@@ -239,7 +240,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
       try {
         const res = await fetch('/api/nft/collector-info', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ tokenIds: [...new Set(tokenIds)] }),
         });
         if (!res.ok) return;
@@ -265,7 +266,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
     try {
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           action: 'buy_resale',
           userAddress: buyerAddress,

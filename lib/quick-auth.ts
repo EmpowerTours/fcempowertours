@@ -170,6 +170,12 @@ export interface AuthorizationDecision {
   reason?: string;
   /** True when the request would be rejected once enforcement is on. */
   wouldRejectWhenEnforced: boolean;
+  /**
+   * True ONLY when a valid token proved the caller owns userAddress.
+   * Fund-moving actions gate on this and ignore `allowed`, so they never rely
+   * on ENFORCE_QUICK_AUTH being set.
+   */
+  ownsAddress: boolean;
 }
 
 /**
@@ -196,6 +202,7 @@ export async function authorizeUserAddress(
       mode: "unauthenticated",
       reason: result.reason,
       wouldRejectWhenEnforced: true,
+      ownsAddress: false,
     };
   }
 
@@ -210,6 +217,7 @@ export async function authorizeUserAddress(
       mode: "quickauth",
       reason: "Authenticated FID does not own this address",
       wouldRejectWhenEnforced: true,
+      ownsAddress: false,
     };
   }
 
@@ -221,6 +229,7 @@ export async function authorizeUserAddress(
     fid: result.user.fid,
     mode: "quickauth",
     wouldRejectWhenEnforced: false,
+    ownsAddress: true,
   };
 }
 

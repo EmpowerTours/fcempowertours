@@ -143,15 +143,26 @@ export async function POST(req: NextRequest) {
     // (send_mon / send_tours / withdraw_to_user / platform_send_mon). Proving
     // control of userAddress is what makes that list safe to keep.
     //
-    // Until ENFORCE_QUICK_AUTH=true this only warns. Watch the logs for
-    // server-side callers that have no token (e.g. the radio scheduler
-    // calling radio_mark_played) — they need a service credential before
-    // enforcement is switched on.
     // Actions that carry their own, stronger admin-signature auth. Quick Auth
     // identifies a *user*, which is the wrong question for platform spending —
     // and ops calls these via curl with no Farcaster token at all, so gating
     // them here would lock out the admin without adding any protection.
     const adminAuthActions = ["platform_send_mon"];
+
+    // 💸 Fund-moving actions ALWAYS require a verified Quick Auth token whose
+    // FID owns userAddress — regardless of ENFORCE_QUICK_AUTH. These move value
+    // out of a user's Safe or the treasury, so their safety must NOT depend on
+    // an env flag being set. Legitimate callers attach the token (client via
+    // authHeaders; bot-command forwards it). There is no token-less internal
+    // caller of these actions.
+    const fundMovingActions = new Set([
+      "send_mon",
+      "send_tours",
+      "withdraw_to_user",
+      "swap_mon_for_tours",
+      "dao_fund_safe",
+      "buy_resale",
+    ]);
 
     if (!adminAuthActions.includes(action)) {
       const authz = await authorizeUserAddress(
@@ -159,6 +170,24 @@ export async function POST(req: NextRequest) {
         userAddress,
         `execute-delegated:${action}`,
       );
+
+      // Fund-moving: hard fail-closed. Ignore `allowed` (which honors the
+      // rollout flag) and require proven ownership of the address.
+      if (fundMovingActions.has(action) && !authz.ownsAddress) {
+        console.error(
+          `🚫 execute-delegated: fund-moving action '${action}' denied — ` +
+            `caller did not prove ownership of ${userAddress} (${authz.reason || authz.mode})`,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "This action requires Farcaster authentication. Please reopen the mini app so it can sign you in.",
+          },
+          { status: 401 },
+        );
+      }
+
       if (!authz.allowed) {
         return NextResponse.json(
           { success: false, error: authz.reason || "Unauthorized" },
@@ -4781,12 +4810,12 @@ ${enjoyText}
       // ==================== DAO: FUND USER SAFE ====================
       case "dao_fund_safe": {
         console.log("🗳️ Action: dao_fund_safe");
-        const { amount, safeAddress } = params || {};
-        if (!amount || !safeAddress) {
+        const { amount } = params || {};
+        if (!amount) {
           return NextResponse.json(
             {
               success: false,
-              error: "Missing amount or safeAddress for dao_fund_safe",
+              error: "Missing amount for dao_fund_safe",
             },
             { status: 400 },
           );
@@ -4794,12 +4823,18 @@ ${enjoyText}
 
         // Limit funding to 10 TOURS max per request
         const requestedAmount = parseFloat(amount);
-        if (requestedAmount > 10) {
+        if (!(requestedAmount > 0) || requestedAmount > 10) {
           return NextResponse.json(
-            { success: false, error: "Maximum 10 TOURS per funding request" },
+            { success: false, error: "Amount must be between 0 and 10 TOURS" },
             { status: 400 },
           );
         }
+
+        // SECURITY: fund the CALLER's own Safe, derived from the authenticated
+        // userAddress — never a client-supplied destination. Previously this
+        // transferred platform TOURS to an arbitrary params.safeAddress, so an
+        // authenticated user could mint 10 TOURS to any address they named.
+        const safeAddress = await getUserSafeAddress(userAddress as Address);
 
         const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
         const fundAmountWei = parseEther(amount.toString());
@@ -4807,6 +4842,7 @@ ${enjoyText}
         console.log("🗳️ Funding user Safe with TOURS:", {
           amount,
           safeAddress,
+          userAddress,
           TOURS_TOKEN,
         });
 

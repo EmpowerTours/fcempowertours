@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { registerUserSafeOnV2Contracts } from '@/lib/user-safe';
+import { NextRequest, NextResponse } from "next/server";
+import { registerUserSafeOnV2Contracts } from "@/lib/user-safe";
+import { authorizeUserAddress } from "@/lib/quick-auth";
+import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,19 +9,56 @@ export async function POST(req: NextRequest) {
 
     if (!userAddress) {
       return NextResponse.json(
-        { success: false, error: 'Missing userAddress' },
-        { status: 400 }
+        { success: false, error: "Missing userAddress" },
+        { status: 400 },
       );
     }
 
     if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid Ethereum address format' },
-        { status: 400 }
+        { success: false, error: "Invalid Ethereum address format" },
+        { status: 400 },
       );
     }
 
-    console.log('[RegisterUserSafe] Registering:', userAddress);
+    // SECURITY: this route spends PLATFORM gas to register a Safe on-chain.
+    // Unauthenticated, it was an unbounded gas-drain: every fresh address
+    // forces up to 3 platform-funded txs. Fail-closed on proven ownership of
+    // userAddress, plus a rate limit. (Internal callers don't use this HTTP
+    // route — execute-delegated registers via the ensureUserSafeRegistered
+    // lib function directly.)
+    const authz = await authorizeUserAddress(
+      req,
+      userAddress,
+      "register-user-safe",
+    );
+    if (!authz.ownsAddress) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Farcaster authentication required. Please reopen the mini app so it can sign you in.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const rl = await checkRateLimit(
+      RateLimiters.execute,
+      getClientIP(req),
+      userAddress,
+    );
+    if (!rl.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Rate limit exceeded. Try again in ${rl.resetIn}s.`,
+        },
+        { status: 429 },
+      );
+    }
+
+    console.log("[RegisterUserSafe] Registering:", userAddress);
 
     const result = await registerUserSafeOnV2Contracts(userAddress);
 
@@ -29,10 +68,10 @@ export async function POST(req: NextRequest) {
       txHash: result.txHash || null,
     });
   } catch (error: any) {
-    console.error('[RegisterUserSafe] Error:', error.message);
+    console.error("[RegisterUserSafe] Error:", error.message);
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

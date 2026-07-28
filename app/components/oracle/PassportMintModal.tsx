@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, MapPin, Check } from 'lucide-react';
@@ -53,7 +54,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
       try {
         await fetch('/api/register-user-safe', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ userAddress: walletAddress }),
         });
       } catch (regError) {
@@ -72,7 +73,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
       if (!hasValidDelegation) {
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             authMethod: 'farcaster',
@@ -92,7 +93,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
       // Try to mint - if WMON insufficient, wrap first
       let response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'mint_passport',
@@ -115,7 +116,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
 
         const wrapRes = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             action: 'wrap_mon',
@@ -134,7 +135,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
         // Retry mint
         response = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             action: 'mint_passport',

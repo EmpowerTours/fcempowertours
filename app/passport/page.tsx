@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
@@ -79,7 +80,7 @@ export default function PassportPage() {
 
         const response = await fetch(ENVIO_ENDPOINT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             query,
             variables: { owner: walletAddress.toLowerCase() }
@@ -144,7 +145,7 @@ export default function PassportPage() {
 
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             authMethod: 'farcaster',
@@ -167,7 +168,7 @@ export default function PassportPage() {
       // ✅ Execute mint via delegation API - with auto-wrap if needed
       let response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'mint_passport',
@@ -190,7 +191,7 @@ export default function PassportPage() {
 
         const wrapRes = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             action: 'wrap_mon',
@@ -209,7 +210,7 @@ export default function PassportPage() {
         // Retry mint
         response = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             action: 'mint_passport',

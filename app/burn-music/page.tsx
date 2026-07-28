@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 
@@ -55,7 +56,7 @@ export default function BurnMusicPage() {
         console.log('🔐 Creating delegation with burn_nft permission...');
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: walletAddress,
             authMethod: 'farcaster',
@@ -76,7 +77,7 @@ export default function BurnMusicPage() {
       // Use delegated burning via platform Safe account (gasless)
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'burn_nft',
