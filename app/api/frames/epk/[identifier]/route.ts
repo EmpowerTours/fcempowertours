@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
-import { EPK_SLUG_PREFIX } from '@/lib/epk/constants';
-import { fetchEPKFromIPFS, fetchEPKFromChain } from '@/lib/epk/utils';
+import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
+import { EPK_SLUG_PREFIX } from "@/lib/epk/constants";
+import { fetchEPKFromIPFS, fetchEPKFromChain } from "@/lib/epk/utils";
 
 const redis = Redis.fromEnv();
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || '';
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || "";
+const APP_URL =
+  process.env.NEXT_PUBLIC_URL ||
+  "https://fcempowertours-production-6551.up.railway.app";
 
 /**
  * GET /api/frames/epk/[identifier] - Farcaster Frame for EPK sharing
@@ -13,33 +15,38 @@ const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-productio
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ identifier: string }> }
+  { params }: { params: Promise<{ identifier: string }> },
 ) {
   try {
     const { identifier } = await params;
 
     // Resolve slug to address
     let artistAddress: string | null = null;
-    if (identifier.startsWith('0x') && identifier.length === 42) {
+    if (identifier.startsWith("0x") && identifier.length === 42) {
       artistAddress = identifier;
     } else {
-      artistAddress = await redis.get<string>(`${EPK_SLUG_PREFIX}${identifier}`);
+      artistAddress = await redis.get<string>(
+        `${EPK_SLUG_PREFIX}${identifier}`,
+      );
     }
 
     // Try to get EPK metadata for OG info
-    let artistName = 'Artist';
-    let genre = 'Music';
-    let location = '';
+    let artistName = "Artist";
+    let genre = "Music";
+    let location = "";
     let verified = false;
 
     if (artistAddress && ENVIO_ENDPOINT) {
-      const onChainData = await fetchEPKFromChain(artistAddress, ENVIO_ENDPOINT);
+      const onChainData = await fetchEPKFromChain(
+        artistAddress,
+        ENVIO_ENDPOINT,
+      );
       if (onChainData) {
         verified = true;
         const metadata = await fetchEPKFromIPFS(onChainData.ipfsCid);
         if (metadata) {
           artistName = metadata.artist.name;
-          genre = metadata.artist.genre.join(', ');
+          genre = metadata.artist.genre.join(", ");
           location = metadata.artist.location;
         }
       }
@@ -52,7 +59,7 @@ export async function GET(
         const metadata = await fetchEPKFromIPFS(cachedCid);
         if (metadata) {
           artistName = metadata.artist.name;
-          genre = metadata.artist.genre.join(', ');
+          genre = metadata.artist.genre.join(", ");
           location = metadata.artist.location;
         }
       }
@@ -86,10 +93,10 @@ export async function GET(
 </html>`;
 
     return new NextResponse(html, {
-      headers: { 'Content-Type': 'text/html' },
+      headers: { "Content-Type": "text/html" },
     });
   } catch (error: any) {
-    console.error('[EPK Frame] Error:', error);
+    console.error("[EPK Frame] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

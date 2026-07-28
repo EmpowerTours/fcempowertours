@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const APP_URL =
+  process.env.NEXT_PUBLIC_URL ||
+  "https://fcempowertours-production-6551.up.railway.app";
 
 /**
  * Frame endpoint for passport NFTs
@@ -8,7 +10,7 @@ const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-productio
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ tokenId: string }> }
+  { params }: { params: Promise<{ tokenId: string }> },
 ) {
   const { tokenId } = await params;
 
@@ -20,18 +22,18 @@ export async function GET(
 
   // Frame v2/vNext JSON format for mini app launch (same as music frame)
   const frameData = {
-    version: 'next',
+    version: "next",
     imageUrl: imageUrl,
     button: {
-      title: '🎫 View Passport',
+      title: "🎫 View Passport",
       action: {
-        type: 'launch_frame',
-        name: 'EmpowerTours',
+        type: "launch_frame",
+        name: "EmpowerTours",
         url: targetUrl,
         splashImageUrl: `${APP_URL}/images/splash.png`,
-        splashBackgroundColor: '#353B48'
-      }
-    }
+        splashBackgroundColor: "#353B48",
+      },
+    },
   };
 
   // Return HTML with Frame v2 meta tags (JSON format)
@@ -69,8 +71,8 @@ export async function GET(
   return new NextResponse(html, {
     status: 200,
     headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
     },
   });
 }

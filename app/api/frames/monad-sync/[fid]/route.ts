@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const APP_URL =
+  process.env.NEXT_PUBLIC_URL ||
+  "https://fcempowertours-production-6551.up.railway.app";
 
 interface Params {
   fid: string;
@@ -8,7 +10,7 @@ interface Params {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<Params> }
+  { params }: { params: Promise<Params> },
 ) {
   try {
     const { fid } = await params;
@@ -16,11 +18,13 @@ export async function GET(
 
     // Fetch user's monad data
     let ogImageUrl = `${APP_URL}/api/og/monad-sync?fid=${fid}`;
-    let clarityScore = '??';
-    let tier = 'Unknown';
+    let clarityScore = "??";
+    let tier = "Unknown";
 
     try {
-      const monadResponse = await fetch(`${APP_URL}/api/monad-sync/get-user-monad?fid=${fid}`);
+      const monadResponse = await fetch(
+        `${APP_URL}/api/monad-sync/get-user-monad?fid=${fid}`,
+      );
       if (monadResponse.ok) {
         const monadData = await monadResponse.json();
         if (monadData.monad) {
@@ -30,25 +34,25 @@ export async function GET(
         }
       }
     } catch (err) {
-      console.warn('Could not fetch monad data for frame:', err);
+      console.warn("Could not fetch monad data for frame:", err);
     }
 
-    console.log('🎬 Monad Sync Frame request for FID:', fid);
-    console.log('   Clarity:', clarityScore, '| Tier:', tier);
+    console.log("🎬 Monad Sync Frame request for FID:", fid);
+    console.log("   Clarity:", clarityScore, "| Tier:", tier);
 
     const frameData = {
-      version: '1',
+      version: "1",
       imageUrl: ogImageUrl,
       button: {
-        title: '👁️ Sync With My Monad',
+        title: "👁️ Sync With My Monad",
         action: {
-          type: 'launch_frame',
-          name: 'Monad Sync',
+          type: "launch_frame",
+          name: "Monad Sync",
           url: miniAppUrl,
           splashImageUrl: ogImageUrl,
-          splashBackgroundColor: '#1a0033'
-        }
-      }
+          splashBackgroundColor: "#1a0033",
+        },
+      },
     };
 
     const html = `
@@ -70,10 +74,10 @@ export async function GET(
     `;
 
     return new NextResponse(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   } catch (error: any) {
-    console.error('❌ Monad Sync Frame error:', error);
-    return new NextResponse('Error generating frame', { status: 500 });
+    console.error("❌ Monad Sync Frame error:", error);
+    return new NextResponse("Error generating frame", { status: 500 });
   }
 }

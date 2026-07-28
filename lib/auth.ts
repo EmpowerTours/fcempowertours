@@ -1,7 +1,13 @@
-import { verifyMessage, recoverMessageAddress, Address, Hex, hashMessage } from 'viem';
-import { Redis } from '@upstash/redis';
-import { NextRequest } from 'next/server';
-import { randomBytes } from 'crypto';
+import {
+  verifyMessage,
+  recoverMessageAddress,
+  Address,
+  Hex,
+  hashMessage,
+} from "viem";
+import { Redis } from "@upstash/redis";
+import { NextRequest } from "next/server";
+import { randomBytes } from "crypto";
 
 /**
  * 🔐 SECURITY: Centralized Authentication & Authorization Utility
@@ -72,7 +78,7 @@ export function buildDelegationMessage(
   address: string,
   timestamp: number,
   nonce: string,
-  durationHours: number
+  durationHours: number,
 ): string {
   return `EmpowerTours Delegation Request
 
@@ -92,7 +98,7 @@ export function buildMintMessage(
   address: string,
   timestamp: number,
   nonce: string,
-  type: 'music' | 'passport' | 'itinerary'
+  type: "music" | "passport" | "itinerary",
 ): string {
   return `EmpowerTours ${type.charAt(0).toUpperCase() + type.slice(1)} Mint Request
 
@@ -111,7 +117,7 @@ export function buildBurnMessage(
   address: string,
   timestamp: number,
   nonce: string,
-  tokenId: string | number
+  tokenId: string | number,
 ): string {
   return `EmpowerTours Burn Request
 
@@ -132,13 +138,13 @@ export function buildActionMessage(
   timestamp: number,
   nonce: string,
   action: string,
-  details?: string
+  details?: string,
 ): string {
   return `EmpowerTours Action Request
 
 Address: ${address.toLowerCase()}
 Action: ${action}
-${details ? `Details: ${details}\n` : ''}Timestamp: ${timestamp}
+${details ? `Details: ${details}\n` : ""}Timestamp: ${timestamp}
 Nonce: ${nonce}
 
 Sign this message to authorize this action.`;
@@ -155,14 +161,14 @@ Sign this message to authorize this action.`;
  */
 export async function generateNonce(
   address: string,
-  operation: string
+  operation: string,
 ): Promise<string> {
-  const randomPart = randomBytes(16).toString('hex');
+  const randomPart = randomBytes(16).toString("hex");
   const nonce = `${Date.now()}-${randomPart}`;
   const key = `nonce:${address.toLowerCase()}:${operation}:${nonce}`;
 
   // Store nonce with expiry
-  await redis.setex(key, NONCE_EXPIRY_SECONDS, 'pending');
+  await redis.setex(key, NONCE_EXPIRY_SECONDS, "pending");
 
   console.log(`[Auth] Generated nonce for ${address}: ${nonce}`);
   return nonce;
@@ -174,7 +180,7 @@ export async function generateNonce(
 export async function verifyAndConsumeNonce(
   address: string,
   operation: string,
-  nonce: string
+  nonce: string,
 ): Promise<boolean> {
   const key = `nonce:${address.toLowerCase()}:${operation}:${nonce}`;
 
@@ -185,13 +191,13 @@ export async function verifyAndConsumeNonce(
     return false;
   }
 
-  if (status === 'used') {
+  if (status === "used") {
     console.log(`[Auth] Nonce already used: ${nonce}`);
     return false;
   }
 
   // Mark as used (but keep for a bit to prevent race conditions)
-  await redis.setex(key, 60, 'used');
+  await redis.setex(key, 60, "used");
 
   console.log(`[Auth] Nonce consumed: ${nonce}`);
   return true;
@@ -211,7 +217,7 @@ export function validateTimestamp(timestamp: number): AuthResult {
   if (now - timestamp > SIGNATURE_EXPIRY_MS) {
     return {
       valid: false,
-      error: `Signature expired. Request must be signed within ${SIGNATURE_EXPIRY_MS / 1000 / 60} minutes.`
+      error: `Signature expired. Request must be signed within ${SIGNATURE_EXPIRY_MS / 1000 / 60} minutes.`,
     };
   }
 
@@ -219,7 +225,7 @@ export function validateTimestamp(timestamp: number): AuthResult {
   if (timestamp > now + MAX_CLOCK_SKEW_MS) {
     return {
       valid: false,
-      error: 'Invalid timestamp (future date detected).'
+      error: "Invalid timestamp (future date detected).",
     };
   }
 
@@ -237,7 +243,7 @@ export function validateTimestamp(timestamp: number): AuthResult {
 export async function verifySignature(
   message: string,
   signature: string,
-  expectedAddress: string
+  expectedAddress: string,
 ): Promise<AuthResult> {
   try {
     const isValid = await verifyMessage({
@@ -249,19 +255,19 @@ export async function verifySignature(
     if (!isValid) {
       return {
         valid: false,
-        error: 'Invalid signature. Please sign with the correct wallet.'
+        error: "Invalid signature. Please sign with the correct wallet.",
       };
     }
 
     return {
       valid: true,
-      address: expectedAddress.toLowerCase()
+      address: expectedAddress.toLowerCase(),
     };
   } catch (error: any) {
-    console.error('[Auth] Signature verification error:', error);
+    console.error("[Auth] Signature verification error:", error);
     return {
       valid: false,
-      error: 'Signature verification failed.'
+      error: "Signature verification failed.",
     };
   }
 }
@@ -271,7 +277,7 @@ export async function verifySignature(
  */
 export async function recoverAddressFromSignature(
   message: string,
-  signature: string
+  signature: string,
 ): Promise<AuthResult> {
   try {
     const recoveredAddress = await recoverMessageAddress({
@@ -281,13 +287,13 @@ export async function recoverAddressFromSignature(
 
     return {
       valid: true,
-      address: recoveredAddress.toLowerCase()
+      address: recoveredAddress.toLowerCase(),
     };
   } catch (error: any) {
-    console.error('[Auth] Address recovery error:', error);
+    console.error("[Auth] Address recovery error:", error);
     return {
       valid: false,
-      error: 'Failed to recover address from signature.'
+      error: "Failed to recover address from signature.",
     };
   }
 }
@@ -304,7 +310,7 @@ export async function authenticateRequest(
   payload: SignaturePayload,
   expectedMessage: string,
   operation: string,
-  requireNonce: boolean = true
+  requireNonce: boolean = true,
 ): Promise<AuthResult> {
   const { address, signature, timestamp, nonce } = payload;
 
@@ -312,7 +318,8 @@ export async function authenticateRequest(
   if (!address || !signature || !timestamp) {
     return {
       valid: false,
-      error: 'Missing required authentication fields: address, signature, timestamp'
+      error:
+        "Missing required authentication fields: address, signature, timestamp",
     };
   }
 
@@ -320,7 +327,7 @@ export async function authenticateRequest(
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
     return {
       valid: false,
-      error: 'Invalid Ethereum address format'
+      error: "Invalid Ethereum address format",
     };
   }
 
@@ -335,7 +342,7 @@ export async function authenticateRequest(
     if (!nonce) {
       return {
         valid: false,
-        error: 'Missing nonce. Request a nonce first via GET endpoint.'
+        error: "Missing nonce. Request a nonce first via GET endpoint.",
       };
     }
 
@@ -343,13 +350,17 @@ export async function authenticateRequest(
     if (!nonceValid) {
       return {
         valid: false,
-        error: 'Invalid or expired nonce. Request a new one.'
+        error: "Invalid or expired nonce. Request a new one.",
       };
     }
   }
 
   // 4. Verify signature
-  const signatureResult = await verifySignature(expectedMessage, signature, address);
+  const signatureResult = await verifySignature(
+    expectedMessage,
+    signature,
+    address,
+  );
   if (!signatureResult.valid) {
     return signatureResult;
   }
@@ -358,7 +369,7 @@ export async function authenticateRequest(
 
   return {
     valid: true,
-    address: address.toLowerCase()
+    address: address.toLowerCase(),
   };
 }
 
@@ -372,27 +383,27 @@ export async function authenticateRequest(
  */
 export async function verifyFarcasterFID(
   fid: number,
-  expectedAddress: string
+  expectedAddress: string,
 ): Promise<AuthResult> {
   const cacheKey = `fid-verify:${fid}:${expectedAddress.toLowerCase()}`;
 
   // Check cache first
   const cached = await redis.get(cacheKey);
-  if (cached === 'valid') {
+  if (cached === "valid") {
     return { valid: true, fid, address: expectedAddress.toLowerCase() };
   }
-  if (cached === 'invalid') {
-    return { valid: false, error: 'FID not linked to this address (cached)' };
+  if (cached === "invalid") {
+    return { valid: false, error: "FID not linked to this address (cached)" };
   }
 
   try {
     const neynarApiKey = process.env.NEYNAR_API_KEY;
     if (!neynarApiKey) {
-      console.error('[Auth] NEYNAR_API_KEY not configured');
+      console.error("[Auth] NEYNAR_API_KEY not configured");
       // Fail closed - require proper configuration
       return {
         valid: false,
-        error: 'Server configuration error: Farcaster verification unavailable'
+        error: "Server configuration error: Farcaster verification unavailable",
       };
     }
 
@@ -401,17 +412,17 @@ export async function verifyFarcasterFID(
       `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
       {
         headers: {
-          'accept': 'application/json',
-          'x-api-key': neynarApiKey,
+          accept: "application/json",
+          "x-api-key": neynarApiKey,
         },
-      }
+      },
     );
 
     if (!response.ok) {
       console.error(`[Auth] Neynar API error: ${response.status}`);
       return {
         valid: false,
-        error: 'Failed to verify Farcaster identity'
+        error: "Failed to verify Farcaster identity",
       };
     }
 
@@ -419,10 +430,10 @@ export async function verifyFarcasterFID(
     const user = data.users?.[0];
 
     if (!user) {
-      await redis.setex(cacheKey, FID_CACHE_TTL_SECONDS, 'invalid');
+      await redis.setex(cacheKey, FID_CACHE_TTL_SECONDS, "invalid");
       return {
         valid: false,
-        error: `FID ${fid} not found`
+        error: `FID ${fid} not found`,
       };
     }
 
@@ -436,30 +447,29 @@ export async function verifyFarcasterFID(
     const addressMatch = allAddresses.includes(expectedAddress.toLowerCase());
 
     if (!addressMatch) {
-      await redis.setex(cacheKey, FID_CACHE_TTL_SECONDS, 'invalid');
+      await redis.setex(cacheKey, FID_CACHE_TTL_SECONDS, "invalid");
       console.log(`[Auth] FID ${fid} addresses:`, allAddresses);
       console.log(`[Auth] Expected: ${expectedAddress.toLowerCase()}`);
       return {
         valid: false,
-        error: `Address ${expectedAddress} is not linked to FID ${fid}`
+        error: `Address ${expectedAddress} is not linked to FID ${fid}`,
       };
     }
 
     // Cache valid result
-    await redis.setex(cacheKey, FID_CACHE_TTL_SECONDS, 'valid');
+    await redis.setex(cacheKey, FID_CACHE_TTL_SECONDS, "valid");
 
     console.log(`[Auth] ✅ FID ${fid} verified for ${expectedAddress}`);
     return {
       valid: true,
       fid,
-      address: expectedAddress.toLowerCase()
+      address: expectedAddress.toLowerCase(),
     };
-
   } catch (error: any) {
-    console.error('[Auth] Farcaster verification error:', error);
+    console.error("[Auth] Farcaster verification error:", error);
     return {
       valid: false,
-      error: 'Farcaster verification failed'
+      error: "Farcaster verification failed",
     };
   }
 }
@@ -472,7 +482,7 @@ export async function authenticateFarcasterRequest(
   payload: FarcasterAuthPayload,
   expectedMessage: string,
   operation: string,
-  requireNonce: boolean = true
+  requireNonce: boolean = true,
 ): Promise<AuthResult> {
   const { fid, address, signature, timestamp, nonce } = payload;
 
@@ -480,7 +490,7 @@ export async function authenticateFarcasterRequest(
   if (!fid || fid <= 0) {
     return {
       valid: false,
-      error: 'Invalid Farcaster ID (FID)'
+      error: "Invalid Farcaster ID (FID)",
     };
   }
 
@@ -495,7 +505,7 @@ export async function authenticateFarcasterRequest(
     { address, signature, timestamp, nonce },
     expectedMessage,
     operation,
-    requireNonce
+    requireNonce,
   );
 
   if (!authResult.valid) {
@@ -505,7 +515,7 @@ export async function authenticateFarcasterRequest(
   return {
     valid: true,
     address: address.toLowerCase(),
-    fid
+    fid,
   };
 }
 
@@ -515,30 +525,219 @@ export async function authenticateFarcasterRequest(
 
 /** Valid ISO 3166-1 alpha-2 country codes */
 export const VALID_COUNTRY_CODES = new Set([
-  'AF', 'AL', 'DZ', 'AS', 'AD', 'AO', 'AI', 'AQ', 'AG', 'AR', 'AM', 'AW', 'AU', 'AT', 'AZ',
-  'BS', 'BH', 'BD', 'BB', 'BY', 'BE', 'BZ', 'BJ', 'BM', 'BT', 'BO', 'BA', 'BW', 'BR', 'BN',
-  'BG', 'BF', 'BI', 'KH', 'CM', 'CA', 'CV', 'KY', 'CF', 'TD', 'CL', 'CN', 'CO', 'KM', 'CG',
-  'CD', 'CR', 'CI', 'HR', 'CU', 'CY', 'CZ', 'DK', 'DJ', 'DM', 'DO', 'EC', 'EG', 'SV', 'GQ',
-  'ER', 'EE', 'ET', 'FJ', 'FI', 'FR', 'GA', 'GM', 'GE', 'DE', 'GH', 'GR', 'GD', 'GT', 'GN',
-  'GW', 'GY', 'HT', 'HN', 'HK', 'HU', 'IS', 'IN', 'ID', 'IR', 'IQ', 'IE', 'IL', 'IT', 'JM',
-  'JP', 'JO', 'KZ', 'KE', 'KI', 'KP', 'KR', 'KW', 'KG', 'LA', 'LV', 'LB', 'LS', 'LR', 'LY',
-  'LI', 'LT', 'LU', 'MO', 'MK', 'MG', 'MW', 'MY', 'MV', 'ML', 'MT', 'MH', 'MR', 'MU', 'MX',
-  'FM', 'MD', 'MC', 'MN', 'ME', 'MA', 'MZ', 'MM', 'NA', 'NR', 'NP', 'NL', 'NZ', 'NI', 'NE',
-  'NG', 'NO', 'OM', 'PK', 'PW', 'PA', 'PG', 'PY', 'PE', 'PH', 'PL', 'PT', 'PR', 'QA', 'RO',
-  'RU', 'RW', 'KN', 'LC', 'VC', 'WS', 'SM', 'ST', 'SA', 'SN', 'RS', 'SC', 'SL', 'SG', 'SK',
-  'SI', 'SB', 'SO', 'ZA', 'SS', 'ES', 'LK', 'SD', 'SR', 'SZ', 'SE', 'CH', 'SY', 'TW', 'TJ',
-  'TZ', 'TH', 'TL', 'TG', 'TO', 'TT', 'TN', 'TR', 'TM', 'TV', 'UG', 'UA', 'AE', 'GB', 'US',
-  'UY', 'UZ', 'VU', 'VE', 'VN', 'YE', 'ZM', 'ZW'
+  "AF",
+  "AL",
+  "DZ",
+  "AS",
+  "AD",
+  "AO",
+  "AI",
+  "AQ",
+  "AG",
+  "AR",
+  "AM",
+  "AW",
+  "AU",
+  "AT",
+  "AZ",
+  "BS",
+  "BH",
+  "BD",
+  "BB",
+  "BY",
+  "BE",
+  "BZ",
+  "BJ",
+  "BM",
+  "BT",
+  "BO",
+  "BA",
+  "BW",
+  "BR",
+  "BN",
+  "BG",
+  "BF",
+  "BI",
+  "KH",
+  "CM",
+  "CA",
+  "CV",
+  "KY",
+  "CF",
+  "TD",
+  "CL",
+  "CN",
+  "CO",
+  "KM",
+  "CG",
+  "CD",
+  "CR",
+  "CI",
+  "HR",
+  "CU",
+  "CY",
+  "CZ",
+  "DK",
+  "DJ",
+  "DM",
+  "DO",
+  "EC",
+  "EG",
+  "SV",
+  "GQ",
+  "ER",
+  "EE",
+  "ET",
+  "FJ",
+  "FI",
+  "FR",
+  "GA",
+  "GM",
+  "GE",
+  "DE",
+  "GH",
+  "GR",
+  "GD",
+  "GT",
+  "GN",
+  "GW",
+  "GY",
+  "HT",
+  "HN",
+  "HK",
+  "HU",
+  "IS",
+  "IN",
+  "ID",
+  "IR",
+  "IQ",
+  "IE",
+  "IL",
+  "IT",
+  "JM",
+  "JP",
+  "JO",
+  "KZ",
+  "KE",
+  "KI",
+  "KP",
+  "KR",
+  "KW",
+  "KG",
+  "LA",
+  "LV",
+  "LB",
+  "LS",
+  "LR",
+  "LY",
+  "LI",
+  "LT",
+  "LU",
+  "MO",
+  "MK",
+  "MG",
+  "MW",
+  "MY",
+  "MV",
+  "ML",
+  "MT",
+  "MH",
+  "MR",
+  "MU",
+  "MX",
+  "FM",
+  "MD",
+  "MC",
+  "MN",
+  "ME",
+  "MA",
+  "MZ",
+  "MM",
+  "NA",
+  "NR",
+  "NP",
+  "NL",
+  "NZ",
+  "NI",
+  "NE",
+  "NG",
+  "NO",
+  "OM",
+  "PK",
+  "PW",
+  "PA",
+  "PG",
+  "PY",
+  "PE",
+  "PH",
+  "PL",
+  "PT",
+  "PR",
+  "QA",
+  "RO",
+  "RU",
+  "RW",
+  "KN",
+  "LC",
+  "VC",
+  "WS",
+  "SM",
+  "ST",
+  "SA",
+  "SN",
+  "RS",
+  "SC",
+  "SL",
+  "SG",
+  "SK",
+  "SI",
+  "SB",
+  "SO",
+  "ZA",
+  "SS",
+  "ES",
+  "LK",
+  "SD",
+  "SR",
+  "SZ",
+  "SE",
+  "CH",
+  "SY",
+  "TW",
+  "TJ",
+  "TZ",
+  "TH",
+  "TL",
+  "TG",
+  "TO",
+  "TT",
+  "TN",
+  "TR",
+  "TM",
+  "TV",
+  "UG",
+  "UA",
+  "AE",
+  "GB",
+  "US",
+  "UY",
+  "UZ",
+  "VU",
+  "VE",
+  "VN",
+  "YE",
+  "ZM",
+  "ZW",
 ]);
 
 /**
  * Validate country code
  */
 export function validateCountryCode(code: string): AuthResult {
-  if (!code || typeof code !== 'string') {
+  if (!code || typeof code !== "string") {
     return {
       valid: false,
-      error: 'Country code is required'
+      error: "Country code is required",
     };
   }
 
@@ -547,7 +746,7 @@ export function validateCountryCode(code: string): AuthResult {
   if (!VALID_COUNTRY_CODES.has(normalized)) {
     return {
       valid: false,
-      error: `Invalid country code: ${code}`
+      error: `Invalid country code: ${code}`,
     };
   }
 
@@ -558,14 +757,14 @@ export function validateCountryCode(code: string): AuthResult {
  * Sanitize text input to prevent injection attacks
  */
 export function sanitizeInput(input: string, maxLength: number = 1000): string {
-  if (!input || typeof input !== 'string') {
-    return '';
+  if (!input || typeof input !== "string") {
+    return "";
   }
 
   return input
     .slice(0, maxLength)
-    .replace(/[<>\"'`]/g, '') // Remove potential XSS chars
-    .replace(/\\/g, '') // Remove backslashes
+    .replace(/[<>\"'`]/g, "") // Remove potential XSS chars
+    .replace(/\\/g, "") // Remove backslashes
     .trim();
 }
 
@@ -573,14 +772,14 @@ export function sanitizeInput(input: string, maxLength: number = 1000): string {
  * Sanitize for GraphQL queries (prevent injection)
  */
 export function sanitizeGraphQLInput(input: string): string {
-  if (!input || typeof input !== 'string') {
-    return '';
+  if (!input || typeof input !== "string") {
+    return "";
   }
 
   return input
-    .replace(/[{}()\[\]\\\"'`;$]/g, '') // Remove GraphQL special chars
-    .replace(/%/g, '\\%') // Escape LIKE wildcards
-    .replace(/_/g, '\\_')
+    .replace(/[{}()\[\]\\\"'`;$]/g, "") // Remove GraphQL special chars
+    .replace(/%/g, "\\%") // Escape LIKE wildcards
+    .replace(/_/g, "\\_")
     .trim()
     .slice(0, 200);
 }
@@ -596,19 +795,19 @@ export function sanitizeGraphQLInput(input: string): string {
 export function sanitizeErrorForResponse(error: any): string {
   // List of safe error messages that can be shown to users
   const safeMessages = [
-    'Invalid signature',
-    'Signature expired',
-    'Invalid timestamp',
-    'Missing required',
-    'Rate limit exceeded',
-    'Invalid address',
-    'Not found',
-    'Unauthorized',
-    'Invalid nonce',
-    'FID not linked',
+    "Invalid signature",
+    "Signature expired",
+    "Invalid timestamp",
+    "Missing required",
+    "Rate limit exceeded",
+    "Invalid address",
+    "Not found",
+    "Unauthorized",
+    "Invalid nonce",
+    "FID not linked",
   ];
 
-  const message = error?.message || error?.toString() || 'An error occurred';
+  const message = error?.message || error?.toString() || "An error occurred";
 
   // Check if message contains safe patterns
   for (const safe of safeMessages) {
@@ -618,7 +817,7 @@ export function sanitizeErrorForResponse(error: any): string {
   }
 
   // Generic error for internal errors
-  return 'Operation failed. Please try again.';
+  return "Operation failed. Please try again.";
 }
 
 // ============================================================================

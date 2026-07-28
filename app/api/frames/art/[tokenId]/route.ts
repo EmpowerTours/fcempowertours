@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const APP_URL =
+  process.env.NEXT_PUBLIC_URL ||
+  "https://fcempowertours-production-6551.up.railway.app";
 
 interface Params {
   tokenId: string;
@@ -8,18 +10,18 @@ interface Params {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<Params> }
+  { params }: { params: Promise<Params> },
 ) {
   try {
     const { tokenId } = await params;
     const { searchParams } = new URL(request.url);
 
     // Check for direct parameters (used when casting immediately after mint)
-    const directImage = searchParams.get('imageUrl');
-    const directTitle = searchParams.get('title');
-    const directPrice = searchParams.get('price');
+    const directImage = searchParams.get("imageUrl");
+    const directTitle = searchParams.get("title");
+    const directPrice = searchParams.get("price");
 
-    console.log('🎨 Frame request for art NFT token:', tokenId);
+    console.log("🎨 Frame request for art NFT token:", tokenId);
 
     // ✅ Add ?type=art so the NFT page shows "Loading art..." instead of "Loading music..."
     const miniAppUrl = `${APP_URL}/nft/${tokenId}?type=art`;
@@ -34,22 +36,22 @@ export async function GET(
     }
 
     const artTitle = directTitle || `Art NFT #${tokenId}`;
-    const artPrice = directPrice || '0';
+    const artPrice = directPrice || "0";
 
     // Mini app frame data - launches directly to NFT view page
     const frameData = {
-      version: 'next',
+      version: "next",
       imageUrl: ogImageUrl,
       button: {
-        title: '🎨 View & Buy',
+        title: "🎨 View & Buy",
         action: {
-          type: 'launch_frame',
-          name: 'EmpowerTours',
+          type: "launch_frame",
+          name: "EmpowerTours",
           url: miniAppUrl,
           splashImageUrl: `${APP_URL}/splash.png`,
-          splashBackgroundColor: '#0f172a'
-        }
-      }
+          splashBackgroundColor: "#0f172a",
+        },
+      },
     };
 
     const html = `
@@ -89,12 +91,12 @@ export async function GET(
 
     return new NextResponse(html, {
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      }
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
     });
   } catch (error: any) {
-    console.error('❌ Art frame error:', error);
-    return new NextResponse('Error generating frame', { status: 500 });
+    console.error("❌ Art frame error:", error);
+    return new NextResponse("Error generating frame", { status: 500 });
   }
 }
