@@ -31,6 +31,7 @@ import {
   sanitizeInput,
   sanitizeErrorForResponse,
   VALID_COUNTRY_CODES,
+  authenticateAdminAction,
 } from "@/lib/auth";
 import {
   storeRightsStatus,
@@ -146,16 +147,24 @@ export async function POST(req: NextRequest) {
     // server-side callers that have no token (e.g. the radio scheduler
     // calling radio_mark_played) — they need a service credential before
     // enforcement is switched on.
-    const authz = await authorizeUserAddress(
-      req,
-      userAddress,
-      `execute-delegated:${action}`,
-    );
-    if (!authz.allowed) {
-      return NextResponse.json(
-        { success: false, error: authz.reason || "Unauthorized" },
-        { status: 401 },
+    // Actions that carry their own, stronger admin-signature auth. Quick Auth
+    // identifies a *user*, which is the wrong question for platform spending —
+    // and ops calls these via curl with no Farcaster token at all, so gating
+    // them here would lock out the admin without adding any protection.
+    const adminAuthActions = ["platform_send_mon"];
+
+    if (!adminAuthActions.includes(action)) {
+      const authz = await authorizeUserAddress(
+        req,
+        userAddress,
+        `execute-delegated:${action}`,
       );
+      if (!authz.allowed) {
+        return NextResponse.json(
+          { success: false, error: authz.reason || "Unauthorized" },
+          { status: 401 },
+        );
+      }
     }
 
     // Public actions that don't require delegation (anyone can call to earn rewards)
@@ -4834,7 +4843,10 @@ ${enjoyText}
 
       // ==================== PLATFORM: SEND NATIVE MON TO ADDRESS ====================
       case "platform_send_mon": {
-        // Admin-only: send native MON from Platform Safe to any address (for gas funding etc.)
+        // Spends the PLATFORM Safe, not a user's. This was previously
+        // "admin-only" by comment alone while sitting in publicActions, so
+        // anyone could drain the treasury to any address. Requires a signature
+        // from an allowlisted admin over the exact recipient and amount.
         console.log("💸 Action: platform_send_mon");
         const { recipient: monRecipient, amount: monAmount } = params || {};
         if (!monRecipient || !monAmount) {
@@ -4843,6 +4855,34 @@ ${enjoyText}
             { status: 400 },
           );
         }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(monRecipient)) {
+          return NextResponse.json(
+            { success: false, error: "Invalid recipient address" },
+            { status: 400 },
+          );
+        }
+
+        const adminAuth = await authenticateAdminAction({
+          action: "platform_send_mon",
+          details: `${monRecipient.toLowerCase()}:${monAmount}`,
+          adminAddress: params.adminAddress,
+          signature: params.signature,
+          timestamp: params.timestamp,
+        });
+        if (!adminAuth.valid) {
+          console.error(
+            "🚫 platform_send_mon denied:",
+            adminAuth.error,
+            "recipient:",
+            monRecipient,
+          );
+          return NextResponse.json(
+            { success: false, error: adminAuth.error || "Unauthorized" },
+            { status: 403 },
+          );
+        }
+
         const monAmountWei = parseEther(monAmount.toString());
         const monCalls: Call[] = [
           {

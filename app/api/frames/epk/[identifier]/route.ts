@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { escapeHtml } from "@/lib/auth";
 import { Redis } from "@upstash/redis";
 import { EPK_SLUG_PREFIX } from "@/lib/epk/constants";
 import { fetchEPKFromIPFS, fetchEPKFromChain } from "@/lib/epk/utils";
@@ -69,26 +70,35 @@ export async function GET(
     const epkUrl = `${APP_URL}/epk/${identifier}`;
 
     // Return Farcaster Frame v2 HTML
+    // SECURITY: artist name/genre/location come from user-supplied EPK
+    // metadata, and identifier is attacker-controlled path input —
+    // this is the stored-XSS path, not just reflected.
+    const safeArtistName = escapeHtml(artistName);
+    const safeGenre = escapeHtml(genre);
+    const safeLocation = escapeHtml(location);
+    const safeEpkUrl = escapeHtml(epkUrl);
+    const safeOgImageUrl = escapeHtml(ogImageUrl);
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <meta property="og:title" content="${artistName} | Electronic Press Kit" />
-  <meta property="og:description" content="${genre} | ${location}" />
-  <meta property="og:image" content="${ogImageUrl}" />
+  <meta property="og:title" content="${safeArtistName} | Electronic Press Kit" />
+  <meta property="og:description" content="${safeGenre} | ${safeLocation}" />
+  <meta property="og:image" content="${safeOgImageUrl}" />
   <meta property="fc:frame" content="vNext" />
-  <meta property="fc:frame:image" content="${ogImageUrl}" />
+  <meta property="fc:frame:image" content="${safeOgImageUrl}" />
   <meta property="fc:frame:image:aspect_ratio" content="1.91:1" />
   <meta property="fc:frame:button:1" content="View Press Kit" />
   <meta property="fc:frame:button:1:action" content="link" />
-  <meta property="fc:frame:button:1:target" content="${epkUrl}" />
+  <meta property="fc:frame:button:1:target" content="${safeEpkUrl}" />
   <meta property="fc:frame:button:2" content="Book Artist" />
   <meta property="fc:frame:button:2:action" content="link" />
-  <meta property="fc:frame:button:2:target" content="${epkUrl}#booking" />
+  <meta property="fc:frame:button:2:target" content="${safeEpkUrl}#booking" />
 </head>
 <body>
-  <h1>${artistName} - Electronic Press Kit</h1>
-  <p>${genre}</p>
-  <a href="${epkUrl}">View Full Press Kit</a>
+  <h1>${safeArtistName} - Electronic Press Kit</h1>
+  <p>${safeGenre}</p>
+  <a href="${safeEpkUrl}">View Full Press Kit</a>
 </body>
 </html>`;
 

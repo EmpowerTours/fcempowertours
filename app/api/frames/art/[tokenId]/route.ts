@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { escapeHtml } from "@/lib/auth";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -54,6 +55,14 @@ export async function GET(
       },
     };
 
+    // SECURITY: title/price/image come straight from the query string, so
+    // whoever crafts the link controls them. Escape before interpolating.
+    const safeTitle = escapeHtml(artTitle);
+    const safePrice = escapeHtml(artPrice);
+    const safeImage = escapeHtml(ogImageUrl);
+    const safeMiniAppUrl = escapeHtml(miniAppUrl);
+    const safeTokenId = escapeHtml(tokenId);
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -62,29 +71,29 @@ export async function GET(
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
           <!-- Open Graph for cast preview -->
-          <meta property="og:title" content="${artTitle}">
-          <meta property="og:description" content="${artPrice} WMON - Collect & license on EmpowerTours">
-          <meta property="og:image" content="${ogImageUrl}">
+          <meta property="og:title" content="${safeTitle}">
+          <meta property="og:description" content="${safePrice} WMON - Collect & license on EmpowerTours">
+          <meta property="og:image" content="${safeImage}">
           <meta property="og:type" content="website">
-          <meta property="og:url" content="${APP_URL}/api/frames/art/${tokenId}">
+          <meta property="og:url" content="${APP_URL}/api/frames/art/${safeTokenId}">
 
           <!-- Twitter card -->
           <meta name="twitter:card" content="summary_large_image">
-          <meta name="twitter:title" content="${artTitle}">
-          <meta name="twitter:image" content="${ogImageUrl}">
+          <meta name="twitter:title" content="${safeTitle}">
+          <meta name="twitter:image" content="${safeImage}">
 
           <!-- Farcaster Frame with Mini App Launch (same as music frame) -->
-          <meta name="fc:frame" content='${JSON.stringify(frameData)}'>
+          <meta name="fc:frame" content='${escapeHtml(JSON.stringify(frameData))}'>
           <meta name="of:version" content="vNext">
           <meta name="of:accepts:farcaster" content="vNext">
-          <meta name="of:image" content="${ogImageUrl}">
+          <meta name="of:image" content="${safeImage}">
 
-          <title>${artTitle} - EmpowerTours</title>
+          <title>${safeTitle} - EmpowerTours</title>
         </head>
         <body style="background: #0f172a; margin: 0; padding: 40px; font-family: system-ui, sans-serif; color: white; text-align: center;">
-          <h1>${artTitle}</h1>
-          <p>Price: ${artPrice} WMON</p>
-          <p><a href="${miniAppUrl}" style="color: #00d4ff;">Open in EmpowerTours</a></p>
+          <h1>${safeTitle}</h1>
+          <p>Price: ${safePrice} WMON</p>
+          <p><a href="${safeMiniAppUrl}" style="color: #00d4ff;">Open in EmpowerTours</a></p>
         </body>
       </html>
     `;

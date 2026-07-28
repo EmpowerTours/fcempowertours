@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { escapeHtml } from "@/lib/auth";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -55,19 +56,25 @@ export async function GET(
       },
     };
 
+    // SECURITY: fid is attacker-controlled path input and tier comes from
+    // an external API; both reach HTML.
+    const safeOgImageUrl = escapeHtml(ogImageUrl);
+    const safeClarityScore = escapeHtml(clarityScore);
+    const safeTier = escapeHtml(tier);
+
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <meta property="og:title" content="${tier} - ${clarityScore}% Clarity">
+          <meta property="og:title" content="${safeTier} - ${safeClarityScore}% Clarity">
           <meta property="og:description" content="Discover your eternal monad signature on Farcaster × Monad Blockchain">
           <meta property="og:type" content="website">
-          <meta property="og:image" content="${ogImageUrl}">
+          <meta property="og:image" content="${safeOgImageUrl}">
           <!-- Official Farcaster Mini App Meta Tag -->
-          <meta name="fc:miniapp" content='${JSON.stringify(frameData)}' />
-          <title>Monad Sync - ${tier} ${clarityScore}%</title>
+          <meta name="fc:miniapp" content='${escapeHtml(JSON.stringify(frameData))}' />
+          <title>Monad Sync - ${safeTier} ${safeClarityScore}%</title>
         </head>
         <body style="background: #1a0033; margin: 0; padding: 0;"></body>
       </html>

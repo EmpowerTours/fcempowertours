@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { escapeHtml } from "@/lib/auth";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -37,34 +38,39 @@ export async function GET(
   };
 
   // Return HTML with Frame v2 meta tags (JSON format)
+  // SECURITY: tokenId is attacker-controlled path input.
+  const safeTokenId = escapeHtml(tokenId);
+  const safeImageUrl = escapeHtml(imageUrl);
+  const safeTargetUrl = escapeHtml(targetUrl);
+
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EmpowerTours Passport #${tokenId}</title>
+  <title>EmpowerTours Passport #${safeTokenId}</title>
 
   <!-- Open Graph -->
-  <meta property="og:title" content="EmpowerTours Passport #${tokenId}">
+  <meta property="og:title" content="EmpowerTours Passport #${safeTokenId}">
   <meta property="og:description" content="View this Digital Passport on EmpowerTours">
-  <meta property="og:image" content="${imageUrl}">
-  <meta property="og:url" content="${APP_URL}/api/frames/passport/${tokenId}">
+  <meta property="og:image" content="${safeImageUrl}">
+  <meta property="og:url" content="${APP_URL}/api/frames/passport/${safeTokenId}">
 
   <!-- Twitter card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="EmpowerTours Passport #${tokenId}">
-  <meta name="twitter:image" content="${imageUrl}">
+  <meta name="twitter:title" content="EmpowerTours Passport #${safeTokenId}">
+  <meta name="twitter:image" content="${safeImageUrl}">
 
   <!-- Farcaster Frame v2/vNext with Mini App Launch (JSON format) -->
-  <meta name="fc:frame" content='${JSON.stringify(frameData)}'>
+  <meta name="fc:frame" content='${escapeHtml(JSON.stringify(frameData))}'>
   <meta name="of:version" content="vNext">
   <meta name="of:accepts:farcaster" content="vNext">
-  <meta name="of:image" content="${imageUrl}">
+  <meta name="of:image" content="${safeImageUrl}">
 </head>
 <body style="background: #353B48; margin: 0; padding: 40px; font-family: system-ui, sans-serif; color: white; text-align: center;">
-  <h1>EmpowerTours Passport #${tokenId}</h1>
+  <h1>EmpowerTours Passport #${safeTokenId}</h1>
   <p>Open in Warpcast to view this passport in the EmpowerTours mini app.</p>
-  <p><a href="${targetUrl}" style="color: #00d4ff;">View Passport</a></p>
+  <p><a href="${safeTargetUrl}" style="color: #00d4ff;">View Passport</a></p>
 </body>
 </html>`;
 

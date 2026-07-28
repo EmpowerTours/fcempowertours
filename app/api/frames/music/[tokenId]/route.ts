@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { escapeHtml, sanitizeGraphQLInput } from "@/lib/auth";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -22,7 +23,7 @@ async function getNFTData(tokenId: string): Promise<NFTData | null> {
   try {
     const query = `
       query GetMusicNFT {
-        MusicNFT(where: { tokenId: { _eq: "${tokenId}" } }, limit: 1) {
+        MusicNFT(where: { tokenId: { _eq: "${sanitizeGraphQLInput(tokenId)}" } }, limit: 1) {
           tokenId
           name
           imageUrl
@@ -141,6 +142,16 @@ export async function GET(
     // Build HTML with proper OG tags for the cover art
     // The og:image will show the cover art in the cast
     // Audio URL included for players that support it
+    // SECURITY: every interpolated value below is attacker-controllable —
+    // query params are supplied by whoever crafts the link, and nftData comes
+    // from NFT metadata that anyone can set by minting. Escape all of it.
+    const safeName = escapeHtml(nftData?.name || `Music NFT #${tokenId}`);
+    const safePrice = escapeHtml(nftData?.price || "0");
+    const safeImage = escapeHtml(ogImageUrl);
+    const safePreview = escapeHtml(nftData?.previewUrl || "");
+    const safeProfileUrl = escapeHtml(artistProfileUrl);
+    const safeTokenId = escapeHtml(tokenId);
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -149,17 +160,17 @@ export async function GET(
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
           <!-- Open Graph for cast preview -->
-          <meta property="og:title" content="${nftData?.name || `Music NFT #${tokenId}`}">
-          <meta property="og:description" content="${nftData?.price ? `${nftData.price} WMON - ` : ""}Tap to preview & license on EmpowerTours">
-          <meta property="og:image" content="${ogImageUrl}">
+          <meta property="og:title" content="${safeName}">
+          <meta property="og:description" content="${nftData?.price ? `${safePrice} WMON - ` : ""}Tap to preview & license on EmpowerTours">
+          <meta property="og:image" content="${safeImage}">
           <meta property="og:type" content="music.song">
-          <meta property="og:url" content="${APP_URL}/api/frames/music/${tokenId}">
+          <meta property="og:url" content="${APP_URL}/api/frames/music/${safeTokenId}">
 
           ${
             nftData?.previewUrl
               ? `
           <!-- Audio preview for supported clients -->
-          <meta property="og:audio" content="${nftData.previewUrl}">
+          <meta property="og:audio" content="${safePreview}">
           <meta property="og:audio:type" content="audio/mpeg">
           `
               : ""
@@ -167,31 +178,31 @@ export async function GET(
 
           <!-- Twitter card -->
           <meta name="twitter:card" content="summary_large_image">
-          <meta name="twitter:title" content="${nftData?.name || `Music NFT #${tokenId}`}">
-          <meta name="twitter:image" content="${ogImageUrl}">
+          <meta name="twitter:title" content="${safeName}">
+          <meta name="twitter:image" content="${safeImage}">
 
           <!-- Farcaster Frame with Mini App Launch -->
-          <meta name="fc:frame" content='${JSON.stringify(frameData)}'>
+          <meta name="fc:frame" content='${escapeHtml(JSON.stringify(frameData))}'>
           <meta name="of:version" content="vNext">
           <meta name="of:accepts:farcaster" content="vNext">
-          <meta name="of:image" content="${ogImageUrl}">
+          <meta name="of:image" content="${safeImage}">
 
-          <title>${nftData?.name || `Music NFT #${tokenId}`} - EmpowerTours</title>
+          <title>${safeName} - EmpowerTours</title>
         </head>
         <body style="background: #0f172a; margin: 0; padding: 40px; font-family: system-ui, sans-serif; color: white; text-align: center;">
-          <h1>${nftData?.name || `Music NFT #${tokenId}`}</h1>
-          <p>Price: ${nftData?.price || "0"} WMON</p>
+          <h1>${safeName}</h1>
+          <p>Price: ${safePrice} WMON</p>
           ${
             nftData?.previewUrl
               ? `
             <audio controls style="margin: 20px 0;">
-              <source src="${nftData.previewUrl}" type="audio/mpeg">
+              <source src="${safePreview}" type="audio/mpeg">
               Your browser does not support the audio element.
             </audio>
           `
               : ""
           }
-          <p><a href="${artistProfileUrl}" style="color: #00d4ff;">View Artist Profile</a></p>
+          <p><a href="${safeProfileUrl}" style="color: #00d4ff;">View Artist Profile</a></p>
         </body>
       </html>
     `;

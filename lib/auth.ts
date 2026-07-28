@@ -769,6 +769,26 @@ export function sanitizeInput(input: string, maxLength: number = 1000): string {
 }
 
 /**
+ * Escape a value for interpolation into HTML text or a quoted attribute.
+ *
+ * Prefer this over sanitizeInput() when building markup: stripping characters
+ * corrupts legitimate content (song titles with apostrophes, "Rock & Roll"),
+ * whereas escaping renders it correctly and inertly.
+ *
+ * Covers both quote styles because frame markup embeds JSON in single-quoted
+ * attributes (fc:frame) and text in double-quoted ones (og:title).
+ */
+export function escapeHtml(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Sanitize for GraphQL queries (prevent injection)
  */
 export function sanitizeGraphQLInput(input: string): string {
@@ -821,11 +841,103 @@ export function sanitizeErrorForResponse(error: any): string {
 }
 
 // ============================================================================
+// ADMIN AUTHORIZATION
+// ============================================================================
+
+/**
+ * Addresses permitted to spend platform funds. Empty by default — an
+ * unconfigured allowlist denies everything rather than allowing everything.
+ */
+export function getAdminAddresses(): string[] {
+  return [
+    process.env.ADMIN_ADDRESS || "",
+    process.env.NEXT_PUBLIC_PLATFORM_SAFE || "",
+  ]
+    .filter(Boolean)
+    .map((a) => a.toLowerCase());
+}
+
+/**
+ * Authorize a privileged action that spends PLATFORM funds.
+ *
+ * Quick Auth proves which *user* is calling; it says nothing about whether
+ * they may spend the treasury. This is the second, separate gate:
+ *   1. timestamp inside the signing window (no stale signatures)
+ *   2. signer is on the admin allowlist
+ *   3. EIP-191 signature over the exact action parameters
+ *   4. signature is single-use (Redis), so a captured request cannot be
+ *      replayed to repeat the transfer within the validity window
+ *
+ * The signed message binds recipient and amount, so a signature captured for
+ * one transfer cannot authorize a different one.
+ */
+export async function authenticateAdminAction(params: {
+  action: string;
+  details: string;
+  adminAddress?: string;
+  signature?: string;
+  timestamp?: number;
+}): Promise<AuthResult> {
+  const { action, details, adminAddress, signature, timestamp } = params;
+
+  if (!adminAddress || !signature || !timestamp) {
+    return {
+      valid: false,
+      error:
+        "Admin authentication required: adminAddress, signature and timestamp.",
+    };
+  }
+
+  const timestampCheck = validateTimestamp(Number(timestamp));
+  if (!timestampCheck.valid) return timestampCheck;
+
+  const admins = getAdminAddresses();
+  if (admins.length === 0) {
+    console.error(
+      "[AdminAuth] No ADMIN_ADDRESS configured — denying by default",
+    );
+    return { valid: false, error: "Admin allowlist is not configured." };
+  }
+
+  if (!admins.includes(adminAddress.toLowerCase())) {
+    console.error(`[AdminAuth] ${adminAddress} is not an admin for ${action}`);
+    return { valid: false, error: "Address is not an authorized admin." };
+  }
+
+  const message = `EmpowerTours Admin Action\n\nAction: ${action}\nDetails: ${details}\nTimestamp: ${timestamp}`;
+
+  const signatureCheck = await verifySignature(
+    message,
+    signature,
+    adminAddress,
+  );
+  if (!signatureCheck.valid) return signatureCheck;
+
+  // Single-use: reject a replay of this exact signature.
+  const replayKey = `admin-sig:${action}:${signature.toLowerCase()}`;
+  const alreadyUsed = await redis.get(replayKey);
+  if (alreadyUsed) {
+    console.error(`[AdminAuth] Replayed signature rejected for ${action}`);
+    return { valid: false, error: "This signature has already been used." };
+  }
+  await redis.setex(
+    replayKey,
+    Math.ceil((SIGNATURE_EXPIRY_MS * 2) / 1000),
+    "used",
+  );
+
+  console.log(`[AdminAuth] ✅ ${adminAddress} authorized for ${action}`);
+  return { valid: true, address: adminAddress.toLowerCase() };
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
 export default {
   generateNonce,
+  getAdminAddresses,
+  authenticateAdminAction,
   verifyAndConsumeNonce,
   validateTimestamp,
   verifySignature,
