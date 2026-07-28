@@ -93,6 +93,7 @@
     "yaml": "^2.8.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
     "@nomicfoundation/hardhat-verify": "^3.0.7",
     "@openzeppelin/contracts": "^5.4.0",
     "@tailwindcss/postcss": "^4.1.14",
@@ -114,7 +115,8 @@
     "postcss": "^8.5.6",
     "puppeteer": "^24.35.0",
     "tailwindcss": "^4.1.14",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.65.0"
   },
   "resolutions": {
     "react": "18.3.1",
