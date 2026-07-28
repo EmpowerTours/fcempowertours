@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, ArrowLeft } from 'lucide-react';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { useBotCommand } from '@/app/hooks/useBotCommand';
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { X, ArrowLeft } from "lucide-react";
+import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { useBotCommand } from "@/app/hooks/useBotCommand";
 
 interface CreateNFTModalProps {
   onClose: () => void;
@@ -12,40 +12,54 @@ interface CreateNFTModalProps {
 }
 
 const allSteps = [
-  { number: 1, title: 'Choose Type', icon: '🎨' },
-  { number: 2, title: 'Upload Files', icon: '📁' },
-  { number: 3, title: 'Set Details', icon: '✏️' },
-  { number: 4, title: 'Rights', icon: '📜' },
-  { number: 5, title: 'Review & Mint', icon: '🚀' },
+  { number: 1, title: "Choose Type", icon: "🎨" },
+  { number: 2, title: "Upload Files", icon: "📁" },
+  { number: 3, title: "Set Details", icon: "✏️" },
+  { number: 4, title: "Rights", icon: "📜" },
+  { number: 5, title: "Review & Mint", icon: "🚀" },
 ];
 
-export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalProps) {
+export function CreateNFTModal({
+  onClose,
+  isDarkMode = true,
+}: CreateNFTModalProps) {
   const { user, walletAddress, requestWallet } = useFarcasterContext();
-  const { executeCommand, loading: botLoading, error: botError } = useBotCommand();
+  const {
+    executeCommand,
+    loading: botLoading,
+    error: botError,
+  } = useBotCommand();
 
   const [mounted, setMounted] = useState(false);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [price, setPrice] = useState('1');
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("1");
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progressStage, setProgressStage] = useState<string>('');
+  const [progressStage, setProgressStage] = useState<string>("");
   const [progressPercent, setProgressPercent] = useState(0);
-  const [success, setSuccess] = useState<{ tokenId: number; txHash: string; title: string; price: string } | null>(null);
+  const [success, setSuccess] = useState<{
+    tokenId: number;
+    txHash: string;
+    title: string;
+    price: string;
+  } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [nftType, setNftType] = useState<'music' | 'art'>('music');
+  const [nftType, setNftType] = useState<"music" | "art">("music");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(3);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(
+    null,
+  );
   const [isCollectorEdition, setIsCollectorEdition] = useState(false);
-  const [collectorPrice, setCollectorPrice] = useState('500');
-  const [maxEditions, setMaxEditions] = useState('100');
+  const [collectorPrice, setCollectorPrice] = useState("500");
+  const [maxEditions, setMaxEditions] = useState("100");
 
   // Rights Declaration state (music NFTs only)
   const [rightsNotPro, setRightsNotPro] = useState(false);
@@ -56,17 +70,25 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
   const [rightsGrantsMasterUse, setRightsGrantsMasterUse] = useState(false);
   const [rightsContainsSamples, setRightsContainsSamples] = useState(false);
   const [rightsSamplesCleared, setRightsSamplesCleared] = useState(false);
-  const [rightsIsrcCode, setRightsIsrcCode] = useState('');
+  const [rightsIsrcCode, setRightsIsrcCode] = useState("");
   const [rightsShowAgreement, setRightsShowAgreement] = useState(false);
 
-  const rightsAccepted = rightsNotPro && rightsOwnsComposition && rightsOwnsMaster &&
-    rightsGrantsPerformance && rightsGrantsMechanical && rightsGrantsMasterUse &&
+  const rightsAccepted =
+    rightsNotPro &&
+    rightsOwnsComposition &&
+    rightsOwnsMaster &&
+    rightsGrantsPerformance &&
+    rightsGrantsMechanical &&
+    rightsGrantsMasterUse &&
     (!rightsContainsSamples || rightsSamplesCleared);
 
   // Dynamic steps: art NFTs skip the Rights step
-  const steps = nftType === 'art'
-    ? allSteps.filter(s => s.number !== 4).map((s, i) => ({ ...s, number: i + 1 }))
-    : allSteps;
+  const steps =
+    nftType === "art"
+      ? allSteps
+          .filter((s) => s.number !== 4)
+          .map((s, i) => ({ ...s, number: i + 1 }))
+      : allSteps;
 
   // Use portal to render at document body level
   useEffect(() => {
@@ -76,7 +98,12 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
   const farcasterFid = user?.fid || 0;
 
   // Resize image using canvas
-  const resizeImage = async (file: File, maxWidth: number = 1200, maxHeight: number = 1200, quality: number = 0.85): Promise<File> => {
+  const resizeImage = async (
+    file: File,
+    maxWidth: number = 1200,
+    maxHeight: number = 1200,
+    quality: number = 0.85,
+  ): Promise<File> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -88,12 +115,12 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           height = Math.round(height * ratio);
         }
 
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext("2d");
         if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
+          reject(new Error("Failed to get canvas context"));
           return;
         }
 
@@ -102,17 +129,19 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
         canvas.toBlob(
           (blob) => {
             if (!blob) {
-              reject(new Error('Failed to create blob'));
+              reject(new Error("Failed to create blob"));
               return;
             }
-            const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+            const resizedFile = new File([blob], file.name, {
+              type: "image/jpeg",
+            });
             resolve(resizedFile);
           },
-          'image/jpeg',
-          quality
+          "image/jpeg",
+          quality,
         );
       };
-      img.onerror = () => reject(new Error('Failed to load image'));
+      img.onerror = () => reject(new Error("Failed to load image"));
       img.src = URL.createObjectURL(file);
     });
   };
@@ -123,11 +152,11 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
       if (e.target.files) {
         let file = e.target.files[0];
 
-        if (setter === setCoverFile && file.type.startsWith('image/')) {
+        if (setter === setCoverFile && file.type.startsWith("image/")) {
           try {
             file = await resizeImage(file, 1200, 1200, 0.85);
           } catch (err) {
-            console.warn('Failed to resize image, using original:', err);
+            console.warn("Failed to resize image, using original:", err);
           }
         }
 
@@ -138,7 +167,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           setAudioUrl(url);
 
           const audio = new Audio(url);
-          audio.addEventListener('loadedmetadata', () => {
+          audio.addEventListener("loadedmetadata", () => {
             setAudioDuration(audio.duration);
             setTrimStart(0);
             setTrimEnd(Math.min(3, audio.duration));
@@ -148,9 +177,14 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
       }
     };
 
-  const trimAudio = async (file: File, startTime: number, endTime: number): Promise<File> => {
+  const trimAudio = async (
+    file: File,
+    startTime: number,
+    endTime: number,
+  ): Promise<File> => {
     return new Promise((resolve, reject) => {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
       const reader = new FileReader();
 
       reader.onload = async (e) => {
@@ -166,10 +200,14 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           const trimmedBuffer = audioContext.createBuffer(
             audioBuffer.numberOfChannels,
             frameCount,
-            sampleRate
+            sampleRate,
           );
 
-          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+          for (
+            let channel = 0;
+            channel < audioBuffer.numberOfChannels;
+            channel++
+          ) {
             const sourceData = audioBuffer.getChannelData(channel);
             const targetData = trimmedBuffer.getChannelData(channel);
             for (let i = 0; i < frameCount; i++) {
@@ -178,8 +216,10 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           }
 
           const wav = audioBufferToWav(trimmedBuffer);
-          const blob = new Blob([wav], { type: 'audio/wav' });
-          const trimmedFile = new File([blob], 'preview.wav', { type: 'audio/wav' });
+          const blob = new Blob([wav], { type: "audio/wav" });
+          const trimmedFile = new File([blob], "preview.wav", {
+            type: "audio/wav",
+          });
 
           resolve(trimmedFile);
         } catch (error) {
@@ -247,24 +287,33 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
       audioElement.play();
       setIsPlaying(true);
 
-      setTimeout(() => {
-        audioElement.pause();
-        setIsPlaying(false);
-      }, (trimEnd - trimStart) * 1000);
+      setTimeout(
+        () => {
+          audioElement.pause();
+          setIsPlaying(false);
+        },
+        (trimEnd - trimStart) * 1000,
+      );
     }
   };
 
   const uploadAndMint = async () => {
     if (previewFile && previewFile.size > 600 * 1024) {
-      setError(`Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`);
+      setError(
+        `Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`,
+      );
       return;
     }
     if (fullFile && fullFile.size > 15 * 1024 * 1024) {
-      setError(`Full track too large: ${(fullFile.size / 1024 / 1024).toFixed(1)}MB (max 15MB)`);
+      setError(
+        `Full track too large: ${(fullFile.size / 1024 / 1024).toFixed(1)}MB (max 15MB)`,
+      );
       return;
     }
     if (coverFile && coverFile.size > 3 * 1024 * 1024) {
-      setError(`Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`);
+      setError(
+        `Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`,
+      );
       return;
     }
 
@@ -272,76 +321,78 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
 
     if (!coverFile || !title) {
       const missing = [];
-      if (!coverFile) missing.push('Cover Art');
-      if (!title) missing.push('Title');
-      setError(`Please fill required fields: ${missing.join(', ')}`);
+      if (!coverFile) missing.push("Cover Art");
+      if (!title) missing.push("Title");
+      setError(`Please fill required fields: ${missing.join(", ")}`);
       return;
     }
 
     if (previewFile && !fullFile) {
-      setError('If providing a preview, please also provide the full track');
+      setError("If providing a preview, please also provide the full track");
       return;
     }
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum < 1 || priceNum > 100_000_000) {
-      setError('Price must be between 1 and 100,000,000 WMON');
+      setError("Price must be between 1 and 100,000,000 WMON");
       return;
     }
     // Collector edition validations
     if (isCollectorEdition) {
       const cPrice = parseFloat(collectorPrice);
       if (isNaN(cPrice) || cPrice < 500 || cPrice > 100_000_000) {
-        setError('Collector price must be between 500 and 100,000,000 WMON');
+        setError("Collector price must be between 500 and 100,000,000 WMON");
         return;
       }
       const editions = parseInt(maxEditions);
       if (isNaN(editions) || editions < 1 || editions > 1000) {
-        setError('Max editions must be between 1 and 1,000');
+        setError("Max editions must be between 1 and 1,000");
         return;
       }
     }
     if (!walletAddress) {
-      setError('Please connect your wallet first');
+      setError("Please connect your wallet first");
       await requestWallet();
       return;
     }
 
     setUploading(true);
     setError(null);
-    setProgressStage('Preparing files...');
+    setProgressStage("Preparing files...");
     setProgressPercent(5);
 
     try {
       const formData = new FormData();
 
       let actualPreviewFile = previewFile;
-      if (!previewFile && fullFile && nftType === 'music') {
-        setProgressStage('Creating preview clip...');
+      if (!previewFile && fullFile && nftType === "music") {
+        setProgressStage("Creating preview clip...");
         setProgressPercent(10);
-        console.log(`🎬 Auto-trimming preview from ${trimStart}s to ${trimEnd}s`);
+        console.log(
+          `🎬 Auto-trimming preview from ${trimStart}s to ${trimEnd}s`,
+        );
         actualPreviewFile = await trimAudio(fullFile, trimStart, trimEnd);
       }
 
       if (actualPreviewFile) {
-        formData.append('previewAudio', actualPreviewFile);
+        formData.append("previewAudio", actualPreviewFile);
       }
       if (fullFile) {
-        formData.append('fullAudio', fullFile);
+        formData.append("fullAudio", fullFile);
       }
-      formData.append('cover', coverFile);
-      formData.append('description', title);
-      formData.append('address', walletAddress);
-      formData.append('fid', farcasterFid?.toString() || '0');
-      formData.append('isArtOnly', isArtOnly.toString());
+      formData.append("cover", coverFile);
+      formData.append("description", title);
+      formData.append("address", walletAddress);
+      formData.append("fid", farcasterFid?.toString() || "0");
+      formData.append("isArtOnly", isArtOnly.toString());
 
       // Pass collector edition flags so upload route can AI-generate collector art
       if (isCollectorEdition) {
-        formData.append('isCollectorEdition', 'true');
-        formData.append('collectorTitle', title);
+        formData.append("isCollectorEdition", "true");
+        formData.append("collectorTitle", title);
       }
 
       // Pass rights declaration for music NFTs
-      if (nftType === 'music' && rightsAccepted) {
+      if (nftType === "music" && rightsAccepted) {
         const rightsDeclaration = {
           notPro: rightsNotPro,
           ownsComposition: rightsOwnsComposition,
@@ -357,63 +408,70 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           accepted: true,
           acceptedAt: new Date().toISOString(),
         };
-        formData.append('rightsDeclaration', JSON.stringify(rightsDeclaration));
+        formData.append("rightsDeclaration", JSON.stringify(rightsDeclaration));
       }
 
-      setProgressStage('Uploading to IPFS...');
+      setProgressStage("Uploading to IPFS...");
       setProgressPercent(20);
 
       // Upload with timeout handling
       let uploadRes: Response;
       try {
-        uploadRes = await fetch('/api/upload', {
-          method: 'POST',
+        uploadRes = await fetch("/api/upload", {
+          method: "POST",
           body: formData,
         });
       } catch (fetchError: any) {
-        console.error('[CreateNFTModal] Fetch error:', fetchError);
-        throw new Error(`Upload failed: ${fetchError.message || 'Network error'}`);
+        console.error("[CreateNFTModal] Fetch error:", fetchError);
+        throw new Error(
+          `Upload failed: ${fetchError.message || "Network error"}`,
+        );
       }
 
       setProgressPercent(50);
-      setProgressStage('Processing uploads...');
+      setProgressStage("Processing uploads...");
 
       if (!uploadRes.ok) {
         const errorData = await uploadRes.json();
-        throw new Error(errorData.error || 'Upload failed');
+        throw new Error(errorData.error || "Upload failed");
       }
 
       const uploadData = await uploadRes.json();
-      const tokenURI = uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
+      const tokenURI =
+        uploadData.tokenURI || `ipfs://${uploadData.metadataCid}`;
       const coverUrl = uploadData.coverUrl || `ipfs://${uploadData.coverCid}`;
-      const collectorTokenURI = uploadData.collectorTokenURI || uploadData.tokenURI || tokenURI;
+      const collectorTokenURI =
+        uploadData.collectorTokenURI || uploadData.tokenURI || tokenURI;
 
       setProgressPercent(70);
-      setProgressStage('Files uploaded! Minting NFT...');
+      setProgressStage("Files uploaded! Minting NFT...");
       setUploading(false);
       setMinting(true);
 
       let mintData;
 
       setProgressPercent(80);
-      setProgressStage('Sending to blockchain...');
+      setProgressStage("Sending to blockchain...");
 
       // Build rights declaration object for passing to mint command
-      const mintRightsDeclaration = (nftType === 'music' && rightsAccepted) ? {
-        notPro: rightsNotPro,
-        ownsComposition: rightsOwnsComposition,
-        ownsMaster: rightsOwnsMaster,
-        grantsPerformance: rightsGrantsPerformance,
-        grantsMechanical: rightsGrantsMechanical,
-        grantsMasterUse: rightsGrantsMasterUse,
-        containsSamples: rightsContainsSamples,
-        samplesCleared: rightsSamplesCleared,
-        isrcCode: rightsIsrcCode,
-        artistAddress: walletAddress,
-        artistFid: farcasterFid,
-        accepted: true,
-        acceptedAt: new Date().toISOString(),
-      } : undefined;
+      const mintRightsDeclaration =
+        nftType === "music" && rightsAccepted
+          ? {
+              notPro: rightsNotPro,
+              ownsComposition: rightsOwnsComposition,
+              ownsMaster: rightsOwnsMaster,
+              grantsPerformance: rightsGrantsPerformance,
+              grantsMechanical: rightsGrantsMechanical,
+              grantsMasterUse: rightsGrantsMasterUse,
+              containsSamples: rightsContainsSamples,
+              samplesCleared: rightsSamplesCleared,
+              isrcCode: rightsIsrcCode,
+              artistAddress: walletAddress,
+              artistFid: farcasterFid,
+              accepted: true,
+              acceptedAt: new Date().toISOString(),
+            }
+          : undefined;
 
       if (isCollectorEdition) {
         // Collector edition mint
@@ -425,7 +483,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           collectorTokenURI,
           collectorPrice,
           maxEditions,
-          is_art: nftType === 'art',
+          is_art: nftType === "art",
           rightsDeclaration: mintRightsDeclaration,
         });
       } else {
@@ -435,36 +493,39 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           imageUrl: coverUrl,
           title,
           tokenURI,
-          is_art: nftType === 'art',
+          is_art: nftType === "art",
           rightsDeclaration: mintRightsDeclaration,
         });
       }
 
       setProgressPercent(95);
-      setProgressStage('Confirming transaction...');
+      setProgressStage("Confirming transaction...");
 
       if (!mintData.success) {
-        throw new Error(mintData.error || mintData.message || 'Mint failed');
+        throw new Error(mintData.error || mintData.message || "Mint failed");
       }
 
-      const tokenId = mintData.tokenId != null ? parseInt(String(mintData.tokenId)) : Math.floor(Math.random() * 10000);
-      const txHash = mintData.txHash || '';
+      const tokenId =
+        mintData.tokenId != null
+          ? parseInt(String(mintData.tokenId))
+          : Math.floor(Math.random() * 10000);
+      const txHash = mintData.txHash || "";
 
       setProgressPercent(100);
-      setProgressStage('Success!');
+      setProgressStage("Success!");
       setSuccess({ tokenId, txHash, title, price });
       setPreviewFile(null);
       setFullFile(null);
       setCoverFile(null);
-      setTitle('');
-      setPrice('0.01');
+      setTitle("");
+      setPrice("0.01");
       setIsCollectorEdition(false);
-      setCollectorPrice('500');
-      setMaxEditions('100');
+      setCollectorPrice("500");
+      setMaxEditions("100");
     } catch (err: any) {
-      console.error('❌ Error:', err);
-      setError(err.message || 'Something went wrong');
-      setProgressStage('');
+      console.error("❌ Error:", err);
+      setError(err.message || "Something went wrong");
+      setProgressStage("");
       setProgressPercent(0);
     } finally {
       setUploading(false);
@@ -478,16 +539,27 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
   // Calculate circle progress values
   const circleRadius = 70;
   const circleCircumference = 2 * Math.PI * circleRadius;
-  const strokeDashoffset = circleCircumference - (progressPercent / 100) * circleCircumference;
+  const strokeDashoffset =
+    circleCircumference - (progressPercent / 100) * circleCircumference;
 
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto ${isDarkMode ? 'dark' : ''}`}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto ${isDarkMode ? "dark" : ""}`}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: isDarkMode ? "#000000" : "#ffffff",
+      }}
     >
       {/* Circular Progress Overlay */}
       {(uploading || minting) && (
-        <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center" style={{ backgroundColor: isDarkMode ? '#1f2937' : '#f3f4f6' }}>
+        <div
+          className="absolute inset-0 z-[10000] flex flex-col items-center justify-center"
+          style={{ backgroundColor: isDarkMode ? "#1f2937" : "#f3f4f6" }}
+        >
           <div className="relative">
             {/* Background circle */}
             <svg className="w-40 h-40 transform -rotate-90">
@@ -522,26 +594,48 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             </svg>
             {/* Percentage number in center */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-4xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{progressPercent}</span>
+              <span
+                className={`text-4xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+              >
+                {progressPercent}
+              </span>
             </div>
           </div>
           {/* Stage text */}
-          <p className={`mt-6 font-medium text-lg ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{progressStage}</p>
-          <p className={`mt-2 text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Please wait, do not close this window...</p>
+          <p
+            className={`mt-6 font-medium text-lg ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+          >
+            {progressStage}
+          </p>
+          <p
+            className={`mt-2 text-sm ${isDarkMode ? "text-gray-500" : "text-gray-600"}`}
+          >
+            Please wait, do not close this window...
+          </p>
         </div>
       )}
 
-      <div className={`w-full max-w-lg rounded-2xl shadow-2xl my-4 relative overflow-hidden ${isDarkMode ? 'bg-gray-900 border border-cyan-500/30' : 'bg-white border border-gray-300'}`}>
+      <div
+        className={`w-full max-w-lg rounded-2xl shadow-2xl my-4 relative overflow-hidden ${isDarkMode ? "bg-gray-900 border border-cyan-500/30" : "bg-white border border-gray-300"}`}
+      >
         <div className="relative p-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Create NFT</h1>
-              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Upload and mint on Monad</p>
+              <h1
+                className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+              >
+                Create NFT
+              </h1>
+              <p
+                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+              >
+                Upload and mint on Monad
+              </p>
             </div>
             <button
               onClick={onClose}
-              className={`transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`transition-colors ${isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
             >
               <X className="w-6 h-6" />
             </button>
@@ -549,7 +643,9 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
 
           {/* Free Mint Badge */}
           <div className="mb-6 p-3 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg border border-green-500/30">
-            <p className="text-sm font-bold text-green-400 text-center">✨ FREE Mint! We pay all gas fees</p>
+            <p className="text-sm font-bold text-green-400 text-center">
+              ✨ FREE Mint! We pay all gas fees
+            </p>
           </div>
 
           {/* Progress Stepper */}
@@ -561,8 +657,10 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                     <div
                       className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold transition-all ${
                         currentStep >= step.number
-                          ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-110 shadow-lg'
-                          : isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-200 text-gray-400'
+                          ? "bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-110 shadow-lg"
+                          : isDarkMode
+                            ? "bg-gray-800 text-gray-500"
+                            : "bg-gray-200 text-gray-400"
                       }`}
                     >
                       {step.icon}
@@ -571,8 +669,12 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                       <p
                         className={`text-xs font-medium ${
                           currentStep >= step.number
-                            ? isDarkMode ? 'text-cyan-400' : 'text-cyan-600'
-                            : isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                            ? isDarkMode
+                              ? "text-cyan-400"
+                              : "text-cyan-600"
+                            : isDarkMode
+                              ? "text-gray-500"
+                              : "text-gray-400"
                         }`}
                       >
                         {step.title}
@@ -583,8 +685,10 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                     <div
                       className={`h-1 flex-1 mx-2 rounded transition-all ${
                         currentStep > step.number
-                          ? 'bg-gradient-to-r from-cyan-500 to-purple-600'
-                          : isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
+                          ? "bg-gradient-to-r from-cyan-500 to-purple-600"
+                          : isDarkMode
+                            ? "bg-gray-800"
+                            : "bg-gray-200"
                       }`}
                     />
                   )}
@@ -597,11 +701,13 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           {user && (
             <div className="mb-6 p-4 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
               <p className="text-sm text-cyan-400">
-                <strong>✅ Farcaster User:</strong> @{user.username || 'Unknown'}
+                <strong>✅ Farcaster User:</strong> @
+                {user.username || "Unknown"}
               </p>
               {walletAddress && (
                 <p className="text-sm text-cyan-400 mt-1 font-mono text-xs">
-                  <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...
+                  {walletAddress.slice(-4)}
                 </p>
               )}
             </div>
@@ -617,16 +723,21 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
           {/* Success */}
           {success && (
             <div className="mb-6 p-6 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 rounded-2xl">
-              <p className="text-green-400 font-bold text-xl mb-3">🎉 NFT Minted Successfully!</p>
+              <p className="text-green-400 font-bold text-xl mb-3">
+                🎉 NFT Minted Successfully!
+              </p>
               <div className="space-y-2 text-sm">
                 <p className="text-green-300">
-                  <strong className="text-green-400">Token ID:</strong> #{success.tokenId}
+                  <strong className="text-green-400">Token ID:</strong> #
+                  {success.tokenId}
                 </p>
                 <p className="text-green-300">
-                  <strong className="text-green-400">Title:</strong> {success.title || 'Untitled'}
+                  <strong className="text-green-400">Title:</strong>{" "}
+                  {success.title || "Untitled"}
                 </p>
                 <p className="text-green-300">
-                  <strong className="text-green-400">Price:</strong> {success.price} WMON per license
+                  <strong className="text-green-400">Price:</strong>{" "}
+                  {success.price} WMON per license
                 </p>
                 <div className="flex flex-col gap-3 mt-4">
                   {success.txHash && (
@@ -659,76 +770,127 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             {/* STEP 1: Choose NFT Type */}
             {currentStep === 1 && (
               <div className="space-y-4">
-                <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>What would you like to create?</h2>
+                <h2
+                  className={`text-2xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  What would you like to create?
+                </h2>
                 <div className="grid grid-cols-1 gap-4">
                   <button
                     onClick={() => {
-                      setNftType('music');
+                      setNftType("music");
                       setIsCollectorEdition(false);
                       setCurrentStep(2);
                     }}
-                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-500/30 hover:border-purple-500' : 'bg-purple-50 border-purple-200 hover:border-purple-500'}`}
+                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? "bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-500/30 hover:border-purple-500" : "bg-purple-50 border-purple-200 hover:border-purple-500"}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-5xl">🎵</div>
                       <div>
-                        <h3 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Music NFT</h3>
-                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Upload cover art + audio files to create a music NFT</p>
-                        <p className="mt-1 text-xs text-purple-500 font-medium">Cover + Preview + Full Track</p>
+                        <h3
+                          className={`text-xl font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                        >
+                          Music NFT
+                        </h3>
+                        <p
+                          className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          Upload cover art + audio files to create a music NFT
+                        </p>
+                        <p className="mt-1 text-xs text-purple-500 font-medium">
+                          Cover + Preview + Full Track
+                        </p>
                       </div>
                     </div>
                   </button>
 
                   <button
                     onClick={() => {
-                      setNftType('music');
+                      setNftType("music");
                       setIsCollectorEdition(true);
                       setCurrentStep(2);
                     }}
-                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? 'bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-500/30 hover:border-amber-500' : 'bg-amber-50 border-amber-200 hover:border-amber-500'}`}
+                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-500/30 hover:border-amber-500" : "bg-amber-50 border-amber-200 hover:border-amber-500"}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-5xl">👑</div>
                       <div>
-                        <h3 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Collector Edition Music NFT</h3>
-                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Limited-run premium music NFT with AI-enhanced collector cover art</p>
-                        <p className={`mt-1 text-xs font-medium ${isDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>Cover + Audio + AI Collector Art + Limited Editions &bull; 5 WMON fee</p>
+                        <h3
+                          className={`text-xl font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                        >
+                          Collector Edition Music NFT
+                        </h3>
+                        <p
+                          className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          Limited-run premium music NFT with AI-enhanced
+                          collector cover art
+                        </p>
+                        <p
+                          className={`mt-1 text-xs font-medium ${isDarkMode ? "text-amber-400" : "text-amber-700"}`}
+                        >
+                          Cover + Audio + AI Collector Art + Limited Editions
+                          &bull; 5 WMON fee
+                        </p>
                       </div>
                     </div>
                   </button>
 
                   <button
                     onClick={() => {
-                      setNftType('art');
+                      setNftType("art");
                       setIsCollectorEdition(false);
                       setCurrentStep(2);
                     }}
-                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 hover:border-blue-500' : 'bg-blue-50 border-blue-200 hover:border-blue-500'}`}
+                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? "bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 hover:border-blue-500" : "bg-blue-50 border-blue-200 hover:border-blue-500"}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-5xl">🎨</div>
                       <div>
-                        <h3 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Art NFT</h3>
-                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Upload only cover art to create a visual art NFT</p>
-                        <p className="mt-1 text-xs text-blue-500 font-medium">Cover Art Only</p>
+                        <h3
+                          className={`text-xl font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                        >
+                          Art NFT
+                        </h3>
+                        <p
+                          className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          Upload only cover art to create a visual art NFT
+                        </p>
+                        <p className="mt-1 text-xs text-blue-500 font-medium">
+                          Cover Art Only
+                        </p>
                       </div>
                     </div>
                   </button>
 
                   <button
                     onClick={() => {
-                      setNftType('art');
+                      setNftType("art");
                       setIsCollectorEdition(true);
                       setCurrentStep(2);
                     }}
-                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? 'bg-gradient-to-br from-amber-500/20 to-yellow-500/20 border-amber-500/30 hover:border-amber-500' : 'bg-amber-50 border-amber-200 hover:border-amber-500'}`}
+                    className={`p-6 rounded-2xl border-2 hover:scale-[1.02] transition-all text-left ${isDarkMode ? "bg-gradient-to-br from-amber-500/20 to-yellow-500/20 border-amber-500/30 hover:border-amber-500" : "bg-amber-50 border-amber-200 hover:border-amber-500"}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-5xl">🖼️</div>
                       <div>
-                        <h3 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Collector Edition Art NFT</h3>
-                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Limited-run art NFT — set your own edition count (1-of-1 to 1000)</p>
-                        <p className={`mt-1 text-xs font-medium ${isDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>Your Art + Limited Editions &bull; No extra fees</p>
+                        <h3
+                          className={`text-xl font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                        >
+                          Collector Edition Art NFT
+                        </h3>
+                        <p
+                          className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          Limited-run art NFT — set your own edition count
+                          (1-of-1 to 1000)
+                        </p>
+                        <p
+                          className={`mt-1 text-xs font-medium ${isDarkMode ? "text-amber-400" : "text-amber-700"}`}
+                        >
+                          Your Art + Limited Editions &bull; No extra fees
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -740,12 +902,14 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             {currentStep === 2 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Upload Your {nftType === 'music' ? 'Music' : 'Art'} Files
+                  <h2
+                    className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    Upload Your {nftType === "music" ? "Music" : "Art"} Files
                   </h2>
                   <button
                     onClick={() => setCurrentStep(1)}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? "bg-gray-800 text-gray-300 hover:bg-gray-700" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -763,14 +927,22 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                             alt="Cover"
                             className="w-64 h-64 object-cover rounded-xl mx-auto mb-4 shadow-lg"
                           />
-                          <p className="text-green-400 font-bold text-lg">✓ {coverFile.name}</p>
-                          <p className="text-gray-500 text-sm">{(coverFile.size / 1024).toFixed(0)}KB</p>
+                          <p className="text-green-400 font-bold text-lg">
+                            ✓ {coverFile.name}
+                          </p>
+                          <p className="text-gray-500 text-sm">
+                            {(coverFile.size / 1024).toFixed(0)}KB
+                          </p>
                         </div>
                       ) : (
                         <div className="py-12">
                           <div className="text-6xl mb-4">🖼️</div>
-                          <p className="text-xl font-bold text-gray-300">Click to upload cover art</p>
-                          <p className="text-sm text-gray-500 mt-2">JPG, PNG, or WebP - Max 3MB</p>
+                          <p className="text-xl font-bold text-gray-300">
+                            Click to upload cover art
+                          </p>
+                          <p className="text-sm text-gray-500 mt-2">
+                            JPG, PNG, or WebP - Max 3MB
+                          </p>
                         </div>
                       )}
                     </div>
@@ -784,7 +956,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                 </div>
 
                 {/* Audio Files (only for music NFTs) */}
-                {nftType === 'music' && (
+                {nftType === "music" && (
                   <>
                     <div className="p-6 bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-2xl border-2 border-dashed border-purple-500/30">
                       <label className="block cursor-pointer">
@@ -792,15 +964,25 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                           {previewFile ? (
                             <div className="py-6">
                               <div className="text-5xl mb-3">🎧</div>
-                              <p className="text-purple-400 font-bold text-lg">✓ Preview Audio</p>
-                              <p className="text-gray-300">{previewFile.name}</p>
-                              <p className="text-gray-500 text-sm">{(previewFile.size / 1024).toFixed(0)}KB</p>
+                              <p className="text-purple-400 font-bold text-lg">
+                                ✓ Preview Audio
+                              </p>
+                              <p className="text-gray-300">
+                                {previewFile.name}
+                              </p>
+                              <p className="text-gray-500 text-sm">
+                                {(previewFile.size / 1024).toFixed(0)}KB
+                              </p>
                             </div>
                           ) : (
                             <div className="py-8">
                               <div className="text-5xl mb-3">🎧</div>
-                              <p className="text-xl font-bold text-gray-300">Upload Preview Audio (Optional)</p>
-                              <p className="text-sm text-gray-500 mt-2">MP3, WAV, M4A - Max 600KB</p>
+                              <p className="text-xl font-bold text-gray-300">
+                                Upload Preview Audio (Optional)
+                              </p>
+                              <p className="text-sm text-gray-500 mt-2">
+                                MP3, WAV, M4A - Max 600KB
+                              </p>
                               <p className="text-xs text-purple-400 font-medium mt-2">
                                 💡 Or skip - we'll auto-generate a 3s preview!
                               </p>
@@ -822,15 +1004,23 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                           {fullFile ? (
                             <div className="py-6">
                               <div className="text-5xl mb-3">🎵</div>
-                              <p className="text-blue-400 font-bold text-lg">✓ Full Track</p>
+                              <p className="text-blue-400 font-bold text-lg">
+                                ✓ Full Track
+                              </p>
                               <p className="text-gray-300">{fullFile.name}</p>
-                              <p className="text-gray-500 text-sm">{(fullFile.size / 1024 / 1024).toFixed(2)}MB</p>
+                              <p className="text-gray-500 text-sm">
+                                {(fullFile.size / 1024 / 1024).toFixed(2)}MB
+                              </p>
                             </div>
                           ) : (
                             <div className="py-8">
                               <div className="text-5xl mb-3">🎵</div>
-                              <p className="text-xl font-bold text-gray-300">Upload Full Track</p>
-                              <p className="text-sm text-gray-500 mt-2">MP3, WAV, M4A - Max 15MB</p>
+                              <p className="text-xl font-bold text-gray-300">
+                                Upload Full Track
+                              </p>
+                              <p className="text-sm text-gray-500 mt-2">
+                                MP3, WAV, M4A - Max 15MB
+                              </p>
                             </div>
                           )}
                         </div>
@@ -846,7 +1036,9 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                     {/* Audio Trimmer */}
                     {fullFile && !previewFile && audioUrl && (
                       <div className="p-6 bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-2xl border-2 border-yellow-500/30">
-                        <h3 className="text-xl font-bold text-white mb-4">✂️ Select 3-Second Preview</h3>
+                        <h3 className="text-xl font-bold text-white mb-4">
+                          ✂️ Select 3-Second Preview
+                        </h3>
                         <p className="text-sm text-gray-400 mb-4">
                           Choose which part of your track to use as the preview
                         </p>
@@ -862,20 +1054,29 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                             />
                             <div className="absolute inset-0 flex items-center justify-between px-2 text-xs text-white font-bold">
                               <span>0:00</span>
-                              <span>{Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}</span>
+                              <span>
+                                {Math.floor(audioDuration / 60)}:
+                                {String(
+                                  Math.floor(audioDuration % 60),
+                                ).padStart(2, "0")}
+                              </span>
                             </div>
                           </div>
 
                           <div className="flex justify-between items-center mt-2 text-sm text-gray-400">
                             <span>Start: {trimStart.toFixed(1)}s</span>
-                            <span className="font-bold text-purple-400">{(trimEnd - trimStart).toFixed(1)}s preview</span>
+                            <span className="font-bold text-purple-400">
+                              {(trimEnd - trimStart).toFixed(1)}s preview
+                            </span>
                             <span>End: {trimEnd.toFixed(1)}s</span>
                           </div>
                         </div>
 
                         <div className="space-y-4">
                           <div>
-                            <label className="text-sm font-medium text-gray-400">Start Time</label>
+                            <label className="text-sm font-medium text-gray-400">
+                              Start Time
+                            </label>
                             <input
                               type="range"
                               min="0"
@@ -885,7 +1086,9 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                               onChange={(e) => {
                                 const newStart = parseFloat(e.target.value);
                                 setTrimStart(newStart);
-                                setTrimEnd(Math.min(newStart + 3, audioDuration));
+                                setTrimEnd(
+                                  Math.min(newStart + 3, audioDuration),
+                                );
                               }}
                               className="w-full h-2 bg-purple-500/30 rounded-lg appearance-none cursor-pointer"
                             />
@@ -896,7 +1099,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                             disabled={isPlaying}
                             className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold hover:scale-105 disabled:opacity-50 transition-all"
                           >
-                            {isPlaying ? '▶️ Playing...' : '▶️ Play Preview'}
+                            {isPlaying ? "▶️ Playing..." : "▶️ Play Preview"}
                           </button>
                         </div>
                       </div>
@@ -906,20 +1109,31 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
 
                 {/* AI Collector Art Notice (when collector edition is enabled) */}
                 {isCollectorEdition && (
-                  <div className={`p-6 rounded-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+                  <div
+                    className={`p-6 rounded-2xl border-2 ${isDarkMode ? "bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-amber-500/30" : "bg-amber-50 border-amber-200"}`}
+                  >
                     <div className="text-center">
                       <div className="text-5xl mb-3">👑✨</div>
-                      <p className={`text-lg font-bold ${isDarkMode ? 'text-amber-300' : 'text-amber-900'}`}>
-                        {nftType === 'music' ? 'AI-Enhanced Collector Art' : 'Collector Edition Art'}
+                      <p
+                        className={`text-lg font-bold ${isDarkMode ? "text-amber-300" : "text-amber-900"}`}
+                      >
+                        {nftType === "music"
+                          ? "AI-Enhanced Collector Art"
+                          : "Collector Edition Art"}
                       </p>
-                      <p className={`text-sm mt-2 ${isDarkMode ? 'text-amber-400/80' : 'text-amber-700'}`}>
-                        {nftType === 'music'
-                          ? 'Your cover art will be automatically enhanced by Gemini AI with premium collector edition effects — golden borders, holographic textures, and a limited edition badge.'
-                          : 'Your original art will be used as-is for the collector edition — no AI modifications. You control the edition count.'}
+                      <p
+                        className={`text-sm mt-2 ${isDarkMode ? "text-amber-400/80" : "text-amber-700"}`}
+                      >
+                        {nftType === "music"
+                          ? "Your cover art will be automatically enhanced by Gemini AI with premium collector edition effects — golden borders, holographic textures, and a limited edition badge."
+                          : "Your original art will be used as-is for the collector edition — no AI modifications. You control the edition count."}
                       </p>
-                      {nftType === 'music' && (
-                        <p className={`text-xs mt-2 font-medium ${isDarkMode ? 'text-amber-500' : 'text-amber-600'}`}>
-                          Requires 5 WMON creation fee from your Safe wallet to cover AI generation costs.
+                      {nftType === "music" && (
+                        <p
+                          className={`text-xs mt-2 font-medium ${isDarkMode ? "text-amber-500" : "text-amber-600"}`}
+                        >
+                          Requires 5 WMON creation fee from your Safe wallet to
+                          cover AI generation costs.
                         </p>
                       )}
                     </div>
@@ -928,7 +1142,7 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
 
                 <button
                   onClick={() => setCurrentStep(3)}
-                  disabled={!coverFile || (nftType === 'music' && !fullFile)}
+                  disabled={!coverFile || (nftType === "music" && !fullFile)}
                   className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all"
                 >
                   Continue to Details →
@@ -940,53 +1154,79 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
             {currentStep === 3 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Set NFT Details</h2>
+                  <h2
+                    className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    Set NFT Details
+                  </h2>
                   <button
                     onClick={() => setCurrentStep(2)}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? "bg-gray-800 text-gray-300 hover:bg-gray-700" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
                   </button>
                 </div>
 
-                <div className={`p-6 rounded-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-500/30' : 'bg-purple-50 border-purple-200'}`}>
-                  <label className={`block text-xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {nftType === 'music' ? '🎵 Song Title' : '🎨 Art Title'}
+                <div
+                  className={`p-6 rounded-2xl border-2 ${isDarkMode ? "bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-500/30" : "bg-purple-50 border-purple-200"}`}
+                >
+                  <label
+                    className={`block text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    {nftType === "music" ? "🎵 Song Title" : "🎨 Art Title"}
                   </label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder={nftType === 'music' ? 'e.g., Money Making Machine - Electronic Mix' : 'e.g., Sunset Over Mountains'}
+                    placeholder={
+                      nftType === "music"
+                        ? "e.g., Money Making Machine - Electronic Mix"
+                        : "e.g., Sunset Over Mountains"
+                    }
                     maxLength={200}
                     className={`w-full px-6 py-4 text-lg rounded-xl border-2 focus:ring-4 focus:ring-purple-500/50 focus:border-transparent ${
                       isDarkMode
-                        ? 'bg-gray-800 border-purple-500/30 text-white placeholder-gray-500'
-                        : 'bg-white border-purple-300 text-gray-900 placeholder-gray-400'
+                        ? "bg-gray-800 border-purple-500/30 text-white placeholder-gray-500"
+                        : "bg-white border-purple-300 text-gray-900 placeholder-gray-400"
                     }`}
-                    style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                    style={{ colorScheme: isDarkMode ? "dark" : "light" }}
                   />
-                  <p className={`text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{title.length}/200 characters</p>
+                  <p
+                    className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    {title.length}/200 characters
+                  </p>
                 </div>
 
                 {/* Pricing — Standard NFTs */}
                 {!isCollectorEdition && (
-                  <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'}`}>
-                    <label className={`block text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>💰 License Price</label>
-                    <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Set your price in WMON</p>
+                  <div
+                    className={`p-6 rounded-2xl border ${isDarkMode ? "bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border-cyan-500/30" : "bg-cyan-50 border-cyan-200"}`}
+                  >
+                    <label
+                      className={`block text-xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                    >
+                      💰 License Price
+                    </label>
+                    <p
+                      className={`text-sm mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                    >
+                      Set your price in WMON
+                    </p>
 
                     <div className="grid grid-cols-3 gap-3 mb-4">
-                      {['50', '100', '300'].map((p) => (
+                      {["50", "100", "300"].map((p) => (
                         <button
                           key={p}
                           onClick={() => setPrice(p)}
                           className={`px-4 py-3 rounded-xl font-bold text-base transition-all ${
                             price === p
-                              ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-105 shadow-lg shadow-cyan-500/30'
+                              ? "bg-gradient-to-r from-cyan-500 to-purple-600 text-white scale-105 shadow-lg shadow-cyan-500/30"
                               : isDarkMode
-                                ? 'bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50'
-                                : 'bg-white text-gray-700 hover:scale-105 border border-gray-300 hover:border-cyan-500/50'
+                                ? "bg-gray-800/80 text-gray-300 hover:scale-105 border border-gray-600 hover:border-cyan-500/50"
+                                : "bg-white text-gray-700 hover:scale-105 border border-gray-300 hover:border-cyan-500/50"
                           }`}
                         >
                           {p} WMON
@@ -1004,35 +1244,60 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                         placeholder="Enter amount"
                         className={`flex-1 px-6 py-4 text-lg rounded-xl border focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 ${
                           isDarkMode
-                            ? 'bg-gray-800 border-cyan-500/30 text-white placeholder-gray-500'
-                            : 'bg-white border-cyan-300 text-gray-900 placeholder-gray-400'
+                            ? "bg-gray-800 border-cyan-500/30 text-white placeholder-gray-500"
+                            : "bg-white border-cyan-300 text-gray-900 placeholder-gray-400"
                         }`}
-                        style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                        style={{ colorScheme: isDarkMode ? "dark" : "light" }}
                       />
-                      <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>WMON</span>
+                      <span
+                        className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+                      >
+                        WMON
+                      </span>
                     </div>
-                    <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Minimum: 35 WMON</p>
+                    <p
+                      className={`text-xs mt-2 ${isDarkMode ? "text-gray-500" : "text-gray-600"}`}
+                    >
+                      Minimum: 35 WMON
+                    </p>
                   </div>
                 )}
 
                 {/* Pricing — Collector Editions (all pricing in one panel) */}
                 {isCollectorEdition && (
-                  <div className={`p-6 rounded-2xl border-2 ${isDarkMode ? 'bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
-                    <label className={`block text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <div
+                    className={`p-6 rounded-2xl border-2 ${isDarkMode ? "bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-amber-500/30" : "bg-amber-50 border-amber-200"}`}
+                  >
+                    <label
+                      className={`block text-xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                    >
                       👑 Collector Edition Pricing
                     </label>
 
-                    <p className={`text-sm p-3 rounded-lg mb-4 ${isDarkMode ? 'text-amber-300/90 bg-amber-500/10' : 'text-amber-800 bg-amber-100'}`}>
-                      {nftType === 'music'
-                        ? <>Premium limited-run with AI-enhanced collector cover art. <strong>5 WMON creation fee</strong> applies.</>
-                        : <>Premium limited-run art. Your original art, no AI modifications. <strong>No extra fees.</strong></>
-                      }
+                    <p
+                      className={`text-sm p-3 rounded-lg mb-4 ${isDarkMode ? "text-amber-300/90 bg-amber-500/10" : "text-amber-800 bg-amber-100"}`}
+                    >
+                      {nftType === "music" ? (
+                        <>
+                          Premium limited-run with AI-enhanced collector cover
+                          art. <strong>5 WMON creation fee</strong> applies.
+                        </>
+                      ) : (
+                        <>
+                          Premium limited-run art. Your original art, no AI
+                          modifications. <strong>No extra fees.</strong>
+                        </>
+                      )}
                     </p>
 
                     <div className="space-y-4">
                       {/* Standard License Price */}
                       <div>
-                        <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Standard License Price (unlimited copies)</label>
+                        <label
+                          className={`block text-sm font-bold mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                        >
+                          Standard License Price (unlimited copies)
+                        </label>
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
@@ -1043,19 +1308,34 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                             placeholder="35"
                             className={`flex-1 px-6 py-3 text-lg rounded-xl border focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 ${
                               isDarkMode
-                                ? 'bg-gray-800 border-amber-500/30 text-white placeholder-gray-500'
-                                : 'bg-white border-amber-300 text-gray-900 placeholder-gray-400'
+                                ? "bg-gray-800 border-amber-500/30 text-white placeholder-gray-500"
+                                : "bg-white border-amber-300 text-gray-900 placeholder-gray-400"
                             }`}
-                            style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                            style={{
+                              colorScheme: isDarkMode ? "dark" : "light",
+                            }}
                           />
-                          <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>WMON</span>
+                          <span
+                            className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? "text-amber-400" : "text-amber-600"}`}
+                          >
+                            WMON
+                          </span>
                         </div>
-                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Min: 35 WMON — fans can always buy standard copies at this price</p>
+                        <p
+                          className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-600"}`}
+                        >
+                          Min: 35 WMON — fans can always buy standard copies at
+                          this price
+                        </p>
                       </div>
 
                       {/* Collector Edition Price */}
                       <div>
-                        <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Collector Edition Price (limited editions)</label>
+                        <label
+                          className={`block text-sm font-bold mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                        >
+                          Collector Edition Price (limited editions)
+                        </label>
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
@@ -1067,19 +1347,34 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                             placeholder="500"
                             className={`flex-1 px-6 py-3 text-lg rounded-xl border focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 ${
                               isDarkMode
-                                ? 'bg-gray-800 border-amber-500/30 text-white placeholder-gray-500'
-                                : 'bg-white border-amber-300 text-gray-900 placeholder-gray-400'
+                                ? "bg-gray-800 border-amber-500/30 text-white placeholder-gray-500"
+                                : "bg-white border-amber-300 text-gray-900 placeholder-gray-400"
                             }`}
-                            style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                            style={{
+                              colorScheme: isDarkMode ? "dark" : "light",
+                            }}
                           />
-                          <span className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>WMON</span>
+                          <span
+                            className={`font-bold text-lg whitespace-nowrap ${isDarkMode ? "text-amber-400" : "text-amber-600"}`}
+                          >
+                            WMON
+                          </span>
                         </div>
-                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>Min: 500 WMON — premium price for limited collector copies</p>
+                        <p
+                          className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-600"}`}
+                        >
+                          Min: 500 WMON — premium price for limited collector
+                          copies
+                        </p>
                       </div>
 
                       {/* Max Editions */}
                       <div>
-                        <label className={`block text-sm font-bold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Max Editions</label>
+                        <label
+                          className={`block text-sm font-bold mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                        >
+                          Max Editions
+                        </label>
                         <input
                           type="number"
                           step="1"
@@ -1090,62 +1385,112 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                           placeholder="100"
                           className={`w-full px-6 py-3 text-lg rounded-xl border focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 ${
                             isDarkMode
-                              ? 'bg-gray-800 border-amber-500/30 text-white placeholder-gray-500'
-                              : 'bg-white border-amber-300 text-gray-900 placeholder-gray-400'
+                              ? "bg-gray-800 border-amber-500/30 text-white placeholder-gray-500"
+                              : "bg-white border-amber-300 text-gray-900 placeholder-gray-400"
                           }`}
-                          style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                          style={{ colorScheme: isDarkMode ? "dark" : "light" }}
                         />
-                        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>1 (one-of-one) to 1,000 editions</p>
+                        <p
+                          className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-600"}`}
+                        >
+                          1 (one-of-one) to 1,000 editions
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
 
                 <button
-                  onClick={() => setCurrentStep(nftType === 'music' ? 4 : 5)}
+                  onClick={() => setCurrentStep(nftType === "music" ? 4 : 5)}
                   disabled={!title || !price}
                   className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all"
                 >
-                  {nftType === 'music' ? 'Continue to Rights Declaration →' : 'Review & Mint →'}
+                  {nftType === "music"
+                    ? "Continue to Rights Declaration →"
+                    : "Review & Mint →"}
                 </button>
               </div>
             )}
 
             {/* STEP 4: Rights Declaration (music NFTs only) */}
-            {currentStep === 4 && nftType === 'music' && (
+            {currentStep === 4 && nftType === "music" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Rights Declaration</h2>
+                  <h2
+                    className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    Rights Declaration
+                  </h2>
                   <button
                     onClick={() => setCurrentStep(3)}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? "bg-gray-800 text-gray-300 hover:bg-gray-700" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
                   </button>
                 </div>
 
-                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  To stream on EmpowerTours Live Radio, confirm your rights status. All fields are required.
+                <p
+                  className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                >
+                  To stream on EmpowerTours Live Radio, confirm your rights
+                  status. All fields are required.
                 </p>
 
-                <div className={`space-y-3 p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                <div
+                  className={`space-y-3 p-4 rounded-xl border ${isDarkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"}`}
+                >
                   {[
-                    { checked: rightsNotPro, set: setRightsNotPro, label: 'I am NOT affiliated with any PRO (ASCAP, BMI, SESAC, GMR, or international equivalent)' },
-                    { checked: rightsOwnsComposition, set: setRightsOwnsComposition, label: 'I own 100% of the musical composition (melody, harmony, lyrics)' },
-                    { checked: rightsOwnsMaster, set: setRightsOwnsMaster, label: 'I own 100% of the master recording (sound recording)' },
-                    { checked: rightsGrantsPerformance, set: setRightsGrantsPerformance, label: 'I grant EmpowerTours a non-exclusive streaming performance license' },
-                    { checked: rightsGrantsMechanical, set: setRightsGrantsMechanical, label: 'I grant EmpowerTours a mechanical reproduction license for streaming delivery' },
-                    { checked: rightsGrantsMasterUse, set: setRightsGrantsMasterUse, label: 'I grant EmpowerTours a master use license for streaming and promotional clips' },
+                    {
+                      checked: rightsNotPro,
+                      set: setRightsNotPro,
+                      label:
+                        "I am NOT affiliated with any PRO (ASCAP, BMI, SESAC, GMR, or international equivalent)",
+                    },
+                    {
+                      checked: rightsOwnsComposition,
+                      set: setRightsOwnsComposition,
+                      label:
+                        "I own 100% of the musical composition (melody, harmony, lyrics)",
+                    },
+                    {
+                      checked: rightsOwnsMaster,
+                      set: setRightsOwnsMaster,
+                      label:
+                        "I own 100% of the master recording (sound recording)",
+                    },
+                    {
+                      checked: rightsGrantsPerformance,
+                      set: setRightsGrantsPerformance,
+                      label:
+                        "I grant EmpowerTours a non-exclusive streaming performance license",
+                    },
+                    {
+                      checked: rightsGrantsMechanical,
+                      set: setRightsGrantsMechanical,
+                      label:
+                        "I grant EmpowerTours a mechanical reproduction license for streaming delivery",
+                    },
+                    {
+                      checked: rightsGrantsMasterUse,
+                      set: setRightsGrantsMasterUse,
+                      label:
+                        "I grant EmpowerTours a master use license for streaming and promotional clips",
+                    },
                   ].map(({ checked, set, label }) => (
-                    <label key={label} className="flex items-start gap-3 cursor-pointer group">
+                    <label
+                      key={label}
+                      className="flex items-start gap-3 cursor-pointer group"
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={(e) => set(e.target.checked)}
                         className="mt-1 w-5 h-5 rounded border-2 border-purple-500 text-purple-600 focus:ring-purple-500 cursor-pointer flex-shrink-0"
                       />
-                      <span className={`text-sm leading-tight ${isDarkMode ? 'text-gray-300 group-hover:text-white' : 'text-gray-700 group-hover:text-gray-900'}`}>
+                      <span
+                        className={`text-sm leading-tight ${isDarkMode ? "text-gray-300 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900"}`}
+                      >
                         {label}
                       </span>
                     </label>
@@ -1153,7 +1498,9 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                 </div>
 
                 {/* Samples toggle */}
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                <div
+                  className={`p-4 rounded-xl border ${isDarkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"}`}
+                >
                   <label className="flex items-start gap-3 cursor-pointer group">
                     <input
                       type="checkbox"
@@ -1164,7 +1511,9 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                       }}
                       className="mt-1 w-5 h-5 rounded border-2 border-yellow-500 text-yellow-600 focus:ring-yellow-500 cursor-pointer flex-shrink-0"
                     />
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span
+                      className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                    >
                       This track contains samples from third-party recordings
                     </span>
                   </label>
@@ -1173,10 +1522,14 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                       <input
                         type="checkbox"
                         checked={rightsSamplesCleared}
-                        onChange={(e) => setRightsSamplesCleared(e.target.checked)}
+                        onChange={(e) =>
+                          setRightsSamplesCleared(e.target.checked)
+                        }
                         className="mt-1 w-5 h-5 rounded border-2 border-green-500 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
                       />
-                      <span className={`text-sm ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>
+                      <span
+                        className={`text-sm ${isDarkMode ? "text-green-400" : "text-green-700"}`}
+                      >
                         All samples have been properly cleared and licensed
                       </span>
                     </label>
@@ -1184,38 +1537,50 @@ export function CreateNFTModal({ onClose, isDarkMode = true }: CreateNFTModalPro
                 </div>
 
                 {/* Optional ISRC */}
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div
+                  className={`p-4 rounded-xl border ${isDarkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"}`}
+                >
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                  >
                     ISRC Code (optional)
                   </label>
                   <input
                     type="text"
                     value={rightsIsrcCode}
-                    onChange={(e) => setRightsIsrcCode(e.target.value.toUpperCase())}
+                    onChange={(e) =>
+                      setRightsIsrcCode(e.target.value.toUpperCase())
+                    }
                     placeholder="e.g., USRC17607839"
                     maxLength={15}
                     className={`w-full px-4 py-2 rounded-lg border text-sm ${
                       isDarkMode
-                        ? 'bg-gray-900 border-gray-600 text-white placeholder-gray-500'
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                        ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
                     }`}
                   />
-                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <p
+                    className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
+                  >
                     International Standard Recording Code — if you have one
                   </p>
                 </div>
 
                 {/* View Full Agreement */}
-                <div className={`rounded-xl border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div
+                  className={`rounded-xl border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                >
                   <button
                     onClick={() => setRightsShowAgreement(!rightsShowAgreement)}
-                    className={`w-full p-3 text-left text-sm font-medium flex items-center justify-between ${isDarkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-700'}`}
+                    className={`w-full p-3 text-left text-sm font-medium flex items-center justify-between ${isDarkMode ? "text-cyan-400 hover:text-cyan-300" : "text-cyan-600 hover:text-cyan-700"}`}
                   >
                     <span>View Full Agreement</span>
-                    <span>{rightsShowAgreement ? '▲' : '▼'}</span>
+                    <span>{rightsShowAgreement ? "▲" : "▼"}</span>
                   </button>
                   {rightsShowAgreement && (
-                    <div className={`p-4 border-t text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto ${isDarkMode ? 'border-gray-700 text-gray-400 bg-gray-900/50' : 'border-gray-200 text-gray-600 bg-gray-50'}`}>
+                    <div
+                      className={`p-4 border-t text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto ${isDarkMode ? "border-gray-700 text-gray-400 bg-gray-900/50" : "border-gray-200 text-gray-600 bg-gray-50"}`}
+                    >
                       {`EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
 Version 1.0
 
@@ -1233,7 +1598,9 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
                   disabled={!rightsAccepted}
                   className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all"
                 >
-                  {rightsAccepted ? 'Continue to Review →' : 'Check all required boxes to continue'}
+                  {rightsAccepted
+                    ? "Continue to Review →"
+                    : "Check all required boxes to continue"}
                 </button>
               </div>
             )}
@@ -1242,10 +1609,14 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
             {currentStep === 5 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Review Your NFT</h2>
+                  <h2
+                    className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    Review Your NFT
+                  </h2>
                   <button
-                    onClick={() => setCurrentStep(nftType === 'music' ? 4 : 3)}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                    onClick={() => setCurrentStep(nftType === "music" ? 4 : 3)}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${isDarkMode ? "bg-gray-800 text-gray-300 hover:bg-gray-700" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -1265,18 +1636,39 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
                     <div className="flex-1">
                       <div className="text-sm font-bold text-purple-400 mb-2">
                         {isCollectorEdition
-                          ? nftType === 'music' ? '👑 COLLECTOR EDITION MUSIC NFT' : '🖼️ COLLECTOR EDITION ART NFT'
-                          : nftType === 'music' ? '🎵 MUSIC NFT' : '🎨 ART NFT'}
+                          ? nftType === "music"
+                            ? "👑 COLLECTOR EDITION MUSIC NFT"
+                            : "🖼️ COLLECTOR EDITION ART NFT"
+                          : nftType === "music"
+                            ? "🎵 MUSIC NFT"
+                            : "🎨 ART NFT"}
                       </div>
-                      <h3 className="text-3xl font-bold text-white mb-4">{success?.title || title || 'Untitled'}</h3>
+                      <h3 className="text-3xl font-bold text-white mb-4">
+                        {success?.title || title || "Untitled"}
+                      </h3>
                       <div className="space-y-2 text-gray-300">
-                        <p><strong>Type:</strong> {nftType === 'music' ? 'Music NFT' : 'Art NFT'}</p>
-                        <p><strong>Standard Price:</strong> {success?.price || price} WMON</p>
-                        <p><strong>Creator:</strong> @{user?.username || 'You'}</p>
-                        {nftType === 'music' && (
+                        <p>
+                          <strong>Type:</strong>{" "}
+                          {nftType === "music" ? "Music NFT" : "Art NFT"}
+                        </p>
+                        <p>
+                          <strong>Standard Price:</strong>{" "}
+                          {success?.price || price} WMON
+                        </p>
+                        <p>
+                          <strong>Creator:</strong> @{user?.username || "You"}
+                        </p>
+                        {nftType === "music" && (
                           <>
-                            <p><strong>Preview:</strong> ✓ 3-second preview {previewFile ? `(${previewFile.name})` : '(auto-generated)'}</p>
-                            <p><strong>Full Track:</strong> ✓ {fullFile?.name}</p>
+                            <p>
+                              <strong>Preview:</strong> ✓ 3-second preview{" "}
+                              {previewFile
+                                ? `(${previewFile.name})`
+                                : "(auto-generated)"}
+                            </p>
+                            <p>
+                              <strong>Full Track:</strong> ✓ {fullFile?.name}
+                            </p>
                           </>
                         )}
                       </div>
@@ -1285,37 +1677,80 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
 
                   {/* Collector Edition Details */}
                   {isCollectorEdition && (
-                    <div className={`mt-6 p-4 rounded-xl border-2 ${isDarkMode ? 'bg-gradient-to-r from-amber-900/30 to-orange-900/30 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
-                      <p className={`text-sm font-bold mb-3 ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>Collector Edition Details</p>
-                      <div className={`space-y-1 text-sm ${isDarkMode ? 'text-amber-200/90' : 'text-amber-900'}`}>
-                        <p><strong>Collector Price:</strong> {collectorPrice} WMON per edition</p>
-                        <p><strong>Max Editions:</strong> {maxEditions}{maxEditions === '1' ? ' (One-of-One)' : ''}</p>
-                        {nftType === 'music' ? (
+                    <div
+                      className={`mt-6 p-4 rounded-xl border-2 ${isDarkMode ? "bg-gradient-to-r from-amber-900/30 to-orange-900/30 border-amber-500/30" : "bg-amber-50 border-amber-200"}`}
+                    >
+                      <p
+                        className={`text-sm font-bold mb-3 ${isDarkMode ? "text-amber-300" : "text-amber-800"}`}
+                      >
+                        Collector Edition Details
+                      </p>
+                      <div
+                        className={`space-y-1 text-sm ${isDarkMode ? "text-amber-200/90" : "text-amber-900"}`}
+                      >
+                        <p>
+                          <strong>Collector Price:</strong> {collectorPrice}{" "}
+                          WMON per edition
+                        </p>
+                        <p>
+                          <strong>Max Editions:</strong> {maxEditions}
+                          {maxEditions === "1" ? " (One-of-One)" : ""}
+                        </p>
+                        {nftType === "music" ? (
                           <>
-                            <p><strong>Collector Art:</strong> AI-enhanced by Gemini</p>
-                            <p><strong>Creation Fee:</strong> 5 WMON (covers AI art generation)</p>
+                            <p>
+                              <strong>Collector Art:</strong> AI-enhanced by
+                              Gemini
+                            </p>
+                            <p>
+                              <strong>Creation Fee:</strong> 5 WMON (covers AI
+                              art generation)
+                            </p>
                           </>
                         ) : (
-                          <p><strong>Collector Art:</strong> Your original art (no AI modifications)</p>
+                          <p>
+                            <strong>Collector Art:</strong> Your original art
+                            (no AI modifications)
+                          </p>
                         )}
                       </div>
-                      <div className={`mt-3 p-2 rounded-lg text-xs ${isDarkMode ? 'bg-black/20 text-gray-400' : 'bg-white text-gray-600'}`}>
-                        Standard: {success?.price || price} WMON (unlimited) | Collector: {collectorPrice} WMON ({maxEditions} editions){nftType === 'music' ? ' | Fee: 5 WMON' : ''}
+                      <div
+                        className={`mt-3 p-2 rounded-lg text-xs ${isDarkMode ? "bg-black/20 text-gray-400" : "bg-white text-gray-600"}`}
+                      >
+                        Standard: {success?.price || price} WMON (unlimited) |
+                        Collector: {collectorPrice} WMON ({maxEditions}{" "}
+                        editions){nftType === "music" ? " | Fee: 5 WMON" : ""}
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Rights Declaration Summary (music NFTs only) */}
-                {nftType === 'music' && rightsAccepted && (
-                  <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'}`}>
-                    <p className={`text-sm font-bold mb-2 ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>Rights Declaration</p>
-                    <div className={`space-y-1 text-xs ${isDarkMode ? 'text-green-300/80' : 'text-green-800'}`}>
+                {nftType === "music" && rightsAccepted && (
+                  <div
+                    className={`p-4 rounded-xl border ${isDarkMode ? "bg-green-500/10 border-green-500/30" : "bg-green-50 border-green-200"}`}
+                  >
+                    <p
+                      className={`text-sm font-bold mb-2 ${isDarkMode ? "text-green-400" : "text-green-700"}`}
+                    >
+                      Rights Declaration
+                    </p>
+                    <div
+                      className={`space-y-1 text-xs ${isDarkMode ? "text-green-300/80" : "text-green-800"}`}
+                    >
                       <p>Not PRO affiliated | Owns composition | Owns master</p>
-                      <p>Performance, mechanical & master use licenses granted</p>
-                      {rightsContainsSamples && <p>Contains samples (cleared)</p>}
+                      <p>
+                        Performance, mechanical & master use licenses granted
+                      </p>
+                      {rightsContainsSamples && (
+                        <p>Contains samples (cleared)</p>
+                      )}
                       {rightsIsrcCode && <p>ISRC: {rightsIsrcCode}</p>}
-                      <p className={`text-xs ${isDarkMode ? 'text-green-500/60' : 'text-green-600'}`}>Agreement hash stored on IPFS</p>
+                      <p
+                        className={`text-xs ${isDarkMode ? "text-green-500/60" : "text-green-600"}`}
+                      >
+                        Agreement hash stored on IPFS
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1339,7 +1774,9 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
                 )}
 
                 <div className="p-4 bg-green-500/20 rounded-xl border-2 border-green-500/30">
-                  <p className="text-green-400 font-bold text-center">✨ FREE Mint! We pay all gas fees for you</p>
+                  <p className="text-green-400 font-bold text-center">
+                    ✨ FREE Mint! We pay all gas fees for you
+                  </p>
                 </div>
               </div>
             )}
