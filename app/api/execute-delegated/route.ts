@@ -20,6 +20,7 @@ import {
   Hex,
   parseAbi,
   formatEther,
+  toEventSelector,
 } from "viem";
 import { createShortUrl } from "@/lib/url-shortener";
 // Switchboard removed - using Pyth Entropy for randomness
@@ -35,6 +36,12 @@ import {
   storeRightsStatus,
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
+
+// Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
+// ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
+// an ERC-20 transfer has only 3. Match on both to avoid picking up a fee
+// transfer instead of the mint.
+const TRANSFER_TOPIC = toEventSelector("Transfer(address,address,uint256)");
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -627,8 +634,7 @@ export async function POST(req: NextRequest) {
           // ERC-721 Transfer event: Transfer(address,address,uint256) - tokenId is topic[3]
           const transferLog = receipt.logs.find(
             (log) =>
-              log.topics[0] ===
-                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" &&
+              log.topics[0] === TRANSFER_TOPIC &&
               log.address.toLowerCase() === PASSPORT_NFT.toLowerCase(),
           );
           if (transferLog && transferLog.topics[3]) {
@@ -817,11 +823,15 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           });
 
           if (receipt?.logs && receipt.logs.length > 0) {
-            // Look for Transfer event (ERC721 mint)
+            // Look for the ERC-721 mint Transfer on the NFT contract.
+            // ERC-20 Transfers (e.g. the WMON fee) share topic[0] but only have
+            // 3 topics, so match on the NFT contract + 4 topics + from == 0x0.
             const transferLog = receipt.logs.find(
               (log) =>
-                log.topics[0] ===
-                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                log.topics[0] === TRANSFER_TOPIC &&
+                log.address.toLowerCase() === EMPOWER_TOURS_NFT.toLowerCase() &&
+                log.topics.length === 4 &&
+                BigInt(log.topics[1] as Hex) === 0n,
             );
             if (transferLog && transferLog.topics[3]) {
               extractedTokenId = BigInt(transferLog.topics[3]).toString();
@@ -1207,10 +1217,16 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           });
 
           if (collectorReceipt?.logs && collectorReceipt.logs.length > 0) {
+            // Must match the ERC-721 mint on the NFT contract — the 5 WMON
+            // creation fee emits an ERC-20 Transfer with the same topic[0]
+            // but only 3 topics, which previously matched first and left the
+            // token ID at "0".
             const transferLog = collectorReceipt.logs.find(
               (log) =>
-                log.topics[0] ===
-                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                log.topics[0] === TRANSFER_TOPIC &&
+                log.address.toLowerCase() === EMPOWER_TOURS_NFT.toLowerCase() &&
+                log.topics.length === 4 &&
+                BigInt(log.topics[1] as Hex) === 0n,
             );
             if (transferLog && transferLog.topics[3]) {
               collectorTokenId = BigInt(transferLog.topics[3]).toString();
@@ -1247,7 +1263,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
             });
 
             const frameRoute = isArt ? "art" : "music";
-            let collectorFrameUrl = `${APP_URL}/api/frames/${frameRoute}/${collectorTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || "")}&title=${encodeURIComponent(collectorSongTitle)}&price=${params.price}&artist=${userAddress}&collector=true`;
+            let collectorFrameUrl = `${APP_URL}/api/frames/${frameRoute}/${collectorTokenId}?imageUrl=${encodeURIComponent(params.imageUrl || "")}&title=${encodeURIComponent(collectorSongTitle)}&price=${params.price}&artist=${userAddress}&collector=true&autoplay=true`;
 
             if (collectorFrameUrl.length > 256) {
               const shortId = await createShortUrl(collectorFrameUrl);
