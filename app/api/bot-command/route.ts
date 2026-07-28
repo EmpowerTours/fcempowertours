@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeUserAddress, forwardAuthHeader } from "@/lib/quick-auth";
+import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -43,6 +44,24 @@ export async function POST(req: NextRequest) {
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
+
+    // SECURITY: rate limit. This route fans out to paid APIs (Neynar, Envio,
+    // Gemini) and internally to create/execute-delegated, so it was an
+    // unthrottled cost-amplification vector.
+    const botRl = await checkRateLimit(
+      RateLimiters.general,
+      getClientIP(req),
+      userAddress || discordId || String(fid || ""),
+    );
+    if (!botRl.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Rate limit exceeded. Try again in ${botRl.resetIn}s.`,
+        },
+        { status: 429 },
+      );
+    }
 
     // 🔐 Prove the caller controls userAddress before acting on their behalf.
     // Allowed through with a warning until ENFORCE_QUICK_AUTH=true.

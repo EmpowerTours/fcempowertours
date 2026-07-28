@@ -1,25 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI, Type } from '@google/genai';
-import { parseEther, decodeEventLog, encodeFunctionData, type Address, type Hex } from 'viem';
-import { sendUserSafeTransaction } from '@/lib/user-safe';
-import { getCountryByCode } from '@/lib/passport/countries';
-import { publicClient } from '@/lib/pimlico-safe-aa';
-import { Redis } from '@upstash/redis';
+import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenAI, Type } from "@google/genai";
+import {
+  parseEther,
+  decodeEventLog,
+  encodeFunctionData,
+  type Address,
+  type Hex,
+} from "viem";
+import { sendUserSafeTransaction } from "@/lib/user-safe";
+import { getCountryByCode } from "@/lib/passport/countries";
+import { publicClient } from "@/lib/pimlico-safe-aa";
+import { Redis } from "@upstash/redis";
 import {
   detectUserTerritory as sharedDetectUserTerritory,
   getMapProvider,
   getMapProviderType,
   GOOGLE_PROHIBITED_TERRITORIES,
   type MapProviderType,
-} from '@/lib/maps/provider';
+} from "@/lib/maps/provider";
 
 // Redis client for payment dedup cache (maps:paid:<address>:<query> → txHash, 1h TTL)
 const redis = Redis.fromEnv();
 
 interface OracleAction {
-  type: 'navigate' | 'execute' | 'game' | 'chat' | 'create_nft' | 'mint_passport' | 'create_itinerary' | 'sponsorship' | 'admin' | 'withdraw' | 'create_epk' | 'manage_epk' | 'lottery_buy' | 'lottery_draw' | 'lottery_status' | 'unknown';
+  type:
+    | "navigate"
+    | "execute"
+    | "game"
+    | "chat"
+    | "create_nft"
+    | "mint_passport"
+    | "create_itinerary"
+    | "sponsorship"
+    | "admin"
+    | "withdraw"
+    | "create_epk"
+    | "manage_epk"
+    | "lottery_buy"
+    | "lottery_draw"
+    | "lottery_status"
+    | "unknown";
   destination?: string; // Page to navigate to
-  game?: 'TETRIS' | 'TICTACTOE' | 'MIRROR';
+  game?: "TETRIS" | "TICTACTOE" | "MIRROR";
   transaction?: {
     contract: string;
     function: string;
@@ -51,22 +73,22 @@ interface OracleAction {
     }>;
   };
   sponsorship?: {
-    action: 'list_open' | 'check_status' | 'checkin' | 'vote';
+    action: "list_open" | "check_status" | "checkin" | "vote";
     id?: number;
     vote?: boolean;
   };
   admin?: {
-    action: 'burn_nft' | 'lookup_nft';
+    action: "burn_nft" | "lookup_nft";
     tokenId?: number;
     reason?: string;
     // Note: signature and timestamp come from request body, not Gemini
   };
   withdraw?: {
-    token: 'mon' | 'wmon' | 'tours';
+    token: "mon" | "wmon" | "tours";
     amount: string;
   };
   epk?: {
-    action: 'create' | 'view' | 'list_bookings';
+    action: "create" | "view" | "list_bookings";
   };
 }
 
@@ -81,44 +103,68 @@ const detectUserTerritory = sharedDetectUserTerritory;
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: rate limit — this calls the paid Gemini API unauthenticated.
+    const { checkRateLimit, getClientIP, RateLimiters } = await import(
+      "@/lib/rate-limit"
+    );
+    const aiRl = await checkRateLimit(RateLimiters.ai, getClientIP(req));
+    if (!aiRl.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Rate limit exceeded. Try again in ${aiRl.resetIn}s.`,
+        },
+        { status: 429 },
+      );
+    }
+
     const {
       message,
       userAddress,
       userFid,
       userLocation,
       confirmPayment,
-      adminSignature,  // For admin actions (burn NFT)
-      adminTimestamp,  // Timestamp for admin signature verification
+      adminSignature, // For admin actions (burn NFT)
+      adminTimestamp, // Timestamp for admin signature verification
     } = await req.json();
 
     if (!message) {
-      return NextResponse.json({ error: 'Message required' }, { status: 400 });
+      return NextResponse.json({ error: "Message required" }, { status: 400 });
     }
 
-    console.log('[Oracle] Received:', { message, userAddress, userLocation, confirmPayment });
+    console.log("[Oracle] Received:", {
+      message,
+      userAddress,
+      userLocation,
+      confirmPayment,
+    });
 
     // Create GoogleGenAI instance with correct SDK
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) {
-      console.error('[Oracle] GEMINI_API_KEY is not set!');
-      return NextResponse.json({
-        success: false,
-        error: 'Oracle API key not configured',
-      }, { status: 500 });
+      console.error("[Oracle] GEMINI_API_KEY is not set!");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Oracle API key not configured",
+        },
+        { status: 500 },
+      );
     }
 
     const ai = new GoogleGenAI({
-      apiKey: geminiKey
+      apiKey: geminiKey,
     });
 
     // Check for prohibited emergency/high-risk activities
     if (isProhibitedActivity(message)) {
-      console.log('[Oracle] Prohibited activity detected (emergency services)');
+      console.log("[Oracle] Prohibited activity detected (emergency services)");
       return NextResponse.json({
         success: true,
         action: {
-          type: 'chat',
-          message: '⚠️ Emergency queries cannot use Google Maps services.\n\nFor emergencies, please contact local emergency services directly:\n• US: 911\n• EU: 112\n• UK: 999\n\nFor non-emergency location queries, please rephrase your question.',
+          type: "chat",
+          message:
+            "⚠️ Emergency queries cannot use Google Maps services.\n\nFor emergencies, please contact local emergency services directly:\n• US: 911\n• EU: 112\n• UK: 999\n\nFor non-emergency location queries, please rephrase your question.",
         },
       });
     }
@@ -127,26 +173,31 @@ export async function POST(req: NextRequest) {
     // Best Practice: Only enable Maps tool when query has clear geographical context
     const needsMapsGrounding = detectMapsQuery(message);
 
-    console.log('[Oracle] Maps detection:', {
+    console.log("[Oracle] Maps detection:", {
       message: message.substring(0, 50),
       needsMapsGrounding,
       confirmPayment,
       willRequirePayment: needsMapsGrounding && !confirmPayment,
-      matchedKeywords: getMapsMatchedKeywords(message)
+      matchedKeywords: getMapsMatchedKeywords(message),
     });
 
     // Best Practice: Inform user that Maps data will be used
     if (needsMapsGrounding && !confirmPayment) {
-      console.log('[Oracle] Returning payment required response (100 WMON)');
+      console.log("[Oracle] Returning payment required response (100 WMON)");
     }
 
     // Detect territory and resolve map provider
     let userCountry: string | null = null;
-    let mapsProviderType: MapProviderType = 'google';
+    let mapsProviderType: MapProviderType = "google";
     if (needsMapsGrounding) {
       userCountry = await detectUserTerritory(req);
       mapsProviderType = getMapProviderType(userCountry);
-      console.log('[Oracle] Maps provider resolved:', mapsProviderType, 'for territory:', userCountry);
+      console.log(
+        "[Oracle] Maps provider resolved:",
+        mapsProviderType,
+        "for territory:",
+        userCountry,
+      );
     }
 
     // If Maps grounding needed and user hasn't confirmed payment, return cost estimate
@@ -157,8 +208,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         requiresPayment: true,
-        estimatedCost: '100', // 100 WMON per Maps query
-        message: 'This query uses Google Maps real-time location data. Cost: 100 WMON',
+        estimatedCost: "100", // 100 WMON per Maps query
+        message:
+          "This query uses Google Maps real-time location data. Cost: 100 WMON",
       });
     }
 
@@ -166,28 +218,35 @@ export async function POST(req: NextRequest) {
     let paymentTxHash: string | null = null;
     if (needsMapsGrounding && confirmPayment && userAddress) {
       // Normalize query for dedup key (lowercase, trimmed, collapse whitespace)
-      const normalizedQuery = message.trim().toLowerCase().replace(/\s+/g, ' ');
+      const normalizedQuery = message.trim().toLowerCase().replace(/\s+/g, " ");
       const dedupKey = `maps:paid:${userAddress.toLowerCase()}:${normalizedQuery}`;
 
       try {
         // Check Redis cache for recent payment on same query (1-hour TTL)
         const cachedTxHash = await redis.get<string>(dedupKey);
         if (cachedTxHash) {
-          console.log('[Oracle] Payment dedup cache hit — skipping charge, cached txHash:', cachedTxHash);
+          console.log(
+            "[Oracle] Payment dedup cache hit — skipping charge, cached txHash:",
+            cachedTxHash,
+          );
           paymentTxHash = cachedTxHash;
         } else {
           paymentTxHash = await chargeMONForMapsQuery(userAddress);
-          console.log('[Oracle] Payment collected (delegated):', paymentTxHash);
+          console.log("[Oracle] Payment collected (delegated):", paymentTxHash);
 
           // Cache the txHash for 1 hour to prevent duplicate charges
           await redis.set(dedupKey, paymentTxHash, { ex: 3600 });
         }
       } catch (error) {
-        console.error('[Oracle] Payment failed:', error);
-        return NextResponse.json({
-          success: false,
-          error: 'Payment failed. Please ensure you have 2 MON in your wallet and have approved the Oracle contract.',
-        }, { status: 402 });
+        console.error("[Oracle] Payment failed:", error);
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Payment failed. Please ensure you have 2 MON in your wallet and have approved the Oracle contract.",
+          },
+          { status: 402 },
+        );
       }
     }
 
@@ -195,28 +254,38 @@ export async function POST(req: NextRequest) {
     let protocolExperiences: any[] = [];
     if (needsMapsGrounding) {
       try {
-        const expCity = userLocation?.city || extractLocationFromQuery(message).city || '';
-        const expQuery = message.replace(/near me|nearby|around here/gi, '').trim();
+        const expCity =
+          userLocation?.city || extractLocationFromQuery(message).city || "";
+        const expQuery = message
+          .replace(/near me|nearby|around here/gi, "")
+          .trim();
         const searchParams = new URLSearchParams();
-        if (expCity) searchParams.set('city', expCity);
-        if (expQuery) searchParams.set('q', expQuery);
-        searchParams.set('limit', '5');
+        if (expCity) searchParams.set("city", expCity);
+        if (expQuery) searchParams.set("q", expQuery);
+        searchParams.set("limit", "5");
 
-        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
-        const expRes = await fetch(`${APP_URL}/api/experiences/search?${searchParams.toString()}`);
+        const APP_URL =
+          process.env.NEXT_PUBLIC_APP_URL ||
+          "https://fcempowertours-production-6551.up.railway.app";
+        const expRes = await fetch(
+          `${APP_URL}/api/experiences/search?${searchParams.toString()}`,
+        );
         const expData = await expRes.json();
         if (expData.success && expData.experiences?.length > 0) {
           protocolExperiences = expData.experiences;
-          console.log('[Oracle] Protocol experiences found:', protocolExperiences.length);
+          console.log(
+            "[Oracle] Protocol experiences found:",
+            protocolExperiences.length,
+          );
         }
       } catch (expError) {
-        console.log('[Oracle] Protocol experience search skipped:', expError);
+        console.log("[Oracle] Protocol experience search skipped:", expError);
       }
     }
 
     // OSM provider path: search via Nominatim, pass results as context to Gemini
     let osmSearchResults: MapsGroundingSource[] = [];
-    if (needsMapsGrounding && mapsProviderType === 'osm') {
+    if (needsMapsGrounding && mapsProviderType === "osm") {
       try {
         const provider = await getMapProvider(userCountry);
         osmSearchResults = await provider.searchPlaces({
@@ -225,19 +294,29 @@ export async function POST(req: NextRequest) {
           longitude: userLocation?.longitude,
           radius: 5000,
         });
-        console.log('[Oracle] OSM search returned', osmSearchResults.length, 'results');
+        console.log(
+          "[Oracle] OSM search returned",
+          osmSearchResults.length,
+          "results",
+        );
       } catch (osmErr) {
-        console.error('[Oracle] OSM search error:', osmErr);
+        console.error("[Oracle] OSM search error:", osmErr);
       }
     }
 
     // Build prompt - use simple natural language for Maps, structured for other queries
     let systemPrompt: string;
 
-    if (needsMapsGrounding && mapsProviderType === 'osm' && osmSearchResults.length > 0) {
+    if (
+      needsMapsGrounding &&
+      mapsProviderType === "osm" &&
+      osmSearchResults.length > 0
+    ) {
       // OSM path: feed search results as context to Gemini (no Maps grounding tool)
-      const placesContext = osmSearchResults.map((s, i) => `${i + 1}. ${s.title}`).join('\n');
-      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || 'an unknown city'}, ${userLocation?.country || 'unknown country'}.
+      const placesContext = osmSearchResults
+        .map((s, i) => `${i + 1}. ${s.title}`)
+        .join("\n");
+      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || "an unknown city"}, ${userLocation?.country || "unknown country"}.
 
 Here are nearby places found via OpenStreetMap:
 ${placesContext}
@@ -247,7 +326,7 @@ Answer the user's question using these results. Be helpful and conversational. R
 User question: ${message}`;
     } else if (needsMapsGrounding) {
       // Google Maps grounding path (original)
-      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || 'an unknown city'}, ${userLocation?.country || 'unknown country'}.
+      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || "an unknown city"}, ${userLocation?.country || "unknown country"}.
 
 Answer their question about local places. Be helpful and conversational. Include specific place names, ratings, and addresses when available.
 
@@ -293,23 +372,39 @@ Return valid JSON only.`;
 
     // Configure Maps grounding if needed
     const config: any = {
-      responseMimeType: 'application/json',
+      responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
           type: {
             type: Type.STRING,
-            enum: ['navigate', 'execute', 'game', 'chat', 'create_nft', 'mint_passport', 'create_itinerary', 'sponsorship', 'admin', 'withdraw', 'create_epk', 'manage_epk', 'lottery_buy', 'lottery_draw', 'lottery_status'],
-            description: 'The type of action to perform'
+            enum: [
+              "navigate",
+              "execute",
+              "game",
+              "chat",
+              "create_nft",
+              "mint_passport",
+              "create_itinerary",
+              "sponsorship",
+              "admin",
+              "withdraw",
+              "create_epk",
+              "manage_epk",
+              "lottery_buy",
+              "lottery_draw",
+              "lottery_status",
+            ],
+            description: "The type of action to perform",
           },
           destination: {
             type: Type.STRING,
-            description: 'Page path if type is navigate'
+            description: "Page path if type is navigate",
           },
           game: {
             type: Type.STRING,
-            enum: ['TETRIS', 'TICTACTOE', 'MIRROR'],
-            description: 'Game type if type is game'
+            enum: ["TETRIS", "TICTACTOE", "MIRROR"],
+            description: "Game type if type is game",
           },
           transaction: {
             type: Type.OBJECT,
@@ -318,107 +413,123 @@ Return valid JSON only.`;
               function: { type: Type.STRING },
               args: {
                 type: Type.ARRAY,
-                items: { type: Type.STRING }
-              }
+                items: { type: Type.STRING },
+              },
             },
-            description: 'Transaction details if type is execute'
+            description: "Transaction details if type is execute",
           },
           passport: {
             type: Type.OBJECT,
             properties: {
               countryCode: {
                 type: Type.STRING,
-                description: 'ISO country code (e.g. US, GB, JP)'
+                description: "ISO country code (e.g. US, GB, JP)",
               },
               countryName: {
                 type: Type.STRING,
-                description: 'Full country name'
-              }
+                description: "Full country name",
+              },
             },
-            description: 'Passport minting details if type is mint_passport'
+            description: "Passport minting details if type is mint_passport",
           },
           sponsorship: {
             type: Type.OBJECT,
             properties: {
               action: {
                 type: Type.STRING,
-                enum: ['list_open', 'check_status', 'checkin', 'vote'],
-                description: 'Sponsorship action type'
+                enum: ["list_open", "check_status", "checkin", "vote"],
+                description: "Sponsorship action type",
               },
               id: {
                 type: Type.NUMBER,
-                description: 'Sponsorship ID for status/checkin/vote actions'
+                description: "Sponsorship ID for status/checkin/vote actions",
               },
               vote: {
                 type: Type.BOOLEAN,
-                description: 'true=sponsor was mentioned, false=not mentioned'
-              }
+                description: "true=sponsor was mentioned, false=not mentioned",
+              },
             },
-            description: 'Sponsorship action details if type is sponsorship'
+            description: "Sponsorship action details if type is sponsorship",
           },
           admin: {
             type: Type.OBJECT,
             properties: {
               action: {
                 type: Type.STRING,
-                enum: ['burn_nft', 'lookup_nft'],
-                description: 'Admin action type'
+                enum: ["burn_nft", "lookup_nft"],
+                description: "Admin action type",
               },
               tokenId: {
                 type: Type.NUMBER,
-                description: 'NFT token ID to burn or lookup'
+                description: "NFT token ID to burn or lookup",
               },
               reason: {
                 type: Type.STRING,
-                description: 'Reason for burning (required for burn_nft)'
-              }
+                description: "Reason for burning (required for burn_nft)",
+              },
             },
-            description: 'Admin action details if type is admin'
+            description: "Admin action details if type is admin",
           },
           withdraw: {
             type: Type.OBJECT,
             properties: {
               token: {
                 type: Type.STRING,
-                enum: ['mon', 'wmon', 'tours'],
-                description: 'Token to withdraw: mon (native), wmon (wrapped), or tours'
+                enum: ["mon", "wmon", "tours"],
+                description:
+                  "Token to withdraw: mon (native), wmon (wrapped), or tours",
               },
               amount: {
                 type: Type.STRING,
-                description: 'Amount to withdraw (e.g. "100", "0.5")'
-              }
+                description: 'Amount to withdraw (e.g. "100", "0.5")',
+              },
             },
-            description: 'Withdraw details if type is withdraw. Sends tokens from User Safe to Farcaster wallet.'
+            description:
+              "Withdraw details if type is withdraw. Sends tokens from User Safe to Farcaster wallet.",
           },
           epk: {
             type: Type.OBJECT,
             properties: {
               action: {
                 type: Type.STRING,
-                enum: ['create', 'view', 'list_bookings'],
-                description: 'EPK action: create new EPK, view existing, or list booking inquiries'
-              }
+                enum: ["create", "view", "list_bookings"],
+                description:
+                  "EPK action: create new EPK, view existing, or list booking inquiries",
+              },
             },
-            description: 'EPK action details if type is create_epk or manage_epk'
+            description:
+              "EPK action details if type is create_epk or manage_epk",
           },
           lottery: {
             type: Type.OBJECT,
             properties: {
               ticketCount: {
                 type: Type.NUMBER,
-                description: 'Number of lottery tickets to buy (default 1)'
-              }
+                description: "Number of lottery tickets to buy (default 1)",
+              },
             },
-            description: 'Lottery details if type is lottery_buy'
+            description: "Lottery details if type is lottery_buy",
           },
           message: {
             type: Type.STRING,
-            description: 'Response message to user'
-          }
+            description: "Response message to user",
+          },
         },
-        required: ['type', 'message'],
-        propertyOrdering: ['type', 'message', 'destination', 'game', 'transaction', 'passport', 'sponsorship', 'admin', 'withdraw', 'epk', 'lottery']
-      }
+        required: ["type", "message"],
+        propertyOrdering: [
+          "type",
+          "message",
+          "destination",
+          "game",
+          "transaction",
+          "passport",
+          "sponsorship",
+          "admin",
+          "withdraw",
+          "epk",
+          "lottery",
+        ],
+      },
     };
 
     // Add Maps grounding tool if needed (Google only — OSM uses pre-fetched results)
@@ -426,14 +537,16 @@ Return valid JSON only.`;
     // IMPORTANT: Maps grounding is incompatible with structured JSON output
     // When using Maps, we must disable responseSchema and parse text manually
     // OSM path also uses text output (no structured JSON)
-    if (needsMapsGrounding && mapsProviderType === 'osm') {
-      console.log('[Oracle] OSM provider — disabling structured output for text response');
+    if (needsMapsGrounding && mapsProviderType === "osm") {
+      console.log(
+        "[Oracle] OSM provider — disabling structured output for text response",
+      );
       delete config.responseMimeType;
       delete config.responseSchema;
     }
 
-    if (needsMapsGrounding && mapsProviderType === 'google') {
-      console.log('[Oracle] Enabling Google Maps grounding tool');
+    if (needsMapsGrounding && mapsProviderType === "google") {
+      console.log("[Oracle] Enabling Google Maps grounding tool");
 
       // Remove structured output - incompatible with Maps grounding
       delete config.responseMimeType;
@@ -443,17 +556,19 @@ Return valid JSON only.`;
 
       // Best Practice: Always provide user location for most relevant responses
       if (userLocation?.latitude && userLocation?.longitude) {
-        console.log('[Oracle] User location provided:', userLocation);
+        console.log("[Oracle] User location provided:", userLocation);
         config.toolConfig = {
           retrievalConfig: {
             latLng: {
               latitude: userLocation.latitude,
-              longitude: userLocation.longitude
-            }
-          }
+              longitude: userLocation.longitude,
+            },
+          },
         };
       } else {
-        console.warn('[Oracle] Maps query detected but no user location available');
+        console.warn(
+          "[Oracle] Maps query detected but no user location available",
+        );
       }
     }
 
@@ -466,51 +581,76 @@ Return valid JSON only.`;
     // - Optimized for high-volume tasks
     // - Better rate limits with Tier 1 billing enabled
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: "gemini-2.5-flash",
       contents: systemPrompt,
-      config
+      config,
     });
 
     const latency = Date.now() - startTime;
-    console.log('[Oracle] Gemini API latency:', latency, 'ms');
+    console.log("[Oracle] Gemini API latency:", latency, "ms");
 
     // Best Practice: Monitor P95 latency for conversational apps
     if (needsMapsGrounding && latency > 5000) {
-      console.warn('[Oracle] High latency detected for Maps query:', latency, 'ms');
+      console.warn(
+        "[Oracle] High latency detected for Maps query:",
+        latency,
+        "ms",
+      );
     }
 
-    const responseText = response.text || '';
+    const responseText = response.text || "";
 
     // Debug: Log full response structure for Maps queries
     if (needsMapsGrounding) {
-      console.log('[Oracle] Response has candidates:', !!response.candidates);
-      console.log('[Oracle] Candidates count:', response.candidates?.length || 0);
+      console.log("[Oracle] Response has candidates:", !!response.candidates);
+      console.log(
+        "[Oracle] Candidates count:",
+        response.candidates?.length || 0,
+      );
       if (response.candidates?.[0]) {
-        console.log('[Oracle] Candidate[0] keys:', Object.keys(response.candidates[0]));
-        console.log('[Oracle] Has groundingMetadata:', !!response.candidates[0].groundingMetadata);
+        console.log(
+          "[Oracle] Candidate[0] keys:",
+          Object.keys(response.candidates[0]),
+        );
+        console.log(
+          "[Oracle] Has groundingMetadata:",
+          !!response.candidates[0].groundingMetadata,
+        );
         if (response.candidates[0].groundingMetadata) {
-          console.log('[Oracle] GroundingMetadata keys:', Object.keys(response.candidates[0].groundingMetadata as any));
+          console.log(
+            "[Oracle] GroundingMetadata keys:",
+            Object.keys(response.candidates[0].groundingMetadata as any),
+          );
         }
       }
       // Log config that was sent to help debug
-      console.log('[Oracle] Config sent to Gemini:', JSON.stringify({
-        tools: config.tools,
-        toolConfig: config.toolConfig,
-        hasResponseSchema: !!config.responseSchema
-      }));
+      console.log(
+        "[Oracle] Config sent to Gemini:",
+        JSON.stringify({
+          tools: config.tools,
+          toolConfig: config.toolConfig,
+          hasResponseSchema: !!config.responseSchema,
+        }),
+      );
     }
 
     // Extract Maps sources: OSM from pre-fetched results, Google from grounding metadata
     let mapsSources: MapsGroundingSource[] = [];
     let mapsWidgetToken: string | null = null;
 
-    if (needsMapsGrounding && mapsProviderType === 'osm') {
+    if (needsMapsGrounding && mapsProviderType === "osm") {
       // OSM: use pre-fetched search results
       mapsSources = osmSearchResults;
-      console.log('[Oracle] Using OSM search results:', mapsSources.length);
-    } else if (needsMapsGrounding && response.candidates?.[0]?.groundingMetadata) {
+      console.log("[Oracle] Using OSM search results:", mapsSources.length);
+    } else if (
+      needsMapsGrounding &&
+      response.candidates?.[0]?.groundingMetadata
+    ) {
       const grounding = response.candidates[0].groundingMetadata as any;
-      console.log('[Oracle] Grounding metadata:', JSON.stringify(grounding, null, 2).substring(0, 500));
+      console.log(
+        "[Oracle] Grounding metadata:",
+        JSON.stringify(grounding, null, 2).substring(0, 500),
+      );
 
       // Extract sources from Google Maps grounding
       if (grounding.groundingChunks) {
@@ -519,7 +659,7 @@ Return valid JSON only.`;
           .map((chunk: any) => ({
             uri: chunk.maps.uri,
             title: chunk.maps.title,
-            placeId: chunk.maps.placeId
+            placeId: chunk.maps.placeId,
           }));
       }
 
@@ -528,10 +668,15 @@ Return valid JSON only.`;
         mapsWidgetToken = grounding.googleMapsWidgetContextToken;
       }
 
-      console.log('[Oracle] Maps sources:', mapsSources.length);
-      console.log('[Oracle] Maps widget token:', mapsWidgetToken ? 'present' : 'absent');
+      console.log("[Oracle] Maps sources:", mapsSources.length);
+      console.log(
+        "[Oracle] Maps widget token:",
+        mapsWidgetToken ? "present" : "absent",
+      );
     } else if (needsMapsGrounding) {
-      console.log('[Oracle] WARNING: Maps grounding enabled but no groundingMetadata in response');
+      console.log(
+        "[Oracle] WARNING: Maps grounding enabled but no groundingMetadata in response",
+      );
     }
 
     // Parse response - different handling for Maps vs structured output
@@ -540,49 +685,62 @@ Return valid JSON only.`;
     if (needsMapsGrounding) {
       // Maps grounding returns plain text, not JSON
       // Convert to chat action with the text response
-      console.log('[Oracle] Maps response (text):', responseText.substring(0, 200));
+      console.log(
+        "[Oracle] Maps response (text):",
+        responseText.substring(0, 200),
+      );
       action = {
-        type: 'chat',
-        message: responseText
+        type: "chat",
+        message: responseText,
       };
     } else {
       // Non-maps: parse JSON structured output
       try {
         action = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('Failed to parse AI response:', responseText);
-        throw new Error('Invalid JSON response from AI');
+        console.error("Failed to parse AI response:", responseText);
+        throw new Error("Invalid JSON response from AI");
       }
     }
 
-    console.log('[Oracle] Parsed action:', JSON.stringify(action, null, 2));
+    console.log("[Oracle] Parsed action:", JSON.stringify(action, null, 2));
 
     // Validate required fields
     if (!action.type || !action.message) {
-      throw new Error('Invalid response structure from AI');
+      throw new Error("Invalid response structure from AI");
     }
 
     // Execute action
     let txHash: string | null = null;
 
-    if (action.type === 'execute' && action.transaction) {
+    if (action.type === "execute" && action.transaction) {
       // Aggressively extract function name - Gemini often hallucinates extra text
-      let rawFunc = action.transaction.function || '';
-      let funcName = rawFunc.replace(/[,\s]+$/, '').trim();
+      let rawFunc = action.transaction.function || "";
+      let funcName = rawFunc.replace(/[,\s]+$/, "").trim();
 
       // If function starts with buy_music or buy_art, extract just that
       // This handles: "buy_music," "buy_music','args':[" "buy_music overjoyed with..."
-      if (rawFunc.toLowerCase().startsWith('buy_music')) {
-        funcName = 'buy_music';
-        console.log('[Oracle] Extracted buy_music from:', rawFunc.substring(0, 50));
-      } else if (rawFunc.toLowerCase().startsWith('buy_art')) {
-        funcName = 'buy_art';
-        console.log('[Oracle] Extracted buy_art from:', rawFunc.substring(0, 50));
+      if (rawFunc.toLowerCase().startsWith("buy_music")) {
+        funcName = "buy_music";
+        console.log(
+          "[Oracle] Extracted buy_music from:",
+          rawFunc.substring(0, 50),
+        );
+      } else if (rawFunc.toLowerCase().startsWith("buy_art")) {
+        funcName = "buy_art";
+        console.log(
+          "[Oracle] Extracted buy_art from:",
+          rawFunc.substring(0, 50),
+        );
       }
       action.transaction.function = funcName;
 
       // Check for special delegated actions that go through execute-delegated API
-      if ((funcName === 'buy_music' || funcName === 'buy_art') && userAddress && userFid) {
+      if (
+        (funcName === "buy_music" || funcName === "buy_art") &&
+        userAddress &&
+        userFid
+      ) {
         // Route buy_music/buy_art to execute-delegated API
         // Try to get tokenId from args, or extract from the original message
         let tokenId = action.transaction.args?.[0];
@@ -591,45 +749,50 @@ Return valid JSON only.`;
           const tokenIdMatch = message.match(/#?(\d+)/);
           if (tokenIdMatch) {
             tokenId = tokenIdMatch[1];
-            console.log('[Oracle] Extracted tokenId from message:', tokenId);
+            console.log("[Oracle] Extracted tokenId from message:", tokenId);
           }
         }
         if (tokenId) {
           try {
-            const buyResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/execute-delegated`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'buy_music', // Both use the same endpoint
-                userAddress,
-                fid: userFid,
-                params: { tokenId: tokenId.toString().replace('#', '') }
-              })
-            });
+            const buyResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/execute-delegated`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "buy_music", // Both use the same endpoint
+                  userAddress,
+                  fid: userFid,
+                  params: { tokenId: tokenId.toString().replace("#", "") },
+                }),
+              },
+            );
             const buyData = await buyResponse.json();
             if (buyData.success) {
               txHash = buyData.txHash;
-              const nftType = funcName === 'buy_art' ? 'Art' : 'Music';
-              action.message = buyData.message || `Successfully purchased ${nftType} NFT #${tokenId}!`;
+              const nftType = funcName === "buy_art" ? "Art" : "Music";
+              action.message =
+                buyData.message ||
+                `Successfully purchased ${nftType} NFT #${tokenId}!`;
             } else {
               action.message = `Purchase failed: ${buyData.error}`;
             }
           } catch (buyError: any) {
-            console.error('Buy NFT error:', buyError);
+            console.error("Buy NFT error:", buyError);
             action.message = `Purchase failed: ${buyError.message}`;
           }
         } else {
-          action.message = 'Missing token ID for purchase';
+          action.message = "Missing token ID for purchase";
         }
       } else {
         // Execute other delegated transactions directly
         txHash = await executeDelegatedTransaction(
           action.transaction,
           userAddress,
-          userFid
+          userFid,
         );
       }
-    } else if (action.type === 'mint_passport' && userAddress) {
+    } else if (action.type === "mint_passport" && userAddress) {
       // Determine country: use Gemini's passport data, or fall back to user's location
       let countryCode = action.passport?.countryCode;
       let countryName = action.passport?.countryName;
@@ -638,31 +801,34 @@ Return valid JSON only.`;
         countryCode = userLocation.country as string;
         const countryInfo = getCountryByCode(countryCode);
         countryName = countryInfo?.name || countryCode;
-        console.log(`[Oracle] No passport data from Gemini, using location: ${countryCode} (${countryName})`);
+        console.log(
+          `[Oracle] No passport data from Gemini, using location: ${countryCode} (${countryName})`,
+        );
       }
 
       if (!countryCode) {
-        action.message = 'Could not determine your country. Please specify which country passport to mint (e.g. "mint passport for Mexico").';
+        action.message =
+          'Could not determine your country. Please specify which country passport to mint (e.g. "mint passport for Mexico").';
       } else {
         const result = await mintPassportForUser(
           userAddress,
           countryCode,
           countryName || countryCode,
-          userFid
+          userFid,
         );
         txHash = result.txHash;
         if (result.error) {
           action.message = result.error;
         } else {
-          action.message = `Passport minted successfully! ${countryName} - Token #${result.tokenId || 'pending'}`;
+          action.message = `Passport minted successfully! ${countryName} - Token #${result.tokenId || "pending"}`;
         }
       }
-    } else if (action.type === 'sponsorship' && action.sponsorship) {
+    } else if (action.type === "sponsorship" && action.sponsorship) {
       // Handle sponsorship actions
       const sponsorshipResult = await handleSponsorshipAction(
         action.sponsorship,
         userAddress,
-        userLocation
+        userLocation,
       );
       if (sponsorshipResult.txHash) {
         txHash = sponsorshipResult.txHash;
@@ -671,14 +837,14 @@ Return valid JSON only.`;
       if (sponsorshipResult.data) {
         (action as any).sponsorshipData = sponsorshipResult.data;
       }
-    } else if (action.type === 'admin' && action.admin) {
+    } else if (action.type === "admin" && action.admin) {
       // Handle admin actions (burn NFT, etc.)
       // Pass signature and timestamp from request body (not from Gemini)
       const adminResult = await handleAdminAction(
         action.admin,
         userAddress,
         adminSignature,
-        adminTimestamp
+        adminTimestamp,
       );
       if (adminResult.txHash) {
         txHash = adminResult.txHash;
@@ -687,24 +853,28 @@ Return valid JSON only.`;
       if (adminResult.data) {
         (action as any).adminData = adminResult.data;
       }
-    } else if (action.type === 'withdraw' && action.withdraw && userAddress) {
+    } else if (action.type === "withdraw" && action.withdraw && userAddress) {
       // Handle withdraw from User Safe to Farcaster wallet
-      const token = action.withdraw.token || 'mon';
+      const token = action.withdraw.token || "mon";
       const amount = action.withdraw.amount;
 
       if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-        action.message = 'Please specify a valid amount to withdraw (e.g. "withdraw 100 MON to my wallet")';
+        action.message =
+          'Please specify a valid amount to withdraw (e.g. "withdraw 100 MON to my wallet")';
       } else {
         try {
-          const withdrawResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/execute-delegated`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'withdraw_to_user',
-              userAddress,
-              params: { token, amount }
-            })
-          });
+          const withdrawResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/execute-delegated`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "withdraw_to_user",
+                userAddress,
+                params: { token, amount },
+              }),
+            },
+          );
           const withdrawData = await withdrawResponse.json();
           if (withdrawData.success) {
             txHash = withdrawData.txHash;
@@ -713,73 +883,83 @@ Return valid JSON only.`;
             action.message = `Withdrawal failed: ${withdrawData.error}`;
           }
         } catch (withdrawError: any) {
-          console.error('[Oracle] Withdraw error:', withdrawError);
+          console.error("[Oracle] Withdraw error:", withdrawError);
           action.message = `Withdrawal failed: ${withdrawError.message}`;
         }
       }
     }
 
     // Handle EPK actions
-    if (action.type === 'create_epk') {
+    if (action.type === "create_epk") {
       action.message = `I'll help you create your Electronic Press Kit (EPK)! This will be stored on IPFS and registered on Monad blockchain.\n\nOpening the EPK wizard now...`;
-    } else if (action.type === 'manage_epk' && action.epk) {
-      if (action.epk.action === 'list_bookings' && userAddress) {
+    } else if (action.type === "manage_epk" && action.epk) {
+      if (action.epk.action === "list_bookings" && userAddress) {
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
-          const bookingsRes = await fetch(`${baseUrl}/api/epk/booking?artist=${userAddress}`);
+          const baseUrl =
+            process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+          const bookingsRes = await fetch(
+            `${baseUrl}/api/epk/booking?artist=${userAddress}`,
+          );
           const bookingsData = await bookingsRes.json();
           if (bookingsData.success && bookingsData.inquiries?.length > 0) {
-            const list = bookingsData.inquiries.slice(0, 5).map((b: any, i: number) =>
-              `${i + 1}. **${b.eventName}** - ${b.name} (${b.status}) - ${b.location}`
-            ).join('\n');
-            action.message = `Your booking inquiries:\n\n${list}\n\n${bookingsData.inquiries.length > 5 ? `...and ${bookingsData.inquiries.length - 5} more` : ''}`;
+            const list = bookingsData.inquiries
+              .slice(0, 5)
+              .map(
+                (b: any, i: number) =>
+                  `${i + 1}. **${b.eventName}** - ${b.name} (${b.status}) - ${b.location}`,
+              )
+              .join("\n");
+            action.message = `Your booking inquiries:\n\n${list}\n\n${bookingsData.inquiries.length > 5 ? `...and ${bookingsData.inquiries.length - 5} more` : ""}`;
           } else {
-            action.message = 'No booking inquiries found yet. Share your EPK page to start receiving bookings!';
+            action.message =
+              "No booking inquiries found yet. Share your EPK page to start receiving bookings!";
           }
         } catch {
-          action.message = 'Could not fetch booking inquiries. Try again later.';
+          action.message =
+            "Could not fetch booking inquiries. Try again later.";
         }
-      } else if (action.epk.action === 'view') {
-        action.message = 'Opening your EPK page...';
-        action.type = 'navigate';
-        action.destination = `/epk/${userAddress || ''}`;
+      } else if (action.epk.action === "view") {
+        action.message = "Opening your EPK page...";
+        action.type = "navigate";
+        action.destination = `/epk/${userAddress || ""}`;
       }
     }
 
     // Handle lottery actions
-    if (action.type === 'lottery_status') {
+    if (action.type === "lottery_status") {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
         const lotteryRes = await fetch(`${baseUrl}/api/lottery`);
         const lotteryData = await lotteryRes.json();
         if (lotteryData.success) {
           const r = lotteryData.currentRound;
-          const timeLeft = r.timeRemaining > 0
-            ? `${Math.floor(r.timeRemaining / 3600)}h ${Math.floor((r.timeRemaining % 3600) / 60)}m`
-            : 'Round ended - ready for draw!';
-          action.message = `🎰 **Daily Lottery - Round #${r.roundId}**\n\n💰 Prize Pool: ${r.prizePool} WMON\n🎟️ Tickets Sold: ${r.ticketCount}\n⏱️ Time Remaining: ${timeLeft}\n🏆 Potential Win: ${r.potentialWinnerPrize} WMON (90%)\n\nTicket Price: ${lotteryData.config.ticketPrice} WMON\nMin Entries: ${lotteryData.config.minEntries}${r.willRollover ? '\n\n⚠️ Not enough entries yet - will rollover if not met' : ''}${r.canDraw ? '\n\n✅ Ready to draw! Say "trigger lottery" to draw and earn 5-50 TOURS' : ''}`;
+          const timeLeft =
+            r.timeRemaining > 0
+              ? `${Math.floor(r.timeRemaining / 3600)}h ${Math.floor((r.timeRemaining % 3600) / 60)}m`
+              : "Round ended - ready for draw!";
+          action.message = `🎰 **Daily Lottery - Round #${r.roundId}**\n\n💰 Prize Pool: ${r.prizePool} WMON\n🎟️ Tickets Sold: ${r.ticketCount}\n⏱️ Time Remaining: ${timeLeft}\n🏆 Potential Win: ${r.potentialWinnerPrize} WMON (90%)\n\nTicket Price: ${lotteryData.config.ticketPrice} WMON\nMin Entries: ${lotteryData.config.minEntries}${r.willRollover ? "\n\n⚠️ Not enough entries yet - will rollover if not met" : ""}${r.canDraw ? '\n\n✅ Ready to draw! Say "trigger lottery" to draw and earn 5-50 TOURS' : ""}`;
         } else {
-          action.message = 'Could not fetch lottery status. Try again later.';
+          action.message = "Could not fetch lottery status. Try again later.";
         }
       } catch {
-        action.message = 'Could not fetch lottery status. Try again later.';
+        action.message = "Could not fetch lottery status. Try again later.";
       }
-    } else if (action.type === 'lottery_buy' && userAddress) {
+    } else if (action.type === "lottery_buy" && userAddress) {
       const ticketCount = action.lottery?.ticketCount || 1;
-      action.message = `🎟️ Buying ${ticketCount} lottery ticket${ticketCount > 1 ? 's' : ''} for ${ticketCount * 2} WMON...\n\nEach ticket gives you a chance to win 90% of the prize pool + 10-100 TOURS bonus!`;
-    } else if (action.type === 'lottery_draw') {
+      action.message = `🎟️ Buying ${ticketCount} lottery ticket${ticketCount > 1 ? "s" : ""} for ${ticketCount * 2} WMON...\n\nEach ticket gives you a chance to win 90% of the prize pool + 10-100 TOURS bonus!`;
+    } else if (action.type === "lottery_draw") {
       action.message = `🎲 Triggering the lottery draw...\n\nYou'll earn 5-50 TOURS as a reward for triggering the draw! The winner will be selected using Pyth Entropy (provably fair randomness).`;
     }
 
     // Handle create_itinerary action from Gemini
-    if (action.type === 'create_itinerary' && userAddress && userFid) {
+    if (action.type === "create_itinerary" && userAddress && userFid) {
       // Oracle detected user wants to create an itinerary
       // Guide them through the conversational flow
       if (!userLocation?.latitude || !userLocation?.longitude) {
-        action.message = `${action.message || ''}\n\n📍 **Location Required**\nTo create an itinerary, I need your GPS location. Please enable location services and tell me what places you'd like to include!`;
+        action.message = `${action.message || ""}\n\n📍 **Location Required**\nTo create an itinerary, I need your GPS location. Please enable location services and tell me what places you'd like to include!`;
       } else {
         // User has GPS - prompt for remaining details
-        action.message = `${action.message || ''}\n\n🗺️ **Create Your Itinerary**\nI can help you create a travel guide! I'll need:\n• **Title**: What would you call this trip?\n• **Description**: Describe your experience\n• **Price**: How much WMON to charge travelers? (e.g., 0.01)\n• **Photo**: Take a photo as proof!\n\nSay "find [type] near me" and I'll search for places to add, or say "save this as itinerary" with your details when ready.`;
+        action.message = `${action.message || ""}\n\n🗺️ **Create Your Itinerary**\nI can help you create a travel guide! I'll need:\n• **Title**: What would you call this trip?\n• **Description**: Describe your experience\n• **Price**: How much WMON to charge travelers? (e.g., 0.01)\n• **Photo**: Take a photo as proof!\n\nSay "find [type] near me" and I'll search for places to add, or say "save this as itinerary" with your details when ready.`;
       }
     }
 
@@ -793,45 +973,57 @@ Return valid JSON only.`;
     let itineraryData: any = null;
     const wantsSaveItinerary = detectSaveItineraryIntent(message);
 
-    if (needsMapsGrounding && mapsSources.length > 0 && userAddress && userFid) {
+    if (
+      needsMapsGrounding &&
+      mapsSources.length > 0 &&
+      userAddress &&
+      userFid
+    ) {
       try {
-        console.log('[Oracle] Processing itinerary for Maps results...');
-        console.log('[Oracle] Save intent detected:', wantsSaveItinerary);
-        console.log('[Oracle] User location:', userLocation);
+        console.log("[Oracle] Processing itinerary for Maps results...");
+        console.log("[Oracle] Save intent detected:", wantsSaveItinerary);
+        console.log("[Oracle] User location:", userLocation);
 
         // Extract city/country from the query or user location
         const locationInfo = extractLocationFromQuery(message);
-        const city = userLocation?.city || locationInfo.city || 'Unknown City';
-        const country = userLocation?.country || locationInfo.country || 'Unknown';
+        const city = userLocation?.city || locationInfo.city || "Unknown City";
+        const country =
+          userLocation?.country || locationInfo.country || "Unknown";
 
         // Check if similar itinerary already exists
-        const existingItinerary = await findExistingItinerary(city, mapsSources);
+        const existingItinerary = await findExistingItinerary(
+          city,
+          mapsSources,
+        );
 
         if (existingItinerary) {
           // Recommend existing itinerary to user
-          console.log('[Oracle] Found existing itinerary:', existingItinerary.id);
+          console.log(
+            "[Oracle] Found existing itinerary:",
+            existingItinerary.id,
+          );
           itineraryData = {
             exists: true,
             id: existingItinerary.id,
             title: existingItinerary.title,
             creator: existingItinerary.creator,
             price: existingItinerary.price,
-            rating: existingItinerary.rating
+            rating: existingItinerary.rating,
           };
 
-          action.message = `${action.message}\n\n📍 **Recommended Itinerary**\n"${existingItinerary.title}" by ${existingItinerary.creatorName || 'a fellow traveler'}\nPrice: ${existingItinerary.price} WMON | Rating: ${existingItinerary.rating}/5\nPurchase to unlock the full guide and earn completion stamps!`;
+          action.message = `${action.message}\n\n📍 **Recommended Itinerary**\n"${existingItinerary.title}" by ${existingItinerary.creatorName || "a fellow traveler"}\nPrice: ${existingItinerary.price} WMON | Rating: ${existingItinerary.rating}/5\nPurchase to unlock the full guide and earn completion stamps!`;
         } else if (wantsSaveItinerary) {
           // User explicitly wants to save - REQUIRE GPS verification
-          console.log('[Oracle] User wants to save itinerary, checking GPS...');
+          console.log("[Oracle] User wants to save itinerary, checking GPS...");
 
           if (!userLocation?.latitude || !userLocation?.longitude) {
             // No GPS - inform user they need to be at the location
-            console.log('[Oracle] No GPS coordinates provided');
+            console.log("[Oracle] No GPS coordinates provided");
             itineraryData = {
               exists: false,
               created: false,
               requiresGPS: true,
-              error: 'GPS verification required'
+              error: "GPS verification required",
             };
             action.message = `${action.message}\n\n📍 **GPS Required**\nTo create an itinerary, you must be physically at the location. Please enable location services and try again when you're there!`;
           } else {
@@ -839,19 +1031,19 @@ Return valid JSON only.`;
             // Since we searched "near me", the user's location IS the anchor point
             // We're trusting that the GPS coordinates provided are real
             const gpsVerified = true; // User provided their GPS, so they're "at" this location
-            console.log('[Oracle] GPS verified at:', city, country);
+            console.log("[Oracle] GPS verified at:", city, country);
 
             if (gpsVerified) {
               // Create GPS-verified itinerary
-              console.log('[Oracle] Creating GPS-verified itinerary...');
+              console.log("[Oracle] Creating GPS-verified itinerary...");
 
               const locations = mapsSources.map((source, index) => ({
                 name: source.title,
-                placeId: source.placeId || '',
+                placeId: source.placeId || "",
                 uri: source.uri,
                 latitude: Math.round(userLocation.latitude * 1e6), // Store as int * 1e6
                 longitude: Math.round(userLocation.longitude * 1e6),
-                description: `Discover ${source.title}`
+                description: `Discover ${source.title}`,
               }));
 
               const itineraryResult = await createItineraryFromMaps(
@@ -860,7 +1052,7 @@ Return valid JSON only.`;
                 `${city} Explorer: ${message.slice(0, 50)}`,
                 city,
                 country,
-                locations
+                locations,
               );
 
               if (itineraryResult.success) {
@@ -871,41 +1063,55 @@ Return valid JSON only.`;
                   gpsVerified: true,
                   txHash: itineraryTxHash,
                   city,
-                  country
+                  country,
                 };
-                console.log('[Oracle] GPS-verified itinerary created:', itineraryTxHash);
+                console.log(
+                  "[Oracle] GPS-verified itinerary created:",
+                  itineraryTxHash,
+                );
 
                 action.message = `${action.message}\n\n🎉 **Itinerary Created (GPS Verified!)**\nYou are now the creator of "${city} Explorer".\n📍 Location verified: ${city}, ${country}\nYou'll earn 70% of all future sales when others purchase it!`;
               } else {
-                console.error('[Oracle] Itinerary creation failed:', itineraryResult.error);
+                console.error(
+                  "[Oracle] Itinerary creation failed:",
+                  itineraryResult.error,
+                );
                 action.message = `${action.message}\n\n⚠️ Could not save itinerary: ${itineraryResult.error}`;
               }
             }
           }
         } else {
           // User is just browsing - don't auto-create, suggest they can save
-          console.log('[Oracle] User browsing only, suggesting save option');
+          console.log("[Oracle] User browsing only, suggesting save option");
           itineraryData = {
             exists: false,
             created: false,
-            canCreate: true
+            canCreate: true,
           };
           action.message = `${action.message}\n\n💡 **Tip:** Say "save this as itinerary" while at this location to create a travel guide and earn 70% on future sales!`;
         }
       } catch (itinError: any) {
-        console.error('[Oracle] Itinerary processing error:', itinError);
+        console.error("[Oracle] Itinerary processing error:", itinError);
         // Don't fail the main request
       }
     }
 
     // If protocol experiences were found, prepend mention to the response
-    if (protocolExperiences.length > 0 && action.type === 'chat') {
-      const expList = protocolExperiences.slice(0, 3).map((exp: any) => {
-        const author = exp.creatorDisplayName || exp.creatorUsername || exp.creator.slice(0, 8);
-        const rating = exp.averageRating > 0 ? ` ⭐ ${exp.averageRating.toFixed(1)}` : '';
-        const reviews = exp.ratingCount > 0 ? ` (${exp.ratingCount} reviews)` : '';
-        return `• "${exp.title}" by @${author}${rating}${reviews} — ${exp.priceWMON} WMON`;
-      }).join('\n');
+    if (protocolExperiences.length > 0 && action.type === "chat") {
+      const expList = protocolExperiences
+        .slice(0, 3)
+        .map((exp: any) => {
+          const author =
+            exp.creatorDisplayName ||
+            exp.creatorUsername ||
+            exp.creator.slice(0, 8);
+          const rating =
+            exp.averageRating > 0 ? ` ⭐ ${exp.averageRating.toFixed(1)}` : "";
+          const reviews =
+            exp.ratingCount > 0 ? ` (${exp.ratingCount} reviews)` : "";
+          return `• "${exp.title}" by @${author}${rating}${reviews} — ${exp.priceWMON} WMON`;
+        })
+        .join("\n");
       action.message = `🏠 **Community Reviews**\n${expList}\n\n---\n\n${action.message}`;
     }
 
@@ -918,19 +1124,19 @@ Return valid JSON only.`;
       mapsSources,
       mapsWidgetToken,
       mapsProvider: needsMapsGrounding ? mapsProviderType : undefined,
-      protocolExperiences: protocolExperiences.length > 0 ? protocolExperiences : undefined,
+      protocolExperiences:
+        protocolExperiences.length > 0 ? protocolExperiences : undefined,
       itineraryTxHash,
       itineraryData,
     });
-
   } catch (error: any) {
-    console.error('Oracle chat error:', error);
+    console.error("Oracle chat error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Oracle error',
+        error: error.message || "Oracle error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -938,10 +1144,12 @@ Return valid JSON only.`;
 async function executeDelegatedTransaction(
   transaction: { contract: string; function: string; args: any[] },
   beneficiary: string,
-  userFid: number
+  userFid: number,
 ): Promise<string> {
   // Load contract ABI based on contract address
-  const { default: abi } = await import(`@/lib/abis/${getAbiName(transaction.contract)}.json`);
+  const { default: abi } = await import(
+    `@/lib/abis/${getAbiName(transaction.contract)}.json`
+  );
 
   const data = encodeFunctionData({
     abi,
@@ -950,7 +1158,7 @@ async function executeDelegatedTransaction(
   }) as Hex;
 
   const result = await sendUserSafeTransaction(beneficiary, [
-    { to: transaction.contract as Address, value: 0n, data }
+    { to: transaction.contract as Address, value: 0n, data },
   ]);
 
   return result.txHash;
@@ -959,49 +1167,88 @@ async function executeDelegatedTransaction(
 function getAbiName(contractAddress: string): string {
   // Map contract addresses to ABI names
   const contracts: Record<string, string> = {
-    [process.env.NEXT_PUBLIC_TOKEN_SWAP || '']: 'TokenSwap',
-    [process.env.NEXT_PUBLIC_NFT_CONTRACT || '']: 'MusicNFT',
-    [process.env.NEXT_PUBLIC_PASSPORT_NFT || '']: 'PassportNFT',
-    [process.env.NEXT_PUBLIC_MIRRORMATE_ADDRESS || '']: 'MirrorMate',
+    [process.env.NEXT_PUBLIC_TOKEN_SWAP || ""]: "TokenSwap",
+    [process.env.NEXT_PUBLIC_NFT_CONTRACT || ""]: "MusicNFT",
+    [process.env.NEXT_PUBLIC_PASSPORT_NFT || ""]: "PassportNFT",
+    [process.env.NEXT_PUBLIC_MIRRORMATE_ADDRESS || ""]: "MirrorMate",
   };
 
-  return contracts[contractAddress] || 'ERC20';
+  return contracts[contractAddress] || "ERC20";
 }
 
 // Prohibited territories now imported from lib/maps/provider.ts as GOOGLE_PROHIBITED_TERRITORIES
 
 // Prohibited activities for Maps Grounding (high-risk activities)
 const EMERGENCY_KEYWORDS = [
-  'emergency', '911', 'ambulance', 'fire department', 'police',
-  'urgent medical', 'hospital emergency', 'ER', 'life threatening',
-  'call emergency', 'fire rescue', 'medical emergency',
-  'crisis', 'urgent care', 'emergency room', 'paramedic'
+  "emergency",
+  "911",
+  "ambulance",
+  "fire department",
+  "police",
+  "urgent medical",
+  "hospital emergency",
+  "ER",
+  "life threatening",
+  "call emergency",
+  "fire rescue",
+  "medical emergency",
+  "crisis",
+  "urgent care",
+  "emergency room",
+  "paramedic",
 ];
 
 // Detect if query is a prohibited emergency/high-risk activity
 function isProhibitedActivity(message: string): boolean {
   const lowerMessage = message.toLowerCase();
-  return EMERGENCY_KEYWORDS.some(keyword => lowerMessage.includes(keyword));
+  return EMERGENCY_KEYWORDS.some((keyword) => lowerMessage.includes(keyword));
 }
 
 // Helper to get matched Maps keywords for debugging
 function getMapsMatchedKeywords(message: string): string[] {
   const lowerMessage = message.toLowerCase();
   const mapsKeywords = [
-    'restaurant', 'cafe', 'coffee', 'food', 'dining',
-    'hotel', 'accommodation', 'stay', 'lodge',
-    'museum', 'attraction', 'tourist', 'visit',
-    'near me', 'nearby', 'around here', 'close by', 'walking distance',
-    'directions to', 'how to get to', 'route to',
-    'shop', 'store', 'shopping',
-    'bar', 'nightlife', 'club',
-    'park', 'beach', 'outdoor',
-    'top rated', 'recommended places',
-    'open now', 'what time',
-    'address of', 'where is the',
-    'find', 'looking for', 'search for'
+    "restaurant",
+    "cafe",
+    "coffee",
+    "food",
+    "dining",
+    "hotel",
+    "accommodation",
+    "stay",
+    "lodge",
+    "museum",
+    "attraction",
+    "tourist",
+    "visit",
+    "near me",
+    "nearby",
+    "around here",
+    "close by",
+    "walking distance",
+    "directions to",
+    "how to get to",
+    "route to",
+    "shop",
+    "store",
+    "shopping",
+    "bar",
+    "nightlife",
+    "club",
+    "park",
+    "beach",
+    "outdoor",
+    "top rated",
+    "recommended places",
+    "open now",
+    "what time",
+    "address of",
+    "where is the",
+    "find",
+    "looking for",
+    "search for",
   ];
-  return mapsKeywords.filter(keyword => lowerMessage.includes(keyword));
+  return mapsKeywords.filter((keyword) => lowerMessage.includes(keyword));
 }
 
 // Detect if a query needs Google Maps grounding
@@ -1015,57 +1262,97 @@ function detectMapsQuery(message: string): boolean {
 
   // Exclude NFT/game commands from Maps detection
   const excludePatterns = [
-    'create nft', 'mint nft', 'make nft', 'new nft', 'upload',
-    'play tetris', 'play tictactoe', 'play mirror', 'mirrormate',
-    'swap', 'stake', 'lottery', 'passport', 'beat match'
+    "create nft",
+    "mint nft",
+    "make nft",
+    "new nft",
+    "upload",
+    "play tetris",
+    "play tictactoe",
+    "play mirror",
+    "mirrormate",
+    "swap",
+    "stake",
+    "lottery",
+    "passport",
+    "beat match",
   ];
-  if (excludePatterns.some(pattern => lowerMessage.includes(pattern))) {
+  if (excludePatterns.some((pattern) => lowerMessage.includes(pattern))) {
     return false;
   }
 
   const mapsKeywords = [
-    'restaurant', 'cafe', 'coffee', 'food', 'dining',
-    'hotel', 'accommodation', 'stay', 'lodge',
-    'museum', 'attraction', 'tourist', 'visit',
-    'near me', 'nearby', 'around here', 'close by', 'walking distance',
-    'directions to', 'how to get to', 'route to',
-    'shop', 'store', 'shopping',
-    'bar', 'nightlife', 'club',
-    'park', 'beach', 'outdoor',
-    'top rated', 'recommended places',
-    'open now', 'what time',
-    'address of', 'where is the',
-    'find', 'looking for', 'search for'
+    "restaurant",
+    "cafe",
+    "coffee",
+    "food",
+    "dining",
+    "hotel",
+    "accommodation",
+    "stay",
+    "lodge",
+    "museum",
+    "attraction",
+    "tourist",
+    "visit",
+    "near me",
+    "nearby",
+    "around here",
+    "close by",
+    "walking distance",
+    "directions to",
+    "how to get to",
+    "route to",
+    "shop",
+    "store",
+    "shopping",
+    "bar",
+    "nightlife",
+    "club",
+    "park",
+    "beach",
+    "outdoor",
+    "top rated",
+    "recommended places",
+    "open now",
+    "what time",
+    "address of",
+    "where is the",
+    "find",
+    "looking for",
+    "search for",
   ];
 
-  return mapsKeywords.some(keyword => lowerMessage.includes(keyword));
+  return mapsKeywords.some((keyword) => lowerMessage.includes(keyword));
 }
 
 // Charge WMON tokens for Maps query via delegation
 async function chargeMONForMapsQuery(userAddress: string): Promise<string> {
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
+  const APP_URL =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://fcempowertours-production-6551.up.railway.app";
 
   // Pricing: 100 WMON per Maps query (~$5 at $0.05/WMON)
   // Provides healthy margin for infrastructure, API costs, and sustainability
-  const CHARGE_AMOUNT = '100'; // 100 WMON per Maps query
+  const CHARGE_AMOUNT = "100"; // 100 WMON per Maps query
 
   // Use delegation API to transfer WMON from user to treasury
   const response = await fetch(`${APP_URL}/api/execute-delegated`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       userAddress,
-      action: 'maps_payment',
+      action: "maps_payment",
       params: {
-        amount: CHARGE_AMOUNT
-      }
-    })
+        amount: CHARGE_AMOUNT,
+      },
+    }),
   });
 
   const data = await response.json();
 
   if (!data.success) {
-    throw new Error(data.error || 'Payment failed');
+    throw new Error(data.error || "Payment failed");
   }
 
   return data.txHash;
@@ -1076,105 +1363,125 @@ async function mintPassportForUser(
   userAddress: string,
   countryCode: string,
   countryName: string,
-  fid?: number
+  fid?: number,
 ): Promise<{ txHash: string | null; tokenId?: number; error?: string }> {
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
+  const APP_URL =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://fcempowertours-production-6551.up.railway.app";
 
   try {
     // First ensure delegation exists with wrap_mon permission
-    const delegationRes = await fetch(`${APP_URL}/api/delegation-status?address=${userAddress}`);
+    const delegationRes = await fetch(
+      `${APP_URL}/api/delegation-status?address=${userAddress}`,
+    );
     const delegationData = await delegationRes.json();
 
-    const hasValidDelegation = delegationData.success &&
-                              delegationData.delegation &&
-                              Array.isArray(delegationData.delegation.permissions) &&
-                              delegationData.delegation.permissions.includes('mint_passport') &&
-                              delegationData.delegation.permissions.includes('wrap_mon');
+    const hasValidDelegation =
+      delegationData.success &&
+      delegationData.delegation &&
+      Array.isArray(delegationData.delegation.permissions) &&
+      delegationData.delegation.permissions.includes("mint_passport") &&
+      delegationData.delegation.permissions.includes("wrap_mon");
 
     if (!hasValidDelegation) {
-      console.log('[Oracle] Creating delegation with mint_passport and wrap_mon permissions...');
+      console.log(
+        "[Oracle] Creating delegation with mint_passport and wrap_mon permissions...",
+      );
       const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userAddress,
-          authMethod: 'farcaster',
+          authMethod: "farcaster",
           fid,
           durationHours: 24,
           maxTransactions: 100,
-          permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
-        })
+          permissions: [
+            "mint_passport",
+            "wrap_mon",
+            "mint_music",
+            "swap_mon_for_tours",
+            "send_tours",
+            "buy_music",
+          ],
+        }),
       });
 
       const createData = await createRes.json();
       if (!createData.success) {
-        return { txHash: null, error: 'Failed to create delegation: ' + createData.error };
+        return {
+          txHash: null,
+          error: "Failed to create delegation: " + createData.error,
+        };
       }
     }
 
     // Try to mint passport
     let mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userAddress,
-        action: 'mint_passport',
+        action: "mint_passport",
         params: {
           countryCode,
           countryName,
-          fid
-        }
-      })
+          fid,
+        },
+      }),
     });
 
     let mintData = await mintRes.json();
 
     // Auto-wrap if needed
     if (!mintData.success && mintData.needsWrap) {
-      console.log('[Oracle] Need to wrap MON first, amount:', mintData.wmonNeeded);
+      console.log(
+        "[Oracle] Need to wrap MON first, amount:",
+        mintData.wmonNeeded,
+      );
 
       const wrapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userAddress,
-          action: 'wrap_mon',
-          params: { amount: mintData.wmonNeeded }
-        })
+          action: "wrap_mon",
+          params: { amount: mintData.wmonNeeded },
+        }),
       });
 
       const wrapData = await wrapRes.json();
       if (!wrapData.success) {
-        return { txHash: null, error: wrapData.error || 'Failed to wrap MON' };
+        return { txHash: null, error: wrapData.error || "Failed to wrap MON" };
       }
-      console.log('[Oracle] Wrapped MON, now minting...');
+      console.log("[Oracle] Wrapped MON, now minting...");
 
       // Retry mint after wrap
       mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userAddress,
-          action: 'mint_passport',
+          action: "mint_passport",
           params: {
             countryCode,
             countryName,
-            fid
-          }
-        })
+            fid,
+          },
+        }),
       });
       mintData = await mintRes.json();
     }
 
     if (!mintData.success) {
-      return { txHash: null, error: mintData.error || 'Mint failed' };
+      return { txHash: null, error: mintData.error || "Mint failed" };
     }
 
-    console.log('[Oracle] Passport minted:', mintData.txHash);
+    console.log("[Oracle] Passport minted:", mintData.txHash);
     return { txHash: mintData.txHash, tokenId: mintData.tokenId };
   } catch (error: any) {
-    console.error('[Oracle] Passport mint error:', error);
-    return { txHash: null, error: error.message || 'Mint failed' };
+    console.error("[Oracle] Passport mint error:", error);
+    return { txHash: null, error: error.message || "Mint failed" };
   }
 }
 
@@ -1183,7 +1490,10 @@ async function mintPassportForUser(
 // =============================================
 
 // Extract city and country from user query
-function extractLocationFromQuery(message: string): { city: string | null; country: string | null } {
+function extractLocationFromQuery(message: string): {
+  city: string | null;
+  country: string | null;
+} {
   const lowerMessage = message.toLowerCase();
 
   // Common city patterns
@@ -1195,13 +1505,28 @@ function extractLocationFromQuery(message: string): { city: string | null; count
 
   // Common cities list for detection
   const knownCities: Record<string, string> = {
-    'tokyo': 'Japan', 'paris': 'France', 'london': 'UK', 'new york': 'USA',
-    'los angeles': 'USA', 'sydney': 'Australia', 'barcelona': 'Spain',
-    'rome': 'Italy', 'berlin': 'Germany', 'bangkok': 'Thailand',
-    'singapore': 'Singapore', 'dubai': 'UAE', 'miami': 'USA',
-    'amsterdam': 'Netherlands', 'seoul': 'South Korea', 'hong kong': 'Hong Kong SAR',
-    'istanbul': 'Turkey', 'cairo': 'Egypt', 'mumbai': 'India',
-    'bali': 'Indonesia', 'lisbon': 'Portugal', 'athens': 'Greece',
+    tokyo: "Japan",
+    paris: "France",
+    london: "UK",
+    "new york": "USA",
+    "los angeles": "USA",
+    sydney: "Australia",
+    barcelona: "Spain",
+    rome: "Italy",
+    berlin: "Germany",
+    bangkok: "Thailand",
+    singapore: "Singapore",
+    dubai: "UAE",
+    miami: "USA",
+    amsterdam: "Netherlands",
+    seoul: "South Korea",
+    "hong kong": "Hong Kong SAR",
+    istanbul: "Turkey",
+    cairo: "Egypt",
+    mumbai: "India",
+    bali: "Indonesia",
+    lisbon: "Portugal",
+    athens: "Greece",
   };
 
   // Check known cities
@@ -1225,7 +1550,7 @@ function extractLocationFromQuery(message: string): { city: string | null; count
 // Find existing itinerary matching the city/locations
 async function findExistingItinerary(
   city: string,
-  sources: MapsGroundingSource[]
+  sources: MapsGroundingSource[],
 ): Promise<{
   id: number;
   title: string;
@@ -1255,12 +1580,12 @@ async function findExistingItinerary(
     `;
 
     const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query,
-        variables: { city: `%${city}%` }
-      })
+        variables: { city: `%${city}%` },
+      }),
     });
 
     const data = await response.json();
@@ -1272,13 +1597,13 @@ async function findExistingItinerary(
         title: itinerary.title,
         creator: itinerary.creator,
         price: (Number(itinerary.price) / 1e18).toFixed(0),
-        rating: (itinerary.averageRating / 100).toFixed(1)
+        rating: (itinerary.averageRating / 100).toFixed(1),
       };
     }
 
     return null;
   } catch (error) {
-    console.error('[Oracle] Failed to query existing itineraries:', error);
+    console.error("[Oracle] Failed to query existing itineraries:", error);
     return null;
   }
 }
@@ -1297,38 +1622,40 @@ async function createItineraryFromMaps(
     latitude: number;
     longitude: number;
     description: string;
-  }>
+  }>,
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fcempowertours-production-6551.up.railway.app';
+  const APP_URL =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://fcempowertours-production-6551.up.railway.app";
 
   try {
     const response = await fetch(`${APP_URL}/api/execute-delegated`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userAddress,
-        action: 'create_itinerary',
+        action: "create_itinerary",
         params: {
           creatorFid: userFid,
           title,
           description: `Curated travel guide for ${city}`,
           city,
           country,
-          price: '10', // 10 WMON default price
-          photoProofIPFS: '',
-          locations
-        }
-      })
+          price: "10", // 10 WMON default price
+          photoProofIPFS: "",
+          locations,
+        },
+      }),
     });
 
     const data = await response.json();
     return {
       success: data.success,
       txHash: data.txHash,
-      error: data.error
+      error: data.error,
     };
   } catch (error: any) {
-    console.error('[Oracle] Create itinerary error:', error);
+    console.error("[Oracle] Create itinerary error:", error);
     return { success: false, error: error.message };
   }
 }
@@ -1342,14 +1669,24 @@ function detectSaveItineraryIntent(message: string): boolean {
   const lowerMessage = message.toLowerCase();
 
   const saveKeywords = [
-    'save this', 'save as itinerary', 'create itinerary',
-    'make itinerary', 'add to itinerary', 'save itinerary',
-    'save these places', 'remember this', 'bookmark this',
-    'save my route', 'create a guide', 'make a guide',
-    'save for later', 'create trip', 'save trip'
+    "save this",
+    "save as itinerary",
+    "create itinerary",
+    "make itinerary",
+    "add to itinerary",
+    "save itinerary",
+    "save these places",
+    "remember this",
+    "bookmark this",
+    "save my route",
+    "create a guide",
+    "make a guide",
+    "save for later",
+    "create trip",
+    "save trip",
   ];
 
-  return saveKeywords.some(keyword => lowerMessage.includes(keyword));
+  return saveKeywords.some((keyword) => lowerMessage.includes(keyword));
 }
 
 // Minimum distance in meters to be considered "at the location"
@@ -1360,7 +1697,7 @@ function verifyUserAtLocation(
   userLat: number,
   userLon: number,
   targetLat: number,
-  targetLon: number
+  targetLon: number,
 ): { verified: boolean; distance: number } {
   // Haversine formula for distance calculation
   const R = 6371e3; // Earth radius in meters
@@ -1377,7 +1714,7 @@ function verifyUserAtLocation(
 
   return {
     verified: distance <= GPS_VERIFICATION_RADIUS,
-    distance: Math.round(distance)
+    distance: Math.round(distance),
   };
 }
 
@@ -1394,13 +1731,18 @@ interface SponsorshipActionResult {
 async function handleSponsorshipAction(
   sponsorship: { action: string; id?: number; vote?: boolean },
   userAddress?: string,
-  userLocation?: { latitude?: number; longitude?: number; city?: string; country?: string }
+  userLocation?: {
+    latitude?: number;
+    longitude?: number;
+    city?: string;
+    country?: string;
+  },
 ): Promise<SponsorshipActionResult> {
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
   try {
     switch (sponsorship.action) {
-      case 'list_open': {
+      case "list_open": {
         // List open sponsorship offers and requests
         const response = await fetch(`${baseUrl}/api/sponsorship/open`);
         const data = await response.json();
@@ -1413,20 +1755,22 @@ async function handleSponsorshipAction(
 
         if (offers.count === 0 && requests.count === 0) {
           return {
-            message: '📋 **No open sponsorships found**\n\nThere are currently no open sponsorship offers or requests. Check back later or create your own!',
-            data: { offers: [], requests: [] }
+            message:
+              "📋 **No open sponsorships found**\n\nThere are currently no open sponsorship offers or requests. Check back later or create your own!",
+            data: { offers: [], requests: [] },
           };
         }
 
-        let message = '📋 **Open Sponsorships**\n\n';
+        let message = "📋 **Open Sponsorships**\n\n";
 
         if (offers.count > 0) {
           message += `🎁 **Sponsor Offers** (${offers.count})\n`;
           offers.sponsorships.slice(0, 3).forEach((s: any) => {
             message += `• #${s.id}: ${s.eventName} (${s.city}) - ${s.amountFormatted} WMON\n`;
           });
-          if (offers.count > 3) message += `  ...and ${offers.count - 3} more\n`;
-          message += '\n';
+          if (offers.count > 3)
+            message += `  ...and ${offers.count - 3} more\n`;
+          message += "\n";
         }
 
         if (requests.count > 0) {
@@ -1434,18 +1778,24 @@ async function handleSponsorshipAction(
           requests.sponsorships.slice(0, 3).forEach((s: any) => {
             message += `• #${s.id}: ${s.eventName} (${s.city}) - Seeking ${s.amountFormatted} WMON\n`;
           });
-          if (requests.count > 3) message += `  ...and ${requests.count - 3} more\n`;
+          if (requests.count > 3)
+            message += `  ...and ${requests.count - 3} more\n`;
         }
 
         return { message, data };
       }
 
-      case 'check_status': {
+      case "check_status": {
         if (!sponsorship.id) {
-          return { message: 'Please provide a sponsorship ID to check. Example: "check sponsorship #1"' };
+          return {
+            message:
+              'Please provide a sponsorship ID to check. Example: "check sponsorship #1"',
+          };
         }
 
-        const response = await fetch(`${baseUrl}/api/sponsorship/${sponsorship.id}${userAddress ? `?user=${userAddress}` : ''}`);
+        const response = await fetch(
+          `${baseUrl}/api/sponsorship/${sponsorship.id}${userAddress ? `?user=${userAddress}` : ""}`,
+        );
         const data = await response.json();
 
         if (!data.success) {
@@ -1469,24 +1819,29 @@ async function handleSponsorshipAction(
 
         if (userStatus) {
           message += `\n**Your Status:**\n`;
-          message += `✅ Checked in: ${userStatus.isCheckedIn ? 'Yes' : 'No'}\n`;
-          message += `🗳️ Voted: ${userStatus.hasVoted ? 'Yes' : 'No'}\n`;
+          message += `✅ Checked in: ${userStatus.isCheckedIn ? "Yes" : "No"}\n`;
+          message += `🗳️ Voted: ${userStatus.hasVoted ? "Yes" : "No"}\n`;
         }
 
         return { message, data: s };
       }
 
-      case 'checkin': {
+      case "checkin": {
         if (!sponsorship.id) {
-          return { message: 'Please provide a sponsorship ID to check in. Example: "check in to sponsorship #1"' };
+          return {
+            message:
+              'Please provide a sponsorship ID to check in. Example: "check in to sponsorship #1"',
+          };
         }
         if (!userAddress) {
-          return { message: 'Please connect your wallet to check in to events.' };
+          return {
+            message: "Please connect your wallet to check in to events.",
+          };
         }
 
         const response = await fetch(`${baseUrl}/api/sponsorship/checkin`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sponsorshipId: sponsorship.id,
             guestAddress: userAddress,
@@ -1508,17 +1863,20 @@ async function handleSponsorshipAction(
         };
       }
 
-      case 'vote': {
+      case "vote": {
         if (!sponsorship.id) {
-          return { message: 'Please provide a sponsorship ID to vote on. Example: "vote yes on sponsorship #1"' };
+          return {
+            message:
+              'Please provide a sponsorship ID to vote on. Example: "vote yes on sponsorship #1"',
+          };
         }
         if (!userAddress) {
-          return { message: 'Please connect your wallet to vote.' };
+          return { message: "Please connect your wallet to vote." };
         }
 
         const response = await fetch(`${baseUrl}/api/sponsorship/vote`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sponsorshipId: sponsorship.id,
             voterAddress: userAddress,
@@ -1532,7 +1890,9 @@ async function handleSponsorshipAction(
           return { message: `❌ Vote failed: ${data.error}` };
         }
 
-        const voteText = sponsorship.vote ? 'YES (sponsor was mentioned)' : 'NO (sponsor was NOT mentioned)';
+        const voteText = sponsorship.vote
+          ? "YES (sponsor was mentioned)"
+          : "NO (sponsor was NOT mentioned)";
         return {
           message: `🗳️ Vote prepared: ${voteText}\n\nSubmit the transaction to complete your vote on sponsorship #${sponsorship.id}.`,
           data,
@@ -1543,7 +1903,7 @@ async function handleSponsorshipAction(
         return { message: `Unknown sponsorship action: ${sponsorship.action}` };
     }
   } catch (error: any) {
-    console.error('[Oracle] Sponsorship action error:', error);
+    console.error("[Oracle] Sponsorship action error:", error);
     return { message: `Sponsorship error: ${error.message}` };
   }
 }
@@ -1555,24 +1915,31 @@ async function handleAdminAction(
   admin: { action: string; tokenId?: number; reason?: string },
   userAddress?: string,
   signature?: string,
-  timestamp?: number
+  timestamp?: number,
 ): Promise<{ message: string; txHash?: string; data?: any }> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   // Admin addresses that can perform admin actions
   const ADMIN_ADDRESSES = [
-    process.env.ADMIN_ADDRESS || '',
-    process.env.NEXT_PUBLIC_PLATFORM_SAFE || '',
-  ].filter(Boolean).map(a => a.toLowerCase());
+    process.env.ADMIN_ADDRESS || "",
+    process.env.NEXT_PUBLIC_PLATFORM_SAFE || "",
+  ]
+    .filter(Boolean)
+    .map((a) => a.toLowerCase());
 
   try {
     switch (admin.action) {
-      case 'lookup_nft': {
+      case "lookup_nft": {
         if (!admin.tokenId) {
-          return { message: 'Please provide a token ID to lookup. Example: "lookup NFT #1"' };
+          return {
+            message:
+              'Please provide a token ID to lookup. Example: "lookup NFT #1"',
+          };
         }
 
-        const response = await fetch(`${baseUrl}/api/admin/burn-stolen?tokenId=${admin.tokenId}`);
+        const response = await fetch(
+          `${baseUrl}/api/admin/burn-stolen?tokenId=${admin.tokenId}`,
+        );
         const data = await response.json();
 
         if (!data.success) {
@@ -1580,31 +1947,45 @@ async function handleAdminAction(
         }
 
         return {
-          message: `🔍 **NFT #${data.tokenId} Info**\n\n` +
+          message:
+            `🔍 **NFT #${data.tokenId} Info**\n\n` +
             `**Owner:** \`${data.owner.slice(0, 6)}...${data.owner.slice(-4)}\`\n` +
             `**Contract:** \`${data.contract.slice(0, 6)}...${data.contract.slice(-4)}\`\n` +
-            (data.tokenURI ? `**Token URI:** ${data.tokenURI.slice(0, 50)}...\n` : '') +
+            (data.tokenURI
+              ? `**Token URI:** ${data.tokenURI.slice(0, 50)}...\n`
+              : "") +
             `\nTo burn this NFT, say: "burn NFT #${data.tokenId} reason: [your reason]"`,
           data,
         };
       }
 
-      case 'burn_nft': {
+      case "burn_nft": {
         if (!admin.tokenId) {
-          return { message: 'Please provide a token ID to burn. Example: "burn NFT #1 reason: stolen content"' };
+          return {
+            message:
+              'Please provide a token ID to burn. Example: "burn NFT #1 reason: stolen content"',
+          };
         }
 
         if (!admin.reason || admin.reason.length < 10) {
-          return { message: 'Please provide a reason for burning (at least 10 characters). Example: "burn NFT #1 reason: Copyright infringement - DMCA takedown"' };
+          return {
+            message:
+              'Please provide a reason for burning (at least 10 characters). Example: "burn NFT #1 reason: Copyright infringement - DMCA takedown"',
+          };
         }
 
         if (!userAddress) {
-          return { message: 'Please connect your wallet to perform admin actions.' };
+          return {
+            message: "Please connect your wallet to perform admin actions.",
+          };
         }
 
         // Check if user is admin
         if (!ADMIN_ADDRESSES.includes(userAddress.toLowerCase())) {
-          return { message: '⛔ You are not authorized to perform admin actions. Only platform admins can burn NFTs.' };
+          return {
+            message:
+              "⛔ You are not authorized to perform admin actions. Only platform admins can burn NFTs.",
+          };
         }
 
         // Check if signature was provided (from frontend after user signs)
@@ -1614,7 +1995,8 @@ async function handleAdminAction(
           const messageToSign = `BURN_NFT:${admin.tokenId}:${admin.reason}:${newTimestamp}`;
 
           return {
-            message: `🔐 **Signature Required**\n\n` +
+            message:
+              `🔐 **Signature Required**\n\n` +
               `To burn NFT #${admin.tokenId}, please sign this message:\n\n` +
               `\`${messageToSign}\`\n\n` +
               `After signing, include the signature in your request.`,
@@ -1629,8 +2011,8 @@ async function handleAdminAction(
         }
 
         const response = await fetch(`${baseUrl}/api/admin/burn-stolen`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tokenId: admin.tokenId,
             reason: admin.reason,
@@ -1647,7 +2029,8 @@ async function handleAdminAction(
         }
 
         return {
-          message: `🔥 **NFT #${admin.tokenId} Burned Successfully**\n\n` +
+          message:
+            `🔥 **NFT #${admin.tokenId} Burned Successfully**\n\n` +
             `**Previous Owner:** \`${data.previousOwner.slice(0, 6)}...${data.previousOwner.slice(-4)}\`\n` +
             `**Reason:** ${admin.reason}\n` +
             `**Block:** ${data.blockNumber}\n\n` +
@@ -1658,10 +2041,12 @@ async function handleAdminAction(
       }
 
       default:
-        return { message: `Unknown admin action: ${admin.action}. Available: lookup_nft, burn_nft` };
+        return {
+          message: `Unknown admin action: ${admin.action}. Available: lookup_nft, burn_nft`,
+        };
     }
   } catch (error: any) {
-    console.error('[Oracle] Admin action error:', error);
+    console.error("[Oracle] Admin action error:", error);
     return { message: `Admin action error: ${error.message}` };
   }
 }
