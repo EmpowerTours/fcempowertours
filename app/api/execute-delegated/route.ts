@@ -36,6 +36,7 @@ import {
   storeRightsStatus,
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
+import { authorizeUserAddress } from "@/lib/quick-auth";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
 // ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
@@ -131,6 +132,29 @@ export async function POST(req: NextRequest) {
           error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
         },
         { status: 429 },
+      );
+    }
+
+    // 🔐 Identity gate — applies to EVERY action, including the public ones.
+    //
+    // publicActions below skips the delegation check, which previously meant
+    // anyone could POST an arbitrary userAddress and move that user's funds
+    // (send_mon / send_tours / withdraw_to_user / platform_send_mon). Proving
+    // control of userAddress is what makes that list safe to keep.
+    //
+    // Until ENFORCE_QUICK_AUTH=true this only warns. Watch the logs for
+    // server-side callers that have no token (e.g. the radio scheduler
+    // calling radio_mark_played) — they need a service credential before
+    // enforcement is switched on.
+    const authz = await authorizeUserAddress(
+      req,
+      userAddress,
+      `execute-delegated:${action}`,
+    );
+    if (!authz.allowed) {
+      return NextResponse.json(
+        { success: false, error: authz.reason || "Unauthorized" },
+        { status: 401 },
       );
     }
 

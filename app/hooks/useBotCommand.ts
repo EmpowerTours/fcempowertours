@@ -1,11 +1,18 @@
-'use client';
+"use client";
 
-import { useCallback, useState } from 'react';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useCallback, useState } from "react";
+import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { authHeaders } from "@/lib/quick-auth-client";
 
 export type BotCommandResponse = {
   success: boolean;
-  action?: 'info' | 'navigate' | 'transaction' | 'buy_music' | 'redirect' | 'open_url';
+  action?:
+    | "info"
+    | "navigate"
+    | "transaction"
+    | "buy_music"
+    | "redirect"
+    | "open_url";
   path?: string;
   url?: string; // For redirect/open_url action
   message?: string;
@@ -19,7 +26,12 @@ export function useBotCommand() {
   const [error, setError] = useState<string | null>(null);
 
   // ✅ USE EXISTING useFarcasterContext HOOK
-  const { fid, walletAddress, isLoading: contextLoading, custodyAddress } = useFarcasterContext();
+  const {
+    fid,
+    walletAddress,
+    isLoading: contextLoading,
+    custodyAddress,
+  } = useFarcasterContext();
 
   const executeCommand = useCallback(
     async (
@@ -27,15 +39,15 @@ export function useBotCommand() {
       options?: {
         location?: { latitude: number; longitude: number };
         fid?: number | string;
-        imageUrl?: string;  // For music minting - direct cover image URL
+        imageUrl?: string; // For music minting - direct cover image URL
         title?: string; // NFT title (works for both music and art)
-        tokenURI?: string;  // For music minting - token metadata URI
-        is_art?: boolean;  // Art vs Music flag for conditional cast posting
+        tokenURI?: string; // For music minting - token metadata URI
+        is_art?: boolean; // Art vs Music flag for conditional cast posting
         collectorTokenURI?: string; // Collector edition token URI
         collectorPrice?: string; // Collector edition price in WMON
         maxEditions?: string; // Max collector editions
         rightsDeclaration?: object; // Rights declaration for music NFTs
-      }
+      },
     ): Promise<BotCommandResponse> => {
       setLoading(true);
       setError(null);
@@ -45,18 +57,29 @@ export function useBotCommand() {
         const userAddress = walletAddress;
 
         if (!userAddress) {
-          const err = 'Wallet not connected. Please connect your Farcaster wallet.';
-          console.warn('❌ [BOT-HOOK] No wallet address found from Farcaster context');
+          const err =
+            "Wallet not connected. Please connect your Farcaster wallet.";
+          console.warn(
+            "❌ [BOT-HOOK] No wallet address found from Farcaster context",
+          );
           setError(err);
-          return { success: false, error: err};
+          return { success: false, error: err };
         }
 
-        console.log('✅ [BOT-HOOK] Wallet address found:', { userAddress, fid });
+        console.log("✅ [BOT-HOOK] Wallet address found:", {
+          userAddress,
+          fid,
+        });
 
-        const response = await fetch('/api/bot-command', {
-          method: 'POST',
+        // Prove control of the FID we're claiming. Resolves to {} outside a
+        // Farcaster client, so non-mini-app usage is unaffected.
+        const auth = await authHeaders();
+
+        const response = await fetch("/api/bot-command", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
+            ...auth,
           },
           body: JSON.stringify({
             command,
@@ -76,7 +99,8 @@ export function useBotCommand() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          const errorMessage = errorData.error || errorData.message || 'Command failed';
+          const errorMessage =
+            errorData.error || errorData.message || "Command failed";
           setError(errorMessage);
           return { success: false, error: errorMessage };
         }
@@ -84,20 +108,20 @@ export function useBotCommand() {
         const data: BotCommandResponse = await response.json();
 
         if (!data.success) {
-          setError(data.message || 'Unknown error');
+          setError(data.message || "Unknown error");
         }
 
         return data;
       } catch (err: any) {
-        const errorMessage = err.message || 'Failed to execute command';
+        const errorMessage = err.message || "Failed to execute command";
         setError(errorMessage);
-        console.error('❌ [BOT-HOOK] Command error:', err);
+        console.error("❌ [BOT-HOOK] Command error:", err);
         return { success: false, error: errorMessage };
       } finally {
         setLoading(false);
       }
     },
-    [fid, walletAddress, custodyAddress]
+    [fid, walletAddress, custodyAddress],
   );
 
   return {

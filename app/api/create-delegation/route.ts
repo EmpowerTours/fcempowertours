@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
-import { updateDelegationPermissions } from '@/lib/delegation-system';
-import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
+import { NextRequest, NextResponse } from "next/server";
+import { redis } from "@/lib/redis";
+import { updateDelegationPermissions } from "@/lib/delegation-system";
+import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 import {
   generateNonce,
   authenticateRequest,
   buildDelegationMessage,
   sanitizeErrorForResponse,
   SIGNATURE_EXPIRY_MS,
-} from '@/lib/auth';
+} from "@/lib/auth";
+import { authorizeUserAddress } from "@/lib/quick-auth";
 
 /**
  * 🔐 CREATE DELEGATION ENDPOINT (SECURED)
@@ -27,37 +28,34 @@ import {
 
 // SECURITY: Restricted default permissions (high-risk actions excluded)
 const DEFAULT_PERMISSIONS = [
-  'mint_passport',
-  'mint_music',
-  'buy_music',
-  'burn_music',
-  'burn_nft',
-  'burn_itinerary',
-  'stake_music',
-  'unstake_music',
-  'swap_mon_for_tours',
-  'buy_itinerary',
+  "mint_passport",
+  "mint_music",
+  "buy_music",
+  "burn_music",
+  "burn_nft",
+  "burn_itinerary",
+  "stake_music",
+  "unstake_music",
+  "swap_mon_for_tours",
+  "buy_itinerary",
   // 'send_tours' - REMOVED: High-risk, requires explicit request
-  'approve_yield_strategy',
-  'stake_tours',
-  'unstake_tours',
-  'stake_music_yield',
-  'unstake_music_yield',
-  'claim_rewards',
-  'create_tanda_group',
-  'join_tanda_group',
-  'contribute_tanda',
-  'claim_tanda_payout',
-  'purchase_event_ticket',
-  'submit_demand_signal',
-  'withdraw_demand_signal',
+  "approve_yield_strategy",
+  "stake_tours",
+  "unstake_tours",
+  "stake_music_yield",
+  "unstake_music_yield",
+  "claim_rewards",
+  "create_tanda_group",
+  "join_tanda_group",
+  "contribute_tanda",
+  "claim_tanda_payout",
+  "purchase_event_ticket",
+  "submit_demand_signal",
+  "withdraw_demand_signal",
 ];
 
 // High-risk permissions that require explicit request
-const HIGH_RISK_PERMISSIONS = [
-  'send_tours',
-  'admin_burn',
-];
+const HIGH_RISK_PERMISSIONS = ["send_tours", "admin_burn"];
 
 /**
  * GET - Request nonce for delegation creation
@@ -66,28 +64,32 @@ const HIGH_RISK_PERMISSIONS = [
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const userAddress = searchParams.get('address');
-    const requestNonce = searchParams.get('nonce') === 'true';
+    const userAddress = searchParams.get("address");
+    const requestNonce = searchParams.get("nonce") === "true";
 
     if (!userAddress) {
       return NextResponse.json(
-        { success: false, error: 'address parameter required' },
-        { status: 400 }
+        { success: false, error: "address parameter required" },
+        { status: 400 },
       );
     }
 
     // Validate address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid Ethereum address format' },
-        { status: 400 }
+        { success: false, error: "Invalid Ethereum address format" },
+        { status: 400 },
       );
     }
 
     // If requesting nonce for new delegation
     if (requestNonce) {
       const ip = getClientIP(req);
-      const rateLimit = await checkRateLimit(RateLimiters.delegation, ip, userAddress);
+      const rateLimit = await checkRateLimit(
+        RateLimiters.delegation,
+        ip,
+        userAddress,
+      );
 
       if (!rateLimit.allowed) {
         return NextResponse.json(
@@ -95,11 +97,11 @@ export async function GET(req: NextRequest) {
             success: false,
             error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
           },
-          { status: 429 }
+          { status: 429 },
         );
       }
 
-      const nonce = await generateNonce(userAddress, 'delegation');
+      const nonce = await generateNonce(userAddress, "delegation");
       const timestamp = Date.now();
       const durationHours = 24; // Default duration for message preview
 
@@ -107,14 +109,20 @@ export async function GET(req: NextRequest) {
         success: true,
         nonce,
         timestamp,
-        messageToSign: buildDelegationMessage(userAddress, timestamp, nonce, durationHours),
+        messageToSign: buildDelegationMessage(
+          userAddress,
+          timestamp,
+          nonce,
+          durationHours,
+        ),
         expiresIn: SIGNATURE_EXPIRY_MS / 1000,
-        instructions: 'Sign the messageToSign with your wallet, then POST with signature.',
+        instructions:
+          "Sign the messageToSign with your wallet, then POST with signature.",
       });
     }
 
     // Check existing delegation status
-    console.log('[Delegation] Checking status for:', userAddress);
+    console.log("[Delegation] Checking status for:", userAddress);
 
     const key = `delegation:${userAddress.toLowerCase()}`;
     const delegationData = await redis.get(key);
@@ -122,7 +130,8 @@ export async function GET(req: NextRequest) {
     if (!delegationData) {
       return NextResponse.json({
         success: false,
-        message: 'No active delegation. Request a nonce with ?nonce=true to create one.',
+        message:
+          "No active delegation. Request a nonce with ?nonce=true to create one.",
         address: userAddress,
       });
     }
@@ -131,7 +140,8 @@ export async function GET(req: NextRequest) {
     const timeLeft = delegation.expiresAt - Date.now();
     const hoursLeft = Math.round(timeLeft / (1000 * 60 * 60));
     const minutesLeft = Math.round((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-    const transactionsLeft = delegation.config.maxTransactions - delegation.transactionsExecuted;
+    const transactionsLeft =
+      delegation.config.maxTransactions - delegation.transactionsExecuted;
 
     return NextResponse.json({
       success: true,
@@ -146,14 +156,13 @@ export async function GET(req: NextRequest) {
         permissions: delegation.config.permissions,
         createdAt: new Date(delegation.createdAt).toISOString(),
         expiresAt: new Date(delegation.expiresAt).toISOString(),
-      }
+      },
     });
-
   } catch (error: any) {
-    console.error('[Delegation] GET Error:', error);
+    console.error("[Delegation] GET Error:", error);
     return NextResponse.json(
       { success: false, error: sanitizeErrorForResponse(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -172,10 +181,24 @@ export async function POST(req: NextRequest) {
     // SECURITY: Rate limiting
     const ip = getClientIP(req);
     const body = await req.json();
-    const { userAddress, signature, timestamp, nonce, fid, authMethod, durationHours = 24, maxTransactions = 100, permissions = [] } = body;
+    const {
+      userAddress,
+      signature,
+      timestamp,
+      nonce,
+      fid,
+      authMethod,
+      durationHours = 24,
+      maxTransactions = 100,
+      permissions = [],
+    } = body;
 
     // Enhanced rate limiting with user identifier
-    const rateLimit = await checkRateLimit(RateLimiters.delegation, ip, userAddress);
+    const rateLimit = await checkRateLimit(
+      RateLimiters.delegation,
+      ip,
+      userAddress,
+    );
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -183,66 +206,55 @@ export async function POST(req: NextRequest) {
           success: false,
           error: `Rate limit exceeded. Try again in ${rateLimit.resetIn} seconds.`,
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
     if (!userAddress) {
       return NextResponse.json(
-        { success: false, error: 'userAddress is required' },
-        { status: 400 }
+        { success: false, error: "userAddress is required" },
+        { status: 400 },
       );
     }
 
-    // SECURITY: Farcaster context authentication (for mini-apps)
-    if (authMethod === 'farcaster' && fid) {
-      console.log(`[Delegation] Farcaster auth for FID ${fid}, address: ${userAddress}`);
-
-      // Verify FID owns the wallet address via Neynar
-      const neynarApiKey = process.env.NEYNAR_API_KEY;
-      if (!neynarApiKey) {
-        return NextResponse.json(
-          { success: false, error: 'Server configuration error: Neynar API not available' },
-          { status: 500 }
-        );
-      }
-
-      const verifyRes = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-        { headers: { accept: 'application/json', api_key: neynarApiKey } }
+    // SECURITY: Farcaster mini-app authentication via Quick Auth.
+    //
+    // This previously accepted { fid, authMethod: 'farcaster' } and merely
+    // asked Neynar whether that FID owned that address. Both values are
+    // PUBLIC, so anyone could mint a delegation for any Farcaster user by
+    // copying their FID and verified address off the network. It now requires
+    // a Quick Auth JWT, which is only issued after the user signs a Sign In
+    // with Farcaster credential — i.e. proof of possession, not a lookup.
+    if (authMethod === "farcaster") {
+      const authz = await authorizeUserAddress(
+        req,
+        userAddress,
+        "create-delegation",
       );
 
-      if (!verifyRes.ok) {
+      if (!authz.allowed) {
         return NextResponse.json(
-          { success: false, error: 'Failed to verify Farcaster identity' },
-          { status: 403 }
+          {
+            success: false,
+            error:
+              authz.reason ||
+              "Farcaster authentication required. Update to a client that supports Quick Auth.",
+          },
+          { status: 403 },
         );
       }
 
-      const neynarData = await verifyRes.json();
-      const fcUser = neynarData.users?.[0];
-
-      if (!fcUser) {
-        return NextResponse.json(
-          { success: false, error: `FID ${fid} not found` },
-          { status: 403 }
+      if (authz.mode === "quickauth") {
+        console.log(
+          `[Delegation] ✅ Quick Auth verified: FID ${authz.fid} owns ${userAddress}`,
+        );
+      } else {
+        // Enforcement is still off — legacy unauthenticated callers get in.
+        console.warn(
+          `[Delegation] ⚠️ UNVERIFIED delegation for ${userAddress} (claimed FID ${fid}). ` +
+            `Set ENFORCE_QUICK_AUTH=true to reject these.`,
         );
       }
-
-      // Check if any of the user's verified addresses match
-      const verifiedAddresses = fcUser.verified_addresses?.eth_addresses || [];
-      const custodyAddress = fcUser.custody_address;
-      const allAddresses = [...verifiedAddresses, custodyAddress].map((a: string) => a?.toLowerCase());
-
-      if (!allAddresses.includes(userAddress.toLowerCase())) {
-        console.error(`[Delegation] FID ${fid} does not own address ${userAddress}. Known: ${allAddresses.join(', ')}`);
-        return NextResponse.json(
-          { success: false, error: 'Address not associated with this Farcaster account' },
-          { status: 403 }
-        );
-      }
-
-      console.log(`[Delegation] ✅ Farcaster verified: FID ${fid} owns ${userAddress}`);
       // Fall through to delegation creation below
     }
     // SECURITY: Standard wallet signature auth
@@ -250,38 +262,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: userAddress, signature, timestamp, nonce. Use GET ?nonce=true first. Or use authMethod=farcaster with fid.',
+          error:
+            "Missing required fields: userAddress, signature, timestamp, nonce. Use GET ?nonce=true first. Or use authMethod=farcaster with fid.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // SECURITY: Validate address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid Ethereum address format' },
-        { status: 400 }
+        { success: false, error: "Invalid Ethereum address format" },
+        { status: 400 },
       );
     }
 
-    console.log('[Delegation] Creating for:', userAddress);
+    console.log("[Delegation] Creating for:", userAddress);
 
     // SECURITY: Build and verify signed message (skip for Farcaster-authenticated requests)
-    if (authMethod !== 'farcaster') {
-      const expectedMessage = buildDelegationMessage(userAddress, timestamp, nonce, durationHours);
+    if (authMethod !== "farcaster") {
+      const expectedMessage = buildDelegationMessage(
+        userAddress,
+        timestamp,
+        nonce,
+        durationHours,
+      );
 
       const authResult = await authenticateRequest(
         { address: userAddress, signature, timestamp, nonce },
         expectedMessage,
-        'delegation',
-        true // Require nonce
+        "delegation",
+        true, // Require nonce
       );
 
       if (!authResult.valid) {
-        console.error(`[Delegation] Auth failed for ${userAddress}: ${authResult.error}`);
+        console.error(
+          `[Delegation] Auth failed for ${userAddress}: ${authResult.error}`,
+        );
         return NextResponse.json(
           { success: false, error: authResult.error },
-          { status: 403 }
+          { status: 403 },
         );
       }
 
@@ -289,12 +309,17 @@ export async function POST(req: NextRequest) {
     }
 
     // SECURITY: Filter and validate permissions
-    let finalPermissions = permissions.length > 0 ? permissions : [...DEFAULT_PERMISSIONS];
+    let finalPermissions =
+      permissions.length > 0 ? permissions : [...DEFAULT_PERMISSIONS];
 
     // Remove any high-risk permissions unless explicitly requested with signature
-    const requestedHighRisk = finalPermissions.filter((p: string) => HIGH_RISK_PERMISSIONS.includes(p));
+    const requestedHighRisk = finalPermissions.filter((p: string) =>
+      HIGH_RISK_PERMISSIONS.includes(p),
+    );
     if (requestedHighRisk.length > 0) {
-      console.warn(`[Delegation] High-risk permissions requested: ${requestedHighRisk.join(', ')}`);
+      console.warn(
+        `[Delegation] High-risk permissions requested: ${requestedHighRisk.join(", ")}`,
+      );
       // For now, still allow if signed - but log it
     }
 
@@ -304,9 +329,9 @@ export async function POST(req: NextRequest) {
     // Create delegation object
     const delegation = {
       user: userAddress.toLowerCase(),
-      bot: process.env.BOT_SIGNER_ADDRESS || 'empowertoursbot',
+      bot: process.env.BOT_SIGNER_ADDRESS || "empowertoursbot",
       createdAt: Date.now(),
-      expiresAt: Date.now() + (durationHours * 60 * 60 * 1000),
+      expiresAt: Date.now() + durationHours * 60 * 60 * 1000,
       transactionsExecuted: 0,
       config: {
         durationHours,
@@ -315,10 +340,12 @@ export async function POST(req: NextRequest) {
       },
       // SECURITY: Track auth metadata
       authMetadata: {
-        method: authMethod === 'farcaster' ? 'farcaster' : 'signature',
-        ...(authMethod === 'farcaster' ? { fid } : { signedAt: timestamp, nonce }),
+        method: authMethod === "farcaster" ? "farcaster" : "signature",
+        ...(authMethod === "farcaster"
+          ? { fid }
+          : { signedAt: timestamp, nonce }),
         ip: ip,
-      }
+      },
     };
 
     // Store in Redis with TTL
@@ -333,11 +360,11 @@ export async function POST(req: NextRequest) {
     // Verify storage
     const verification = await redis.get(key);
     if (!verification) {
-      console.error('[Delegation] CRITICAL: Failed to store in Redis');
-      throw new Error('Failed to store delegation');
+      console.error("[Delegation] CRITICAL: Failed to store in Redis");
+      throw new Error("Failed to store delegation");
     }
 
-    console.log('[Delegation] ✅ Created and verified');
+    console.log("[Delegation] ✅ Created and verified");
 
     return NextResponse.json({
       success: true,
@@ -348,15 +375,15 @@ export async function POST(req: NextRequest) {
         durationHours,
         maxTransactions,
         permissions: finalPermissions,
-        message: 'Delegation created! You can now execute gasless transactions.'
-      }
+        message:
+          "Delegation created! You can now execute gasless transactions.",
+      },
     });
-
   } catch (error: any) {
-    console.error('[Delegation] POST Error:', error);
+    console.error("[Delegation] POST Error:", error);
     return NextResponse.json(
       { success: false, error: sanitizeErrorForResponse(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -372,15 +399,19 @@ export async function PATCH(req: NextRequest) {
 
     if (!userAddress) {
       return NextResponse.json(
-        { success: false, error: 'userAddress required' },
-        { status: 400 }
+        { success: false, error: "userAddress required" },
+        { status: 400 },
       );
     }
 
-    if (!addPermissions || !Array.isArray(addPermissions) || addPermissions.length === 0) {
+    if (
+      !addPermissions ||
+      !Array.isArray(addPermissions) ||
+      addPermissions.length === 0
+    ) {
       return NextResponse.json(
-        { success: false, error: 'addPermissions array required' },
-        { status: 400 }
+        { success: false, error: "addPermissions array required" },
+        { status: 400 },
       );
     }
 
@@ -389,9 +420,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Signature required to update permissions. Use GET ?nonce=true first.',
+          error:
+            "Signature required to update permissions. Use GET ?nonce=true first.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -400,7 +432,7 @@ export async function PATCH(req: NextRequest) {
 
 Address: ${userAddress.toLowerCase()}
 Action: Add permissions
-Permissions: ${addPermissions.join(', ')}
+Permissions: ${addPermissions.join(", ")}
 Timestamp: ${timestamp}
 Nonce: ${nonce}
 
@@ -409,31 +441,36 @@ Sign this message to authorize adding these permissions.`;
     const authResult = await authenticateRequest(
       { address: userAddress, signature, timestamp, nonce },
       expectedMessage,
-      'delegation-update',
-      true
+      "delegation-update",
+      true,
     );
 
     if (!authResult.valid) {
       return NextResponse.json(
         { success: false, error: authResult.error },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    console.log('[Delegation] Updating permissions for:', userAddress);
+    console.log("[Delegation] Updating permissions for:", userAddress);
 
-    const updatedDelegation = await updateDelegationPermissions(userAddress, addPermissions);
+    const updatedDelegation = await updateDelegationPermissions(
+      userAddress,
+      addPermissions,
+    );
 
     if (!updatedDelegation) {
       return NextResponse.json(
-        { success: false, error: 'No active delegation found to update' },
-        { status: 404 }
+        { success: false, error: "No active delegation found to update" },
+        { status: 404 },
       );
     }
 
     const timeLeft = updatedDelegation.expiresAt - Date.now();
     const hoursLeft = Math.round(timeLeft / (1000 * 60 * 60));
-    const transactionsLeft = updatedDelegation.config.maxTransactions - updatedDelegation.transactionsExecuted;
+    const transactionsLeft =
+      updatedDelegation.config.maxTransactions -
+      updatedDelegation.transactionsExecuted;
 
     return NextResponse.json({
       success: true,
@@ -443,15 +480,14 @@ Sign this message to authorize adding these permissions.`;
         addedPermissions: addPermissions,
         hoursLeft,
         transactionsLeft,
-        message: 'Delegation permissions updated successfully!'
-      }
+        message: "Delegation permissions updated successfully!",
+      },
     });
-
   } catch (error: any) {
-    console.error('[Delegation] PATCH Error:', error);
+    console.error("[Delegation] PATCH Error:", error);
     return NextResponse.json(
       { success: false, error: sanitizeErrorForResponse(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -462,15 +498,15 @@ Sign this message to authorize adding these permissions.`;
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const userAddress = searchParams.get('address');
-    const signature = req.headers.get('x-signature');
-    const timestamp = req.headers.get('x-timestamp');
-    const nonce = req.headers.get('x-nonce');
+    const userAddress = searchParams.get("address");
+    const signature = req.headers.get("x-signature");
+    const timestamp = req.headers.get("x-timestamp");
+    const nonce = req.headers.get("x-nonce");
 
     if (!userAddress) {
       return NextResponse.json(
-        { success: false, error: 'address parameter required' },
-        { status: 400 }
+        { success: false, error: "address parameter required" },
+        { status: 400 },
       );
     }
 
@@ -479,9 +515,10 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Signature required to revoke delegation. Pass x-signature, x-timestamp, x-nonce in headers.',
+          error:
+            "Signature required to revoke delegation. Pass x-signature, x-timestamp, x-nonce in headers.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -495,35 +532,39 @@ Nonce: ${nonce}
 Sign this message to revoke your delegation.`;
 
     const authResult = await authenticateRequest(
-      { address: userAddress, signature, timestamp: parseInt(timestamp), nonce },
+      {
+        address: userAddress,
+        signature,
+        timestamp: parseInt(timestamp),
+        nonce,
+      },
       expectedMessage,
-      'delegation-revoke',
-      true
+      "delegation-revoke",
+      true,
     );
 
     if (!authResult.valid) {
       return NextResponse.json(
         { success: false, error: authResult.error },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const key = `delegation:${userAddress.toLowerCase()}`;
     await redis.del(key);
 
-    console.log('[Delegation] ✅ Revoked for:', userAddress);
+    console.log("[Delegation] ✅ Revoked for:", userAddress);
 
     return NextResponse.json({
       success: true,
-      message: 'Delegation revoked successfully',
+      message: "Delegation revoked successfully",
       address: userAddress,
     });
-
   } catch (error: any) {
-    console.error('[Delegation] DELETE Error:', error);
+    console.error("[Delegation] DELETE Error:", error);
     return NextResponse.json(
       { success: false, error: sanitizeErrorForResponse(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

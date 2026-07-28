@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeUserAddress, forwardAuthHeader } from "@/lib/quick-auth";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -42,6 +43,25 @@ export async function POST(req: NextRequest) {
 
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
+
+    // 🔐 Prove the caller controls userAddress before acting on their behalf.
+    // Allowed through with a warning until ENFORCE_QUICK_AUTH=true.
+    if (userAddress) {
+      const authz = await authorizeUserAddress(req, userAddress, "bot-command");
+      if (!authz.allowed) {
+        return NextResponse.json(
+          { success: false, error: authz.reason || "Unauthorized" },
+          { status: 401 },
+        );
+      }
+    }
+
+    // Internal service calls carry the caller's token so downstream routes can
+    // verify identity themselves. Never used for third-party requests.
+    const internalHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...forwardAuthHeader(req),
+    };
 
     console.log("Bot command received:", {
       command,
@@ -406,7 +426,7 @@ Vote: "dao vote <id> yes" or "dao vote <id> no"
       try {
         const voteRes = await fetch(`${APP_URL}/api/world/dao`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             action: "vote",
             userAddress,
@@ -474,7 +494,7 @@ ${voteData.txHash ? `TX: ${voteData.txHash.slice(0, 14)}...` : ""}`,
       try {
         const tipRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress,
             action: "tip-artist",
@@ -540,7 +560,7 @@ Thanks for supporting artists! 💎`,
       try {
         const queueRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress,
             action: "radio_queue_song",
@@ -593,7 +613,7 @@ TX: ${queueData.txHash?.slice(0, 14)}...
       try {
         const response = await fetch(`${APP_URL}/api/get-balances`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({ address: userAddress }),
         });
         const data = await response.json();
@@ -631,7 +651,7 @@ Address: ${userAddress.slice(0, 10)}...`,
       try {
         const response = await fetch(`${APP_URL}/api/discord/balance`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             action: "get_safe_info",
             discordId,
@@ -700,7 +720,7 @@ Use \`link wallet\` to connect your wallet and get your Safe address.`,
       try {
         const response = await fetch(`${APP_URL}/api/discord/balance`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             action: "get_safe_info",
             discordId,
@@ -919,7 +939,7 @@ No active round found. A new round may be starting soon!
 
         const response = await fetch(balanceApiUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             action: "buy_lottery",
             discordId,
@@ -1031,7 +1051,7 @@ Do you want to proceed? Use \`force draw\` to trigger rollover.`,
         console.log("[BOT-LOTTERY] Triggering lottery draw...");
         const drawRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress: "0x868469E5D124f81cf63e1A3808795649cA6c3D77", // Agent wallet as beneficiary for TOURS reward
             action: "daily_lottery_draw",
@@ -1084,7 +1104,7 @@ Winner will be announced shortly!`,
         // Trigger the draw regardless of minimum
         const drawRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress: "0x868469E5D124f81cf63e1A3808795649cA6c3D77",
             action: "daily_lottery_draw",
@@ -1172,7 +1192,7 @@ A new round will start shortly!`,
         // First check if user has a linked wallet with a Safe
         const safeInfoRes = await fetch(`${APP_URL}/api/discord/balance`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             action: "get_safe_info",
             discordId,
@@ -1218,7 +1238,7 @@ Use \`fund safe\` to add more MON.`,
         // Execute the flip coin action
         const flipRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress: safeInfo.linkedWallet,
             action: "flip_coin",
@@ -1288,7 +1308,7 @@ Check the transaction to see if you won! Win = 2x payout minus house edge.`,
       try {
         const response = await fetch(`${APP_URL}/api/discord/balance`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             action: "withdraw",
             discordId,
@@ -1474,7 +1494,7 @@ Tx: ${result.txHash?.slice(0, 10)}...`,
           );
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               authMethod: "farcaster",
@@ -1499,7 +1519,7 @@ Tx: ${result.txHash?.slice(0, 10)}...`,
 
         const buyRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress,
             action: "buy_music",
@@ -1628,7 +1648,7 @@ View: https://monadscan.com/tx/${buyData.txHash}`,
         if (!hasValidDelegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               authMethod: "farcaster",
@@ -1651,7 +1671,7 @@ View: https://monadscan.com/tx/${buyData.txHash}`,
         }
         const sendRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress,
             action: "send_tours",
@@ -1852,7 +1872,7 @@ Try "mint passport" from a different location or "help" for other commands.`,
         if (!delegationData.success || !delegationData.delegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               authMethod: "farcaster",
@@ -1876,7 +1896,7 @@ Try "mint passport" from a different location or "help" for other commands.`,
 
         let mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress,
             action: "mint_passport",
@@ -1898,7 +1918,7 @@ Try "mint passport" from a different location or "help" for other commands.`,
 
           const wrapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               action: "wrap_mon",
@@ -1915,7 +1935,7 @@ Try "mint passport" from a different location or "help" for other commands.`,
           // Retry mint after wrap
           mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               action: "mint_passport",
@@ -2018,7 +2038,7 @@ Or go to the Music page to upload files.`,
         if (!delegationData.success || !delegationData.delegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               authMethod: "farcaster",
@@ -2042,7 +2062,7 @@ Or go to the Music page to upload files.`,
 
         const mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({
             userAddress,
             action: "mint_music",
@@ -2166,7 +2186,7 @@ To mint a collector edition, use the NFT creation page with the collector toggle
         if (!delegationData.success || !delegationData.delegation) {
           const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               authMethod: "farcaster",
@@ -2193,7 +2213,7 @@ To mint a collector edition, use the NFT creation page with the collector toggle
           `${APP_URL}/api/execute-delegated`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: internalHeaders,
             body: JSON.stringify({
               userAddress,
               action: "mint_collector",
