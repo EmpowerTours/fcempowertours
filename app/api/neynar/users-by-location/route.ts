@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 
 const neynarClient = new NeynarAPIClient({
-  apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!
+  apiKey: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!
 });
 
 export async function GET(req: NextRequest) {

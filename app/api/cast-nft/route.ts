@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
-const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+const NEYNAR_API_KEY = (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) || '';
 const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 
 export async function POST(req: NextRequest) {

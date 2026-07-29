@@ -35,7 +35,7 @@ interface CastData {
 }
 
 const config = new Configuration({
-  apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
+  apiKey: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!,
   baseOptions: {
     headers: {
       'x-neynar-experimental': 'true',

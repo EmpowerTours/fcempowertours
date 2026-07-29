@@ -726,7 +726,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+              apiKey: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) as string,
             });
 
             const castResult = await client.publishCast({
@@ -1034,7 +1034,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+              apiKey: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) as string,
             });
 
             console.log("📤 Calling Neynar publishCast...");
@@ -1321,7 +1321,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const neynarClient = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+              apiKey: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) as string,
             });
 
             const frameRoute = isArt ? "art" : "music";
@@ -1662,7 +1662,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                   headers: {
                     api_key:
                       process.env.NEYNAR_API_KEY ||
-                      process.env.NEXT_PUBLIC_NEYNAR_API_KEY ||
+                      (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) ||
                       "",
                   },
                 },
@@ -1775,7 +1775,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                             headers: {
                               api_key:
                                 process.env.NEYNAR_API_KEY ||
-                                process.env.NEXT_PUBLIC_NEYNAR_API_KEY ||
+                                (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) ||
                                 "",
                             },
                           },
@@ -1869,7 +1869,7 @@ ${enjoyText}
 
             const { NeynarAPIClient } = await import("@neynar/nodejs-sdk");
             const client = new NeynarAPIClient({
-              apiKey: process.env.NEXT_PUBLIC_NEYNAR_API_KEY as string,
+              apiKey: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) as string,
             });
 
             const castResult = await client.publishCast({

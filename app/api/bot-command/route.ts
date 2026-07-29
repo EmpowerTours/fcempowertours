@@ -1611,7 +1611,7 @@ View: https://monadscan.com/tx/${buyData.txHash}`,
               `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`,
               {
                 headers: {
-                  api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || "",
+                  api_key: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) || "",
                 },
               },
             );

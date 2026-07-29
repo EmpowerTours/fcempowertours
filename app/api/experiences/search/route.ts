@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
       ];
       const neynarApiKey =
         process.env.NEYNAR_API_KEY ||
-        process.env.NEXT_PUBLIC_NEYNAR_API_KEY ||
+        (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) ||
         "";
 
       if (creatorAddresses.length > 0 && neynarApiKey) {

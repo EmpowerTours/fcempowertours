@@ -52,7 +52,7 @@ export function getAddressExplorerUrl(address: string): string {
 
 // Pimlico client for Monad (CONFIRMED WORKING!)
 export function createPimlicoClientForMonad() {
-  const apiKey = process.env.NEXT_PUBLIC_PIMLICO_API_KEY;
+  const apiKey = (process.env.PIMLICO_API_KEY || process.env.NEXT_PUBLIC_PIMLICO_API_KEY);
   if (!apiKey) throw new Error('Missing PIMLICO_API_KEY');
 
   // Pimlico bundler URL - Monad Mainnet

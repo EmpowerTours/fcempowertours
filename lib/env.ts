@@ -16,8 +16,8 @@ export const env = {
   IS_MAINNET: isMainnet,
 
   // Pimlico (Account Abstraction)
-  PIMLICO_API_KEY: process.env.NEXT_PUBLIC_PIMLICO_API_KEY || '',
-  PIMLICO_BUNDLER_URL: process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || '',
+  PIMLICO_API_KEY: (process.env.PIMLICO_API_KEY || process.env.NEXT_PUBLIC_PIMLICO_API_KEY) || '',
+  PIMLICO_BUNDLER_URL: (process.env.PIMLICO_BUNDLER_URL || process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL) || '',
 
   // ERC-4337
   ENTRYPOINT_ADDRESS: process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS || '',

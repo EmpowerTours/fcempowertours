@@ -4,7 +4,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const categories = searchParams.get('categories')?.split(',') || [];
  
-  const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+  const apiKey = (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY);
 
   if (!apiKey) {
     return NextResponse.json({ success: false, error: 'API key not found' }, { status: 500 });

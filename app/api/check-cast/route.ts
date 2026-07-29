@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
+const NEYNAR_API_KEY = (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!;
 const REQUIRED_CAST_TEXT = 'empowertours'; // Keywords that must be in the cast
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 

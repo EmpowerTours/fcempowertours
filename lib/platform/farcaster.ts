@@ -114,7 +114,7 @@ async function resolveWalletAddress(fid: number): Promise<string | null> {
   }
 
   try {
-    const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+    const apiKey = (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) || '';
     if (!apiKey) {
       console.warn('[Platform:Farcaster] NEYNAR_API_KEY not configured');
       return null;

@@ -4,7 +4,7 @@ export async function POST(req: NextRequest) {
   try {
     const { text, frameUrl } = await req.json();
 
-    if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY || !process.env.BOT_SIGNER_UUID) {
+    if (!(process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) || !process.env.BOT_SIGNER_UUID) {
       throw new Error("Missing NEYNAR_API_KEY or BOT_SIGNER_UUID");
     }
 
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
+        "x-api-key": (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!,
       },
       body: JSON.stringify({
         signer_uuid: process.env.BOT_SIGNER_UUID!,

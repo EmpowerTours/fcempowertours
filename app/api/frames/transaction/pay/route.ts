@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     const { name, description, image, receiver, amount } = await req.json();
 
-    if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
+    if (!(process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)) {
       throw new Error("Server configuration error");
     }
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "accept": "application/json",
         "content-type": "application/json",
-        "x-api-key": process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
+        "x-api-key": (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!,
       },
       body: JSON.stringify(payload),
     });

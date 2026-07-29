@@ -28,7 +28,7 @@ export async function createUserSmartAccount(userPrivateKey: Hex) {
   const smartAccountClient = createSmartAccountClient({
     account: smartAccount,
     chain: activeChain,
-    bundlerTransport: http(process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || `https://api.pimlico.io/v2/143/rpc?apikey=${process.env.NEXT_PUBLIC_PIMLICO_API_KEY}`),
+    bundlerTransport: http((process.env.PIMLICO_BUNDLER_URL || process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL) || `https://api.pimlico.io/v2/143/rpc?apikey=${(process.env.PIMLICO_API_KEY || process.env.NEXT_PUBLIC_PIMLICO_API_KEY)}`),
     paymaster: pimlicoClient, // Pimlico sponsors gas!
     userOperation: {
       estimateFeesPerGas: async () => {

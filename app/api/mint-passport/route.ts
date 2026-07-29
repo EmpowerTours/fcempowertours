@@ -61,7 +61,7 @@ async function getCountryFromIP(request: NextRequest): Promise<{ country: string
     return null;
   }
 }
-const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY!;
+const NEYNAR_API_KEY = (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
