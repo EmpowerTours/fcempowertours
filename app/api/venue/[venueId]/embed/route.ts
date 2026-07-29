@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
-import { getVenue, verifyApiKey } from '@/lib/venue';
+import { NextRequest, NextResponse } from "next/server";
+import { redis } from "@/lib/redis";
+import { getVenue, verifyApiKey } from "@/lib/venue";
 
 /**
  * GET /api/venue/[venueId]/embed?key=X&size=small|medium|large
@@ -17,52 +17,69 @@ const SIZES: Record<string, { width: number; height: number }> = {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ venueId: string }> }
+  { params }: { params: Promise<{ venueId: string }> },
 ) {
   const { venueId } = await params;
   const { searchParams } = new URL(req.url);
-  const apiKey = searchParams.get('key') || '';
-  const size = searchParams.get('size') || 'medium';
-  const format = searchParams.get('format') || 'html'; // 'html' or 'json'
+  const apiKey = searchParams.get("key") || "";
+  // SECURITY: constrain size to a known key. It is reflected into an HTML
+  // response (text/html), so an unconstrained value like `"><script>` was a
+  // reflected-XSS breakout.
+  const rawSize = searchParams.get("size") || "medium";
+  const size = SIZES[rawSize] ? rawSize : "medium";
+  const format = searchParams.get("format") || "html"; // 'html' or 'json'
 
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: 'API key required' }, { status: 401 });
+    return NextResponse.json(
+      { success: false, error: "API key required" },
+      { status: 401 },
+    );
   }
 
   const valid = await verifyApiKey(redis, venueId, apiKey);
   if (!valid) {
-    return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 403 });
+    return NextResponse.json(
+      { success: false, error: "Invalid API key" },
+      { status: 403 },
+    );
   }
 
   const venue = await getVenue(redis, venueId);
   if (!venue) {
-    return NextResponse.json({ success: false, error: 'Venue not found' }, { status: 404 });
+    return NextResponse.json(
+      { success: false, error: "Venue not found" },
+      { status: 404 },
+    );
   }
 
   const dim = SIZES[size] || SIZES.medium;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `https://${req.headers.get('host')}`;
-  const embedUrl = `${baseUrl}/venue/${venueId}/embed?key=${apiKey}&size=${size}`;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL || `https://${req.headers.get("host")}`;
+  const embedUrl = `${baseUrl}/venue/${venueId}/embed?key=${encodeURIComponent(apiKey)}&size=${size}`;
 
   const iframeCode = `<iframe src="${embedUrl}" width="${dim.width}" height="${dim.height}" frameborder="0" allow="autoplay" style="border-radius:8px;border:none;"></iframe>`;
 
-  if (format === 'json') {
-    return NextResponse.json({
-      success: true,
-      venue: { name: venue.name, venueId },
-      embed: {
-        url: embedUrl,
-        iframe: iframeCode,
-        sizes: SIZES,
+  if (format === "json") {
+    return NextResponse.json(
+      {
+        success: true,
+        venue: { name: venue.name, venueId },
+        embed: {
+          url: embedUrl,
+          iframe: iframeCode,
+          sizes: SIZES,
+        },
       },
-    }, {
-      headers: corsHeaders(),
-    });
+      {
+        headers: corsHeaders(),
+      },
+    );
   }
 
   // Return the iframe code as plain text
   return new NextResponse(iframeCode, {
     headers: {
-      'Content-Type': 'text/html; charset=utf-8',
+      "Content-Type": "text/html; charset=utf-8",
       ...corsHeaders(),
     },
   });
@@ -70,10 +87,10 @@ export async function GET(
 
 function corsHeaders(): Record<string, string> {
   return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'X-Frame-Options': 'ALLOWALL',
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "X-Frame-Options": "ALLOWALL",
   };
 }
 

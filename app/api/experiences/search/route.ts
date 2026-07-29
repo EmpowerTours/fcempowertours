@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
@@ -23,19 +23,24 @@ interface Experience {
 
 // Sanitize input to prevent GraphQL injection
 function sanitizeGraphQLInput(input: string): string {
-  if (!input) return '';
-  return input
-    .replace(/[{}\[\]():,\\"`]/g, '')
-    .replace(/\$/g, '')
-    .slice(0, 100)
-    .trim();
+  if (!input) return "";
+  return (
+    input
+      .replace(/[{}\[\]():,\\"`]/g, "")
+      .replace(/\$/g, "")
+      // Escape SQL LIKE wildcards so a query of "%" / "_" can't broaden the
+      // _ilike match to everything.
+      .replace(/[%_]/g, "\\$&")
+      .slice(0, 100)
+      .trim()
+  );
 }
 
 // Resolve IPFS hash to a gateway URL
 function resolveIPFS(hash: string | null | undefined): string | undefined {
   if (!hash) return undefined;
-  if (hash.startsWith('http')) return hash;
-  const cleanHash = hash.replace('ipfs://', '');
+  if (hash.startsWith("http")) return hash;
+  const cleanHash = hash.replace("ipfs://", "");
   return `https://gateway.pinata.cloud/ipfs/${cleanHash}`;
 }
 
@@ -43,22 +48,25 @@ function resolveIPFS(hash: string | null | undefined): string | undefined {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const query = sanitizeGraphQLInput(searchParams.get('q') || '');
-    const city = sanitizeGraphQLInput(searchParams.get('city') || '');
-    const country = sanitizeGraphQLInput(searchParams.get('country') || '');
-    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10') || 10, 1), 50);
+    const query = sanitizeGraphQLInput(searchParams.get("q") || "");
+    const city = sanitizeGraphQLInput(searchParams.get("city") || "");
+    const country = sanitizeGraphQLInput(searchParams.get("country") || "");
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "10") || 10, 1),
+      50,
+    );
 
-    console.log('[Experience Search] Query:', { query, city, country });
+    console.log("[Experience Search] Query:", { query, city, country });
 
     // Build where clause for Itinerary entity
-    let whereClause = '{ active: { _eq: true }';
+    let whereClause = "{ active: { _eq: true }";
     if (query) {
       whereClause += `, _or: [{ title: { _ilike: "%${query}%" } }, { description: { _ilike: "%${query}%" } }]`;
     }
-    whereClause += ' }';
+    whereClause += " }";
 
     // Simple where clause (no text search) as fallback
-    const simpleWhereClause = '{ active: { _eq: true } }';
+    const simpleWhereClause = "{ active: { _eq: true } }";
 
     // Query variants: try Itinerary entity with enriched fields first
     const queries = [
@@ -122,13 +130,16 @@ export async function GET(req: NextRequest) {
     for (const graphqlQuery of queries) {
       try {
         const response = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: graphqlQuery })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: graphqlQuery }),
         });
 
         const data = await response.json();
-        console.log('[Experience Search] Envio response:', JSON.stringify(data).substring(0, 500));
+        console.log(
+          "[Experience Search] Envio response:",
+          JSON.stringify(data).substring(0, 500),
+        );
 
         const items = data?.data?.Itinerary || data?.data?.Experience || [];
 
@@ -136,45 +147,56 @@ export async function GET(req: NextRequest) {
           experiences = items.map((item: any) => ({
             id: item.itineraryId || item.experienceId || item.id,
             itineraryId: item.itineraryId || item.experienceId || item.id,
-            title: item.title || item.description || `Experience #${item.itineraryId || item.experienceId}`,
-            description: item.description || '',
-            creator: item.creator || '',
+            title:
+              item.title ||
+              item.description ||
+              `Experience #${item.itineraryId || item.experienceId}`,
+            description: item.description || "",
+            creator: item.creator || "",
             creatorFid: item.creatorFid || undefined,
             photoUrl: resolveIPFS(item.photoProofIPFS),
-            price: item.price?.toString() || '0',
+            price: item.price?.toString() || "0",
             priceWMON: (Number(item.price || 0) / 1e18).toFixed(2),
-            averageRating: item.averageRating ? Number(item.averageRating) / 100 : 0,
+            averageRating: item.averageRating
+              ? Number(item.averageRating) / 100
+              : 0,
             ratingCount: item.ratingCount || 0,
             totalPurchases: item.totalPurchases || 0,
-            createdAt: item.createdAt || '',
+            createdAt: item.createdAt || "",
           }));
 
           // Client-side text filter if the query used simple where
-          if (query && !graphqlQuery.includes('_ilike')) {
+          if (query && !graphqlQuery.includes("_ilike")) {
             const lowerQuery = query.toLowerCase();
-            experiences = experiences.filter(exp =>
-              exp.title.toLowerCase().includes(lowerQuery) ||
-              exp.description.toLowerCase().includes(lowerQuery)
+            experiences = experiences.filter(
+              (exp) =>
+                exp.title.toLowerCase().includes(lowerQuery) ||
+                exp.description.toLowerCase().includes(lowerQuery),
             );
           }
           break;
         }
       } catch (queryError) {
-        console.log('[Experience Search] Query variant failed:', queryError);
+        console.log("[Experience Search] Query variant failed:", queryError);
         continue;
       }
     }
 
     // Enrich with Farcaster profile data from Neynar
     if (experiences.length > 0) {
-      const creatorAddresses = [...new Set(experiences.map(e => e.creator).filter(Boolean))];
-      const neynarApiKey = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+      const creatorAddresses = [
+        ...new Set(experiences.map((e) => e.creator).filter(Boolean)),
+      ];
+      const neynarApiKey =
+        process.env.NEYNAR_API_KEY ||
+        process.env.NEXT_PUBLIC_NEYNAR_API_KEY ||
+        "";
 
       if (creatorAddresses.length > 0 && neynarApiKey) {
         try {
           const neynarRes = await fetch(
-            `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${creatorAddresses.join(',')}`,
-            { headers: { 'api_key': neynarApiKey } }
+            `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${creatorAddresses.join(",")}`,
+            { headers: { api_key: neynarApiKey } },
           );
 
           if (neynarRes.ok) {
@@ -190,18 +212,24 @@ export async function GET(req: NextRequest) {
             }
           }
         } catch (neynarError) {
-          console.log('[Experience Search] Neynar lookup failed:', neynarError);
+          console.log("[Experience Search] Neynar lookup failed:", neynarError);
         }
       }
 
       // Fallback: if we have creatorFid but no username, try FID-based lookup
-      const missingProfiles = experiences.filter(e => !e.creatorUsername && e.creatorFid);
+      const missingProfiles = experiences.filter(
+        (e) => !e.creatorUsername && e.creatorFid,
+      );
       if (missingProfiles.length > 0 && neynarApiKey) {
         try {
-          const fids = [...new Set(missingProfiles.map(e => e.creatorFid).filter(Boolean))];
+          const fids = [
+            ...new Set(
+              missingProfiles.map((e) => e.creatorFid).filter(Boolean),
+            ),
+          ];
           const neynarRes = await fetch(
-            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids.join(',')}`,
-            { headers: { 'api_key': neynarApiKey } }
+            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids.join(",")}`,
+            { headers: { api_key: neynarApiKey } },
           );
 
           if (neynarRes.ok) {
@@ -220,26 +248,28 @@ export async function GET(req: NextRequest) {
             }
           }
         } catch (fidError) {
-          console.log('[Experience Search] FID lookup failed:', fidError);
+          console.log("[Experience Search] FID lookup failed:", fidError);
         }
       }
     }
 
-    console.log('[Experience Search] Found', experiences.length, 'experiences');
+    console.log("[Experience Search] Found", experiences.length, "experiences");
 
     return NextResponse.json({
       success: true,
       experiences,
       count: experiences.length,
-      query: { q: query, city, country }
+      query: { q: query, city, country },
     });
-
   } catch (error: any) {
-    console.error('[Experience Search] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Search failed',
-      experiences: []
-    }, { status: 500 });
+    console.error("[Experience Search] Error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || "Search failed",
+        experiences: [],
+      },
+      { status: 500 },
+    );
   }
 }

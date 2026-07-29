@@ -83,10 +83,12 @@ export async function POST(req: NextRequest) {
 async function handle(req: NextRequest) {
   const cronSecret = req.headers.get("x-cron-secret");
   const authHeader = req.headers.get("authorization");
+  // SECURITY: fail CLOSED when CRON_SECRET is unset. Previously `!CRON_SECRET`
+  // made this owner-key-signing keeper fully public if the env var was ever
+  // missing.
   const authorized =
-    !CRON_SECRET ||
-    cronSecret === CRON_SECRET ||
-    authHeader === `Bearer ${CRON_SECRET}`;
+    !!CRON_SECRET &&
+    (cronSecret === CRON_SECRET || authHeader === `Bearer ${CRON_SECRET}`);
 
   if (!authorized) {
     return NextResponse.json(
