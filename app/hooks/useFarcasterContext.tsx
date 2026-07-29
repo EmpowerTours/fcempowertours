@@ -106,12 +106,7 @@ export function useFarcasterContext() {
 
         try {
           const neynarResponse = await fetch(
-            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${ctx.user.fid}`,
-            {
-              headers: {
-                'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
-              },
-            }
+            `/api/neynar/v2/farcaster/user/bulk?fids=${ctx.user.fid}`
           );
 
           if (neynarResponse.ok) {

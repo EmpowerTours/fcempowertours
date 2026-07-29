@@ -161,12 +161,7 @@ export default function MusicDiscoveryPage() {
       uniqueArtists.forEach(async (artistAddress: string) => {
         try {
           const response = await fetch(
-            `https://api.neynar.com/v2/farcaster/user/by_verification?address=${artistAddress}`,
-            {
-              headers: {
-                'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
-              },
-            }
+            `/api/neynar/v2/farcaster/user/by_verification?address=${artistAddress}`
           );
           if (response.ok) {
             const data = await response.json();

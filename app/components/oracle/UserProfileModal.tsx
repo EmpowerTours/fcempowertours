@@ -16,7 +16,6 @@ interface UserProfileModalProps {
 }
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 
 interface UserProfile {
   walletAddress: string;
@@ -196,8 +195,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
       // Get Farcaster profile
       try {
         const fcResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${walletAddress}`,
-          { headers: { 'api_key': NEYNAR_API_KEY } }
+          `/api/neynar/v2/farcaster/user/bulk-by-address?addresses=${walletAddress}`
         );
         if (fcResponse.ok) {
           const fcData = await fcResponse.json();

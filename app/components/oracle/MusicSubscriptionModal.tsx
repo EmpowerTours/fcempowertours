@@ -1,8 +1,18 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { Music2, Sparkles, Clock, AlertTriangle, CheckCircle2, X, Loader2, Wallet, TrendingUp } from 'lucide-react';
-import { ethers } from 'ethers';
+import React, { useState, useEffect } from "react";
+import {
+  Music2,
+  Sparkles,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  X,
+  Loader2,
+  Wallet,
+  TrendingUp,
+} from "lucide-react";
+import { ethers } from "ethers";
 
 interface SubscriptionStatus {
   hasSubscription: boolean;
@@ -43,37 +53,48 @@ interface MusicSubscriptionModalProps {
   onClose: () => void;
 }
 
-const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION || '';
+const MUSIC_SUBSCRIPTION_ADDRESS =
+  process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION || "";
 
 // Subscription tiers from contract
 const TIERS = [
-  { id: 0, name: 'Daily', price: 15, duration: '1 day' },
-  { id: 1, name: 'Weekly', price: 75, duration: '7 days', discount: '15% off' },
-  { id: 2, name: 'Monthly', price: 300, duration: '30 days' },
-  { id: 3, name: 'Yearly', price: 3000, duration: '365 days', discount: '15% off' },
+  { id: 0, name: "Daily", price: 15, duration: "1 day" },
+  { id: 1, name: "Weekly", price: 75, duration: "7 days", discount: "15% off" },
+  { id: 2, name: "Monthly", price: 300, duration: "30 days" },
+  {
+    id: 3,
+    name: "Yearly",
+    price: 3000,
+    duration: "365 days",
+    discount: "15% off",
+  },
 ];
 
 const SUBSCRIPTION_ABI = [
-  'function hasActiveSubscription(address user) external view returns (bool)',
-  'function getSubscriptionInfo(address user) external view returns (uint256 userFid, uint256 expiry, bool active, uint256 totalPlays, uint256 flagVotes, uint8 lastTier, bool isFlagged)',
-  'function subscribeFor(address user, uint256 userFid, uint8 tier) external',
+  "function hasActiveSubscription(address user) external view returns (bool)",
+  "function getSubscriptionInfo(address user) external view returns (uint256 userFid, uint256 expiry, bool active, uint256 totalPlays, uint256 flagVotes, uint8 lastTier, bool isFlagged)",
+  "function subscribeFor(address user, uint256 userFid, uint8 tier) external",
 ];
 
 export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   userAddress,
   userFid,
-  onClose
+  onClose,
 }) => {
-  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] =
+    useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [selectedTier, setSelectedTier] = useState(2); // Default to Monthly
-  const [wmonBalance, setWmonBalance] = useState('0');
-  const [monBalance, setMonBalance] = useState('0');
+  const [wmonBalance, setWmonBalance] = useState("0");
+  const [monBalance, setMonBalance] = useState("0");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [artistClaims, setArtistClaims] = useState<ArtistClaimsData | null>(null);
-  const [artistEarnings, setArtistEarnings] = useState<ArtistEarningsData | null>(null);
+  const [artistClaims, setArtistClaims] = useState<ArtistClaimsData | null>(
+    null,
+  );
+  const [artistEarnings, setArtistEarnings] =
+    useState<ArtistEarningsData | null>(null);
   const [claiming, setClaiming] = useState(false);
 
   // Fetch artist claims & earnings data
@@ -95,7 +116,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           setArtistEarnings(data);
         }
       } catch (err) {
-        console.error('[Subscription] Failed to fetch artist data:', err);
+        console.error("[Subscription] Failed to fetch artist data:", err);
       }
     };
 
@@ -103,22 +124,28 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   }, [userAddress]);
 
   const handleClaimPayouts = async () => {
-    if (!userAddress || !artistClaims || artistClaims.unclaimedMonths.length === 0) return;
+    if (
+      !userAddress ||
+      !artistClaims ||
+      artistClaims.unclaimedMonths.length === 0
+    )
+      return;
 
     setClaiming(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const monthIds = artistClaims.unclaimedMonths.map(m => m.monthId);
-      const hasUnclaimedTours = artistClaims.toursEligible &&
-        artistClaims.unclaimedMonths.some(m => !m.toursClaimed);
+      const monthIds = artistClaims.unclaimedMonths.map((m) => m.monthId);
+      const hasUnclaimedTours =
+        artistClaims.toursEligible &&
+        artistClaims.unclaimedMonths.some((m) => !m.toursClaimed);
 
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: 'claim_artist_payouts',
+          action: "claim_artist_payouts",
           userAddress,
           params: {
             monthIds,
@@ -130,15 +157,19 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Claim failed');
+        throw new Error(data.error || "Claim failed");
       }
 
-      setSuccess(`Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`);
+      setSuccess(
+        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`,
+      );
       // Refresh claims data
-      setArtistClaims(prev => prev ? { ...prev, unclaimedMonths: [], totalUnclaimed: '0' } : null);
+      setArtistClaims((prev) =>
+        prev ? { ...prev, unclaimedMonths: [], totalUnclaimed: "0" } : null,
+      );
     } catch (err: any) {
-      console.error('Claim error:', err);
-      setError(err.message || 'Failed to claim payouts');
+      console.error("Claim error:", err);
+      setError(err.message || "Failed to claim payouts");
     } finally {
       setClaiming(false);
     }
@@ -153,20 +184,26 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
     const fetchStatus = async () => {
       try {
-        // Use RPC directly instead of MetaMask
-        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz');
+        // Use the PUBLIC keyless Monad RPC for client-side reads. The private
+        // Alchemy endpoint must never be referenced in client code — it would
+        // ship its key in the browser bundle.
+        const provider = new ethers.JsonRpcProvider("https://rpc.monad.xyz");
         const subscriptionContract = new ethers.Contract(
           MUSIC_SUBSCRIPTION_ADDRESS,
           SUBSCRIPTION_ABI,
-          provider
+          provider,
         );
 
-        const info = await subscriptionContract.getSubscriptionInfo(userAddress);
+        const info =
+          await subscriptionContract.getSubscriptionInfo(userAddress);
         const [, expiry, active, totalPlays, , lastTier] = info;
 
         const expiryTimestamp = Number(expiry);
         const now = Math.floor(Date.now() / 1000);
-        const daysRemaining = Math.max(0, Math.floor((expiryTimestamp - now) / 86400));
+        const daysRemaining = Math.max(
+          0,
+          Math.floor((expiryTimestamp - now) / 86400),
+        );
 
         const status: SubscriptionStatus = {
           hasSubscription: active && expiryTimestamp > now,
@@ -180,12 +217,22 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         setSubscriptionStatus(status);
       } catch (err: any) {
         // BAD_DATA error means contract doesn't exist or returns 0x - user has no subscription
-        if (err?.code === 'BAD_DATA' || err?.message?.includes('could not decode result data')) {
-          console.log('[Subscription] No subscription contract data available');
+        if (
+          err?.code === "BAD_DATA" ||
+          err?.message?.includes("could not decode result data")
+        ) {
+          console.log("[Subscription] No subscription contract data available");
         } else {
-          console.error('Failed to fetch subscription status:', err);
+          console.error("Failed to fetch subscription status:", err);
         }
-        setSubscriptionStatus({ hasSubscription: false, expiry: 0, isActive: false, daysRemaining: 0, totalPlays: 0, tier: 0 });
+        setSubscriptionStatus({
+          hasSubscription: false,
+          expiry: 0,
+          isActive: false,
+          daysRemaining: 0,
+          totalPlays: 0,
+          tier: 0,
+        });
       } finally {
         setCheckingStatus(false);
       }
@@ -203,11 +250,11 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         const res = await fetch(`/api/user-safe?address=${userAddress}`);
         const data = await res.json();
         if (data.success) {
-          setWmonBalance(data.wmonBalance || '0');
-          setMonBalance(data.balance || '0');
+          setWmonBalance(data.wmonBalance || "0");
+          setMonBalance(data.balance || "0");
         }
       } catch (err) {
-        console.error('Failed to check Safe balance:', err);
+        console.error("Failed to check Safe balance:", err);
       }
     };
 
@@ -216,7 +263,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
   const handleSubscribe = async () => {
     if (!userAddress || !userFid) {
-      setError('Please connect your Farcaster account');
+      setError("Please connect your Farcaster account");
       return;
     }
 
@@ -229,11 +276,11 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       const priceInWei = ethers.parseEther(tier.price.toString());
 
       // Call the delegation API
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: 'music-subscribe',
+          action: "music-subscribe",
           userAddress,
           params: {
             userFid,
@@ -246,7 +293,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Subscription failed');
+        throw new Error(data.error || "Subscription failed");
       }
 
       setSuccess(`Successfully subscribed for ${tier.duration}!`);
@@ -254,8 +301,8 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       // Refresh status after 2 seconds
       setTimeout(() => window.location.reload(), 2000);
     } catch (err: any) {
-      console.error('Subscription error:', err);
-      setError(err.message || 'Failed to subscribe');
+      console.error("Subscription error:", err);
+      setError(err.message || "Failed to subscribe");
     } finally {
       setLoading(false);
     }
@@ -275,9 +322,12 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   // Active subscription view
   if (subscriptionStatus?.isActive) {
     const totalEarned = artistEarnings
-      ? (parseFloat(artistEarnings.totalRadioEarnings) + parseFloat(artistEarnings.totalTips) + parseFloat(artistEarnings.totalLicenseSales))
+      ? parseFloat(artistEarnings.totalRadioEarnings) +
+        parseFloat(artistEarnings.totalTips) +
+        parseFloat(artistEarnings.totalLicenseSales)
       : 0;
-    const hasUnclaimed = artistClaims && artistClaims.unclaimedMonths.length > 0;
+    const hasUnclaimed =
+      artistClaims && artistClaims.unclaimedMonths.length > 0;
 
     return (
       <div className="bg-gradient-to-br from-green-900/20 via-black to-cyan-900/20 border border-green-500/30 rounded-2xl p-6">
@@ -285,11 +335,16 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-8 h-8 text-green-400" />
             <div>
-              <h3 className="text-xl font-bold text-white">Active Subscription</h3>
+              <h3 className="text-xl font-bold text-white">
+                Active Subscription
+              </h3>
               <p className="text-sm text-gray-400">Unlimited music streaming</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -297,17 +352,24 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-gray-800 rounded-lg p-3">
             <div className="text-xs text-gray-400 mb-1">Days Remaining</div>
-            <div className="text-2xl font-bold text-green-400">{subscriptionStatus.daysRemaining}</div>
+            <div className="text-2xl font-bold text-green-400">
+              {subscriptionStatus.daysRemaining}
+            </div>
           </div>
           <div className="bg-gray-800 rounded-lg p-3">
             <div className="text-xs text-gray-400 mb-1">Total Plays</div>
-            <div className="text-2xl font-bold text-cyan-400">{subscriptionStatus.totalPlays}</div>
+            <div className="text-2xl font-bold text-cyan-400">
+              {subscriptionStatus.totalPlays}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
           <Clock className="w-4 h-4" />
-          <span>Expires: {new Date(subscriptionStatus.expiry * 1000).toLocaleDateString()}</span>
+          <span>
+            Expires:{" "}
+            {new Date(subscriptionStatus.expiry * 1000).toLocaleDateString()}
+          </span>
         </div>
 
         {/* Artist Earnings Section */}
@@ -342,7 +404,9 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
             </div>
             <div className="bg-gray-800/50 rounded-lg p-2 text-center mb-3">
               <div className="text-[10px] text-gray-500">Total Earned</div>
-              <div className="text-lg font-bold text-white">{totalEarned.toFixed(4)} WMON</div>
+              <div className="text-lg font-bold text-white">
+                {totalEarned.toFixed(4)} WMON
+              </div>
             </div>
           </div>
         )}
@@ -352,14 +416,23 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           <div className="border-t border-gray-700 pt-4 mt-2">
             <div className="flex items-center gap-2 mb-3">
               <Wallet className="w-5 h-5 text-yellow-400" />
-              <h4 className="text-sm font-bold text-white">Unclaimed Payouts</h4>
+              <h4 className="text-sm font-bold text-white">
+                Unclaimed Payouts
+              </h4>
             </div>
             <div className="space-y-2 mb-3">
-              {artistClaims!.unclaimedMonths.map(month => (
-                <div key={month.monthId} className="flex justify-between items-center bg-gray-800/60 rounded-lg px-3 py-2">
+              {artistClaims!.unclaimedMonths.map((month) => (
+                <div
+                  key={month.monthId}
+                  className="flex justify-between items-center bg-gray-800/60 rounded-lg px-3 py-2"
+                >
                   <div>
-                    <span className="text-xs text-gray-400">Month #{month.monthId}</span>
-                    <span className="text-[10px] text-gray-500 ml-2">({month.playCount} plays)</span>
+                    <span className="text-xs text-gray-400">
+                      Month #{month.monthId}
+                    </span>
+                    <span className="text-[10px] text-gray-500 ml-2">
+                      ({month.playCount} plays)
+                    </span>
                   </div>
                   <span className="text-sm font-bold text-yellow-400">
                     {parseFloat(month.estimatedPayout).toFixed(4)} WMON
@@ -369,9 +442,13 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
             </div>
             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-3 text-center">
               <div className="text-xs text-gray-400">Total Claimable</div>
-              <div className="text-xl font-bold text-yellow-400">{artistClaims!.totalUnclaimed} WMON</div>
+              <div className="text-xl font-bold text-yellow-400">
+                {artistClaims!.totalUnclaimed} WMON
+              </div>
               {artistClaims!.toursEligible && (
-                <div className="text-[10px] text-green-400 mt-1">+ TOURS rewards eligible</div>
+                <div className="text-[10px] text-green-400 mt-1">
+                  + TOURS rewards eligible
+                </div>
               )}
             </div>
 
@@ -423,7 +500,8 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
             </div>
             {artistClaims.toursEligible && (
               <div className="text-[10px] text-green-400/70 text-center mt-1">
-                TOURS eligible ({artistClaims.masterCount} masters, {artistClaims.lifetimePlays} plays)
+                TOURS eligible ({artistClaims.masterCount} masters,{" "}
+                {artistClaims.lifetimePlays} plays)
               </div>
             )}
           </div>
@@ -446,10 +524,15 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           </div>
           <div>
             <h3 className="text-xl font-bold text-white">Music Streaming</h3>
-            <p className="text-sm text-gray-400">Unlimited access to all music NFTs</p>
+            <p className="text-sm text-gray-400">
+              Unlimited access to all music NFTs
+            </p>
           </div>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
           <X className="w-6 h-6" />
         </button>
       </div>
@@ -464,8 +547,8 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
               onClick={() => setSelectedTier(tier.id)}
               className={`p-3 rounded-lg border-2 transition-all text-left ${
                 selectedTier === tier.id
-                  ? 'border-cyan-500 bg-cyan-500/20'
-                  : 'border-gray-700 hover:border-gray-600'
+                  ? "border-cyan-500 bg-cyan-500/20"
+                  : "border-gray-700 hover:border-gray-600"
               }`}
             >
               <div className="flex justify-between items-start">
@@ -487,24 +570,32 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       <div className="bg-gray-800 rounded-lg p-4 mb-4 space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-400">Plan</span>
-          <span className="text-sm font-semibold text-white">{selectedTierData.name} ({selectedTierData.duration})</span>
+          <span className="text-sm font-semibold text-white">
+            {selectedTierData.name} ({selectedTierData.duration})
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-400">Cost</span>
-          <span className="text-sm font-semibold text-cyan-400">{selectedTierData.price} WMON</span>
+          <span className="text-sm font-semibold text-cyan-400">
+            {selectedTierData.price} WMON
+          </span>
         </div>
         <div className="border-t border-gray-700 pt-2 mt-2 space-y-1">
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500">Safe WMON</span>
-            <span className="text-gray-300">{Number(wmonBalance).toFixed(2)}</span>
+            <span className="text-gray-300">
+              {Number(wmonBalance).toFixed(2)}
+            </span>
           </div>
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500">Safe MON</span>
-            <span className="text-gray-300">{Number(monBalance).toFixed(2)}</span>
+            <span className="text-gray-300">
+              {Number(monBalance).toFixed(2)}
+            </span>
           </div>
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500">Total Available</span>
-            <span className={canAfford ? 'text-green-400' : 'text-red-400'}>
+            <span className={canAfford ? "text-green-400" : "text-red-400"}>
               {totalBalance.toFixed(2)} WMON
             </span>
           </div>
@@ -540,7 +631,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         {loading ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            {needsWrap ? 'Wrapping MON & Subscribing...' : 'Processing...'}
+            {needsWrap ? "Wrapping MON & Subscribing..." : "Processing..."}
           </>
         ) : !canAfford ? (
           `Insufficient Balance (need ${selectedTierData.price} WMON)`
@@ -561,8 +652,17 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       <div className="mt-4 text-xs text-gray-500 space-y-1">
         <p>• Stream any music NFT on the platform</p>
         <p>• Artists earn 70% of subscription revenue based on play counts</p>
-        <p>• <span className="text-amber-400 font-medium">Listeners earn WMON from the 20% listener pool</span> — proportional to songs heard</p>
-        <p>• Artists who also listen earn up to 90% (70% artist + 20% listener pool)</p>
+        <p>
+          •{" "}
+          <span className="text-amber-400 font-medium">
+            Listeners earn WMON from the 20% listener pool
+          </span>{" "}
+          — proportional to songs heard
+        </p>
+        <p>
+          • Artists who also listen earn up to 90% (70% artist + 20% listener
+          pool)
+        </p>
         <p>• Cancel anytime - no long-term commitment</p>
       </div>
     </div>

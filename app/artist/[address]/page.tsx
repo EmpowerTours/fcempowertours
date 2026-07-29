@@ -161,7 +161,6 @@ export default function ArtistProfilePage() {
 
   const loadArtistInfo = async (signal?: AbortSignal) => {
     try {
-      const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
       console.log('[Artist] Loading info for address:', artistAddress);
 
       // ✅ FIRST: Check if this is the current user's own profile
@@ -185,10 +184,9 @@ export default function ArtistProfilePage() {
 
       // ✅ USE bulk_by_address endpoint (same as music/[tokenId] page)
       try {
-        const url = `https://api.neynar.com/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
+        const url = `/api/neynar/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`;
         console.log('[Artist] Fetching from Neynar:', url);
         const response = await fetch(url, {
-          headers: { 'x-api-key': neynarApiKey },
           signal, // Pass abort signal
         });
 
@@ -237,10 +235,9 @@ export default function ArtistProfilePage() {
 
       // Fallback 2: Try custody-address endpoint
       try {
-        const custodyUrl = `https://api.neynar.com/v2/farcaster/user/custody-address/?custody_address=${artistAddress}`;
+        const custodyUrl = `/api/neynar/v2/farcaster/user/custody-address/?custody_address=${artistAddress}`;
         console.log('[Artist] Trying custody-address endpoint:', custodyUrl);
         const custodyResponse = await fetch(custodyUrl, {
-          headers: { 'x-api-key': neynarApiKey },
           signal, // Pass abort signal
         });
 

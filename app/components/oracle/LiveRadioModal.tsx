@@ -308,15 +308,10 @@ export function LiveRadioModal({
       if (unresolvedFids.length === 0) return;
 
       try {
-        const NEYNAR_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-        if (!NEYNAR_KEY) return;
-
-        // Neynar bulk endpoint supports up to 100 FIDs
+        // Neynar bulk endpoint supports up to 100 FIDs — proxied through
+        // /api/neynar so the API key stays server-side.
         const res = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk?fids=${unresolvedFids.join(",")}`,
-          {
-            headers: { api_key: NEYNAR_KEY },
-          },
+          `/api/neynar/v2/farcaster/user/bulk?fids=${unresolvedFids.join(",")}`,
         );
         const data = await res.json();
         if (data.users) {

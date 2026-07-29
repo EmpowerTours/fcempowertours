@@ -526,10 +526,9 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
   // Fetch guide's verified address from Neynar
   const fetchGuideVerifiedAddress = async (fid: number): Promise<`0x${string}`> => {
     try {
-      const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+      const response = await fetch(`/api/neynar/v2/farcaster/user/bulk?fids=${fid}`, {
         headers: {
           'accept': 'application/json',
-          'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '',
         },
       });
 
