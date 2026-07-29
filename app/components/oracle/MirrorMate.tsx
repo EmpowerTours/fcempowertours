@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle, User, Plane, Calendar, Clock, DollarSign, CheckCircle, XCircle, List, Camera } from 'lucide-react';
@@ -416,7 +417,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
       // Use execute-delegated API with User Safe
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'mirrormate_skip',
@@ -464,7 +465,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
       // Use execute-delegated API with User Safe
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'mirrormate_connect',
@@ -698,7 +699,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
       // Use execute-delegated API to create booking
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'book_guide',
@@ -772,7 +773,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
     try {
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'mark_tour_complete',
@@ -806,7 +807,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
     try {
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'confirm_and_rate',
@@ -979,7 +980,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
 
         const response = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             action: 'mirrormate_update',
             params: {
@@ -1004,7 +1005,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
         // For registration, use the API (Safe AA wallet)
         const response = await fetch('/api/mirror-mate/register-guide', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             fid: user.fid,
             username: user.username || '',

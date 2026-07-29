@@ -1,5 +1,6 @@
 "use client";
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from "react";
 import {
   Music2,
@@ -143,7 +144,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
       const response = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           action: "claim_artist_payouts",
           userAddress,
@@ -278,7 +279,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       // Call the delegation API
       const response = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           action: "music-subscribe",
           userAddress,

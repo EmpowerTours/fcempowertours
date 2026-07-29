@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useAccount } from 'wagmi';
@@ -66,7 +67,7 @@ export default function ItineraryMarketPage() {
 
       const res = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ query })
       });
 
@@ -124,7 +125,7 @@ export default function ItineraryMarketPage() {
         // Create delegation with purchase permission
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: effectiveAddress,
             authMethod: 'farcaster',
@@ -144,7 +145,7 @@ export default function ItineraryMarketPage() {
       // Execute purchase (use existing purchase_itinerary action)
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: effectiveAddress,
           action: 'purchase_itinerary',

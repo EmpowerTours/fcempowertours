@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, MapPin, Navigation, Check, Loader2, AlertCircle, Stamp, Globe } from 'lucide-react';
@@ -84,7 +85,7 @@ export function CheckInModal({
     try {
       const res = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'complete_location',
@@ -178,7 +179,7 @@ export function CheckInModal({
     try {
       const res = await fetch('/api/oracle/checkin-experience', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           itineraryId: experience.itineraryId,

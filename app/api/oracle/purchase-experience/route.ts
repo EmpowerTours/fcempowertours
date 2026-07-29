@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { forwardAuthHeader } from '@/lib/quick-auth';
 
 /**
  * Oracle Purchase Experience Route
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Call execute-delegated with purchase_itinerary action
     const executeRes = await fetch(`${baseUrl}/api/execute-delegated`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...forwardAuthHeader(req) },
       body: JSON.stringify({
         userAddress: buyer,
         action: 'purchase_itinerary',

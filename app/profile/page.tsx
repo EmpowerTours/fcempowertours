@@ -1,4 +1,5 @@
 'use client';
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -209,7 +210,7 @@ export default function ProfilePage() {
       try {
         const res = await fetch('/api/nft/collector-info', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ tokenIds: uniqueIds }),
         });
         if (!res.ok) return;
@@ -251,7 +252,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch('/api/user/privacy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           fid: user.fid,
           walletAddress,
@@ -357,7 +358,7 @@ export default function ProfilePage() {
       // Use delegation system for gasless staking
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'stake_music',
@@ -401,7 +402,7 @@ export default function ProfilePage() {
       // Use delegation system for gasless unstaking
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'unstake_music',
@@ -443,7 +444,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch('/api/get-balances', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ address: walletAddress }),
       });
       if (response.ok) {
@@ -453,7 +454,7 @@ export default function ProfilePage() {
           try {
             const safeResponse = await fetch('/api/get-balances', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
               body: JSON.stringify({ address: safeAddr }),
             });
             if (safeResponse.ok) {
@@ -506,7 +507,7 @@ export default function ProfilePage() {
 
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           action: 'claim_artist_payouts',
           userAddress: walletAddress,
@@ -649,7 +650,7 @@ export default function ProfilePage() {
       `;
       const response = await fetch(ENVIO_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ query, variables: { addresses: uniqueAddresses } }),
       });
       if (!response.ok) throw new Error(`Envio API returned ${response.status}`);
@@ -758,7 +759,7 @@ export default function ProfilePage() {
         try {
           const masterResponse = await fetch(ENVIO_ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify({
               query: masterQuery,
               variables: { tokenIds: masterTokenIds.map(String) }
@@ -868,7 +869,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch('/api/music/list-for-sale', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           licenseId: selectedResaleLicense.licenseId,
           price: resalePrice,

@@ -1,5 +1,6 @@
 "use client";
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect, useCallback } from "react";
 import {
   useAccount,
@@ -143,7 +144,7 @@ export default function ListenerRewardsClaim({
       try {
         const res = await fetch("/api/execute-delegated", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
           body: JSON.stringify({
             action: "claim_listener_wmon",
             userAddress: address,

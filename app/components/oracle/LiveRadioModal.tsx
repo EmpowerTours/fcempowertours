@@ -1,5 +1,6 @@
 "use client";
 
+import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -354,7 +355,10 @@ export function LiveRadioModal({
 
       const response = await fetch(ENVIO_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({ query }),
       });
 
@@ -464,7 +468,10 @@ export function LiveRadioModal({
     try {
       const response = await fetch("/api/live-radio", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           action: "heartbeat",
           userAddress: walletAddress,
@@ -607,7 +614,10 @@ export function LiveRadioModal({
             // Report to server that song has ended
             await fetch("/api/live-radio", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(await authHeaders()),
+              },
               body: JSON.stringify({
                 action: "song_ended",
                 userAddress: walletAddress,
@@ -640,7 +650,7 @@ export function LiveRadioModal({
     // knows the truth once metadata loads — report it so the server can
     // schedule against the real thing. Fire-and-forget; the server dedupes and
     // bounds-checks, and a failure here must never interrupt playback.
-    const handleLoadedMetadata = () => {
+    const handleLoadedMetadata = async () => {
       const tokenId = radioState?.currentSong?.tokenId;
       const measured = audio.duration;
 
@@ -650,7 +660,10 @@ export function LiveRadioModal({
 
       fetch("/api/live-radio", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           action: "report_duration",
           tokenId,
@@ -874,7 +887,10 @@ export function LiveRadioModal({
       );
       const paymentRes = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: "radio_queue_song",
@@ -897,7 +913,10 @@ export function LiveRadioModal({
       // Step 2: Also add to Redis queue for scheduler (until fully migrated)
       const response = await fetch("/api/live-radio", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           action: "queue_song",
           userAddress: walletAddress,
@@ -1047,7 +1066,10 @@ export function LiveRadioModal({
       console.log("[LiveRadio] Processing payment for", voiceNoteType);
       const paymentRes = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: "radio_voice_note",
@@ -1085,7 +1107,10 @@ export function LiveRadioModal({
       const action = voiceNoteType === "shoutout" ? "voice_note" : "voice_ad";
       const response = await fetch("/api/live-radio", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           action,
           userAddress: walletAddress,
@@ -1159,7 +1184,10 @@ export function LiveRadioModal({
       // Step 1: Execute TOURS transfer via delegated transaction
       const paymentRes = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: "radio_claim_rewards",
@@ -1178,7 +1206,10 @@ export function LiveRadioModal({
       // Step 2: Mark rewards as claimed in backend
       const claimRes = await fetch("/api/live-radio", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           action: "claim_rewards",
           userAddress: walletAddress,
@@ -1219,7 +1250,10 @@ export function LiveRadioModal({
 
       const response = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: "radio_skip_random",

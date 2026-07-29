@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, MapPin, Star, User, ShoppingCart, Check, Loader2, Clock, Lightbulb, Camera } from 'lucide-react';
@@ -79,7 +80,7 @@ export function PurchaseExperienceModal({
 
       const res = await fetch('/api/oracle/purchase-experience', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           buyer: walletAddress,
           itineraryId: experience.itineraryId,

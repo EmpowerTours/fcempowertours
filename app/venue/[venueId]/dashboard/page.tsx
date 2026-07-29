@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useAccount } from 'wagmi';
@@ -140,7 +141,7 @@ export default function VenueDashboardPage() {
     try {
       const res = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           action: 'venue_register',
           userAddress: address,
@@ -170,7 +171,7 @@ export default function VenueDashboardPage() {
     try {
       const res = await fetch(`/api/venue/${venue.venueId}`, {
         method: 'POST',
-        headers: { 'X-Venue-Key': apiKey, 'Content-Type': 'application/json' },
+        headers: { 'X-Venue-Key': apiKey, 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           action: 'queue_song',
           tokenId: song.tokenId,

@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect, useRef } from 'react';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useAccount } from 'wagmi';
@@ -139,7 +140,7 @@ export default function ItineraryPage() {
       if (!hasValidDelegation) {
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             userAddress: effectiveAddress,
             authMethod: 'farcaster',
@@ -164,7 +165,7 @@ export default function ItineraryPage() {
 
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           userAddress: effectiveAddress,
           action: 'create_experience',

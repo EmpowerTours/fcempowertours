@@ -1,5 +1,6 @@
 "use client";
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, {
   useState,
   useEffect,
@@ -422,7 +423,7 @@ export default function OraclePage() {
       console.log("[Oracle] Sending API request...");
       const response = await fetch("/api/oracle/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           message: userMessage,
           userAddress: walletAddress,
@@ -726,7 +727,7 @@ export default function OraclePage() {
     try {
       const response = await fetch("/api/oracle/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           message: queryMessage,
           userAddress: walletAddress,

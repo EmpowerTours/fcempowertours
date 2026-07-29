@@ -1,5 +1,6 @@
 "use client";
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -248,7 +249,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       const response = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           action: "claim_artist_payouts",
           userAddress: walletAddress,
@@ -311,7 +312,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       const response = await fetch(ENVIO_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           query,
           variables: { address: address.toLowerCase() },

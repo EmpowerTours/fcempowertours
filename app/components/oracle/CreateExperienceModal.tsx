@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ArrowLeft, MapPin, Camera, Clock, Star, DollarSign, Lightbulb, Upload, Check, PlusCircle } from 'lucide-react';
@@ -168,7 +169,7 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
       try {
         const stampRes = await fetch('/api/oracle/generate-experience-stamp', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             locationName: effectiveName,
             city,
@@ -234,7 +235,7 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
       // Upload metadata to IPFS
       const metadataRes = await fetch('/api/upload-json-to-ipfs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ json: metadata, name: `experience-${place.placeId || 'custom-' + Date.now()}` }),
       });
 
@@ -247,7 +248,7 @@ export function CreateExperienceModal({ place, onClose, onSuccess, isDarkMode = 
 
       const createRes = await fetch('/api/oracle/create-itinerary', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           creator: walletAddress,
           creatorFid: user?.fid || 0,

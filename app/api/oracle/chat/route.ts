@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { forwardAuthHeader } from "@/lib/quick-auth";
 import { GoogleGenAI, Type } from "@google/genai";
 import {
   parseEther,
@@ -107,6 +108,7 @@ export async function POST(req: NextRequest) {
     const { checkRateLimit, getClientIP, RateLimiters } = await import(
       "@/lib/rate-limit"
     );
+    const fwdAuth = forwardAuthHeader(req);
     const aiRl = await checkRateLimit(RateLimiters.ai, getClientIP(req));
     if (!aiRl.allowed) {
       return NextResponse.json(
@@ -231,7 +233,7 @@ export async function POST(req: NextRequest) {
           );
           paymentTxHash = cachedTxHash;
         } else {
-          paymentTxHash = await chargeMONForMapsQuery(userAddress);
+          paymentTxHash = await chargeMONForMapsQuery(userAddress, fwdAuth);
           console.log("[Oracle] Payment collected (delegated):", paymentTxHash);
 
           // Cache the txHash for 1 hour to prevent duplicate charges
@@ -758,7 +760,7 @@ Return valid JSON only.`;
               `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/execute-delegated`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...fwdAuth },
                 body: JSON.stringify({
                   action: "buy_music", // Both use the same endpoint
                   userAddress,
@@ -815,6 +817,7 @@ Return valid JSON only.`;
           countryCode,
           countryName || countryCode,
           userFid,
+          fwdAuth,
         );
         txHash = result.txHash;
         if (result.error) {
@@ -867,7 +870,7 @@ Return valid JSON only.`;
             `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/execute-delegated`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...fwdAuth },
               body: JSON.stringify({
                 action: "withdraw_to_user",
                 userAddress,
@@ -1053,6 +1056,7 @@ Return valid JSON only.`;
                 city,
                 country,
                 locations,
+                fwdAuth,
               );
 
               if (itineraryResult.success) {
@@ -1327,7 +1331,10 @@ function detectMapsQuery(message: string): boolean {
 }
 
 // Charge WMON tokens for Maps query via delegation
-async function chargeMONForMapsQuery(userAddress: string): Promise<string> {
+async function chargeMONForMapsQuery(
+  userAddress: string,
+  fwdAuth: Record<string, string> = {},
+): Promise<string> {
   const APP_URL =
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://fcempowertours-production-6551.up.railway.app";
@@ -1339,7 +1346,7 @@ async function chargeMONForMapsQuery(userAddress: string): Promise<string> {
   // Use delegation API to transfer WMON from user to treasury
   const response = await fetch(`${APP_URL}/api/execute-delegated`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...fwdAuth },
     body: JSON.stringify({
       userAddress,
       action: "maps_payment",
@@ -1364,6 +1371,7 @@ async function mintPassportForUser(
   countryCode: string,
   countryName: string,
   fid?: number,
+  fwdAuth: Record<string, string> = {},
 ): Promise<{ txHash: string | null; tokenId?: number; error?: string }> {
   const APP_URL =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -1419,7 +1427,7 @@ async function mintPassportForUser(
     // Try to mint passport
     let mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...fwdAuth },
       body: JSON.stringify({
         userAddress,
         action: "mint_passport",
@@ -1442,7 +1450,7 @@ async function mintPassportForUser(
 
       const wrapRes = await fetch(`${APP_URL}/api/execute-delegated`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...fwdAuth },
         body: JSON.stringify({
           userAddress,
           action: "wrap_mon",
@@ -1459,7 +1467,7 @@ async function mintPassportForUser(
       // Retry mint after wrap
       mintRes = await fetch(`${APP_URL}/api/execute-delegated`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...fwdAuth },
         body: JSON.stringify({
           userAddress,
           action: "mint_passport",
@@ -1623,6 +1631,7 @@ async function createItineraryFromMaps(
     longitude: number;
     description: string;
   }>,
+  fwdAuth: Record<string, string> = {},
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   const APP_URL =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -1631,7 +1640,7 @@ async function createItineraryFromMaps(
   try {
     const response = await fetch(`${APP_URL}/api/execute-delegated`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...fwdAuth },
       body: JSON.stringify({
         userAddress,
         action: "create_itinerary",
