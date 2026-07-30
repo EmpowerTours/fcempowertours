@@ -22,9 +22,6 @@ function extractFidFromRequest(req: NextRequest): string | null {
   return null;
 }
 
-// Agent's wallet address for custodial deposits
-const AGENT_WALLET = "0x868469E5D124f81cf63e1A3808795649cA6c3D77";
-
 export async function POST(req: NextRequest) {
   try {
     // Extract all params from request body including collector edition fields
@@ -222,131 +219,6 @@ Try: "go to profile"`,
 Built on Monad Mainnet | Gasless transactions
 Try "help" to see all commands!`,
       });
-    }
-
-    // ==================== DAO PROPOSALS COMMAND ====================
-    if (
-      lowerCommand === "dao proposals" ||
-      lowerCommand === "proposals" ||
-      lowerCommand === "dao"
-    ) {
-      try {
-        const daoRes = await fetch(`${APP_URL}/api/world/dao`);
-        const daoData = await daoRes.json();
-
-        if (!daoData.success) {
-          return NextResponse.json({
-            success: false,
-            message: "Failed to fetch proposals",
-          });
-        }
-
-        const proposals = daoData.proposals || [];
-        const active = proposals.filter((p: any) => p.status === "active");
-
-        if (active.length === 0) {
-          return NextResponse.json({
-            success: true,
-            action: "info",
-            message: `🗳️ **DAO Proposals**
-
-No active proposals at the moment.
-
-To create a proposal, you need ${daoData.minEmptoursToPropose} EMPTOURS.
-
-🔗 https://fcempowertours.vercel.app/dao`,
-          });
-        }
-
-        const proposalList = active
-          .slice(0, 3)
-          .map(
-            (p: any) =>
-              `**#${p.id}** ${p.title}\n   👍 ${p.forVotes} | 👎 ${p.againstVotes}`,
-          )
-          .join("\n\n");
-
-        return NextResponse.json({
-          success: true,
-          action: "info",
-          message: `🗳️ **Active DAO Proposals**
-
-${proposalList}
-
-Vote: "dao vote <id> yes" or "dao vote <id> no"
-🔗 https://fcempowertours.vercel.app/dao`,
-        });
-      } catch (err: any) {
-        return NextResponse.json({
-          success: false,
-          message: `Failed to fetch proposals: ${err.message}`,
-        });
-      }
-    }
-
-    // ==================== DAO VOTE COMMAND ====================
-    if (lowerCommand.startsWith("dao vote")) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message:
-            "Wallet not connected. Visit the app to connect your wallet first.",
-        });
-      }
-
-      // Parse: "dao vote 1 yes" or "dao vote 1 no"
-      const voteMatch = lowerCommand.match(
-        /dao vote\s+(\d+)\s+(yes|no|for|against)/i,
-      );
-      if (!voteMatch) {
-        return NextResponse.json({
-          success: false,
-          message:
-            'Invalid format. Use: "dao vote <proposal_id> yes" or "dao vote <proposal_id> no"',
-        });
-      }
-
-      const proposalId = voteMatch[1];
-      const support = ["yes", "for"].includes(voteMatch[2].toLowerCase());
-
-      try {
-        const voteRes = await fetch(`${APP_URL}/api/world/dao`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({
-            action: "vote",
-            userAddress,
-            proposalId,
-            support,
-          }),
-        });
-
-        const voteData = await voteRes.json();
-
-        if (!voteData.success) {
-          return NextResponse.json({
-            success: false,
-            message: `Vote failed: ${voteData.error}`,
-          });
-        }
-
-        return NextResponse.json({
-          success: true,
-          action: "transaction",
-          message: `🗳️ **Vote Recorded!**
-
-Proposal #${proposalId}: ${support ? "👍 FOR" : "👎 AGAINST"}
-Vote Weight: ${voteData.weight}
-${voteData.reward ? `💎 Earned: ${voteData.reward}` : ""}
-${voteData.txHash ? `TX: ${voteData.txHash.slice(0, 14)}...` : ""}`,
-          txHash: voteData.txHash,
-        });
-      } catch (err: any) {
-        return NextResponse.json({
-          success: false,
-          message: `Vote failed: ${err.message}`,
-        });
-      }
     }
 
     // ==================== TIP ARTIST COMMAND ====================
@@ -1031,143 +903,6 @@ A new round will start shortly!`,
       }
     }
 
-    // ==================== FLIP COIN COMMAND ====================
-    if (
-      lowerCommand.startsWith("flip coin") ||
-      lowerCommand.startsWith("flip ")
-    ) {
-      console.log("[BOT-FLIP] Flip coin command received:", {
-        command: lowerCommand,
-        discordId,
-      });
-
-      if (!discordId) {
-        return NextResponse.json({
-          success: false,
-          message: "Discord ID not found. Please try again.",
-        });
-      }
-
-      // Parse: "flip coin", "flip coin heads", "flip coin tails 0.5", "flip heads 1"
-      let choice = Math.random() > 0.5; // Random if not specified
-      let betAmount = "0.1"; // Default 0.1 MON
-
-      // Check for heads/tails choice
-      if (lowerCommand.includes("heads")) {
-        choice = true;
-      } else if (lowerCommand.includes("tails")) {
-        choice = false;
-      }
-
-      // Check for bet amount
-      const amountMatch = lowerCommand.match(/(\d+\.?\d*)\s*(?:mon)?$/i);
-      if (amountMatch) {
-        betAmount = amountMatch[1];
-      }
-
-      // Validate bet amount
-      const betNum = parseFloat(betAmount);
-      if (betNum < 0.0001 || betNum > 100) {
-        return NextResponse.json({
-          success: false,
-          message: `Invalid bet amount. Must be between 0.0001 and 100 MON. You tried: ${betAmount} MON`,
-        });
-      }
-
-      try {
-        // First check if user has a linked wallet with a Safe
-        const safeInfoRes = await fetch(`${APP_URL}/api/discord/balance`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({
-            action: "get_safe_info",
-            discordId,
-          }),
-        });
-
-        const safeInfo = await safeInfoRes.json();
-
-        if (!safeInfo.success || !safeInfo.safeAddress) {
-          return NextResponse.json({
-            success: false,
-            message: `🪙 **Flip Coin - Wallet Required**
-
-You need to link your wallet first to play.
-
-1️⃣ \`link wallet\` - Get wallet linking page
-2️⃣ Fund your Safe with MON
-3️⃣ Come back and \`flip coin\`!`,
-          });
-        }
-
-        // Check Safe balance
-        const safeBalance = parseFloat(safeInfo.balance || "0");
-        if (safeBalance < betNum + 0.01) {
-          // Need bet + small gas buffer
-          return NextResponse.json({
-            success: false,
-            message: `🪙 **Insufficient Balance**
-
-Your Safe has ${safeBalance.toFixed(4)} MON.
-You need at least ${(betNum + 0.01).toFixed(4)} MON to bet ${betAmount} MON.
-
-Use \`fund safe\` to add more MON.`,
-          });
-        }
-
-        console.log("[BOT-FLIP] Executing flip coin:", {
-          choice: choice ? "HEADS" : "TAILS",
-          betAmount,
-          userAddress: safeInfo.linkedWallet,
-        });
-
-        // Execute the flip coin action
-        const flipRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({
-            userAddress: safeInfo.linkedWallet,
-            action: "flip_coin",
-            params: {
-              choice: choice ? "heads" : "tails",
-              betAmount,
-            },
-          }),
-        });
-
-        const flipResult = await flipRes.json();
-
-        if (flipResult.success) {
-          const txLink = `https://monadscan.com/tx/${flipResult.txHash}`;
-          return NextResponse.json({
-            success: true,
-            action: "transaction",
-            message: `🪙 **Coin Flipped!**
-
-🎲 Choice: ${choice ? "HEADS" : "TAILS"}
-💰 Bet: ${betAmount} MON
-📍 Contract: 0xfE2...9b4
-
-🔗 [View result on Monadscan](${txLink})
-
-Check the transaction to see if you won! Win = 2x payout minus house edge.`,
-            txHash: flipResult.txHash,
-          });
-        } else {
-          return NextResponse.json({
-            success: false,
-            message: `❌ Flip failed: ${flipResult.error}`,
-          });
-        }
-      } catch (err: any) {
-        console.error("[BOT-FLIP] Error:", err);
-        return NextResponse.json({
-          success: false,
-          message: `Failed to flip coin: ${err.message}`,
-        });
-      }
-    }
-
     // ==================== WITHDRAW COMMAND ====================
     if (lowerCommand.startsWith("withdraw")) {
       if (!discordId) {
@@ -1478,7 +1213,10 @@ View: https://monadscan.com/tx/${buyData.txHash}`,
               `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`,
               {
                 headers: {
-                  api_key: (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) || "",
+                  api_key:
+                    process.env.NEYNAR_API_KEY ||
+                    process.env.NEXT_PUBLIC_NEYNAR_API_KEY ||
+                    "",
                 },
               },
             );
