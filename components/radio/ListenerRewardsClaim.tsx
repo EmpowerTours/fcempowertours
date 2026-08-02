@@ -1,6 +1,6 @@
 "use client";
 
-import { authHeaders } from '@/lib/quick-auth-client';
+import { authHeaders } from "@/lib/quick-auth-client";
 import { useState, useEffect, useCallback } from "react";
 import {
   useAccount,
@@ -33,7 +33,19 @@ interface MonthData {
   finalized: boolean;
 }
 
+interface PendingData {
+  accruing: boolean;
+  monthId: number;
+  myPoints: number;
+  totalPoints: number;
+  expectedPoolWMON: string;
+  estimatedWMON: string;
+  monthRevenueWMON: string;
+  note: string;
+}
+
 interface EarningsData {
+  pending?: PendingData;
   tours: {
     pendingRewards: number;
     totalRewardsEarned: number;
@@ -144,7 +156,10 @@ export default function ListenerRewardsClaim({
       try {
         const res = await fetch("/api/execute-delegated", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          headers: {
+            "Content-Type": "application/json",
+            ...(await authHeaders()),
+          },
           body: JSON.stringify({
             action: "claim_listener_wmon",
             userAddress: address,
@@ -218,6 +233,30 @@ export default function ListenerRewardsClaim({
         Earn WMON from the 20% DAO reserve by listening to Live Radio
       </p>
 
+      {/* Accruing state for the OPEN month.
+          Without this the card shows a bare "0.0000 WMON" all month — the
+          on-chain reserve is only credited when the month is finalized — and
+          every listener reads that as broken rather than pending. */}
+      {data?.pending?.accruing && (
+        <div style={styles.pendingBox}>
+          <div style={styles.pendingRow}>
+            <span style={styles.pendingLabel}>
+              Accruing · month {data.pending.monthId}
+            </span>
+            <span style={styles.pendingAmount}>
+              ~{parseFloat(data.pending.estimatedWMON).toFixed(4)} WMON
+            </span>
+          </div>
+          <p style={styles.pendingDetail}>
+            {data.pending.myPoints} of {data.pending.totalPoints} listen points
+            · pool ~{parseFloat(data.pending.expectedPoolWMON).toFixed(2)} WMON
+            (20% of {parseFloat(data.pending.monthRevenueWMON).toFixed(0)} WMON
+            revenue so far)
+          </p>
+          <p style={styles.pendingNote}>{data.pending.note}</p>
+        </div>
+      )}
+
       {/* Stats grid */}
       <div style={styles.grid}>
         <div style={styles.stat}>
@@ -251,9 +290,17 @@ export default function ListenerRewardsClaim({
           </span>
         </div>
         <div style={styles.stat}>
-          <span style={styles.statLabel}>DAO Reserve</span>
+          {/* While a month is open the on-chain reserve reads 0, so show the
+              pool this month is on track to fund instead of a misleading zero. */}
+          <span style={styles.statLabel}>
+            {data?.pending?.accruing ? "Pool (est.)" : "DAO Reserve"}
+          </span>
           <span style={styles.statValue}>
-            {parseFloat(data?.wmon.currentReserveBalance || "0").toFixed(2)}{" "}
+            {parseFloat(
+              data?.pending?.accruing
+                ? data.pending.expectedPoolWMON
+                : data?.wmon.currentReserveBalance || "0",
+            ).toFixed(2)}{" "}
             WMON
           </span>
         </div>
@@ -356,6 +403,42 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "13px",
     color: "#8a8693",
     margin: "0 0 16px 0",
+  },
+  pendingBox: {
+    background: "rgba(56,189,248,0.08)",
+    border: "1px solid rgba(56,189,248,0.28)",
+    borderRadius: "10px",
+    padding: "12px",
+    marginBottom: "16px",
+  },
+  pendingRow: {
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: "12px",
+  },
+  pendingLabel: {
+    fontSize: "11px",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color: "#7dd3fc",
+    fontWeight: 600,
+  },
+  pendingAmount: {
+    fontSize: "18px",
+    fontWeight: 700,
+    color: "#38bdf8",
+  },
+  pendingDetail: {
+    fontSize: "12px",
+    color: "#cbd5e1",
+    margin: "8px 0 0 0",
+  },
+  pendingNote: {
+    fontSize: "11px",
+    color: "#8a8693",
+    margin: "6px 0 0 0",
+    lineHeight: 1.4,
   },
   grid: {
     display: "grid",

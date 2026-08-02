@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createPublicClient, http, Address } from "viem";
 import { monadTestnet } from "@/app/chains";
+import { useAccount } from "wagmi";
 import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
 import { useBotCommand } from "@/app/hooks/useBotCommand";
 
@@ -78,6 +79,8 @@ export default function NFTPage() {
   const params = useParams();
   const tokenId = params.tokenId as string;
   const { walletAddress, isMobile, requestWallet } = useFarcasterContext();
+  // Non-Farcaster visitors identify by their connected browser wallet.
+  const { address: connectedAddress } = useAccount();
   const { executeCommand, loading: commandLoading } = useBotCommand();
 
   const [nftData, setNftData] = useState<NFTData | null>(null);
@@ -334,13 +337,17 @@ export default function NFTPage() {
   };
 
   const handleBuyLicense = async () => {
-    if (!walletAddress) {
+    // Farcaster's wallet when in the mini app, otherwise the browser-connected
+    // one. requestWallet() only means anything inside a Farcaster client.
+    const buyerAddress = walletAddress || connectedAddress;
+
+    if (!buyerAddress) {
       alert("Please connect your wallet first");
       await requestWallet();
       return;
     }
 
-    if (walletAddress.toLowerCase() === nftData?.artistAddress.toLowerCase()) {
+    if (buyerAddress.toLowerCase() === nftData?.artistAddress.toLowerCase()) {
       alert(
         nftData?.isArt
           ? "You cannot buy your own art!"
@@ -361,7 +368,9 @@ export default function NFTPage() {
       const command = `buy_music ${tokenId}`;
       console.log("🤖 Executing command:", command);
 
-      const result = await executeCommand(command);
+      // Buying spends WMON, so a non-Farcaster buyer signs to prove they own
+      // the address. No-op inside the mini app, which uses Quick Auth.
+      const result = await executeCommand(command, { requireWalletAuth: true });
 
       console.log("📤 Full purchase result:", result);
       console.log("📊 Result keys:", Object.keys(result));

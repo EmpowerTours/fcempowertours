@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error:
-            "Farcaster authentication required. Please reopen the mini app so it can sign you in.",
+            "Authentication required. Reopen the mini app to sign in with Farcaster, or connect your wallet and sign to prove you own this address.",
         },
         { status: 401 },
       );

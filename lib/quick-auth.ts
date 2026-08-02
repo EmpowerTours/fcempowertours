@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { createClient, Errors } from "@farcaster/quick-auth";
 
+import { verifyWalletAuth } from "./wallet-auth";
+
 /**
  * 🔐 FARCASTER QUICK AUTH (server-side verification)
  *
@@ -166,7 +168,11 @@ export interface AuthorizationDecision {
   allowed: boolean;
   /** Verified FID, present only when a valid token was supplied. */
   fid?: number;
-  mode: "quickauth" | "unauthenticated";
+  /**
+   * "wallet" means ownership was proven by a wallet signature rather than a
+   * Farcaster token — the path for users who do not use Farcaster at all.
+   */
+  mode: "quickauth" | "wallet" | "unauthenticated";
   reason?: string;
   /** True when the request would be rejected once enforcement is on. */
   wouldRejectWhenEnforced: boolean;
@@ -191,8 +197,46 @@ export async function authorizeUserAddress(
   context: string,
 ): Promise<AuthorizationDecision> {
   const enforced = isQuickAuthEnforced();
+  const target = userAddress.toLowerCase();
   const result = await verifyQuickAuth(req);
 
+  // ---- Farcaster path. Deliberately evaluated FIRST and left untouched: a mini
+  // app request carrying a Quick Auth token that owns the address short-circuits
+  // here and never reaches the wallet code below, so its behaviour is unchanged.
+  if (result.ok && result.user.addresses.includes(target)) {
+    console.log(
+      `[QuickAuth] ${context}: ✅ FID ${result.user.fid} owns ${target}`,
+    );
+    return {
+      allowed: true,
+      fid: result.user.fid,
+      mode: "quickauth",
+      wouldRejectWhenEnforced: false,
+      ownsAddress: true,
+    };
+  }
+
+  // ---- Wallet fallback, for users who do not have Farcaster at all.
+  // Only reachable when Quick Auth did NOT prove ownership, so it can only turn
+  // a previous failure into a success — it can never downgrade a passing request.
+  const wallet = await verifyWalletAuth(req, userAddress, context);
+  if (wallet.ok) {
+    console.log(
+      `[WalletAuth] ${context}: ✅ ${wallet.address} proved ownership by signature`,
+    );
+    return {
+      allowed: true,
+      mode: "wallet",
+      wouldRejectWhenEnforced: false,
+      ownsAddress: true,
+    };
+  }
+  if (wallet.attempted) {
+    console.warn(`[WalletAuth] ${context}: ✗ ${wallet.reason}`);
+  }
+
+  // ---- Original failure results, unchanged. A failed or absent wallet attempt
+  // lands exactly where an unauthenticated request landed before.
   if (!result.ok) {
     console.warn(
       `[QuickAuth] ${context}: unauthenticated (${result.reason})${enforced ? " — REJECTED" : " — allowed (enforcement off)"}`,
@@ -206,30 +250,16 @@ export async function authorizeUserAddress(
     };
   }
 
-  const target = userAddress.toLowerCase();
-  if (!result.user.addresses.includes(target)) {
-    console.error(
-      `[QuickAuth] ${context}: FID ${result.user.fid} does not own ${target}${enforced ? " — REJECTED" : " — allowed (enforcement off)"}`,
-    );
-    return {
-      allowed: !enforced,
-      fid: result.user.fid,
-      mode: "quickauth",
-      reason: "Authenticated FID does not own this address",
-      wouldRejectWhenEnforced: true,
-      ownsAddress: false,
-    };
-  }
-
-  console.log(
-    `[QuickAuth] ${context}: ✅ FID ${result.user.fid} owns ${target}`,
+  console.error(
+    `[QuickAuth] ${context}: FID ${result.user.fid} does not own ${target}${enforced ? " — REJECTED" : " — allowed (enforcement off)"}`,
   );
   return {
-    allowed: true,
+    allowed: !enforced,
     fid: result.user.fid,
     mode: "quickauth",
-    wouldRejectWhenEnforced: false,
-    ownsAddress: true,
+    reason: "Authenticated FID does not own this address",
+    wouldRejectWhenEnforced: true,
+    ownsAddress: false,
   };
 }
 

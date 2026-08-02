@@ -248,6 +248,10 @@ export async function POST(req: NextRequest) {
         console.log(
           `[Delegation] ✅ Quick Auth verified: FID ${authz.fid} owns ${userAddress}`,
         );
+      } else if (authz.mode === "wallet") {
+        console.log(
+          `[Delegation] ✅ Wallet signature verified: ${userAddress} (no Farcaster)`,
+        );
       } else {
         // Enforcement is still off — legacy unauthenticated callers get in.
         console.warn(

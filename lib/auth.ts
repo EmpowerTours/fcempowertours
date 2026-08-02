@@ -1,6 +1,8 @@
 import {
   verifyMessage,
   recoverMessageAddress,
+  createPublicClient,
+  http,
   Address,
   Hex,
   hashMessage,
@@ -240,6 +242,37 @@ export function validateTimestamp(timestamp: number): AuthResult {
  * Verify an EIP-191 personal_sign signature
  * Returns the recovered address if valid
  */
+/**
+ * Lazily-built read-only client, used only for the ERC-1271 fallback below.
+ * Built on demand so importing this module never opens a transport.
+ */
+let _verifyClient: ReturnType<typeof createPublicClient> | null = null;
+
+async function getVerifyClient() {
+  if (!_verifyClient) {
+    const { activeChain } = await import("@/app/chains");
+    _verifyClient = createPublicClient({
+      chain: activeChain,
+      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || undefined),
+    });
+  }
+  return _verifyClient;
+}
+
+/**
+ * Verify a personal_sign signature against an address.
+ *
+ * Two paths, in order:
+ *  1. EOA — pure recover-and-compare, no network call. Unchanged behaviour.
+ *  2. ERC-1271 — for smart-contract wallets. This app issues every user a Safe
+ *     (lib/user-safe.ts) and supports Pimlico AA, and a Safe cannot produce an
+ *     ECDSA signature that recovers to its own address, so path 1 rejects it
+ *     every time. viem's client-side verifyMessage runs the universal signature
+ *     validator, which also works for counterfactual (not-yet-deployed) accounts.
+ *
+ * The EOA path runs first so the common case costs no RPC round trip, and its
+ * success and error messages are exactly what they were before.
+ */
 export async function verifySignature(
   message: string,
   signature: string,
@@ -252,24 +285,45 @@ export async function verifySignature(
       signature: signature as Hex,
     });
 
-    if (!isValid) {
+    if (isValid) {
       return {
-        valid: false,
-        error: "Invalid signature. Please sign with the correct wallet.",
+        valid: true,
+        address: expectedAddress.toLowerCase(),
       };
     }
-
-    return {
-      valid: true,
-      address: expectedAddress.toLowerCase(),
-    };
   } catch (error: any) {
-    console.error("[Auth] Signature verification error:", error);
-    return {
-      valid: false,
-      error: "Signature verification failed.",
-    };
+    // A malformed signature throws here. Fall through — the ERC-1271 attempt
+    // may still succeed for a contract wallet, and if it doesn't we report the
+    // same "invalid signature" the EOA path always reported.
+    console.warn("[Auth] EOA signature check failed:", error?.message);
   }
+
+  try {
+    const client = await getVerifyClient();
+    const isValidContractSig = await client.verifyMessage({
+      address: expectedAddress as Address,
+      message,
+      signature: signature as Hex,
+    });
+
+    if (isValidContractSig) {
+      console.log(
+        `[Auth] ✅ ERC-1271 signature verified for contract wallet ${expectedAddress}`,
+      );
+      return {
+        valid: true,
+        address: expectedAddress.toLowerCase(),
+      };
+    }
+  } catch (error: any) {
+    // Network/RPC failure, or the address is a plain EOA with a bad signature.
+    console.warn("[Auth] ERC-1271 check unavailable:", error?.message);
+  }
+
+  return {
+    valid: false,
+    error: "Invalid signature. Please sign with the correct wallet.",
+  };
 }
 
 /**

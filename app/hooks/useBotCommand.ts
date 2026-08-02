@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useAccount, useSignMessage } from "wagmi";
 import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
 import { authHeaders } from "@/lib/quick-auth-client";
+import { walletAuthHeaders } from "@/lib/wallet-auth-client";
+
+/** Must match the `context` the server passes to authorizeUserAddress. */
+const AUTH_CONTEXT = "bot-command";
 
 export type BotCommandResponse = {
   success: boolean;
@@ -33,6 +38,11 @@ export function useBotCommand() {
     custodyAddress,
   } = useFarcasterContext();
 
+  // Fallback identity for people who are not in a Farcaster client at all.
+  // wagmi is mounted app-wide by ClientProviders, so these are always available.
+  const { address: connectedAddress } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+
   const executeCommand = useCallback(
     async (
       command: string,
@@ -47,33 +57,55 @@ export function useBotCommand() {
         collectorPrice?: string; // Collector edition price in WMON
         maxEditions?: string; // Max collector editions
         rightsDeclaration?: object; // Rights declaration for music NFTs
+        /**
+         * Ask a non-Farcaster user to sign, proving they own the address.
+         * Opt-in because it costs a wallet prompt — set it for commands that
+         * spend or move value, not for read-only ones like `radio`/`catalog`.
+         * Ignored inside a Farcaster client, which uses Quick Auth instead.
+         */
+        requireWalletAuth?: boolean;
       },
     ): Promise<BotCommandResponse> => {
       setLoading(true);
       setError(null);
 
       try {
-        // Get wallet address from Farcaster context only
-        const userAddress = walletAddress;
+        // Farcaster's address wins when present, so mini app behaviour is
+        // unchanged. Otherwise fall back to the connected browser wallet.
+        const userAddress = walletAddress || connectedAddress || null;
 
         if (!userAddress) {
-          const err =
-            "Wallet not connected. Please connect your Farcaster wallet.";
+          const err = "Wallet not connected. Connect a wallet to continue.";
           console.warn(
-            "❌ [BOT-HOOK] No wallet address found from Farcaster context",
+            "❌ [BOT-HOOK] No Farcaster or connected wallet address",
           );
           setError(err);
           return { success: false, error: err };
         }
 
+        const inFarcaster = Boolean(fid && walletAddress);
+
         console.log("✅ [BOT-HOOK] Wallet address found:", {
           userAddress,
           fid,
+          mode: inFarcaster ? "farcaster" : "wallet",
         });
 
-        // Prove control of the FID we're claiming. Resolves to {} outside a
-        // Farcaster client, so non-mini-app usage is unaffected.
-        const auth = await authHeaders();
+        // In a Farcaster client: Quick Auth, exactly as before.
+        //
+        // Outside one: a wallet signature instead. Branching on `inFarcaster`
+        // rather than always trying Quick Auth first matters — sdk.quickAuth
+        // .getToken() has no host to answer it in a plain browser and only
+        // resolves on its 3s timeout, which would stall every command.
+        const auth = inFarcaster
+          ? await authHeaders()
+          : options?.requireWalletAuth
+            ? await walletAuthHeaders({
+                address: userAddress,
+                signMessage: signMessageAsync,
+                context: AUTH_CONTEXT,
+              })
+            : {};
 
         const response = await fetch("/api/bot-command", {
           method: "POST",
@@ -121,7 +153,7 @@ export function useBotCommand() {
         setLoading(false);
       }
     },
-    [fid, walletAddress, custodyAddress],
+    [fid, walletAddress, custodyAddress, connectedAddress, signMessageAsync],
   );
 
   return {
