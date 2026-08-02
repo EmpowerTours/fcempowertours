@@ -36,7 +36,9 @@ function getSafeOwnerAccount() {
     console.log('🔐 Initializing Safe AA Client (EntryPoint v0.7)');
     console.log('   EntryPoint:', ENTRYPOINT_ADDRESS);
     console.log('   Safe Account:', SAFE_ACCOUNT);
-    console.log('   Bundler:', PIMLICO_BUNDLER_URL);
+    // Log the host only — the full URL carries ?apikey=<secret> in its query
+    // string, which would otherwise be written to Railway stdout logs.
+    console.log('   Bundler host:', new URL(PIMLICO_BUNDLER_URL).host);
     _safeOwnerAccount = privateKeyToAccount(SAFE_OWNER_PRIVATE_KEY);
     console.log('✅ Safe owner account:', _safeOwnerAccount.address);
   }
