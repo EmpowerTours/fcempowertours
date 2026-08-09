@@ -1,13 +1,15 @@
 "use client";
 
-import { authHeaders } from "@/lib/quick-auth-client";
 import { useState, useEffect, useCallback } from "react";
 import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { formatEther, parseAbi, type Address } from "viem";
+import { encodeFunctionData, parseAbi, type Address } from "viem";
+
+/** Monad mainnet, chain 143 — the chain ListenerRewardPool is deployed on. */
+const MONAD_CHAIN_ID_HEX = "0x8f";
 
 /**
  * ListenerRewardsClaim
@@ -84,9 +86,21 @@ export default function ListenerRewardsClaim({
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const address = addressProp ?? wagmiAddress;
   const isConnected = Boolean(address);
-  // Only the standalone web surface can sign through wagmi. When the address was
-  // handed to us, we are in the mini app and must claim via the delegated Safe.
-  const useDelegatedClaim = Boolean(addressProp);
+
+  /**
+   * Claims MUST be signed by the listener's own wallet.
+   *
+   * ListenerRewardPool.batchClaimRewards credits `msg.sender` and has no
+   * claimFor(address) variant, while the distribution cron allocates points to
+   * WALLET addresses. Routing the claim through the bot-owned Safe therefore made
+   * msg.sender the Safe, which holds zero points, and every claim reverted with
+   * "No rewards to claim" — verified on-chain 2026-08-09 (wallet 0x33ffccb1 had
+   * 1345 points / 60 WMON while its Safe had 0).
+   *
+   * The Farcaster wallet is now a wagmi connector (see StandaloneProviders), so
+   * the mini app can sign directly and the delegated route is gone.
+   */
+  const canSign = wagmiConnected && Boolean(wagmiAddress);
   const [data, setData] = useState<EarningsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -150,52 +164,115 @@ export default function ListenerRewardsClaim({
 
     const monthIds = unclaimedMonths.map((m) => m.monthId);
 
-    // Mini app: no wagmi connection exists, so sign through the delegated Safe.
-    if (useDelegatedClaim) {
+    const monthIdsForTx = monthIds.map((id) => BigInt(id));
+
+    // ---- Mini app: sign with the Farcaster wallet via the SDK's EIP-1193
+    // provider. wagmi has no connector for it, and the Safe cannot claim on a
+    // listener's behalf, so this is the only route where msg.sender is correct.
+    if (!canSign) {
       setClaiming(true);
       try {
-        const res = await fetch("/api/execute-delegated", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(await authHeaders()),
-          },
-          body: JSON.stringify({
-            action: "claim_listener_wmon",
-            userAddress: address,
-            params: { monthIds },
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || "Claim failed");
+        const { sdk } = await import("@farcaster/miniapp-sdk");
+        const provider = await sdk.wallet.getEthereumProvider();
+        if (!provider) throw new Error("No Farcaster wallet available");
+
+        const accounts = (await provider.request({
+          method: "eth_requestAccounts",
+        })) as string[];
+        const from = accounts?.[0];
+        if (!from) throw new Error("Farcaster wallet returned no account");
+
+        if (address && from.toLowerCase() !== address.toLowerCase()) {
+          throw new Error(
+            `Rewards belong to ${address.slice(0, 6)}…${address.slice(-4)} but the signed-in wallet is ${from.slice(0, 6)}…${from.slice(-4)}.`,
+          );
         }
+
+        // The pool is on Monad mainnet; ask the host to switch if it isn't.
+        try {
+          await provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: MONAD_CHAIN_ID_HEX }],
+          });
+        } catch {
+          // Already on Monad, or the host doesn't support switching.
+        }
+
+        const data =
+          monthIdsForTx.length === 1
+            ? encodeFunctionData({
+                abi: POOL_ABI,
+                functionName: "claimReward",
+                args: [monthIdsForTx[0]],
+              })
+            : encodeFunctionData({
+                abi: POOL_ABI,
+                functionName: "batchClaimRewards",
+                args: [monthIdsForTx],
+              });
+
+        await provider.request({
+          method: "eth_sendTransaction",
+          params: [{ from: from as Address, to: POOL_ADDRESS, data }],
+        });
+
         setClaimSuccess(true);
         await fetchEarnings();
       } catch (e: any) {
-        setError(e.message || "Claim failed");
+        const msg = e?.message || "Claim failed";
+        setError(
+          /No rewards to claim/i.test(msg)
+            ? "This wallet has no unclaimed rewards for those months."
+            : msg.split("\n")[0],
+        );
       } finally {
         setClaiming(false);
       }
       return;
     }
 
-    // Standalone web: the user connected through RainbowKit, so sign directly.
+    if (
+      wagmiAddress &&
+      address &&
+      wagmiAddress.toLowerCase() !== address.toLowerCase()
+    ) {
+      setError(
+        `Rewards belong to ${address.slice(0, 6)}…${address.slice(-4)} but ${wagmiAddress.slice(0, 6)}…${wagmiAddress.slice(-4)} is connected. Switch wallets to claim.`,
+      );
+      return;
+    }
+
     const monthIdsBigInt = monthIds.map((id) => BigInt(id));
+    const onError = (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Surface the reason instead of letting an unhandled throw blank the page.
+      setError(
+        /No rewards to claim/i.test(msg)
+          ? "This wallet has no unclaimed rewards for those months."
+          : msg.split("\n")[0] || "Claim failed",
+      );
+    };
+
     if (monthIdsBigInt.length === 1) {
-      writeContract({
-        address: POOL_ADDRESS,
-        abi: POOL_ABI,
-        functionName: "claimReward",
-        args: [monthIdsBigInt[0]],
-      });
+      writeContract(
+        {
+          address: POOL_ADDRESS,
+          abi: POOL_ABI,
+          functionName: "claimReward",
+          args: [monthIdsBigInt[0]],
+        },
+        { onError },
+      );
     } else {
-      writeContract({
-        address: POOL_ADDRESS,
-        abi: POOL_ABI,
-        functionName: "batchClaimRewards",
-        args: [monthIdsBigInt],
-      });
+      writeContract(
+        {
+          address: POOL_ADDRESS,
+          abi: POOL_ABI,
+          functionName: "batchClaimRewards",
+          args: [monthIdsBigInt],
+        },
+        { onError },
+      );
     }
   };
 
