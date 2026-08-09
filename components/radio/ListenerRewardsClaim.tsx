@@ -33,6 +33,8 @@ interface MonthData {
   poolTotal: string;
   totalListeners: number;
   finalized: boolean;
+  /** Verified claim receipt, when one has been recorded. */
+  txHash: string | null;
 }
 
 interface PendingData {
@@ -142,13 +144,37 @@ export default function ListenerRewardsClaim({
     }
   }, [isConnected, address, fetchEarnings]);
 
+  /**
+   * Record the claim transaction so the month can link to MonadScan later.
+   *
+   * The server re-derives everything from the receipt, so sending the hash is
+   * enough — and a failure here must never look like a failed claim, since the
+   * payout has already settled on-chain by this point.
+   */
+  const recordClaimTx = useCallback(async (hash: string) => {
+    try {
+      await fetch("/api/listener-claim-tx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txHash: hash }),
+      });
+    } catch (e: any) {
+      console.warn("[ListenerRewards] could not record claim tx:", e?.message);
+    }
+  }, []);
+
   // Refresh after successful claim
   useEffect(() => {
     if (receipt) {
       setClaimSuccess(true);
-      fetchEarnings();
+      // Wait for the receipt, not just submission — only mined claims get linked.
+      if (txHash) {
+        recordClaimTx(txHash).finally(() => fetchEarnings());
+      } else {
+        fetchEarnings();
+      }
     }
-  }, [receipt, fetchEarnings]);
+  }, [receipt, txHash, recordClaimTx, fetchEarnings]);
 
   const unclaimedMonths =
     data?.wmon.months.filter(
@@ -211,12 +237,13 @@ export default function ListenerRewardsClaim({
                 args: [monthIdsForTx],
               });
 
-        await provider.request({
+        const sentHash = (await provider.request({
           method: "eth_sendTransaction",
           params: [{ from: from as Address, to: POOL_ADDRESS, data }],
-        });
+        })) as string;
 
         setClaimSuccess(true);
+        if (sentHash) await recordClaimTx(sentHash);
         await fetchEarnings();
       } catch (e: any) {
         const msg = e?.message || "Claim failed";
@@ -436,9 +463,22 @@ export default function ListenerRewardsClaim({
                     >
                       {parseFloat(month.estimatedPayout).toFixed(4)} WMON
                     </span>
-                    {month.claimed && (
-                      <span style={styles.claimedBadge}>Claimed</span>
-                    )}
+                    {month.claimed &&
+                      (month.txHash ? (
+                        <a
+                          href={`https://monadscan.com/tx/${month.txHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={styles.claimedBadgeLink}
+                          title="View the claim transaction on MonadScan"
+                        >
+                          Claimed ↗
+                        </a>
+                      ) : (
+                        // No verified receipt stored for this claim, so there is
+                        // nothing honest to link to.
+                        <span style={styles.claimedBadge}>Claimed</span>
+                      ))}
                     {!month.claimed && month.finalized && (
                       <span style={styles.claimableBadge}>Claimable</span>
                     )}
@@ -608,6 +648,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#4caf50",
     borderRadius: "4px",
     fontSize: "11px",
+  },
+  claimedBadgeLink: {
+    marginLeft: "8px",
+    padding: "2px 6px",
+    background: "rgba(76, 175, 80, 0.15)",
+    color: "#4caf50",
+    borderRadius: "4px",
+    fontSize: "11px",
+    textDecoration: "none",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   claimableBadge: {
     marginLeft: "8px",

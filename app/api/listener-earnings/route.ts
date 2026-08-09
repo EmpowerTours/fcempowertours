@@ -96,8 +96,20 @@ export async function GET(req: NextRequest) {
       firstListenerBonuses: 0,
     };
 
+    // Verified claim receipts (month -> txHash). Never fatal: a missing map
+    // just means claimed months render without a Monadscan link.
+    let claimTxByMonth: Record<string, string> = {};
+    try {
+      claimTxByMonth =
+        (await redis.hgetall<Record<string, string>>(
+          `listener-claim-tx:${listenerAddress}`,
+        )) || {};
+    } catch (e: any) {
+      console.warn("[ListenerEarnings] claim-tx lookup failed:", e?.message);
+    }
+
     // On-chain data
-    let wmonEarnings = {
+    const wmonEarnings = {
       totalClaimable: "0",
       totalClaimed: "0",
       currentReserveBalance: "0",
@@ -109,6 +121,7 @@ export async function GET(req: NextRequest) {
         poolTotal: string;
         totalListeners: number;
         finalized: boolean;
+        txHash: string | null;
       }[],
     };
 
@@ -186,6 +199,9 @@ export async function GET(req: NextRequest) {
                     poolTotal: formatEther(totalWMON),
                     totalListeners: Number(listenerCount),
                     finalized,
+                    // Present only for claims we hold a verified receipt for;
+                    // the UI links it to Monadscan when it exists.
+                    txHash: claimTxByMonth[String(monthId)] || null,
                   });
                 }
               } catch {
