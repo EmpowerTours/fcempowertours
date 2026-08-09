@@ -1604,6 +1604,55 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         const buyerFid = params?.fid || fid || 0;
         console.log("🎫 Purchasing license with FID:", buyerFid);
 
+        /**
+         * SECURITY: approve the exact price, and reset to zero in the same batch.
+         *
+         * A standing allowance is directly exploitable. EmpowerToursNFTV2's
+         * `executeSaleFor` has no caller authorisation — anyone may force a sale
+         * between any two parties at a price they choose, bounded only by the
+         * victim's outstanding allowance to that contract. Verified by simulation
+         * from an unrelated address against mainnet.
+         *
+         * The contract is immutable, so the allowance is the only lever we control.
+         * Approving `price` and clearing it atomically means the exposure window is
+         * a single transaction rather than indefinite, and the exposure amount is
+         * one licence rather than the whole standing approval.
+         *
+         * Price is read from the contract rather than reused from the Envio balance
+         * check above: that value is out of scope here, and a stale index would
+         * under-approve and revert the purchase.
+         */
+        let approvalAmount = parseEther("100"); // fallback: previous behaviour
+        try {
+          const { createPublicClient, http } = await import("viem");
+          const { activeChain } = await import("@/app/chains");
+          const priceClient = createPublicClient({
+            chain: activeChain,
+            transport: http(),
+          });
+          const master = (await priceClient.readContract({
+            address: EMPOWER_TOURS_NFT,
+            abi: parseAbi([
+              "function masterTokens(uint256) view returns (uint256 artistFid, address originalArtist, string tokenURI, string collectorTokenURI, uint256 price, uint256 collectorPrice, uint256 totalSold, uint256 activeLicenses, uint256 maxCollectorEditions, uint256 collectorsMinted, bool active, uint8 nftType, uint96 royaltyPercentage)",
+            ]),
+            functionName: "masterTokens",
+            args: [tokenId],
+          })) as readonly unknown[];
+          const onChainPrice = master[4] as bigint;
+          if (onChainPrice > 0n) {
+            approvalAmount = onChainPrice;
+            console.log(
+              "🔒 Exact approval from contract:",
+              onChainPrice.toString(),
+            );
+          }
+        } catch (priceErr: any) {
+          console.warn(
+            "⚠️ Could not read on-chain price, falling back to capped approval:",
+            priceErr.message,
+          );
+        }
+
         const buyCalls = [
           {
             to: WMON_FOR_PURCHASE,
@@ -1613,9 +1662,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                 "function approve(address spender, uint256 amount) external returns (bool)",
               ]),
               functionName: "approve",
-              // SECURITY: Approve reasonable max (100 WMON) instead of unlimited
-              // Balance check already validated user can afford the NFT
-              args: [EMPOWER_TOURS_NFT, parseEther("100")],
+              args: [EMPOWER_TOURS_NFT, approvalAmount],
             }) as Hex,
           },
           {
@@ -1627,6 +1674,18 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               ]),
               functionName: "purchaseLicenseFor",
               args: [tokenId, userAddress as Address, BigInt(buyerFid)],
+            }) as Hex,
+          },
+          {
+            // Leave no standing allowance behind.
+            to: WMON_FOR_PURCHASE,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                "function approve(address spender, uint256 amount) external returns (bool)",
+              ]),
+              functionName: "approve",
+              args: [EMPOWER_TOURS_NFT, 0n],
             }) as Hex,
           },
         ];
