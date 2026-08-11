@@ -55,9 +55,6 @@ const nextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cache-Control', value: 'max-age=0, must-revalidate' },
-          // SECURITY: Changed from ALLOWALL to SAMEORIGIN (frames only on same origin)
-          // Farcaster mini-apps need to be embedded, so we use specific frame-ancestors
-          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           // SECURITY: Content Security Policy for frame embedding
           { key: 'Content-Security-Policy', value: "frame-ancestors 'self' https://warpcast.com https://www.warpcast.com https://farcaster.xyz https://www.farcaster.xyz;" },
           { key: 'Permissions-Policy', value: 'geolocation=(self)' },
