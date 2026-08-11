@@ -312,6 +312,64 @@ the contract, it is not enforced.
 The keeper then does only what cannot be on-chain: snapshot holder balances via Envio, build
 the Merkle tree, publish to IPFS, call `createRound`.
 
+### Binding the artist — signature, not `msg.sender` (fixes M5)
+
+`artist` is currently a caller-supplied parameter with nothing tying it to the caller, so a
+master can be minted naming anyone as the artist.
+
+**A naive `artist = msg.sender` would break both mint paths**, because neither submits from
+the artist's own address:
+
+| path | submits as | passes as artist |
+|---|---|---|
+| `app/api/execute-delegated/route.ts:855` | the user's Safe | `userAddress` (EOA) |
+| `app/api/mint-music/route.ts:263` | a server wallet | supplied address |
+
+With `USE_USER_SAFES` on, binding to `msg.sender` would make the *Safe* the artist and
+redirect the 90% away from the EOA. On the server path it would make the **platform key** the
+artist of every master, which is far worse than the bug it fixes.
+
+**Two entry points instead:**
+
+```solidity
+// direct — artist mints for themselves, no signature needed
+function mintMaster(...) external {
+    _mint(msg.sender, ...);
+}
+
+// delegated — anyone may relay, but the artist must have consented
+function mintMasterFor(
+    address artist,
+    ...,
+    uint256 nonce,
+    uint256 deadline,
+    bytes calldata signature
+) external {
+    require(block.timestamp <= deadline, "Expired");
+    require(!usedNonces[artist][nonce], "Replay");
+    _verify(artist, _hashMint(artist, ..., nonce, deadline), signature);
+    ...
+}
+```
+
+**The signature must cover every minted field** — `tokenURI`, `title`, `price`, `nftType`,
+`artistFid`, plus `nonce` and `deadline`. If it covered only the artist address, a relayer
+could mint under the artist's name with different content or a different price. Signing the
+full struct is what makes delegation safe rather than merely convenient.
+
+**Verification must accept both signature types.** Every user is issued a Safe, and Safes are
+contracts that sign via ERC-1271 rather than ECDSA. `lib/auth.ts` already implements exactly
+this fallback for wallet auth (ECDSA first, ERC-1271 second) — the contract needs the same
+two-branch check, and OpenZeppelin's `SignatureChecker` provides it directly.
+
+**Nonce and deadline are not optional.** Without a nonce a captured signature mints
+repeatedly; without a deadline it stays valid forever. Both are cheap and both are the
+standard failure modes of meta-transaction designs.
+
+This preserves gasless minting — the platform still pays gas and still submits — while making
+impersonation impossible. The app change is to have the artist sign the mint payload before
+`executeTransaction` relays it.
+
 ### Identity — wallet is primary, FID is optional metadata
 
 **The V2 Farcaster requirement is not enforced.** `mintMaster` checks
@@ -451,7 +509,7 @@ Verified 2026-08-09 by auditing every NFT-contract call site in `app/`, `lib/`, 
 
 | call site | change required |
 |---|---|
-| `app/api/upload/route.ts` — `mintMaster`, `mintCollectorMaster` | signature gains `referrer` (pass resolved address or `address(0)`); `artistFid` becomes optional so `0` is valid — stop rejecting uploads that lack one; artist is bound to `msg.sender` or a signature rather than taken as a free parameter |
+| `execute-delegated/route.ts:855`, `mint-music/route.ts:263` — `mintMaster` | switch to `mintMasterFor`: have the artist sign the mint payload (EIP-712, full struct + nonce + deadline) before relaying. Also gains `referrer`; `artistFid` becomes optional so `0` is valid — stop rejecting uploads without one |
 | `app/api/execute-delegated/route.ts` — `purchaseLicenseFor` | unchanged signature, but re-verify the exact-price approval against V3 pricing |
 | `executeSaleFor` call site | gains caller authorisation and buyer consent; the delegated path must supply a signature or route through `platformOperator` |
 | `burnNFT` / `burnNFTFor` / `burnNFTForDelegated` | signatures unchanged; reward return value becomes 0 once burn rewards are cut |
