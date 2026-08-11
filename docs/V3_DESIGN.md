@@ -27,7 +27,7 @@ Found 2026-08-09 by reading the Monadscan-verified V2 source and confirming on-c
 | M2 | medium | CEI violation in `_purchaseLicenseFor`: `_safeMint` (external callback) fires before licence state is written; `collectorsMinted++` happens after the internal call returns. Guarded by `nonReentrant` today, fragile to refactor. |
 | M3 | medium | Unbounded loop in `hasValidLicense`. Safe as a view, dangerous once called from a state-changing function. |
 | M4 | medium | Secondary royalty is immutable at 50% (5000 bps). No setter exists; the value comes from `MUSIC_ROYALTY`/`ART_ROYALTY` constants at master mint and is copied to each licence. |
-| M5 | medium | `mintMaster` is `external` with **no access control** — no owner or operator check. The only guards are a duplicate-title check, `artistFid > 0`, and the minimum price. Anyone with a Farcaster ID can mint a master, and `artist` is a parameter, so a master can be minted naming someone else as the artist. Not exploitable for theft (payments go to `originalArtist`), but the artist roster is permissionless and spoofable at the contract level. |
+| M5 | medium | `mintMaster` is `external` with **no access control**, and `artist` is a caller-supplied parameter — so a master can be minted naming someone else as the artist. `require(artistFid > 0)` is not a control: the FID is never verified to exist, to belong to the caller, or to match `artist`. Not exploitable for theft (payments go to `originalArtist`), but the roster is spoofable. V3 addresses the impersonation half by binding the artist to `msg.sender` or an explicit signature; the FID half is resolved by making it optional — see Identity below. |
 
 **Interim mitigation shipped** (`cf20662`): the buy batch now approves the exact on-chain
 price and clears the allowance in the same atomic batch, reducing C1 exposure from an
@@ -312,6 +312,66 @@ the contract, it is not enforced.
 The keeper then does only what cannot be on-chain: snapshot holder balances via Envio, build
 the Merkle tree, publish to IPFS, call `createRound`.
 
+### Identity — wallet is primary, FID is optional metadata
+
+**The V2 Farcaster requirement is not enforced.** `mintMaster` checks
+`require(artistFid > 0, "Invalid FID")` and nothing else — it never verifies the FID exists,
+never checks it belongs to the caller, never checks it matches the `artist` address. It is an
+unverified `uint256`. Anyone can pass `1`. The same nominal check appears at lines 167, 215
+and 273.
+
+So Farcaster-only is an app-layer convention, not a contract control. `3bc6dc4` already
+shipped wallet-signature auth as a fallback for fund-moving actions, so the auth layer
+already supports wallet-only users.
+
+**V3 makes this honest: `artistFid` becomes genuinely optional, `0` permitted.**
+
+An unverified integer everyone passes anyway is worse than an honest optional field, because
+it implies a control that does not exist.
+
+```solidity
+// V2: require(artistFid > 0, "Invalid FID");   // nominal, unverified
+// V3: no requirement. artistFid is optional metadata on the master.
+```
+
+**Identity model:**
+
+| | key |
+|---|---|
+| Primary identity | **wallet address** — durable, survives Farcaster |
+| `artistFid` | optional metadata attached to it |
+| `artistFidMasters` index | retained, populated only when a FID is supplied |
+
+**Anyone can upload and sell.** That is the part that should never be gated — an artist's
+ability to publish and receive 90% of their sales does not depend on which social network
+they use.
+
+**Tiered participation is where the line goes instead.** Dropping the FID requirement removes
+the only cost of creating an artist identity: wallets are free and infinite, FIDs are not.
+That matters because the reward economy pays out in places a sale does not:
+
+| action | wallet-only | verified identity |
+|---|---|---|
+| Mint a master, sell licences, receive 90% | yes | yes |
+| Resell, receive resale royalty | yes | yes |
+| Create a Clearwave royalty offering | yes | yes |
+| **Earn referral commission** | no | yes |
+| **Earn TOURS burn / staking rewards** | no | yes |
+| **Be referred for commission** | no | yes |
+
+Sale-driven earnings are self-defending — commission accrues only on real sales, and
+self-dealing loses money (buying your own 35 WMON track returns ~32.5 against 35 paid).
+Emissions-driven earnings are not, since they pay out with no sale involved. So the gate
+belongs on emissions, not on publishing.
+
+"Verified identity" means a Farcaster FID today. Keeping it a *credential* rather than a
+*login* means other attestations can be accepted later without touching the upload path.
+
+**Deferred:** do not build a parallel wallet-native profile system until an actual artist is
+blocked by its absence. The current bottleneck is demand, not artist supply — no one is being
+turned away. What V3 should do now is stop enforcing a requirement it never enforced, so the
+option is open when it is needed.
+
 ### Access enforcement — and why radio is out of scope
 
 Audio today is served from `gateway.pinata.cloud/ipfs/...`, resolved from `external_url` in
@@ -391,7 +451,7 @@ Verified 2026-08-09 by auditing every NFT-contract call site in `app/`, `lib/`, 
 
 | call site | change required |
 |---|---|
-| `app/api/upload/route.ts` — `mintMaster`, `mintCollectorMaster` | signature gains `referrer`; pass the resolved referrer address or `address(0)` |
+| `app/api/upload/route.ts` — `mintMaster`, `mintCollectorMaster` | signature gains `referrer` (pass resolved address or `address(0)`); `artistFid` becomes optional so `0` is valid — stop rejecting uploads that lack one; artist is bound to `msg.sender` or a signature rather than taken as a free parameter |
 | `app/api/execute-delegated/route.ts` — `purchaseLicenseFor` | unchanged signature, but re-verify the exact-price approval against V3 pricing |
 | `executeSaleFor` call site | gains caller authorisation and buyer consent; the delegated path must supply a signature or route through `platformOperator` |
 | `burnNFT` / `burnNFTFor` / `burnNFTForDelegated` | signatures unchanged; reward return value becomes 0 once burn rewards are cut |
