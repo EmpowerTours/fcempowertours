@@ -1,7 +1,12 @@
 # EmpowerToursNFT V3 — Design Notes
 
-Status: **design only, nothing built.** Records the audit findings, architecture, and
-product decisions for the next contract generation.
+Status: **core built and tested, not deployed.** `LicenseRegistry`, `SalesController` and
+`SubscriptionReferrals` exist under `contracts/v3/` with **91 passing tests**; there is no
+deploy script and no app cutover yet. Records the audit findings, architecture, and product
+decisions for the next contract generation.
+
+Still unbuilt: `migrateLegacy` / `sealMigration` (grandfathering), the deploy script, and the
+app cutover listed at the end of this document.
 
 ## Compatibility guarantee
 
@@ -27,7 +32,7 @@ Found 2026-08-09 by reading the Monadscan-verified V2 source and confirming on-c
 | M2 | medium | CEI violation in `_purchaseLicenseFor`: `_safeMint` (external callback) fires before licence state is written; `collectorsMinted++` happens after the internal call returns. Guarded by `nonReentrant` today, fragile to refactor. |
 | M3 | medium | Unbounded loop in `hasValidLicense`. Safe as a view, dangerous once called from a state-changing function. |
 | M4 | medium | Secondary royalty is immutable at 50% (5000 bps). No setter exists; the value comes from `MUSIC_ROYALTY`/`ART_ROYALTY` constants at master mint and is copied to each licence. |
-| M5 | medium | `mintMaster` is `external` with **no access control**, and `artist` is a caller-supplied parameter — so a master can be minted naming someone else as the artist. `require(artistFid > 0)` is not a control: the FID is never verified to exist, to belong to the caller, or to match `artist`. Not exploitable for theft (payments go to `originalArtist`), but the roster is spoofable. V3 addresses the impersonation half by binding the artist to `msg.sender` or an explicit signature; the FID half is resolved by making it optional — see Identity below. |
+| M5 | medium | `mintMaster` is `external` with **no access control**, and `artist` is a caller-supplied parameter — so a master can be minted naming someone else as the artist. `require(artistFid > 0)` is not a control: the FID is never verified to exist, to belong to the caller, or to match `artist`. Not exploitable for theft (payments go to `originalArtist`), but the roster is spoofable. V3 addresses the impersonation half by binding the artist to `msg.sender` or an explicit signature. The FID half is **not** resolved: the requirement is kept as a product rule, and the app verifies it against Neynar — see Identity below. |
 
 **Interim mitigation shipped** (`cf20662`): the buy batch now approves the exact on-chain
 price and clears the allowance in the same atomic batch, reducing C1 exposure from an
@@ -72,6 +77,34 @@ perpetual there is nothing to grandfather against.
 
 Core enforces invariants no module can override: collector supply caps, masters soulbound,
 one token per mint, burns only by owner or approved.
+
+### The controller is an implicit operator — for licence transfers only
+
+`executeSale` ends in `registry.transferFrom(seller, buyer, licenseId)`, and the seller only
+ever signed an order. Two ways to make that transfer legal, and they trade against each other:
+
+| | seller sends `setApprovalForAll` first | registry grants the controller operator status |
+|---|---|---|
+| privilege | least — controller moves only what it was approved for | controller can move any licence |
+| listing UX | signature **plus** a transaction, per seller | signature only, which is the point of signing |
+| failure mode | seller forgets, listing reverts at settlement | a compromised controller can move licences |
+
+**Decided: registry-as-operator**, scoped tighter than a blanket `isApprovedForAll` override
+by overriding `_isAuthorized` instead:
+
+- **licences only.** `isLicense(tokenId)` excludes masters, so authorship is unreachable this
+  way even if the soulbound rule in `_update` were ever relaxed.
+- **transfers only.** `burn` calls `super._isAuthorized`, which ignores the grant. A
+  settlement module needs to move a licence, never to destroy one. An *explicitly* approved
+  controller still passes, because that is the owner's call.
+- **one address, revocable.** The grant follows the `controller` pointer, so a replaced
+  module loses it in the same transaction that replaces it.
+
+What this concedes: whoever controls the controller can move any licence. That is already
+true of a module that mints them, which is why `setController` is governance-only and why
+policy lives in a contract that can be replaced. Pinned by five tests in
+`contracts/test/LicenseRegistry.t.sol` — transfer without approval, no burn of a licence, no
+burn of a master, no transfer of a master, and a replaced controller losing the grant.
 
 ### Swappable modules
 
@@ -248,6 +281,14 @@ across everything that artist mints, for **12 months from the artist's first sal
 scope would under-reward whoever onboarded a prolific artist; uncapped duration means paying
 forever for one introduction.
 
+> The first implementation got this wrong in the other direction: the window was keyed
+> `firstSaleAt[masterTokenId]`, so the clock **restarted on every new master**, which is the
+> "paying forever for one introduction" case. Now keyed `artistFirstSaleAt[artist]` and
+> pinned by four tests. Note the `referrer` field itself is still per-master, so an artist
+> may name a different referrer on a later upload — the *clock* is artist-scoped even though
+> the *attribution* is not. That asymmetry is deliberate: a per-artist referrer would need a
+> write-once artist record and a rule for what happens when an artist is introduced twice.
+
 **Sybil resistance is structural.** Commission accrues only on real sales, so a fake artist
 with no buyers earns nothing. Self-dealing loses money: buying your own 35 WMON track returns
 31.5 as artist plus ~1 as referrer against 35 paid — a net loss of ~2.45 per fake sale. This
@@ -291,6 +332,80 @@ Sybil defence is again automatic: self-referring a monthly sub costs 300 WMON to
 10, a loss of 290 per fake account.
 
 **If only one referral program ships in V3, make it this one.**
+
+#### Built: `contracts/v3/SubscriptionReferrals.sol` (34 tests)
+
+Building it turned up the constraint that shapes everything. **`MusicSubscriptionV5` does
+not split revenue when someone subscribes.** `subscribe`/`subscribeFor` pull the exact tier
+price and keep all of it; the 10/20/70 split happens later in
+`finalizeMonthlyDistribution`, which sends the whole month's platform fee to `treasury` as a
+**single transfer with no per-subscriber attribution attached**. V5 is deployed and
+immutable, so there is no hook to add and a router cannot skim on the way past.
+
+**The error worth recording, because it is the obvious design.** The first implementation
+made this module V5's `treasury` and paid commission **out of** that monthly transfer — so a
+claim could not settle until the month was distributed. `finalizeMonthlyDistribution` is
+`onlyOwner` and requires `totalPlays > 0`, so **a quiet month never distributes at all**, and
+referrers would have been unable to claim money they had already earned for reasons that have
+nothing to do with referrals. One keeper failure would have taken out both payout paths.
+
+**The fix separates the dependency without separating the funding.** The module holds a pool
+and pays from it *immediately*; the monthly platform fee merely **tops that pool up**. Being
+V5's `treasury` is now a convenience rather than a requirement — set it and the pool refills
+itself with no keeper, no hook and no `sync()` call; leave it unset and top up with `fund()`.
+Either way, no payout waits on anything.
+
+That falls out of one decision: `poolBalance()` is **derived from the token balance**, not
+tracked in a counter. Any inbound transfer is usable backing the moment it lands. A counter
+would have ignored precisely the transfer that matters.
+
+**Fully-backed accrual — the invariant that replaces the timing problem.** Commission is
+only ever recorded when the pool can already cover it:
+
+```
+unreserved = poolBalance - totalOwed
+accrue only if unreserved >= amount
+```
+
+So `totalOwed <= poolBalance` always holds, and **`claimReferral` cannot fail** — anything
+shown as a balance is money sitting in the contract, claimable the instant it is earned.
+Governance can only withdraw `unreserved()`, so a vote can never reach money already promised.
+
+Because the pool is the raw balance, the `SubscriptionDidNotSettle` check is load-bearing
+rather than defensive: accrual is measured *after* V5 has pulled the price, so a subscriber's
+own payment can never be counted as the funds backing their own commission.
+
+**The residual failure mode, stated plainly:** if the pool empties, the subscription still
+succeeds and no commission accrues for it — `ReferralSkippedUnderfunded(referrer, subscriber,
+wanted, unreserved)` rather than a silent shortfall or a failed payment. Alert on that event;
+a nonzero rate of it is unpaid work by a real person. It now self-corrects at the next
+distribution, but only after the fact.
+
+Pinned by a fuzz test over random rates, volumes and pool sizes — including pools far too
+small — asserting `totalOwed <= poolBalance`, that every subscription succeeds regardless, and
+that whatever was promised can actually be withdrawn.
+
+**Sizing the pool.** Commission is `price × 10% × referrerBps`, so it scales with tier — a
+single number like "covers N subscribers" is wrong unless everyone buys the same tier:
+
+| tier | price | commission at 3000 bps | 1,000 WMON pool covers |
+|---|---|---|---|
+| daily | 15 | 0.45 | 2,222 |
+| weekly | 75 | 2.25 | 444 |
+| monthly | 300 | 9 | 111 |
+| yearly | 3000 | **90** | **11** |
+
+Yearly subscribers drain the pool fastest — the opposite of the intuition that a long
+commitment is the safer one. Size against the *yearly* mix, not the average.
+
+**Anti-poaching.** A referrer is bound on a subscriber's **first ever** payment, checked
+against V5's own `subscriptions[user].expiry` rather than local state — so the existing
+subscriber base cannot be retroactively claimed by whoever gets them to click a link. First
+touch wins and never moves. A bad referrer argument is discarded, never reverted.
+
+**Not enforced in the contract:** the verified-identity gate on *earning* commission. V5
+already demands a nonzero FID to subscribe at all, and neither check verifies the number is
+real — see Identity above. Real enforcement is app-side against Neynar.
 
 ### Clearwave royalty feed — split at source, not by keeper
 
@@ -370,65 +485,47 @@ This preserves gasless minting — the platform still pays gas and still submits
 impersonation impossible. The app change is to have the artist sign the mint payload before
 `executeTransaction` relays it.
 
-### Identity — wallet is primary, FID is optional metadata
+### Identity — Farcaster stays required
 
-**The V2 Farcaster requirement is not enforced.** `mintMaster` checks
-`require(artistFid > 0, "Invalid FID")` and nothing else — it never verifies the FID exists,
-never checks it belongs to the caller, never checks it matches the `artist` address. It is an
-unverified `uint256`. Anyone can pass `1`. The same nominal check appears at lines 167, 215
-and 273.
+**Decided 2026-08-13: V3 keeps the Farcaster requirement. `artistFid` must be nonzero.**
 
-So Farcaster-only is an app-layer convention, not a contract control. `3bc6dc4` already
-shipped wallet-signature auth as a fallback for fund-moving actions, so the auth layer
-already supports wallet-only users.
-
-**V3 makes this honest: `artistFid` becomes genuinely optional, `0` permitted.**
-
-An unverified integer everyone passes anyway is worse than an honest optional field, because
-it implies a control that does not exist.
+An earlier draft of this section argued the opposite — make the FID optional so wallet-only
+users could publish. That is reversed. The reasoning below is kept because the *facts* in it
+are still true and still constrain what a later wallet-native path would cost.
 
 ```solidity
-// V2: require(artistFid > 0, "Invalid FID");   // nominal, unverified
-// V3: no requirement. artistFid is optional metadata on the master.
+if (artistFid == 0) revert FidRequired();   // LicenseRegistry.mintMaster
 ```
 
-**Identity model:**
+**Why the reversal.** Going wallet-only is not one contract change, it is a platform-wide
+one, and the deployed contracts do not cooperate:
 
-| | key |
-|---|---|
-| Primary identity | **wallet address** — durable, survives Farcaster |
-| `artistFid` | optional metadata attached to it |
-| `artistFidMasters` index | retained, populated only when a FID is supplied |
-
-**Anyone can upload and sell.** That is the part that should never be gated — an artist's
-ability to publish and receive 90% of their sales does not depend on which social network
-they use.
-
-**Tiered participation is where the line goes instead.** Dropping the FID requirement removes
-the only cost of creating an artist identity: wallets are free and infinite, FIDs are not.
-That matters because the reward economy pays out in places a sale does not:
-
-| action | wallet-only | verified identity |
+| contract | blocker | fixable in V3? |
 |---|---|---|
-| Mint a master, sell licences, receive 90% | yes | yes |
-| Resell, receive resale royalty | yes | yes |
-| Create a Clearwave royalty offering | yes | yes |
-| **Earn referral commission** | no | yes |
-| **Earn TOURS burn / staking rewards** | no | yes |
-| **Be referred for commission** | no | yes |
+| `MusicSubscriptionV5` | `subscribe`/`subscribeFor` both `require(userFid > 0)` | **no** — deployed and immutable. A wallet-only user cannot subscribe at all |
+| `PlayOracleV3`, reward paths | keyed on FID for play attribution and payouts | no |
+| 5+ deployed contracts | `require(fid > 0)` per `project_fcempowertours_wallet_only` | no |
 
-Sale-driven earnings are self-defending — commission accrues only on real sales, and
-self-dealing loses money (buying your own 35 WMON track returns ~32.5 against 35 paid).
-Emissions-driven earnings are not, since they pay out with no sale involved. So the gate
-belongs on emissions, not on publishing.
+So V3 could have accepted a wallet-only *artist* who then could not subscribe, could not be
+paid for plays, and could not earn rewards. Half-open is worse than closed: it produces users
+the rest of the platform cannot serve, and every one of them is a support burden with no path
+to resolution. The app was built Farcaster-first and the rest of the stack still is.
 
-"Verified identity" means a Farcaster FID today. Keeping it a *credential* rather than a
-*login* means other attestations can be accepted later without touching the upload path.
+**What is honestly true about the check.** It remains an unverified `uint256` — the contract
+cannot confirm the FID exists, belongs to the caller, or matches `artist`. Anyone can pass
+`1`. It is a **product requirement, not a security control**, and it must not be described as
+one. Real verification happens in the app against Neynar. What the contract guarantees is
+narrower but still worth having: no master can exist without a FID, so the catalogue stays
+uniformly addressable by Farcaster identity and no code downstream has to handle a null case.
 
-**Deferred:** do not build a parallel wallet-native profile system until an actual artist is
-blocked by its absence. The current bottleneck is demand, not artist supply — no one is being
-turned away. What V3 should do now is stop enforcing a requirement it never enforced, so the
-option is open when it is needed.
+**If wallet-only ever becomes the goal**, the honest scope is a V6 subscription contract plus
+new reward paths — not a V3 flag. Do not start it until a real artist is turned away; the
+current bottleneck is demand, not artist supply.
+
+**A cheap upgrade path exists if the nominal check ever needs teeth**: have a
+platform-controlled attestor sign `(artist, fid)` and verify that signature at mint. It makes
+the FID meaningful without a redeploy of anything else. Not built — noted so the option is
+not rediscovered from scratch.
 
 ### Access enforcement — and why radio is out of scope
 
@@ -509,12 +606,22 @@ Verified 2026-08-09 by auditing every NFT-contract call site in `app/`, `lib/`, 
 
 | call site | change required |
 |---|---|
-| `execute-delegated/route.ts:855`, `mint-music/route.ts:263` — `mintMaster` | switch to `mintMasterFor`: have the artist sign the mint payload (EIP-712, full struct + nonce + deadline) before relaying. Also gains `referrer`; `artistFid` becomes optional so `0` is valid — stop rejecting uploads without one |
+| `execute-delegated/route.ts:855`, `mint-music/route.ts:263` — `mintMaster` | switch to `mintMasterFor`: have the artist sign the mint payload (EIP-712, full struct + nonce + deadline) before relaying. Also gains `referrer`. `artistFid` stays required — `mintMaster` reverts `FidRequired()` on `0` |
 | `app/api/execute-delegated/route.ts` — `purchaseLicenseFor` | unchanged signature, but re-verify the exact-price approval against V3 pricing |
 | `executeSaleFor` call site | gains caller authorisation and buyer consent; the delegated path must supply a signature or route through `platformOperator` |
 | `burnNFT` / `burnNFTFor` / `burnNFTForDelegated` | signatures unchanged; reward return value becomes 0 once burn rewards are cut |
 | `masterTokens(...)` reads | struct gains `referrer`, `royaltyShareBps`, `royaltyShareSink` — field indices shift, so every positional decode must be updated |
 | `licenses(...)` reads | struct changes: `expiry` → `mintedAt`, `active` removed, `licensee` removed |
+
+**Deploy-time prerequisites, not app changes:**
+
+| step | why |
+|---|---|
+| `LicenseRegistry.setController(salesController)` | nothing can mint until this is set |
+| `SubscriptionReferrals.fund(...)` — seed the pool | commission accrues only up to what the pool backs. An unfunded module emits `ReferralSkippedUnderfunded` and pays nobody. Needed at launch because the first top-up is a month away |
+| `MusicSubscriptionV5.setTreasury(subscriptionReferrals)` | `onlyOwner`. **Optional** — it makes the pool refill itself from the monthly platform fee. Payouts do not depend on it, so skipping it only means funding stays manual. Platform revenue then accumulates in the module and is recovered with `withdrawUnreserved` |
+| route the subscribe UI through `subscribeWithReferral` | direct `subscribe` calls still work and still pay the platform fee — they simply earn no referral. Renewals must route too, or accrual silently stops after the first period |
+| keep sending a nonzero `artistFid` on every mint | `mintMaster` now reverts `FidRequired()` on `0` |
 
 **The `masterTokens` and `licenses` struct changes are the real cutover risk.** Both are
 decoded positionally in app code (`masterTokens` has 3 call sites, `licenses` has 1). Field
