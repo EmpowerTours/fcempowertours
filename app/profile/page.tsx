@@ -13,6 +13,7 @@ import PageTransition, {
 import AnimatedLoader from "@/app/components/animations/AnimatedLoader";
 import { AnimatedStatCard } from "@/app/components/animations/AnimatedCard";
 import UserSafeWidget from "@/app/components/UserSafeWidget";
+import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
@@ -585,30 +586,19 @@ export default function ProfilePage() {
         artistClaims.toursEligible &&
         artistClaims.unclaimedMonths.some((m) => !m.toursClaimed);
 
-      const response = await fetch("/api/execute-delegated", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
-          action: "claim_artist_payouts",
-          userAddress: walletAddress,
-          params: {
-            monthIds,
-            claimTours: hasUnclaimedTours,
-          },
-        }),
+      // Signed by the artist wallet, not the Safe — the contract pays
+      // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
+      const { toursError } = await claimArtistPayoutsFromEOA({
+        monthIds,
+        claimTours: hasUnclaimedTours,
+        expectedAddress: walletAddress,
+        subscriptionAddress: process.env
+          .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`,
       });
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Claim failed");
-      }
-
       setClaimSuccess(
-        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`,
+        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!` +
+          (toursError ? ` (TOURS not claimed: ${toursError})` : ""),
       );
       setArtistClaims((prev) =>
         prev

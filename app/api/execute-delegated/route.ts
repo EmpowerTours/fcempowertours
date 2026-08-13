@@ -4180,97 +4180,28 @@ ${enjoyText}
       }
 
       // ==================== CLAIM ARTIST PAYOUTS ====================
+      // Artist payouts CANNOT be claimed through the Safe.
+      //
+      // MusicSubscriptionV5.batchClaimArtistPayouts pays msg.sender, and plays
+      // are attributed to the artist recorded on the master NFT — a plain
+      // wallet. Routing this through the Safe made msg.sender the Safe, which
+      // has zero plays, so every claim reverted with "No payouts available"
+      // AFTER paying gas for two Safe-registration transactions. Verified
+      // on-chain 2026-08-12 (month 688: 19 plays / 210 WMON on wallet
+      // 0x33ffccb1, 0 on its Safe).
+      //
+      // Clients sign these with the artist wallet instead — see
+      // lib/artist-claim.ts. This case stays only to fail loudly for any stale
+      // client still posting here, rather than burning gas to reach a revert.
       case "claim_artist_payouts":
-        console.log("💰 Action: claim_artist_payouts");
-
-        const { monthIds: claimMonthIds, claimTours: shouldClaimTours } =
-          params || {};
-
-        if (
-          !claimMonthIds ||
-          !Array.isArray(claimMonthIds) ||
-          claimMonthIds.length === 0
-        ) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Missing required parameter: monthIds (array of month IDs)",
-            },
-            { status: 400 },
-          );
-        }
-
-        const CLAIM_SUBSCRIPTION = process.env
-          .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
-        if (!CLAIM_SUBSCRIPTION) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Music subscription contract not configured",
-            },
-            { status: 500 },
-          );
-        }
-
-        console.log(
-          "💰 Claiming payouts for months:",
-          claimMonthIds,
-          "claimTours:",
-          shouldClaimTours,
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Artist payouts must be signed by the artist wallet, not the Safe. Update the app and claim again.",
+          },
+          { status: 400 },
         );
-
-        const artistClaimCalls: Call[] = [];
-        const monthIdsBigInt = claimMonthIds.map((id: number) => BigInt(id));
-
-        // Batch claim WMON artist payouts
-        artistClaimCalls.push({
-          to: CLAIM_SUBSCRIPTION,
-          value: 0n,
-          data: encodeFunctionData({
-            abi: parseAbi([
-              "function batchClaimArtistPayouts(uint256[] calldata monthIds) external",
-            ]),
-            functionName: "batchClaimArtistPayouts",
-            args: [monthIdsBigInt],
-          }) as Hex,
-        });
-
-        // Optionally batch claim TOURS rewards too
-        if (shouldClaimTours) {
-          artistClaimCalls.push({
-            to: CLAIM_SUBSCRIPTION,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function batchClaimToursRewards(uint256[] calldata monthIds) external",
-              ]),
-              functionName: "batchClaimToursRewards",
-              args: [monthIdsBigInt],
-            }) as Hex,
-          });
-        }
-
-        const artistClaimTxHash = await executeTransaction(
-          artistClaimCalls,
-          userAddress as Address,
-          0n,
-        );
-        await incrementTransactionCount(userAddress);
-
-        console.log(
-          "✅ Artist payout claim successful, TX:",
-          artistClaimTxHash,
-        );
-
-        return NextResponse.json({
-          success: true,
-          txHash: artistClaimTxHash,
-          action,
-          userAddress,
-          monthIds: claimMonthIds,
-          message: `Artist payouts claimed for ${claimMonthIds.length} month(s)!`,
-        });
 
       // ==================== LISTENER WMON REWARDS CLAIM ====================
       // Listeners earn from the 20% reserve share of subscription revenue, held

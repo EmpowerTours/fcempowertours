@@ -1,6 +1,6 @@
 "use client";
 
-import { authHeaders } from '@/lib/quick-auth-client';
+import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect } from "react";
 import {
   Music2,
@@ -14,6 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { ethers } from "ethers";
+import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 
 interface SubscriptionStatus {
   hasSubscription: boolean;
@@ -142,27 +143,18 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         artistClaims.toursEligible &&
         artistClaims.unclaimedMonths.some((m) => !m.toursClaimed);
 
-      const response = await fetch("/api/execute-delegated", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify({
-          action: "claim_artist_payouts",
-          userAddress,
-          params: {
-            monthIds,
-            claimTours: hasUnclaimedTours,
-          },
-        }),
+      // Signed by the artist wallet, not the Safe — the contract pays
+      // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
+      const { toursError } = await claimArtistPayoutsFromEOA({
+        monthIds,
+        claimTours: hasUnclaimedTours,
+        expectedAddress: userAddress,
+        subscriptionAddress: MUSIC_SUBSCRIPTION_ADDRESS as `0x${string}`,
       });
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Claim failed");
-      }
-
       setSuccess(
-        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`,
+        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!` +
+          (toursError ? ` (TOURS not claimed: ${toursError})` : ""),
       );
       // Refresh claims data
       setArtistClaims((prev) =>
@@ -279,7 +271,10 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       // Call the delegation API
       const response = await fetch("/api/execute-delegated", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           action: "music-subscribe",
           userAddress,

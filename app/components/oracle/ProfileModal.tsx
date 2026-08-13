@@ -1,6 +1,6 @@
 "use client";
 
-import { authHeaders } from '@/lib/quick-auth-client';
+import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -32,6 +32,7 @@ import { getAddressExplorerUrl } from "@/app/chains";
 import { getFlagEmoji, getCountryByCode } from "@/lib/passport/countries";
 import { EPKModal } from "./EPKModal";
 import type { EPKMetadata, ArtistStreamingStats } from "@/lib/epk/types";
+import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -247,32 +248,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         claims.toursEligible &&
         claims.unclaimedMonths.some((m) => !m.toursClaimed);
 
-      const response = await fetch("/api/execute-delegated", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify({
-          action: "claim_artist_payouts",
-          userAddress: walletAddress,
-          params: { monthIds, claimTours: hasUnclaimedTours },
-        }),
+      // Signed by the artist wallet, not the Safe — the contract pays
+      // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
+      const { toursError } = await claimArtistPayoutsFromEOA({
+        monthIds,
+        claimTours: hasUnclaimedTours,
+        expectedAddress: walletAddress,
+        subscriptionAddress: process.env
+          .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`,
       });
-      const data = await response.json();
-      if (data.success) {
-        setClaimResult({ success: true, message: "Payouts claimed!" });
-        // Refresh claims data
-        const claimsRes = await fetch(
-          `/api/artist-claims?address=${walletAddress}`,
-        );
-        const claimsData = await claimsRes.json();
-        if (!claimsData.error) setClaims(claimsData);
-        // Refresh safe balance
-        loadSafeBalance(walletAddress);
-      } else {
-        setClaimResult({
-          success: false,
-          message: data.error || "Claim failed",
-        });
-      }
+
+      setClaimResult({
+        success: true,
+        message: toursError
+          ? `Payouts claimed! (TOURS not claimed: ${toursError})`
+          : "Payouts claimed!",
+      });
+      // Refresh claims data
+      const claimsRes = await fetch(
+        `/api/artist-claims?address=${walletAddress}`,
+      );
+      const claimsData = await claimsRes.json();
+      if (!claimsData.error) setClaims(claimsData);
+      // Refresh safe balance
+      loadSafeBalance(walletAddress);
     } catch (error: any) {
       setClaimResult({
         success: false,
@@ -312,7 +311,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       const response = await fetch(ENVIO_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           query,
           variables: { address: address.toLowerCase() },
