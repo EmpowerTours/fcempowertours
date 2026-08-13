@@ -1,15 +1,18 @@
-'use client';
-import { authHeaders } from '@/lib/quick-auth-client';
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import { PassportSVG } from '@/components/PassportSVG';
-import Link from 'next/link';
-import PageTransition, { FadeIn, ScaleIn } from '@/app/components/animations/PageTransition';
-import AnimatedLoader from '@/app/components/animations/AnimatedLoader';
-import { AnimatedStatCard } from '@/app/components/animations/AnimatedCard';
-import UserSafeWidget from '@/app/components/UserSafeWidget';
+"use client";
+import { authHeaders } from "@/lib/quick-auth-client";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { PassportSVG } from "@/components/PassportSVG";
+import Link from "next/link";
+import PageTransition, {
+  FadeIn,
+  ScaleIn,
+} from "@/app/components/animations/PageTransition";
+import AnimatedLoader from "@/app/components/animations/AnimatedLoader";
+import { AnimatedStatCard } from "@/app/components/animations/AnimatedCard";
+import UserSafeWidget from "@/app/components/UserSafeWidget";
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
@@ -39,7 +42,7 @@ interface MusicNFTWithMetadata {
   txHash: string;
   metadata?: MusicMetadata;
   audioUrl?: string;
-  type: 'master' | 'license';
+  type: "master" | "license";
   isStaked?: boolean;
   stakedAt?: string;
   staker?: string;
@@ -65,16 +68,21 @@ interface PassportNFT {
   txHash: string;
 }
 
-async function fetchPassportCountryCode(tokenURI: string): Promise<string | null> {
+async function fetchPassportCountryCode(
+  tokenURI: string,
+): Promise<string | null> {
   try {
-    const metadataUrl = tokenURI.startsWith('ipfs://')
-      ? tokenURI.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/')
+    const metadataUrl = tokenURI.startsWith("ipfs://")
+      ? tokenURI.replace(
+          "ipfs://",
+          "https://harlequin-used-hare-224.mypinata.cloud/ipfs/",
+        )
       : tokenURI;
     const response = await fetch(metadataUrl);
     if (!response.ok) return null;
     const metadata: PassportMetadata = await response.json();
     const countryAttr = metadata.attributes?.find(
-      (attr) => attr.trait_type.toLowerCase() === 'country code'
+      (attr) => attr.trait_type.toLowerCase() === "country code",
     );
     return countryAttr ? countryAttr.value.toUpperCase() : null;
   } catch (error) {
@@ -83,11 +91,20 @@ async function fetchPassportCountryCode(tokenURI: string): Promise<string | null
 }
 
 export default function ProfilePage() {
-  const { user, walletAddress, isMobile, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
+  const {
+    user,
+    walletAddress,
+    isMobile,
+    isLoading: contextLoading,
+    error: contextError,
+    requestWallet,
+  } = useFarcasterContext();
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [createdArt, setCreatedArt] = useState<MusicNFTWithMetadata[]>([]);
-  const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>([]);
+  const [purchasedMusic, setPurchasedMusic] = useState<MusicNFTWithMetadata[]>(
+    [],
+  );
   const [purchasedArt, setPurchasedArt] = useState<MusicNFTWithMetadata[]>([]);
   const [purchasedItineraries, setPurchasedItineraries] = useState<any[]>([]);
   const [createdExperiences, setCreatedExperiences] = useState<any[]>([]);
@@ -99,7 +116,7 @@ export default function ProfilePage() {
     wmon: string;
     wmonWallet?: string;
     wmonSafe?: string;
-  }>({ mon: '0', tours: '0', wmon: '0' });
+  }>({ mon: "0", tours: "0", wmon: "0" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [musicPage, setMusicPage] = useState(1);
@@ -109,19 +126,32 @@ export default function ProfilePage() {
   const [purchasedArtPage, setPurchasedArtPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
-  const [refreshMessage, setRefreshMessage] = useState<string>('');
+  const [refreshMessage, setRefreshMessage] = useState<string>("");
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
   const [stakingNFT, setStakingNFT] = useState<string | null>(null);
   const [stakingError, setStakingError] = useState<string | null>(null);
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
   const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
-  const [pendingRewards, setPendingRewards] = useState<Record<string, string>>({});
-  const [collectorInfo, setCollectorInfo] = useState<Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null; maxEditions: number; collectorsMinted: number }>>({});
+  const [pendingRewards, setPendingRewards] = useState<Record<string, string>>(
+    {},
+  );
+  const [collectorInfo, setCollectorInfo] = useState<
+    Record<
+      string,
+      {
+        isCollectorMaster: boolean;
+        collectorImageUrl: string | null;
+        maxEditions: number;
+        collectorsMinted: number;
+      }
+    >
+  >({});
   // Resale listing state
   const [resaleModalOpen, setResaleModalOpen] = useState(false);
-  const [selectedResaleLicense, setSelectedResaleLicense] = useState<MusicNFTWithMetadata | null>(null);
-  const [resalePrice, setResalePrice] = useState('50');
+  const [selectedResaleLicense, setSelectedResaleLicense] =
+    useState<MusicNFTWithMetadata | null>(null);
+  const [resalePrice, setResalePrice] = useState("50");
   const [resaleListing, setResaleListing] = useState(false);
   const [resaleError, setResaleError] = useState<string | null>(null);
   const [resaleSuccess, setResaleSuccess] = useState<string | null>(null);
@@ -144,14 +174,29 @@ export default function ProfilePage() {
     totalLicenseSales: string;
     totalPlays: number;
     totalLicenseCount: number;
-    songBreakdown: { tokenId: string; name: string; plays: number; earnings: string; tips: string }[];
-    topSupporters: { address: string; totalPaid: string; songsQueued: number }[];
+    songBreakdown: {
+      tokenId: string;
+      name: string;
+      plays: number;
+      earnings: string;
+      tips: string;
+    }[];
+    topSupporters: {
+      address: string;
+      totalPaid: string;
+      songsQueued: number;
+    }[];
   } | null>(null);
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [showFullBreakdown, setShowFullBreakdown] = useState(false);
   const [artistClaims, setArtistClaims] = useState<{
     currentMonthId: number;
-    unclaimedMonths: { monthId: number; playCount: number; estimatedPayout: string; toursClaimed: boolean }[];
+    unclaimedMonths: {
+      monthId: number;
+      playCount: number;
+      estimatedPayout: string;
+      toursClaimed: boolean;
+    }[];
     totalUnclaimed: string;
     toursEligible: boolean;
     masterCount: number;
@@ -169,12 +214,15 @@ export default function ProfilePage() {
 
   // IPFS URL Resolver Function
   const resolveIPFS = (url: string): string => {
-    if (!url) return '';
-    if (url.startsWith('ipfs://')) {
-      return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
+    if (!url) return "";
+    if (url.startsWith("ipfs://")) {
+      return url.replace(
+        "ipfs://",
+        "https://harlequin-used-hare-224.mypinata.cloud/ipfs/",
+      );
     }
-    if (url.includes('/ipfs/')) {
-      const cid = url.split('/ipfs/')[1]?.split('?')[0];
+    if (url.includes("/ipfs/")) {
+      const cid = url.split("/ipfs/")[1]?.split("?")[0];
       return `https://harlequin-used-hare-224.mypinata.cloud/ipfs/${cid}`;
     }
     return url;
@@ -198,19 +246,22 @@ export default function ProfilePage() {
   // Fetch collector info when NFT data loads
   useEffect(() => {
     const tokenIds = [
-      ...createdMusic.map(n => String(n.tokenId)),
-      ...createdArt.map(n => String(n.tokenId)),
-      ...purchasedMusic.map(l => String(l.masterTokenId)),
-      ...purchasedArt.map(l => String(l.masterTokenId || l.tokenId)),
+      ...createdMusic.map((n) => String(n.tokenId)),
+      ...createdArt.map((n) => String(n.tokenId)),
+      ...purchasedMusic.map((l) => String(l.masterTokenId)),
+      ...purchasedArt.map((l) => String(l.masterTokenId || l.tokenId)),
     ].filter(Boolean);
     const uniqueIds = [...new Set(tokenIds)];
     if (uniqueIds.length === 0) return;
 
     const fetchCollectorData = async () => {
       try {
-        const res = await fetch('/api/nft/collector-info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        const res = await fetch("/api/nft/collector-info", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await authHeaders()),
+          },
           body: JSON.stringify({ tokenIds: uniqueIds }),
         });
         if (!res.ok) return;
@@ -241,7 +292,7 @@ export default function ProfilePage() {
         });
       }
     } catch (error) {
-      console.error('[Profile] Failed to load privacy settings:', error);
+      console.error("[Profile] Failed to load privacy settings:", error);
     }
   };
 
@@ -250,9 +301,12 @@ export default function ProfilePage() {
     if (!user?.fid) return;
     setPrivacyLoading(true);
     try {
-      const response = await fetch('/api/user/privacy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      const response = await fetch("/api/user/privacy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           fid: user.fid,
           walletAddress,
@@ -264,7 +318,7 @@ export default function ProfilePage() {
         setPrivacySettings(newSettings);
       }
     } catch (error) {
-      console.error('[Profile] Failed to save privacy settings:', error);
+      console.error("[Profile] Failed to save privacy settings:", error);
     } finally {
       setPrivacyLoading(false);
     }
@@ -282,52 +336,52 @@ export default function ProfilePage() {
       url: audioUrl,
       error: error.currentTarget?.error,
       networkState: error.currentTarget?.networkState,
-      readyState: error.currentTarget?.readyState
+      readyState: error.currentTarget?.readyState,
     });
-    setAudioErrors(prev => ({
+    setAudioErrors((prev) => ({
       ...prev,
-      [id]: 'Failed to load audio'
+      [id]: "Failed to load audio",
     }));
-    setAudioLoading(prev => ({
+    setAudioLoading((prev) => ({
       ...prev,
-      [id]: false
+      [id]: false,
     }));
   };
 
   const handleAudioLoaded = (id: string, audioUrl?: string) => {
     console.log(`Audio loaded successfully for ${id}:`, {
       url: audioUrl,
-      duration: 'loaded'
+      duration: "loaded",
     });
-    setAudioErrors(prev => {
+    setAudioErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors[id];
       return newErrors;
     });
-    setAudioLoading(prev => ({
+    setAudioLoading((prev) => ({
       ...prev,
-      [id]: false
+      [id]: false,
     }));
   };
 
   const handleAudioCanPlay = (id: string) => {
     console.log(`Audio can play for ${id}`);
-    setAudioLoading(prev => ({
+    setAudioLoading((prev) => ({
       ...prev,
-      [id]: false
+      [id]: false,
     }));
   };
 
   const handleAudioLoadStart = (id: string) => {
-    setAudioLoading(prev => ({
+    setAudioLoading((prev) => ({
       ...prev,
-      [id]: true
+      [id]: true,
     }));
   };
 
   const handleBurnMusic = async (tokenId: string | number, name?: string) => {
     if (!walletAddress) {
-      alert('Please connect your wallet first');
+      alert("Please connect your wallet first");
       return;
     }
 
@@ -338,7 +392,7 @@ export default function ProfilePage() {
     });
 
     if (name) {
-      params.append('name', name);
+      params.append("name", name);
     }
 
     window.location.href = `/burn-music?${params.toString()}`;
@@ -346,7 +400,7 @@ export default function ProfilePage() {
 
   const handleStakeMusic = async (tokenId: string | number) => {
     if (!walletAddress) {
-      setStakingError('Please connect your wallet first');
+      setStakingError("Please connect your wallet first");
       return;
     }
 
@@ -356,12 +410,15 @@ export default function ProfilePage() {
 
     try {
       // Use delegation system for gasless staking
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
-          action: 'stake_music',
+          action: "stake_music",
           params: {
             tokenId: tokenId.toString(),
           },
@@ -371,7 +428,7 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to stake music NFT');
+        throw new Error(data.error || "Failed to stake music NFT");
       }
 
       setStakingSuccess(`Music NFT #${tokenId} has been staked!`);
@@ -381,8 +438,8 @@ export default function ProfilePage() {
 
       setTimeout(() => setStakingSuccess(null), 5000);
     } catch (error: any) {
-      console.error('Stake error:', error);
-      setStakingError(error.message || 'Failed to stake music NFT');
+      console.error("Stake error:", error);
+      setStakingError(error.message || "Failed to stake music NFT");
     } finally {
       setStakingNFT(null);
     }
@@ -390,7 +447,7 @@ export default function ProfilePage() {
 
   const handleUnstakeMusic = async (tokenId: string | number) => {
     if (!walletAddress) {
-      setStakingError('Please connect your wallet first');
+      setStakingError("Please connect your wallet first");
       return;
     }
 
@@ -400,12 +457,15 @@ export default function ProfilePage() {
 
     try {
       // Use delegation system for gasless unstaking
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
-          action: 'unstake_music',
+          action: "unstake_music",
           params: {
             tokenId: tokenId.toString(),
           },
@@ -415,7 +475,7 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to unstake music NFT');
+        throw new Error(data.error || "Failed to unstake music NFT");
       }
 
       setStakingSuccess(`Music NFT #${tokenId} unstaked and rewards claimed!`);
@@ -426,8 +486,8 @@ export default function ProfilePage() {
 
       setTimeout(() => setStakingSuccess(null), 5000);
     } catch (error: any) {
-      console.error('Unstake error:', error);
-      setStakingError(error.message || 'Failed to unstake music NFT');
+      console.error("Unstake error:", error);
+      setStakingError(error.message || "Failed to unstake music NFT");
     } finally {
       setStakingNFT(null);
     }
@@ -435,31 +495,45 @@ export default function ProfilePage() {
 
   const handleClaimRewards = async (tokenId: string | number) => {
     // Rewards are automatically claimed when you unstake
-    setStakingError('Rewards are automatically claimed when you unstake your NFT. Use "Unstake NFT" to withdraw your stake and claim rewards.');
+    setStakingError(
+      'Rewards are automatically claimed when you unstake your NFT. Use "Unstake NFT" to withdraw your stake and claim rewards.',
+    );
     setTimeout(() => setStakingError(null), 5000);
   };
 
   const loadBalances = async () => {
     if (!walletAddress) return;
     try {
-      const response = await fetch('/api/get-balances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      const response = await fetch("/api/get-balances", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({ address: walletAddress }),
       });
       if (response.ok) {
         let data = await response.json();
         const safeAddr = (user as any)?.safeAddress;
-        if (safeAddr && safeAddr.toLowerCase() !== walletAddress.toLowerCase()) {
+        if (
+          safeAddr &&
+          safeAddr.toLowerCase() !== walletAddress.toLowerCase()
+        ) {
           try {
-            const safeResponse = await fetch('/api/get-balances', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+            const safeResponse = await fetch("/api/get-balances", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(await authHeaders()),
+              },
               body: JSON.stringify({ address: safeAddr }),
             });
             if (safeResponse.ok) {
               const safeData = await safeResponse.json();
-              if (parseFloat(safeData.tours || '0') > parseFloat(data.tours || '0')) {
+              if (
+                parseFloat(safeData.tours || "0") >
+                parseFloat(data.tours || "0")
+              ) {
                 data = safeData;
               }
             }
@@ -487,29 +561,38 @@ export default function ProfilePage() {
         setArtistClaims(data);
       }
     } catch (error) {
-      console.error('[Profile] Failed to load artist earnings:', error);
+      console.error("[Profile] Failed to load artist earnings:", error);
     } finally {
       setEarningsLoading(false);
     }
   };
 
   const handleClaimPayouts = async () => {
-    if (!walletAddress || !artistClaims || artistClaims.unclaimedMonths.length === 0) return;
+    if (
+      !walletAddress ||
+      !artistClaims ||
+      artistClaims.unclaimedMonths.length === 0
+    )
+      return;
 
     setClaimingPayouts(true);
     setClaimError(null);
     setClaimSuccess(null);
 
     try {
-      const monthIds = artistClaims.unclaimedMonths.map(m => m.monthId);
-      const hasUnclaimedTours = artistClaims.toursEligible &&
-        artistClaims.unclaimedMonths.some(m => !m.toursClaimed);
+      const monthIds = artistClaims.unclaimedMonths.map((m) => m.monthId);
+      const hasUnclaimedTours =
+        artistClaims.toursEligible &&
+        artistClaims.unclaimedMonths.some((m) => !m.toursClaimed);
 
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
-          action: 'claim_artist_payouts',
+          action: "claim_artist_payouts",
           userAddress: walletAddress,
           params: {
             monthIds,
@@ -521,17 +604,23 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Claim failed');
+        throw new Error(data.error || "Claim failed");
       }
 
-      setClaimSuccess(`Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`);
-      setArtistClaims(prev => prev ? { ...prev, unclaimedMonths: [], totalUnclaimed: '0.000000' } : null);
+      setClaimSuccess(
+        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`,
+      );
+      setArtistClaims((prev) =>
+        prev
+          ? { ...prev, unclaimedMonths: [], totalUnclaimed: "0.000000" }
+          : null,
+      );
 
       // Refresh balances
       loadBalances();
     } catch (error: any) {
-      console.error('[Profile] Claim error:', error);
-      setClaimError(error.message || 'Failed to claim payouts');
+      console.error("[Profile] Claim error:", error);
+      setClaimError(error.message || "Failed to claim payouts");
     } finally {
       setClaimingPayouts(false);
     }
@@ -549,12 +638,15 @@ export default function ProfilePage() {
         (user as any)?.verifiedAddresses?.eth_addresses?.[0]?.toLowerCase(),
         (user as any)?.custodyAddress?.toLowerCase(),
       ]
-        .filter(addr => addr && addr !== '0x0000000000000000000000000000000000000000')
-        .map(addr => addr!.toLowerCase());
-      const uniqueAddresses = [...new Set(addressesToQuery)].filter(a => a);
+        .filter(
+          (addr) =>
+            addr && addr !== "0x0000000000000000000000000000000000000000",
+        )
+        .map((addr) => addr!.toLowerCase());
+      const uniqueAddresses = [...new Set(addressesToQuery)].filter((a) => a);
       setQueriedAddresses(uniqueAddresses);
 
-      console.log('[Profile] Querying addresses:', {
+      console.log("[Profile] Querying addresses:", {
         walletAddress,
         safeAddress: (user as any)?.safeAddress,
         smartAccountAddress: (user as any)?.smartAccountAddress,
@@ -649,13 +741,21 @@ export default function ProfilePage() {
         }
       `;
       const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ query, variables: { addresses: uniqueAddresses } }),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
+        body: JSON.stringify({
+          query,
+          variables: { addresses: uniqueAddresses },
+        }),
       });
-      if (!response.ok) throw new Error(`Envio API returned ${response.status}`);
+      if (!response.ok)
+        throw new Error(`Envio API returned ${response.status}`);
       const result = await response.json();
-      if (result.errors) throw new Error(result.errors[0]?.message || 'GraphQL query failed');
+      if (result.errors)
+        throw new Error(result.errors[0]?.message || "GraphQL query failed");
 
       let passports: PassportNFT[] = result.data?.PassportNFT || [];
       const createdNFTs = result.data?.CreatedNFT || [];
@@ -664,7 +764,7 @@ export default function ProfilePage() {
       const purchases = result.data?.ItineraryPurchase || [];
       const createdExps = result.data?.ExperienceNFT_ExperienceCreated || [];
 
-      console.log('[Profile] Envio results:', {
+      console.log("[Profile] Envio results:", {
         passports: passports.length,
         createdNFTs: createdNFTs.length,
         ownedNFTs: ownedNFTs.length,
@@ -674,7 +774,7 @@ export default function ProfilePage() {
           licenseId: l.licenseId,
           masterTokenId: l.masterTokenId,
           licensee: l.licensee,
-          txHash: l.txHash?.slice(0, 20) + '...'
+          txHash: l.txHash?.slice(0, 20) + "...",
         })),
         purchases: purchases.length,
         createdExps: createdExps.length,
@@ -683,11 +783,11 @@ export default function ProfilePage() {
 
       // Debug: If no licenses found, check what addresses are being used
       if (purchasedLicenses.length === 0) {
-        console.log('[Profile] No licenses found. Verifying addresses:', {
+        console.log("[Profile] No licenses found. Verifying addresses:", {
           walletAddress: walletAddress?.toLowerCase(),
           safeAddress: (user as any)?.safeAddress?.toLowerCase?.(),
           custodyAddress: (user as any)?.custodyAddress?.toLowerCase?.(),
-          allQueriedAddresses: uniqueAddresses
+          allQueriedAddresses: uniqueAddresses,
         });
       }
 
@@ -695,50 +795,56 @@ export default function ProfilePage() {
         passports.map(async (passport) => {
           if (passport.countryCode) return passport;
           const countryCode = await fetchPassportCountryCode(passport.tokenURI);
-          return { ...passport, countryCode: countryCode || 'XX' };
-        })
+          return { ...passport, countryCode: countryCode || "XX" };
+        }),
       );
       setPassportNFTs(passports);
 
       // Created NFTs with IPFS resolution - separate Music from Art
-      const allCreatedNFTs: MusicNFTWithMetadata[] = createdNFTs.map((nft: any) => ({
-        ...nft,
-        type: 'master' as const,
-        metadata: {
-          name: nft.name,
-          image: resolveIPFS(nft.imageUrl),
-          animation_url: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl),
-        },
-        audioUrl: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl),
-        price: (Number(nft.price) / 1e18).toFixed(6),
-        isArt: nft.isArt,
-      }));
+      const allCreatedNFTs: MusicNFTWithMetadata[] = createdNFTs.map(
+        (nft: any) => ({
+          ...nft,
+          type: "master" as const,
+          metadata: {
+            name: nft.name,
+            image: resolveIPFS(nft.imageUrl),
+            animation_url: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl),
+          },
+          audioUrl: resolveIPFS(nft.fullAudioUrl || nft.previewAudioUrl),
+          price: (Number(nft.price) / 1e18).toFixed(6),
+          isArt: nft.isArt,
+        }),
+      );
 
       // Separate created music and art NFTs
-      const createdMusicOnly = allCreatedNFTs.filter(nft => !nft.isArt);
-      const createdArtOnly = allCreatedNFTs.filter(nft => nft.isArt);
+      const createdMusicOnly = allCreatedNFTs.filter((nft) => !nft.isArt);
+      const createdArtOnly = allCreatedNFTs.filter((nft) => nft.isArt);
       setCreatedMusic(createdMusicOnly);
       setCreatedArt(createdArtOnly);
 
       // Process owned NFTs (purchased - user owns but didn't create)
-      const allOwnedNFTs: MusicNFTWithMetadata[] = ownedNFTs.map((nft: any) => ({
-        ...nft,
-        type: 'master' as const,
-        metadata: {
-          name: nft.name,
-          image: resolveIPFS(nft.imageUrl),
-          animation_url: resolveIPFS(nft.previewAudioUrl),
-        },
-        audioUrl: resolveIPFS(nft.previewAudioUrl),
-        price: (Number(nft.price) / 1e18).toFixed(6),
-        isArt: nft.isArt,
-      }));
+      const allOwnedNFTs: MusicNFTWithMetadata[] = ownedNFTs.map(
+        (nft: any) => ({
+          ...nft,
+          type: "master" as const,
+          metadata: {
+            name: nft.name,
+            image: resolveIPFS(nft.imageUrl),
+            animation_url: resolveIPFS(nft.previewAudioUrl),
+          },
+          audioUrl: resolveIPFS(nft.previewAudioUrl),
+          price: (Number(nft.price) / 1e18).toFixed(6),
+          isArt: nft.isArt,
+        }),
+      );
 
       // Get owned art NFTs (user didn't create) - will combine with art licenses later
-      const purchasedArtOnly = allOwnedNFTs.filter(nft => nft.isArt);
+      const purchasedArtOnly = allOwnedNFTs.filter((nft) => nft.isArt);
 
       // Fetch master token details for purchased licenses
-      const masterTokenIds = purchasedLicenses.map((l: any) => l.masterTokenId).filter((id: any) => id);
+      const masterTokenIds = purchasedLicenses
+        .map((l: any) => l.masterTokenId)
+        .filter((id: any) => id);
       let masterTokensMap = new Map<string, any>();
       if (masterTokenIds.length > 0) {
         const masterQuery = `
@@ -758,11 +864,14 @@ export default function ProfilePage() {
         `;
         try {
           const masterResponse = await fetch(ENVIO_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(await authHeaders()),
+            },
             body: JSON.stringify({
               query: masterQuery,
-              variables: { tokenIds: masterTokenIds.map(String) }
+              variables: { tokenIds: masterTokenIds.map(String) },
             }),
           });
           if (masterResponse.ok) {
@@ -773,31 +882,40 @@ export default function ProfilePage() {
             });
           }
         } catch (err) {
-          console.error('Failed to fetch master tokens:', err);
+          console.error("Failed to fetch master tokens:", err);
         }
       }
 
       // Purchased licenses with IPFS resolution - separate music and art
-      const allPurchasedLicenses: MusicNFTWithMetadata[] = purchasedLicenses.map((license: any) => {
-        const masterToken = masterTokensMap.get(String(license.masterTokenId));
-        return {
-          ...license,
-          type: 'license' as const,
-          metadata: masterToken ? {
-            name: masterToken.name,
-            image: resolveIPFS(masterToken.imageUrl),
-            animation_url: resolveIPFS(masterToken.fullAudioUrl),
-          } : undefined,
-          audioUrl: resolveIPFS(masterToken?.fullAudioUrl || ''),
-          artist: masterToken?.artist,
-          price: masterToken ? (Number(masterToken.price) / 1e18).toFixed(6) : undefined,
-          isArt: masterToken?.isArt || false,
-        };
-      });
+      const allPurchasedLicenses: MusicNFTWithMetadata[] =
+        purchasedLicenses.map((license: any) => {
+          const masterToken = masterTokensMap.get(
+            String(license.masterTokenId),
+          );
+          return {
+            ...license,
+            type: "license" as const,
+            metadata: masterToken
+              ? {
+                  name: masterToken.name,
+                  image: resolveIPFS(masterToken.imageUrl),
+                  animation_url: resolveIPFS(masterToken.fullAudioUrl),
+                }
+              : undefined,
+            audioUrl: resolveIPFS(masterToken?.fullAudioUrl || ""),
+            artist: masterToken?.artist,
+            price: masterToken
+              ? (Number(masterToken.price) / 1e18).toFixed(6)
+              : undefined,
+            isArt: masterToken?.isArt || false,
+          };
+        });
 
       // Separate music and art licenses
-      const purchasedMusicLicenses = allPurchasedLicenses.filter(l => !l.isArt);
-      const purchasedArtLicenses = allPurchasedLicenses.filter(l => l.isArt);
+      const purchasedMusicLicenses = allPurchasedLicenses.filter(
+        (l) => !l.isArt,
+      );
+      const purchasedArtLicenses = allPurchasedLicenses.filter((l) => l.isArt);
 
       setPurchasedMusic(purchasedMusicLicenses);
 
@@ -806,7 +924,7 @@ export default function ProfilePage() {
       setPurchasedItineraries(purchases);
       setCreatedExperiences(createdExps);
     } catch (error: any) {
-      setError(error.message || 'Failed to load data');
+      setError(error.message || "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -814,40 +932,48 @@ export default function ProfilePage() {
 
   const paginatedCreatedMusic = createdMusic.slice(
     (createdMusicPage - 1) * ITEMS_PER_PAGE,
-    createdMusicPage * ITEMS_PER_PAGE
+    createdMusicPage * ITEMS_PER_PAGE,
   );
   const paginatedCreatedArt = createdArt.slice(
     (createdArtPage - 1) * ITEMS_PER_PAGE,
-    createdArtPage * ITEMS_PER_PAGE
+    createdArtPage * ITEMS_PER_PAGE,
   );
   const paginatedPurchasedMusic = purchasedMusic.slice(
     (purchasedMusicPage - 1) * ITEMS_PER_PAGE,
-    purchasedMusicPage * ITEMS_PER_PAGE
+    purchasedMusicPage * ITEMS_PER_PAGE,
   );
   const paginatedPassports = passportNFTs.slice(
     (passportPage - 1) * ITEMS_PER_PAGE,
-    passportPage * ITEMS_PER_PAGE
+    passportPage * ITEMS_PER_PAGE,
   );
-  const totalCreatedMusicPages = Math.ceil(createdMusic.length / ITEMS_PER_PAGE);
+  const totalCreatedMusicPages = Math.ceil(
+    createdMusic.length / ITEMS_PER_PAGE,
+  );
   const totalCreatedArtPages = Math.ceil(createdArt.length / ITEMS_PER_PAGE);
-  const totalPurchasedMusicPages = Math.ceil(purchasedMusic.length / ITEMS_PER_PAGE);
-  const totalPurchasedArtPages = Math.ceil(purchasedArt.length / ITEMS_PER_PAGE);
+  const totalPurchasedMusicPages = Math.ceil(
+    purchasedMusic.length / ITEMS_PER_PAGE,
+  );
+  const totalPurchasedArtPages = Math.ceil(
+    purchasedArt.length / ITEMS_PER_PAGE,
+  );
   const paginatedPurchasedArt = purchasedArt.slice(
     (purchasedArtPage - 1) * ITEMS_PER_PAGE,
-    purchasedArtPage * ITEMS_PER_PAGE
+    purchasedArtPage * ITEMS_PER_PAGE,
   );
   const totalPassportPages = Math.ceil(passportNFTs.length / ITEMS_PER_PAGE);
 
   const copyArtistLink = () => {
     const link = `${window.location.origin}/artist/${walletAddress}`;
     navigator.clipboard.writeText(link);
-    alert('Artist profile link copied!\n\nShare this with fans so they can buy your NFTs directly.');
+    alert(
+      "Artist profile link copied!\n\nShare this with fans so they can buy your NFTs directly.",
+    );
   };
 
   // Open resale modal for a license
   const openResaleModal = (license: MusicNFTWithMetadata) => {
     setSelectedResaleLicense(license);
-    setResalePrice('50');
+    setResalePrice("50");
     setResaleError(null);
     setResaleSuccess(null);
     setResaleModalOpen(true);
@@ -859,7 +985,7 @@ export default function ProfilePage() {
 
     const priceNum = parseFloat(resalePrice);
     if (isNaN(priceNum) || priceNum < 35) {
-      setResaleError('Minimum price is 35 WMON');
+      setResaleError("Minimum price is 35 WMON");
       return;
     }
 
@@ -867,15 +993,20 @@ export default function ProfilePage() {
     setResaleError(null);
 
     try {
-      const response = await fetch('/api/music/list-for-sale', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      const response = await fetch("/api/music/list-for-sale", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           licenseId: selectedResaleLicense.licenseId,
           price: resalePrice,
           sellerAddress: walletAddress,
           sellerFid: user?.fid,
-          nftName: selectedResaleLicense.metadata?.name || `License #${selectedResaleLicense.licenseId}`,
+          nftName:
+            selectedResaleLicense.metadata?.name ||
+            `License #${selectedResaleLicense.licenseId}`,
           imageUrl: selectedResaleLicense.metadata?.image,
           isArt: selectedResaleLicense.isArt,
         }),
@@ -890,10 +1021,10 @@ export default function ProfilePage() {
           setResaleSuccess(null);
         }, 3000);
       } else {
-        setResaleError(data.error || 'Failed to list');
+        setResaleError(data.error || "Failed to list");
       }
     } catch (err: any) {
-      setResaleError(err.message || 'Failed to list');
+      setResaleError(err.message || "Failed to list");
     } finally {
       setResaleListing(false);
     }
@@ -915,11 +1046,16 @@ export default function ProfilePage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Not in Farcaster</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Not in Farcaster
+          </h1>
           <p className="text-gray-600 mb-6">
-            This Mini App must be opened in Warpcast or another Farcaster client.
+            This Mini App must be opened in Warpcast or another Farcaster
+            client.
           </p>
-          <p className="text-sm text-gray-500">Error: {contextError?.message || "Unknown error"}</p>
+          <p className="text-sm text-gray-500">
+            Error: {contextError?.message || "Unknown error"}
+          </p>
         </div>
       </div>
     );
@@ -939,19 +1075,19 @@ export default function ProfilePage() {
               {user?.pfpUrl ? (
                 <motion.img
                   src={user.pfpUrl}
-                  alt={user.username || 'Profile'}
+                  alt={user.username || "Profile"}
                   className="rounded-full mx-auto mb-4 border-2 border-purple-200 shadow-lg ring-4 ring-purple-100"
-                  style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                  style={{ width: "80px", height: "80px", objectFit: "cover" }}
                   whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
+                  transition={{ type: "spring", stiffness: 300 }}
                 />
               ) : (
                 <motion.div
                   className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 mx-auto mb-4 flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-purple-100"
                   whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
+                  transition={{ type: "spring", stiffness: 300 }}
                 >
-                  {user.username?.charAt(0).toUpperCase() || 'U'}
+                  {user.username?.charAt(0).toUpperCase() || "U"}
                 </motion.div>
               )}
             </ScaleIn>
@@ -961,14 +1097,16 @@ export default function ProfilePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
-              {user.username ? `@${user.username}` : 'Your Profile'}
+              {user.username ? `@${user.username}` : "Your Profile"}
             </motion.h1>
             <FadeIn delay={0.4}>
               <p className="text-gray-600 font-mono text-sm">
                 {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
               </p>
               {user.fid && (
-                <p className="text-gray-500 text-sm mt-1">Farcaster FID: {user.fid}</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Farcaster FID: {user.fid}
+                </p>
               )}
             </FadeIn>
           </div>
@@ -981,8 +1119,7 @@ export default function ProfilePage() {
               <p className="text-blue-700 text-xs">
                 {walletAddress
                   ? `Using Account Abstraction (Safe Smart Account): ${walletAddress.slice(0, 10)}...`
-                  : 'Wallet not connected - some features may be limited'
-                }
+                  : "Wallet not connected - some features may be limited"}
               </p>
               {queriedAddresses.length > 1 && (
                 <p className="text-blue-600 text-xs mt-2">
@@ -1010,7 +1147,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-
           {/* Staking Success Message */}
           {stakingSuccess && (
             <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
@@ -1025,34 +1161,38 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {(createdMusic.length > 0 || createdArt.length > 0 || purchasedMusic.length > 0) && walletAddress && (
-            <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    🎵 Your Artist Profile
-                  </h3>
-                  <p className="text-sm text-gray-700">
-                    Share this link with fans so they can buy your NFTs directly!
-                  </p>
+          {(createdMusic.length > 0 ||
+            createdArt.length > 0 ||
+            purchasedMusic.length > 0) &&
+            walletAddress && (
+              <div className="mb-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">
+                      🎵 Your Artist Profile
+                    </h3>
+                    <p className="text-sm text-gray-700">
+                      Share this link with fans so they can buy your NFTs
+                      directly!
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Link
+                    href={`/artist/${walletAddress}`}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-pink-700 text-center transition-all active:scale-95 touch-manipulation"
+                  >
+                    View My Artist Profile
+                  </Link>
+                  <button
+                    onClick={copyArtistLink}
+                    className="px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition-all active:scale-95 touch-manipulation"
+                  >
+                    📋 Copy Link
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <Link
-                  href={`/artist/${walletAddress}`}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-bold hover:from-purple-700 hover:to-pink-700 text-center transition-all active:scale-95 touch-manipulation"
-                >
-                  View My Artist Profile
-                </Link>
-                <button
-                  onClick={copyArtistLink}
-                  className="px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition-all active:scale-95 touch-manipulation"
-                >
-                  📋 Copy Link
-                </button>
-              </div>
-            </div>
-          )}
+            )}
 
           {/* Privacy Settings Section */}
           <div className="mb-8 p-4 bg-gradient-to-r from-gray-50 to-slate-50 border-2 border-gray-200 rounded-2xl">
@@ -1060,9 +1200,13 @@ export default function ProfilePage() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🔒</span>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Privacy Settings</h3>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    Privacy Settings
+                  </h3>
                   <p className="text-xs text-gray-500">
-                    {privacySettings.isPublicProfile ? 'Profile is public' : 'Profile is private'}
+                    {privacySettings.isPublicProfile
+                      ? "Profile is public"
+                      : "Profile is private"}
                   </p>
                 </div>
               </div>
@@ -1085,21 +1229,23 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">MON Balance</p>
+                  <p className="text-xs text-gray-600 mb-1 font-medium">
+                    MON Balance
+                  </p>
                   <motion.p
                     className="text-2xl font-bold text-yellow-700"
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    transition={{ delay: 0.7, type: 'spring', stiffness: 200 }}
+                    transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
                   >
                     {balances.mon}
                   </motion.p>
                   <div className="mt-2 space-y-0.5">
                     <p className="text-xs text-gray-500">
-                      💳 Wallet: {balances.monWallet || '0.0000'}
+                      💳 Wallet: {balances.monWallet || "0.0000"}
                     </p>
                     <p className="text-xs text-gray-500">
-                      🔒 Safe: {balances.monSafe || '0.0000'}
+                      🔒 Safe: {balances.monSafe || "0.0000"}
                     </p>
                   </div>
                 </div>
@@ -1121,12 +1267,14 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">WMON Balance</p>
+                  <p className="text-xs text-gray-600 mb-1 font-medium">
+                    WMON Balance
+                  </p>
                   <motion.p
                     className="text-2xl font-bold text-blue-700"
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    transition={{ delay: 0.75, type: 'spring', stiffness: 200 }}
+                    transition={{ delay: 0.75, type: "spring", stiffness: 200 }}
                   >
                     {balances.wmon}
                   </motion.p>
@@ -1150,16 +1298,20 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">TOURS Balance</p>
+                  <p className="text-xs text-gray-600 mb-1 font-medium">
+                    TOURS Balance
+                  </p>
                   <motion.p
                     className="text-2xl font-bold text-green-700"
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    transition={{ delay: 0.8, type: 'spring', stiffness: 200 }}
+                    transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
                   >
                     {balances.tours}
                   </motion.p>
-                  <p className="text-xs text-gray-500 mt-1">EmpowerTours Token</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    EmpowerTours Token
+                  </p>
                 </div>
                 <motion.div
                   className="text-3xl"
@@ -1192,34 +1344,52 @@ export default function ProfilePage() {
               {earningsLoading ? (
                 <div className="text-center py-6">
                   <div className="animate-spin text-3xl mb-2">🎶</div>
-                  <p className="text-sm text-gray-500">Loading earnings data...</p>
+                  <p className="text-sm text-gray-500">
+                    Loading earnings data...
+                  </p>
                 </div>
               ) : artistEarnings ? (
                 <>
                   {/* Earnings Summary Cards */}
                   <div className="grid grid-cols-3 gap-3 mb-5">
                     <div className="bg-white/80 backdrop-blur rounded-xl p-4 border border-indigo-100 text-center">
-                      <p className="text-xs text-gray-500 mb-1 font-medium">Radio Earnings</p>
+                      <p className="text-xs text-gray-500 mb-1 font-medium">
+                        Radio Earnings
+                      </p>
                       <p className="text-xl font-bold text-indigo-700">
-                        {parseFloat(artistEarnings.totalRadioEarnings).toFixed(4)}
+                        {parseFloat(artistEarnings.totalRadioEarnings).toFixed(
+                          4,
+                        )}
                       </p>
                       <p className="text-xs text-gray-400">WMON</p>
-                      <p className="text-xs text-indigo-400 mt-1">{artistEarnings.totalPlays} plays</p>
+                      <p className="text-xs text-indigo-400 mt-1">
+                        {artistEarnings.totalPlays} plays
+                      </p>
                     </div>
                     <div className="bg-white/80 backdrop-blur rounded-xl p-4 border border-pink-100 text-center">
-                      <p className="text-xs text-gray-500 mb-1 font-medium">Tips Received</p>
+                      <p className="text-xs text-gray-500 mb-1 font-medium">
+                        Tips Received
+                      </p>
                       <p className="text-xl font-bold text-pink-700">
                         {parseFloat(artistEarnings.totalTips).toFixed(4)}
                       </p>
                       <p className="text-xs text-gray-400">WMON</p>
                     </div>
                     <div className="bg-white/80 backdrop-blur rounded-xl p-4 border border-emerald-100 text-center">
-                      <p className="text-xs text-gray-500 mb-1 font-medium">License Sales</p>
-                      <p className="text-xl font-bold text-emerald-700">
-                        {parseFloat(artistEarnings.totalLicenseSales).toFixed(4)}
+                      <p className="text-xs text-gray-500 mb-1 font-medium">
+                        License Sales
                       </p>
-                      <p className="text-xs text-gray-400">WMON (70% artist pool &middot; up to 90% if you listen)</p>
-                      <p className="text-xs text-emerald-400 mt-1">{artistEarnings.totalLicenseCount} sold</p>
+                      <p className="text-xl font-bold text-emerald-700">
+                        {parseFloat(artistEarnings.totalLicenseSales).toFixed(
+                          4,
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        WMON (70% artist pool &middot; up to 90% if you listen)
+                      </p>
+                      <p className="text-xs text-emerald-400 mt-1">
+                        {artistEarnings.totalLicenseCount} sold
+                      </p>
                     </div>
                   </div>
 
@@ -1231,32 +1401,50 @@ export default function ProfilePage() {
                         parseFloat(artistEarnings.totalRadioEarnings) +
                         parseFloat(artistEarnings.totalTips) +
                         parseFloat(artistEarnings.totalLicenseSales)
-                      ).toFixed(4)}{' '}
-                      <span className="text-sm font-normal text-gray-500">WMON</span>
+                      ).toFixed(4)}{" "}
+                      <span className="text-sm font-normal text-gray-500">
+                        WMON
+                      </span>
                     </p>
                   </div>
 
                   {/* Top Songs & Supporters */}
-                  {(artistEarnings.songBreakdown.length > 0 || artistEarnings.topSupporters.length > 0) && (
-                    <div className={`grid ${artistEarnings.songBreakdown.length > 0 && artistEarnings.topSupporters.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+                  {(artistEarnings.songBreakdown.length > 0 ||
+                    artistEarnings.topSupporters.length > 0) && (
+                    <div
+                      className={`grid ${artistEarnings.songBreakdown.length > 0 && artistEarnings.topSupporters.length > 0 ? "grid-cols-2" : "grid-cols-1"} gap-4`}
+                    >
                       {artistEarnings.songBreakdown.length > 0 && (
                         <div className="bg-white/70 backdrop-blur rounded-xl p-4 border border-indigo-100">
                           <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-1">
                             <span>📊</span> Top Songs
                           </h4>
                           <div className="space-y-2">
-                            {artistEarnings.songBreakdown.slice(0, showFullBreakdown ? 10 : 3).map((song, i) => (
-                              <div key={song.tokenId} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs text-gray-400 w-4">{i + 1}.</span>
-                                  <span className="font-medium text-gray-800 truncate">{song.name}</span>
+                            {artistEarnings.songBreakdown
+                              .slice(0, showFullBreakdown ? 10 : 3)
+                              .map((song, i) => (
+                                <div
+                                  key={song.tokenId}
+                                  className="flex items-center justify-between text-sm"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs text-gray-400 w-4">
+                                      {i + 1}.
+                                    </span>
+                                    <span className="font-medium text-gray-800 truncate">
+                                      {song.name}
+                                    </span>
+                                  </div>
+                                  <div className="text-right flex-shrink-0 ml-2">
+                                    <span className="font-bold text-indigo-700">
+                                      {parseFloat(song.earnings).toFixed(4)}
+                                    </span>
+                                    <span className="text-xs text-gray-400 ml-1">
+                                      ({song.plays} plays)
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="text-right flex-shrink-0 ml-2">
-                                  <span className="font-bold text-indigo-700">{parseFloat(song.earnings).toFixed(4)}</span>
-                                  <span className="text-xs text-gray-400 ml-1">({song.plays} plays)</span>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
                           </div>
                         </div>
                       )}
@@ -1267,19 +1455,28 @@ export default function ProfilePage() {
                             <span>💜</span> Top Supporters
                           </h4>
                           <div className="space-y-2">
-                            {artistEarnings.topSupporters.slice(0, showFullBreakdown ? 10 : 3).map((supporter, i) => (
-                              <div key={supporter.address} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs text-gray-400 w-4">{i + 1}.</span>
-                                  <span className="font-mono text-gray-700 text-xs truncate">
-                                    {supporter.address.slice(0, 6)}...{supporter.address.slice(-4)}
+                            {artistEarnings.topSupporters
+                              .slice(0, showFullBreakdown ? 10 : 3)
+                              .map((supporter, i) => (
+                                <div
+                                  key={supporter.address}
+                                  className="flex items-center justify-between text-sm"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs text-gray-400 w-4">
+                                      {i + 1}.
+                                    </span>
+                                    <span className="font-mono text-gray-700 text-xs truncate">
+                                      {supporter.address.slice(0, 6)}...
+                                      {supporter.address.slice(-4)}
+                                    </span>
+                                  </div>
+                                  <span className="font-bold text-pink-700 flex-shrink-0 ml-2">
+                                    {parseFloat(supporter.totalPaid).toFixed(4)}{" "}
+                                    WMON
                                   </span>
                                 </div>
-                                <span className="font-bold text-pink-700 flex-shrink-0 ml-2">
-                                  {parseFloat(supporter.totalPaid).toFixed(4)} WMON
-                                </span>
-                              </div>
-                            ))}
+                              ))}
                           </div>
                         </div>
                       )}
@@ -1287,12 +1484,15 @@ export default function ProfilePage() {
                   )}
 
                   {/* View Full Breakdown Toggle */}
-                  {(artistEarnings.songBreakdown.length > 3 || artistEarnings.topSupporters.length > 3) && (
+                  {(artistEarnings.songBreakdown.length > 3 ||
+                    artistEarnings.topSupporters.length > 3) && (
                     <button
                       onClick={() => setShowFullBreakdown(!showFullBreakdown)}
                       className="mt-4 w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
                     >
-                      {showFullBreakdown ? 'Show Less' : 'View Full Breakdown →'}
+                      {showFullBreakdown
+                        ? "Show Less"
+                        : "View Full Breakdown →"}
                     </button>
                   )}
 
@@ -1303,23 +1503,37 @@ export default function ProfilePage() {
                         <span>💰</span> Unclaimed Monthly Payouts
                       </h4>
                       <div className="space-y-2 mb-3">
-                        {artistClaims.unclaimedMonths.map(month => (
-                          <div key={month.monthId} className="flex justify-between items-center text-sm bg-white rounded-lg px-3 py-2 border border-yellow-200">
+                        {artistClaims.unclaimedMonths.map((month) => (
+                          <div
+                            key={month.monthId}
+                            className="flex justify-between items-center text-sm bg-white rounded-lg px-3 py-2 border border-yellow-200"
+                          >
                             <div>
-                              <span className="text-gray-600">Month #{month.monthId}</span>
-                              <span className="text-xs text-gray-400 ml-2">({month.playCount} plays)</span>
+                              <span className="text-gray-600">
+                                Month #{month.monthId}
+                              </span>
+                              <span className="text-xs text-gray-400 ml-2">
+                                ({month.playCount} plays)
+                              </span>
                             </div>
                             <span className="font-bold text-yellow-700">
-                              {parseFloat(month.estimatedPayout).toFixed(4)} WMON
+                              {parseFloat(month.estimatedPayout).toFixed(4)}{" "}
+                              WMON
                             </span>
                           </div>
                         ))}
                       </div>
                       <div className="text-center mb-3">
                         <p className="text-xs text-gray-500">Total Claimable</p>
-                        <p className="text-xl font-bold text-yellow-800">{artistClaims.totalUnclaimed} WMON</p>
+                        <p className="text-xl font-bold text-yellow-800">
+                          {artistClaims.totalUnclaimed} WMON
+                        </p>
                         {artistClaims.toursEligible && (
-                          <p className="text-xs text-green-600 mt-1">+ TOURS rewards eligible ({artistClaims.masterCount} masters, {artistClaims.lifetimePlays} lifetime plays)</p>
+                          <p className="text-xs text-green-600 mt-1">
+                            + TOURS rewards eligible ({artistClaims.masterCount}{" "}
+                            masters, {artistClaims.lifetimePlays} lifetime
+                            plays)
+                          </p>
                         )}
                       </div>
 
@@ -1330,7 +1544,9 @@ export default function ProfilePage() {
                       )}
                       {claimSuccess && (
                         <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-xs text-green-600">{claimSuccess}</p>
+                          <p className="text-xs text-green-600">
+                            {claimSuccess}
+                          </p>
                         </div>
                       )}
 
@@ -1345,25 +1561,28 @@ export default function ProfilePage() {
                             Claiming...
                           </>
                         ) : (
-                          <>
-                            💰 Claim All ({artistClaims.totalUnclaimed} WMON)
-                          </>
+                          <>💰 Claim All ({artistClaims.totalUnclaimed} WMON)</>
                         )}
                       </button>
                     </div>
                   )}
 
                   {/* Claims success when no unclaimed left */}
-                  {claimSuccess && artistClaims && artistClaims.unclaimedMonths.length === 0 && (
-                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl text-center">
-                      <p className="text-sm text-green-700 font-medium">{claimSuccess}</p>
-                    </div>
-                  )}
-
+                  {claimSuccess &&
+                    artistClaims &&
+                    artistClaims.unclaimedMonths.length === 0 && (
+                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl text-center">
+                        <p className="text-sm text-green-700 font-medium">
+                          {claimSuccess}
+                        </p>
+                      </div>
+                    )}
                 </>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-sm text-gray-500">No earnings data yet. Start getting plays on Live Radio!</p>
+                  <p className="text-sm text-gray-500">
+                    No earnings data yet. Start getting plays on Live Radio!
+                  </p>
                 </div>
               )}
             </motion.div>
@@ -1397,7 +1616,11 @@ export default function ProfilePage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 1.15, ease: [0.22, 1, 0.36, 1] }}
+              transition={{
+                duration: 0.5,
+                delay: 1.15,
+                ease: [0.22, 1, 0.36, 1],
+              }}
               whileHover={{ scale: 1.05 }}
               className="bg-emerald-50 text-emerald-600 rounded-lg p-4 text-center cursor-default"
             >
@@ -1405,7 +1628,12 @@ export default function ProfilePage() {
                 className="text-3xl font-bold"
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 1.35, type: 'spring', stiffness: 200 }}
+                transition={{
+                  duration: 0.5,
+                  delay: 1.35,
+                  type: "spring",
+                  stiffness: 200,
+                }}
               >
                 {createdExperiences.length}
               </motion.p>
@@ -1414,7 +1642,11 @@ export default function ProfilePage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
+              transition={{
+                duration: 0.5,
+                delay: 1.2,
+                ease: [0.22, 1, 0.36, 1],
+              }}
               whileHover={{ scale: 1.05 }}
               className="bg-green-50 text-green-600 rounded-lg p-4 text-center cursor-default"
             >
@@ -1422,7 +1654,12 @@ export default function ProfilePage() {
                 className="text-3xl font-bold"
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 1.4, type: 'spring', stiffness: 200 }}
+                transition={{
+                  duration: 0.5,
+                  delay: 1.4,
+                  type: "spring",
+                  stiffness: 200,
+                }}
               >
                 {purchasedItineraries.length}
               </motion.p>
@@ -1456,144 +1693,184 @@ export default function ProfilePage() {
             {createdMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🎵 Music I Created</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    🎵 Music I Created
+                  </h2>
                   <span className="text-sm text-gray-500">
-                    {createdMusic.length} total | Page {createdMusicPage} of {totalCreatedMusicPages || 1}
+                    {createdMusic.length} total | Page {createdMusicPage} of{" "}
+                    {totalCreatedMusicPages || 1}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {paginatedCreatedMusic.map((nft) => {
                     const ci = collectorInfo[String(nft.tokenId)];
-                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : nft.metadata?.image;
+                    const displayImage =
+                      ci?.isCollectorMaster && ci?.collectorImageUrl
+                        ? ci.collectorImageUrl
+                        : nft.metadata?.image;
                     return (
-                    <div
-                      key={nft.id}
-                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-amber-50 to-yellow-50 border-2 border-amber-300' : 'from-blue-50 to-purple-50 border-2 border-blue-200'} rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md`}
-                    >
-                      {displayImage ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
-                          <img
-                            src={displayImage}
-                            alt={nft.metadata?.name || `Music NFT #${nft.tokenId}`}
-                            className="w-full h-full object-cover"
-                          />
-                          {ci?.isCollectorMaster && (
-                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                              {ci.collectorsMinted}/{ci.maxEditions} Collector
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">🎵</span>
-                        </div>
-                      )}
-                      <div className="p-4 space-y-3">
-                        <div className="text-center">
-                          <p className="font-mono text-sm font-bold text-blue-900">
-                            {nft.metadata?.name || `Music NFT #${nft.tokenId}`}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {nft.mintedAt ? new Date(nft.mintedAt).toLocaleDateString() : 'Recently minted'}
-                          </p>
-                          {nft.price && (
-                            <p className="text-xs text-green-600 font-bold mt-1">
-                              {nft.price} TOURS
-                            </p>
-                          )}
-                        </div>
-                        {nft.audioUrl ? (
-                          <div className="bg-white rounded-lg p-2 border border-blue-200">
-                            {audioLoading[`created_feed-${nft.id}`] && (
-                              <div className="text-center py-2">
-                                <div className="animate-spin inline-block text-xl">⏳</div>
-                                <p className="text-xs text-gray-500 mt-1">Loading audio...</p>
+                      <div
+                        key={nft.id}
+                        className={`bg-gradient-to-br ${ci?.isCollectorMaster ? "from-amber-50 to-yellow-50 border-2 border-amber-300" : "from-blue-50 to-purple-50 border-2 border-blue-200"} rounded-xl hover:border-blue-400 transition-all shadow-sm hover:shadow-md`}
+                      >
+                        {displayImage ? (
+                          <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
+                            <img
+                              src={displayImage}
+                              alt={
+                                nft.metadata?.name ||
+                                `Music NFT #${nft.tokenId}`
+                              }
+                              className="w-full h-full object-cover"
+                            />
+                            {ci?.isCollectorMaster && (
+                              <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                                {ci.collectorsMinted}/{ci.maxEditions} Collector
                               </div>
-                            )}
-                            <audio
-                              controls
-                              preload="metadata"
-                              crossOrigin="anonymous"
-                              className="w-full"
-                              style={{ height: '40px' }}
-                              onLoadStart={() => handleAudioLoadStart(`created_feed-${nft.id}`)}
-                              onError={(e) => handleAudioError(`created_feed-${nft.id}`, nft.audioUrl || '', e)}
-                              onLoadedMetadata={() => handleAudioLoaded(`created_feed-${nft.id}`, nft.audioUrl)}
-                              onCanPlay={() => handleAudioCanPlay(`created_feed-${nft.id}`)}
-                            >
-                              <source src={nft.audioUrl} type="audio/mpeg" />
-                              <source src={nft.audioUrl} type="audio/mp3" />
-                              <source src={nft.audioUrl} type="audio/wav" />
-                              <source src={nft.audioUrl} type="audio/ogg" />
-                              Your browser does not support audio playback.
-                            </audio>
-                            {audioErrors[`created_feed-${nft.id}`] ? (
-                              <div className="mt-2 space-y-1">
-                                <p className="text-xs text-red-500 text-center">
-                                  ⚠️ {audioErrors[`created_feed-${nft.id}`]}
-                                </p>
-                                <button
-                                  onClick={() => window.open(nft.audioUrl, '_blank')}
-                                  className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  Open Audio in New Tab
-                                </button>
-                                <p className="text-xs text-gray-400 text-center break-all">
-                                  {nft.audioUrl}
-                                </p>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-gray-500 text-center mt-1">
-                                🎵 Full Track
-                              </p>
                             )}
                           </div>
                         ) : (
-                          <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
-                            <p className="text-xs text-gray-500">Audio unavailable</p>
+                          <div className="w-full aspect-square bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center rounded-t-xl">
+                            <span className="text-6xl">🎵</span>
                           </div>
                         )}
-                        <div className="space-y-2">
-                          <div className="flex gap-2">
-                            {nft.txHash && (
-                              <a
-                                href={`https://monadscan.com/tx/${nft.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
-                              >
-                                View TX
-                              </a>
-                            )}
-                            {nft.tokenURI && (
-                              <a
-                                href={resolveIPFS(nft.tokenURI)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
-                              >
-                                Metadata
-                              </a>
+                        <div className="p-4 space-y-3">
+                          <div className="text-center">
+                            <p className="font-mono text-sm font-bold text-blue-900">
+                              {nft.metadata?.name ||
+                                `Music NFT #${nft.tokenId}`}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {nft.mintedAt
+                                ? new Date(nft.mintedAt).toLocaleDateString()
+                                : "Recently minted"}
+                            </p>
+                            {nft.price && (
+                              <p className="text-xs text-green-600 font-bold mt-1">
+                                {nft.price} TOURS
+                              </p>
                             )}
                           </div>
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId, nft.metadata?.name)}
-                            className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
-                            style={{ minHeight: '48px' }}
-                          >
-                            🗑️ Delete NFT
-                          </button>
+                          {nft.audioUrl ? (
+                            <div className="bg-white rounded-lg p-2 border border-blue-200">
+                              {audioLoading[`created_feed-${nft.id}`] && (
+                                <div className="text-center py-2">
+                                  <div className="animate-spin inline-block text-xl">
+                                    ⏳
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Loading audio...
+                                  </p>
+                                </div>
+                              )}
+                              <audio
+                                controls
+                                preload="metadata"
+                                crossOrigin="anonymous"
+                                className="w-full"
+                                style={{ height: "40px" }}
+                                onLoadStart={() =>
+                                  handleAudioLoadStart(`created_feed-${nft.id}`)
+                                }
+                                onError={(e) =>
+                                  handleAudioError(
+                                    `created_feed-${nft.id}`,
+                                    nft.audioUrl || "",
+                                    e,
+                                  )
+                                }
+                                onLoadedMetadata={() =>
+                                  handleAudioLoaded(
+                                    `created_feed-${nft.id}`,
+                                    nft.audioUrl,
+                                  )
+                                }
+                                onCanPlay={() =>
+                                  handleAudioCanPlay(`created_feed-${nft.id}`)
+                                }
+                              >
+                                <source src={nft.audioUrl} type="audio/mpeg" />
+                                <source src={nft.audioUrl} type="audio/mp3" />
+                                <source src={nft.audioUrl} type="audio/wav" />
+                                <source src={nft.audioUrl} type="audio/ogg" />
+                                Your browser does not support audio playback.
+                              </audio>
+                              {audioErrors[`created_feed-${nft.id}`] ? (
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-xs text-red-500 text-center">
+                                    ⚠️ {audioErrors[`created_feed-${nft.id}`]}
+                                  </p>
+                                  <button
+                                    onClick={() =>
+                                      window.open(nft.audioUrl, "_blank")
+                                    }
+                                    className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
+                                  >
+                                    Open Audio in New Tab
+                                  </button>
+                                  <p className="text-xs text-gray-400 text-center break-all">
+                                    {nft.audioUrl}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-500 text-center mt-1">
+                                  🎵 Full Track
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
+                              <p className="text-xs text-gray-500">
+                                Audio unavailable
+                              </p>
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              {nft.txHash && (
+                                <a
+                                  href={`https://monadscan.com/tx/${nft.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all text-center"
+                                >
+                                  View TX
+                                </a>
+                              )}
+                              {nft.tokenURI && (
+                                <a
+                                  href={resolveIPFS(nft.tokenURI)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                                >
+                                  Metadata
+                                </a>
+                              )}
+                            </div>
+                            {/* Delete Button */}
+                            <button
+                              onClick={() =>
+                                nft.tokenId &&
+                                handleBurnMusic(nft.tokenId, nft.metadata?.name)
+                              }
+                              className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
+                              style={{ minHeight: "48px" }}
+                            >
+                              🗑️ Delete NFT
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
                 {totalCreatedMusicPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
                     <button
-                      onClick={() => setCreatedMusicPage(p => Math.max(1, p - 1))}
+                      onClick={() =>
+                        setCreatedMusicPage((p) => Math.max(1, p - 1))
+                      }
                       disabled={createdMusicPage === 1}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
@@ -1603,7 +1880,11 @@ export default function ProfilePage() {
                       {createdMusicPage} / {totalCreatedMusicPages}
                     </span>
                     <button
-                      onClick={() => setCreatedMusicPage(p => Math.min(totalCreatedMusicPages, p + 1))}
+                      onClick={() =>
+                        setCreatedMusicPage((p) =>
+                          Math.min(totalCreatedMusicPages, p + 1),
+                        )
+                      }
                       disabled={createdMusicPage === totalCreatedMusicPages}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
@@ -1618,93 +1899,108 @@ export default function ProfilePage() {
             {createdArt.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🎨 Art I Created</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    🎨 Art I Created
+                  </h2>
                   <span className="text-sm text-gray-500">
-                    {createdArt.length} total | Page {createdArtPage} of {totalCreatedArtPages || 1}
+                    {createdArt.length} total | Page {createdArtPage} of{" "}
+                    {totalCreatedArtPages || 1}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {paginatedCreatedArt.map((nft) => {
                     const ci = collectorInfo[String(nft.tokenId)];
-                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : nft.metadata?.image;
+                    const displayImage =
+                      ci?.isCollectorMaster && ci?.collectorImageUrl
+                        ? ci.collectorImageUrl
+                        : nft.metadata?.image;
                     return (
-                    <div
-                      key={nft.id}
-                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-yellow-50 to-amber-100 border-2 border-yellow-400' : 'from-amber-50 to-orange-50 border-2 border-amber-200'} rounded-xl hover:border-amber-400 transition-all shadow-sm hover:shadow-md`}
-                    >
-                      {displayImage ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
-                          <img
-                            src={displayImage}
-                            alt={nft.metadata?.name || `Art NFT #${nft.tokenId}`}
-                            className="w-full h-full object-cover"
-                          />
-                          {ci?.isCollectorMaster && (
-                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                              {ci.collectorsMinted}/{ci.maxEditions} Collector
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-full aspect-square bg-gradient-to-br from-amber-200 to-orange-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">🎨</span>
-                        </div>
-                      )}
-                      <div className="p-4 space-y-3">
-                        <div className="text-center">
-                          <p className="font-mono text-sm font-bold text-amber-900">
-                            {nft.metadata?.name || `Art NFT #${nft.tokenId}`}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {nft.mintedAt ? new Date(nft.mintedAt).toLocaleDateString() : 'Recently minted'}
-                          </p>
-                          {nft.price && (
-                            <p className="text-xs text-green-600 font-bold mt-1">
-                              {nft.price} TOURS
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex gap-2">
-                            {nft.txHash && (
-                              <a
-                                href={`https://monadscan.com/tx/${nft.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-all text-center"
-                              >
-                                View TX
-                              </a>
-                            )}
-                            {nft.tokenURI && (
-                              <a
-                                href={resolveIPFS(nft.tokenURI)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700 transition-all text-center"
-                              >
-                                Metadata
-                              </a>
+                      <div
+                        key={nft.id}
+                        className={`bg-gradient-to-br ${ci?.isCollectorMaster ? "from-yellow-50 to-amber-100 border-2 border-yellow-400" : "from-amber-50 to-orange-50 border-2 border-amber-200"} rounded-xl hover:border-amber-400 transition-all shadow-sm hover:shadow-md`}
+                      >
+                        {displayImage ? (
+                          <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
+                            <img
+                              src={displayImage}
+                              alt={
+                                nft.metadata?.name || `Art NFT #${nft.tokenId}`
+                              }
+                              className="w-full h-full object-cover"
+                            />
+                            {ci?.isCollectorMaster && (
+                              <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                                {ci.collectorsMinted}/{ci.maxEditions} Collector
+                              </div>
                             )}
                           </div>
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => nft.tokenId && handleBurnMusic(nft.tokenId, nft.metadata?.name)}
-                            className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
-                            style={{ minHeight: '48px' }}
-                          >
-                            🗑️ Delete NFT
-                          </button>
+                        ) : (
+                          <div className="w-full aspect-square bg-gradient-to-br from-amber-200 to-orange-200 flex items-center justify-center rounded-t-xl">
+                            <span className="text-6xl">🎨</span>
+                          </div>
+                        )}
+                        <div className="p-4 space-y-3">
+                          <div className="text-center">
+                            <p className="font-mono text-sm font-bold text-amber-900">
+                              {nft.metadata?.name || `Art NFT #${nft.tokenId}`}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {nft.mintedAt
+                                ? new Date(nft.mintedAt).toLocaleDateString()
+                                : "Recently minted"}
+                            </p>
+                            {nft.price && (
+                              <p className="text-xs text-green-600 font-bold mt-1">
+                                {nft.price} TOURS
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              {nft.txHash && (
+                                <a
+                                  href={`https://monadscan.com/tx/${nft.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-all text-center"
+                                >
+                                  View TX
+                                </a>
+                              )}
+                              {nft.tokenURI && (
+                                <a
+                                  href={resolveIPFS(nft.tokenURI)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700 transition-all text-center"
+                                >
+                                  Metadata
+                                </a>
+                              )}
+                            </div>
+                            {/* Delete Button */}
+                            <button
+                              onClick={() =>
+                                nft.tokenId &&
+                                handleBurnMusic(nft.tokenId, nft.metadata?.name)
+                              }
+                              className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
+                              style={{ minHeight: "48px" }}
+                            >
+                              🗑️ Delete NFT
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
                 {totalCreatedArtPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
                     <button
-                      onClick={() => setCreatedArtPage(p => Math.max(1, p - 1))}
+                      onClick={() =>
+                        setCreatedArtPage((p) => Math.max(1, p - 1))
+                      }
                       disabled={createdArtPage === 1}
                       className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
                     >
@@ -1714,7 +2010,11 @@ export default function ProfilePage() {
                       {createdArtPage} / {totalCreatedArtPages}
                     </span>
                     <button
-                      onClick={() => setCreatedArtPage(p => Math.min(totalCreatedArtPages, p + 1))}
+                      onClick={() =>
+                        setCreatedArtPage((p) =>
+                          Math.min(totalCreatedArtPages, p + 1),
+                        )
+                      }
                       disabled={createdArtPage === totalCreatedArtPages}
                       className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
                     >
@@ -1729,143 +2029,210 @@ export default function ProfilePage() {
             {purchasedMusic.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🎧 Music I Purchased</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    🎧 Music I Purchased
+                  </h2>
                   <span className="text-sm text-gray-500">
-                    {purchasedMusic.length} total | Page {purchasedMusicPage} of {totalPurchasedMusicPages || 1}
+                    {purchasedMusic.length} total | Page {purchasedMusicPage} of{" "}
+                    {totalPurchasedMusicPages || 1}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {paginatedPurchasedMusic.map((license) => {
                     const ci = collectorInfo[String(license.masterTokenId)];
-                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : license.metadata?.image;
+                    const displayImage =
+                      ci?.isCollectorMaster && ci?.collectorImageUrl
+                        ? ci.collectorImageUrl
+                        : license.metadata?.image;
                     return (
-                    <div
-                      key={license.id}
-                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-amber-50 to-yellow-50 border-2 border-amber-300' : 'from-pink-50 to-rose-50 border-2 border-pink-200'} rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md`}
-                    >
-                      {displayImage ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
-                          <img
-                            src={displayImage}
-                            alt={license.metadata?.name || `License #${license.licenseId}`}
-                            className="w-full h-full object-cover"
-                          />
-                          {ci?.isCollectorMaster && (
-                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                              Collector Edition
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">🎧</span>
-                        </div>
-                      )}
-                      <div className="p-4 space-y-3">
-                        <div className="text-center">
-                          <p className="font-mono text-sm font-bold text-pink-900">
-                            {license.metadata?.name || `License #${license.licenseId}`}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Master #{license.masterTokenId}
-                          </p>
-                          {license.purchasedAt && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Purchased: {new Date(String(license.purchasedAt)).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                        {license.audioUrl ? (
-                          <div className="bg-white rounded-lg p-2 border border-pink-200">
-                            {audioLoading[`purchased_feed-${license.id}`] && (
-                              <div className="text-center py-2">
-                                <div className="animate-spin inline-block text-xl">⏳</div>
-                                <p className="text-xs text-gray-500 mt-1">Loading audio...</p>
+                      <div
+                        key={license.id}
+                        className={`bg-gradient-to-br ${ci?.isCollectorMaster ? "from-amber-50 to-yellow-50 border-2 border-amber-300" : "from-pink-50 to-rose-50 border-2 border-pink-200"} rounded-xl hover:border-pink-400 transition-all shadow-sm hover:shadow-md`}
+                      >
+                        {displayImage ? (
+                          <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
+                            <img
+                              src={displayImage}
+                              alt={
+                                license.metadata?.name ||
+                                `License #${license.licenseId}`
+                              }
+                              className="w-full h-full object-cover"
+                            />
+                            {ci?.isCollectorMaster && (
+                              <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                                Collector Edition
                               </div>
-                            )}
-                            <audio
-                              controls
-                              preload="metadata"
-                              crossOrigin="anonymous"
-                              className="w-full"
-                              style={{ height: '40px' }}
-                              onLoadStart={() => handleAudioLoadStart(`purchased_feed-${license.id}`)}
-                              onError={(e) => handleAudioError(`purchased_feed-${license.id}`, license.audioUrl || '', e)}
-                              onLoadedMetadata={() => handleAudioLoaded(`purchased_feed-${license.id}`, license.audioUrl)}
-                              onCanPlay={() => handleAudioCanPlay(`purchased_feed-${license.id}`)}
-                            >
-                              <source src={license.audioUrl} type="audio/mpeg" />
-                              <source src={license.audioUrl} type="audio/mp3" />
-                              <source src={license.audioUrl} type="audio/wav" />
-                              <source src={license.audioUrl} type="audio/ogg" />
-                              Your browser does not support audio playback.
-                            </audio>
-                            {audioErrors[`purchased_feed-${license.id}`] ? (
-                              <div className="mt-2 space-y-1">
-                                <p className="text-xs text-red-500 text-center">
-                                  ⚠️ {audioErrors[`purchased_feed-${license.id}`]}
-                                </p>
-                                <button
-                                  onClick={() => window.open(license.audioUrl, '_blank')}
-                                  className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  Open Audio in New Tab
-                                </button>
-                                <p className="text-xs text-gray-400 text-center break-all">
-                                  {license.audioUrl}
-                                </p>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-gray-500 text-center mt-1">
-                                🎵 Full Track
-                              </p>
                             )}
                           </div>
                         ) : (
-                          <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
-                            <p className="text-xs text-gray-500">Audio unavailable</p>
-                            <p className="text-xs text-gray-400 mt-1">Master token not found</p>
+                          <div className="w-full aspect-square bg-gradient-to-br from-pink-200 to-rose-200 flex items-center justify-center rounded-t-xl">
+                            <span className="text-6xl">🎧</span>
                           </div>
                         )}
-                        <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
-                          {license.active ? (
-                            <>
-                              <p className="text-xs text-green-600 font-bold mb-1">✅ License Active</p>
-                              <p className="text-xs text-gray-600">Perpetual License</p>
-                            </>
+                        <div className="p-4 space-y-3">
+                          <div className="text-center">
+                            <p className="font-mono text-sm font-bold text-pink-900">
+                              {license.metadata?.name ||
+                                `License #${license.licenseId}`}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Master #{license.masterTokenId}
+                            </p>
+                            {license.purchasedAt && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Purchased:{" "}
+                                {new Date(
+                                  String(license.purchasedAt),
+                                ).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          {license.audioUrl ? (
+                            <div className="bg-white rounded-lg p-2 border border-pink-200">
+                              {audioLoading[`purchased_feed-${license.id}`] && (
+                                <div className="text-center py-2">
+                                  <div className="animate-spin inline-block text-xl">
+                                    ⏳
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Loading audio...
+                                  </p>
+                                </div>
+                              )}
+                              <audio
+                                controls
+                                preload="metadata"
+                                crossOrigin="anonymous"
+                                className="w-full"
+                                style={{ height: "40px" }}
+                                onLoadStart={() =>
+                                  handleAudioLoadStart(
+                                    `purchased_feed-${license.id}`,
+                                  )
+                                }
+                                onError={(e) =>
+                                  handleAudioError(
+                                    `purchased_feed-${license.id}`,
+                                    license.audioUrl || "",
+                                    e,
+                                  )
+                                }
+                                onLoadedMetadata={() =>
+                                  handleAudioLoaded(
+                                    `purchased_feed-${license.id}`,
+                                    license.audioUrl,
+                                  )
+                                }
+                                onCanPlay={() =>
+                                  handleAudioCanPlay(
+                                    `purchased_feed-${license.id}`,
+                                  )
+                                }
+                              >
+                                <source
+                                  src={license.audioUrl}
+                                  type="audio/mpeg"
+                                />
+                                <source
+                                  src={license.audioUrl}
+                                  type="audio/mp3"
+                                />
+                                <source
+                                  src={license.audioUrl}
+                                  type="audio/wav"
+                                />
+                                <source
+                                  src={license.audioUrl}
+                                  type="audio/ogg"
+                                />
+                                Your browser does not support audio playback.
+                              </audio>
+                              {audioErrors[`purchased_feed-${license.id}`] ? (
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-xs text-red-500 text-center">
+                                    ⚠️{" "}
+                                    {
+                                      audioErrors[
+                                        `purchased_feed-${license.id}`
+                                      ]
+                                    }
+                                  </p>
+                                  <button
+                                    onClick={() =>
+                                      window.open(license.audioUrl, "_blank")
+                                    }
+                                    className="w-full text-xs text-blue-600 hover:text-blue-800 underline"
+                                  >
+                                    Open Audio in New Tab
+                                  </button>
+                                  <p className="text-xs text-gray-400 text-center break-all">
+                                    {license.audioUrl}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-500 text-center mt-1">
+                                  🎵 Full Track
+                                </p>
+                              )}
+                            </div>
                           ) : (
-                            <p className="text-xs text-red-600 font-bold">❌ License Inactive</p>
+                            <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
+                              <p className="text-xs text-gray-500">
+                                Audio unavailable
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Master token not found
+                              </p>
+                            </div>
                           )}
-                        </div>
-                        <div className="flex gap-2">
-                          {license.txHash && (
-                            <a
-                              href={`https://monadscan.com/tx/${license.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
-                            >
-                              View TX
-                            </a>
-                          )}
-                          {license.active && (
-                            <button
-                              onClick={() => openResaleModal(license)}
-                              className="flex-1 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all text-center font-medium"
-                            >
-                              💰 Resell
-                            </button>
-                          )}
+                          <div className="bg-white rounded-lg p-3 border border-pink-200 text-center">
+                            {license.active ? (
+                              <>
+                                <p className="text-xs text-green-600 font-bold mb-1">
+                                  ✅ License Active
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  Perpetual License
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-red-600 font-bold">
+                                ❌ License Inactive
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            {license.txHash && (
+                              <a
+                                href={`https://monadscan.com/tx/${license.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
+                              >
+                                View TX
+                              </a>
+                            )}
+                            {license.active && (
+                              <button
+                                onClick={() => openResaleModal(license)}
+                                className="flex-1 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all text-center font-medium"
+                              >
+                                💰 Resell
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
                 {totalPurchasedMusicPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
                     <button
-                      onClick={() => setPurchasedMusicPage(p => Math.max(1, p - 1))}
+                      onClick={() =>
+                        setPurchasedMusicPage((p) => Math.max(1, p - 1))
+                      }
                       disabled={purchasedMusicPage === 1}
                       className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
                     >
@@ -1875,7 +2242,11 @@ export default function ProfilePage() {
                       {purchasedMusicPage} / {totalPurchasedMusicPages}
                     </span>
                     <button
-                      onClick={() => setPurchasedMusicPage(p => Math.min(totalPurchasedMusicPages, p + 1))}
+                      onClick={() =>
+                        setPurchasedMusicPage((p) =>
+                          Math.min(totalPurchasedMusicPages, p + 1),
+                        )
+                      }
                       disabled={purchasedMusicPage === totalPurchasedMusicPages}
                       className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
                     >
@@ -1890,82 +2261,93 @@ export default function ProfilePage() {
             {purchasedArt.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🖼️ Art I Purchased</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    🖼️ Art I Purchased
+                  </h2>
                   <span className="text-sm text-gray-500">
-                    {purchasedArt.length} total | Page {purchasedArtPage} of {totalPurchasedArtPages || 1}
+                    {purchasedArt.length} total | Page {purchasedArtPage} of{" "}
+                    {totalPurchasedArtPages || 1}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {paginatedPurchasedArt.map((nft) => {
                     const tokenKey = String(nft.masterTokenId || nft.tokenId);
                     const ci = collectorInfo[tokenKey];
-                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : nft.metadata?.image;
+                    const displayImage =
+                      ci?.isCollectorMaster && ci?.collectorImageUrl
+                        ? ci.collectorImageUrl
+                        : nft.metadata?.image;
                     return (
-                    <div
-                      key={nft.id}
-                      className={`bg-gradient-to-br ${ci?.isCollectorMaster ? 'from-amber-50 to-yellow-50 border-2 border-amber-300' : 'from-teal-50 to-cyan-50 border-2 border-teal-200'} rounded-xl hover:border-teal-400 transition-all shadow-sm hover:shadow-md`}
-                    >
-                      {displayImage ? (
-                        <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
-                          <img
-                            src={displayImage}
-                            alt={nft.metadata?.name || `Art NFT #${nft.tokenId}`}
-                            className="w-full h-full object-cover"
-                          />
-                          {ci?.isCollectorMaster && (
-                            <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                              Collector Edition
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-full aspect-square bg-gradient-to-br from-teal-200 to-cyan-200 flex items-center justify-center rounded-t-xl">
-                          <span className="text-6xl">🖼️</span>
-                        </div>
-                      )}
-                      <div className="p-4 space-y-3">
-                        <div className="text-center">
-                          <p className="font-mono text-sm font-bold text-teal-900">
-                            {nft.metadata?.name || `Art NFT #${nft.tokenId}`}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            by {nft.artist?.slice(0, 6)}...{nft.artist?.slice(-4)}
-                          </p>
-                          {nft.price && (
-                            <p className="text-xs text-green-600 font-bold mt-1">
-                              {nft.price} TOURS
+                      <div
+                        key={nft.id}
+                        className={`bg-gradient-to-br ${ci?.isCollectorMaster ? "from-amber-50 to-yellow-50 border-2 border-amber-300" : "from-teal-50 to-cyan-50 border-2 border-teal-200"} rounded-xl hover:border-teal-400 transition-all shadow-sm hover:shadow-md`}
+                      >
+                        {displayImage ? (
+                          <div className="w-full aspect-square overflow-hidden rounded-t-xl relative">
+                            <img
+                              src={displayImage}
+                              alt={
+                                nft.metadata?.name || `Art NFT #${nft.tokenId}`
+                              }
+                              className="w-full h-full object-cover"
+                            />
+                            {ci?.isCollectorMaster && (
+                              <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                                Collector Edition
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-full aspect-square bg-gradient-to-br from-teal-200 to-cyan-200 flex items-center justify-center rounded-t-xl">
+                            <span className="text-6xl">🖼️</span>
+                          </div>
+                        )}
+                        <div className="p-4 space-y-3">
+                          <div className="text-center">
+                            <p className="font-mono text-sm font-bold text-teal-900">
+                              {nft.metadata?.name || `Art NFT #${nft.tokenId}`}
                             </p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          {nft.txHash && (
-                            <a
-                              href={`https://monadscan.com/tx/${nft.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 px-3 py-2 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-all text-center"
-                            >
-                              View TX
-                            </a>
-                          )}
-                          {nft.licenseId && nft.active && (
-                            <button
-                              onClick={() => openResaleModal(nft)}
-                              className="flex-1 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all text-center font-medium"
-                            >
-                              💰 Resell
-                            </button>
-                          )}
+                            <p className="text-xs text-gray-500 mt-1">
+                              by {nft.artist?.slice(0, 6)}...
+                              {nft.artist?.slice(-4)}
+                            </p>
+                            {nft.price && (
+                              <p className="text-xs text-green-600 font-bold mt-1">
+                                {nft.price} TOURS
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            {nft.txHash && (
+                              <a
+                                href={`https://monadscan.com/tx/${nft.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 px-3 py-2 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-all text-center"
+                              >
+                                View TX
+                              </a>
+                            )}
+                            {nft.licenseId && nft.active && (
+                              <button
+                                onClick={() => openResaleModal(nft)}
+                                className="flex-1 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all text-center font-medium"
+                              >
+                                💰 Resell
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
                 {totalPurchasedArtPages > 1 && (
                   <div className="flex justify-center gap-2 mt-6">
                     <button
-                      onClick={() => setPurchasedArtPage(p => Math.max(1, p - 1))}
+                      onClick={() =>
+                        setPurchasedArtPage((p) => Math.max(1, p - 1))
+                      }
                       disabled={purchasedArtPage === 1}
                       className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
                     >
@@ -1975,7 +2357,11 @@ export default function ProfilePage() {
                       {purchasedArtPage} / {totalPurchasedArtPages}
                     </span>
                     <button
-                      onClick={() => setPurchasedArtPage(p => Math.min(totalPurchasedArtPages, p + 1))}
+                      onClick={() =>
+                        setPurchasedArtPage((p) =>
+                          Math.min(totalPurchasedArtPages, p + 1),
+                        )
+                      }
                       disabled={purchasedArtPage === totalPurchasedArtPages}
                       className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
                     >
@@ -1989,9 +2375,12 @@ export default function ProfilePage() {
             {/* Passports */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">🛂 My Travel Passports</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  🛂 My Travel Passports
+                </h2>
                 <span className="text-sm text-gray-500">
-                  {passportNFTs.length} total | Page {passportPage} of {totalPassportPages || 1}
+                  {passportNFTs.length} total | Page {passportPage} of{" "}
+                  {totalPassportPages || 1}
                 </span>
               </div>
               {passportNFTs.length === 0 ? (
@@ -2009,74 +2398,81 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {paginatedPassports.map((passport) => {
                       // Handle mintedAt as either timestamp (number) or date string
-                      const mintDate = typeof passport.mintedAt === 'number'
-                        ? new Date(passport.mintedAt * 1000)
-                        : new Date(passport.mintedAt);
+                      const mintDate =
+                        typeof passport.mintedAt === "number"
+                          ? new Date(passport.mintedAt * 1000)
+                          : new Date(passport.mintedAt);
                       const mintDateStr = !isNaN(mintDate.getTime())
                         ? mintDate.toLocaleDateString()
-                        : 'Unknown';
+                        : "Unknown";
 
                       return (
-                      <div
-                        key={passport.id}
-                        className="bg-gradient-to-br from-purple-900 to-pink-900 border-2 border-purple-500 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
-                      >
                         <div
-                          className="w-full bg-gradient-to-br from-purple-800 to-pink-800 flex items-center justify-center p-2"
-                          style={{ aspectRatio: '2/3' }}
+                          key={passport.id}
+                          className="bg-gradient-to-br from-purple-900 to-pink-900 border-2 border-purple-500 rounded-xl hover:border-purple-400 transition-all shadow-sm hover:shadow-md overflow-hidden"
                         >
-                          <img
-                            src={`/api/passport/image/${passport.tokenId}`}
-                            alt={`${passport.countryCode || 'Unknown'} Passport #${passport.tokenId}`}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              // Fallback to inline SVG if API fails
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              target.parentElement?.classList.add('passport-fallback');
-                            }}
-                          />
-                        </div>
-                        <div className="p-4 space-y-3">
-                          <div className="text-center">
-                            <p className="font-mono text-sm font-bold text-purple-300">
-                              {passport.countryCode ? `${passport.countryCode} Passport` : `Passport #${passport.tokenId}`}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              Minted: {mintDateStr}
-                            </p>
+                          <div
+                            className="w-full bg-gradient-to-br from-purple-800 to-pink-800 flex items-center justify-center p-2"
+                            style={{ aspectRatio: "2/3" }}
+                          >
+                            <img
+                              src={`/api/passport/image/${passport.tokenId}`}
+                              alt={`${passport.countryCode || "Unknown"} Passport #${passport.tokenId}`}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // Fallback to inline SVG if API fails
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                target.parentElement?.classList.add(
+                                  "passport-fallback",
+                                );
+                              }}
+                            />
                           </div>
-                          <div className="flex gap-2">
-                            {passport.txHash && (
-                              <a
-                                href={`https://monadscan.com/tx/${passport.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
-                              >
-                                View TX
-                              </a>
-                            )}
-                            {passport.tokenURI && (
-                              <a
-                                href={resolveIPFS(passport.tokenURI)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
-                              >
-                                Metadata
-                              </a>
-                            )}
+                          <div className="p-4 space-y-3">
+                            <div className="text-center">
+                              <p className="font-mono text-sm font-bold text-purple-300">
+                                {passport.countryCode
+                                  ? `${passport.countryCode} Passport`
+                                  : `Passport #${passport.tokenId}`}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Minted: {mintDateStr}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {passport.txHash && (
+                                <a
+                                  href={`https://monadscan.com/tx/${passport.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-all text-center"
+                                >
+                                  View TX
+                                </a>
+                              )}
+                              {passport.tokenURI && (
+                                <a
+                                  href={resolveIPFS(passport.tokenURI)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 px-3 py-2 bg-pink-600 text-white text-xs rounded-lg hover:bg-pink-700 transition-all text-center"
+                                >
+                                  Metadata
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
                       );
                     })}
                   </div>
                   {totalPassportPages > 1 && (
                     <div className="flex justify-center gap-2 mt-6">
                       <button
-                        onClick={() => setPassportPage(p => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setPassportPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={passportPage === 1}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                       >
@@ -2086,7 +2482,11 @@ export default function ProfilePage() {
                         {passportPage} / {totalPassportPages}
                       </span>
                       <button
-                        onClick={() => setPassportPage(p => Math.min(totalPassportPages, p + 1))}
+                        onClick={() =>
+                          setPassportPage((p) =>
+                            Math.min(totalPassportPages, p + 1),
+                          )
+                        }
                         disabled={passportPage === totalPassportPages}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                       >
@@ -2102,7 +2502,9 @@ export default function ProfilePage() {
             {createdExperiences.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">🌍 Experiences I Created</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    🌍 Experiences I Created
+                  </h2>
                   <span className="text-sm text-gray-500">
                     {createdExperiences.length} total
                   </span>
@@ -2110,10 +2512,24 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {createdExperiences.map((exp: any) => {
                     const typeEmojiMap: Record<string, string> = {
-                      '0': '🍽️', '1': '🏛️', '2': '🎭', '3': '🌿', '4': '🎪', '5': '🏨', '6': '🛍️', '7': '🚂', '8': '📍',
-                      'food': '🍽️', 'attraction': '🏛️', 'cultural': '🎭', 'nature': '🌿', 'entertainment': '🎪', 'shopping': '🛍️'
+                      "0": "🍽️",
+                      "1": "🏛️",
+                      "2": "🎭",
+                      "3": "🌿",
+                      "4": "🎪",
+                      "5": "🏨",
+                      "6": "🛍️",
+                      "7": "🚂",
+                      "8": "📍",
+                      food: "🍽️",
+                      attraction: "🏛️",
+                      cultural: "🎭",
+                      nature: "🌿",
+                      entertainment: "🎪",
+                      shopping: "🛍️",
                     };
-                    const emoji = typeEmojiMap[exp.experienceType?.toString()] || '📍';
+                    const emoji =
+                      typeEmojiMap[exp.experienceType?.toString()] || "📍";
 
                     return (
                       <div
@@ -2160,14 +2576,18 @@ export default function ProfilePage() {
             {/* Purchased Itineraries */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">🗺️ Purchased Itineraries</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  🗺️ Purchased Itineraries
+                </h2>
                 <span className="text-sm text-gray-500">
                   {purchasedItineraries.length} total
                 </span>
               </div>
               {purchasedItineraries.length === 0 ? (
                 <div className="p-6 bg-gray-50 rounded-lg text-center">
-                  <p className="text-gray-600 mb-3">No itineraries purchased yet</p>
+                  <p className="text-gray-600 mb-3">
+                    No itineraries purchased yet
+                  </p>
                   <Link
                     href="/itinerary-market"
                     className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
@@ -2186,10 +2606,12 @@ export default function ProfilePage() {
                         Itinerary #{purchase.itineraryId}
                       </h3>
                       <p className="text-sm text-gray-700 mb-2">
-                        {purchase.itinerary?.description || 'Adventure itinerary'}
+                        {purchase.itinerary?.description ||
+                          "Adventure itinerary"}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Purchased: {new Date(purchase.timestamp).toLocaleDateString()}
+                        Purchased:{" "}
+                        {new Date(purchase.timestamp).toLocaleDateString()}
                       </p>
                       {purchase.txHash && (
                         <a
@@ -2230,7 +2652,11 @@ export default function ProfilePage() {
                   >
                     <motion.span
                       animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      transition={{
+                        duration: 1,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
                     >
                       ⏳
                     </motion.span>
@@ -2248,10 +2674,13 @@ export default function ProfilePage() {
                 )}
               </AnimatePresence>
             </motion.button>
-            <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Powered by Envio Indexer
+            </p>
             {queriedAddresses.length > 0 && (
               <p className="text-xs text-gray-400 mt-1">
-                Querying {queriedAddresses.length} address{queriedAddresses.length === 1 ? '' : 'es'}
+                Querying {queriedAddresses.length} address
+                {queriedAddresses.length === 1 ? "" : "es"}
               </p>
             )}
           </div>
@@ -2259,214 +2688,258 @@ export default function ProfilePage() {
       </div>
 
       {/* Resale Listing Modal - rendered via portal */}
-      {mounted && resaleModalOpen && selectedResaleLicense && createPortal(
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
-          style={{ zIndex: 9999 }}
-          onClick={() => setResaleModalOpen(false)}
-        >
+      {mounted &&
+        resaleModalOpen &&
+        selectedResaleLicense &&
+        createPortal(
           <div
-            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+            style={{ zIndex: 9999 }}
+            onClick={() => setResaleModalOpen(false)}
           >
-            <h3 className="text-xl font-bold text-gray-900 mb-4">💰 List for Resale</h3>
+            <div
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
+                💰 List for Resale
+              </h3>
 
-            <div className="mb-4 p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
-              <p className="font-medium text-gray-900">
-                {selectedResaleLicense.metadata?.name || `License #${selectedResaleLicense.licenseId}`}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                Master #{selectedResaleLicense.masterTokenId}
-              </p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sale Price (WMON)
-              </label>
-              <input
-                type="number"
-                min="35"
-                step="1"
-                value={resalePrice}
-                onChange={(e) => setResalePrice(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-lg font-medium text-gray-900"
-                placeholder="50"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Minimum: 35 WMON • 50% royalty goes to original artist
-              </p>
-              <p className="text-sm text-green-600 font-medium mt-2">
-                You&apos;ll receive: {(parseFloat(resalePrice || '0') * 0.5).toFixed(2)} WMON
-              </p>
-            </div>
-
-            {resaleError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">❌ {resaleError}</p>
+              <div className="mb-4 p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
+                <p className="font-medium text-gray-900">
+                  {selectedResaleLicense.metadata?.name ||
+                    `License #${selectedResaleLicense.licenseId}`}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Master #{selectedResaleLicense.masterTokenId}
+                </p>
               </div>
-            )}
 
-            {resaleSuccess && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-600">✅ {resaleSuccess}</p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sale Price (WMON)
+                </label>
+                <input
+                  type="number"
+                  min="35"
+                  step="1"
+                  value={resalePrice}
+                  onChange={(e) => setResalePrice(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all text-lg font-medium text-gray-900"
+                  placeholder="50"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Minimum: 35 WMON • 50% royalty goes to original artist
+                </p>
+                <p className="text-sm text-green-600 font-medium mt-2">
+                  You&apos;ll receive:{" "}
+                  {(parseFloat(resalePrice || "0") * 0.5).toFixed(2)} WMON
+                </p>
               </div>
-            )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setResaleModalOpen(false)}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={listForResale}
-                disabled={resaleListing || !!resaleSuccess}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {resaleListing ? '⏳ Listing...' : '💰 List for Sale'}
-              </button>
+              {resaleError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">❌ {resaleError}</p>
+                </div>
+              )}
+
+              {resaleSuccess && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-600">✅ {resaleSuccess}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setResaleModalOpen(false)}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={listForResale}
+                  disabled={resaleListing || !!resaleSuccess}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resaleListing ? "⏳ Listing..." : "💰 List for Sale"}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
 
       {/* Privacy Settings Modal - rendered via portal */}
-      {mounted && showPrivacyModal && createPortal(
-        <div
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-          style={{ zIndex: 9999 }}
-          onClick={() => setShowPrivacyModal(false)}
-        >
+      {mounted &&
+        showPrivacyModal &&
+        createPortal(
           <div
-            className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            style={{ zIndex: 9999 }}
+            onClick={() => setShowPrivacyModal(false)}
           >
-            <h3 className="text-xl font-bold text-white mb-2">🔒 Privacy Settings</h3>
-            <p className="text-sm text-gray-400 mb-6">Control what others can see when they search for your profile</p>
+            <div
+              className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold text-white mb-2">
+                🔒 Privacy Settings
+              </h3>
+              <p className="text-sm text-gray-400 mb-6">
+                Control what others can see when they search for your profile
+              </p>
 
-            <div className="space-y-4">
-              {/* Public Profile Toggle */}
-              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-900/50 to-indigo-900/50 rounded-xl border border-blue-700">
-                <div className="flex-1">
-                  <p className="font-medium text-white">Public Profile</p>
-                  <p className="text-xs text-gray-400">Allow others to find and view your profile</p>
+              <div className="space-y-4">
+                {/* Public Profile Toggle */}
+                <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-900/50 to-indigo-900/50 rounded-xl border border-blue-700">
+                  <div className="flex-1">
+                    <p className="font-medium text-white">Public Profile</p>
+                    <p className="text-xs text-gray-400">
+                      Allow others to find and view your profile
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-medium ${privacySettings.isPublicProfile ? "text-blue-400" : "text-gray-500"}`}
+                    >
+                      {privacySettings.isPublicProfile ? "ON" : "OFF"}
+                    </span>
+                    <button
+                      onClick={() => togglePrivacySetting("isPublicProfile")}
+                      disabled={privacyLoading}
+                      className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.isPublicProfile ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-500"} ${privacyLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      aria-label="Toggle public profile"
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.isPublicProfile ? "translate-x-7" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.isPublicProfile ? 'text-blue-400' : 'text-gray-500'}`}>
-                    {privacySettings.isPublicProfile ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    onClick={() => togglePrivacySetting('isPublicProfile')}
-                    disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.isPublicProfile ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    aria-label="Toggle public profile"
-                  >
-                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.isPublicProfile ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
+
+                {/* Show Created NFTs */}
+                <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
+                  <div className="flex-1">
+                    <p className="font-medium text-white">🎨 Created NFTs</p>
+                    <p className="text-xs text-gray-400">
+                      Show music/art you created
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-medium ${privacySettings.showCreatedNFTs ? "text-purple-400" : "text-gray-500"}`}
+                    >
+                      {privacySettings.showCreatedNFTs ? "ON" : "OFF"}
+                    </span>
+                    <button
+                      onClick={() => togglePrivacySetting("showCreatedNFTs")}
+                      disabled={privacyLoading}
+                      className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showCreatedNFTs ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-600 hover:bg-gray-500"} ${privacyLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      aria-label="Toggle show created NFTs"
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showCreatedNFTs ? "translate-x-7" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Show Purchased NFTs */}
+                <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
+                  <div className="flex-1">
+                    <p className="font-medium text-white">🛒 Purchased NFTs</p>
+                    <p className="text-xs text-gray-400">
+                      Show NFTs you&apos;ve collected
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-medium ${privacySettings.showPurchasedNFTs ? "text-pink-400" : "text-gray-500"}`}
+                    >
+                      {privacySettings.showPurchasedNFTs ? "ON" : "OFF"}
+                    </span>
+                    <button
+                      onClick={() => togglePrivacySetting("showPurchasedNFTs")}
+                      disabled={privacyLoading}
+                      className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showPurchasedNFTs ? "bg-pink-600 hover:bg-pink-700" : "bg-gray-600 hover:bg-gray-500"} ${privacyLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      aria-label="Toggle show purchased NFTs"
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPurchasedNFTs ? "translate-x-7" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Show Passports */}
+                <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
+                  <div className="flex-1">
+                    <p className="font-medium text-white">🌍 Passports</p>
+                    <p className="text-xs text-gray-400">
+                      Show your passport collection
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-medium ${privacySettings.showPassports ? "text-green-400" : "text-gray-500"}`}
+                    >
+                      {privacySettings.showPassports ? "ON" : "OFF"}
+                    </span>
+                    <button
+                      onClick={() => togglePrivacySetting("showPassports")}
+                      disabled={privacyLoading}
+                      className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showPassports ? "bg-green-600 hover:bg-green-700" : "bg-gray-600 hover:bg-gray-500"} ${privacyLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      aria-label="Toggle show passports"
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPassports ? "translate-x-7" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Show Achievements */}
+                <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
+                  <div className="flex-1">
+                    <p className="font-medium text-white">
+                      🏆 Stats & Achievements
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Show activity statistics
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-medium ${privacySettings.showAchievements ? "text-amber-400" : "text-gray-500"}`}
+                    >
+                      {privacySettings.showAchievements ? "ON" : "OFF"}
+                    </span>
+                    <button
+                      onClick={() => togglePrivacySetting("showAchievements")}
+                      disabled={privacyLoading}
+                      className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showAchievements ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-600 hover:bg-gray-500"} ${privacyLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      aria-label="Toggle show achievements"
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showAchievements ? "translate-x-7" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Show Created NFTs */}
-              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
-                <div className="flex-1">
-                  <p className="font-medium text-white">🎨 Created NFTs</p>
-                  <p className="text-xs text-gray-400">Show music/art you created</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showCreatedNFTs ? 'text-purple-400' : 'text-gray-500'}`}>
-                    {privacySettings.showCreatedNFTs ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    onClick={() => togglePrivacySetting('showCreatedNFTs')}
-                    disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showCreatedNFTs ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    aria-label="Toggle show created NFTs"
-                  >
-                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showCreatedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Show Purchased NFTs */}
-              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
-                <div className="flex-1">
-                  <p className="font-medium text-white">🛒 Purchased NFTs</p>
-                  <p className="text-xs text-gray-400">Show NFTs you&apos;ve collected</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showPurchasedNFTs ? 'text-pink-400' : 'text-gray-500'}`}>
-                    {privacySettings.showPurchasedNFTs ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    onClick={() => togglePrivacySetting('showPurchasedNFTs')}
-                    disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showPurchasedNFTs ? 'bg-pink-600 hover:bg-pink-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    aria-label="Toggle show purchased NFTs"
-                  >
-                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPurchasedNFTs ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Show Passports */}
-              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
-                <div className="flex-1">
-                  <p className="font-medium text-white">🌍 Passports</p>
-                  <p className="text-xs text-gray-400">Show your passport collection</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showPassports ? 'text-green-400' : 'text-gray-500'}`}>
-                    {privacySettings.showPassports ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    onClick={() => togglePrivacySetting('showPassports')}
-                    disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showPassports ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    aria-label="Toggle show passports"
-                  >
-                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showPassports ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Show Achievements */}
-              <div className="flex items-center justify-between p-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors border border-gray-700">
-                <div className="flex-1">
-                  <p className="font-medium text-white">🏆 Stats & Achievements</p>
-                  <p className="text-xs text-gray-400">Show activity statistics</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${privacySettings.showAchievements ? 'text-amber-400' : 'text-gray-500'}`}>
-                    {privacySettings.showAchievements ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    onClick={() => togglePrivacySetting('showAchievements')}
-                    disabled={privacyLoading}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-gray-900 ${privacySettings.showAchievements ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gray-600 hover:bg-gray-500'} ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    aria-label="Toggle show achievements"
-                  >
-                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ease-in-out ${privacySettings.showAchievements ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
-                </div>
+              <div className="mt-6 pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => setShowPrivacyModal(false)}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-500 hover:to-purple-500 transition-all"
+                >
+                  Done
+                </button>
               </div>
             </div>
-
-            <div className="mt-6 pt-4 border-t border-gray-700">
-              <button
-                onClick={() => setShowPrivacyModal(false)}
-                className="w-full px-4 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-500 hover:to-purple-500 transition-all"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
+          </div>,
+          document.body,
+        )}
     </PageTransition>
   );
 }
