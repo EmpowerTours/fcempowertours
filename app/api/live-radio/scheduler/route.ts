@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { broadcastRadioUpdate } from "@/lib/event-manager";
 import { hasRightsClearance } from "@/lib/rights-declaration";
+import { recordPlaysForListeners } from "@/lib/play-recording";
 
 /**
  * Live Radio Scheduler
@@ -46,6 +47,10 @@ const SCHEDULER_LOCK_KEY = "live-radio:scheduler-lock";
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
 const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
+
+// Must match app/api/live-radio/route.ts — the heartbeat writer owns these.
+const ACTIVE_LISTENERS_ZSET = "live-radio:active-listeners-zset";
+const LISTENER_HEARTBEAT_EXPIRY = 60; // Seconds before a listener is inactive
 
 // Fallback slot length used only until a client has reported a track's real
 // duration. Envio does not expose duration, so before this cache existed every
@@ -390,6 +395,37 @@ export async function POST(req: NextRequest) {
         if (now >= songEndTime) {
           // Song ended
           console.log("[RadioScheduler] Song ended:", state.currentSong.name);
+
+          // Pay the artist for this spin.
+          //
+          // This scheduler is what actually advances the radio, but on-chain
+          // play recording used to hang off the client-reported `song_ended`
+          // action in ../route.ts, which is guarded by
+          // `state.currentSong.tokenId === tokenId`. This block nulls
+          // currentSong the moment the slot expires, so a client's report
+          // always arrived to find null or the next track and was dropped —
+          // the scheduler won that race every time. Result: month 689 opened
+          // 2026-08-05 and recorded zero plays while the radio ran nonstop.
+          //
+          // Read the ids off currentSong BEFORE clearing it, and fire without
+          // awaiting so N sequential on-chain writes cannot stall the tick.
+          // Double-recording is not a risk: PlayOracleV3.canPlay and the
+          // subscription's REPLAY_COOLDOWN both reject a repeat.
+          const endedTokenId = state.currentSong.tokenId;
+          const endedDuration = state.currentSong.duration;
+          recordPlaysForListeners(
+            redis,
+            endedTokenId,
+            endedDuration,
+            ACTIVE_LISTENERS_ZSET,
+            LISTENER_HEARTBEAT_EXPIRY,
+          ).catch((err) =>
+            console.error(
+              "[RadioScheduler] recordPlaysForListeners error:",
+              err?.message?.slice(0, 120),
+            ),
+          );
+
           state.currentSong = null;
           state.totalSongsPlayed = (state.totalSongsPlayed || 0) + 1;
 
