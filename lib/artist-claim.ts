@@ -1,4 +1,30 @@
-import { encodeFunctionData, parseAbi, type Address, type Hex } from "viem";
+import {
+  createPublicClient,
+  encodeFunctionData,
+  http,
+  parseAbi,
+  type Address,
+  type Hex,
+} from "viem";
+import { monadMainnet } from "@/app/chains";
+
+/**
+ * Reads go to the keyless public endpoint on purpose. This module runs in the
+ * browser, so referencing the private RPC would ship its key in the bundle.
+ */
+const MONAD_PUBLIC_RPC = "https://rpc.monad.xyz";
+
+let cachedPublicClient: ReturnType<typeof createPublicClient> | null = null;
+
+function getPublicClient() {
+  if (!cachedPublicClient) {
+    cachedPublicClient = createPublicClient({
+      chain: monadMainnet,
+      transport: http(MONAD_PUBLIC_RPC),
+    });
+  }
+  return cachedPublicClient;
+}
 
 /** Monad mainnet, chain 143 — where MusicSubscriptionV5 is deployed. */
 const MONAD_CHAIN_ID_HEX = "0x8f";
@@ -111,47 +137,72 @@ export async function claimArtistPayoutsFromEOA({
 
   let payoutTxHash: string;
   try {
-    payoutTxHash = (await provider.request({
-      method: "eth_sendTransaction",
-      params: [
-        {
-          from: from as Address,
-          to: subscriptionAddress,
-          data: payoutData as Hex,
-        },
-      ],
-    })) as string;
+    payoutTxHash = await sendAndConfirm(
+      provider,
+      from as Address,
+      subscriptionAddress,
+      payoutData as Hex,
+    );
   } catch (e: unknown) {
     throw new Error(explainClaimError(e));
   }
 
   // TOURS is a separate contract call and cannot be batched with the WMON claim
   // now that there is no Safe to bundle them. Its failure must not be reported
-  // as a failed claim — the WMON has already settled by this point.
+  // as a failed claim: the WMON payout is confirmed mined by this point, so the
+  // caller surfaces this as a warning alongside a successful claim.
   let toursTxHash: string | null = null;
   let toursError: string | null = null;
   if (claimTours) {
     try {
-      toursTxHash = (await provider.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: from as Address,
-            to: subscriptionAddress,
-            data: encodeFunctionData({
-              abi: SUBSCRIPTION_ABI,
-              functionName: "batchClaimToursRewards",
-              args: [monthIdsBigInt],
-            }) as Hex,
-          },
-        ],
-      })) as string;
+      toursTxHash = await sendAndConfirm(
+        provider,
+        from as Address,
+        subscriptionAddress,
+        encodeFunctionData({
+          abi: SUBSCRIPTION_ABI,
+          functionName: "batchClaimToursRewards",
+          args: [monthIdsBigInt],
+        }) as Hex,
+      );
     } catch (e: unknown) {
       toursError = explainClaimError(e);
     }
   }
 
   return { payoutTxHash, toursTxHash, toursError };
+}
+
+/**
+ * Send a transaction and wait until it is mined, throwing if it reverted.
+ *
+ * `eth_sendTransaction` resolves as soon as the wallet broadcasts, which says
+ * nothing about whether the call succeeded. Reporting on that alone let the UI
+ * announce "Claimed!" for a transaction that reverted on chain — the caller
+ * cannot tell the difference without the receipt. A revert gives no reason
+ * string in the receipt, so the hash is included for the explorer.
+ */
+async function sendAndConfirm(
+  provider: Eip1193Provider,
+  from: Address,
+  to: Address,
+  data: Hex,
+): Promise<string> {
+  const hash = (await provider.request({
+    method: "eth_sendTransaction",
+    params: [{ from, to, data }],
+  })) as Hex;
+
+  const receipt = await getPublicClient().waitForTransactionReceipt({
+    hash,
+    timeout: 120_000,
+  });
+
+  if (receipt.status !== "success") {
+    throw new Error(`Transaction reverted on chain (${hash})`);
+  }
+
+  return hash;
 }
 
 /**
