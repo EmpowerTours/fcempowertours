@@ -493,6 +493,125 @@ contract SubscriptionReferralsTest is Test {
         }
     }
 
+    // ------------------------------------------------ relayed (the Safe pattern)
+
+    /**
+     * The app pays from the user's Safe but registers the subscription to their EOA
+     * (`execute-delegated` calls `subscribeFor(userAddress, ...)` from the Safe, and the UI
+     * reads `getSubscriptionInfo(userAddress)`). The router must preserve that split, or a
+     * user who just paid shows up as unsubscribed.
+     */
+    function test_RelayedSubscribeRegistersTheSubscriberNotThePayer() public {
+        address safe = makeAddr("userSafe");
+        wmon.mint(safe, 10_000 ether);
+        vm.prank(safe);
+        wmon.approve(address(refs), type(uint256).max);
+
+        uint256 safeBefore = wmon.balanceOf(safe);
+
+        vm.prank(safe);
+        refs.subscribeWithReferralFor(
+            subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234, address(0)
+        );
+
+        assertTrue(subs.hasActiveSubscription(subscriber), "EOA holds the subscription");
+        assertFalse(subs.hasActiveSubscription(safe), "the Safe must not be the subscriber");
+        assertEq(safeBefore - wmon.balanceOf(safe), MONTHLY, "the Safe paid");
+        assertEq(wmon.balanceOf(subscriber), 100_000 ether, "the EOA paid nothing");
+    }
+
+    /// @dev Paying for someone is allowed. Claiming credit for recruiting them is not.
+    function test_StrangerPayingForSomeoneCannotBindThemselvesAsReferrer() public {
+        vm.prank(stranger);
+        refs.subscribeWithReferralFor(
+            subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234, stranger
+        );
+
+        assertTrue(subs.hasActiveSubscription(subscriber), "payment still goes through");
+        assertEq(refs.referrerOf(subscriber), address(0), "poaching must not bind");
+        assertEq(refs.referralBalance(stranger), 0);
+        assertEq(refs.totalOwed(), 0);
+    }
+
+    function test_TrustedRelayerCanBindOnBehalfOfTheSubscriber() public {
+        address relayer = makeAddr("relayer");
+        wmon.mint(relayer, 10_000 ether);
+        vm.prank(relayer);
+        wmon.approve(address(refs), type(uint256).max);
+
+        vm.prank(governance);
+        refs.setTrustedRelayer(relayer);
+
+        vm.prank(relayer);
+        refs.subscribeWithReferralFor(
+            subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234, referrer
+        );
+
+        assertEq(refs.referrerOf(subscriber), referrer);
+        assertEq(refs.referralBalance(referrer), EXPECTED_MONTHLY_ACCRUAL);
+    }
+
+    function test_RelayedRenewalKeepsAttributionAndAccrues() public {
+        address relayer = makeAddr("relayer");
+        wmon.mint(relayer, 10_000 ether);
+        vm.prank(relayer);
+        wmon.approve(address(refs), type(uint256).max);
+
+        vm.prank(governance);
+        refs.setTrustedRelayer(relayer);
+
+        vm.prank(relayer);
+        refs.subscribeWithReferralFor(
+            subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234, referrer
+        );
+
+        vm.warp(block.timestamp + 30 days);
+        vm.prank(relayer);
+        refs.renewFor(subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234);
+
+        assertEq(refs.referralBalance(referrer), EXPECTED_MONTHLY_ACCRUAL * 2);
+        assertEq(refs.referrerOf(subscriber), referrer);
+    }
+
+    /// @dev Losing the relayer key must not let it rewrite attribution already set.
+    function test_RelayerCannotRebindAnExistingReferrer() public {
+        address relayer = makeAddr("relayer");
+        wmon.mint(relayer, 10_000 ether);
+        vm.prank(relayer);
+        wmon.approve(address(refs), type(uint256).max);
+
+        vm.prank(governance);
+        refs.setTrustedRelayer(relayer);
+
+        vm.prank(relayer);
+        refs.subscribeWithReferralFor(
+            subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234, referrer
+        );
+
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(relayer);
+        refs.subscribeWithReferralFor(
+            subscriber, IMusicSubscription.SubscriptionTier.MONTHLY, 1234, stranger
+        );
+
+        assertEq(refs.referrerOf(subscriber), referrer, "write-once beats the relayer");
+        assertEq(refs.referralBalance(stranger), 0);
+    }
+
+    function test_RelayedSubscribeRejectsZeroSubscriber() public {
+        vm.prank(stranger);
+        vm.expectRevert(SubscriptionReferrals.ZeroAddress.selector);
+        refs.subscribeWithReferralFor(
+            address(0), IMusicSubscription.SubscriptionTier.MONTHLY, 1234, referrer
+        );
+    }
+
+    function test_StrangerCannotSetTrustedRelayer() public {
+        vm.prank(stranger);
+        vm.expectRevert(SubscriptionReferrals.NotGovernance.selector);
+        refs.setTrustedRelayer(stranger);
+    }
+
     // ------------------------------------------------------------- governance
 
     function test_ReferrerBpsIsCapped() public {

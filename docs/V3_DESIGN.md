@@ -1,7 +1,7 @@
 # EmpowerToursNFT V3 — Design Notes
 
 Status: **core built and tested, not deployed.** `LicenseRegistry`, `SalesController` and
-`SubscriptionReferrals` exist under `contracts/v3/` with **91 passing tests**; there is no
+`SubscriptionReferrals` exist under `contracts/v3/` with **98 passing tests**; there is no
 deploy script and no app cutover yet. Records the audit findings, architecture, and product
 decisions for the next contract generation.
 
@@ -333,7 +333,7 @@ Sybil defence is again automatic: self-referring a monthly sub costs 300 WMON to
 
 **If only one referral program ships in V3, make it this one.**
 
-#### Built: `contracts/v3/SubscriptionReferrals.sol` (34 tests)
+#### Built: `contracts/v3/SubscriptionReferrals.sol` (41 tests)
 
 Building it turned up the constraint that shapes everything. **`MusicSubscriptionV5` does
 not split revenue when someone subscribes.** `subscribe`/`subscribeFor` pull the exact tier
@@ -398,10 +398,31 @@ single number like "covers N subscribers" is wrong unless everyone buys the same
 Yearly subscribers drain the pool fastest — the opposite of the intuition that a long
 commitment is the safer one. Size against the *yearly* mix, not the average.
 
-**Anti-poaching.** A referrer is bound on a subscriber's **first ever** payment, checked
-against V5's own `subscriptions[user].expiry` rather than local state — so the existing
-subscriber base cannot be retroactively claimed by whoever gets them to click a link. First
-touch wins and never moves. A bad referrer argument is discarded, never reverted.
+**The payer is not the subscriber, and the router must respect that.** The app pays from the
+user's Safe while the subscription belongs to their EOA — `execute-delegated` calls
+`subscribeFor(userAddress, ...)` *from* the Safe, and `MusicSubscriptionModal.tsx:191` reads
+`getSubscriptionInfo(userAddress)`. A first cut of the router forced payer == subscriber,
+which would have registered the **Safe** and made a user who had just paid appear
+unsubscribed. `subscribeWithReferralFor(subscriber, ...)` / `renewFor` keep the split;
+`subscribeWithReferral` / `renew` remain for anyone acting on their own behalf.
+
+**Anti-poaching, in two layers.** A referrer is bound on a subscriber's **first ever**
+payment, checked against V5's own `subscriptions[user].expiry` rather than local state — so
+the existing subscriber base cannot be retroactively claimed by whoever gets them to click a
+link. First touch wins and never moves, including against the relayer.
+
+Once anyone can pay for anyone, that alone is not enough: an attacker could pay a 15 WMON
+daily tier for a brand-new user while naming themselves referrer, then collect 90 WMON per
+yearly renewal for twelve months. Profitable. So **only the subscriber or the
+`trustedRelayer` may bind attribution** — paying for someone stays permitted, claiming credit
+for recruiting them does not. `trustedRelayer` is governance-set and zero by default.
+
+The trade accepted here: a compromised relayer key could mis-attribute *new* subscribers. It
+cannot touch existing attribution, cannot move funds, and cannot reach anything already
+accrued. If that becomes unacceptable, the upgrade is an EIP-712 signature from the
+subscriber — the same shape as `mintMasterFor`, and additive to what exists.
+
+A bad referrer argument is always discarded, never reverted.
 
 **Not enforced in the contract:** the verified-identity gate on *earning* commission. V5
 already demands a nonzero FID to subscribe at all, and neither check verifies the number is
@@ -620,7 +641,8 @@ Verified 2026-08-09 by auditing every NFT-contract call site in `app/`, `lib/`, 
 | `LicenseRegistry.setController(salesController)` | nothing can mint until this is set |
 | `SubscriptionReferrals.fund(...)` — seed the pool | commission accrues only up to what the pool backs. An unfunded module emits `ReferralSkippedUnderfunded` and pays nobody. Needed at launch because the first top-up is a month away |
 | `MusicSubscriptionV5.setTreasury(subscriptionReferrals)` | `onlyOwner`. **Optional** — it makes the pool refill itself from the monthly platform fee. Payouts do not depend on it, so skipping it only means funding stays manual. Platform revenue then accumulates in the module and is recovered with `withdrawUnreserved` |
-| route the subscribe UI through `subscribeWithReferral` | direct `subscribe` calls still work and still pay the platform fee — they simply earn no referral. Renewals must route too, or accrual silently stops after the first period |
+| `SubscriptionReferrals.setTrustedRelayer(<the address that submits the Safe batch>)` | without it, **no referral is ever recorded** on the relayed path — the app pays from the Safe, not the subscriber, and only the subscriber or this address may record who referred whom |
+| route the subscribe UI through `subscribeWithReferralFor` | direct `subscribe` calls still work and still pay the platform fee — they simply earn no referral. Renewals must route through `renewFor` too, or accrual silently stops after the first period |
 | keep sending a nonzero `artistFid` on every mint | `mintMaster` now reverts `FidRequired()` on `0` |
 
 **The `masterTokens` and `licenses` struct changes are the real cutover risk.** Both are

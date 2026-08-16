@@ -118,6 +118,11 @@ contract SubscriptionReferrals is ReentrancyGuard {
 
     uint64 public referralWindow = 365 days;
 
+    /// @dev May bind attribution on a subscriber's behalf, because the app relays every
+    ///      subscription through the user's Safe rather than their own address. Zero by
+    ///      default: until governance sets it, only self-binding works.
+    address public trustedRelayer;
+
     /// @dev Write-once, on the subscriber's first ever payment. Attribution never moves.
     mapping(address => address) public referrerOf;
 
@@ -143,6 +148,7 @@ contract SubscriptionReferrals is ReentrancyGuard {
     event ReferralClaimed(address indexed referrer, uint256 amount);
     event PoolFunded(address indexed from, uint256 amount, uint256 poolBalance);
     event PoolWithdrawn(address indexed to, uint256 amount, uint256 poolBalance);
+    event TrustedRelayerSet(address indexed relayer);
     event ParameterSet(bytes32 indexed key, uint256 value);
     event GovernanceTransferStarted(address indexed from, address indexed to);
     event GovernanceTransferred(address indexed from, address indexed to);
@@ -189,20 +195,42 @@ contract SubscriptionReferrals is ReentrancyGuard {
     // ------------------------------------------------------------- subscribing
 
     /**
-     * @notice Subscribe through the referral router. Pays the full tier price to V5 and
-     *         records what the referrer is owed.
+     * @notice Subscribe for yourself through the referral router.
      * @param tier     V5 tier. Price is read from V5, never passed in.
      * @param userFid  Farcaster id. V5 requires this to be non-zero — see {_route}.
-     * @param referrer Ignored if the caller already has a bound referrer, if it is the
-     *                 caller themselves, or if the caller has subscribed before. Pass
-     *                 `address(0)` on renewals; the stored referrer is used.
+     * @param referrer Ignored if you already have a bound referrer, if it is you, or if you
+     *                 have subscribed before. Pass `address(0)` on renewals; the stored
+     *                 referrer is used.
      */
     function subscribeWithReferral(
         IMusicSubscription.SubscriptionTier tier,
         uint256 userFid,
         address referrer
     ) external nonReentrant {
-        _route(tier, userFid, referrer);
+        _route(msg.sender, tier, userFid, referrer);
+    }
+
+    /**
+     * @notice Pay for someone else's subscription. The caller funds it; `subscriber` is who
+     *         V5 registers and who the referral attaches to.
+     * @dev This split is not a convenience — it is how the app actually works. The user's
+     *      Safe pays while the subscription belongs to their EOA
+     *      (`execute-delegated` calls `subscribeFor(userAddress, ...)` from the Safe, and
+     *      the UI reads `getSubscriptionInfo(userAddress)`). Forcing payer == subscriber
+     *      would register the Safe and make the user look unsubscribed.
+     *
+     *      Because anyone may pay for anyone, {referrer} is only *bound* when the caller is
+     *      the subscriber themselves or the {trustedRelayer} — see {_bindReferrer}. The
+     *      payment always goes through regardless.
+     */
+    function subscribeWithReferralFor(
+        address subscriber,
+        IMusicSubscription.SubscriptionTier tier,
+        uint256 userFid,
+        address referrer
+    ) external nonReentrant {
+        if (subscriber == address(0)) revert ZeroAddress();
+        _route(subscriber, tier, userFid, referrer);
     }
 
     /// @notice Renew under whoever was already bound. Equivalent to passing `address(0)`.
@@ -210,17 +238,28 @@ contract SubscriptionReferrals is ReentrancyGuard {
         external
         nonReentrant
     {
-        _route(tier, userFid, address(0));
+        _route(msg.sender, tier, userFid, address(0));
+    }
+
+    /// @notice Renew someone else's subscription, keeping their existing attribution.
+    function renewFor(
+        address subscriber,
+        IMusicSubscription.SubscriptionTier tier,
+        uint256 userFid
+    ) external nonReentrant {
+        if (subscriber == address(0)) revert ZeroAddress();
+        _route(subscriber, tier, userFid, address(0));
     }
 
     function _route(
+        address subscriber,
         IMusicSubscription.SubscriptionTier tier,
         uint256 userFid,
         address referrer
     ) private {
         uint256 price = subscription.getTierPrice(tier);
 
-        address ref = _bindReferrer(referrer);
+        address ref = _bindReferrer(subscriber, referrer);
 
         // Take the price, then verify it landed. WMON is a plain wrapper today, but a
         // rebasing or fee-on-transfer payment token would otherwise short the subscription
@@ -237,7 +276,7 @@ contract SubscriptionReferrals is ReentrancyGuard {
         // that {poolBalance} is the token balance: if V5 ever failed to pull the price, the
         // subscriber's money would sit here and read as pool funds.
         paymentToken.forceApprove(address(subscription), price);
-        subscription.subscribeFor(msg.sender, userFid, tier);
+        subscription.subscribeFor(subscriber, userFid, tier);
 
         uint256 spent = balanceBefore + received - paymentToken.balanceOf(address(this));
         if (spent != price) revert SubscriptionDidNotSettle(price, spent);
@@ -247,7 +286,7 @@ contract SubscriptionReferrals is ReentrancyGuard {
         paymentToken.forceApprove(address(subscription), 0);
 
         uint256 accrued;
-        if (ref != address(0) && referrerBps > 0 && _withinWindow(msg.sender)) {
+        if (ref != address(0) && referrerBps > 0 && _withinWindow(subscriber)) {
             uint256 platformFee = (price * subscription.TREASURY_PERCENTAGE()) / 100;
             uint256 wanted = (platformFee * referrerBps) / BPS_DENOMINATOR;
             // Measured here, after the price has left for V5, so the subscriber's own
@@ -260,39 +299,46 @@ contract SubscriptionReferrals is ReentrancyGuard {
                 accrued = wanted;
                 referralBalance[ref] += wanted;
                 totalOwed += wanted;
-                emit ReferralAccrued(ref, msg.sender, wanted);
+                emit ReferralAccrued(ref, subscriber, wanted);
             } else if (wanted > 0) {
                 // The pool cannot back this commission, so it is not promised. The
                 // subscription still succeeds — never fail a payment over attribution.
-                emit ReferralSkippedUnderfunded(ref, msg.sender, wanted, available);
+                emit ReferralSkippedUnderfunded(ref, subscriber, wanted, available);
             }
 
-            if (firstPaidAt[msg.sender] == 0) {
-                firstPaidAt[msg.sender] = uint64(block.timestamp);
+            if (firstPaidAt[subscriber] == 0) {
+                firstPaidAt[subscriber] = uint64(block.timestamp);
             }
         }
 
-        emit SubscriptionRouted(msg.sender, ref, price, accrued);
+        emit SubscriptionRouted(subscriber, ref, price, accrued);
     }
 
     /**
      * @dev First touch wins and is permanent. A bad referrer argument is discarded rather
      *      than reverted — a subscription must never fail because of an attribution detail.
+     *
+     *      Only the subscriber or the {trustedRelayer} may *bind* attribution. Without that
+     *      restriction, anyone could pay a 15 WMON daily tier for a brand-new user while
+     *      naming themselves referrer, and collect 90 WMON per yearly renewal for a year —
+     *      profitable poaching. Paying for someone remains permitted; claiming credit for
+     *      recruiting them does not.
      */
-    function _bindReferrer(address referrer) private returns (address) {
-        address existing = referrerOf[msg.sender];
+    function _bindReferrer(address subscriber, address referrer) private returns (address) {
+        address existing = referrerOf[subscriber];
         if (existing != address(0)) return existing;
 
-        if (referrer == address(0) || referrer == msg.sender) return address(0);
+        if (referrer == address(0) || referrer == subscriber) return address(0);
+        if (msg.sender != subscriber && msg.sender != trustedRelayer) return address(0);
 
         // Anti-poaching: only a subscriber's first ever payment can be attributed. Read
         // from V5 rather than local state, so people who subscribed before this contract
         // was deployed cannot be claimed retroactively.
-        (, uint256 expiry,,,,) = subscription.subscriptions(msg.sender);
+        (, uint256 expiry,,,,) = subscription.subscriptions(subscriber);
         if (expiry != 0) return address(0);
 
-        referrerOf[msg.sender] = referrer;
-        emit ReferrerBound(msg.sender, referrer);
+        referrerOf[subscriber] = referrer;
+        emit ReferrerBound(subscriber, referrer);
         return referrer;
     }
 
@@ -380,6 +426,11 @@ contract SubscriptionReferrals is ReentrancyGuard {
         if (v > MAX_REFERRAL_WINDOW) revert WindowTooLong(v, MAX_REFERRAL_WINDOW);
         referralWindow = v;
         emit ParameterSet("referralWindow", v);
+    }
+
+    function setTrustedRelayer(address v) external onlyGovernance {
+        trustedRelayer = v;
+        emit TrustedRelayerSet(v);
     }
 
     function setPlatformTreasury(address v) external onlyGovernance {
