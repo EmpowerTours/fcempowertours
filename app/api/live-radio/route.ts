@@ -593,7 +593,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, duration: seconds });
     }
 
-    if (!userAddress) {
+    // The heartbeat is exempt: it takes its listener from the session rather
+    // than the body, so it has no userAddress to supply and is authenticated
+    // by its own check below.
+    if (!userAddress && action !== "heartbeat") {
       return NextResponse.json(
         { success: false, error: "User address required" },
         { status: 400 },
