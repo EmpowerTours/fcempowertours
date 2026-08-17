@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { broadcastRadioUpdate } from "@/lib/event-manager";
 import { hasRightsClearance } from "@/lib/rights-declaration";
+import { RADIO_SESSION_HEADER, resolveRadioSession } from "@/lib/radio-session";
 import { createWalletClient, createPublicClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { activeChain } from "@/app/chains";
@@ -944,7 +945,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-
     // Report song ended (client tells server when audio actually finishes)
     if (action === "song_ended") {
       const { songId, tokenId } = body;
@@ -1001,7 +1001,31 @@ export async function POST(req: NextRequest) {
     // Heartbeat (listener tracking with rewards)
     if (action === "heartbeat") {
       const { masterTokenId } = body;
-      const userKey = userAddress.toLowerCase();
+
+      // The listener address comes from the session, NEVER from the body.
+      //
+      // A heartbeat credits listener points (the denominator the 20% WMON
+      // listener pool splits by) and adds the address to the active-listeners
+      // ZSET, which is the list the scheduler walks when it writes plays
+      // on-chain — and those plays decide how the 70% artist pool is split.
+      // Trusting a body field here let anyone claim either share for an address
+      // they do not control. See lib/radio-session.ts.
+      const sessionAddress = await resolveRadioSession(
+        req.headers.get(RADIO_SESSION_HEADER),
+      );
+
+      if (!sessionAddress) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "No valid listen session",
+            code: "SESSION_REQUIRED",
+          },
+          { status: 401 },
+        );
+      }
+
+      const userKey = sessionAddress;
       const now = Date.now();
       const today = Math.floor(now / (24 * 60 * 60 * 1000)); // Day number
 

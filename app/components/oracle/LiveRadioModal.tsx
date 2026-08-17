@@ -461,24 +461,82 @@ export function LiveRadioModal({
     }
   }, []);
 
+  // Listen session.
+  //
+  // The heartbeat no longer accepts an address from its body — it reads the
+  // listener off a server-side session instead, because that address decides
+  // who earns listener points and whose plays get written on-chain. Proving
+  // ownership once per hour keeps that safe without a wallet prompt every 30s.
+  const radioSessionRef = useRef<string | null>(null);
+
+  const ensureRadioSession = useCallback(
+    async (forceNew = false): Promise<string | null> => {
+      if (!walletAddress) return null;
+      if (!forceNew && radioSessionRef.current) return radioSessionRef.current;
+
+      try {
+        const response = await fetch("/api/live-radio/session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await authHeaders()),
+          },
+          body: JSON.stringify({ userAddress: walletAddress }),
+        });
+
+        const data = await response.json();
+        if (!data?.success || !data.token) {
+          console.warn(
+            "[LiveRadio] Listen session refused:",
+            data?.error || response.status,
+          );
+          radioSessionRef.current = null;
+          return null;
+        }
+
+        radioSessionRef.current = data.token as string;
+        return radioSessionRef.current;
+      } catch (error) {
+        console.error("[LiveRadio] Listen session failed:", error);
+        radioSessionRef.current = null;
+        return null;
+      }
+    },
+    [walletAddress],
+  );
+
   // Send heartbeat
   const sendHeartbeat = useCallback(async () => {
     if (!walletAddress || !isPlaying || !radioState?.currentSong) return;
 
-    try {
-      const response = await fetch("/api/live-radio", {
+    const post = async (token: string) =>
+      fetch("/api/live-radio", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-radio-session": token,
           ...(await authHeaders()),
         },
         body: JSON.stringify({
           action: "heartbeat",
-          userAddress: walletAddress,
           userFid: user?.fid,
-          masterTokenId: radioState.currentSong.tokenId,
+          masterTokenId: radioState.currentSong!.tokenId,
         }),
       });
+
+    try {
+      let token = await ensureRadioSession();
+      if (!token) return;
+
+      let response = await post(token);
+
+      // The session expired mid-listen. Mint a fresh one and retry once — an
+      // hour-long sitting would otherwise silently stop earning.
+      if (response.status === 401) {
+        token = await ensureRadioSession(true);
+        if (!token) return;
+        response = await post(token);
+      }
 
       // Update stats from heartbeat response
       const data = await response.json();
@@ -489,7 +547,13 @@ export function LiveRadioModal({
     } catch (error) {
       console.error("[LiveRadio] Heartbeat failed:", error);
     }
-  }, [walletAddress, user?.fid, isPlaying, radioState?.currentSong]);
+  }, [
+    walletAddress,
+    user?.fid,
+    isPlaying,
+    radioState?.currentSong,
+    ensureRadioSession,
+  ]);
 
   // Initial fetch for data not covered by SSE (listener stats, leaderboard, recent plays, pricing)
   useEffect(() => {
