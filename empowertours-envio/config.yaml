@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad Mainnet - Music, Passports & Itineraries
-networks:
+chains:
   - id: 143  # Monad Mainnet
     start_block: 1  # Start from beginning of mainnet
     hypersync_config:

@@ -1,5 +1,5 @@
 import assert from "assert";
-import pkg from "generated";
+import pkg from "envio";
 const { TestHelpers } = pkg;
 const { MockDb, EmpowerToursNFT, Addresses } = TestHelpers;
 
