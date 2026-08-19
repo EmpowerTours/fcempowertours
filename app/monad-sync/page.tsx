@@ -87,8 +87,7 @@ const PRICES = {
   revealMonadMirrorNFT: 10,
   dailyPerceptionSpin: 2,
   harmonySyncWithSomeone: 3,
-  ascendClarityBoost7d: 25,
-  enterDivinePairsLottery: 50
+  ascendClarityBoost7d: 25
 };
 
 interface MonadTier {

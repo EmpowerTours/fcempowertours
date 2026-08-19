@@ -37,9 +37,6 @@ interface OracleAction {
     | "withdraw"
     | "create_epk"
     | "manage_epk"
-    | "lottery_buy"
-    | "lottery_draw"
-    | "lottery_status"
     | "unknown";
   destination?: string; // Page to navigate to
   game?: "TETRIS" | "TICTACTOE" | "MIRROR";
@@ -54,9 +51,6 @@ interface OracleAction {
   passport?: {
     countryCode: string;
     countryName: string;
-  };
-  lottery?: {
-    ticketCount?: number;
   };
   itinerary?: {
     title?: string;
@@ -356,9 +350,6 @@ Actions:
 - type:"withdraw" + withdraw.token:"mon"|"wmon"|"tours" + withdraw.amount:"<number>" - Withdraw tokens from User Safe to Farcaster wallet
 - type:"create_epk" - Create an Electronic Press Kit (EPK). Triggers when user says "create my epk", "make a press kit", "build my press kit"
 - type:"manage_epk" + epk.action:"view"|"list_bookings" - View EPK or list booking inquiries. "show my epk", "my booking inquiries", "show my bookings"
-- type:"lottery_buy" + lottery.ticketCount:<number> - Buy daily lottery tickets (2 WMON each). "buy 5 lottery tickets", "enter the lottery"
-- type:"lottery_draw" - Trigger the lottery draw (earns 5-50 TOURS). "trigger lottery", "draw the lottery"
-- type:"lottery_status" - Check current lottery round status. "lottery status", "check lottery", "how much is in the jackpot"
 - type:"chat" - Conversational response
 
 For "Buy MUSIC NFT #X" requests:
@@ -393,9 +384,6 @@ Return valid JSON only.`;
               "withdraw",
               "create_epk",
               "manage_epk",
-              "lottery_buy",
-              "lottery_draw",
-              "lottery_status",
             ],
             description: "The type of action to perform",
           },
@@ -502,16 +490,6 @@ Return valid JSON only.`;
             description:
               "EPK action details if type is create_epk or manage_epk",
           },
-          lottery: {
-            type: Type.OBJECT,
-            properties: {
-              ticketCount: {
-                type: Type.NUMBER,
-                description: "Number of lottery tickets to buy (default 1)",
-              },
-            },
-            description: "Lottery details if type is lottery_buy",
-          },
           message: {
             type: Type.STRING,
             description: "Response message to user",
@@ -529,7 +507,6 @@ Return valid JSON only.`;
           "admin",
           "withdraw",
           "epk",
-          "lottery",
         ],
       },
     };
@@ -928,33 +905,6 @@ Return valid JSON only.`;
       }
     }
 
-    // Handle lottery actions
-    if (action.type === "lottery_status") {
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-        const lotteryRes = await fetch(`${baseUrl}/api/lottery`);
-        const lotteryData = await lotteryRes.json();
-        if (lotteryData.success) {
-          const r = lotteryData.currentRound;
-          const timeLeft =
-            r.timeRemaining > 0
-              ? `${Math.floor(r.timeRemaining / 3600)}h ${Math.floor((r.timeRemaining % 3600) / 60)}m`
-              : "Round ended - ready for draw!";
-          action.message = `🎰 **Daily Lottery - Round #${r.roundId}**\n\n💰 Prize Pool: ${r.prizePool} WMON\n🎟️ Tickets Sold: ${r.ticketCount}\n⏱️ Time Remaining: ${timeLeft}\n🏆 Potential Win: ${r.potentialWinnerPrize} WMON (90%)\n\nTicket Price: ${lotteryData.config.ticketPrice} WMON\nMin Entries: ${lotteryData.config.minEntries}${r.willRollover ? "\n\n⚠️ Not enough entries yet - will rollover if not met" : ""}${r.canDraw ? '\n\n✅ Ready to draw! Say "trigger lottery" to draw and earn 5-50 TOURS' : ""}`;
-        } else {
-          action.message = "Could not fetch lottery status. Try again later.";
-        }
-      } catch {
-        action.message = "Could not fetch lottery status. Try again later.";
-      }
-    } else if (action.type === "lottery_buy" && userAddress) {
-      const ticketCount = action.lottery?.ticketCount || 1;
-      action.message = `🎟️ Buying ${ticketCount} lottery ticket${ticketCount > 1 ? "s" : ""} for ${ticketCount * 2} WMON...\n\nEach ticket gives you a chance to win 90% of the prize pool + 10-100 TOURS bonus!`;
-    } else if (action.type === "lottery_draw") {
-      action.message = `🎲 Triggering the lottery draw...\n\nYou'll earn 5-50 TOURS as a reward for triggering the draw! The winner will be selected using Pyth Entropy (provably fair randomness).`;
-    }
-
-    // Handle create_itinerary action from Gemini
     if (action.type === "create_itinerary" && userAddress && userFid) {
       // Oracle detected user wants to create an itinerary
       // Guide them through the conversational flow
@@ -1277,7 +1227,6 @@ function detectMapsQuery(message: string): boolean {
     "mirrormate",
     "swap",
     "stake",
-    "lottery",
     "passport",
     "beat match",
   ];

@@ -592,8 +592,8 @@ export async function sendSafeTransaction(
       console.log('🔧 Using fixed gas values for approve + spend pattern (skipping estimation)');
       console.log('   Bundler gas estimation will fail for this pattern, but execution will succeed');
 
-      // These values are increased to handle complex operations like lottery entry
-      // which requires wrap MON + approve WMON + enter lottery in one UserOp
+      // These values are increased to handle complex multi-call operations
+      // such as wrap MON + approve WMON + contract call in one UserOp
       // Base values get 150% buffer applied later (line 714)
       estimatedGas = {
         callGasLimit: 1_500_000n,        // 1.5M base → 2.25M with buffer
