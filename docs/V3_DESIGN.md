@@ -508,15 +508,36 @@ impersonation impossible. The app change is to have the artist sign the mint pay
 
 ### Identity — Farcaster stays required
 
-**Decided 2026-08-13: V3 keeps the Farcaster requirement. `artistFid` must be nonzero.**
+**Superseded 2026-08-18: `artistFid` is now OPTIONAL. The artist address is the identity.**
+
+The 2026-08-13 decision below kept the requirement. It was reversed after the integration matrix
+established two things the original reasoning got wrong — see `INTEGRATION_MATRIX.md` and
+`DEPLOYMENT_PLAN.md` "Identity".
 
 An earlier draft of this section argued the opposite — make the FID optional so wallet-only
 users could publish. That is reversed. The reasoning below is kept because the *facts* in it
 are still true and still constrain what a later wallet-native path would cost.
 
 ```solidity
-if (artistFid == 0) revert FidRequired();   // LicenseRegistry.mintMaster
+// removed — artistFid == 0 now means "no Farcaster account"
 ```
+
+**Correction 1 — the reward paths are NOT FID-keyed.** The table below claims `PlayOracleV3` and
+the reward paths key on FID "for play attribution and payouts". They do not. Every artist-side
+value path is keyed by **address**: `recordPlay` resolves the artist from the master
+(`MusicSubscriptionV5:409`), then writes `artistMonthlyPlays[monthId][artist]` and
+`artistLifetimePlays[artist]`; `claimArtistPayout` uses `msg.sender`. The FID in `recordPlay`
+gates the *listener's* subscription, not the artist's identity. A wallet-only artist could always
+have been paid.
+
+**Correction 2 — V6 is far smaller than described.** The scope below says "a V6 subscription
+contract plus new reward paths". The reward paths need no changes at all, because they are already
+address-keyed. V6 is V5 with `require(userFid > 0)` removed, the master read pointed at v3's
+`getMaster()`, and one line guarding the `fidToAddress` write. See task #3.
+
+**What the original reasoning got right:** half-open is worse than closed. That still holds — which
+is why wallet-only parity is being delivered as one deployment (v3 + V6 + Passport + ProfileRegistry)
+rather than a flag on the registry.
 
 **Why the reversal.** Going wallet-only is not one contract change, it is a platform-wide
 one, and the deployed contracts do not cooperate:
@@ -524,7 +545,7 @@ one, and the deployed contracts do not cooperate:
 | contract | blocker | fixable in V3? |
 |---|---|---|
 | `MusicSubscriptionV5` | `subscribe`/`subscribeFor` both `require(userFid > 0)` | **no** — deployed and immutable. A wallet-only user cannot subscribe at all |
-| `PlayOracleV3`, reward paths | keyed on FID for play attribution and payouts | no |
+| ~~`PlayOracleV3`, reward paths~~ | **WRONG — see Correction 1.** These are address-keyed | n/a |
 | 5+ deployed contracts | `require(fid > 0)` per `project_fcempowertours_wallet_only` | no |
 
 So V3 could have accepted a wallet-only *artist* who then could not subscribe, could not be
@@ -539,9 +560,10 @@ one. Real verification happens in the app against Neynar. What the contract guar
 narrower but still worth having: no master can exist without a FID, so the catalogue stays
 uniformly addressable by Farcaster identity and no code downstream has to handle a null case.
 
-**If wallet-only ever becomes the goal**, the honest scope is a V6 subscription contract plus
-new reward paths — not a V3 flag. Do not start it until a real artist is turned away; the
-current bottleneck is demand, not artist supply.
+**Wallet-only is now the goal.** The trigger condition written here — "do not start it until a real
+artist is turned away" — was a lagging indicator: it can only fire after outreach has already been
+spent, and it cannot fire cleanly against a check the contract never enforced. `artistFid` was an
+unverified `uint256`; anyone could pass `1`.
 
 **A cheap upgrade path exists if the nominal check ever needs teeth**: have a
 platform-controlled attestor sign `(artist, fid)` and verify that signature at mint. It makes
@@ -627,11 +649,11 @@ Verified 2026-08-09 by auditing every NFT-contract call site in `app/`, `lib/`, 
 
 | call site | change required |
 |---|---|
-| `execute-delegated/route.ts:855`, `mint-music/route.ts:263` — `mintMaster` | switch to `mintMasterFor`: have the artist sign the mint payload (EIP-712, full struct + nonce + deadline) before relaying. Also gains `referrer`. `artistFid` stays required — `mintMaster` reverts `FidRequired()` on `0` |
+| `execute-delegated/route.ts:855`, `mint-music/route.ts:263` — `mintMaster` | switch to `mintMasterFor`: have the artist sign the mint payload (EIP-712, full struct + nonce + deadline) before relaying. Also gains `referrer`. `artistFid` is now **optional** — pass `0` for an artist with no Farcaster account |
 | `app/api/execute-delegated/route.ts` — `purchaseLicenseFor` | unchanged signature, but re-verify the exact-price approval against V3 pricing |
 | `executeSaleFor` call site | gains caller authorisation and buyer consent; the delegated path must supply a signature or route through `platformOperator` |
 | `burnNFT` / `burnNFTFor` / `burnNFTForDelegated` | signatures unchanged; reward return value becomes 0 once burn rewards are cut |
-| `masterTokens(...)` reads | struct gains `referrer`, `royaltyShareBps`, `royaltyShareSink` — field indices shift, so every positional decode must be updated |
+| `masterTokens(...)` reads — **3 sites** | **MANDATORY, and it now fails quietly.** `LicenseRegistry` carries a V2-shaped `masterTokens` compat view for LiveRadioV3 (see `INTEGRATION_MATRIX.md` BREAK 3), so these decodes will *succeed* after cutover and return `0` for `price`, `collectorPrice`, `totalSold`, `activeLicenses`, `nftType` and `royaltyPercentage` — pricing lives in `SalesController` now, not the registry. Migrate all three to `getMaster()` plus the controller's pricing: `execute-delegated/route.ts:1630` (buy flow — approves the exact price, so a `0` read reverts the purchase), `music/list-for-sale/route.ts:45` and `nft/collector-info/route.ts:12` (both display, so a `0` read shows a wrong price to users) |
 | `licenses(...)` reads | struct changes: `expiry` → `mintedAt`, `active` removed, `licensee` removed |
 
 **Deploy-time prerequisites, not app changes:**
@@ -643,7 +665,7 @@ Verified 2026-08-09 by auditing every NFT-contract call site in `app/`, `lib/`, 
 | `MusicSubscriptionV5.setTreasury(subscriptionReferrals)` | `onlyOwner`. **Optional** — it makes the pool refill itself from the monthly platform fee. Payouts do not depend on it, so skipping it only means funding stays manual. Platform revenue then accumulates in the module and is recovered with `withdrawUnreserved` |
 | `SubscriptionReferrals.setTrustedRelayer(<the address that submits the Safe batch>)` | without it, **no referral is ever recorded** on the relayed path — the app pays from the Safe, not the subscriber, and only the subscriber or this address may record who referred whom |
 | route the subscribe UI through `subscribeWithReferralFor` | direct `subscribe` calls still work and still pay the platform fee — they simply earn no referral. Renewals must route through `renewFor` too, or accrual silently stops after the first period |
-| keep sending a nonzero `artistFid` on every mint | `mintMaster` now reverts `FidRequired()` on `0` |
+| stop requiring a Farcaster context before mint | `artistFid` is optional; pass `0` rather than a placeholder. **Never pass `1`** — a shared FID collides in every index keyed by it (see `DEPLOYMENT_PLAN.md` "Identity") |
 
 **The `masterTokens` and `licenses` struct changes are the real cutover risk.** Both are
 decoded positionally in app code (`masterTokens` has 3 call sites, `licenses` has 1). Field

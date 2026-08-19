@@ -18,8 +18,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *   - Collector supply caps are absolute. Scarcity is a promise buyers paid for.
  *   - Only the controller mints. Only an owner or an approved operator burns — the
  *     controller's implicit operator status covers licence *transfers* only, never burns.
- *   - Ownership is the single source of truth for who holds a licence. There is no
- *     secondary index to fall out of sync (this is what broke `hasValidLicense` in V2).
+ *   - Ownership is the single source of truth for who holds a licence. The one derived
+ *     index — {licensesHeld} — is maintained inside the transfer hook, so it cannot fall
+ *     out of sync the way V2's append-only `userLicenses` array did.
  *
  * Deliberately absent versus V2:
  *   - No `expiry` / `active` on a licence. Licences are perpetual; access policy lives in
@@ -34,7 +35,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
 
     struct Master {
         address artist;
-        uint256 artistFid; // required, nonzero. See docs/V3_DESIGN.md "Identity"
+        uint256 artistFid; // optional; 0 = no Farcaster account. See docs/DEPLOYMENT_PLAN.md
         uint64 createdAt;
         uint32 maxCollectorEditions; // 0 = no collector tier for this master
         uint32 collectorsMinted;
@@ -64,6 +65,56 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
 
     mapping(uint256 => Master) private _masters;
     mapping(uint256 => License) private _licenses;
+
+    /**
+     * @dev How many licences `owner` holds for a given master. Maintained in {_update}, so it
+     *      is correct across mint, transfer and burn by construction.
+     *
+     *      This is deliberately a count, not the `userLicenses` array V2 kept. That array was
+     *      append-only and never touched on transfer, which is the direct cause of V2's H1:
+     *      after a resale the seller still passed the licence check and the buyer still failed.
+     *      A counter updated in the transfer hook cannot drift the same way, and answers in
+     *      O(1) rather than scanning — so it also avoids V2's M3 unbounded loop.
+     */
+    mapping(address => mapping(uint256 => uint32)) private _licensesHeld;
+
+    /**
+     * @dev Masters withdrawn from circulation — infringement, impersonation, abuse.
+     *
+     *      Suspension is deliberately NOT a burn and NOT a seizure. It stops the master being
+     *      sold and stops it being played; it does not touch a licence anyone already bought.
+     *      A listener who paid for a copy did nothing wrong because the artist was later
+     *      banned, so {hasValidLicense} keeps answering true for them.
+     *
+     *      It is also reversible, which a burn is not. Takedowns are made on incomplete
+     *      information and get reversed; the destructive version cannot be.
+     */
+    mapping(uint256 => bool) public masterSuspended;
+    mapping(uint256 => string) public masterSuspensionReason;
+
+    /**
+     * @dev Permanently removed — hate speech, harassment, and material that must never come
+     *      back. One-way by construction: no function in this contract clears it.
+     *
+     *      Two-stage on purpose. A moderator {setMasterSuspended} takes the content dark in
+     *      seconds; {purgeMaster} makes that permanent, and only governance can do it. The
+     *      slower bar on the irreversible step costs nothing, because the reversible step has
+     *      already stopped the harm.
+     *
+     *      What a purge can actually achieve on-chain is honest but bounded: the file itself
+     *      lives on IPFS and no contract can erase it. What this DOES do is stop the registry
+     *      pointing at it — {tokenURI} returns empty for a purged master and for every licence
+     *      of one. Unpinning from IPFS is a separate, off-chain step and is still required.
+     */
+    mapping(uint256 => bool) public masterPurged;
+    mapping(uint256 => string) public masterPurgeReason;
+
+    /**
+     * @dev Fast-acting moderation key. Abuse response cannot wait on a 48-hour timelock, so
+     *      this role exists to act immediately — but ONLY on reversible things. Everything
+     *      irreversible stays with {governance}. Set to address(0) to disable.
+     */
+    address public moderator;
 
     /// @notice Only address permitted to mint. Expected to be the SalesController module.
     address public controller;
@@ -99,6 +150,9 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     event TokenBurned(uint256 indexed tokenId, address indexed owner);
     event RoyaltyShareSet(uint256 indexed masterTokenId, uint96 bps, address sink);
     event ControllerSet(address indexed controller);
+    event ModeratorSet(address indexed moderator);
+    event MasterSuspensionSet(uint256 indexed masterTokenId, bool suspended, string reason);
+    event MasterPurged(uint256 indexed masterTokenId, address indexed artist, string reason);
     event GovernanceTransferStarted(address indexed from, address indexed to);
     event GovernanceTransferred(address indexed from, address indexed to);
 
@@ -108,7 +162,6 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     error NotGovernance();
     error NotOwnerNorApproved();
     error ZeroAddress();
-    error FidRequired();
     error MasterNotFound(uint256 masterTokenId);
     error CollectorTierUnavailable(uint256 masterTokenId);
     error CollectorEditionsSoldOut(uint256 masterTokenId);
@@ -118,6 +171,9 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     error MastersAreSoulbound();
     error GovernanceCannotBeRenounced();
     error NotPendingGovernance();
+    error NotModerator();
+    error MasterIsSuspended(uint256 masterTokenId);
+    error MasterIsPurged(uint256 masterTokenId);
 
     // -------------------------------------------------------------- modifiers
 
@@ -128,6 +184,12 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
 
     modifier onlyGovernance() {
         if (msg.sender != governance) revert NotGovernance();
+        _;
+    }
+
+    /// @dev Governance can always moderate; the moderator key is an additional fast path.
+    modifier onlyModerator() {
+        if (msg.sender != moderator && msg.sender != governance) revert NotModerator();
         _;
     }
 
@@ -145,6 +207,76 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         if (newController == address(0)) revert ZeroAddress();
         controller = newController;
         emit ControllerSet(newController);
+    }
+
+    // ----------------------------------------------------------- moderation
+
+    /// @notice Appoint (or, with address(0), remove) the fast-acting moderation key.
+    function setModerator(address newModerator) external onlyGovernance {
+        moderator = newModerator;
+        emit ModeratorSet(newModerator);
+    }
+
+    /**
+     * @notice Withdraw a master from circulation, or restore it.
+     * @dev Suspension stops new licences being minted and makes {masterTokens} report the
+     *      master inactive, which is what stops LiveRadioV3 queueing it. It deliberately does
+     *      NOT:
+     *        - burn anything. Takedowns get reversed; burns cannot be.
+     *        - affect existing licence holders. {hasValidLicense} still answers true for a
+     *          buyer who already paid. Their copy is their property, not leverage over the
+     *          artist.
+     *        - touch payouts. Money already earned is settled in the subscription contract,
+     *          and is not reachable from here by design.
+     *
+     *      `reason` is recorded on-chain so a takedown always carries a stated cause.
+     */
+    function setMasterSuspended(uint256 masterTokenId, bool suspended, string calldata reason)
+        external
+        onlyModerator
+    {
+        if (_masters[masterTokenId].artist == address(0)) revert MasterNotFound(masterTokenId);
+        // A purge is final. Nothing, including governance, restores a purged master.
+        if (masterPurged[masterTokenId]) revert MasterIsPurged(masterTokenId);
+        masterSuspended[masterTokenId] = suspended;
+        if (suspended) {
+            masterSuspensionReason[masterTokenId] = reason;
+        } else {
+            delete masterSuspensionReason[masterTokenId];
+        }
+        emit MasterSuspensionSet(masterTokenId, suspended, reason);
+    }
+
+    /**
+     * @notice Permanently remove a master. Governance only, and there is no way back.
+     * @dev For material that must never be restored — hate speech, harassment, content that
+     *      is illegal to host. Ordinary infringement is {setMasterSuspended}, which is
+     *      reversible; reach for this only when restoration would itself be the harm.
+     *
+     *      Deliberately governance-gated rather than moderator-gated. When {governance}
+     *      becomes the Timelock, this inherits its delay automatically — and that delay costs
+     *      nothing, because a moderator can already have suspended the master in seconds.
+     *      Suspend first, purge second.
+     *
+     *      Irreversible by construction: no function clears {masterPurged}. That is the point.
+     *      A restore path is a path an attacker with the governance key can walk.
+     *
+     *      It does NOT burn, and it does NOT seize licences. Holders keep their tokens for the
+     *      same reason as under suspension — property is not leverage. What they lose is the
+     *      content pointer: {tokenURI} returns empty for the master and for every licence of
+     *      it, so the registry stops serving the material. Unpin from IPFS separately.
+     */
+    function purgeMaster(uint256 masterTokenId, string calldata reason) external onlyGovernance {
+        address artist = _masters[masterTokenId].artist;
+        if (artist == address(0)) revert MasterNotFound(masterTokenId);
+        if (masterPurged[masterTokenId]) revert MasterIsPurged(masterTokenId);
+
+        masterPurged[masterTokenId] = true;
+        masterPurgeReason[masterTokenId] = reason;
+        masterSuspended[masterTokenId] = true;
+        masterSuspensionReason[masterTokenId] = reason;
+
+        emit MasterPurged(masterTokenId, artist, reason);
     }
 
     /**
@@ -190,7 +322,11 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         uint8 nftType
     ) external onlyController nonReentrant returns (uint256 masterTokenId) {
         if (artist == address(0)) revert ZeroAddress();
-        if (artistFid == 0) revert FidRequired();
+        // artistFid is optional: 0 means "no Farcaster account". The artist address is the
+        // identity — masters, plays and payouts are all keyed by it — and the FID is only a
+        // secondary index for Farcaster lookups. Requiring it would have limited the artist
+        // roster to musicians who happen to be on Farcaster, which is the binding constraint
+        // on this product. See docs/DEPLOYMENT_PLAN.md "Identity".
         if (maxCollectorEditions > MAX_COLLECTOR_EDITIONS) {
             revert InvalidEditionCount(maxCollectorEditions, MAX_COLLECTOR_EDITIONS);
         }
@@ -238,6 +374,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     ) external onlyController nonReentrant returns (uint256 licenseId) {
         Master storage master = _masters[masterTokenId];
         if (master.artist == address(0)) revert MasterNotFound(masterTokenId);
+        if (masterSuspended[masterTokenId]) revert MasterIsSuspended(masterTokenId);
         if (to == address(0)) revert ZeroAddress();
         if (royaltyBps > HARD_MAX_ROYALTY_BPS) {
             revert RoyaltyTooHigh(royaltyBps, HARD_MAX_ROYALTY_BPS);
@@ -315,14 +452,21 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         // An explicitly approved controller still passes, because that is the owner's call.
         if (!super._isAuthorized(owner, msg.sender, tokenId)) revert NotOwnerNorApproved();
 
+        _resetTokenRoyalty(tokenId);
+
+        // Burn before clearing the record. {_update} reads `_licenses[tokenId].masterTokenId`
+        // to decrement the holder's licence count, so the record must still be readable when
+        // the hook runs — deleting first would decrement master 0 and leave the real count
+        // standing, keeping {hasValidLicense} true for a licence that no longer exists.
+        // Safe to defer: ERC-721 burns invoke no receiver callback, and this is nonReentrant.
+        _burn(tokenId);
+
         if (isLicense(tokenId)) {
             delete _licenses[tokenId];
         } else {
             delete _masters[tokenId];
         }
 
-        _resetTokenRoyalty(tokenId);
-        _burn(tokenId);
         emit TokenBurned(tokenId, owner);
     }
 
@@ -352,6 +496,86 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         return _licenseCounter - LICENSE_ID_OFFSET;
     }
 
+    /// @notice How many licences `owner` holds for `masterTokenId`.
+    function licensesHeld(address owner, uint256 masterTokenId) external view returns (uint32) {
+        return _licensesHeld[owner][masterTokenId];
+    }
+
+    // ------------------------------------------------------- LiveRadioV3 compatibility
+    //
+    // LiveRadioV3 (0x042EDF80713e6822a891e4e8a0800c332B8200fd) is live, working, and calls the
+    // NFT contract through its own `IEmpowerToursNFT` interface. It is repointed at this
+    // registry at cutover via `setNFTContract` (onlyOwner). Without the two functions below it
+    // would revert on every queue request — see docs/INTEGRATION_MATRIX.md, BREAK 3.
+    //
+    // These exist solely to keep a deployed contract working. Nothing new should call them:
+    // use {licensesHeld} and {getMaster} instead.
+
+    /**
+     * @notice Does `user` hold a licence for `masterTokenId`?
+     * @dev Consumed by LiveRadioV3 to decide whether a queue request is free or costs
+     *      QUEUE_PRICE_NO_LICENSE. Correct across resales, unlike V2's equivalent (H1).
+     */
+    function hasValidLicense(address user, uint256 masterTokenId) external view returns (bool) {
+        return _licensesHeld[user][masterTokenId] > 0;
+    }
+
+    /**
+     * @notice V2-shaped view of a master, for LiveRadioV3 only.
+     * @dev The tuple's arity, order and types must match V2's `masterTokens` exactly or the
+     *      caller's abi.decode reverts. LiveRadioV3 reads only `originalArtist` and `active`
+     *      (it destructures `artistFid` but never uses it).
+     *
+     *      Fields v3 does not hold are returned zero/empty, NOT reconstructed:
+     *        - price, collectorPrice ...... pricing lives in SalesController, not the registry
+     *        - collectorTokenURI .......... v3 keeps one URI per token
+     *        - totalSold, activeLicenses .. never tracked here
+     *        - nftType .................... v3 does not classify masters
+     *        - royaltyPercentage .......... per-token, held by ERC2981; read royaltyInfo instead
+     *
+     *      Do not add a consumer that depends on a zeroed field.
+     */
+    function masterTokens(uint256 masterTokenId)
+        external
+        view
+        returns (
+            uint256 artistFid,
+            address originalArtist,
+            string memory uri,
+            string memory collectorUri,
+            uint256 price,
+            uint256 collectorPrice,
+            uint256 totalSold,
+            uint256 activeLicenses,
+            uint256 maxCollectorEditions,
+            uint256 collectorsMinted,
+            bool active,
+            uint8 nftType,
+            uint96 royaltyPercentage
+        )
+    {
+        Master storage m = _masters[masterTokenId];
+        // A suspended master reports inactive, which is what stops LiveRadioV3 queueing it
+        // (`require(active, "Song not active")`). Existing licence holders are unaffected —
+        // see {hasValidLicense}.
+        active = m.artist != address(0) && !masterSuspended[masterTokenId];
+        return (
+            m.artistFid,
+            m.artist,
+            active ? tokenURI(masterTokenId) : "",
+            "",
+            0,
+            0,
+            0,
+            0,
+            m.maxCollectorEditions,
+            m.collectorsMinted,
+            active,
+            0,
+            0
+        );
+    }
+
     // --------------------------------------------------------------- overrides
 
     /**
@@ -368,7 +592,27 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         if (!isLicense(tokenId) && from != address(0) && to != address(0)) {
             revert MastersAreSoulbound();
         }
-        return super._update(to, tokenId, auth);
+
+        address previousOwner = super._update(to, tokenId, auth);
+
+        // Keep the per-master licence count in step with ownership. Safe on mint because
+        // {mintLicense} writes `_licenses[licenseId]` before `_safeMint`, so the master id is
+        // already readable here.
+        if (isLicense(tokenId)) {
+            uint256 masterTokenId = _licenses[tokenId].masterTokenId;
+            if (from != address(0)) {
+                unchecked {
+                    _licensesHeld[from][masterTokenId] -= 1;
+                }
+            }
+            if (to != address(0)) {
+                unchecked {
+                    _licensesHeld[to][masterTokenId] += 1;
+                }
+            }
+        }
+
+        return previousOwner;
     }
 
     /**
@@ -398,6 +642,28 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
             return true;
         }
         return super._isAuthorized(owner, spender, tokenId);
+    }
+
+    /**
+     * @dev A purged master serves no content pointer, and neither does any licence of it.
+     *      Covering licences here rather than clearing each one avoids enumerating an
+     *      unbounded set — the check is O(1) and cannot miss a token.
+     *
+     *      This does not erase the file. IPFS is content-addressed and no contract reaches
+     *      it; what this removes is the registry's reference to it. Unpinning is off-chain.
+     */
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721URIStorage)
+        returns (string memory)
+    {
+        uint256 masterTokenId = isLicense(tokenId) ? _licenses[tokenId].masterTokenId : tokenId;
+        if (masterPurged[masterTokenId]) {
+            _requireOwned(tokenId);
+            return "";
+        }
+        return super.tokenURI(tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId)
