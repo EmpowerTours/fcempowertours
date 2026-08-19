@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../MusicSubscriptionV5.sol";
+import "../MusicSubscriptionV6.sol";
 import "../v3/SubscriptionReferrals.sol";
 
 contract MockWMON is ERC20 {
@@ -14,8 +14,13 @@ contract MockWMON is ERC20 {
     }
 }
 
-/// @dev Only what `recordPlay` touches, so the real monthly distribution can be driven.
-contract MockNFT {
+/**
+ * @dev Only what `recordPlay` touches, so the real monthly distribution can be driven. This is
+ *      a stand-in for the v3 `LicenseRegistry`; V6 reads masters through `getMaster`, so that
+ *      is what this implements. `MusicSubscriptionV6.t.sol` exercises the real registry — the
+ *      job here is to keep the referral tests focused on referrals.
+ */
+contract MockRegistry {
     address public artist;
 
     constructor(address artist_) {
@@ -23,33 +28,16 @@ contract MockNFT {
     }
 
     function getMasterType(uint256) external pure returns (uint8) {
-        return 0; // NFTType.MUSIC
+        return 0; // MUSIC
     }
 
     function artistMasterCount(address) external pure returns (uint256) {
         return 10;
     }
 
-    function masterTokens(uint256)
-        external
-        view
-        returns (
-            uint256,
-            address,
-            string memory,
-            string memory,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            bool,
-            uint8,
-            uint96
-        )
-    {
-        return (1, artist, "", "", 0, 0, 0, 0, 0, 0, true, 0, 0);
+    function getMaster(uint256) external view returns (IMusicRegistry.Master memory m) {
+        m.artist = artist;
+        m.artistFid = 1;
     }
 }
 
@@ -62,9 +50,9 @@ contract HostileReferrer {
 
 contract SubscriptionReferralsTest is Test {
     MockWMON wmon;
-    MusicSubscriptionV5 subs;
+    MusicSubscriptionV6 subs;
     SubscriptionReferrals refs;
-    MockNFT nft;
+    MockRegistry nft;
 
     address governance = makeAddr("governance");
     address platformTreasury = makeAddr("platformTreasury");
@@ -91,9 +79,9 @@ contract SubscriptionReferralsTest is Test {
         vm.warp(START_TS);
 
         wmon = new MockWMON();
-        nft = new MockNFT(artist);
+        nft = new MockRegistry(artist);
 
-        subs = new MusicSubscriptionV5(
+        subs = new MusicSubscriptionV6(
             address(wmon),
             makeAddr("rewardManager"),
             address(nft),
@@ -105,7 +93,7 @@ contract SubscriptionReferralsTest is Test {
             IMusicSubscription(address(subs)), IERC20(address(wmon)), governance, platformTreasury
         );
 
-        // V5's platform fee tops the pool up automatically. Payouts never depend on it.
+        // The platform fee tops the pool up automatically. Payouts never depend on it.
         subs.setTreasury(address(refs));
 
         wmon.mint(address(this), 1_000_000 ether);
@@ -135,11 +123,11 @@ contract SubscriptionReferralsTest is Test {
         assertEq(refs.totalOwed(), EXPECTED_MONTHLY_ACCRUAL);
     }
 
-    function test_SubscriptionActuallyLandsInV5() public {
+    function test_SubscriptionActuallyLandsInTheSubscriptionContract() public {
         _subscribe(subscriber, referrer);
 
         assertTrue(subs.hasActiveSubscription(subscriber));
-        (, uint256 expiry,,,,) = IMusicSubscription(address(subs)).subscriptions(subscriber);
+        (, uint256 expiry,,,) = IMusicSubscription(address(subs)).subscriptions(subscriber);
         assertEq(expiry, block.timestamp + 30 days);
         // V5 receives the *full* price — the router keeps nothing from the payment. The
         // commission comes out of this contract's own pool instead.
@@ -210,7 +198,7 @@ contract SubscriptionReferralsTest is Test {
         vm.prank(subscriber);
         wmon.approve(address(subs), MONTHLY);
         vm.prank(subscriber);
-        subs.subscribe(MusicSubscriptionV5.SubscriptionTier.MONTHLY, 1234);
+        subs.subscribe(MusicSubscriptionV6.SubscriptionTier.MONTHLY, 1234);
 
         _subscribe(subscriber, referrer);
 
@@ -274,21 +262,24 @@ contract SubscriptionReferralsTest is Test {
     }
 
     /**
-     * The decoupling, stated as a test. A month that is never distributed — no plays, so
-     * `finalizeMonthlyDistribution` reverts permanently — must have no effect whatsoever on
-     * a referrer's ability to claim what they earned.
+     * The decoupling, stated as a test. A referrer's claim must not depend in any way on what
+     * happens to the artist distribution for the month they subscribed in.
+     *
+     * Against V5 this test asserted the opposite half: `finalizeMonthlyDistribution` *reverted*
+     * for a month with revenue but no plays, stranding that month's WMON permanently. V6 closes
+     * the month instead, so the assertion here flipped from "reverts" to "succeeds" — the
+     * referrer being paid either way is the part that was always the point.
      */
-    function test_ClaimWorksWhenTheMonthCanNeverBeFinalised() public {
+    function test_ClaimIsUnaffectedByWhatHappensToTheArtistDistribution() public {
         _subscribe(subscriber, referrer);
 
         uint256 monthId = START_TS / 30 days;
         vm.warp(START_TS + 31 days);
 
-        // No plays were recorded, so artist distribution is permanently stuck for it.
-        vm.expectRevert("No plays this month");
+        // No plays were recorded. V6 finalizes anyway rather than trapping the funds.
         subs.finalizeMonthlyDistribution(monthId);
 
-        // The referrer is paid anyway. Separate concerns, separate failure modes.
+        // The referrer is paid regardless. Separate concerns, separate failure modes.
         vm.prank(referrer);
         refs.claimReferral();
         assertEq(wmon.balanceOf(referrer), 100_000 ether + EXPECTED_MONTHLY_ACCRUAL);

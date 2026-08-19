@@ -39,6 +39,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         uint64 createdAt;
         uint32 maxCollectorEditions; // 0 = no collector tier for this master
         uint32 collectorsMinted;
+        uint8 nftType; // 0 = MUSIC, 1 = ART. Packs free into this slot.
         address referrer; // set once at mint, immutable
         uint96 royaltyShareBps; // set once when an offering exists, immutable
         address royaltyShareSink; // set once, immutable
@@ -64,6 +65,11 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     uint256 private _licenseCounter = LICENSE_ID_OFFSET;
 
     mapping(uint256 => Master) private _masters;
+
+    /// @dev How many masters an artist currently holds. Maintained here rather than derived,
+    ///      because the only alternative is an unbounded scan. Decremented on burn so it stays
+    ///      a count of live masters, not of masters ever minted.
+    mapping(address => uint256) private _artistMasterCount;
     mapping(uint256 => License) private _licenses;
 
     /**
@@ -336,6 +342,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
 
         unchecked {
             masterTokenId = ++_masterCounter;
+            _artistMasterCount[artist] += 1;
         }
 
         _masters[masterTokenId] = Master({
@@ -344,6 +351,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
             createdAt: uint64(block.timestamp),
             maxCollectorEditions: maxCollectorEditions,
             collectorsMinted: 0,
+            nftType: nftType,
             referrer: referrer == artist ? address(0) : referrer,
             royaltyShareBps: 0,
             royaltyShareSink: address(0)
@@ -464,6 +472,11 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         if (isLicense(tokenId)) {
             delete _licenses[tokenId];
         } else {
+            // Burning a master reduces the artist's live master count. Left unadjusted, a
+            // burn-and-remint loop would inflate the count that gates TOURS eligibility.
+            unchecked {
+                _artistMasterCount[owner] -= 1;
+            }
             delete _masters[tokenId];
         }
 
@@ -486,6 +499,28 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
 
     function masterExists(uint256 masterTokenId) external view returns (bool) {
         return _masters[masterTokenId].artist != address(0);
+    }
+
+    /**
+     * @notice Classification of a master: 0 = MUSIC, 1 = ART.
+     * @dev Exists so the subscription contract can refuse to pay streaming revenue against a
+     *      master that is not music. V2 exposed this as `getMasterType`; the name and the
+     *      `uint8` return are kept so the subscription interface is unchanged.
+     */
+    function getMasterType(uint256 masterTokenId) external view returns (uint8) {
+        if (_masters[masterTokenId].artist == address(0)) revert MasterNotFound(masterTokenId);
+        return _masters[masterTokenId].nftType;
+    }
+
+    /**
+     * @notice How many live masters `artist` holds.
+     * @dev The deployed NFT V2 never implemented this, which is why
+     *      `MusicSubscriptionV5.isArtistEligible` reverts with empty data rather than merely
+     *      returning false — see INTEGRATION_MATRIX.md BREAK 1. Implementing it here is what
+     *      closes that break.
+     */
+    function artistMasterCount(address artist) external view returns (uint256) {
+        return _artistMasterCount[artist];
     }
 
     function totalMasters() external view returns (uint256) {
@@ -530,7 +565,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
      *        - price, collectorPrice ...... pricing lives in SalesController, not the registry
      *        - collectorTokenURI .......... v3 keeps one URI per token
      *        - totalSold, activeLicenses .. never tracked here
-     *        - nftType .................... v3 does not classify masters
+     *        - nftType .................... reported truthfully; see {getMasterType}
      *        - royaltyPercentage .......... per-token, held by ERC2981; read royaltyInfo instead
      *
      *      Do not add a consumer that depends on a zeroed field.
@@ -571,7 +606,7 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
             m.maxCollectorEditions,
             m.collectorsMinted,
             active,
-            0,
+            m.nftType,
             0
         );
     }

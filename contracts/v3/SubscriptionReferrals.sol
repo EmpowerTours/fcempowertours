@@ -19,7 +19,13 @@ interface IMusicSubscription {
 
     function TREASURY_PERCENTAGE() external view returns (uint256);
 
-    /// @dev Public mapping getter. `lastTier` is an enum, ABI-encoded as uint8.
+    /**
+     * @dev Public mapping getter. `lastTier` is an enum, ABI-encoded as uint8.
+     *
+     *      Five fields, not V5's six: V6 dropped `flagVotes` along with `voteToFlag`. This is a
+     *      positional decode, so a stale copy of this declaration would not fail loudly — it
+     *      would read `lastTier` out of the `flagVotes` slot. Keep it in step with V6.
+     */
     function subscriptions(address user)
         external
         view
@@ -28,7 +34,6 @@ interface IMusicSubscription {
             uint256 expiry,
             bool active,
             uint256 totalPlays,
-            uint256 flagVotes,
             uint8 lastTier
         );
 }
@@ -197,7 +202,7 @@ contract SubscriptionReferrals is ReentrancyGuard {
     /**
      * @notice Subscribe for yourself through the referral router.
      * @param tier     V5 tier. Price is read from V5, never passed in.
-     * @param userFid  Farcaster id. V5 requires this to be non-zero — see {_route}.
+     * @param userFid  Farcaster id. V5 required this to be non-zero; V6 does not — see {_route}.
      * @param referrer Ignored if you already have a bound referrer, if it is you, or if you
      *                 have subscribed before. Pass `address(0)` on renewals; the stored
      *                 referrer is used.
@@ -334,7 +339,7 @@ contract SubscriptionReferrals is ReentrancyGuard {
         // Anti-poaching: only a subscriber's first ever payment can be attributed. Read
         // from V5 rather than local state, so people who subscribed before this contract
         // was deployed cannot be claimed retroactively.
-        (, uint256 expiry,,,,) = subscription.subscriptions(subscriber);
+        (, uint256 expiry,,,) = subscription.subscriptions(subscriber);
         if (expiry != 0) return address(0);
 
         referrerOf[subscriber] = referrer;
