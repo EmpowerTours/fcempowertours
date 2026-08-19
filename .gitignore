@@ -179,3 +179,11 @@ dune-analytics/
 *.jpg
 generate-epk*.cjs
 public/epk/
+
+# Secret material (defense-in-depth; never commit)
+*.pem
+*.key
+*.p12
+*.keystore
+*keystore*
+.claude/settings.local.json
