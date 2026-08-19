@@ -133,18 +133,31 @@ registry serving the pointer (`tokenURI` returns empty for the master and every 
 
 | # | Task | State |
 |---|---|---|
-| 1 | Contract integration matrix | do first — gates everything |
-| 2 | v3 `artistFid` optional + correct `V3_DESIGN` errors | free; v3 isn't deployed |
-| 3 | `MusicSubscriptionV6` against the v3 interface | blocked by 1, 2 |
+| 1 | Contract integration matrix | **done** — found 3 breaks; 1 and 2 now fixed |
+| 2 | v3 `artistFid` optional + correct `V3_DESIGN` errors | **done** |
+| 3 | `MusicSubscriptionV6` against the v3 interface | **done** — built, 157 tests, undeployed |
 | 4 | `ProfileRegistry` for non-Farcaster display names | ready |
-| 5 | Delete the OpenClaw Discord agent | ready — see caution below |
+| 5 | Delete the OpenClaw Discord agent | **done** |
 | 6 | `PassportNFT` redeploy, address-keyed dedup | ready |
 | 7 | v3 deploy script, `migrateLegacy`, app cutover | blocked by 3, 4, 6 |
 | 8 | TOURS decision | parked — product call, not engineering |
 | 9 | Envio lottery cleanup | deliberately last, with the new addresses |
 | 10 | Standalone radio bot: deploy or retire | ready |
 
-## Carried into V6
+## Carried into V6 — as built
+
+Built 2026-08-19 as `contracts/MusicSubscriptionV6.sol`, **not yet deployed**. Two things went
+beyond the list below and are worth knowing:
+
+- **`emergencyWithdraw` can no longer take money owed to artists.** V5's could — it was a plain
+  `transfer(owner(), amount)` with no accounting behind it. V6 tracks `unsettledRevenue`,
+  `totalReserve` and `unclaimedArtistPool` at the point money moves, and only the surplus above
+  that sum is withdrawable.
+- **`subscriptions()` lost `flagVotes`,** so it returns five fields rather than six. This is a
+  positional decode with live consumers — see the app cutover list in `V3_DESIGN.md`.
+
+The original list, all carried out:
+
 
 - Economics unchanged: 70/20/10, tiers at 15/75/300/3000 WMON, play limits, pull-based pro-rata.
 - Drop `require(userFid > 0)`.

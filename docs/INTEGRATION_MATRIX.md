@@ -58,7 +58,7 @@ counterparty actually implements. Built 2026-08-18 for deployment-plan task #1.
 
 ---
 
-## BREAK 1 — live today, not a cutover risk
+## BREAK 1 — live today, not a cutover risk · **FIXED for v3**
 
 `MusicSubscriptionV5.isArtistEligible()` calls `nftContract.artistMasterCount(artist)`. **The
 deployed NFT V2 does not implement that function.** Confirmed by direct call — both
@@ -70,7 +70,7 @@ wrong — the view can never return at all. `claimArtistToursReward` is unreacha
 
 No impact on WMON payouts, which never touch this path. Moot if TOURS is retired (task #8).
 
-## BREAK 2 — v3 masters are unplayable and unpayable
+## BREAK 2 — v3 masters are unplayable and unpayable · **FIXED by V6**
 
 Covered in `DEPLOYMENT_PLAN.md`. V5 cannot read a v3 master, so `recordPlay` fails and no payout
 can ever accrue. **v3 and V6 are one deployment.**
@@ -130,11 +130,23 @@ Two traps in that list:
 
 ## Green-light checklist
 
-- [ ] BREAK 2 resolved — V6 reads masters via `getMaster()`
+- [x] BREAK 2 resolved — `MusicSubscriptionV6` reads masters via `getMaster()`, decoded by
+      name through its own `IMusicRegistry.Master`. Pinned by
+      `test_MasterStructShapeMatchesTheRegistry`, which mints a master with a distinct value in
+      every field and decodes it through V6's interface — so V6's copy drifting from the
+      registry fails the test instead of returning a neighbouring field's value
 - [x] BREAK 3 resolved — compat layer on `LicenseRegistry`; radio repointed, not redeployed
-- [ ] C1 verified — all four signatures preserved, `userFid = 0` path tested
+- [x] C1 verified — `test_SubscriptionReferralsInterfaceStillBindsToV6` drives V6 through
+      `SubscriptionReferrals`' own `IMusicSubscription`, exercises the `userFid = 0` path, and
+      asserts `subscriptions()` field by field. **One signature did change:** `subscriptions`
+      returns five fields, not six — V6 dropped `flagVotes` with `voteToFlag`.
+      `SubscriptionReferrals` was updated in the same commit; its own suite (41 tests) runs
+      against V6 now
 - [ ] `PlayOracleV3.setMusicSubscription(V6)` executed (`onlyOwner`, one call)
 - [ ] `LiveRadioV3.setNFTContract(LicenseRegistry)` executed (`onlyOwner`, one call)
 - [ ] 9 existing V5 subscribers migrated or lapsed
 - [ ] This matrix re-run against the new addresses, every cell green
-- [ ] BREAK 1: fixed or made moot by retiring TOURS
+- [x] BREAK 1 fixed — `LicenseRegistry` now maintains `artistMasterCount`, decremented on
+      burn so burn-and-remint cannot inflate it, and stores the master's type behind
+      `getMasterType`. `isArtistEligible` returns instead of reverting with empty data. (Still
+      moot if TOURS is retired — task #8.)
