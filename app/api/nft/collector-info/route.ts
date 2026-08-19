@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi, Address } from "viem";
 import { monadMainnet } from "@/app/chains";
+import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
 
 const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_CONTRACT! as Address;
 
@@ -61,12 +62,12 @@ async function getCollectorInfo(tokenId: string): Promise<CollectorInfo> {
       // artistFid
       // originalArtist
       // tokenURI
-      collectorTokenURI, // price
+      collectorTokenURIRaw, // price
       ,
-      collectorPrice, // totalSold
+      collectorPriceRaw, // totalSold
+      ,
+      ,
       // activeLicenses
-      ,
-      ,
       maxCollectorEditions,
       collectorsMinted, // active
       // nftType
@@ -76,8 +77,31 @@ async function getCollectorInfo(tokenId: string): Promise<CollectorInfo> {
       ,
     ] = result;
 
-    const isCollectorMaster =
-      collectorTokenURI !== "" && maxCollectorEditions > 0n;
+    // v3's `masterTokens` is a compatibility view for LiveRadioV3. `maxCollectorEditions` and
+    // `collectorsMinted` are real in it; `collectorTokenURI` and `collectorPrice` are not —
+    // pricing moved to SalesController, and v3 has no master-level collector URI at all
+    // (a collector licence carries its own URI, set when that licence is minted).
+    let collectorTokenURI = collectorTokenURIRaw;
+    let collectorPrice = collectorPriceRaw;
+
+    if (isV3Contracts()) {
+      const v3Price = await readMasterPrice(client, {
+        nftAddress: NFT_CONTRACT,
+        salesController: process.env.NEXT_PUBLIC_SALES_CONTROLLER as
+          | `0x${string}`
+          | undefined,
+        tokenId: BigInt(tokenId),
+        isCollector: true,
+      });
+      collectorPrice = v3Price ?? 0n;
+      collectorTokenURI = "";
+    }
+
+    // Under v3 the editions cap is the only master-level signal that a collector tier exists,
+    // so that is what the check has to rest on.
+    const isCollectorMaster = isV3Contracts()
+      ? maxCollectorEditions > 0n
+      : collectorTokenURI !== "" && maxCollectorEditions > 0n;
     let collectorImageUrl: string | null = null;
 
     if (isCollectorMaster && collectorTokenURI) {

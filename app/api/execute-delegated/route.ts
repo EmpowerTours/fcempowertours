@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
 import {
   getDelegation,
   hasPermission,
@@ -1624,20 +1625,26 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
             chain: activeChain,
             transport: http(),
           });
-          const master = (await priceClient.readContract({
-            address: EMPOWER_TOURS_NFT,
-            abi: parseAbi([
-              "function masterTokens(uint256) view returns (uint256 artistFid, address originalArtist, string tokenURI, string collectorTokenURI, uint256 price, uint256 collectorPrice, uint256 totalSold, uint256 activeLicenses, uint256 maxCollectorEditions, uint256 collectorsMinted, bool active, uint8 nftType, uint96 royaltyPercentage)",
-            ]),
-            functionName: "masterTokens",
-            args: [tokenId],
-          })) as readonly unknown[];
-          const onChainPrice = master[4] as bigint;
-          if (onChainPrice > 0n) {
+          // Under v3 the registry still answers `masterTokens`, but it is a compatibility view
+          // for LiveRadioV3 and every price field in it is hardcoded 0 — pricing moved to
+          // SalesController. Reading the old tuple there yields 0, which is not an error value:
+          // it silently approves nothing. `readMasterPrice` asks whichever contract holds it.
+          const onChainPrice = await readMasterPrice(priceClient, {
+            nftAddress: EMPOWER_TOURS_NFT,
+            salesController: process.env.NEXT_PUBLIC_SALES_CONTROLLER as
+              | Address
+              | undefined,
+            tokenId,
+          });
+          if (onChainPrice && onChainPrice > 0n) {
             approvalAmount = onChainPrice;
             console.log(
               "🔒 Exact approval from contract:",
               onChainPrice.toString(),
+            );
+          } else {
+            console.warn(
+              "⚠️ On-chain price unavailable; falling back to capped approval",
             );
           }
         } catch (priceErr: any) {
@@ -3728,11 +3735,35 @@ ${enjoyText}
           amount: subAmount,
         } = params || {};
 
-        if (!subUserFid || subTier === undefined || !subAmount) {
+        // `userFid` may legitimately be 0 — that is what a wallet-only subscriber sends, and
+        // V6 accepts it. A truthiness check here (`!subUserFid`) rejects 0 as "missing" and is
+        // exactly what kept wallet-only users out, so test for absence, not for falsiness.
+        if (subUserFid === undefined || subUserFid === null) {
+          return NextResponse.json(
+            { success: false, error: "Missing required parameter: userFid" },
+            { status: 400 },
+          );
+        }
+        if (subTier === undefined || !subAmount) {
           return NextResponse.json(
             {
               success: false,
-              error: "Missing required parameters: userFid, tier, amount",
+              error: "Missing required parameters: tier, amount",
+            },
+            { status: 400 },
+          );
+        }
+
+        const subFidBigInt = BigInt(subUserFid);
+
+        // The legacy contract reverts on 0. Refusing here turns an on-chain revert (which has
+        // already cost gas and shows the user nothing useful) into a plain answer.
+        if (subFidBigInt === 0n && !isV3Contracts()) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Subscribing currently requires a Farcaster account. Wallet-only subscriptions need the v3 contracts.",
             },
             { status: 400 },
           );
@@ -3845,7 +3876,7 @@ ${enjoyText}
               "function subscribeFor(address user, uint256 userFid, uint8 tier) external",
             ]),
             functionName: "subscribeFor",
-            args: [userAddress as Address, BigInt(subUserFid), subTier],
+            args: [userAddress as Address, subFidBigInt, subTier],
           }) as Hex,
         });
 

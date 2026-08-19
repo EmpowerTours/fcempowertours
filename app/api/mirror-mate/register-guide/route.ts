@@ -15,6 +15,7 @@ import {
 } from "@/lib/user-safe";
 import { USE_USER_SAFES } from "@/lib/safe-mode";
 import { activeChain } from "@/app/chains";
+import { findPassport } from "@/lib/contract-generation";
 
 const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_TOUR_GUIDE_REGISTRY as Address;
 const PASSPORT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
@@ -173,39 +174,38 @@ export async function POST(req: NextRequest) {
       ? [countryCode, ...COMMON_COUNTRY_CODES.filter((c) => c !== countryCode)]
       : COMMON_COUNTRY_CODES;
 
-    console.log(
-      "[MirrorMate] Looking for passport with FID:",
+    console.log("[MirrorMate] Looking for passport:", {
       fid,
-      "trying codes:",
-      codesToTry.slice(0, 5),
-      "...",
-    );
+      address: walletAddress,
+      tryingCodes: codesToTry.slice(0, 5),
+    });
 
-    for (const code of codesToTry) {
-      try {
-        const passportTokenId = await publicClient.readContract({
-          address: PASSPORT_ADDRESS,
-          abi: passportAbi,
-          functionName: "getPassportByFid",
-          args: [BigInt(fid), code],
-        });
+    // Looks up by address first where that is available, falling back to the FID.
+    //
+    // A wallet-only holder is deliberately absent from PassportNFTV4's FID index — there is no
+    // FID to index them under — so a FID-only lookup reports "no passport" for someone who
+    // owns one, and they can never register as a guide. The address lookup sees everyone.
+    const found = await findPassport(publicClient, {
+      passportAddress: PASSPORT_ADDRESS,
+      countryCodes: codesToTry,
+      address: walletAddress as `0x${string}` | undefined,
+      fid,
+    });
 
-        if (passportTokenId > 0n) {
-          tokenId = passportTokenId;
-          foundCountry = code;
-          console.log("[MirrorMate] Found passport:", {
-            tokenId: tokenId.toString(),
-            country: code,
-          });
-          break;
-        }
-      } catch (err) {
-        // Token not found for this country, continue trying
-      }
+    if (found) {
+      tokenId = found.tokenId;
+      foundCountry = found.countryCode;
+      console.log("[MirrorMate] Found passport:", {
+        tokenId: tokenId.toString(),
+        country: foundCountry,
+      });
     }
 
     if (tokenId === 0n) {
-      console.log("[MirrorMate] No passport found for FID:", fid);
+      console.log("[MirrorMate] No passport found for:", {
+        fid,
+        address: walletAddress,
+      });
       return NextResponse.json(
         {
           error:

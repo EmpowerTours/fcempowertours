@@ -1,6 +1,10 @@
 "use client";
 
 import { authHeaders } from "@/lib/quick-auth-client";
+import {
+  isV3Contracts,
+  walletOnlySubscribeBlockedReason,
+} from "@/lib/contract-generation";
 import React, { useState, useEffect } from "react";
 import {
   Music2,
@@ -72,11 +76,20 @@ const TIERS = [
   },
 ];
 
-const SUBSCRIPTION_ABI = [
-  "function hasActiveSubscription(address user) external view returns (bool)",
-  "function getSubscriptionInfo(address user) external view returns (uint256 userFid, uint256 expiry, bool active, uint256 totalPlays, uint256 flagVotes, uint8 lastTier, bool isFlagged)",
-  "function subscribeFor(address user, uint256 userFid, uint8 tier) external",
-];
+// V6 dropped `flagVotes`, so the return tuple is one field shorter. Both shapes name their
+// outputs, which is what lets the read below use `info.lastTier` instead of an index that
+// would point at the wrong field under the other generation.
+const SUBSCRIPTION_ABI = isV3Contracts()
+  ? [
+      "function hasActiveSubscription(address user) external view returns (bool)",
+      "function getSubscriptionInfo(address user) external view returns (uint256 userFid, uint256 expiry, bool active, uint256 totalPlays, uint8 lastTier, bool isFlagged)",
+      "function subscribeFor(address user, uint256 userFid, uint8 tier) external",
+    ]
+  : [
+      "function hasActiveSubscription(address user) external view returns (bool)",
+      "function getSubscriptionInfo(address user) external view returns (uint256 userFid, uint256 expiry, bool active, uint256 totalPlays, uint256 flagVotes, uint8 lastTier, bool isFlagged)",
+      "function subscribeFor(address user, uint256 userFid, uint8 tier) external",
+    ];
 
 export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   userAddress,
@@ -189,7 +202,9 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
         const info =
           await subscriptionContract.getSubscriptionInfo(userAddress);
-        const [, expiry, active, totalPlays, , lastTier] = info;
+        // Read by name, not by position: `lastTier` sits at index 5 under V5 and index 4 under
+        // V6, and a positional read against the wrong one returns `isFlagged` without erroring.
+        const { expiry, active, totalPlays, lastTier } = info;
 
         const expiryTimestamp = Number(expiry);
         const now = Math.floor(Date.now() / 1000);
@@ -255,8 +270,16 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   }, [userAddress]);
 
   const handleSubscribe = async () => {
-    if (!userAddress || !userFid) {
-      setError("Please connect your Farcaster account");
+    if (!userAddress) {
+      setError("Please connect your wallet");
+      return;
+    }
+
+    // 0 means "no Farcaster account", which V6 accepts and V5 rejects outright. Checking here
+    // keeps the failure a clear message rather than a revert at send time.
+    const blocked = walletOnlySubscribeBlockedReason(userFid);
+    if (blocked) {
+      setError(blocked);
       return;
     }
 
@@ -279,7 +302,9 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           action: "music-subscribe",
           userAddress,
           params: {
-            userFid,
+            // Explicitly 0 for a wallet-only subscriber rather than undefined, so the server
+            // sends a real value instead of falling back to a placeholder.
+            userFid: userFid && userFid > 0 ? userFid : 0,
             tier: selectedTier,
             amount: priceInWei.toString(),
           },
@@ -621,7 +646,11 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       {/* Subscribe Button */}
       <button
         onClick={handleSubscribe}
-        disabled={loading || !canAfford || !userFid}
+        disabled={
+          loading ||
+          !canAfford ||
+          walletOnlySubscribeBlockedReason(userFid) !== null
+        }
         className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {loading ? (

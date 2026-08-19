@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  subscriptionInfoAbi,
+  decodeSubscriptionInfo,
+} from "@/lib/contract-generation";
 import { createPublicClient, http } from "viem";
 import { activeChain } from "@/app/chains";
 
@@ -16,21 +20,6 @@ const SUBSCRIPTION_ABI = [
     inputs: [{ name: "user", type: "address" }],
     name: "hasActiveSubscription",
     outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "user", type: "address" }],
-    name: "getSubscriptionInfo",
-    outputs: [
-      { name: "userFid", type: "uint256" },
-      { name: "expiry", type: "uint256" },
-      { name: "active", type: "bool" },
-      { name: "totalPlays", type: "uint256" },
-      { name: "flagVotes", type: "uint256" },
-      { name: "lastTier", type: "uint8" },
-      { name: "isFlagged", type: "bool" },
-    ],
     stateMutability: "view",
     type: "function",
   },
@@ -94,22 +83,19 @@ export async function GET(req: NextRequest) {
     let subscriptionInfo = null;
     if (hasSubscription) {
       try {
-        const info = await publicClient.readContract({
+        // The tuple shape depends on which subscription contract is deployed: V6 dropped
+        // `flagVotes`, so `lastTier` moves from index 5 to index 4. Decoding that positionally
+        // here would not throw against the wrong generation — it would silently report the
+        // wrong tier and flag state. `decodeSubscriptionInfo` resolves it by generation.
+        const info = (await publicClient.readContract({
           address: MUSIC_SUBSCRIPTION_ADDRESS,
-          abi: SUBSCRIPTION_ABI,
+          abi: subscriptionInfoAbi(),
           functionName: "getSubscriptionInfo",
           args: [address as `0x${string}`],
-        });
+        })) as readonly unknown[];
 
-        const [
-          userFid,
-          expiry,
-          active,
-          totalPlays,
-          flagVotes,
-          lastTier,
-          isFlagged,
-        ] = info as [bigint, bigint, boolean, bigint, bigint, number, boolean];
+        const { userFid, expiry, active, totalPlays, lastTier, isFlagged } =
+          decodeSubscriptionInfo(info);
         const expiryTimestamp = Number(expiry);
         const now = Math.floor(Date.now() / 1000);
         const daysRemaining = Math.max(
@@ -118,12 +104,13 @@ export async function GET(req: NextRequest) {
         );
 
         subscriptionInfo = {
+          // 0 means the subscriber has no Farcaster account, which is normal from V6 onward.
           userFid: Number(userFid),
           expiry: expiryTimestamp,
           active,
           totalPlays: Number(totalPlays),
           daysRemaining,
-          tier: Number(lastTier),
+          tier: lastTier,
           isFlagged,
         };
       } catch (infoErr: any) {

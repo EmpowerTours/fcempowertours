@@ -42,7 +42,6 @@ const publicClient = createPublicClient({
 const nftAbi = parseAbi([
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function licenses(uint256 licenseId) view returns (uint256 masterTokenId, uint256 licenseeFid, address licensee, uint256 expiry, bool active, bool isCollectorEdition)",
-  "function masterTokens(uint256 tokenId) view returns (uint256 artistFid, address originalArtist, string tokenURI, string collectorTokenURI, uint256 price, uint256 collectorPrice, uint256 totalSold, uint256 activeLicenses, uint256 maxCollectorEditions, uint256 collectorsMinted, bool active, uint8 nftType, uint96 royaltyPercentage)",
 ]);
 
 export async function POST(req: NextRequest) {

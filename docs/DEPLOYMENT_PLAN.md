@@ -161,6 +161,57 @@ scale and abusable at any scale.
 registry serving the pointer (`tokenURI` returns empty for the master and every licence of it);
 **unpinning is a separate off-chain step and is mandatory** — task #13.
 
+## App cutover — built 2026-08-19, inert until the flag is set
+
+All of it is gated on one variable, `NEXT_PUBLIC_CONTRACTS_V3`, resolved in
+`lib/contract-generation.ts`. Unset (the default) the app behaves exactly as it does today
+against the live contracts. The switch is deliberately `=== 'true'` and nothing else: a
+half-set flag would put the app on a mixed pair of ABIs, which is worse than either generation.
+
+### Environment
+
+| Variable | When | Note |
+|---|---|---|
+| `NEXT_PUBLIC_CONTRACTS_V3` | set to `true` **after** deploying | the switch |
+| `NEXT_PUBLIC_MUSIC_SUBSCRIPTION` | repoint to V6 | |
+| `NEXT_PUBLIC_NFT_CONTRACT` | repoint to `LicenseRegistry` | |
+| `NEXT_PUBLIC_PASSPORT_NFT` | repoint to `PassportNFTV4` | |
+| `NEXT_PUBLIC_SALES_CONTROLLER` | **new** | pricing lives here in v3; without it prices read as unavailable |
+| `NEXT_PUBLIC_PROFILE_REGISTRY` | **new** | optional; without it wallet-only artists just show a short address |
+
+### What changed, and why each one mattered
+
+| Site | Change |
+|---|---|
+| `MusicSubscriptionModal.tsx` | the Subscribe button was `disabled={... \|\| !userFid}` — literally greyed out for wallet-only users. Now generation-aware, and the status read decodes `lastTier` **by name** rather than index 5 |
+| `execute-delegated` `music-subscribe` | `if (!subUserFid)` rejected `0` as "missing". A truthiness check on a FID is the server-side twin of the same bug |
+| `check-subscription` | positional decode of a tuple that changed length |
+| `nft/collector-info` | v3's `masterTokens` is a LiveRadioV3 compat view whose price fields are always `0`; pricing comes from `SalesController.priceOf` |
+| `execute-delegated` buy path | same, and here a `0` price approves nothing rather than erroring |
+| `mirror-mate/register-guide` | looked guides up by FID only, so a wallet-only passport holder could never register |
+| `music/list-for-sale` | declared the `masterTokens` ABI but never called it — `V3_DESIGN` listed it as a call site and it is not one. Removed |
+
+### Verification
+
+`tools/verify-contract-generation.ts` (`node --experimental-strip-types`) exercises the real
+module under both generations — 29 checks. It includes a check that a V6 tuple read with the
+legacy rule yields the *wrong* tier, because that failure is silent and is the entire reason the
+module exists. Three mutations were run against it and each turned it red.
+
+### Known gap
+
+Under v3 there is no master-level collector artwork: `LicenseRegistry.Master` has no
+`collectorTokenURI`, and a collector licence carries its own URI set when that licence is minted.
+`collector-info` therefore returns `collectorImageUrl: null` once flipped, and falls back to
+`maxCollectorEditions > 0` to decide whether a collector tier exists at all. Restoring collector
+art means reading it from a licence, which is a separate piece of work.
+
+### Not done
+
+The NFT **sales** path still calls `mintMaster` rather than v3's `mintMasterFor`, which requires
+an EIP-712 signature from the artist. Buying and minting music therefore still expect the V2 NFT
+and are not covered by this flag. That is the remaining half of task #7.
+
 ## Order of work
 
 ```
