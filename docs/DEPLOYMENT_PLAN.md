@@ -91,6 +91,45 @@ address-based sibling before the FID lookup stops being universal.
 
 ---
 
+## Display names — decided 2026-08-19
+
+`ProfileRegistry` (v3, undeployed) gives a wallet-only artist a name instead of `0x1a2b…f9c0`.
+Resolution order belongs in the app, and the registry is the **fallback**, never the winner:
+
+```
+Farcaster username (via Neynar)  →  ProfileRegistry name  →  shortened address
+```
+
+Names are unique first-come, case-insensitively across ASCII; a rename frees the old name in the
+same transaction. What uniqueness **cannot** promise is that a name is not *confusable* — a
+Cyrillic homoglyph registers fine, and normalising Unicode on-chain is not practical. That limit
+is pinned by a test rather than left to be discovered. Two things carry the weight instead:
+`clearProfile` (governance takedown, which frees the name and does **not** ban the account), and
+the app, which must render the address alongside the name.
+
+There is deliberately no `setProfileFor`. Taking a name down is moderation; writing one into
+someone else's profile is not.
+
+## Passport — decided 2026-08-19
+
+`PassportNFTV4`. V3 is deployed, immutable, and left untouched. Three things were wrong for a
+wallet-only holder, and one of them was not the FID at all:
+
+| V3 | Effect |
+|---|---|
+| `require(userFid > 0)` | no passport without a Farcaster account |
+| `fidPassports[fid][country]` written unconditionally | with a placeholder FID, the **first** wallet-only holder of a country locks out every other one |
+| `mint` behind `onlyAuthorizedMinter` | a browser visitor with no registered User Safe cannot mint **even after the FID fix** |
+
+The address-keyed `userPassports` was always the dedup that meant anything, and it is unchanged.
+`mint` is now open — it takes the fee from `msg.sender` and gives the passport to `msg.sender`,
+so the gate bought nothing there, and the per-address cooldown already bounds the rate. `mintFor`
+stays gated: that is the relayed path, where the payer and the recipient differ.
+
+`getPassportByFid` keeps working for Farcaster holders and returns 0 for everyone else, so
+`getPassportByAddress` was added. Its one live consumer, `mirror-mate/register-guide/route.ts`,
+must migrate at cutover or wallet-only guides stay invisible.
+
 ## Moderation — decided 2026-08-18
 
 Two levels, split by reversibility. **Content** moderation lives in `LicenseRegistry` (built);
@@ -136,10 +175,10 @@ registry serving the pointer (`tokenURI` returns empty for the master and every 
 | 1 | Contract integration matrix | **done** — found 3 breaks; 1 and 2 now fixed |
 | 2 | v3 `artistFid` optional + correct `V3_DESIGN` errors | **done** |
 | 3 | `MusicSubscriptionV6` against the v3 interface | **done** — built, 157 tests, undeployed |
-| 4 | `ProfileRegistry` for non-Farcaster display names | ready |
+| 4 | `ProfileRegistry` for non-Farcaster display names | **done** — 24 tests, undeployed |
 | 5 | Delete the OpenClaw Discord agent | **done** |
-| 6 | `PassportNFT` redeploy, address-keyed dedup | ready |
-| 7 | v3 deploy script, `migrateLegacy`, app cutover | blocked by 3, 4, 6 |
+| 6 | `PassportNFT` redeploy, address-keyed dedup | **done** — `PassportNFTV4`, 20 tests, undeployed |
+| 7 | v3 deploy script, `migrateLegacy`, app cutover | **unblocked** — 3, 4 and 6 are done |
 | 8 | TOURS decision | parked — product call, not engineering |
 | 9 | Envio lottery cleanup | deliberately last, with the new addresses |
 | 10 | Standalone radio bot: deploy or retire | ready |
