@@ -59,6 +59,104 @@ contract LicenseRegistryTest is Test {
         return reg.mintMaster(artist, FID, "ipfs://m", editions, referrer, 5000, 0);
     }
 
+    // ------------------------------------------------------- legacy migration
+
+    /**
+     * @dev The V2 NFT stays deployed, so repointing the app here does not carry anything across.
+     *      Exactly one licence outside the team is affected. This is the path that keeps it.
+     */
+    function test_GovernanceCanReissueALegacyLicence() public {
+        uint256 m = _mintMaster(0);
+        // A literal, not `block.timestamp - 90 days`: this suite runs at timestamp 1, where
+        // that subtraction underflows. The value only has to be a plausible past purchase.
+        uint64 boughtAt = 1_700_000_000;
+
+        vm.prank(governance);
+        uint256 licenseId = reg.migrateLegacy(buyer, m, boughtAt, false, "ipfs://legacy", 500);
+
+        assertEq(reg.ownerOf(licenseId), buyer, "the buyer holds what they paid for");
+        assertTrue(reg.hasValidLicense(buyer, m), "and the radio sees it");
+        assertEq(reg.getLicense(licenseId).mintedAt, boughtAt, "the original purchase date is kept");
+        assertEq(reg.getLicense(licenseId).masterTokenId, m);
+    }
+
+    function test_OnlyGovernanceCanMigrate() public {
+        uint256 m = _mintMaster(0);
+
+        vm.prank(stranger);
+        vm.expectRevert(LicenseRegistry.NotGovernance.selector);
+        reg.migrateLegacy(buyer, m, 1, false, "u", 500);
+
+        // Not even the controller, which is the only thing that may normally mint.
+        vm.prank(controller);
+        vm.expectRevert(LicenseRegistry.NotGovernance.selector);
+        reg.migrateLegacy(buyer, m, 1, false, "u", 500);
+    }
+
+    /// @dev It is a mint that bypasses payment, so it must not outlive the migration.
+    function test_SealingMigrationIsPermanent() public {
+        uint256 m = _mintMaster(0);
+
+        vm.prank(governance);
+        reg.sealMigration();
+        assertTrue(reg.migrationSealed());
+
+        vm.prank(governance);
+        vm.expectRevert(LicenseRegistry.MigrationSealed.selector);
+        reg.migrateLegacy(buyer, m, 1, false, "u", 500);
+
+        // And there is no way back: sealing again changes nothing, and no unseal exists.
+        vm.prank(governance);
+        reg.sealMigration();
+        vm.prank(governance);
+        vm.expectRevert(LicenseRegistry.MigrationSealed.selector);
+        reg.migrateLegacy(buyer, m, 1, false, "u", 500);
+    }
+
+    function test_MigrationRejectsNonsense() public {
+        uint256 m = _mintMaster(0);
+
+        vm.startPrank(governance);
+        vm.expectRevert(LicenseRegistry.ZeroAddress.selector);
+        reg.migrateLegacy(address(0), m, 1, false, "u", 500);
+
+        vm.expectRevert(LicenseRegistry.InvalidMintedAt.selector);
+        reg.migrateLegacy(buyer, m, 0, false, "u", 500);
+
+        vm.expectRevert(abi.encodeWithSelector(LicenseRegistry.MasterNotFound.selector, uint256(999)));
+        reg.migrateLegacy(buyer, 999, 1, false, "u", 500);
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev The collector cap is a promise to buyers about scarcity. A migration is not a reason
+     *      to break it, so a migrated collector edition still counts against the cap.
+     */
+    function test_MigrationRespectsTheCollectorCap() public {
+        uint256 m = _mintMaster(1);
+
+        vm.prank(governance);
+        reg.migrateLegacy(buyer, m, 1, true, "u", 500);
+
+        vm.prank(governance);
+        vm.expectRevert(abi.encodeWithSelector(LicenseRegistry.CollectorEditionsSoldOut.selector, m));
+        reg.migrateLegacy(stranger, m, 1, true, "u", 500);
+    }
+
+    function test_MigratedLicencesShareTheNormalIdSpace() public {
+        uint256 m = _mintMaster(0);
+
+        vm.prank(controller);
+        uint256 normal = reg.mintLicense(m, buyer, false, "u", 500);
+
+        vm.prank(governance);
+        uint256 migrated = reg.migrateLegacy(stranger, m, 1, false, "u", 500);
+
+        assertGt(migrated, normal, "ids keep counting up, no separate range to collide later");
+        assertTrue(reg.isLicense(migrated));
+        assertEq(reg.totalLicenses(), 2);
+    }
+
     // ------------------------------------------------------------ minting auth
 
     function test_OnlyControllerCanMintMaster() public {

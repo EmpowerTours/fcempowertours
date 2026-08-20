@@ -127,6 +127,9 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
 
     /// @notice Parameter authority. A multisig now, a Timelock later — see {setGovernance}.
     address public governance;
+
+    /// @dev Once true, {migrateLegacy} is dead forever. See {sealMigration}.
+    bool public migrationSealed;
     address public pendingGovernance;
 
     // -------------------------------------------------------------- constants
@@ -157,6 +160,10 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     event RoyaltyShareSet(uint256 indexed masterTokenId, uint96 bps, address sink);
     event ControllerSet(address indexed controller);
     event ModeratorSet(address indexed moderator);
+    event LegacyLicenseMigrated(
+        uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed to, uint64 mintedAt
+    );
+    event MigrationSealedForever();
     event MasterSuspensionSet(uint256 indexed masterTokenId, bool suspended, string reason);
     event MasterPurged(uint256 indexed masterTokenId, address indexed artist, string reason);
     event GovernanceTransferStarted(address indexed from, address indexed to);
@@ -180,6 +187,8 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
     error NotModerator();
     error MasterIsSuspended(uint256 masterTokenId);
     error MasterIsPurged(uint256 masterTokenId);
+    error MigrationSealed();
+    error InvalidMintedAt();
 
     // -------------------------------------------------------------- modifiers
 
@@ -365,6 +374,85 @@ contract LicenseRegistry is ERC721URIStorage, ERC2981, ReentrancyGuard {
         _setTokenRoyalty(masterTokenId, artist, royaltyBps);
 
         emit MasterMinted(masterTokenId, artist, artistFid, referrer, nftType);
+    }
+
+    /**
+     * @notice Re-issue a licence somebody already bought on the V2 NFT.
+     *
+     * @dev V2 is a separate, still-deployed contract. Repointing the app at this registry does
+     *      not move anything across, so without this a buyer's licence simply stops being
+     *      visible to the app they bought it in. Exactly one licence outside the team is
+     *      affected — licence 1000004 on master 3 — which is small enough to do by hand and
+     *      important enough not to skip.
+     *
+     *      V3 licences are perpetual, so there is no remaining term to preserve. `mintedAt` is
+     *      carried over rather than reset purely so the record stays honest about when the
+     *      purchase happened.
+     *
+     *      Governance-only, and permanently disabled by {sealMigration}. It is a mint that
+     *      bypasses payment, so it must not outlive the migration it exists for.
+     *
+     *      Deliberately does **not** bypass the collector cap: a migrated collector edition
+     *      still counts against `maxCollectorEditions`, because the cap is a promise to buyers
+     *      about scarcity and a migration is not a reason to break it.
+     */
+    function migrateLegacy(
+        address to,
+        uint256 masterTokenId,
+        uint64 mintedAt,
+        bool isCollector,
+        string calldata uri,
+        uint96 royaltyBps
+    ) external onlyGovernance nonReentrant returns (uint256 licenseId) {
+        if (migrationSealed) revert MigrationSealed();
+        if (to == address(0)) revert ZeroAddress();
+        if (mintedAt == 0) revert InvalidMintedAt();
+
+        Master storage master = _masters[masterTokenId];
+        if (master.artist == address(0)) revert MasterNotFound(masterTokenId);
+        if (royaltyBps > HARD_MAX_ROYALTY_BPS) {
+            revert RoyaltyTooHigh(royaltyBps, HARD_MAX_ROYALTY_BPS);
+        }
+
+        if (isCollector) {
+            if (master.maxCollectorEditions == 0) {
+                revert CollectorTierUnavailable(masterTokenId);
+            }
+            if (master.collectorsMinted >= master.maxCollectorEditions) {
+                revert CollectorEditionsSoldOut(masterTokenId);
+            }
+            unchecked {
+                master.collectorsMinted += 1;
+            }
+        }
+
+        unchecked {
+            licenseId = ++_licenseCounter;
+        }
+
+        _licenses[licenseId] = License({
+            masterTokenId: masterTokenId,
+            mintedAt: mintedAt,
+            isCollector: isCollector
+        });
+
+        _safeMint(to, licenseId);
+        _setTokenURI(licenseId, uri);
+        _setTokenRoyalty(licenseId, master.artist, royaltyBps);
+
+        emit LegacyLicenseMigrated(licenseId, masterTokenId, to, mintedAt);
+        emit LicenseMinted(licenseId, masterTokenId, to, isCollector);
+    }
+
+    /**
+     * @notice Close {migrateLegacy} permanently.
+     * @dev One way, on purpose. The alternative — a flag governance can toggle — leaves a
+     *      free-mint path that an attacker holding the governance key can reopen, in a contract
+     *      where governance is otherwise unable to create a licence out of nothing.
+     */
+    function sealMigration() external onlyGovernance {
+        migrationSealed = true;
+        emit MigrationSealedForever();
     }
 
     /**
