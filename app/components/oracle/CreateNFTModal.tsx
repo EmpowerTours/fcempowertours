@@ -5,6 +5,13 @@ import { createPortal } from "react-dom";
 import { X, ArrowLeft } from "lucide-react";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { isV3Contracts } from "@/lib/contract-generation";
+import {
+  isValidIsrc,
+  normalizeIsrc,
+  formatIsrcForDisplay,
+  RIGHTS_AGREEMENT_VERSION,
+  type RightsDeclaration,
+} from "@/lib/rights-declaration";
 import { signMintRequest } from "@/lib/sign-mint-request";
 import { useBotCommand } from "@/app/hooks/useBotCommand";
 
@@ -76,6 +83,29 @@ export function CreateNFTModal({
   const [rightsIsrcCode, setRightsIsrcCode] = useState("");
   const [rightsShowAgreement, setRightsShowAgreement] = useState(false);
 
+  // v1.1 disclosures. All optional, and none of them gate submission — see rightsAccepted below.
+  const [rightsUsedLicensedInstrumental, setRightsUsedLicensedInstrumental] =
+    useState(false);
+  const [rightsInstrumentalProducer, setRightsInstrumentalProducer] =
+    useState("");
+  const [rightsInstrumentalLicenceRef, setRightsInstrumentalLicenceRef] =
+    useState("");
+  const [rightsLicenceGrantsDistribution, setRightsLicenceGrantsDistribution] =
+    useState(false);
+  const [rightsDistributedElsewhere, setRightsDistributedElsewhere] =
+    useState(false);
+  const [rightsDistributorName, setRightsDistributorName] = useState("");
+  const [rightsReleaseUPC, setRightsReleaseUPC] = useState("");
+
+  // An ISRC is optional, so blank is fine. Only a non-empty *malformed* one is a problem, and it
+  // is a field error rather than a rights failure — it must not touch rightsAccepted, or an
+  // artist who mistypes an optional code finds the whole rights step reverting on them.
+  const isrcTouched = rightsIsrcCode.trim().length > 0;
+  const isrcInvalid = isrcTouched && !isValidIsrc(rightsIsrcCode);
+
+  // Deliberately unchanged by the v1.1 upgrade. Everything added there is disclosure, not a
+  // blocker: gating publication on a licence reference or an ISRC would lock artists out over
+  // fields they often cannot answer at upload time.
   const rightsAccepted =
     rightsNotPro &&
     rightsOwnsComposition &&
@@ -84,6 +114,49 @@ export function CreateNFTModal({
     rightsGrantsMechanical &&
     rightsGrantsMasterUse &&
     (!rightsContainsSamples || rightsSamplesCleared);
+
+  /**
+   * The single source of the rights declaration, used by both the upload and the mint path.
+   *
+   * The ISRC is normalised here rather than in the input handler so the artist can keep typing
+   * it however they like — hyphenated, spaced, lower case — while what gets signed and pinned is
+   * always the canonical 12-character form.
+   */
+  const buildRightsDeclaration = (): RightsDeclaration => ({
+    notPro: rightsNotPro,
+    ownsComposition: rightsOwnsComposition,
+    ownsMaster: rightsOwnsMaster,
+    grantsPerformance: rightsGrantsPerformance,
+    grantsMechanical: rightsGrantsMechanical,
+    grantsMasterUse: rightsGrantsMasterUse,
+    containsSamples: rightsContainsSamples,
+    samplesCleared: rightsSamplesCleared,
+    isrcCode: normalizeIsrc(rightsIsrcCode),
+    artistAddress: walletAddress || "",
+    artistFid: farcasterFid,
+    accepted: true,
+    acceptedAt: new Date().toISOString(),
+    version: RIGHTS_AGREEMENT_VERSION,
+
+    usedLicensedInstrumental: rightsUsedLicensedInstrumental,
+    instrumentalProducer: rightsUsedLicensedInstrumental
+      ? rightsInstrumentalProducer.trim()
+      : "",
+    instrumentalLicenceRef: rightsUsedLicensedInstrumental
+      ? rightsInstrumentalLicenceRef.trim()
+      : "",
+    licenceGrantsDistribution: rightsUsedLicensedInstrumental
+      ? rightsLicenceGrantsDistribution
+      : false,
+
+    distributedElsewhere: rightsDistributedElsewhere,
+    distributorName: rightsDistributedElsewhere
+      ? rightsDistributorName.trim()
+      : "",
+    releaseUPC: rightsDistributedElsewhere
+      ? rightsReleaseUPC.replace(/\D/g, "")
+      : "",
+  });
 
   // Dynamic steps: art NFTs skip the Rights step
   const steps =
@@ -353,6 +426,16 @@ export function CreateNFTModal({
         return;
       }
     }
+    // An ISRC is optional and blank submits fine — an artist who has not distributed yet has
+    // none. But a malformed one that reaches the pinned declaration is worse than none at all:
+    // it looks authoritative and matches no recording anywhere.
+    if (isrcInvalid) {
+      setError(
+        "That ISRC does not look right. It should be 12 characters like GX-F97-26-52851 — or leave it blank if you haven't distributed this recording yet.",
+      );
+      return;
+    }
+
     if (!walletAddress) {
       setError("Please connect your wallet first");
       await requestWallet();
@@ -397,22 +480,10 @@ export function CreateNFTModal({
 
       // Pass rights declaration for music NFTs
       if (nftType === "music" && rightsAccepted) {
-        const rightsDeclaration = {
-          notPro: rightsNotPro,
-          ownsComposition: rightsOwnsComposition,
-          ownsMaster: rightsOwnsMaster,
-          grantsPerformance: rightsGrantsPerformance,
-          grantsMechanical: rightsGrantsMechanical,
-          grantsMasterUse: rightsGrantsMasterUse,
-          containsSamples: rightsContainsSamples,
-          samplesCleared: rightsSamplesCleared,
-          isrcCode: rightsIsrcCode,
-          artistAddress: walletAddress,
-          artistFid: farcasterFid,
-          accepted: true,
-          acceptedAt: new Date().toISOString(),
-        };
-        formData.append("rightsDeclaration", JSON.stringify(rightsDeclaration));
+        formData.append(
+          "rightsDeclaration",
+          JSON.stringify(buildRightsDeclaration()),
+        );
       }
 
       setProgressStage("Uploading to IPFS...");
@@ -457,24 +528,12 @@ export function CreateNFTModal({
       setProgressPercent(80);
       setProgressStage("Sending to blockchain...");
 
-      // Build rights declaration object for passing to mint command
+      // Same object as the upload path above. Built once, on purpose: this file used to
+      // construct it twice and updating only one copy would silently ship a declaration with
+      // fields missing from whichever path was forgotten.
       const mintRightsDeclaration =
         nftType === "music" && rightsAccepted
-          ? {
-              notPro: rightsNotPro,
-              ownsComposition: rightsOwnsComposition,
-              ownsMaster: rightsOwnsMaster,
-              grantsPerformance: rightsGrantsPerformance,
-              grantsMechanical: rightsGrantsMechanical,
-              grantsMasterUse: rightsGrantsMasterUse,
-              containsSamples: rightsContainsSamples,
-              samplesCleared: rightsSamplesCleared,
-              isrcCode: rightsIsrcCode,
-              artistAddress: walletAddress,
-              artistFid: farcasterFid,
-              accepted: true,
-              acceptedAt: new Date().toISOString(),
-            }
+          ? buildRightsDeclaration()
           : undefined;
 
       if (isCollectorEdition) {
@@ -1583,18 +1642,194 @@ export function CreateNFTModal({
                     onChange={(e) =>
                       setRightsIsrcCode(e.target.value.toUpperCase())
                     }
-                    placeholder="e.g., USRC17607839"
-                    maxLength={15}
+                    placeholder="e.g., GX-F97-26-52851"
+                    maxLength={20}
                     className={`w-full px-4 py-2 rounded-lg border text-sm ${
-                      isDarkMode
-                        ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
-                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+                      isrcInvalid
+                        ? "border-red-500 " +
+                          (isDarkMode
+                            ? "bg-gray-900 text-white"
+                            : "bg-white text-gray-900")
+                        : isDarkMode
+                          ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                          : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
                     }`}
                   />
+                  {isrcInvalid ? (
+                    <p className="text-xs mt-1 text-red-400">
+                      That does not look like an ISRC. It should be 12
+                      characters — two letters, three letters or digits, then
+                      seven digits.
+                    </p>
+                  ) : isrcTouched ? (
+                    <p className="text-xs mt-1 text-green-400">
+                      Looks good — will be stored as{" "}
+                      {formatIsrcForDisplay(rightsIsrcCode)}
+                    </p>
+                  ) : (
+                    <p
+                      className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
+                    >
+                      Leave blank if you haven&apos;t distributed this recording
+                      yet — you can add it later once your distributor issues
+                      one.
+                    </p>
+                  )}
+                </div>
+
+                {/* Licensed instrumental (type beat) */}
+                <div
+                  className={`p-4 rounded-xl border ${isDarkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"}`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={rightsUsedLicensedInstrumental}
+                      onChange={(e) => {
+                        setRightsUsedLicensedInstrumental(e.target.checked);
+                        if (!e.target.checked) {
+                          setRightsInstrumentalProducer("");
+                          setRightsInstrumentalLicenceRef("");
+                          setRightsLicenceGrantsDistribution(false);
+                        }
+                      }}
+                      className="mt-1 w-5 h-5 rounded border-2 border-yellow-500 text-yellow-600 focus:ring-yellow-500 cursor-pointer flex-shrink-0"
+                    />
+                    <span
+                      className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                    >
+                      I recorded over a purchased or licensed instrumental (a
+                      &quot;type beat&quot;)
+                    </span>
+                  </label>
+
+                  {rightsUsedLicensedInstrumental && (
+                    <div className="mt-3 ml-8 space-y-3">
+                      <input
+                        type="text"
+                        value={rightsInstrumentalProducer}
+                        onChange={(e) =>
+                          setRightsInstrumentalProducer(e.target.value)
+                        }
+                        placeholder="Producer name or alias"
+                        maxLength={100}
+                        className={`w-full px-4 py-2 rounded-lg border text-sm ${
+                          isDarkMode
+                            ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+                        }`}
+                      />
+                      <input
+                        type="text"
+                        value={rightsInstrumentalLicenceRef}
+                        onChange={(e) =>
+                          setRightsInstrumentalLicenceRef(e.target.value)
+                        }
+                        placeholder="Licence or invoice reference"
+                        maxLength={100}
+                        className={`w-full px-4 py-2 rounded-lg border text-sm ${
+                          isDarkMode
+                            ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+                        }`}
+                      />
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={rightsLicenceGrantsDistribution}
+                          onChange={(e) =>
+                            setRightsLicenceGrantsDistribution(e.target.checked)
+                          }
+                          className="mt-1 w-5 h-5 rounded border-2 border-green-500 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
+                        />
+                        <span
+                          className={`text-sm ${isDarkMode ? "text-green-400" : "text-green-700"}`}
+                        >
+                          My licence permits commercial distribution
+                        </span>
+                      </label>
+
+                      <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                        <p className="text-xs text-yellow-300 leading-relaxed">
+                          <strong>Do not submit this to Content ID.</strong>{" "}
+                          Recordings built on a non-exclusively licensed
+                          instrumental should not be enrolled in YouTube Content
+                          ID, Meta Rights Manager or TikTok&apos;s rights
+                          systems. Other artists licensed the same instrumental,
+                          and a reference file would generate false claims
+                          against their releases. This does not affect Spotify,
+                          Apple Music, Amazon or other stores — only Content
+                          Recognition.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* External distribution */}
+                <div
+                  className={`p-4 rounded-xl border ${isDarkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"}`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={rightsDistributedElsewhere}
+                      onChange={(e) => {
+                        setRightsDistributedElsewhere(e.target.checked);
+                        if (!e.target.checked) {
+                          setRightsDistributorName("");
+                          setRightsReleaseUPC("");
+                        }
+                      }}
+                      className="mt-1 w-5 h-5 rounded border-2 border-cyan-500 text-cyan-600 focus:ring-cyan-500 cursor-pointer flex-shrink-0"
+                    />
+                    <span
+                      className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                    >
+                      This recording is also released on streaming platforms
+                    </span>
+                  </label>
+
+                  {rightsDistributedElsewhere && (
+                    <div className="mt-3 ml-8 space-y-3">
+                      <input
+                        type="text"
+                        value={rightsDistributorName}
+                        onChange={(e) =>
+                          setRightsDistributorName(e.target.value)
+                        }
+                        placeholder="Distributor (RouteNote, DistroKid, TuneCore...)"
+                        maxLength={100}
+                        className={`w-full px-4 py-2 rounded-lg border text-sm ${
+                          isDarkMode
+                            ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+                        }`}
+                      />
+                      <input
+                        type="text"
+                        value={rightsReleaseUPC}
+                        onChange={(e) =>
+                          setRightsReleaseUPC(e.target.value.replace(/\D/g, ""))
+                        }
+                        placeholder="Release UPC (optional, digits only)"
+                        maxLength={14}
+                        className={`w-full px-4 py-2 rounded-lg border text-sm ${
+                          isDarkMode
+                            ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+                        }`}
+                      />
+                    </div>
+                  )}
+
                   <p
-                    className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
+                    className={`text-xs mt-3 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
                   >
-                    International Standard Recording Code — if you have one
+                    Use one distributor per recording — the same recording
+                    delivered through two causes duplicate-release conflicts and
+                    frozen royalties. Uploading here does not conflict: the
+                    EmpowerTours licence is non-exclusive.
                   </p>
                 </div>
 
@@ -1777,11 +2012,34 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
                       {rightsContainsSamples && (
                         <p>Contains samples (cleared)</p>
                       )}
-                      {rightsIsrcCode && <p>ISRC: {rightsIsrcCode}</p>}
+                      {rightsIsrcCode && (
+                        <p>ISRC: {formatIsrcForDisplay(rightsIsrcCode)}</p>
+                      )}
+                      {rightsUsedLicensedInstrumental && (
+                        <p>
+                          Licensed instrumental
+                          {rightsInstrumentalProducer
+                            ? ` — ${rightsInstrumentalProducer}`
+                            : ""}
+                          {rightsLicenceGrantsDistribution
+                            ? " (distribution permitted)"
+                            : " (distribution not confirmed)"}
+                        </p>
+                      )}
+                      {rightsDistributedElsewhere && (
+                        <p>
+                          Also distributed
+                          {rightsDistributorName
+                            ? ` via ${rightsDistributorName}`
+                            : ""}
+                          {rightsReleaseUPC ? ` — UPC ${rightsReleaseUPC}` : ""}
+                        </p>
+                      )}
                       <p
                         className={`text-xs ${isDarkMode ? "text-green-500/60" : "text-green-600"}`}
                       >
-                        Agreement hash stored on IPFS
+                        Agreement v{RIGHTS_AGREEMENT_VERSION} — hash stored on
+                        IPFS
                       </p>
                     </div>
                   </div>

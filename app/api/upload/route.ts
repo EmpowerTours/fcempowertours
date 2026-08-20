@@ -467,8 +467,17 @@ The result should look like a premium physical collector's vinyl or art print â€
         const declaration: RightsDeclaration = JSON.parse(rightsDeclarationRaw);
         console.log("ðŸ“œ Processing rights declaration...");
 
-        // Generate agreement text and hash
-        const filledAgreement = buildFilledAgreement(declaration);
+        // Which text this artist actually accepted. A client that has not reloaded since the
+        // v1.1 deploy posts a declaration with no `version`, and buildFilledAgreement correctly
+        // falls back to v1.0 for it â€” so the payload below must record 1.0 too, or the stored
+        // version would not describe the text the hash was taken over.
+        const declaredVersion = declaration.version || "1.0";
+        const filledAgreement = buildFilledAgreement(
+          declaration,
+          undefined,
+          undefined,
+          declaredVersion,
+        );
         const agreementHash = generateAgreementHash(
           filledAgreement,
           fid || "0",
@@ -477,7 +486,7 @@ The result should look like a premium physical collector's vinyl or art print â€
 
         // Upload full agreement JSON to IPFS
         const agreementPayload = {
-          version: RIGHTS_AGREEMENT_VERSION,
+          version: declaredVersion,
           agreementText: filledAgreement,
           declaration,
           hash: agreementHash,
@@ -511,7 +520,8 @@ The result should look like a premium physical collector's vinyl or art print â€
           metadata.attributes.push(
             { trait_type: "Rights Agreement Hash", value: agreementHash },
             { trait_type: "Rights Agreement CID", value: rightsAgreementCid },
-            { trait_type: "Rights Version", value: RIGHTS_AGREEMENT_VERSION },
+            // The version actually accepted, not the newest one deployed.
+            { trait_type: "Rights Version", value: declaredVersion },
             { trait_type: "PRO Affiliated", value: "false" },
             { trait_type: "Rights Status", value: "cleared" },
           );

@@ -1,9 +1,22 @@
 import { keccak256, encodePacked } from "viem";
 import { Redis } from "@upstash/redis";
 
-export const RIGHTS_AGREEMENT_VERSION = "1.0";
+/**
+ * The version new declarations are signed under.
+ *
+ * **Older versions stay valid and readable.** A stored declaration is a signed rights record; its
+ * hash is over the exact agreement text in force when the artist accepted it. Re-hashing an old
+ * record against new text would not "update" it, it would destroy the only thing that makes it
+ * evidence. So the text of every published version is kept below and the check is versioned —
+ * see {@link agreementTextForVersion} and {@link verifyAgreementHash}.
+ */
+export const RIGHTS_AGREEMENT_VERSION = "1.1";
 
-export const RIGHTS_AGREEMENT_TEXT = `EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
+/** Versions this module can still rebuild and verify. */
+export const SUPPORTED_AGREEMENT_VERSIONS = ["1.0", "1.1"] as const;
+export type AgreementVersion = (typeof SUPPORTED_AGREEMENT_VERSIONS)[number];
+
+const RIGHTS_AGREEMENT_TEXT_V1_0 = `EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
 Version {{VERSION}} | Date: {{DATE}}
 
 PARTIES
@@ -51,6 +64,78 @@ TOKEN ID: {{TOKEN_ID}}
 RIGHTS AGREEMENT HASH: {{AGREEMENT_HASH}}
 MINTED ON: Monad Mainnet (Chain ID: 143)`;
 
+/**
+ * v1.1 adds two disclosures and changes nothing else. Both are recorded rather than enforced —
+ * see the note on the submit gate in {@link RightsDeclaration}.
+ */
+const RIGHTS_AGREEMENT_TEXT_V1_1 = RIGHTS_AGREEMENT_TEXT_V1_0.replace(
+  "5. ISRC CODE: {{ISRC_DECLARATION}}",
+  `5. ISRC CODE: {{ISRC_DECLARATION}}
+
+6. LICENSED INSTRUMENTAL: {{INSTRUMENTAL_DECLARATION}}
+
+7. EXTERNAL DISTRIBUTION: {{DISTRIBUTION_DECLARATION}}`,
+);
+
+const AGREEMENT_TEXTS: Record<string, string> = {
+  "1.0": RIGHTS_AGREEMENT_TEXT_V1_0,
+  "1.1": RIGHTS_AGREEMENT_TEXT_V1_1,
+};
+
+/** The agreement text as published under `version`. Unknown versions return null. */
+export function agreementTextForVersion(version: string): string | null {
+  return AGREEMENT_TEXTS[version] ?? null;
+}
+
+/** Current text. Kept as a named export because callers used to import it directly. */
+export const RIGHTS_AGREEMENT_TEXT = RIGHTS_AGREEMENT_TEXT_V1_1;
+
+// =============================================
+// ISRC
+// =============================================
+
+/**
+ * ISRC is `CCXXXYYNNNNN` — 2-letter country, 3-char alphanumeric registrant, 2-digit year,
+ * 5-digit designation. Artists routinely type it hyphenated (`GX-F97-26-52851`), so input is
+ * normalised before validation and stored without separators.
+ */
+const ISRC_PATTERN = /^[A-Z]{2}[A-Z0-9]{3}\d{2}\d{5}$/;
+
+/** Strip separators and upper-case. Safe to call on anything, including empty input. */
+export function normalizeIsrc(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+/**
+ * True when `raw` normalises to a well-formed ISRC.
+ *
+ * **Empty is not invalid.** An artist who has not distributed yet has no ISRC, and blocking them
+ * would lock them out of publishing over a field they cannot answer. Callers decide what empty
+ * means; this answers only "is what they typed a real ISRC".
+ */
+export function isValidIsrc(raw: string | null | undefined): boolean {
+  return ISRC_PATTERN.test(normalizeIsrc(raw));
+}
+
+/** `GXF972652851` -> `GX-F97-26-52851`. Returns the input unchanged if it is not well-formed. */
+export function formatIsrcForDisplay(raw: string | null | undefined): string {
+  const n = normalizeIsrc(raw);
+  if (!ISRC_PATTERN.test(n)) return raw ?? "";
+  return `${n.slice(0, 2)}-${n.slice(2, 5)}-${n.slice(5, 7)}-${n.slice(7)}`;
+}
+
+/**
+ * What an artist declared when they published.
+ *
+ * Everything added in v1.1 is **optional**, for two separate reasons:
+ *
+ *  - Records signed under v1.0 must keep parsing. They are signed rights records; making a new
+ *    field required would retroactively invalidate every one of them.
+ *  - The new fields are *disclosure*, never a gate. The submit gate stays
+ *    `notPro && ownsComposition && ownsMaster`. Requiring an ISRC or a licence reference would
+ *    lock an artist out mid-upload over something they may not be able to answer yet.
+ */
 export interface RightsDeclaration {
   notPro: boolean;
   ownsComposition: boolean;
@@ -60,11 +145,37 @@ export interface RightsDeclaration {
   grantsMasterUse: boolean;
   containsSamples: boolean;
   samplesCleared: boolean;
+  /** Normalised: upper-case, no separators. Empty when the artist has not distributed yet. */
   isrcCode: string;
   artistAddress: string;
   artistFid: string | number;
   accepted: boolean;
   acceptedAt: string;
+
+  /** Which agreement text was accepted. Absent on records written before v1.1 — treat as '1.0'. */
+  version?: string;
+
+  // --- v1.1: licensed instrumental -------------------------------------------------------
+  /**
+   * Recorded over a purchased or licensed instrumental (a "type beat").
+   *
+   * This is the field the whole upgrade exists for. Those beats are licensed **non-exclusively**,
+   * so the same instrumental is on other artists' releases. A recording built on one must not be
+   * enrolled in YouTube Content ID / Meta Rights Manager / TikTok: a reference file would
+   * false-claim every other legitimate licensee. Distributors reject releases over exactly this.
+   */
+  usedLicensedInstrumental?: boolean;
+  instrumentalProducer?: string;
+  instrumentalLicenceRef?: string;
+  /** Whether the beat licence permits commercial distribution. Many restrict or forbid it. */
+  licenceGrantsDistribution?: boolean;
+
+  // --- v1.1: external distribution -------------------------------------------------------
+  /** Already released to Spotify/Apple/etc. through the artist's own distributor. */
+  distributedElsewhere?: boolean;
+  distributorName?: string;
+  /** Digits only. */
+  releaseUPC?: string;
 }
 
 export interface RightsStatus {
@@ -90,11 +201,27 @@ export function generateAgreementHash(
   );
 }
 
+/**
+ * Rebuild the agreement exactly as it was accepted.
+ *
+ * @param version Which published text to fill. Defaults to the declaration's own version, so a
+ *        v1.0 record rebuilds against v1.0 text and its stored hash still matches. Passing the
+ *        current version for an old record would produce a document that never existed.
+ */
 export function buildFilledAgreement(
   declaration: RightsDeclaration,
   tokenId?: string,
   agreementHash?: string,
+  version?: string,
 ): string {
+  const useVersion = version || declaration.version || "1.0";
+  const template = agreementTextForVersion(useVersion);
+  if (!template) {
+    throw new Error(
+      `Unknown rights agreement version "${useVersion}". Known: ${SUPPORTED_AGREEMENT_VERSIONS.join(", ")}.`,
+    );
+  }
+
   const samplesText = declaration.containsSamples
     ? declaration.samplesCleared
       ? "The Work contains samples from third-party recordings. The Artist has obtained all necessary clearances and licenses for these samples."
@@ -102,10 +229,11 @@ export function buildFilledAgreement(
     : "The Work does NOT contain any samples from third-party recordings.";
 
   const isrcText = declaration.isrcCode
-    ? `ISRC: ${declaration.isrcCode}`
+    ? `ISRC: ${formatIsrcForDisplay(declaration.isrcCode)}`
     : "No ISRC code provided.";
 
-  return RIGHTS_AGREEMENT_TEXT.replace("{{VERSION}}", RIGHTS_AGREEMENT_VERSION)
+  let filled = template
+    .replace("{{VERSION}}", useVersion)
     .replace("{{DATE}}", declaration.acceptedAt || new Date().toISOString())
     .replace("{{ARTIST_ADDRESS}}", declaration.artistAddress)
     .replace("{{ARTIST_FID}}", String(declaration.artistFid))
@@ -113,6 +241,79 @@ export function buildFilledAgreement(
     .replace("{{ISRC_DECLARATION}}", isrcText)
     .replace("{{TOKEN_ID}}", tokenId || "PENDING")
     .replace("{{AGREEMENT_HASH}}", agreementHash || "PENDING");
+
+  // v1.0 has no such placeholders, so these are no-ops on an old record.
+  filled = filled
+    .replace(
+      "{{INSTRUMENTAL_DECLARATION}}",
+      instrumentalDeclarationText(declaration),
+    )
+    .replace(
+      "{{DISTRIBUTION_DECLARATION}}",
+      distributionDeclarationText(declaration),
+    );
+
+  return filled;
+}
+
+export function instrumentalDeclarationText(d: RightsDeclaration): string {
+  if (!d.usedLicensedInstrumental) {
+    return "The Work does NOT incorporate a purchased or third-party licensed instrumental.";
+  }
+
+  const parts = ["The Work is recorded over a licensed instrumental."];
+  if (d.instrumentalProducer)
+    parts.push(`Producer: ${d.instrumentalProducer}.`);
+  if (d.instrumentalLicenceRef)
+    parts.push(`Licence reference: ${d.instrumentalLicenceRef}.`);
+  parts.push(
+    d.licenceGrantsDistribution
+      ? "The Artist declares the licence permits commercial distribution."
+      : "The Artist has NOT confirmed that the licence permits commercial distribution.",
+  );
+  parts.push(
+    "Because the instrumental is licensed non-exclusively, this recording must NOT be enrolled in " +
+      "content identification systems (YouTube Content ID, Meta Rights Manager, TikTok), as a " +
+      "reference file would generate false claims against other legitimate licensees.",
+  );
+  return parts.join(" ");
+}
+
+export function distributionDeclarationText(d: RightsDeclaration): string {
+  if (!d.distributedElsewhere) {
+    return "The Work is not currently released through an external distributor.";
+  }
+  const parts = ["The Work is also released through an external distributor."];
+  if (d.distributorName) parts.push(`Distributor: ${d.distributorName}.`);
+  if (d.releaseUPC) parts.push(`UPC: ${d.releaseUPC}.`);
+  parts.push(
+    "This licence is non-exclusive and does not conflict with that release.",
+  );
+  return parts.join(" ");
+}
+
+/**
+ * Re-derive a stored record's hash against the text version it was signed under.
+ *
+ * This is the "version the check" rule made concrete: a v1.0 record verifies against v1.0 text
+ * and stays valid forever, rather than appearing tampered with the moment the agreement changes.
+ */
+export function verifyAgreementHash(status: RightsStatus): boolean {
+  const version = status.version || status.declaration.version || "1.0";
+  if (!agreementTextForVersion(version)) return false;
+
+  const rebuilt = buildFilledAgreement(
+    status.declaration,
+    status.tokenId,
+    undefined,
+    version,
+  );
+  const expected = generateAgreementHash(
+    rebuilt,
+    status.declaration.artistFid,
+    status.declaration.artistAddress,
+  );
+  return expected === status.agreementHash;
 }
 
 export async function storeRightsStatus(
@@ -124,10 +325,16 @@ export async function storeRightsStatus(
 ): Promise<void> {
   const status: RightsStatus = {
     status: "cleared",
-    version: RIGHTS_AGREEMENT_VERSION,
+    version: declaration.version || RIGHTS_AGREEMENT_VERSION,
     agreementCid,
     agreementHash,
-    declaration,
+    // Stamp the version onto the declaration itself as well as the envelope. The declaration
+    // travels separately — it is pinned to IPFS by the upload route — and without this a copy
+    // read back from IPFS could not say which agreement text it was signed under.
+    declaration: {
+      ...declaration,
+      version: declaration.version || RIGHTS_AGREEMENT_VERSION,
+    },
     tokenId,
     storedAt: new Date().toISOString(),
   };

@@ -233,7 +233,7 @@ and are not covered by this flag. That is the remaining half of task #7.
 | 8 | TOURS decision | parked — product call, not engineering |
 | 9 | Envio lottery cleanup | deliberately last, with the new addresses |
 | 10 | Standalone radio bot: deploy or retire | ready |
-| 11 | Rights-intake upgrade (ISRC, licensed instrumental, distribution) | ready — spec written, not started |
+| 11 | Rights-intake upgrade (ISRC, licensed instrumental, distribution) | **done** — agreement v1.1, 46 checks |
 
 ## All that remains of #7 is execution
 
