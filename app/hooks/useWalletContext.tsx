@@ -1,8 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { useAccount, useConnect, useDisconnect, useSendTransaction, useWriteContract } from 'wagmi';
-import { useFarcasterContext } from './useFarcasterContext';
+import { useEffect, useState, useCallback } from "react";
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useSendTransaction,
+  useWriteContract,
+} from "wagmi";
+import { useFarcasterContext } from "./useFarcasterContext";
 
 interface WalletContextReturn {
   // Core wallet state
@@ -63,7 +69,7 @@ export function useWalletContext(): WalletContextReturn {
   // Resolve wallet address from best available source
   const walletAddress = isFarcaster
     ? farcaster.walletAddress
-    : wagmiAccount.address ?? null;
+    : (wagmiAccount.address ?? null);
 
   const isConnected = isFarcaster
     ? !!farcaster.walletAddress
@@ -72,49 +78,58 @@ export function useWalletContext(): WalletContextReturn {
   const loading = farcaster.loading;
 
   // Unified sendTransaction
-  const sendTransaction = useCallback(async (params: any) => {
-    if (isFarcaster) {
-      return farcaster.sendTransaction(params);
-    }
-
-    // Standalone: use wagmi sendTransaction
-    if (!wagmiAccount.isConnected) {
-      throw new Error('Wallet not connected');
-    }
-
-    try {
-      // For native token transfers (no data)
-      if (!params.data && params.value && params.to) {
-        const hash = await sendTransactionAsync({
-          to: params.to as `0x${string}`,
-          value: typeof params.value === 'string' && params.value.startsWith('0x')
-            ? BigInt(params.value)
-            : BigInt(params.value),
-        });
-        return { transactionHash: hash };
+  const sendTransaction = useCallback(
+    async (params: any) => {
+      if (isFarcaster) {
+        return farcaster.sendTransaction(params);
       }
 
-      // For contract calls with data
-      if (params.data && params.to) {
-        const hash = await sendTransactionAsync({
-          to: params.to as `0x${string}`,
-          data: params.data as `0x${string}`,
-          value: params.value ? BigInt(params.value) : 0n,
-        });
-        return { transactionHash: hash };
+      // Standalone: use wagmi sendTransaction
+      if (!wagmiAccount.isConnected) {
+        throw new Error("Wallet not connected");
       }
 
-      throw new Error('Invalid transaction parameters');
-    } catch (error: any) {
-      console.error('[WalletContext] Standalone sendTransaction error:', error);
-      throw error;
-    }
-  }, [isFarcaster, farcaster, wagmiAccount.isConnected, sendTransactionAsync]);
+      try {
+        // For native token transfers (no data)
+        if (!params.data && params.value && params.to) {
+          const hash = await sendTransactionAsync({
+            to: params.to as `0x${string}`,
+            value:
+              typeof params.value === "string" && params.value.startsWith("0x")
+                ? BigInt(params.value)
+                : BigInt(params.value),
+          });
+          return { transactionHash: hash };
+        }
+
+        // For contract calls with data
+        if (params.data && params.to) {
+          const hash = await sendTransactionAsync({
+            to: params.to as `0x${string}`,
+            data: params.data as `0x${string}`,
+            value: params.value ? BigInt(params.value) : 0n,
+          });
+          return { transactionHash: hash };
+        }
+
+        throw new Error("Invalid transaction parameters");
+      } catch (error: any) {
+        console.error(
+          "[WalletContext] Standalone sendTransaction error:",
+          error,
+        );
+        throw error;
+      }
+    },
+    [isFarcaster, farcaster, wagmiAccount.isConnected, sendTransactionAsync],
+  );
 
   // Connect wallet (standalone only)
   const connectWallet = useCallback(() => {
     if (isFarcaster) return; // No-op in Farcaster
-    const injected = connectors.find(c => c.id === 'injected' || c.name === 'MetaMask');
+    const injected = connectors.find(
+      (c) => c.id === "injected" || c.name === "MetaMask",
+    );
     if (injected) {
       connect({ connector: injected });
     } else if (connectors[0]) {
