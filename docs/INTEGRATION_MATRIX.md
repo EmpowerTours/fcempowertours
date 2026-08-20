@@ -12,6 +12,16 @@ counterparty actually implements. Built 2026-08-18 for deployment-plan task #1.
 2. Every `interface I…` declaration in every contract extracted — these are the *expectations*.
 3. Each expected function probed against the deployed counterparty by 4-byte selector against
    runtime bytecode, then **confirmed with a live `cast call`** where a probe said MISS.
+
+   **Correction 2026-08-20: a HIT needs the same treatment.** A selector appears in runtime
+   bytecode whenever the contract *calls* that function on someone else, not only when it
+   *offers* it — the outbound call site embeds the same four bytes as a dispatch entry. Grep
+   cannot tell them apart.
+
+   Found the hard way: `hasValidLicense(address,uint256)` probes as present on `LiveRadioV3`,
+   and a live call against it reverts today, on the live V2. The radio calls that function on
+   the NFT; it does not expose one. Any conclusion of the form "contract X has function Y"
+   below rests on a probe unless a live call is cited beside it.
 4. For undeployed contracts (v3), checked against source.
 
 ## Live set (Monad mainnet, chain 143)
