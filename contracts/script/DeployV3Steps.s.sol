@@ -250,6 +250,8 @@ contract VerifyWiring is StepBase {
         console2.log("");
         console2.log("All wiring checks passed.");
         console2.log("Still by hand: PlayOracleV3.setMusicSubscription, LiveRadioV3.setNFTContract,");
+        console2.log("  ToursRewardManagerV2.setDistributor(<V6>, true) if TOURS rewards are wanted");
+        console2.log("  (claimToursReward reverts without it - confirmed on a mainnet fork),");
         console2.log("fund+setTrustedRelayer on referrals, migrateLegacy then sealMigration,");
         console2.log("then NEXT_PUBLIC_CONTRACTS_V3=true LAST.");
     }

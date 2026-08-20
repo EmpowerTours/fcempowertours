@@ -246,6 +246,48 @@ contract V3ForkDeployTest is Test {
         assertGt(IERC20(WMON).balanceOf(TREASURY), 0, "treasury received its fee");
     }
 
+    function _mintReq(string memory uri)
+        internal
+        view
+        returns (SalesController.MintRequest memory)
+    {
+        return SalesController.MintRequest({
+            artist: artist,
+            artistFid: 0,
+            uri: uri,
+            maxCollectorEditions: 0,
+            referrer: address(0),
+            royaltyBps: 500,
+            nftType: 0,
+            price: 50 ether,
+            collectorPrice: 0,
+            nonce: uint256(keccak256(bytes(uri))),
+            deadline: block.timestamp + 1 hours
+        });
+    }
+
+    function _digest(SalesController.MintRequest memory req) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "MintRequest(address artist,uint256 artistFid,string uri,uint32 maxCollectorEditions,address referrer,uint96 royaltyBps,uint8 nftType,uint256 price,uint256 collectorPrice,uint256 nonce,uint256 deadline)"
+                ),
+                req.artist,
+                req.artistFid,
+                keccak256(bytes(req.uri)),
+                req.maxCollectorEditions,
+                req.referrer,
+                req.royaltyBps,
+                req.nftType,
+                req.price,
+                req.collectorPrice,
+                req.nonce,
+                req.deadline
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", sales.domainSeparator(), structHash));
+    }
+
     /**
      * @dev BREAK 1, on live state: `isArtistEligible` reverted against the deployed V2 because it
      *      never implemented `artistMasterCount`. Against v3 it returns.
@@ -263,6 +305,52 @@ contract V3ForkDeployTest is Test {
         emit log_named_uint("live ARTIST_MONTHLY TOURS rate", rate);
         // No assertion on the value — it follows a halving schedule. The point is that the call
         // does not revert, which is what BREAK 1 looked like from the outside.
+    }
+
+    /**
+     * @dev **A gap the deploy plan did not list.** `ToursRewardManagerV2` gates `distributeReward`
+     *      behind `authorizedDistributors`, and a freshly deployed V6 is not on that list — so
+     *      `claimToursReward` reverts until `setDistributor(V6, true)` is called by its owner.
+     *
+     *      Live state says `authorizedDistributors(MusicSubscriptionV5) == false`, so this path
+     *      has been dead on the current deployment too, independently of BREAK 1. Worth knowing
+     *      before anyone reports it as a regression introduced by v3.
+     *
+     *      Asserted by running it, not by reading the probe — a selector in bytecode proves
+     *      nothing about who may call it.
+     */
+    function test_ToursClaimNeedsTheRewardManagerToAuthoriseV6() public onlyForked {
+        deal(WMON, listener, 1_000 ether);
+        vm.prank(listener);
+        IERC20(WMON).approve(address(subscription), type(uint256).max);
+        vm.prank(listener);
+        subscription.subscribe(MusicSubscriptionV6.SubscriptionTier.MONTHLY, 0);
+
+        vm.prank(DEPLOYER);
+        subscription.setEligibilityRequirements(0, 0);
+
+        SalesController.MintRequest memory req = _mintReq("ipfs://tours-path");
+        (uint8 v, bytes32 r, bytes32 sig_s) = vm.sign(artistKey, _digest(req));
+        vm.prank(DEPLOYER);
+        uint256 masterId = sales.mintMasterFor(req, abi.encodePacked(r, sig_s, v));
+
+        vm.prank(PLAY_ORACLE);
+        subscription.recordPlay(listener, masterId, 60);
+
+        uint256 monthId = block.timestamp / 30 days;
+        vm.warp(block.timestamp + 31 days);
+        vm.prank(DEPLOYER);
+        subscription.finalizeMonthlyDistribution(monthId);
+
+        (bool eligible,,) = subscription.isArtistEligible(artist);
+        assertTrue(eligible, "thresholds lowered, so eligibility is not the blocker here");
+
+        // Unauthorised: the reward manager refuses.
+        vm.prank(artist);
+        vm.expectRevert();
+        subscription.claimToursReward(monthId);
+
+        emit log("CONFIRMED: claimToursReward reverts until rewardManager.setDistributor(V6,true)");
     }
 
     function test_PassportAndProfileWorkOnMainnetState() public onlyForked {

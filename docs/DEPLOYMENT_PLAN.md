@@ -244,6 +244,11 @@ step below touches something live, so none of it is automated:
 2. `PlayOracleV3.setMusicSubscription(<V6>)` — onlyOwner
 3. `LiveRadioV3.setNFTContract(<LicenseRegistry>)` — onlyOwner
 4. Fund `SubscriptionReferrals` and `setTrustedRelayer(<relaying Safe>)`
+4b. **`ToursRewardManagerV2.setDistributor(<V6>, true)`** — only if TOURS rewards are wanted.
+   Confirmed on a mainnet fork: without it `claimToursReward` reverts, because the manager gates
+   `distributeReward` behind `authorizedDistributors`. Note `authorizedDistributors(V5)` is
+   **already `false`** on live state, so this path is dead on the current deployment too — it is
+   not a regression v3 introduces, and it is moot if TOURS is retired (task #8).
 5. `migrateLegacy` for licence 1000004 on master 3, then `sealMigration()` (irreversible)
 6. Set the app env vars, re-run the integration matrix against the new addresses, then
    `NEXT_PUBLIC_CONTRACTS_V3=true` **last**
