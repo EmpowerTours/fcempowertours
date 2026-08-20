@@ -233,6 +233,48 @@ and are not covered by this flag. That is the remaining half of task #7.
 | 8 | TOURS decision | parked — product call, not engineering |
 | 9 | Envio lottery cleanup | deliberately last, with the new addresses |
 | 10 | Standalone radio bot: deploy or retire | ready |
+| 11 | Rights-intake upgrade (ISRC, licensed instrumental, distribution) | ready — spec written, not started |
+
+## Task #11 — rights intake for the upload flow
+
+**Full spec: `~/legal/PROMPT-rights-intake.md`** (outside this repo). Added to the plan 2026-08-20.
+Independent of the v3 deployment — it can be done before or after, and touches no contracts.
+
+**Why it matters commercially:** artists here overwhelmingly record over purchased type beats,
+licensed non-exclusively. Two consequences the upload flow does not currently capture:
+
+- The same instrumental appears on other artists' releases, so the recording **must not** be
+  enrolled in YouTube Content ID / Meta Rights Manager / TikTok — a reference file would
+  false-claim other legitimate licensees, and distributors reject releases for it.
+- Many beat licences restrict distribution or claim a share of master/publishing. We want the
+  disclosure on record, and to warn the artist before a distributor does.
+
+Four pieces:
+
+1. **ISRC validation** — normalise (strip hyphens, uppercase), validate
+   `^[A-Z]{2}[A-Z0-9]{3}\d{2}\d{5}$`, store clean and display hyphenated. **Stays optional**, with
+   a backfill path: an artist who has not distributed yet has no ISRC.
+2. **Licensed-instrumental disclosure** — used a type beat, producer, licence reference, whether it
+   permits distribution. Triggers the Content ID notice.
+3. **Distribution capture** — distributor name and UPC, with the one-distributor-per-recording
+   warning.
+4. **Agreement bump to v1.1** — new fields all optional so v1.0 records stay valid.
+
+**Three constraints, all load-bearing:**
+
+- **The submit gate does not change.** `notPro && ownsComposition && ownsMaster` stays exactly as
+  is. Everything new is disclosure, never a blocker — otherwise an artist is locked out mid-flow
+  over a field they cannot answer yet.
+- **`CreateNFTModal.tsx` builds `rightsDeclaration` twice** — once for upload, once for mint.
+  Updating one and shipping is the obvious failure. **Note: the line numbers in the spec are stale
+  as of commit `d28c1e6`**, which switched this file to `useWalletContext` and added the mint
+  signing step. Re-locate by symbol, not by line.
+- **`generateAgreementHash()` changes when the agreement text changes.** v1.0 records must stay
+  valid and readable — they are signed rights records and rewriting them destroys their
+  evidentiary value. Version the check; do not migrate or invalidate.
+
+Worth building whichever way distribution goes: referral-only, it stops artists hitting our wall;
+white-label later, this intake is what a partner will require before giving us a pipe.
 
 ## Carried into V6 — as built
 
