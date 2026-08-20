@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
 import {
+  deserializeMintRequest,
+  mintRequestTuple,
+  MINT_MASTER_FOR_ABI,
+} from "@/lib/mint-request";
+import {
   getDelegation,
   hasPermission,
   incrementTransactionCount,
@@ -837,26 +842,94 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         // Get artistFid from params - required by contract
         const artistFid = params.fid ? BigInt(params.fid) : 0n;
 
-        const musicCalls = [
-          {
-            to: EMPOWER_TOURS_NFT,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function mintMaster(address artist, uint256 artistFid, string tokenURI, string title, uint256 price, uint8 nftType) external returns (uint256)",
-              ]),
-              functionName: "mintMaster",
-              args: [
-                userAddress as Address,
-                artistFid, // ✅ artistFid - Farcaster ID
-                params.tokenURI,
-                songTitle,
-                musicPrice,
-                nftTypeValue, // ✅ 0 = MUSIC, 1 = ART
-              ],
-            }) as Hex,
-          },
-        ];
+        // v3 will not let the platform assert who an artist is: `LicenseRegistry.mintMaster` is
+        // controller-only and the controller must prove consent. So minting moves to
+        // `SalesController.mintMasterFor`, carrying the artist's EIP-712 signature. The legacy
+        // path stays exactly as it was until NEXT_PUBLIC_CONTRACTS_V3 is set.
+        let musicCalls;
+
+        if (isV3Contracts()) {
+          const salesController = process.env.NEXT_PUBLIC_SALES_CONTROLLER as
+            | Address
+            | undefined;
+          if (!salesController) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "NEXT_PUBLIC_SALES_CONTROLLER is not set. v3 minting goes through the sales controller.",
+              },
+              { status: 500 },
+            );
+          }
+
+          const parsed = deserializeMintRequest(params.mintRequest);
+          if ("error" in parsed) {
+            return NextResponse.json(
+              { success: false, error: parsed.error },
+              { status: 400 },
+            );
+          }
+          if (!params.mintSignature) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "This mint needs your signature. Approve it in your wallet and try again.",
+              },
+              { status: 400 },
+            );
+          }
+
+          // The signature covers `artist`, so a mismatch here would mean relaying a mint on
+          // behalf of somebody who did not ask for it. The contract would reject it too; this
+          // is the cheaper, clearer refusal.
+          if (
+            parsed.artist.toLowerCase() !==
+            (userAddress as string).toLowerCase()
+          ) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: "The signed mint request is for a different wallet.",
+              },
+              { status: 400 },
+            );
+          }
+
+          musicCalls = [
+            {
+              to: salesController,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: MINT_MASTER_FOR_ABI,
+                functionName: "mintMasterFor",
+                args: [mintRequestTuple(parsed), params.mintSignature as Hex],
+              }) as Hex,
+            },
+          ];
+        } else {
+          musicCalls = [
+            {
+              to: EMPOWER_TOURS_NFT,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function mintMaster(address artist, uint256 artistFid, string tokenURI, string title, uint256 price, uint8 nftType) external returns (uint256)",
+                ]),
+                functionName: "mintMaster",
+                args: [
+                  userAddress as Address,
+                  artistFid, // ✅ artistFid - Farcaster ID
+                  params.tokenURI,
+                  songTitle,
+                  musicPrice,
+                  nftTypeValue, // ✅ 0 = MUSIC, 1 = ART
+                ],
+              }) as Hex,
+            },
+          ];
+        }
 
         console.log(`💳 Executing ${nftTypeName} NFT mint transaction...`);
         const musicTxHash = await executeTransaction(

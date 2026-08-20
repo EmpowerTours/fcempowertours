@@ -7,6 +7,7 @@ import {
   useDisconnect,
   useSendTransaction,
   useWriteContract,
+  useSignTypedData,
 } from "wagmi";
 import { useFarcasterContext } from "./useFarcasterContext";
 
@@ -23,6 +24,19 @@ interface WalletContextReturn {
 
   // Wallet actions
   sendTransaction: (params: any) => Promise<any>;
+  /**
+   * Sign EIP-712 typed data with the connected wallet.
+   *
+   * Needed because v3 will not let the platform assert who an artist is: minting goes through
+   * `SalesController.mintMasterFor`, which takes the artist's signature as proof of consent so
+   * the platform can pay the gas without being able to mint in someone else's name.
+   */
+  signTypedData: (params: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }) => Promise<`0x${string}`>;
   connectWallet: () => void;
   disconnect: () => void;
 
@@ -54,6 +68,7 @@ export function useWalletContext(): WalletContextReturn {
   const { connect, connectors } = useConnect();
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { sendTransactionAsync } = useSendTransaction();
+  const { signTypedDataAsync } = useSignTypedData();
 
   const [isFarcaster, setIsFarcaster] = useState(false);
 
@@ -124,6 +139,64 @@ export function useWalletContext(): WalletContextReturn {
     [isFarcaster, farcaster, wagmiAccount.isConnected, sendTransactionAsync],
   );
 
+  /**
+   * Unified EIP-712 signing.
+   *
+   * Standalone goes through wagmi. In Farcaster there is no typed-data helper on the SDK, so it
+   * falls through to the injected EIP-1193 provider and calls `eth_signTypedData_v4` directly —
+   * the same provider `sendTransaction` above ends up using.
+   *
+   * BigInts are stringified before the call: the payload is JSON-serialised on its way to the
+   * wallet and a BigInt throws there, which surfaces as an unhelpful wallet error rather than a
+   * signing failure.
+   */
+  const signTypedData = useCallback(
+    async (params: {
+      domain: Record<string, unknown>;
+      types: Record<string, unknown>;
+      primaryType: string;
+      message: Record<string, unknown>;
+    }): Promise<`0x${string}`> => {
+      if (!walletAddress) throw new Error("Wallet not connected");
+
+      if (!isFarcaster) {
+        return (await signTypedDataAsync({
+          domain: params.domain as any,
+          types: params.types as any,
+          primaryType: params.primaryType as any,
+          message: params.message as any,
+        })) as `0x${string}`;
+      }
+
+      const provider =
+        (farcaster.sdk as any)?.ethereum ||
+        (farcaster.sdk as any)?.wallet?.ethProvider ||
+        (typeof window !== "undefined" ? (window as any).ethereum : undefined);
+
+      if (!provider?.request) {
+        throw new Error(
+          "This wallet cannot sign the mint approval. Open the app in a browser wallet to publish.",
+        );
+      }
+
+      const payload = JSON.stringify(
+        {
+          domain: params.domain,
+          types: params.types,
+          primaryType: params.primaryType,
+          message: params.message,
+        },
+        (_k, v) => (typeof v === "bigint" ? v.toString() : v),
+      );
+
+      return (await provider.request({
+        method: "eth_signTypedData_v4",
+        params: [walletAddress, payload],
+      })) as `0x${string}`;
+    },
+    [isFarcaster, walletAddress, signTypedDataAsync, farcaster.sdk],
+  );
+
   // Connect wallet (standalone only)
   const connectWallet = useCallback(() => {
     if (isFarcaster) return; // No-op in Farcaster
@@ -153,6 +226,7 @@ export function useWalletContext(): WalletContextReturn {
     fid: isFarcaster ? farcaster.fid : undefined,
 
     sendTransaction,
+    signTypedData,
     connectWallet,
     disconnect: disconnectWallet,
 

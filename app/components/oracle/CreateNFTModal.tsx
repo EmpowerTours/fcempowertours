@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, ArrowLeft } from "lucide-react";
-import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { isV3Contracts } from "@/lib/contract-generation";
+import { signMintRequest } from "@/lib/sign-mint-request";
 import { useBotCommand } from "@/app/hooks/useBotCommand";
 
 interface CreateNFTModalProps {
@@ -23,7 +25,8 @@ export function CreateNFTModal({
   onClose,
   isDarkMode = true,
 }: CreateNFTModalProps) {
-  const { user, walletAddress, requestWallet } = useFarcasterContext();
+  const { user, fid, walletAddress, requestWallet, signTypedData } =
+    useWalletContext();
   const {
     executeCommand,
     loading: botLoading,
@@ -95,7 +98,8 @@ export function CreateNFTModal({
     setMounted(true);
   }, []);
 
-  const farcasterFid = user?.fid || 0;
+  // 0 means no Farcaster account, which v3 accepts. Never send a placeholder.
+  const farcasterFid = fid || user?.fid || 0;
 
   // Resize image using canvas
   const resizeImage = async (
@@ -489,12 +493,34 @@ export function CreateNFTModal({
       } else {
         // Standard mint
         const command = `mint_music ${title.slice(0, 50)} ${tokenURI} ${price}`;
+
+        // v3 will not mint on the platform's say-so. The artist signs the payload; the
+        // platform relays it and pays the gas but cannot mint in anyone else's name.
+        let signed: {
+          mintRequest?: Record<string, string | number>;
+          mintSignature?: `0x${string}`;
+        } = {};
+
+        if (isV3Contracts()) {
+          setProgressStage("Approve the mint in your wallet...");
+          signed = await signMintRequest({
+            artist: walletAddress as `0x${string}`,
+            artistFid: farcasterFid,
+            uri: tokenURI,
+            price,
+            nftType: nftType === "art" ? 1 : 0,
+            signTypedData,
+          });
+          setProgressStage("Sending to blockchain...");
+        }
+
         mintData = await executeCommand(command, {
           imageUrl: coverUrl,
           title,
           tokenURI,
           is_art: nftType === "art",
           rightsDeclaration: mintRightsDeclaration,
+          ...signed,
         });
       }
 

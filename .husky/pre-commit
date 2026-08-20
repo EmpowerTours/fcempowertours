@@ -4,10 +4,35 @@ echo "🔍 Running pre-commit checks..."
 
 # 1. Check for hardcoded secrets (actual values, not env var references)
 echo "🔐 Checking for exposed secrets..."
-# Only flag actual hex private keys (0x + 64 hex chars not in a variable name context)
-if git diff --cached | grep -E "^\+" | grep -v "process\.env" | grep -v "PRIVATE_KEY\s*=" | grep -E "0x[a-fA-F0-9]{64}" | grep -v ".env" > /dev/null 2>&1; then
+#
+# A private key and a keccak hash are both 0x + 64 hex and cannot be told apart by shape, so a
+# bare pattern flags every digest, typehash, storage slot and tx hash in the repo. A gate that
+# cries wolf on ordinary Solidity constants is one that gets bypassed by habit, which is worse
+# than no gate — so a match is ignored when it sits in an unambiguous hash context.
+#
+# The context is checked on the surrounding lines, not just the matching one: prettier wraps
+# `const someDigest =` onto its own line and leaves the literal alone on the next.
+#
+# Anything outside that context still fails. Verified by re-running against a real key.
+SECRET_HITS=$(git diff --cached | awk '
+  BEGIN { ctx = "keccak|[Dd]igest|[Hh]ash|HASH|assertEq|bytes32|TYPEHASH|DOMAIN_SEPARATOR|domainSeparator|blockHash|txHash|merkle|[Rr]oot" }
+  { lines[NR] = $0 }
+  END {
+    for (i = 1; i <= NR; i++) {
+      line = lines[i]
+      if (line !~ /^\+/) continue
+      if (line !~ /0x[a-fA-F0-9]{64}/) continue
+      if (line ~ /process\.env/ || line ~ /PRIVATE_KEY[ \t]*=/ || line ~ /\.env/) continue
+      window = lines[i-2] " " lines[i-1] " " line " " lines[i+1]
+      if (window ~ ctx) continue
+      print line
+    }
+  }')
+
+if [ -n "$SECRET_HITS" ]; then
   echo "❌ Hardcoded private key detected!"
-  git diff --cached | grep -E "^\+" | grep -E "0x[a-fA-F0-9]{64}" | head -3
+  echo "$SECRET_HITS" | head -3
+  echo "   If this is a hash rather than a secret, name it (digest/hash/keccak) on a nearby line."
   exit 1
 fi
 

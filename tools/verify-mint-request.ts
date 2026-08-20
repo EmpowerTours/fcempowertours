@@ -11,6 +11,8 @@
  * This reads the Solidity source rather than a copy of it, so drift in either direction fails.
  */
 
+import { hashTypedData } from "viem";
+
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -232,6 +234,46 @@ check(
   "a non-object body is rejected",
   "error" in (deserializeMintRequest("nope") as object),
   true,
+);
+
+// ------------------------------------------ the digest, cross-checked against Solidity
+// The decisive check. viem builds this in the browser; SalesController builds it on-chain via
+// _hashTypedDataV4. Disagree by one field width and the recovered signer is a stranger, every
+// mint reverts BadSignature, and nothing says which field was wrong.
+//
+// The same literal is asserted from Solidity in
+// contracts/test/V3Integration.t.sol::test_TheDigestMatchesWhatTheBrowserComputes, so a drift on
+// either side fails one of the two.
+const FIXED_VERIFYING_CONTRACT = "0x000000000000000000000000000000000000bEEF";
+const digestFromViem = hashTypedData({
+  domain: {
+    name: MINT_DOMAIN_NAME,
+    version: MINT_DOMAIN_VERSION,
+    chainId: 143,
+    verifyingContract: FIXED_VERIFYING_CONTRACT,
+  },
+  types: MINT_REQUEST_TYPES,
+  primaryType: "MintRequest",
+  message: {
+    artist: "0x1111111111111111111111111111111111111111",
+    artistFid: 0n,
+    uri: "ipfs://fixture",
+    maxCollectorEditions: 0,
+    referrer: "0x0000000000000000000000000000000000000000",
+    royaltyBps: 500n,
+    nftType: 0,
+    price: 50000000000000000000n,
+    collectorPrice: 0n,
+    nonce: 1n,
+    deadline: 2000000000n,
+  },
+});
+const digestFromSolidity =
+  "0x492028e2faa4de0a50d7640793d19187a55853e19b6ab4f298c8b33ec507c45d";
+check(
+  "the mint digest matches the one Solidity computes",
+  digestFromViem,
+  digestFromSolidity,
 );
 
 console.log(`\n${checks} checks run`);

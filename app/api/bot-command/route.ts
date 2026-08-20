@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
       tokenURI: tokenURIFromRequest,
       is_art,
       rightsDeclaration: rightsDeclarationFromRequest,
+      // v3 minting: the artist signs the mint payload and this route only relays it. Both are
+      // absent on the legacy path, where the platform mints directly.
+      mintRequest: mintRequestFromRequest,
+      mintSignature: mintSignatureFromRequest,
     } = body;
 
     // ✅ Get FID from body or request context
@@ -1122,6 +1126,10 @@ Or go to the Music page to upload files.`,
               fid, // ✅ PASS FID FOR CASTING
               is_art, // ✅ PASS: NFT type for conditional cast
               rightsDeclaration: rightsDeclarationFromRequest, // ✅ PASS: Rights declaration for Redis storage
+              // Relayed through untouched. execute-delegated re-parses and validates them —
+              // this route must not be the thing that decides a signature is acceptable.
+              mintRequest: mintRequestFromRequest,
+              mintSignature: mintSignatureFromRequest,
             },
           }),
         });

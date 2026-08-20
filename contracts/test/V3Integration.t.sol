@@ -228,6 +228,66 @@ contract V3IntegrationTest is Test {
         sales.mintMasterFor(req, sig);
     }
 
+    /**
+     * @dev **The cross-check that decides whether minting works at all in production.**
+     *
+     *      The browser builds the EIP-712 digest with viem; this contract builds it with
+     *      `_hashTypedDataV4`. If those two disagree by so much as a field width, the recovered
+     *      signer is a stranger and every mint reverts `BadSignature` with nothing to explain
+     *      why — and nothing in either codebase alone would have caught it.
+     *
+     *      So both sides are pinned to one literal, computed here in Solidity and independently
+     *      in `tools/verify-mint-request.ts` with viem. Drift on either side fails one of them.
+     *
+     *      Fixed inputs, and a fixed verifying contract, so the value is deterministic rather
+     *      than dependent on where this test happens to deploy things.
+     */
+    function test_TheDigestMatchesWhatTheBrowserComputes() public pure {
+        address verifyingContract = 0x000000000000000000000000000000000000bEEF;
+
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes("EmpowerToursSales")),
+                keccak256(bytes("1")),
+                uint256(143),
+                verifyingContract
+            )
+        );
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "MintRequest(address artist,uint256 artistFid,string uri,uint32 maxCollectorEditions,address referrer,uint96 royaltyBps,uint8 nftType,uint256 price,uint256 collectorPrice,uint256 nonce,uint256 deadline)"
+                ),
+                address(0x1111111111111111111111111111111111111111),
+                uint256(0),
+                keccak256(bytes("ipfs://fixture")),
+                uint32(0),
+                address(0),
+                uint96(500),
+                uint8(0),
+                uint256(50 ether),
+                uint256(0),
+                uint256(1),
+                uint256(2_000_000_000)
+            )
+        );
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        // The same value computed independently by viem in tools/verify-mint-request.ts.
+        bytes32 digestFromViem = 0x492028e2faa4de0a50d7640793d19187a55853e19b6ab4f298c8b33ec507c45d;
+
+        assertEq(
+            digest,
+            digestFromViem,
+            "Solidity and viem disagree on the mint digest - every mint would revert BadSignature"
+        );
+    }
+
     // =====================================================================
     // The journey, end to end, for somebody with only a wallet
     // =====================================================================

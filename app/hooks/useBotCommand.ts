@@ -58,6 +58,13 @@ export function useBotCommand() {
         maxEditions?: string; // Max collector editions
         rightsDeclaration?: object; // Rights declaration for music NFTs
         /**
+         * v3 minting only. The artist signs the mint payload in their wallet and these carry
+         * that proof to the relayer; on the legacy path both are absent and the platform mints
+         * directly. See lib/mint-request.ts.
+         */
+        mintRequest?: Record<string, string | number>;
+        mintSignature?: `0x${string}`;
+        /**
          * Ask a non-Farcaster user to sign, proving they own the address.
          * Opt-in because it costs a wallet prompt — set it for commands that
          * spend or move value, not for read-only ones like `radio`/`catalog`.
@@ -126,6 +133,8 @@ export function useBotCommand() {
             collectorPrice: options?.collectorPrice,
             maxEditions: options?.maxEditions,
             rightsDeclaration: options?.rightsDeclaration,
+            mintRequest: options?.mintRequest,
+            mintSignature: options?.mintSignature,
           }),
         });
 
