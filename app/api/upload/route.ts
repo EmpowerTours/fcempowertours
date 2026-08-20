@@ -5,7 +5,6 @@ import { GoogleGenAI } from "@google/genai";
 import {
   generateAgreementHash,
   buildFilledAgreement,
-  RIGHTS_AGREEMENT_VERSION,
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
 
