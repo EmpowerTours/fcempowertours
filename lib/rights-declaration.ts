@@ -1,7 +1,7 @@
-import { keccak256, encodePacked } from 'viem';
-import { Redis } from '@upstash/redis';
+import { keccak256, encodePacked } from "viem";
+import { Redis } from "@upstash/redis";
 
-export const RIGHTS_AGREEMENT_VERSION = '1.0';
+export const RIGHTS_AGREEMENT_VERSION = "1.0";
 
 export const RIGHTS_AGREEMENT_TEXT = `EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
 Version {{VERSION}} | Date: {{DATE}}
@@ -68,7 +68,7 @@ export interface RightsDeclaration {
 }
 
 export interface RightsStatus {
-  status: 'cleared' | 'pending' | 'revoked';
+  status: "cleared" | "pending" | "revoked";
   version: string;
   agreementCid: string;
   agreementHash: string;
@@ -80,51 +80,50 @@ export interface RightsStatus {
 export function generateAgreementHash(
   agreementText: string,
   fid: string | number,
-  address: string
+  address: string,
 ): string {
   return keccak256(
     encodePacked(
-      ['string', 'uint256', 'address'],
-      [agreementText, BigInt(fid), address as `0x${string}`]
-    )
+      ["string", "uint256", "address"],
+      [agreementText, BigInt(fid), address as `0x${string}`],
+    ),
   );
 }
 
 export function buildFilledAgreement(
   declaration: RightsDeclaration,
   tokenId?: string,
-  agreementHash?: string
+  agreementHash?: string,
 ): string {
   const samplesText = declaration.containsSamples
     ? declaration.samplesCleared
-      ? 'The Work contains samples from third-party recordings. The Artist has obtained all necessary clearances and licenses for these samples.'
-      : 'The Work contains samples. Clearance status: PENDING.'
-    : 'The Work does NOT contain any samples from third-party recordings.';
+      ? "The Work contains samples from third-party recordings. The Artist has obtained all necessary clearances and licenses for these samples."
+      : "The Work contains samples. Clearance status: PENDING."
+    : "The Work does NOT contain any samples from third-party recordings.";
 
   const isrcText = declaration.isrcCode
     ? `ISRC: ${declaration.isrcCode}`
-    : 'No ISRC code provided.';
+    : "No ISRC code provided.";
 
-  return RIGHTS_AGREEMENT_TEXT
-    .replace('{{VERSION}}', RIGHTS_AGREEMENT_VERSION)
-    .replace('{{DATE}}', declaration.acceptedAt || new Date().toISOString())
-    .replace('{{ARTIST_ADDRESS}}', declaration.artistAddress)
-    .replace('{{ARTIST_FID}}', String(declaration.artistFid))
-    .replace('{{SAMPLES_DECLARATION}}', samplesText)
-    .replace('{{ISRC_DECLARATION}}', isrcText)
-    .replace('{{TOKEN_ID}}', tokenId || 'PENDING')
-    .replace('{{AGREEMENT_HASH}}', agreementHash || 'PENDING');
+  return RIGHTS_AGREEMENT_TEXT.replace("{{VERSION}}", RIGHTS_AGREEMENT_VERSION)
+    .replace("{{DATE}}", declaration.acceptedAt || new Date().toISOString())
+    .replace("{{ARTIST_ADDRESS}}", declaration.artistAddress)
+    .replace("{{ARTIST_FID}}", String(declaration.artistFid))
+    .replace("{{SAMPLES_DECLARATION}}", samplesText)
+    .replace("{{ISRC_DECLARATION}}", isrcText)
+    .replace("{{TOKEN_ID}}", tokenId || "PENDING")
+    .replace("{{AGREEMENT_HASH}}", agreementHash || "PENDING");
 }
 
 export async function storeRightsStatus(
   redis: Redis,
   tokenId: string,
   declaration: RightsDeclaration,
-  agreementCid: string = '',
-  agreementHash: string = ''
+  agreementCid: string = "",
+  agreementHash: string = "",
 ): Promise<void> {
   const status: RightsStatus = {
-    status: 'cleared',
+    status: "cleared",
     version: RIGHTS_AGREEMENT_VERSION,
     agreementCid,
     agreementHash,
@@ -138,21 +137,23 @@ export async function storeRightsStatus(
 
 export async function getRightsStatus(
   redis: Redis,
-  tokenId: string
+  tokenId: string,
 ): Promise<RightsStatus | null> {
   const data = await redis.get<string>(`rights:status:${tokenId}`);
   if (!data) return null;
-  return typeof data === 'string' ? JSON.parse(data) : data as unknown as RightsStatus;
+  return typeof data === "string"
+    ? JSON.parse(data)
+    : (data as unknown as RightsStatus);
 }
 
 export async function hasRightsClearance(
   redis: Redis,
-  tokenId: string
+  tokenId: string,
 ): Promise<boolean> {
   const status = await getRightsStatus(redis, tokenId);
   // Legacy NFTs (no record) pass through
   if (!status) return true;
-  return status.status === 'cleared';
+  return status.status === "cleared";
 }
 
 /**
@@ -165,13 +166,16 @@ export async function getClearedTokenIds(redis: Redis): Promise<string[]> {
   const cleared: string[] = [];
   let cursor = 0;
   do {
-    const [nextCursor, keys] = await redis.scan(cursor, { match: 'rights:status:*', count: 100 });
-    cursor = typeof nextCursor === 'string' ? parseInt(nextCursor) : nextCursor;
+    const [nextCursor, keys] = await redis.scan(cursor, {
+      match: "rights:status:*",
+      count: 100,
+    });
+    cursor = typeof nextCursor === "string" ? parseInt(nextCursor) : nextCursor;
 
     for (const key of keys) {
-      const tokenId = (key as string).replace('rights:status:', '');
+      const tokenId = (key as string).replace("rights:status:", "");
       const status = await getRightsStatus(redis, tokenId);
-      if (status && status.status === 'cleared') {
+      if (status && status.status === "cleared") {
         cleared.push(tokenId);
       }
     }
