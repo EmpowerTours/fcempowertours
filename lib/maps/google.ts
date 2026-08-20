@@ -6,17 +6,33 @@ import type {
   NormalizedDirections,
   MapsSource,
   MapClientConfig,
-} from './provider';
+} from "./provider";
 
-const GOOGLE_MAPS_SERVER_KEY =
-  process.env.GOOGLE_MAPS_SERVER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+/**
+ * Server-side key for the billable Places and Directions APIs.
+ *
+ * **This must never fall back to `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`.** That variable is compiled
+ * into the browser bundle by design — the Maps JS SDK loads with the key in its script URL, so
+ * it is readable by anyone and cannot be hidden. That is acceptable *for the JS SDK*, because a
+ * browser key is defended by an HTTP-referrer restriction in the Cloud Console.
+ *
+ * A referrer restriction does nothing for server-to-server calls: Places Details and Directions
+ * are called from this process with no referrer, so the same key doing both jobs means a value
+ * lifted from the page can be replayed against billable endpoints from anywhere. Two keys, two
+ * restrictions, no fallback between them.
+ *
+ * Verified 2026-08-19: the public key is present in the deployed bundle, as expected.
+ */
+const GOOGLE_MAPS_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY;
 
 export class GoogleMapsProvider implements MapProvider {
-  type: MapProviderType = 'google';
+  type: MapProviderType = "google";
 
   async searchPlaces(params: PlaceSearchParams): Promise<MapsSource[]> {
     if (!GOOGLE_MAPS_SERVER_KEY) {
-      console.error('[GoogleMaps] No API key configured');
+      console.error(
+        "[GoogleMaps] GOOGLE_MAPS_SERVER_KEY is not set. Set it to a SERVER key (IP-restricted, no NEXT_PUBLIC_ prefix). It deliberately no longer falls back to the browser key.",
+      );
       return [];
     }
 
@@ -35,38 +51,40 @@ export class GoogleMapsProvider implements MapProvider {
       }
 
       const response = await fetch(
-        'https://places.googleapis.com/v1/places:searchText',
+        "https://places.googleapis.com/v1/places:searchText",
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': GOOGLE_MAPS_SERVER_KEY,
-            'X-Goog-FieldMask':
-              'places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri',
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": GOOGLE_MAPS_SERVER_KEY,
+            "X-Goog-FieldMask":
+              "places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri",
           },
           body: JSON.stringify(body),
-        }
+        },
       );
 
       if (!response.ok) {
-        console.error('[GoogleMaps] Text search failed:', response.status);
+        console.error("[GoogleMaps] Text search failed:", response.status);
         return [];
       }
 
       const data = await response.json();
       return (data.places || []).map((place: any) => ({
-        uri: place.googleMapsUri || `https://www.google.com/maps/place/?q=place_id:${place.id}`,
-        title: place.displayName?.text || 'Unknown',
+        uri:
+          place.googleMapsUri ||
+          `https://www.google.com/maps/place/?q=place_id:${place.id}`,
+        title: place.displayName?.text || "Unknown",
         placeId: place.id,
       }));
     } catch (error) {
-      console.error('[GoogleMaps] searchPlaces error:', error);
+      console.error("[GoogleMaps] searchPlaces error:", error);
       return [];
     }
   }
 
   async getPlaceDetails(
-    placeIds: string[]
+    placeIds: string[],
   ): Promise<Record<string, NormalizedPlaceDetails>> {
     if (!GOOGLE_MAPS_SERVER_KEY) {
       return {};
@@ -78,14 +96,14 @@ export class GoogleMapsProvider implements MapProvider {
       placeIds.map(async (placeId) => {
         try {
           const fields =
-            'displayName,rating,userRatingCount,formattedAddress,types,currentOpeningHours,photos,location';
+            "displayName,rating,userRatingCount,formattedAddress,types,currentOpeningHours,photos,location";
           // Strip "places/" prefix — Grounding API returns "places/ChIJ..." but the
           // Places API (New) URL already includes "places/" in the path template.
-          const cleanId = placeId.replace(/^places\//, '');
+          const cleanId = placeId.replace(/^places\//, "");
           const url = `https://places.googleapis.com/v1/places/${cleanId}?fields=${fields}&key=${GOOGLE_MAPS_SERVER_KEY}`;
 
           const response = await fetch(url, {
-            headers: { 'X-Goog-FieldMask': fields },
+            headers: { "X-Goog-FieldMask": fields },
           });
 
           if (!response.ok) {
@@ -117,7 +135,7 @@ export class GoogleMapsProvider implements MapProvider {
           console.error(`[GoogleMaps] Error fetching place ${placeId}:`, err);
           results[placeId] = { id: placeId, name: placeId };
         }
-      })
+      }),
     );
 
     return results;
@@ -125,15 +143,20 @@ export class GoogleMapsProvider implements MapProvider {
 
   async getDirections(
     origin: { lat: number; lng: number },
-    destination: { lat: number; lng: number } | string
+    destination: { lat: number; lng: number } | string,
   ): Promise<NormalizedDirections | null> {
-    if (!GOOGLE_MAPS_SERVER_KEY) return null;
+    if (!GOOGLE_MAPS_SERVER_KEY) {
+      console.error(
+        "[GoogleMaps] GOOGLE_MAPS_SERVER_KEY is not set — directions unavailable",
+      );
+      return null;
+    }
 
     try {
       // Strip "places/" prefix from Grounding API placeIds
       const destStr =
-        typeof destination === 'string'
-          ? `place_id:${destination.replace(/^places\//, '')}`
+        typeof destination === "string"
+          ? `place_id:${destination.replace(/^places\//, "")}`
           : `${destination.lat},${destination.lng}`;
 
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destStr}&key=${GOOGLE_MAPS_SERVER_KEY}`;
@@ -142,27 +165,27 @@ export class GoogleMapsProvider implements MapProvider {
       if (!response.ok) return null;
 
       const data = await response.json();
-      if (data.status !== 'OK' || !data.routes?.[0]) return null;
+      if (data.status !== "OK" || !data.routes?.[0]) return null;
 
       const leg = data.routes[0].legs[0];
       return {
-        distance: leg.distance?.text || '',
-        duration: leg.duration?.text || '',
+        distance: leg.distance?.text || "",
+        duration: leg.duration?.text || "",
         steps: (leg.steps || []).map((step: any) => ({
-          instruction: (step.html_instructions || '').replace(/<[^>]*>/g, ''),
-          distance: step.distance?.text || '',
-          duration: step.duration?.text || '',
+          instruction: (step.html_instructions || "").replace(/<[^>]*>/g, ""),
+          distance: step.distance?.text || "",
+          duration: step.duration?.text || "",
         })),
       };
     } catch (error) {
-      console.error('[GoogleMaps] getDirections error:', error);
+      console.error("[GoogleMaps] getDirections error:", error);
       return null;
     }
   }
 
   getClientConfig(): MapClientConfig {
     return {
-      provider: 'google',
+      provider: "google",
       scriptUrl: `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=marker`,
       apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
       mapId: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID,
