@@ -225,15 +225,32 @@ and are not covered by this flag. That is the remaining half of task #7.
 |---|---|---|
 | 1 | Contract integration matrix | **done** — found 3 breaks; 1 and 2 now fixed |
 | 2 | v3 `artistFid` optional + correct `V3_DESIGN` errors | **done** |
-| 3 | `MusicSubscriptionV6` against the v3 interface | **done** — built, 157 tests, undeployed |
+| 3 | `MusicSubscriptionV6` against the v3 interface | **done** — undeployed |
 | 4 | `ProfileRegistry` for non-Farcaster display names | **done** — 24 tests, undeployed |
 | 5 | Delete the OpenClaw Discord agent | **done** |
 | 6 | `PassportNFT` redeploy, address-keyed dedup | **done** — `PassportNFTV4`, 20 tests, undeployed |
-| 7 | v3 deploy script, `migrateLegacy`, app cutover | **unblocked** — 3, 4 and 6 are done |
+| 7 | v3 deploy script, `migrateLegacy`, app cutover | **code done** — nothing left but to run it |
 | 8 | TOURS decision | parked — product call, not engineering |
 | 9 | Envio lottery cleanup | deliberately last, with the new addresses |
 | 10 | Standalone radio bot: deploy or retire | ready |
 | 11 | Rights-intake upgrade (ISRC, licensed instrumental, distribution) | ready — spec written, not started |
+
+## All that remains of #7 is execution
+
+Every line of code for the deployment is written and tested. What is left is running it, and each
+step below touches something live, so none of it is automated:
+
+1. `forge script script/DeployV3.s.sol:DeployV3 --rpc-url monad --broadcast --verify`
+2. `PlayOracleV3.setMusicSubscription(<V6>)` — onlyOwner
+3. `LiveRadioV3.setNFTContract(<LicenseRegistry>)` — onlyOwner
+4. Fund `SubscriptionReferrals` and `setTrustedRelayer(<relaying Safe>)`
+5. `migrateLegacy` for licence 1000004 on master 3, then `sealMigration()` (irreversible)
+6. Set the app env vars, re-run the integration matrix against the new addresses, then
+   `NEXT_PUBLIC_CONTRACTS_V3=true` **last**
+7. Migrate or lapse the existing V5 subscribers
+
+**Total local verification standing behind it:** 223 forge tests including a full end-to-end
+rehearsal of this exact wiring order, plus the EIP-712 digest pinned between viem and Solidity.
 
 ## Task #11 — rights intake for the upload flow
 
