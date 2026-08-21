@@ -33,6 +33,7 @@ import { getFlagEmoji, getCountryByCode } from "@/lib/passport/countries";
 import { EPKModal } from "./EPKModal";
 import type { EPKMetadata, ArtistStreamingStats } from "@/lib/epk/types";
 import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
+import { CatalogueMigration } from "@/app/components/oracle/CatalogueMigration";
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -710,6 +711,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   color="pink"
                 />
               </div>
+
+              {/* Catalogue migration — self-hides unless the v3 contracts are live and this
+                  wallet still has tracks on the old one. Placed above earnings because an
+                  unmigrated catalogue is why earnings would read as zero. */}
+              <CatalogueMigration
+                walletAddress={walletAddress}
+                isDarkMode={isDarkMode}
+              />
 
               {/* Artist Earnings - only for music creators */}
               {stats.musicCreated > 0 && (
