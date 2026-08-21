@@ -345,3 +345,49 @@ Unreachable without a Discord bot. Keep-or-cut is task #5.
 - **Lottery fully removed** (2026-08-17): 1,854 deletions across 14 files, including
   `DailyLottery.sol` and `DeployLottery.s.sol`. `tsc`, `next build` and `forge build` all clean.
   The Envio indexer still carries it — task #9.
+
+---
+
+## DEPLOYED — Monad mainnet, 2026-08-21
+
+All six, from `0x8dF64bACf6b70F7787f8d14429b258B3fF958ec1`, ~2.08 MON total.
+
+| Contract | Address |
+|---|---|
+| `LicenseRegistry` | `0x42EbcD44C2295702130f0A641633c691bA5f9480` |
+| `SalesController` | `0xf824D444AAf251EB2197836FFb218d48927F8cB1` |
+| `MusicSubscriptionV6` | `0xc7EDB67B59B8B89cF4E9bA9bd7b940052563611B` |
+| `ProfileRegistry` | `0xf4C27308f2183E7Cb07c32FAF449a259831E16EC` |
+| `PassportNFTV4` | `0x86312a8332a457EbcD3475820AE8AFbcFE032900` |
+| `SubscriptionReferrals` | `0x5A1c34124eF5b4eC09Bdf0da5b2cbaEE5BE409B3` |
+
+Verified on-chain: `registry.controller` → SalesController, `sales.registry` and
+`subscription.registry` → LicenseRegistry, `referrals.subscription` → V6,
+`subscription.oracle` → PlayOracleV3, governance → deployer on both registries.
+Split reads 10/20/70 with the artist floor at 50. `fidToAddress(0)` is unwritten.
+
+**The `SalesController` EIP-712 domain separator was checked against viem for the real
+deployed address and matches byte for byte** — `0x69fb5a44…`. Mint signatures produced
+in the browser will verify on-chain.
+
+### Deploy gotcha, for next time
+
+`forge script` 1.5.1 fails with **"Chain 143 not supported"** whenever it touches an RPC —
+even simulating. The cause is `chain = 143` inside the `[etherscan]` entry of
+`contracts/foundry.toml`; forge resolves that config at startup and cannot map 143.
+Removing **only that field** fixes it, and verification still works because
+`--verifier-url` already carries `chainid=143`. `cast` is unaffected.
+
+## NOT YET LIVE — nothing below has been done
+
+Current users are unaffected until these run:
+
+1. `PlayOracleV3.setMusicSubscription(0xc7EDB67B…)` — still points at V5
+2. `LiveRadioV3.setNFTContract(0x42EbcD44…)` — still points at NFT V2
+3. Fund `SubscriptionReferrals` + `setTrustedRelayer(<relaying Safe>)`
+4. *(optional)* `ToursRewardManagerV2.setDistributor(0xc7EDB67B…, true)` — only if TOURS
+   rewards are wanted; parked, so skip
+5. `migrateLegacy` for licence 1000004 on master 3, then `sealMigration()` (irreversible)
+6. Set the app env vars, re-run the integration matrix, then `NEXT_PUBLIC_CONTRACTS_V3=true` **last**
+7. Migrate or lapse the existing V5 subscribers
+8. Verify the six on Monadscan (separate from deploy, deliberately)
