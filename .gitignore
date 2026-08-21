@@ -190,3 +190,7 @@ public/epk/
 
 # Generated standard-json for explorer verification (regenerable)
 verify-json/
+
+# The globe texture must ship — the *.jpg rule above would otherwise drop it
+!public/textures/
+!public/textures/*

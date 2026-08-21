@@ -53,10 +53,17 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Self-hosted. This used to hot-link a Wikimedia thumbnail of Blue_Marble_2002.png, which
+    // started returning HTTP 400: the source file is 555MB and Wikimedia's thumbnailer refuses
+    // it at every size, so `onload` never fired and the sphere rendered as the bare #050510
+    // fill below — a black void. Equirectangular, NASA-derived, public domain.
     const earthTexture = new Image();
-    earthTexture.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Blue_Marble_2002.png/1024px-Blue_Marble_2002.png';
+    earthTexture.src = '/textures/earth.jpg';
     let textureLoaded = false;
     earthTexture.onload = () => { textureLoaded = true; };
+    earthTexture.onerror = () => {
+      console.warn('[CrystalBall] earth texture failed to load; using the procedural fallback');
+    };
 
     // ORBITING PLANES CONFIGURATION (adjusted for larger earth)
     const planes = Array.from({ length: 12 }).map((_, i) => ({
@@ -188,6 +195,35 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
         ctx.drawImage(earthTexture, -offsetX, drawY, scaleWidth, scaleHeight);
         ctx.drawImage(earthTexture, -offsetX + scaleWidth, drawY, scaleWidth, scaleHeight);
         ctx.filter = 'none';
+      } else {
+        // Fallback so a missing texture degrades to a planet rather than a black disc. Tuned to
+        // the teal the hue-rotate filter gives the real texture, and drifting on the same clock,
+        // so a failed load looks like a stylised globe instead of a bug.
+        const speed = state === OracleState.PROCESSING ? 1.5 : 0.5;
+        const drift = (time * 50 * speed) % (earthRadius * 2);
+
+        const ocean = ctx.createLinearGradient(cx - earthRadius, cy - earthRadius, cx + earthRadius, cy + earthRadius);
+        ocean.addColorStop(0, '#0b3a4a');
+        ocean.addColorStop(0.5, '#12607a');
+        ocean.addColorStop(1, '#0a2f3e');
+        ctx.fillStyle = ocean;
+        ctx.fillRect(cx - earthRadius, cy - earthRadius, earthRadius * 2, earthRadius * 2);
+
+        // Suggestion of landmasses. Deliberately vague — it should read as a globe at a glance,
+        // not invite comparison with an actual map.
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#1f7a6a';
+        const blobs: Array<[number, number, number]> = [
+          [-0.45, -0.25, 0.42], [0.1, -0.4, 0.3], [0.35, 0.15, 0.38],
+          [-0.2, 0.35, 0.34], [0.6, -0.1, 0.24],
+        ];
+        for (const [bx, by, br] of blobs) {
+          const x = cx + ((bx * earthRadius * 2 + drift) % (earthRadius * 2.6)) - earthRadius * 1.3;
+          ctx.beginPath();
+          ctx.ellipse(x, cy + by * earthRadius, br * earthRadius * 0.5, br * earthRadius * 0.36, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
 
       // Inner Shadow (3D Effect)
