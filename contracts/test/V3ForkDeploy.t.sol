@@ -61,6 +61,7 @@ contract V3ForkDeployTest is Test {
     uint256 artistKey = 0xA11CE;
     address artist;
     address listener = makeAddr("listener");
+    address buyer = makeAddr("buyer");
 
     function setUp() public {
         artist = vm.addr(artistKey);
@@ -246,6 +247,19 @@ contract V3ForkDeployTest is Test {
         assertGt(IERC20(WMON).balanceOf(TREASURY), 0, "treasury received its fee");
     }
 
+    /// @dev Sign a mint the way the browser will, so the tests exercise the real signature path.
+    function _signedMint(uint256 key, address who, uint256 fid, string memory uri)
+        internal
+        view
+        returns (SalesController.MintRequest memory req, bytes memory sig)
+    {
+        req = _mintReq(uri);
+        req.artist = who;
+        req.artistFid = fid;
+        (uint8 v, bytes32 r, bytes32 s_) = vm.sign(key, _digest(req));
+        sig = abi.encodePacked(r, s_, v);
+    }
+
     function _mintReq(string memory uri)
         internal
         view
@@ -364,6 +378,142 @@ contract V3ForkDeployTest is Test {
         vm.prank(artist);
         profiles.setProfile("Unify34", "", "");
         assertEq(profiles.displayNameOf(artist), "Unify34");
+    }
+
+    // =====================================================================
+    // Gaps the first pass left: buying, referrals, migration, the radio cycle
+    // =====================================================================
+
+    /**
+     * @dev Buying a licence against **live WMON**, not a mock. The local suite proves the
+     *      split arithmetic; this proves the real token moves and the artist is paid in the
+     *      same transaction rather than accruing somewhere.
+     */
+    function test_BuyingALicencePaysTheArtistInLiveWmon() public onlyForked {
+        (SalesController.MintRequest memory req, bytes memory sig) =
+            _signedMint(artistKey, artist, 0, "ipfs://buy-test");
+        vm.prank(DEPLOYER);
+        uint256 masterId = sales.mintMasterFor(req, sig);
+
+        deal(WMON, buyer, 1_000 ether);
+        vm.prank(buyer);
+        IERC20(WMON).approve(address(sales), type(uint256).max);
+
+        uint256 artistBefore = IERC20(WMON).balanceOf(artist);
+        uint256 treasuryBefore = IERC20(WMON).balanceOf(TREASURY);
+
+        vm.prank(buyer);
+        uint256 licenseId = sales.purchase(masterId, false, "ipfs://licence");
+
+        assertEq(registry.ownerOf(licenseId), buyer, "buyer holds the licence");
+        assertGt(IERC20(WMON).balanceOf(artist) - artistBefore, 0, "artist paid in the same tx");
+        assertGt(IERC20(WMON).balanceOf(TREASURY) - treasuryBefore, 0, "treasury took its fee");
+        assertTrue(registry.hasValidLicense(buyer, masterId), "and the radio can see it");
+    }
+
+    /**
+     * @dev The referral module against live WMON. An unfunded pool must let the subscription
+     *      through and accrue nothing, rather than promising a commission it cannot pay —
+     *      seeding the pool is a deploy step, and forgetting it must not break subscribing.
+     */
+    function test_ReferralsOnLiveState() public onlyForked {
+        vm.prank(DEPLOYER);
+        referrals.setTrustedRelayer(DEPLOYER);
+
+        deal(WMON, DEPLOYER, 10_000 ether);
+        vm.prank(DEPLOYER);
+        IERC20(WMON).approve(address(referrals), type(uint256).max);
+
+        vm.prank(DEPLOYER);
+        referrals.subscribeWithReferralFor(
+            listener, IMusicSubscription.SubscriptionTier.MONTHLY, 0, artist
+        );
+
+        assertTrue(subscription.hasActiveSubscription(listener), "subscription landed");
+        assertEq(referrals.referralBalance(artist), 0, "unfunded pool promises nothing");
+    }
+
+    /**
+     * @dev `migrateLegacy` for the one real outside buyer. Repointing the app at v3 carries
+     *      nothing across from the still-deployed V2, so without this their licence simply
+     *      stops being visible in the app they bought it in.
+     */
+    function test_MigratingTheOneRealV2BuyerOnLiveState() public onlyForked {
+        (SalesController.MintRequest memory req, bytes memory sig) =
+            _signedMint(artistKey, artist, 0, "ipfs://legacy-master");
+        vm.prank(DEPLOYER);
+        uint256 masterId = sales.mintMasterFor(req, sig);
+
+        address realBuyer = 0x0000000000000000000000000000000000001337;
+        uint64 boughtAt = 1_700_000_000;
+
+        vm.prank(DEPLOYER);
+        uint256 licenseId =
+            registry.migrateLegacy(realBuyer, masterId, boughtAt, false, "ipfs://legacy", 500);
+
+        assertEq(registry.ownerOf(licenseId), realBuyer, "they keep what they paid for");
+        assertEq(registry.getLicense(licenseId).mintedAt, boughtAt, "original purchase date kept");
+        assertTrue(registry.hasValidLicense(realBuyer, masterId), "and the radio honours it");
+
+        // And it closes permanently.
+        vm.prank(DEPLOYER);
+        registry.sealMigration();
+        assertTrue(registry.migrationSealed());
+        vm.prank(DEPLOYER);
+        vm.expectRevert(LicenseRegistry.MigrationSealed.selector);
+        registry.migrateLegacy(realBuyer, masterId, boughtAt, false, "u", 500);
+    }
+
+    /**
+     * @dev A full radio cycle after the repoint: the live LiveRadioV3, reading the v3 registry,
+     *      resolving a v3 master through the compat view it actually calls. This is the surface
+     *      that would fail silently — `masterTokens` returning a zeroed artist means queue
+     *      payments go nowhere.
+     */
+    function test_TheLiveRadioResolvesAV3MasterAfterRepointing() public onlyForked {
+        (SalesController.MintRequest memory req, bytes memory sig) =
+            _signedMint(artistKey, artist, 0, "ipfs://radio-master");
+        vm.prank(DEPLOYER);
+        uint256 masterId = sales.mintMasterFor(req, sig);
+
+        vm.prank(DEPLOYER);
+        ILiveRadio(LIVE_RADIO).setNFTContract(address(registry));
+        assertEq(ILiveRadio(LIVE_RADIO).nftContract(), address(registry));
+
+        // Exactly the two calls the radio makes on whatever NFT it points at.
+        (, address artistOut,,,,,,,,, bool active,,) = registry.masterTokens(masterId);
+        assertEq(artistOut, artist, "the radio can resolve who to pay - a zero here strands queue payments");
+        assertTrue(active, "and sees the master as queueable");
+        assertFalse(registry.hasValidLicense(listener, masterId), "no licence yet, so a queue would be charged");
+
+        // Buying one flips the gate the radio reads.
+        deal(WMON, listener, 1_000 ether);
+        vm.startPrank(listener);
+        IERC20(WMON).approve(address(sales), type(uint256).max);
+        sales.purchase(masterId, false, "ipfs://l");
+        vm.stopPrank();
+        assertTrue(registry.hasValidLicense(listener, masterId), "now it queues free");
+    }
+
+    /// @dev Suspension must take a master off air without touching a buyer's property.
+    function test_SuspensionOnLiveStateDoesNotTouchLicences() public onlyForked {
+        (SalesController.MintRequest memory req, bytes memory sig) =
+            _signedMint(artistKey, artist, 0, "ipfs://suspend");
+        vm.prank(DEPLOYER);
+        uint256 masterId = sales.mintMasterFor(req, sig);
+
+        deal(WMON, buyer, 1_000 ether);
+        vm.startPrank(buyer);
+        IERC20(WMON).approve(address(sales), type(uint256).max);
+        sales.purchase(masterId, false, "ipfs://l");
+        vm.stopPrank();
+
+        vm.prank(DEPLOYER);
+        registry.setMasterSuspended(masterId, true, "dmca");
+
+        (,,,,,,,,,, bool active,,) = registry.masterTokens(masterId);
+        assertFalse(active, "the radio stops queueing it");
+        assertTrue(registry.hasValidLicense(buyer, masterId), "the buyer keeps what they paid for");
     }
 
     /// @dev Guards the deploy-order mistake, against real state this time.
