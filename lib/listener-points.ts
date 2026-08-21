@@ -14,8 +14,18 @@
 export const LISTENER_STATS_KEY = "live-radio:listener-stats";
 export const DISTRIBUTION_SNAPSHOT_KEY = "live-radio:distribution-snapshot";
 
-/** MusicSubscriptionV5.RESERVE_PERCENTAGE — 20% of monthly revenue funds the listener pool. */
-export const RESERVE_PERCENTAGE = 20n;
+/**
+ * Fallback only — the launch value of `RESERVE_PERCENTAGE`.
+ *
+ * **This is no longer a constant on-chain.** MusicSubscriptionV6 makes the split governable
+ * within hard bounds, so a hardcoded 20 here can silently disagree with what the contract will
+ * actually pay. The file header's warning — "if those two ever drift, the app promises a payout
+ * the chain will not honour" — stopped being hypothetical when that shipped.
+ *
+ * Callers should read `RESERVE_PERCENTAGE()` from the subscription contract and pass it in.
+ * This value is what {expectedPoolFromRevenue} falls back to when they cannot.
+ */
+export const RESERVE_PERCENTAGE_FALLBACK = 20n;
 
 /**
  * Only the two fields the point maths reads. No index signature — that would
@@ -71,8 +81,11 @@ export function computeTotalPoints(
  * getReserveBalance() reads 0 for the whole of an open month. Estimating from
  * live revenue is the only way to show a meaningful number before month end.
  */
-export function expectedPoolFromRevenue(totalRevenueWei: bigint): bigint {
-  return (totalRevenueWei * RESERVE_PERCENTAGE) / 100n;
+export function expectedPoolFromRevenue(
+  totalRevenueWei: bigint,
+  reservePercentage: bigint = RESERVE_PERCENTAGE_FALLBACK,
+): bigint {
+  return (totalRevenueWei * reservePercentage) / 100n;
 }
 
 /**

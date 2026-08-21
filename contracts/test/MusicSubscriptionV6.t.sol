@@ -477,6 +477,113 @@ contract MusicSubscriptionV6Test is Test {
     }
 
     // =====================================================================
+    // The split: governable, bounded, and fixed once a month starts
+    // =====================================================================
+
+    function test_TheSplitStartsAtTheLaunchNumbers() public view {
+        assertEq(sub.TREASURY_PERCENTAGE(), 10);
+        assertEq(sub.RESERVE_PERCENTAGE(), 20);
+        assertEq(sub.ARTIST_POOL_PERCENTAGE(), 70);
+    }
+
+    function test_GovernanceCanRetuneTheSplit() public {
+        sub.setSplit(5, 15, 80);
+        assertEq(sub.TREASURY_PERCENTAGE(), 5);
+        assertEq(sub.RESERVE_PERCENTAGE(), 15);
+        assertEq(sub.ARTIST_POOL_PERCENTAGE(), 80);
+    }
+
+    /// @dev The bound that is the whole point: the artist pool has a floor governance cannot cross.
+    function test_TheArtistPoolHasAFloorGovernanceCannotCross() public {
+        vm.expectRevert("Artist pool below the floor");
+        sub.setSplit(20, 40, 40); // sums to 100, but starves artists
+
+        // Exactly at the floor is allowed.
+        sub.setSplit(20, 30, 50);
+        assertEq(sub.ARTIST_POOL_PERCENTAGE(), 50);
+    }
+
+    function test_TreasuryAndReserveHaveCeilings() public {
+        vm.expectRevert("Treasury above the cap");
+        sub.setSplit(25, 5, 70);
+
+        vm.expectRevert("Reserve above the cap");
+        sub.setSplit(0, 45, 55);
+    }
+
+    function test_ASplitThatDoesNotTotalOneHundredIsRejected() public {
+        vm.expectRevert("Split must total 100");
+        sub.setSplit(10, 20, 60);
+
+        vm.expectRevert("Split must total 100");
+        sub.setSplit(10, 20, 80);
+    }
+
+    function test_StrangersCannotRetuneTheSplit() public {
+        vm.prank(stranger);
+        vm.expectRevert("Only owner or DAO");
+        sub.setSplit(5, 15, 80);
+    }
+
+    /**
+     * @dev The fairness rule. Subscribers pay under the terms in force when they subscribe, so a
+     *      month that has already taken money settles on the split it started under — a later
+     *      vote cannot reach back and re-cut it.
+     */
+    function test_ChangingTheSplitDoesNotRewriteAMonthAlreadyPaidInto() public {
+        _subscribeMonthly(farcasterUser, FID);
+        uint256 id = _mintMaster(artist, FID, MUSIC);
+        vm.prank(oracle);
+        sub.recordPlay(farcasterUser, id, 60);
+
+        // Governance moves the split AFTER the money is in.
+        sub.setSplit(20, 30, 50);
+
+        uint256 monthId = START_TS / 30 days;
+        skip(30 days);
+        sub.finalizeMonthlyDistribution(monthId);
+
+        uint256 price = sub.getTierPrice(MusicSubscriptionV6.SubscriptionTier.MONTHLY);
+        assertEq(wmon.balanceOf(treasury), (price * 10) / 100, "settled at the OLD 10%");
+        assertEq(sub.totalReserve(), (price * 20) / 100, "settled at the OLD 20%");
+
+        vm.prank(artist);
+        sub.claimArtistPayout(monthId);
+        assertEq(wmon.balanceOf(artist), (price * 70) / 100, "artist keeps the 70% they signed up for");
+    }
+
+    function test_ANewSplitAppliesToTheNextMonth() public {
+        // Month A under the launch split.
+        _subscribeMonthly(farcasterUser, FID);
+        uint256 monthA = START_TS / 30 days;
+
+        sub.setSplit(5, 15, 80);
+
+        // Month B starts fresh and takes the new split.
+        skip(30 days);
+        _subscribeMonthly(walletUser, 0);
+        uint256 monthB = monthA + 1;
+
+        (,, uint8 artistPctB,) = sub.monthSplit(monthB);
+        assertEq(artistPctB, 80, "the new month recorded the new split");
+
+        (,, uint8 artistPctA,) = sub.monthSplit(monthA);
+        assertEq(artistPctA, 70, "the old month kept the old one");
+    }
+
+    /// @dev `monthlyStats` must stay a four-field tuple — three live app routes decode it by
+    ///      position, so widening it would silently shift what they read.
+    function test_MonthlyStatsTupleShapeIsUnchanged() public {
+        _subscribeMonthly(walletUser, 0);
+        (uint256 revenue, uint256 plays, uint256 distributed, bool finalized) =
+            sub.monthlyStats(START_TS / 30 days);
+        assertEq(revenue, 300 ether);
+        assertEq(plays, 0);
+        assertEq(distributed, 0);
+        assertFalse(finalized);
+    }
+
+    // =====================================================================
     // Moderation — a flag must not reach money already earned
     // =====================================================================
 

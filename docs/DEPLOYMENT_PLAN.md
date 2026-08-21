@@ -319,8 +319,15 @@ The original list, all carried out:
 - **Fix the fund-stranding bug:** `finalizeMonthlyDistribution` requires `totalPlays > 0`, so months
   with revenue but no plays can never be finalized. This permanently stranded 120 WMON across
   months 682 and 683.
-- Consider moving the split from `constant` to governable-with-hard-bounds, per v3's own principle
-  that policy should be swappable and governance should be the party the constants constrain.
+- **Done:** the split is governable within hard bounds. `TREASURY/RESERVE/ARTIST_POOL_PERCENTAGE()`
+  are now functions over settable state, with `MIN_ARTIST_POOL_PERCENTAGE = 50` as the floor
+  governance can never cross, and caps of 20/40 on treasury/reserve. `TREASURY_PERCENTAGE()` keeps
+  its exact signature, so `SubscriptionReferrals` (C1) still binds.
+
+  Each month's split is snapshotted the first time that month takes revenue, in a **separate**
+  `monthSplit` mapping — not a field on `MonthlyStats`, because three live app routes decode that
+  as a four-field tuple by position. Subscribers are settled under the terms in force when they
+  subscribed; a later vote cannot re-cut a month already paid into.
 
 ## `/api/bot-command` stays
 

@@ -128,10 +128,53 @@ contract MusicSubscriptionV6 is Ownable, ReentrancyGuard {
     uint256 public constant MONTHLY_PRICE = 300 ether;
     uint256 public constant YEARLY_PRICE = 3000 ether;
 
-    // Distribution: 10% treasury, 20% reserve, 70% artist pool.
-    uint256 public constant TREASURY_PERCENTAGE = 10;
-    uint256 public constant RESERVE_PERCENTAGE = 20;
-    uint256 public constant ARTIST_POOL_PERCENTAGE = 70;
+    /**
+     * Distribution: 10% treasury, 20% reserve, 70% artist pool at launch.
+     *
+     * Governable **within hard bounds**, because a split fixed at deploy is a decision that can
+     * never be revisited — and this contract is meant to outlive the assumptions behind those
+     * three numbers. The bounds are the part that is not negotiable: governance can retune the
+     * split but can never starve the artist pool below {MIN_ARTIST_POOL_PERCENTAGE}, which is
+     * the promise the platform is actually built on.
+     *
+     * Exposed through functions rather than public variables so the ABI is unchanged —
+     * `TREASURY_PERCENTAGE()` is called by `SubscriptionReferrals` (INTEGRATION_MATRIX C1).
+     */
+    uint256 private _treasuryPct = 10;
+    uint256 private _reservePct = 20;
+    uint256 private _artistPoolPct = 70;
+
+    /// @dev Governance may not cut the artist pool below this, whatever else it does.
+    uint256 public constant MIN_ARTIST_POOL_PERCENTAGE = 50;
+    uint256 public constant MAX_TREASURY_PERCENTAGE = 20;
+    uint256 public constant MAX_RESERVE_PERCENTAGE = 40;
+
+    function TREASURY_PERCENTAGE() public view returns (uint256) {
+        return _treasuryPct;
+    }
+
+    function RESERVE_PERCENTAGE() public view returns (uint256) {
+        return _reservePct;
+    }
+
+    function ARTIST_POOL_PERCENTAGE() public view returns (uint256) {
+        return _artistPoolPct;
+    }
+
+    /**
+     * @notice The split a given month is settled under.
+     * @dev Deliberately a separate mapping rather than a field on {MonthlyStats}: three live app
+     *      routes decode `monthlyStats(uint256)` as a four-field tuple by position, and widening
+     *      that struct would silently shift what they read.
+     */
+    struct Split {
+        uint8 treasuryPct;
+        uint8 reservePct;
+        uint8 artistPoolPct;
+        bool set;
+    }
+
+    mapping(uint256 => Split) public monthSplit;
 
     uint256 public totalReserve;
 
@@ -232,6 +275,7 @@ contract MusicSubscriptionV6 is Ownable, ReentrancyGuard {
     event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event OracleUpdated(address indexed oldOracle, address indexed newOracle);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event SplitUpdated(uint256 treasuryPct, uint256 reservePct, uint256 artistPoolPct);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
 
@@ -325,7 +369,21 @@ contract MusicSubscriptionV6 is Ownable, ReentrancyGuard {
         sub.active = true;
         sub.lastTier = tier;
 
-        monthlyStats[block.timestamp / 30 days].totalRevenue += cost;
+        uint256 monthId = block.timestamp / 30 days;
+
+        // Fix the split the first time a month takes money. Subscribers pay under the terms in
+        // force when they subscribe; letting a later governance vote re-cut a month that has
+        // already been paid into would rewrite a deal retroactively.
+        if (!monthSplit[monthId].set) {
+            monthSplit[monthId] = Split({
+                treasuryPct: uint8(_treasuryPct),
+                reservePct: uint8(_reservePct),
+                artistPoolPct: uint8(_artistPoolPct),
+                set: true
+            });
+        }
+
+        monthlyStats[monthId].totalRevenue += cost;
         unsettledRevenue += cost;
 
         emit Subscribed(user, userFid, tier, sub.expiry, cost);
@@ -417,8 +475,13 @@ contract MusicSubscriptionV6 is Ownable, ReentrancyGuard {
         require(!stats.finalized, "Already finalized");
         require(stats.totalRevenue > 0, "No revenue this month");
 
-        uint256 treasuryAmount = (stats.totalRevenue * TREASURY_PERCENTAGE) / 100;
-        uint256 reserveAmount = (stats.totalRevenue * RESERVE_PERCENTAGE) / 100;
+        // Settled on the split recorded when this month first took revenue, not on whatever
+        // the split happens to be today.
+        Split memory sp = monthSplit[monthId];
+        require(sp.set, "No split recorded for this month");
+
+        uint256 treasuryAmount = (stats.totalRevenue * sp.treasuryPct) / 100;
+        uint256 reserveAmount = (stats.totalRevenue * sp.reservePct) / 100;
         uint256 artistPool = stats.totalRevenue - treasuryAmount - reserveAmount;
 
         if (stats.totalPlays == 0) {
@@ -690,6 +753,27 @@ contract MusicSubscriptionV6 is Ownable, ReentrancyGuard {
     function setDAOTimelock(address _daoTimelock) external onlyOwner {
         emit DAOTimelockUpdated(daoTimelock, _daoTimelock);
         daoTimelock = _daoTimelock;
+    }
+
+    /**
+     * @notice Retune the revenue split, within bounds governance cannot exceed.
+     * @dev Takes effect for months that have not yet taken any revenue. A month already
+     *      collecting is settled on the split it started under — see {monthSplit}.
+     */
+    function setSplit(uint256 treasuryPct, uint256 reservePct, uint256 artistPoolPct)
+        external
+        onlyOwnerOrDAO
+    {
+        require(treasuryPct + reservePct + artistPoolPct == 100, "Split must total 100");
+        require(artistPoolPct >= MIN_ARTIST_POOL_PERCENTAGE, "Artist pool below the floor");
+        require(treasuryPct <= MAX_TREASURY_PERCENTAGE, "Treasury above the cap");
+        require(reservePct <= MAX_RESERVE_PERCENTAGE, "Reserve above the cap");
+
+        _treasuryPct = treasuryPct;
+        _reservePct = reservePct;
+        _artistPoolPct = artistPoolPct;
+
+        emit SplitUpdated(treasuryPct, reservePct, artistPoolPct);
     }
 
     function setEligibilityRequirements(uint256 _minMasterCount, uint256 _minLifetimePlays)
