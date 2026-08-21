@@ -87,6 +87,9 @@ contract PassportNFTV4 is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // V2: Authorization State
     // ============================================
     mapping(address => bool) public authorizedMinters;  // V2: For delegated minting via User Safes
+
+    /// @dev Once true, {migrateLegacyPassport} is dead forever. See {sealPassportMigration}.
+    bool public passportMigrationSealed;
     address public platformOperator;                     // V2: Can register User Safes as minters
     address public daoTimelock;                          // V2: DAO Timelock for governance
 
@@ -700,6 +703,84 @@ contract PassportNFTV4 is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             _i /= 10;
         }
         return string(bstr);
+    }
+
+    // ============================================
+    // Legacy migration
+    // ============================================
+
+    /**
+     * @notice Re-issue a passport somebody already holds on PassportNFTV3.
+     *
+     * @dev V3 stays deployed and nothing moves across on its own, so repointing the app would
+     *      make an existing holder's passports vanish from it. This re-issues them.
+     *
+     *      **Preserves `mintedAt`.** That is the whole reason this exists rather than the owner
+     *      simply calling {mintFor}: a passport records when somebody was somewhere, and a
+     *      migration that silently restamps every date to today destroys the only fact the token
+     *      carries. `mintFor` hardcodes `block.timestamp` and there is no setter.
+     *
+     *      Charges nothing — the holder already paid for this passport once — and skips the
+     *      cooldown, which exists to rate-limit new mints rather than a contract move.
+     *
+     *      Still enforces one passport per country per address, so this cannot mint duplicates,
+     *      and still guards the FID index against the shared-zero collision.
+     *
+     *      Owner-only and permanently closable by {sealPassportMigration}. It mints without
+     *      payment, so it must not outlive the migration it exists for.
+     */
+    function migrateLegacyPassport(
+        address to,
+        uint256 userFid,
+        string memory countryCode,
+        string memory countryName,
+        string memory region,
+        string memory continent,
+        string memory uri,
+        uint256 originalMintedAt
+    ) external onlyOwner nonReentrant returns (uint256) {
+        require(!passportMigrationSealed, "Passport migration is sealed");
+        require(to != address(0), "Invalid beneficiary");
+        require(originalMintedAt > 0, "Invalid mintedAt");
+        require(userPassports[to][countryCode] == 0, "Already own passport for this country");
+        if (userFid != 0) {
+            require(fidPassports[userFid][countryCode] == 0, "FID already has passport for this country");
+        }
+
+        _tokenIdCounter++;
+        uint256 tokenId = _tokenIdCounter;
+        _safeMint(to, tokenId);
+        _setTokenURI(tokenId, uri);
+
+        passportData[tokenId] = PassportMetadata({
+            userFid: userFid,
+            countryCode: countryCode,
+            countryName: countryName,
+            region: region,
+            continent: continent,
+            mintedAt: originalMintedAt,
+            verified: false,
+            verificationProof: "",
+            verifiedAt: 0
+        });
+
+        userPassports[to][countryCode] = tokenId;
+        if (userFid != 0) {
+            fidPassports[userFid][countryCode] = tokenId;
+        }
+        totalMinted[to]++;
+
+        emit PassportMinted(tokenId, to, userFid, countryCode, countryName, region, continent, false);
+        return tokenId;
+    }
+
+    /**
+     * @notice Close {migrateLegacyPassport} permanently.
+     * @dev One way, on purpose — it is a free-mint path, and a toggle would leave one that an
+     *      attacker holding the owner key could reopen.
+     */
+    function sealPassportMigration() external onlyOwner {
+        passportMigrationSealed = true;
     }
 
     // ============================================

@@ -184,6 +184,90 @@ contract PassportNFTV4Test is Test {
     }
 
     // =====================================================================
+    // Legacy migration — the dates are the point
+    // =====================================================================
+
+    /**
+     * @dev A passport records when somebody was somewhere. Re-issuing it with today's date
+     *      destroys the only fact it carries, which is why `mintFor` was not good enough.
+     */
+    function test_MigrationPreservesTheOriginalMintDate() public {
+        uint256 original = 1_700_000_000; // a real past timestamp, well before START_TS
+
+        uint256 id = passport.migrateLegacyPassport(
+            alice, FID_A, MX, "Mexico", "Central America", "North America", "ipfs://p", original
+        );
+
+        assertEq(passport.ownerOf(id), alice);
+        assertEq(passport.getPassportData(id).mintedAt, original, "the original date must survive");
+        assertTrue(passport.getPassportData(id).mintedAt < block.timestamp, "and be in the past");
+    }
+
+    function test_MigrationChargesNothingAndSkipsTheCooldown() public {
+        uint256 walletBefore = wmon.balanceOf(alice);
+        uint256 platformBefore = wmon.balanceOf(platformWallet);
+
+        // Three countries back to back — a normal mint would hit the cooldown on the second.
+        passport.migrateLegacyPassport(alice, FID_A, MX, "Mexico", "CA", "NA", "u", 1_700_000_000);
+        passport.migrateLegacyPassport(alice, FID_A, "FR", "France", "WE", "EU", "u", 1_700_000_001);
+        passport.migrateLegacyPassport(alice, FID_A, "CN", "China", "EA", "AS", "u", 1_700_000_002);
+
+        assertEq(wmon.balanceOf(alice), walletBefore, "the holder pays nothing - they already did");
+        assertEq(wmon.balanceOf(platformWallet), platformBefore, "and nothing is collected");
+        assertTrue(passport.hasPassportByAddress(alice, MX));
+        assertTrue(passport.hasPassportByAddress(alice, "FR"));
+        assertTrue(passport.hasPassportByAddress(alice, "CN"));
+    }
+
+    /// @dev A free-mint path must not become a duplicate-mint path.
+    function test_MigrationCannotMintDuplicates() public {
+        passport.migrateLegacyPassport(alice, FID_A, MX, "Mexico", "CA", "NA", "u", 1_700_000_000);
+
+        vm.expectRevert("Already own passport for this country");
+        passport.migrateLegacyPassport(alice, FID_A, MX, "Mexico", "CA", "NA", "u", 1_700_000_000);
+
+        // And not via a normal mint either.
+        _clearCooldown();
+        vm.prank(alice);
+        vm.expectRevert("Already own passport for this country");
+        passport.mint(FID_A, MX, "Mexico", "CA", "NA", "u");
+    }
+
+    function test_MigrationWorksForAWalletOnlyHolder() public {
+        uint256 id = passport.migrateLegacyPassport(
+            bob, 0, MX, "Mexico", "CA", "NA", "u", 1_700_000_000
+        );
+        assertEq(passport.ownerOf(id), bob);
+        assertEq(passport.getPassportByFid(0, MX), 0, "FID 0 is never indexed");
+        assertEq(passport.getPassportByAddress(bob, MX), id);
+    }
+
+    function test_OnlyTheOwnerCanMigrate() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        passport.migrateLegacyPassport(alice, FID_A, MX, "Mexico", "CA", "NA", "u", 1_700_000_000);
+    }
+
+    function test_MigrationRejectsAZeroDate() public {
+        vm.expectRevert("Invalid mintedAt");
+        passport.migrateLegacyPassport(alice, FID_A, MX, "Mexico", "CA", "NA", "u", 0);
+    }
+
+    /// @dev It mints without payment, so it must not outlive the migration it exists for.
+    function test_SealingMigrationIsPermanent() public {
+        passport.sealPassportMigration();
+        assertTrue(passport.passportMigrationSealed());
+
+        vm.expectRevert("Passport migration is sealed");
+        passport.migrateLegacyPassport(alice, FID_A, MX, "Mexico", "CA", "NA", "u", 1_700_000_000);
+
+        // Normal minting still works after sealing.
+        vm.prank(alice);
+        uint256 id = passport.mint(FID_A, MX, "Mexico", "CA", "NA", "u");
+        assertGt(id, 0);
+    }
+
+    // =====================================================================
     // Lookups
     // =====================================================================
 
