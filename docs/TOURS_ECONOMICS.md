@@ -8,6 +8,38 @@ Token: `ToursTokenV2` — `0x45b76a127167fD7FC7Ed264ad490144300eCfcBF`, "Empower
 
 ---
 
+## 0a. RESOLVED 2026-08-21: TOURS V1 is retired
+
+Two mainnet transactions, from the deployer:
+
+| | tx | block |
+|---|---|---|
+| `pause()` on the old reward manager `0x7fff35BB…` | `0x38b01711…` | 97976755 |
+| `burn(99,977,900,000)` on V1 `0xf61F2b01…` | `0x726f6e83…` | 97976961 |
+
+Result, verified on-chain and matching the fork rehearsal exactly:
+
+```
+V1 totalSupply   100,000,000,000  ->  22,100,000
+deployer V1       99,977,900,000  ->  0
+old reward mgr    unpaused, 20M live  ->  PAUSED, 20M locked
+```
+
+A real burn to `0x0`, not a dead-address park, so `totalSupply` actually fell.
+
+**Pausing came first, deliberately.** The manager held 20M and was unpaused; burning
+the treasury while it could still pay would have left the only remaining source of
+circulating V1 running.
+
+What survives: ~20M locked in the paused manager, ~442 across 8 outside wallets. No
+treasury, no issuer, nothing that can put more into circulation. The two-tokens-one-name
+scam vector is closed.
+
+**V2 is untouched and still the open question** — 100B supply, 99,998,978,800 on the
+deployer. Section 0 below is why that matters: at 100B, TOURS needs a user count in the
+hundreds of millions to be worth a cent. Burning ~99% of V2 is the decision that changes
+what is possible; the utility decision genuinely is not urgent.
+
 ## 0. Correction, 2026-08-20: there are TWO TOURS tokens, not one
 
 Found by scanning all 74 contracts the deployer has ever created. Only V2 appeared in any doc or
