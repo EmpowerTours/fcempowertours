@@ -8,6 +8,34 @@ Token: `ToursTokenV2` — `0x45b76a127167fD7FC7Ed264ad490144300eCfcBF`, "Empower
 
 ---
 
+## 0. Correction, 2026-08-20: there are TWO TOURS tokens, not one
+
+Found by scanning all 74 contracts the deployer has ever created. Only V2 appeared in any doc or
+memory; V1 was forgotten.
+
+| | V1 `0xf61F2b01…` | V2 `0x45b76a12…` |
+|---|---|---|
+| Name | EmpowerTours Token | EmpowerTours Token V2 |
+| Supply | 100,000,000,000 | 100,000,000,000 |
+| Deployer holds | 99,977,900,000 | 99,998,978,800 |
+| Burned | **0** | **0** |
+
+**The real supply is 200 billion.** Every per-token figure below was calculated against 100B and is
+therefore twice as generous as reality.
+
+Two live tokens under nearly the same name is a standing scam vector: the moment either has value,
+the other gets sold as the real one.
+
+**Also correcting section 3's claim that no third party was ever paid TOURS.** True of V2. Not true
+of V1 — the old reward manager `0x7fff35BB…` paid 5 TOURS at a time to real outside wallets across
+90 transfers. Roughly 442 V1 sits across ~8 external addresses; the three largest hold 313 between
+them. Dust against 100B, but not nobody.
+
+V1's remaining supply after retiring the treasury would be **22.1M** — 20M of it locked in the old
+reward manager, which is owner-controlled and pausable, plus that dust.
+
+---
+
 ## 1. Supply is fixed and already fully issued
 
 ```
