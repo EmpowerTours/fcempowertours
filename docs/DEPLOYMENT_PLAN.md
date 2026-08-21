@@ -390,4 +390,10 @@ Current users are unaffected until these run:
 5. `migrateLegacy` for licence 1000004 on master 3, then `sealMigration()` (irreversible)
 6. Set the app env vars, re-run the integration matrix, then `NEXT_PUBLIC_CONTRACTS_V3=true` **last**
 7. Migrate or lapse the existing V5 subscribers
-8. Verify the six on Monadscan (separate from deploy, deliberately)
+8. ~~Verify the six on Monadscan~~ — **DONE 2026-08-21**, all six verified.
+
+   `forge verify-contract` cannot do this: foundry 1.5.1 has no entry for chain 143, so
+   `--chain 143` falls back to Sourcify and `--verifier etherscan` ignores `--verifier-url`
+   in favour of its own chain table. Use `tools/verify-monadscan.py`, which posts the
+   standard-json to the Etherscan v2 API directly with `chainid` as a query parameter.
+   Idempotent — re-running reports "already verified".

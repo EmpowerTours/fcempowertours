@@ -187,3 +187,6 @@ public/epk/
 *.keystore
 *keystore*
 .claude/settings.local.json
+
+# Generated standard-json for explorer verification (regenerable)
+verify-json/
