@@ -68,7 +68,16 @@ CONTRACTS = [
         word(DEPLOYER),
     ),
     (
+        # Superseded 2026-08-21 — kept because it is already verified and still holds nothing.
         "0x86312a8332a457EbcD3475820AE8AFbcFE032900",
+        "PassportNFTV4.sol",
+        "PassportNFTV4",
+        word(WMON) + word(ORACLE) + word(TREASURY),
+    ),
+    (
+        # The live one. The first V4 shipped without migrateLegacyPassport, so the three
+        # existing passports could not have kept their original mint dates.
+        "0x4D5533e29Cf190131885Dc7Dbef22e31F4252410",
         "PassportNFTV4.sol",
         "PassportNFTV4",
         word(WMON) + word(ORACLE) + word(TREASURY),
@@ -164,7 +173,11 @@ def main() -> int:
         time.sleep(2)  # the API rate-limits bursts
 
     print()
-    print("all six verified" if failures == 0 else f"{failures} still unverified")
+    print(
+        f"all {len(CONTRACTS)} verified"
+        if failures == 0
+        else f"{failures} still unverified"
+    )
     return 1 if failures else 0
 
 
