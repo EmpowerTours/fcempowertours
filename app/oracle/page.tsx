@@ -1,6 +1,6 @@
 "use client";
 
-import { authHeaders } from '@/lib/quick-auth-client';
+import { authHeaders } from "@/lib/quick-auth-client";
 import React, {
   useState,
   useEffect,
@@ -399,7 +399,10 @@ export default function OraclePage() {
       console.log("[Oracle] Sending API request...");
       const response = await fetch("/api/oracle/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           message: userMessage,
           userAddress: walletAddress,
@@ -702,7 +705,10 @@ export default function OraclePage() {
     try {
       const response = await fetch("/api/oracle/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
         body: JSON.stringify({
           message: queryMessage,
           userAddress: walletAddress,
@@ -727,8 +733,6 @@ export default function OraclePage() {
           mapsSources,
           mapsWidgetToken,
           paymentTxHash,
-          itineraryData,
-          itineraryTxHash,
           mapsProvider,
           protocolExperiences,
         } = data;
@@ -1611,6 +1615,123 @@ export default function OraclePage() {
               setMapsResultsData(null);
             }}
           />,
+          document.body,
+        )}
+
+      {paymentRequired &&
+        portalMounted &&
+        createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{
+              zIndex: 10001,
+              backgroundColor: isDarkMode
+                ? "rgba(0,0,0,0.95)"
+                : "rgba(255,255,255,0.95)",
+            }}
+            onClick={handleCancelPayment}
+          >
+            <div
+              className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? "bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20" : "bg-white border border-gray-200"}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🗺️</div>
+                <h2
+                  className={`text-2xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  Google Maps Search
+                </h2>
+                <p
+                  className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                >
+                  {paymentRequired.message}
+                </p>
+              </div>
+
+              <div
+                className={`rounded-2xl p-4 mb-6 ${isDarkMode ? "bg-gray-800 border border-cyan-500/30" : "bg-gray-50 border border-gray-200"}`}
+              >
+                <div
+                  className={`rounded-lg p-3 mb-3 ${isDarkMode ? "bg-blue-500/10 border border-blue-500/30" : "bg-blue-50 border border-blue-200"}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-400 text-lg">ℹ️</span>
+                    <div className="flex-1">
+                      <p
+                        className={`text-xs font-semibold mb-1 ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}
+                      >
+                        Real-time Location Data
+                      </p>
+                      <p
+                        className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
+                      >
+                        This query uses Google Maps to find nearby places based
+                        on your location.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-2">
+                  <span
+                    className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    Service Cost
+                  </span>
+                  <span
+                    className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  >
+                    {paymentRequired.estimatedCost} WMON
+                  </span>
+                </div>
+                <div
+                  className={`border-t mt-2 pt-2 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-cyan-500 text-sm font-semibold">
+                      Total (from Safe)
+                    </span>
+                    <span className="text-cyan-500 font-bold text-lg">
+                      {paymentRequired.estimatedCost} WMON
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleConfirmPayment}
+                  disabled={isThinking}
+                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {isThinking ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      ✅ Confirm & Search ({paymentRequired.estimatedCost} WMON)
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelPayment}
+                  disabled={isThinking}
+                  className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-900"}`}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <p
+                className={`text-xs text-center mt-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
+              >
+                Payment will be deducted from your Safe wallet via delegation.
+              </p>
+            </div>
+          </div>,
           document.body,
         )}
 
