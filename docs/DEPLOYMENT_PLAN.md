@@ -33,15 +33,22 @@ Everything else in the ecosystem is looser than it looks:
 - **`PlayOracleV3.setMusicSubscription(address)` is `onlyOwner`** — repointing the oracle at V6 is
   one transaction, not a redeploy.
 - **v3 has no collector-mint entrypoint.** A collector edition is just a master with
-  `maxCollectorEditions` and `collectorPrice` set, so `mint_collector` now relays the same signed
-  `mintMasterFor` as an ordinary mint. Three things do not survive the move, and are handled
-  rather than hidden: V2's `hasSong` duplicate check has no v3 equivalent (v3 masters carry no
-  title, so dedup must happen on the uri, off-chain, before signing); the second
-  `collectorTokenURI` for the edition's distinct artwork has nowhere to live on the master, since
-  `purchase(masterId, isCollector, uri)` takes the licence uri from the buyer's call instead; and
-  a zero edition count now fails up front, because on-chain it mints fine and only the first
-  collector purchase reverts — an artist would otherwise pay to publish an edition nobody can buy
-  as one. Covered by `contracts/test/CollectorEditionV3.t.sol`.
+  `maxCollectorEditions` and `collectorPrice` set, so `mint_collector` relays the same signed
+  `mintMasterFor` as an ordinary mint. A zero edition count is rejected up front, because
+  on-chain it mints fine and only the first collector purchase reverts — an artist would
+  otherwise pay to publish an edition nobody can buy as one. Covered by
+  `contracts/test/CollectorEditionV3.t.sol`.
+
+- **Neither `hasSong` nor `collectorTokenURI` is lost, and neither needs a redeploy.** Both were
+  absent from v3 since its first commit (`f1f703a`, 2026-08-13), not dropped during the cutover.
+  Duplicate detection moves from the title to the uri — v3 masters carry no title, so
+  `findDuplicateMaster` scans the artist's masters and compares `tokenURI`, and the check now
+  runs under both generations. The collector artwork was never lost either: the upload route
+  already pins it as its own permanent IPFS document, and the master metadata now carries a
+  `collector_token_uri` pointer to it, which `collector-info` reads back. That keeps it
+  derivable from the master forever with no contract field and nothing to keep in sync in a
+  database. It is arguably better than V2, where one artwork was fixed in storage for every
+  edition — `purchase(masterId, isCollector, uri)` takes the licence uri per purchase.
 
 - **The Safe buys, then hands the licence over.** `SalesController.purchase()` mints to
   `msg.sender` and takes no recipient argument, unlike V2's

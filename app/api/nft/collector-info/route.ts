@@ -94,7 +94,38 @@ async function getCollectorInfo(tokenId: string): Promise<CollectorInfo> {
         isCollector: true,
       });
       collectorPrice = v3Price ?? 0n;
+
+      // v3 has no master-level collector URI field, but the pointer is not lost: the upload
+      // route writes `collector_token_uri` into the master's own metadata document, which is
+      // what `tokenURI` already resolves to. Read it back from there rather than reporting
+      // the edition as having no artwork.
       collectorTokenURI = "";
+      try {
+        const masterUri = (await client.readContract({
+          address: NFT_CONTRACT,
+          abi: parseAbi(["function tokenURI(uint256) view returns (string)"]),
+          functionName: "tokenURI",
+          args: [BigInt(tokenId)],
+        })) as string;
+        if (masterUri) {
+          const masterRes = await fetch(resolveIPFS(masterUri), {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (masterRes.ok) {
+            const masterMeta = await masterRes.json();
+            if (typeof masterMeta?.collector_token_uri === "string") {
+              collectorTokenURI = masterMeta.collector_token_uri;
+            }
+          }
+        }
+      } catch (metaErr: any) {
+        // A master minted before this field existed simply has no pointer. The edition still
+        // sells; it just falls back to the master artwork below.
+        console.warn(
+          "⚠️ Could not read collector artwork from master metadata:",
+          metaErr?.message,
+        );
+      }
     }
 
     // Under v3 the editions cap is the only master-level signal that a collector tier exists,

@@ -290,3 +290,94 @@ export async function readProfileName(
 export function shortenAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
+
+// ------------------------------------------------------- duplicate detection
+
+const DEDUPE_ABI = parseAbi([
+  "function totalMasters() view returns (uint256)",
+  "function tokenURI(uint256) view returns (string)",
+  "function hasSong(address artist, string songTitle) view returns (bool)",
+]);
+
+const GET_MASTER_ARTIST_ABI = parseAbi([
+  "function getMaster(uint256) view returns (address artist, uint256 artistFid, uint64 createdAt, uint32 maxCollectorEditions, uint32 collectorsMinted, uint8 nftType, address referrer, uint96 royaltyShareBps, address royaltyShareSink)",
+]);
+
+/**
+ * Has this artist already published this track?
+ *
+ * ## Why the question changes shape between generations
+ *
+ * V2 answers it directly: masters carry a title and `hasSong(artist, title)` exists. v3 masters
+ * carry no title at all — only a uri — so there is nothing to collide on by name. The uri is the
+ * one field both generations agree on and the only thing left to compare, which makes dedup a
+ * scan rather than a lookup.
+ *
+ * The scan is bounded by `totalMasters()` and runs once, before a wallet prompt. That is
+ * affordable now and will not be forever; when it stops being affordable the answer is an
+ * indexer query, not a contract change. Returning `null` on any failure keeps a degraded RPC
+ * from blocking a legitimate mint — this check exists to save an artist from a duplicate, not to
+ * be a gate that can strand them.
+ *
+ * @returns the colliding master id, or `null` if there is no duplicate (or the check could not run)
+ */
+export async function findDuplicateMaster(
+  client: PublicClient,
+  opts: {
+    nftAddress: Address;
+    artist: Address;
+    /** The master metadata uri. Used under v3. */
+    uri: string;
+    /** The track title. Used under V2, which has no uri index. */
+    title: string;
+  },
+): Promise<bigint | null> {
+  try {
+    if (!isV3Contracts()) {
+      const exists = (await client.readContract({
+        address: opts.nftAddress,
+        abi: DEDUPE_ABI,
+        functionName: "hasSong",
+        args: [opts.artist, opts.title],
+      })) as boolean;
+      // V2 answers yes/no without saying which token, and 0n is not a valid master id, so it
+      // reads unambiguously as "a duplicate exists" to every caller.
+      return exists ? 0n : null;
+    }
+
+    if (!opts.uri) return null;
+
+    const total = (await client.readContract({
+      address: opts.nftAddress,
+      abi: DEDUPE_ABI,
+      functionName: "totalMasters",
+    })) as bigint;
+
+    const wanted = opts.artist.toLowerCase();
+    for (let id = 1n; id <= total; id++) {
+      try {
+        const master = (await client.readContract({
+          address: opts.nftAddress,
+          abi: GET_MASTER_ARTIST_ABI,
+          functionName: "getMaster",
+          args: [id],
+        })) as readonly unknown[];
+        // Multiple named return values decode as a tuple, not an object — `artist` is [0].
+        if ((master[0] as string).toLowerCase() !== wanted) continue;
+
+        const uri = (await client.readContract({
+          address: opts.nftAddress,
+          abi: DEDUPE_ABI,
+          functionName: "tokenURI",
+          args: [id],
+        })) as string;
+        if (uri && uri === opts.uri) return id;
+      } catch {
+        // A purged or missing id. Skip it rather than abandoning the scan.
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

@@ -449,6 +449,21 @@ The result should look like a premium physical collector's vinyl or art print �
       ],
     };
 
+    // The collector edition's artwork, referenced from the master's own metadata.
+    //
+    // V2 stored a second `collectorTokenURI` in contract storage. v3 masters carry one uri and
+    // `purchase(masterId, isCollector, uri)` takes the licence uri from the buyer's call, so
+    // there is no on-chain field to hold it. Putting the pointer in the master metadata keeps it
+    // derivable from the master forever, with no contract change and nothing to keep in sync in
+    // a database — the collector metadata is already a permanent IPFS document by this point.
+    if (collectorMetadataCid) {
+      metadata.collector_token_uri = `ipfs://${collectorMetadataCid}`;
+      metadata.attributes.push({
+        trait_type: "Collector Edition URI",
+        value: `ipfs://${collectorMetadataCid}`,
+      });
+    }
+
     // ✅ Only add audio fields if this is a music NFT
     if (previewCid && fullCid) {
       metadata.animation_url = `ipfs://${previewCid}`; // ✅ Preview audio (30s clip)

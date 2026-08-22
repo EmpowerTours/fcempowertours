@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
+import {
+  findDuplicateMaster,
+  isV3Contracts,
+  readMasterPrice,
+} from "@/lib/contract-generation";
 import {
   deserializeMintRequest,
   describeMintRequestMismatch,
@@ -1211,46 +1215,46 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
         // Check if already exists.
         //
-        // Only meaningful on V2. `hasSong(artist, title)` exists because V2 masters carry a
-        // title; v3 masters carry only a uri, so there is no title to collide on and no
-        // equivalent to call. Skipping it under v3 is a real loss of duplicate detection, not
-        // an oversight — dedup there has to be done on the uri, off-chain, before signing.
-        if (!isV3Contracts())
-          try {
-            const { createPublicClient, http } = await import("viem");
-            const { activeChain } = await import("@/app/chains");
-            const checkCollectorClient = createPublicClient({
-              chain: activeChain,
-              transport: http(),
-            });
+        // V2 answers this by title (`hasSong`); v3 masters have no title, so the same question
+        // is asked of the uri instead. `findDuplicateMaster` picks whichever the live contracts
+        // can actually answer — the check survives the generation change, it just changes what
+        // it compares.
+        try {
+          const { createPublicClient, http } = await import("viem");
+          const { activeChain } = await import("@/app/chains");
+          const checkCollectorClient = createPublicClient({
+            chain: activeChain,
+            transport: http(),
+          });
 
-            const collectorExists = await checkCollectorClient.readContract({
-              address: EMPOWER_TOURS_NFT as Address,
-              abi: parseAbi([
-                "function hasSong(address artist, string songTitle) external view returns (bool)",
-              ]),
-              functionName: "hasSong",
-              args: [userAddress as Address, collectorSongTitle],
-            });
+          const duplicate = await findDuplicateMaster(checkCollectorClient, {
+            nftAddress: EMPOWER_TOURS_NFT as Address,
+            artist: userAddress as Address,
+            uri: params.tokenURI,
+            title: collectorSongTitle,
+          });
 
-            if (collectorExists) {
-              console.log(
-                `❌ Collector NFT already minted: ${collectorSongTitle}`,
-              );
-              return NextResponse.json(
-                {
-                  success: false,
-                  error: `"${collectorSongTitle}" has already been minted by this artist.`,
-                },
-                { status: 400 },
-              );
-            }
-          } catch (checkErr: any) {
-            console.warn(
-              "⚠️ Could not verify collector NFT existence, proceeding:",
-              checkErr.message,
+          if (duplicate !== null) {
+            console.log(
+              `❌ Collector NFT already minted: ${collectorSongTitle}`,
+            );
+            return NextResponse.json(
+              {
+                success: false,
+                error: `"${collectorSongTitle}" has already been minted by this artist.`,
+                ...(duplicate > 0n
+                  ? { existingTokenId: duplicate.toString() }
+                  : {}),
+              },
+              { status: 400 },
             );
           }
+        } catch (checkErr: any) {
+          console.warn(
+            "⚠️ Could not verify collector NFT existence, proceeding:",
+            checkErr.message,
+          );
+        }
 
         const collectorStandardPrice = parseEther(params.price.toString());
         const collectorEditionPrice = parseEther(
