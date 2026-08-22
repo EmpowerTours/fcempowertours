@@ -36,7 +36,6 @@ import { MirrorMate } from "@/app/components/oracle/MirrorMate";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
 import { MapsResultsModal } from "@/app/components/oracle/MapsResultsModal";
-import { CreateExperienceModal } from "@/app/components/oracle/CreateExperienceModal";
 import { ProfileModal } from "@/app/components/oracle/ProfileModal";
 import { DashboardModal } from "@/app/components/oracle/DashboardModal";
 import { UserProfileModal } from "@/app/components/oracle/UserProfileModal";
@@ -142,28 +141,6 @@ export default function OraclePage() {
   const [userProfileSource, setUserProfileSource] = useState<
     "dashboard" | "profile" | null
   >(null);
-  const [itineraryCreating, setItineraryCreating] = useState(false);
-  const [itineraryNotification, setItineraryNotification] = useState<{
-    type: "creating" | "created" | "recommended";
-    title?: string;
-    txHash?: string;
-    price?: string;
-  } | null>(null);
-  // Create Experience modal (from Maps flow)
-  const [showCreateExperienceModal, setShowCreateExperienceModal] =
-    useState(false);
-  const [createExperiencePlaceData, setCreateExperiencePlaceData] = useState<{
-    name: string;
-    placeId: string;
-    googleMapsUri: string;
-    latitude: number;
-    longitude: number;
-    address?: string;
-    rating?: number;
-    types?: string[];
-    isCustom?: boolean;
-  } | null>(null);
-
   // User Safe balance and deposit modal
   const [userSafeBalance, setUserSafeBalance] = useState<{
     wmonBalance: string;
@@ -215,7 +192,6 @@ export default function OraclePage() {
     setShowSubscriptionModal(false);
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
-    setShowCreateExperienceModal(false);
     setSelectedNFT(null);
     setPaymentRequired(null);
   }, []);
@@ -722,7 +698,6 @@ export default function OraclePage() {
     const queryMessage = pendingMessage;
     setPaymentRequired(null);
     setIsThinking(true);
-    setItineraryNotification({ type: "creating" });
 
     try {
       const response = await fetch("/api/oracle/chat", {
@@ -757,25 +732,6 @@ export default function OraclePage() {
           mapsProvider,
           protocolExperiences,
         } = data;
-
-        // Handle itinerary creation notification
-        if (itineraryData) {
-          if (itineraryData.exists) {
-            setItineraryNotification({
-              type: "recommended",
-              title: itineraryData.title,
-              price: itineraryData.price,
-            });
-          } else if (itineraryData.created) {
-            setItineraryNotification({
-              type: "created",
-              txHash: itineraryTxHash,
-            });
-          }
-          setTimeout(() => setItineraryNotification(null), 5000);
-        } else {
-          setItineraryNotification(null);
-        }
 
         // Add message with Maps data
         setMessages((prev) => [
@@ -821,7 +777,6 @@ export default function OraclePage() {
       }
     } catch (error: any) {
       console.error("[Oracle] Payment failed:", error);
-      setItineraryNotification(null);
       setMessages((prev) => [
         ...prev,
         {
@@ -834,53 +789,6 @@ export default function OraclePage() {
       setPendingMessage("");
     }
   };
-
-  // Handle "I'm Here" from Maps → open CreateExperienceModal
-  const handleCreateExperienceFromMaps = useCallback(
-    (placeData: {
-      name: string;
-      placeId: string;
-      googleMapsUri: string;
-      latitude: number;
-      longitude: number;
-      address?: string;
-      rating?: number;
-      types?: string[];
-    }) => {
-      setShowMapsResults(false);
-      setMapsMinimized(false);
-      setMapsResultsData(null);
-      setCreateExperiencePlaceData(placeData);
-      setShowCreateExperienceModal(true);
-    },
-    [],
-  );
-
-  // Handle "Create Custom Experience" — no Google Maps required
-  const handleCreateCustomExperience = useCallback(() => {
-    setShowMapsResults(false);
-    setMapsResultsData(null);
-    setCreateExperiencePlaceData({
-      name: "",
-      placeId: "",
-      googleMapsUri: "",
-      latitude: geoLocation?.latitude || 0,
-      longitude: geoLocation?.longitude || 0,
-      address: geoLocation?.city
-        ? `${geoLocation.city}, ${geoLocation.country || ""}`
-        : "",
-      isCustom: true,
-    } as any);
-    setShowCreateExperienceModal(true);
-  }, [geoLocation]);
-
-  // Handle "Purchase Experience" from protocol experiences
-  const handlePurchaseExperience = useCallback((experienceId: string) => {
-    // Route to the Oracle chat to handle the purchase
-    handleConsult(`Purchase experience #${experienceId}`);
-    setShowMapsResults(false);
-    setMapsResultsData(null);
-  }, []);
 
   const handleCancelPayment = () => {
     setPaymentRequired(null);
@@ -976,7 +884,6 @@ export default function OraclePage() {
       showCreateNFTModal ||
       showPassportMintModal ||
       (showMapsResults && !mapsMinimized) ||
-      showCreateExperienceModal ||
       showUserProfileModal ||
       selectedNFT !== null;
 
@@ -1703,456 +1610,9 @@ export default function OraclePage() {
               setMapsMinimized(false);
               setMapsResultsData(null);
             }}
-            onCreateExperience={handleCreateExperienceFromMaps}
-            onCreateCustomExperience={handleCreateCustomExperience}
-            onPurchaseExperience={handlePurchaseExperience}
           />,
           document.body,
         )}
-
-      {/* Create Experience Modal (from Maps flow) */}
-      {showCreateExperienceModal && createExperiencePlaceData && (
-        <CreateExperienceModal
-          place={createExperiencePlaceData}
-          onClose={() => {
-            setShowCreateExperienceModal(false);
-            setCreateExperiencePlaceData(null);
-          }}
-          onSuccess={(itineraryId, txHash) => {
-            setShowCreateExperienceModal(false);
-            setCreateExperiencePlaceData(null);
-            setItineraryNotification({
-              type: "created",
-              txHash,
-            });
-            setTimeout(() => setItineraryNotification(null), 5000);
-          }}
-        />
-      )}
-
-      {/* Payment Confirmation Dialog - Shows cost before charging via delegation */}
-      {paymentRequired &&
-        portalMounted &&
-        createPortal(
-          <div
-            className="fixed inset-0 flex items-center justify-center p-4"
-            style={{
-              zIndex: 10001,
-              backgroundColor: isDarkMode
-                ? "rgba(0,0,0,0.95)"
-                : "rgba(255,255,255,0.95)",
-            }}
-            onClick={handleCancelPayment}
-          >
-            <div
-              className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? "bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20" : "bg-white border border-gray-200"}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-4">🗺️</div>
-                <h2
-                  className={`text-2xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
-                >
-                  Google Maps Search
-                </h2>
-                <p
-                  className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                >
-                  {paymentRequired.message}
-                </p>
-              </div>
-
-              <div
-                className={`rounded-2xl p-4 mb-6 ${isDarkMode ? "bg-gray-800 border border-cyan-500/30" : "bg-gray-50 border border-gray-200"}`}
-              >
-                <div
-                  className={`rounded-lg p-3 mb-3 ${isDarkMode ? "bg-blue-500/10 border border-blue-500/30" : "bg-blue-50 border border-blue-200"}`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-400 text-lg">ℹ️</span>
-                    <div className="flex-1">
-                      <p
-                        className={`text-xs font-semibold mb-1 ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}
-                      >
-                        Real-time Location Data
-                      </p>
-                      <p
-                        className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
-                      >
-                        This query uses Google Maps to find nearby places based
-                        on your location.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    Service Cost
-                  </span>
-                  <span
-                    className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
-                  >
-                    {paymentRequired.estimatedCost} WMON
-                  </span>
-                </div>
-                <div
-                  className={`border-t mt-2 pt-2 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-cyan-500 text-sm font-semibold">
-                      Total (from Safe)
-                    </span>
-                    <span className="text-cyan-500 font-bold text-lg">
-                      {paymentRequired.estimatedCost} WMON
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={handleConfirmPayment}
-                  disabled={isThinking}
-                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                >
-                  {isThinking ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Searching...
-                    </>
-                  ) : (
-                    <>
-                      ✅ Confirm & Search ({paymentRequired.estimatedCost} WMON)
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleCancelPayment}
-                  disabled={isThinking}
-                  className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-900"}`}
-                >
-                  Cancel
-                </button>
-              </div>
-
-              <p
-                className={`text-xs text-center mt-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
-              >
-                Payment will be deducted from your Safe wallet via delegation.
-              </p>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <>
-          {console.log(
-            "[OraclePage] Rendering ProfileModal, walletAddress:",
-            walletAddress,
-          )}
-          <ProfileModal
-            walletAddress={walletAddress || ""}
-            userFid={fid}
-            username={user?.username}
-            pfpUrl={user?.pfpUrl}
-            isDarkMode={isDarkMode}
-            onClose={() => {
-              console.log("[OraclePage] ProfileModal onClose called");
-              setShowProfileModal(false);
-            }}
-            onViewUserProfile={(address) => {
-              setShowProfileModal(false);
-              setViewingUserAddress(address);
-              setUserProfileSource("profile");
-              setShowUserProfileModal(true);
-            }}
-            onMintPassport={() => {
-              setShowProfileModal(false);
-              setShowPassportMintModal(true);
-            }}
-          />
-        </>
-      )}
-
-      {/* Live Radio Modal */}
-      {showRadioModal && (
-        <LiveRadioModal
-          onClose={() => {
-            setShowRadioModal(false);
-            setRadioMinimized(false);
-          }}
-          isDarkMode={isDarkMode}
-          minimized={radioMinimized}
-          setMinimized={(v) => {
-            if (!v) {
-              // Expanding from minimized: minimize Maps, close non-minimizable modals
-              closeNonMinimizableModals();
-              if (showMapsResults) setMapsMinimized(true);
-            }
-            setRadioMinimized(v);
-          }}
-          onAudioPlay={handleRadioAudioPlay}
-          registerPauseAudio={registerRadioPauseAudio}
-        />
-      )}
-
-      {/* Event Oracle Modal */}
-      {showEventOracleModal && (
-        <EventOracle
-          isOpen={showEventOracleModal}
-          onClose={() => setShowEventOracleModal(false)}
-          isDarkMode={isDarkMode}
-        />
-      )}
-
-      {/* EPK Modal */}
-      {showEPKModal && (
-        <EPKModal
-          isOpen={showEPKModal}
-          onClose={() => setShowEPKModal(false)}
-          userAddress={walletAddress || undefined}
-          userFid={fid || undefined}
-        />
-      )}
-
-      {/* Deposit Modal */}
-      {showDepositModal && (
-        <div
-          className={`fixed inset-0 flex items-center justify-center p-4 z-[100] ${isDarkMode ? "bg-black" : "bg-white"}`}
-          onClick={() => setShowDepositModal(false)}
-        >
-          <div
-            className={`rounded-2xl max-w-sm w-full p-6 ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200 shadow-lg"}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center">
-                  <Wallet className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">
-                    Deposit to Safe
-                  </h3>
-                  <p className="text-xs text-gray-400">Fund your User Safe</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowDepositModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Safe Address */}
-            {userSafeAddress && (
-              <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
-                <p className="text-xs text-gray-400 mb-1">Safe Address</p>
-                <div className="flex items-center gap-2">
-                  <code className="text-xs text-cyan-400 font-mono break-all">
-                    {userSafeAddress}
-                  </code>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="shrink-0 p-1 hover:bg-gray-700 rounded transition-all"
-                    title="Copy address"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Current Balance */}
-            <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
-              <p className="text-xs text-gray-400 mb-1">Current Balance</p>
-              <p className="text-lg font-bold text-white">
-                {userSafeBalance
-                  ? parseFloat(userSafeBalance.monBalance).toFixed(4)
-                  : "0"}{" "}
-                MON
-              </p>
-            </div>
-
-            {/* Deposit Amount Input */}
-            <div className="mb-4">
-              <label className="text-xs text-gray-400 mb-1 block">
-                Deposit Amount (MON)
-              </label>
-              <input
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="0.0"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
-              />
-            </div>
-
-            {/* Quick Amounts */}
-            <div className="flex gap-2 mb-4">
-              {[1, 5, 10, 25].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setDepositAmount(amt.toString())}
-                  className="flex-1 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-medium transition-all"
-                >
-                  {amt} MON
-                </button>
-              ))}
-            </div>
-
-            {/* Error/Success Messages */}
-            {depositError && (
-              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                <p className="text-xs text-red-400">{depositError}</p>
-              </div>
-            )}
-            {depositSuccess && (
-              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
-                <p className="text-xs text-green-400">{depositSuccess}</p>
-              </div>
-            )}
-
-            {/* Deposit Button */}
-            <button
-              onClick={handleDeposit}
-              disabled={depositLoading || !depositAmount}
-              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              {depositLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Depositing...
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-4 h-4" />
-                  Deposit via Farcaster Wallet
-                </>
-              )}
-            </button>
-
-            <p className="mt-3 text-[10px] text-gray-500 text-center">
-              Deposits go directly to your User Safe for gasless transactions
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Dashboard Modal */}
-      {showDashboardModal && (
-        <DashboardModal
-          onClose={() => setShowDashboardModal(false)}
-          isDarkMode={isDarkMode}
-          onViewProfile={(address) => {
-            setViewingUserAddress(address);
-            setUserProfileSource("dashboard");
-            setShowUserProfileModal(true);
-            setShowDashboardModal(false);
-          }}
-        />
-      )}
-
-      {/* User Profile Modal - for viewing other users */}
-      {showUserProfileModal && viewingUserAddress && (
-        <UserProfileModal
-          walletAddress={viewingUserAddress}
-          buyerAddress={walletAddress || undefined}
-          buyerFid={fid}
-          isDarkMode={isDarkMode}
-          onClose={() => {
-            setShowUserProfileModal(false);
-            setViewingUserAddress(null);
-            setUserProfileSource(null);
-          }}
-          onBack={() => {
-            setShowUserProfileModal(false);
-            setViewingUserAddress(null);
-            if (userProfileSource === "dashboard") {
-              setShowDashboardModal(true);
-            } else if (userProfileSource === "profile") {
-              setShowProfileModal(true);
-            }
-            setUserProfileSource(null);
-          }}
-        />
-      )}
-
-      {/* Itinerary Smart Contract Notification */}
-      {itineraryNotification && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fadeIn">
-          <div
-            className={`px-4 py-3 rounded-xl border shadow-xl  flex items-center gap-3 ${
-              itineraryNotification.type === "creating"
-                ? "bg-blue-500/20 border-blue-500/50"
-                : itineraryNotification.type === "created"
-                  ? "bg-green-500/20 border-green-500/50"
-                  : "bg-purple-500/20 border-purple-500/50"
-            }`}
-          >
-            {itineraryNotification.type === "creating" ? (
-              <>
-                <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-                <div>
-                  <p className="text-blue-400 text-sm font-semibold">
-                    Creating Itinerary
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Smart contract interaction in progress...
-                  </p>
-                </div>
-              </>
-            ) : itineraryNotification.type === "created" ? (
-              <>
-                <CheckCircle2 className="w-5 h-5 text-green-400" />
-                <div>
-                  <p className="text-green-400 text-sm font-semibold">
-                    Itinerary Created!
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    You'll earn 70% from sales
-                  </p>
-                </div>
-                {itineraryNotification.txHash && (
-                  <a
-                    href={`https://monadscan.com/tx/${itineraryNotification.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-green-400 hover:underline ml-2"
-                  >
-                    View TX
-                  </a>
-                )}
-              </>
-            ) : (
-              <>
-                <MapPin className="w-5 h-5 text-purple-400" />
-                <div>
-                  <p className="text-purple-400 text-sm font-semibold">
-                    Recommended Itinerary
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    "{itineraryNotification.title}" -{" "}
-                    {itineraryNotification.price} WMON
-                  </p>
-                </div>
-              </>
-            )}
-            <button
-              onClick={() => setItineraryNotification(null)}
-              className="ml-2 text-gray-500 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Music Playlist Player - positioned at bottom center */}
       <MusicPlaylist

@@ -6,8 +6,6 @@ import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { publicClient } from '@/lib/pimlico-safe-aa';
 import MusicNFTABI from '@/lib/abis/MusicNFT.json';
 import PassportNFTABI from '@/lib/abis/PassportNFT.json';
-import ItineraryMarketABI from '@/lib/abis/ItineraryMarket.json';
-import ItineraryNFTABI from '@/lib/abis/ItineraryNFT.json';
 import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
 import { createHmac } from 'crypto';
 
@@ -170,17 +168,6 @@ export async function POST(req: NextRequest) {
       case 'mint_passport':
         txHash = await mintNFT('passport', authorFid, { countryCode: 'US', countryName: 'United States' });
         break;
-      case 'buy_itinerary':
-        if (command.id && command.id > 0 && command.id < 1000000) { // Validate ID range
-          txHash = await buyItinerary(command.id, authorFid);
-          if (txHash) {
-            await mintItineraryAfterPurchase(command.id, authorFid, txHash);
-          }
-        } else {
-          await replyCast(cast.hash, 'Invalid itinerary ID');
-          return NextResponse.json({ ok: true });
-        }
-        break;
       case 'view_casts':
         await replyCast(cast.hash, `Your recent casts: [list via Neynar]`);
         return NextResponse.json({ ok: true });
@@ -211,7 +198,7 @@ async function parseCommand(text: string, fid: number) {
         .replace(/[<>{}[\]]/g, '')
         .slice(0, 200);
 
-      const prompt = `Parse Farcaster command: "${sanitizedText}". Return only valid JSON: {"type": "mint_music|mint_passport|buy_itinerary|view_casts|unknown", "id"?: number}`;
+      const prompt = `Parse Farcaster command: "${sanitizedText}". Return only valid JSON: {"type": "mint_music|mint_passport|view_casts|unknown", "id"?: number}`;
       const result = await getAI().models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -271,55 +258,6 @@ async function mintNFT(type: 'music' | 'passport', fid: number, extra?: { countr
   ]);
 
   return result.txHash;
-}
-
-async function buyItinerary(id: number, fid: number) {
-  const userAddress = await getUserAddress(fid);
-
-  const data = encodeFunctionData({
-    abi: ItineraryMarketABI,
-    functionName: 'purchaseItinerary',
-    args: [BigInt(id)],
-  });
-
-  const result = await sendUserSafeTransaction(userAddress, [
-    { to: ITINERARY_MARKET_ADDRESS, value: 0n, data }
-  ]);
-
-  return result.txHash;
-}
-
-async function mintItineraryAfterPurchase(id: number, fid: number, purchaseTxHash: string) {
-  try {
-    const listing = await publicClient.readContract({
-      address: ITINERARY_MARKET_ADDRESS,
-      abi: ItineraryMarketABI,
-      functionName: 'itineraries',
-      args: [BigInt(id)],
-    }) as any;
-
-    const userAddress = await getUserAddress(fid);
-    const metadata = {
-      destination: listing.description || 'Adventure Destination',
-      country: 'US',
-      climbingGrade: 'Beginner',
-    };
-    const tokenUri = `ipfs://itinerary-${id}`;
-
-    const data = encodeFunctionData({
-      abi: ItineraryNFTABI,
-      functionName: 'mintItinerary',
-      args: [userAddress, metadata, tokenUri],
-    });
-
-    const result = await sendUserSafeTransaction(userAddress, [
-      { to: ITINERARY_NFT_ADDRESS, value: 0n, data }
-    ]);
-
-    console.log(`[Webhook] Minted Itinerary NFT after purchase ${purchaseTxHash}: ${result.txHash}`);
-  } catch (err) {
-    console.error('[Webhook] Error minting itinerary NFT:', err);
-  }
 }
 
 async function getUserAddress(fid: number): Promise<Address> {

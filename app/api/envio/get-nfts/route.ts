@@ -12,7 +12,7 @@ const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY
 
 interface NFTObject {
   id: string;
-  type: "ART" | "MUSIC" | "EXPERIENCE";
+  type: "ART" | "MUSIC";
   tokenId: string;
   name: string;
   imageUrl: string;
@@ -36,10 +36,8 @@ const resolveIPFS = (url: string, thumbnail: boolean = false): string => {
 
 export async function GET() {
   try {
-    // Query for Music/Art NFTs and Experience NFTs in parallel
-    const [musicResponse, experienceResponse] = await Promise.all([
-      // Fetch Music/Art NFTs
-      fetch(ENVIO_ENDPOINT, {
+    // Experiences were removed with the travel features — this is a music platform.
+    const musicResponse = await fetch(ENVIO_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -63,40 +61,14 @@ export async function GET() {
               }
             }
           `,
-        }),
       }),
+    });
 
-      // Fetch Experience NFTs
-      fetch(ENVIO_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          query: `
-            query GetExperiences {
-              Experience(
-                where: {active: {_eq: true}},
-                order_by: {createdAt: desc},
-                limit: 10
-              ) {
-                experienceId
-                title
-                price
-                metadataUri
-                creator
-              }
-            }
-          `,
-        }),
-      }),
-    ]);
-
-    if (!musicResponse.ok || !experienceResponse.ok) {
+    if (!musicResponse.ok) {
       throw new Error("Failed to fetch NFTs from Envio");
     }
 
     const musicData = await musicResponse.json();
-    const experienceData = await experienceResponse.json();
 
     // The indexer is only trusted when it is close to the chain head. It stalled on 2026-08-13
     // and kept answering 200 with stale rows for eight days, so "the request succeeded" is not
@@ -124,7 +96,6 @@ export async function GET() {
     }
 
     const musicNFTs = catalogue.rows;
-    const experienceNFTs = experienceData.data?.Experience || [];
 
     // Fetch Farcaster usernames for all unique artist addresses
     const artistAddresses = [
@@ -258,46 +229,7 @@ export async function GET() {
       }),
     );
 
-    // Process Experience NFTs
-    const processedExperienceNFTs: NFTObject[] = await Promise.all(
-      experienceNFTs.slice(0, 8).map(async (exp: any) => {
-        let imageUrl = "";
-        let name = exp.title || `Experience #${exp.experienceId}`;
-
-        try {
-          if (exp.metadataUri) {
-            const metadataUrl = resolveIPFS(exp.metadataUri);
-            if (metadataUrl) {
-              const metadataRes = await fetch(metadataUrl);
-              if (metadataRes.ok) {
-                const metadata = await metadataRes.json();
-                if (metadata.image) {
-                  imageUrl = resolveIPFS(metadata.image);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error(
-            `Failed to fetch metadata for Experience ${exp.experienceId}:`,
-            error,
-          );
-        }
-
-        return {
-          id: `experience-${exp.experienceId}`,
-          type: "EXPERIENCE",
-          tokenId: exp.experienceId.toString(),
-          name,
-          imageUrl,
-          price: (Number(exp.price) / 1e18).toFixed(2),
-          contractAddress: process.env.NEXT_PUBLIC_EXPERIENCE_NFT || "",
-        };
-      }),
-    );
-
-    // Combine and shuffle for variety
-    const allNFTs = [...processedMusicNFTs, ...processedExperienceNFTs];
+    const allNFTs = [...processedMusicNFTs];
 
     // Simple shuffle
     for (let i = allNFTs.length - 1; i > 0; i--) {

@@ -1,6 +1,3 @@
-// Oracle Components - Experience System
-export { CreateExperienceModal } from "./CreateExperienceModal";
-export { PurchaseExperienceModal } from "./PurchaseExperienceModal";
 export { CheckInModal } from "./CheckInModal";
 
 // Oracle Components - Other
