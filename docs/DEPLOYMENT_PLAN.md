@@ -415,6 +415,54 @@ even simulating. The cause is `chain = 143` inside the `[etherscan]` entry of
 Removing **only that field** fixes it, and verification still works because
 `--verifier-url` already carries `chainid=143`. `cast` is unaffected.
 
+## Migration runbook — prepared 2026-08-21
+
+Every value below was read off mainnet, not transcribed. Regenerate with
+`node --experimental-strip-types tools/build-migration-manifest.ts`, which refuses to emit a
+complete manifest while anything is still unknown.
+
+**Two prerequisites produce values the manifest needs, so they come first:**
+
+1. `node --experimental-strip-types tools/repin-master-metadata.ts` (needs `PINATA_JWT`).
+   Legacy masters 3, 4 and 5 have collector artwork in a second contract field that v3 does not
+   have. Their metadata was pinned before `collector_token_uri` existed and a CID is immutable,
+   so re-publishing them with their current uris loses the artwork permanently and silently.
+   This copies each document, adds the pointer, and re-pins. Additive — the old CIDs keep
+   resolving and nothing on-chain is touched. Pass the result as `REPINNED`.
+2. Redeploy `PassportNFTV4`. The deployed one at `0x86312a83…` does not carry
+   `migrateLegacyPassport` — selector `0x4b63ac18` is absent from its bytecode — so without this
+   the three passports lose their real mint dates. `forge create`/`--broadcast` is never
+   manifest-clearable; a human runs it. Pass the address as `PASSPORT_V4`.
+
+Then `EXPIRES=<iso> REPINNED=<json> PASSPORT_V4=0x… node … tools/build-migration-manifest.ts`.
+
+### The guard cannot approve three of these
+
+`migrateLegacyPassport` takes region and continent strings — "Central America", "Western Europe",
+"Eastern Asia". The guard splits a command's arguments on whitespace and strips one layer of
+quotes per token, so an argument *containing* a space parses into more tokens than its entry has
+and can never match. Verified against the guard's own parser.
+
+Those three must be sent by hand, which the guard permits by design — it only inspects commands
+the agent runs. `build-migration-manifest.ts` prints them separately, ready to paste. Do not
+reshape the data to fit the parser.
+
+`tools/verify-manifest-entries.ts <manifest.json>` replays every entry through that same parser
+and fails on any that would be denied. Run it before approving anything.
+
+### Order
+
+The five masters mint in order into an empty registry, so v3 master ids land equal to their
+legacy ids — which is what lets `migrateLegacy` name master 3 for licence 1000004. Nothing else
+may mint in between. The seals are irreversible and deliberately last.
+
+### Deferred, with a reason
+
+`SubscriptionReferrals` funding and `setTrustedRelayer` are **not** in the runbook. Nothing in
+the app calls that contract, so both would be dead work. It also assumes a single platform
+relayer, which `USE_USER_SAFES` contradicts — every user's transaction comes from their own Safe.
+Wire the app first, then decide what a trusted relayer even means here.
+
 ## NOT YET LIVE — nothing below has been done
 
 Current users are unaffected until these run:
