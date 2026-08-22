@@ -1,17 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { getCatalogue, type CatalogueRow } from "@/lib/catalogue-source";
 
 // Force dynamic rendering - don't cache this route
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY
   ? `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/`
-  : 'https://gateway.pinata.cloud/ipfs/';
+  : "https://gateway.pinata.cloud/ipfs/";
 
 interface NFTObject {
   id: string;
-  type: 'ART' | 'MUSIC' | 'EXPERIENCE';
+  type: "ART" | "MUSIC" | "EXPERIENCE";
   tokenId: string;
   name: string;
   imageUrl: string;
@@ -23,11 +24,11 @@ interface NFTObject {
 
 // Utility function to resolve IPFS URLs with thumbnail optimization
 const resolveIPFS = (url: string, thumbnail: boolean = false): string => {
-  if (!url) return '';
+  if (!url) return "";
 
   let resolvedUrl = url;
-  if (url.startsWith('ipfs://')) {
-    resolvedUrl = url.replace('ipfs://', PINATA_GATEWAY);
+  if (url.startsWith("ipfs://")) {
+    resolvedUrl = url.replace("ipfs://", PINATA_GATEWAY);
   }
 
   return resolvedUrl;
@@ -39,9 +40,9 @@ export async function GET() {
     const [musicResponse, experienceResponse] = await Promise.all([
       // Fetch Music/Art NFTs
       fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
           query: `
             query GetMusicAndArt {
@@ -61,15 +62,15 @@ export async function GET() {
                 price
               }
             }
-          `
+          `,
         }),
       }),
 
       // Fetch Experience NFTs
       fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
           query: `
             query GetExperiences {
@@ -85,68 +86,120 @@ export async function GET() {
                 creator
               }
             }
-          `
+          `,
         }),
       }),
     ]);
 
     if (!musicResponse.ok || !experienceResponse.ok) {
-      throw new Error('Failed to fetch NFTs from Envio');
+      throw new Error("Failed to fetch NFTs from Envio");
     }
 
     const musicData = await musicResponse.json();
     const experienceData = await experienceResponse.json();
 
-    const musicNFTs = musicData.data?.MusicNFT || [];
+    // The indexer is only trusted when it is close to the chain head. It stalled on 2026-08-13
+    // and kept answering 200 with stale rows for eight days, so "the request succeeded" is not
+    // evidence of anything. `getCatalogue` checks the lag and reads the contracts instead when
+    // the indexer is behind, unreachable, or unpaid — and goes back to using it automatically
+    // once it catches up.
+    const envioRows: CatalogueRow[] = (musicData.data?.MusicNFT || []).map(
+      (n: any) => ({
+        id: n.id,
+        tokenId: n.tokenId,
+        tokenURI: n.tokenURI,
+        isArt: n.isArt,
+        artist: n.artist,
+        price: String(n.price ?? "0"),
+      }),
+    );
+
+    const catalogue = await getCatalogue({
+      limit: 15,
+      fetchFromEnvio: async () => envioRows,
+    });
+
+    if (catalogue.source === "chain") {
+      console.warn(`[get-nfts] serving from chain — ${catalogue.reason}`);
+    }
+
+    const musicNFTs = catalogue.rows;
     const experienceNFTs = experienceData.data?.Experience || [];
 
     // Fetch Farcaster usernames for all unique artist addresses
-    const artistAddresses = [...new Set(musicNFTs.map((nft: any) => nft.artist).filter(Boolean))] as string[];
+    const artistAddresses = [
+      ...new Set(musicNFTs.map((nft: any) => nft.artist).filter(Boolean)),
+    ] as string[];
     const artistUsernames: Record<string, string> = {};
 
     if (artistAddresses.length > 0) {
       try {
-        const neynarApiKey = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-        console.log('[get-nfts] Looking up usernames for artists:', artistAddresses);
+        const neynarApiKey =
+          process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+        console.log(
+          "[get-nfts] Looking up usernames for artists:",
+          artistAddresses,
+        );
         if (neynarApiKey) {
-          const addressesParam = artistAddresses.join(',');
+          const addressesParam = artistAddresses.join(",");
           // Try with hyphen format and address_types parameter
           const neynarUrl = `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${addressesParam}&address_types=custody_address,verified_address`;
-          console.log('[get-nfts] Neynar URL:', neynarUrl);
+          console.log("[get-nfts] Neynar URL:", neynarUrl);
           const neynarResponse = await fetch(neynarUrl, {
-            headers: { 'api_key': neynarApiKey },
+            headers: { api_key: neynarApiKey },
           });
 
           if (neynarResponse.ok) {
             const neynarData = await neynarResponse.json();
-            console.log('[get-nfts] Neynar response keys:', Object.keys(neynarData));
+            console.log(
+              "[get-nfts] Neynar response keys:",
+              Object.keys(neynarData),
+            );
             // Map addresses to usernames - response is keyed by lowercase address
             for (const address of artistAddresses) {
               const users = neynarData[address.toLowerCase()];
               if (users && users.length > 0) {
                 artistUsernames[address.toLowerCase()] = users[0].username;
-                console.log('[get-nfts] Found username:', users[0].username, 'for', address);
+                console.log(
+                  "[get-nfts] Found username:",
+                  users[0].username,
+                  "for",
+                  address,
+                );
               } else {
-                console.log('[get-nfts] No Farcaster user found for address:', address);
+                console.log(
+                  "[get-nfts] No Farcaster user found for address:",
+                  address,
+                );
               }
             }
-            console.log('[get-nfts] Fetched Farcaster usernames for', Object.keys(artistUsernames).length, 'artists');
+            console.log(
+              "[get-nfts] Fetched Farcaster usernames for",
+              Object.keys(artistUsernames).length,
+              "artists",
+            );
           } else {
-            const errorText = await neynarResponse.text().catch(() => 'no body');
-            console.error('[get-nfts] Neynar API error:', neynarResponse.status, errorText.substring(0, 200));
+            const errorText = await neynarResponse
+              .text()
+              .catch(() => "no body");
+            console.error(
+              "[get-nfts] Neynar API error:",
+              neynarResponse.status,
+              errorText.substring(0, 200),
+            );
           }
         } else {
-          console.warn('[get-nfts] No NEYNAR_API_KEY configured');
+          console.warn("[get-nfts] No NEYNAR_API_KEY configured");
         }
       } catch (err) {
-        console.error('[get-nfts] Failed to fetch artist usernames:', err);
+        console.error("[get-nfts] Failed to fetch artist usernames:", err);
       }
     }
 
     // Process Music/Art NFTs - fetch metadata for images
     const processedMusicNFTs: NFTObject[] = await Promise.all(
       musicNFTs.slice(0, 10).map(async (nft: any) => {
-        let imageUrl = '';
+        let imageUrl = "";
         let name = nft.isArt ? `Art #${nft.tokenId}` : `Track #${nft.tokenId}`;
 
         let audioUrl: string | undefined;
@@ -163,41 +216,52 @@ export async function GET() {
                 name = metadata.name;
               }
               // Prefer external_url (full track) over animation_url (3s preview)
-              const rawAudio = metadata.external_url || metadata.audio_url || metadata.audio || metadata.animation_url;
+              const rawAudio =
+                metadata.external_url ||
+                metadata.audio_url ||
+                metadata.audio ||
+                metadata.animation_url;
               if (rawAudio) {
                 audioUrl = resolveIPFS(rawAudio);
               }
             }
           }
         } catch (error) {
-          console.error(`Failed to fetch metadata for NFT ${nft.tokenId}:`, error);
+          console.error(
+            `Failed to fetch metadata for NFT ${nft.tokenId}:`,
+            error,
+          );
         }
 
         // Price is in wei (18 decimals) - convert to WMON
-        const priceInWMON = nft.price ? (Number(nft.price) / 1e18).toFixed(2) : '0';
+        const priceInWMON = nft.price
+          ? (Number(nft.price) / 1e18).toFixed(2)
+          : "0";
 
         // Get artist Farcaster username
-        const artistUsername = nft.artist ? artistUsernames[nft.artist.toLowerCase()] : undefined;
+        const artistUsername = nft.artist
+          ? artistUsernames[nft.artist.toLowerCase()]
+          : undefined;
 
         return {
           id: `music-${nft.id}`,
-          type: nft.isArt ? 'ART' : 'MUSIC',
+          type: nft.isArt ? "ART" : "MUSIC",
           tokenId: nft.tokenId.toString(),
           name,
           imageUrl,
           price: priceInWMON,
-          contractAddress: process.env.NEXT_PUBLIC_NFT_CONTRACT || '',
+          contractAddress: process.env.NEXT_PUBLIC_NFT_CONTRACT || "",
           tokenURI: nft.tokenURI, // Include for fetching audio metadata
           audioUrl, // Full track audio URL (external_url preferred over animation_url preview)
           artistUsername, // Farcaster username of the artist
         };
-      })
+      }),
     );
 
     // Process Experience NFTs
     const processedExperienceNFTs: NFTObject[] = await Promise.all(
       experienceNFTs.slice(0, 8).map(async (exp: any) => {
-        let imageUrl = '';
+        let imageUrl = "";
         let name = exp.title || `Experience #${exp.experienceId}`;
 
         try {
@@ -214,19 +278,22 @@ export async function GET() {
             }
           }
         } catch (error) {
-          console.error(`Failed to fetch metadata for Experience ${exp.experienceId}:`, error);
+          console.error(
+            `Failed to fetch metadata for Experience ${exp.experienceId}:`,
+            error,
+          );
         }
 
         return {
           id: `experience-${exp.experienceId}`,
-          type: 'EXPERIENCE',
+          type: "EXPERIENCE",
           tokenId: exp.experienceId.toString(),
           name,
           imageUrl,
           price: (Number(exp.price) / 1e18).toFixed(2),
-          contractAddress: process.env.NEXT_PUBLIC_EXPERIENCE_NFT || '',
+          contractAddress: process.env.NEXT_PUBLIC_EXPERIENCE_NFT || "",
         };
-      })
+      }),
     );
 
     // Combine and shuffle for variety
@@ -238,31 +305,37 @@ export async function GET() {
       [allNFTs[i], allNFTs[j]] = [allNFTs[j], allNFTs[i]];
     }
 
-    return NextResponse.json({
-      success: true,
-      nfts: allNFTs.slice(0, 20), // Return max 20 NFTs for performance
-    }, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      }
-    });
-
+    return NextResponse.json(
+      {
+        success: true,
+        nfts: allNFTs.slice(0, 20), // Return max 20 NFTs for performance
+        // Surfaced rather than only logged: seeing "chain" for days on end is the signal that
+        // the indexer stopped, which last time went unnoticed for over a week.
+        source: catalogue.source,
+        sourceReason: catalogue.reason,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      },
+    );
   } catch (error: any) {
-    console.error('Error fetching NFTs from Envio:', error);
+    console.error("Error fetching NFTs from Envio:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to fetch NFTs',
+        error: error.message || "Failed to fetch NFTs",
         nfts: [], // Return empty array on error so UI doesn't break
       },
       {
         status: 500,
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        }
-      }
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+      },
     );
   }
 }
