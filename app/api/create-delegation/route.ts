@@ -33,7 +33,6 @@ const DEFAULT_PERMISSIONS = [
   "buy_music",
   "burn_music",
   "burn_nft",
-  "burn_itinerary",
   "stake_music",
   "unstake_music",
   "swap_mon_for_tours",

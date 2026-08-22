@@ -1,4 +1,3 @@
-export { CheckInModal } from "./CheckInModal";
 
 // Oracle Components - Other
 export { MapsResultsModal } from "./MapsResultsModal";
