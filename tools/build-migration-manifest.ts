@@ -210,19 +210,29 @@ add(
   "LiveRadioV3 → v3 LicenseRegistry",
 );
 
-// --- 5. seals — irreversible, and deliberately last ------------------------
-add(
-  REGISTRY,
-  "sealMigration()",
-  [],
-  "IRREVERSIBLE: close v3 legacy migration forever",
-);
-if (passportV4) {
+// --- 5. seals — irreversible, and opt-in ----------------------------------
+//
+// Off by default. Approving a seal in the same batch as the migration it closes means one
+// mistake in the catalogue becomes permanent before anyone has looked at it. Run the migration,
+// check the app, then regenerate with INCLUDE_SEALS=1 as a second, deliberate approval.
+if (process.env.INCLUDE_SEALS === "1") {
   add(
-    passportV4,
-    "sealPassportMigration()",
+    REGISTRY,
+    "sealMigration()",
     [],
-    "IRREVERSIBLE: close passport migration forever",
+    "IRREVERSIBLE: close v3 legacy migration forever",
+  );
+  if (passportV4) {
+    add(
+      passportV4,
+      "sealPassportMigration()",
+      [],
+      "IRREVERSIBLE: close passport migration forever",
+    );
+  }
+} else {
+  console.error(
+    "\nSeals omitted. Once the catalogue is verified, regenerate with INCLUDE_SEALS=1.",
   );
 }
 
