@@ -27,6 +27,7 @@ import {
   serializeMintRequest,
   deserializeMintRequest,
   mintRequestTuple,
+  describeMintRequestMismatch,
   ZERO_ADDRESS,
 } from "../lib/mint-request.ts";
 
@@ -274,6 +275,72 @@ check(
   "the mint digest matches the one Solidity computes",
   digestFromViem,
   digestFromSolidity,
+);
+
+// ---------------------------------------------------------------------------
+// describeMintRequestMismatch
+//
+// Guards the gap between what an artist signed and what the relayer was told it is minting. The
+// chain cannot catch a disagreement here: it mints what was signed and reverts nothing, while the
+// success response and the Farcaster cast are built from the unsigned parameters. Every field the
+// check compares gets a case that fails on purpose, because a guard nobody has seen fail is a
+// guess about its own correctness.
+
+const signedTerms = buildMintRequest({
+  artist: "0x1111111111111111111111111111111111111111",
+  uri: "ipfs://master",
+  price: 10n ** 18n,
+  collectorPrice: 5n * 10n ** 18n,
+  maxCollectorEditions: 3,
+  nftType: 0,
+  now: 1_700_000_000_000,
+});
+
+const matchingClaim = {
+  uri: "ipfs://master",
+  price: 10n ** 18n,
+  collectorPrice: 5n * 10n ** 18n,
+  maxCollectorEditions: 3,
+  nftType: 0,
+};
+
+check(
+  "agreeing terms produce no mismatch",
+  describeMintRequestMismatch(signedTerms, matchingClaim),
+  null,
+);
+
+for (const [field, claim] of [
+  ["editions", { ...matchingClaim, maxCollectorEditions: 5 }],
+  ["collector price", { ...matchingClaim, collectorPrice: 1n }],
+  ["standard price", { ...matchingClaim, price: 1n }],
+  ["NFT type", { ...matchingClaim, nftType: 1 }],
+  ["metadata URI", { ...matchingClaim, uri: "ipfs://something-else" }],
+] as const) {
+  const got = describeMintRequestMismatch(signedTerms, claim);
+  check(
+    `a changed ${field} is caught and named`,
+    got !== null && got.startsWith(field),
+    true,
+  );
+}
+
+// The case the route rejects separately: a zero edition count agrees with a zero claim, so this
+// check passes it through. That is correct — it is not this function's job — and the route's own
+// guard is what stops an artist publishing a collector edition nobody can buy as one.
+check(
+  "zero editions on both sides is not a mismatch (the route rejects it separately)",
+  describeMintRequestMismatch(
+    buildMintRequest({
+      artist: "0x1111111111111111111111111111111111111111",
+      uri: "ipfs://master",
+      price: 10n ** 18n,
+      maxCollectorEditions: 0,
+      now: 1_700_000_000_000,
+    }),
+    { ...matchingClaim, maxCollectorEditions: 0, collectorPrice: 0n },
+  ),
+  null,
 );
 
 console.log(`\n${checks} checks run`);

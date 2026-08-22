@@ -148,6 +148,54 @@ export function validateMintRequest(
 }
 
 /**
+ * The mint terms a client claims it is minting, alongside the signed request.
+ *
+ * The relayer receives both: a signed `MintRequest`, and loose parameters used for the success
+ * response, the Farcaster cast and the UI. Only the former is enforced on-chain.
+ */
+export interface ClaimedMintTerms {
+  uri: string;
+  price: bigint;
+  collectorPrice: bigint;
+  maxCollectorEditions: number;
+  nftType: number;
+}
+
+/**
+ * Describe the first way a signed request disagrees with what the caller says it is minting,
+ * or `null` if they agree.
+ *
+ * ## Why this is checked at all
+ *
+ * The signature covers the request; it does not cover the loose parameters sent beside it. The
+ * chain will mint exactly what was signed, but the response and the cast are built from the
+ * parameters — so a disagreement publishes an edition on terms nobody agreed to. Nothing reverts,
+ * because nothing is wrong on-chain. The mismatch is only ever visible here.
+ *
+ * Returns a description rather than a boolean so the caller can say *which* field disagreed.
+ * "Sign again" without naming the field is a dead end for whoever hits it.
+ */
+export function describeMintRequestMismatch(
+  signed: MintRequest,
+  claimed: ClaimedMintTerms,
+): string | null {
+  if (signed.maxCollectorEditions !== claimed.maxCollectorEditions) {
+    return `editions (signed ${signed.maxCollectorEditions}, requested ${claimed.maxCollectorEditions})`;
+  }
+  if (signed.collectorPrice !== claimed.collectorPrice) {
+    return `collector price (signed ${signed.collectorPrice}, requested ${claimed.collectorPrice})`;
+  }
+  if (signed.price !== claimed.price) {
+    return `standard price (signed ${signed.price}, requested ${claimed.price})`;
+  }
+  if (signed.nftType !== claimed.nftType) {
+    return `NFT type (signed ${signed.nftType}, requested ${claimed.nftType})`;
+  }
+  if (signed.uri !== claimed.uri) return "metadata URI";
+  return null;
+}
+
+/**
  * Serialise for transport to the relayer. BigInts do not survive `JSON.stringify`.
  */
 export function serializeMintRequest(

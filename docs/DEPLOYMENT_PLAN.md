@@ -32,6 +32,17 @@ Everything else in the ecosystem is looser than it looks:
   in `recordPlay` gates the *listener's* subscription.
 - **`PlayOracleV3.setMusicSubscription(address)` is `onlyOwner`** — repointing the oracle at V6 is
   one transaction, not a redeploy.
+- **v3 has no collector-mint entrypoint.** A collector edition is just a master with
+  `maxCollectorEditions` and `collectorPrice` set, so `mint_collector` now relays the same signed
+  `mintMasterFor` as an ordinary mint. Three things do not survive the move, and are handled
+  rather than hidden: V2's `hasSong` duplicate check has no v3 equivalent (v3 masters carry no
+  title, so dedup must happen on the uri, off-chain, before signing); the second
+  `collectorTokenURI` for the edition's distinct artwork has nowhere to live on the master, since
+  `purchase(masterId, isCollector, uri)` takes the licence uri from the buyer's call instead; and
+  a zero edition count now fails up front, because on-chain it mints fine and only the first
+  collector purchase reverts — an artist would otherwise pay to publish an edition nobody can buy
+  as one. Covered by `contracts/test/CollectorEditionV3.t.sol`.
+
 - **The Safe buys, then hands the licence over.** `SalesController.purchase()` mints to
   `msg.sender` and takes no recipient argument, unlike V2's
   `purchaseLicenseFor(masterId, licensee, fid)`. Because the app relays through a Safe, a

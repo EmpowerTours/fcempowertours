@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
 import {
   deserializeMintRequest,
+  describeMintRequestMismatch,
   mintRequestTuple,
   MINT_MASTER_FOR_ABI,
 } from "@/lib/mint-request";
@@ -1208,42 +1209,48 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           );
         }
 
-        // Check if already exists
-        try {
-          const { createPublicClient, http } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const checkCollectorClient = createPublicClient({
-            chain: activeChain,
-            transport: http(),
-          });
+        // Check if already exists.
+        //
+        // Only meaningful on V2. `hasSong(artist, title)` exists because V2 masters carry a
+        // title; v3 masters carry only a uri, so there is no title to collide on and no
+        // equivalent to call. Skipping it under v3 is a real loss of duplicate detection, not
+        // an oversight — dedup there has to be done on the uri, off-chain, before signing.
+        if (!isV3Contracts())
+          try {
+            const { createPublicClient, http } = await import("viem");
+            const { activeChain } = await import("@/app/chains");
+            const checkCollectorClient = createPublicClient({
+              chain: activeChain,
+              transport: http(),
+            });
 
-          const collectorExists = await checkCollectorClient.readContract({
-            address: EMPOWER_TOURS_NFT as Address,
-            abi: parseAbi([
-              "function hasSong(address artist, string songTitle) external view returns (bool)",
-            ]),
-            functionName: "hasSong",
-            args: [userAddress as Address, collectorSongTitle],
-          });
+            const collectorExists = await checkCollectorClient.readContract({
+              address: EMPOWER_TOURS_NFT as Address,
+              abi: parseAbi([
+                "function hasSong(address artist, string songTitle) external view returns (bool)",
+              ]),
+              functionName: "hasSong",
+              args: [userAddress as Address, collectorSongTitle],
+            });
 
-          if (collectorExists) {
-            console.log(
-              `❌ Collector NFT already minted: ${collectorSongTitle}`,
-            );
-            return NextResponse.json(
-              {
-                success: false,
-                error: `"${collectorSongTitle}" has already been minted by this artist.`,
-              },
-              { status: 400 },
+            if (collectorExists) {
+              console.log(
+                `❌ Collector NFT already minted: ${collectorSongTitle}`,
+              );
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: `"${collectorSongTitle}" has already been minted by this artist.`,
+                },
+                { status: 400 },
+              );
+            }
+          } catch (checkErr: any) {
+            console.warn(
+              "⚠️ Could not verify collector NFT existence, proceeding:",
+              checkErr.message,
             );
           }
-        } catch (checkErr: any) {
-          console.warn(
-            "⚠️ Could not verify collector NFT existence, proceeding:",
-            checkErr.message,
-          );
-        }
 
         const collectorStandardPrice = parseEther(params.price.toString());
         const collectorEditionPrice = parseEther(
@@ -1299,28 +1306,139 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           );
         }
 
-        // Mint the collector edition NFT
-        collectorCalls.push({
-          to: EMPOWER_TOURS_NFT,
-          value: 0n,
-          data: encodeFunctionData({
-            abi: parseAbi([
-              "function mintCollectorMaster(address artist, uint256 artistFid, string tokenURI, string collectorTokenURI, string title, uint256 standardPrice, uint256 collectorPrice, uint256 maxEditions, uint8 nftType) external returns (uint256)",
-            ]),
-            functionName: "mintCollectorMaster",
-            args: [
-              userAddress as Address,
-              collectorArtistFid,
-              params.tokenURI,
+        // Mint the collector edition NFT.
+        //
+        // v3 has no separate collector entrypoint: a collector edition is just a master with
+        // `maxCollectorEditions` and `collectorPrice` set, so this is the same signed
+        // `mintMasterFor` relay as an ordinary mint. V2's `mintCollectorMaster` let the platform
+        // assert who the artist was; v3 requires the artist's EIP-712 signature instead.
+        if (isV3Contracts()) {
+          const salesController = process.env.NEXT_PUBLIC_SALES_CONTROLLER as
+            | Address
+            | undefined;
+          if (!salesController) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "NEXT_PUBLIC_SALES_CONTROLLER is not set. v3 minting goes through the sales controller.",
+              },
+              { status: 500 },
+            );
+          }
+
+          const parsedCollector = deserializeMintRequest(params.mintRequest);
+          if ("error" in parsedCollector) {
+            return NextResponse.json(
+              { success: false, error: parsedCollector.error },
+              { status: 400 },
+            );
+          }
+          if (!params.mintSignature) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "This mint needs your signature. Approve it in your wallet and try again.",
+              },
+              { status: 400 },
+            );
+          }
+          if (
+            parsedCollector.artist.toLowerCase() !==
+            (userAddress as string).toLowerCase()
+          ) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: "The signed mint request is for a different wallet.",
+              },
+              { status: 400 },
+            );
+          }
+
+          // The signature covers the collector terms; the loose `params` do not. They are what
+          // the success response and the Farcaster cast advertise, so a mismatch would announce
+          // an edition on terms nobody signed for. The signed request is the authority — where
+          // they disagree, refuse rather than quietly publishing the wrong number.
+          const signedMismatch = describeMintRequestMismatch(parsedCollector, {
+            uri: params.tokenURI,
+            price: collectorStandardPrice,
+            collectorPrice: collectorEditionPrice,
+            maxCollectorEditions: cEditions,
+            nftType: collectorNftType,
+          });
+          if (signedMismatch) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Your signed mint request does not match this request: ${signedMismatch}. Sign again.`,
+              },
+              { status: 400 },
+            );
+          }
+
+          // Without this the mint silently succeeds as an ordinary master with no editions —
+          // a collector mint that produced nothing collectable.
+          if (parsedCollector.maxCollectorEditions === 0) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "A collector edition needs at least one edition. Sign a request with maxCollectorEditions set.",
+              },
+              { status: 400 },
+            );
+          }
+
+          // v3 masters carry ONE uri. V2 stored a second `collectorTokenURI` for the edition's
+          // distinct artwork and there is nowhere to put it here — `purchase(masterId,
+          // isCollector, uri)` takes the licence uri from the buyer's call instead, so the
+          // collector art has to be supplied at purchase time and kept off-chain until then.
+          // Say so rather than dropping it silently.
+          if (collectorTokenURI && collectorTokenURI !== params.tokenURI) {
+            console.warn(
+              "⚠️ v3 stores no separate collector artwork on the master. " +
+                "Persist collectorTokenURI off-chain and pass it when the edition is purchased:",
               collectorTokenURI,
-              collectorSongTitle,
-              collectorStandardPrice,
-              collectorEditionPrice,
-              BigInt(cEditions),
-              collectorNftType,
-            ],
-          }) as Hex,
-        });
+            );
+          }
+
+          collectorCalls.push({
+            to: salesController,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: MINT_MASTER_FOR_ABI,
+              functionName: "mintMasterFor",
+              args: [
+                mintRequestTuple(parsedCollector),
+                params.mintSignature as Hex,
+              ],
+            }) as Hex,
+          });
+        } else {
+          collectorCalls.push({
+            to: EMPOWER_TOURS_NFT,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: parseAbi([
+                "function mintCollectorMaster(address artist, uint256 artistFid, string tokenURI, string collectorTokenURI, string title, uint256 standardPrice, uint256 collectorPrice, uint256 maxEditions, uint8 nftType) external returns (uint256)",
+              ]),
+              functionName: "mintCollectorMaster",
+              args: [
+                userAddress as Address,
+                collectorArtistFid,
+                params.tokenURI,
+                collectorTokenURI,
+                collectorSongTitle,
+                collectorStandardPrice,
+                collectorEditionPrice,
+                BigInt(cEditions),
+                collectorNftType,
+              ],
+            }) as Hex,
+          });
+        }
 
         const requiredValue = hasCreationFee ? COLLECTOR_CREATION_FEE : 0n;
         console.log(
@@ -1429,6 +1547,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           title: collectorSongTitle,
           isArt: isCollectorArt,
           nftType: collectorNftType,
+          // v3 keeps no collector artwork on-chain; the client must hold it until purchase.
+          collectorTokenURI,
+          collectorArtworkStoredOnChain: !isV3Contracts(),
           price: params.price,
           collectorPrice: params.collectorPrice,
           maxEditions: cEditions,
