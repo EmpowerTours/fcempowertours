@@ -19,6 +19,10 @@
  * pinned and keep resolving, and nothing on-chain is touched.
  */
 
+// Marks the file as a module so top-level `await` typechecks. Node runs it either way, but
+// without this `tsc` reports TS1375 on every await instead of the real errors.
+export {};
+
 const PINATA_JSON_URL =
   process.env.PINATA_JSON_URL ||
   "https://api.pinata.cloud/pinning/pinJSONToIPFS";
@@ -114,14 +118,14 @@ const failed: number[] = [];
 
 for (const m of MASTERS) {
   console.log(`\n--- legacy master ${m.legacyId} ---`);
-  const res = await fetch(gateway(m.uri), {
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) {
-    console.error(`  could not fetch ${m.uri} (HTTP ${res.status}) — skipped`);
+  const doc = await fetchDoc(m.uri);
+  if (!doc) {
+    console.error(
+      `  UNREACHABLE on every gateway — master ${m.legacyId} NOT re-pinned`,
+    );
+    failed.push(m.legacyId);
     continue;
   }
-  const doc = await res.json();
 
   if (doc.collector_token_uri === m.collectorUri) {
     console.log("  already carries the pointer; nothing to do");
