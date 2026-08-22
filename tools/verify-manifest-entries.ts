@@ -17,6 +17,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const path = process.argv[2];
 if (!path) {
@@ -54,8 +55,56 @@ function guardArgs(cmd: string): string[] | null {
   return out;
 }
 
+/**
+ * Which contract lives at each address, so a signature can be checked against the real ABI.
+ *
+ * This exists because a hand-typed signature was wrong: `migrateLegacyPassport`'s last parameter
+ * is `uint256`, not `uint64`. Every byte of the entry looked right and the guard would have
+ * approved it — `cast` would then have computed a selector that no function answers, and the
+ * transaction would have reverted after the approval was already given.
+ *
+ * A signature nobody verified against the compiled artifact is a guess.
+ */
+const CONTRACT_AT: Record<string, string> = {
+  "0xf824d444aaf251eb2197836ffb218d48927f8cb1": "SalesController",
+  "0x42ebcd44c2295702130f0a641633c691ba5f9480": "LicenseRegistry",
+  "0xe210b31bbdf8b28b28c07d45e9b4fc886aafdcef": "PlayOracleV3",
+  "0x042edf80713e6822a891e4e8a0800c332b8200fd": "LiveRadioV3",
+};
+if (process.env.PASSPORT_V4) {
+  CONTRACT_AT[process.env.PASSPORT_V4.toLowerCase()] = "PassportNFTV4";
+}
+
+const abiCache = new Map<string, Set<string> | null>();
+function knownSignatures(contract: string): Set<string> | null {
+  if (abiCache.has(contract)) return abiCache.get(contract)!;
+  let set: Set<string> | null = null;
+  try {
+    const out = execFileSync(
+      "forge",
+      ["inspect", contract, "methodIdentifiers"],
+      {
+        cwd: "contracts",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    set = new Set(
+      out
+        .split("\n")
+        .map((l) => l.split("|")[1]?.trim())
+        .filter((s): s is string => Boolean(s) && s.includes("(")),
+    );
+  } catch {
+    set = null; // not buildable here — reported, not silently skipped
+  }
+  abiCache.set(contract, set);
+  return set;
+}
+
 let ok = 0;
 const problems: string[] = [];
+const unchecked: string[] = [];
 
 for (const e of entries) {
   const args = e.args.map(String);
@@ -84,10 +133,39 @@ for (const e of entries) {
     problems.push(`${e.note ?? e.sig}: already expired at ${e.expires}`);
     continue;
   }
+
+  // The signature must be a function the target contract actually has.
+  const contract = CONTRACT_AT[e.to.toLowerCase()];
+  if (!contract) {
+    unchecked.push(`${e.to} — unknown contract, signature not verified`);
+  } else {
+    const sigs = knownSignatures(contract);
+    if (sigs === null) {
+      unchecked.push(
+        `${contract} — could not read ABI, signature not verified`,
+      );
+    } else if (!sigs.has(e.sig)) {
+      const near = [...sigs].filter(
+        (s) => s.split("(")[0] === e.sig.split("(")[0],
+      );
+      problems.push(
+        `${e.note ?? e.sig}: no such function on ${contract}\n` +
+          `      entry : ${e.sig}` +
+          (near.length ? `\n      actual: ${near.join(", ")}` : ""),
+      );
+      continue;
+    }
+  }
   ok++;
 }
 
-console.log(`${ok}/${entries.length} entries the guard would allow`);
+console.log(
+  `${ok}/${entries.length} entries the guard would allow, with signatures checked against the compiled ABIs`,
+);
+if (unchecked.length) {
+  console.error(`\n${unchecked.length} signature(s) NOT verified:`);
+  for (const u of unchecked) console.error(`  - ${u}`);
+}
 if (problems.length) {
   console.error(`\n${problems.length} problem(s):\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

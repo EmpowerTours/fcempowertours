@@ -429,10 +429,22 @@ complete manifest while anything is still unknown.
    so re-publishing them with their current uris loses the artwork permanently and silently.
    This copies each document, adds the pointer, and re-pins. Additive — the old CIDs keep
    resolving and nothing on-chain is touched. Pass the result as `REPINNED`.
-2. Redeploy `PassportNFTV4`. The deployed one at `0x86312a83…` does not carry
-   `migrateLegacyPassport` — selector `0x4b63ac18` is absent from its bytecode — so without this
-   the three passports lose their real mint dates. `forge create`/`--broadcast` is never
-   manifest-clearable; a human runs it. Pass the address as `PASSPORT_V4`.
+2. Redeploy `PassportNFTV4` — **done 2026-08-21,
+   `0x4D5533e29Cf190131885Dc7Dbef22e31F4252410`**. The previous one at `0x86312a83…` carries
+   none of `migrateLegacyPassport`, `sealPassportMigration` or `passportMigrationSealed`
+   (2,420 bytes smaller; `passportMigrationSealed()` reverts on it), so the three passports
+   would have lost their real mint dates. Run `contracts/deploy-passport.sh` — a file rather
+   than a command to paste, because the wrapped one-liner split `WMON=0x… forge …` into a
+   standalone assignment plus a separate command and reverted after already paying to deploy
+   the script contract.
+
+   **Never hand-type a selector.** The first check here used
+   `migrateLegacyPassport(…,uint64)`; the last parameter is `uint256`, so the selector was
+   `0x4b63ac18` rather than `0x43e398c1`, and the script called a correct contract broken.
+   Derive selectors from `forge inspect <Contract> methodIdentifiers`.
+   `tools/verify-manifest-entries.ts` now checks every manifest signature against the compiled
+   ABI for exactly this reason — the guard will happily approve an entry whose selector no
+   function answers, and the revert arrives after the approval.
 
 Then `EXPIRES=<iso> REPINNED=<json> PASSPORT_V4=0x… node … tools/build-migration-manifest.ts`.
 

@@ -180,7 +180,7 @@ if (passportV4) {
   for (const p of PASSPORTS) {
     add(
       passportV4,
-      "migrateLegacyPassport(address,uint256,string,string,string,string,string,uint64)",
+      "migrateLegacyPassport(address,uint256,string,string,string,string,string,uint256)",
       [
         FARCASTER_WALLET,
         ARTIST_FID,
