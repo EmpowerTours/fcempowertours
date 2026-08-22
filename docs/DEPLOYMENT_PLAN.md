@@ -415,6 +415,52 @@ even simulating. The cause is `chain = 143` inside the `[etherscan]` entry of
 Removing **only that field** fixes it, and verification still works because
 `--verifier-url` already carries `chainid=143`. `cast` is unaffected.
 
+## Env cutover — corrected 2026-08-21
+
+The earlier instruction "set the addresses, then turn the flag on last" is wrong, and wrong in
+the silent direction. `decodeSubscriptionInfo` chooses its tuple index from the flag:
+
+```ts
+lastTier:  Number(v3 ? raw[4] : raw[5]),
+isFlagged: Boolean(v3 ? raw[5] : raw[6]),
+```
+
+Point `NEXT_PUBLIC_MUSIC_SUBSCRIPTION` at V6 while the flag is still off and every read takes
+`lastTier` from V6's `isFlagged` slot. Nothing throws. Every subscriber shows a wrong tier and a
+wrong flag state, for as long as the window lasts.
+
+So the vars split into two groups, by whether the flag governs how they are read.
+
+**Group 1 — safe to set at any time.** These are only read when the flag is on, so they sit inert
+until it is:
+
+| var | value |
+|---|---|
+| `NEXT_PUBLIC_SALES_CONTROLLER` | `0xf824D444AAf251EB2197836FFb218d48927F8cB1` |
+| `NEXT_PUBLIC_PROFILE_REGISTRY` | `0xf4C27308f2183E7Cb07c32FAF449a259831E16EC` |
+| `NEXT_PUBLIC_LEGACY_NFT_CONTRACT` | `0xB9B3acf33439360B55d12429301E946f34f3B73F` |
+
+**Group 2 — must all change in ONE deploy, together with the flag:**
+
+| var | value |
+|---|---|
+| `NEXT_PUBLIC_NFT_CONTRACT` | `0x42EbcD44C2295702130f0A641633c691bA5f9480` |
+| `NEXT_PUBLIC_MUSIC_SUBSCRIPTION` | `0xc7EDB67B59B8B89cF4E9bA9bd7b940052563611B` |
+| `NEXT_PUBLIC_PASSPORT_NFT` | `0x4D5533e29Cf190131885Dc7Dbef22e31F4252410` |
+| `NEXT_PUBLIC_CONTRACTS_V3` | `true` |
+
+`NEXT_PUBLIC_NFT_CONTRACT` is the sharpest of these: with the flag off the app calls V2 functions
+against the v3 registry. `purchaseLicenseFor` does not exist there, and `masterTokens` survives
+only as a compatibility view whose price fields are hardcoded 0 — so a purchase would approve
+nothing rather than erroring.
+
+`NEXT_PUBLIC_PASSPORT_NFT` degrades rather than breaks: `findPassport` only uses V4's
+`getPassportByAddress` under the flag and otherwise falls back to the FID lookup, which works on
+both. Wallet-only users simply would not be found. Move it with the group anyway.
+
+`isV3Contracts()` compares against the string `"true"` exactly — `TRUE`, `1` and `yes` are all
+false.
+
 ## Migration runbook — prepared 2026-08-21
 
 Every value below was read off mainnet, not transcribed. Regenerate with
@@ -485,7 +531,8 @@ Current users are unaffected until these run:
 4. *(optional)* `ToursRewardManagerV2.setDistributor(0xc7EDB67B…, true)` — only if TOURS
    rewards are wanted; parked, so skip
 5. `migrateLegacy` for licence 1000004 on master 3, then `sealMigration()` (irreversible)
-6. Set the app env vars, re-run the integration matrix, then `NEXT_PUBLIC_CONTRACTS_V3=true` **last**
+6. Set the app env vars — see "Env cutover" below. **"Flag last" is wrong** and was corrected
+   2026-08-21: some address vars must change in the *same* deploy as the flag, not before it.
 7. Migrate or lapse the existing V5 subscribers
 8. ~~Verify the six on Monadscan~~ — **DONE 2026-08-21**, all six verified.
 
