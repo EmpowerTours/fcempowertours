@@ -3,7 +3,15 @@ name: empowertours-envio
 description: EmpowerTours NFT Indexer for Monad Mainnet - Music, Passports & Itineraries
 networks:
   - id: 143  # Monad Mainnet
-    start_block: 1  # Start from beginning of mainnet
+    # Was 1. Nothing this indexer cares about exists before block 50,553,189 — the earliest
+    # entity of any kind is a PassportNFT there, and the first MusicNFT is at 50,640,755.
+    # Starting from 1 scanned 50.5M empty blocks on every redeploy: 52% of the total range,
+    # indexing nothing. Verified 2026-08-21 by querying the live indexer for the minimum
+    # blockNumber across MusicNFT, MusicLicense, PassportNFT and Subscription.
+    #
+    # 50,500,000 leaves ~53k blocks of headroom below the earliest known entity, in case some
+    # contract emitted something the current schema does not capture.
+    start_block: 50500000
     hypersync_config:
       url: https://monad.hypersync.xyz
     contracts:
