@@ -1,5 +1,8 @@
+import { readRoyaltyPercent, readTokenUri } from "./v3Reads";
 import {
   EmpowerToursNFT,
+  LicenseRegistry,
+  SalesController,
   PassportNFTV2,
   ItineraryNFTV2,
   PlayOracleV3,
@@ -3167,4 +3170,192 @@ DailyLottery.WinnerSelected.handler(async ({ event, context }) => {
   const wmonFormatted = (Number(wmonPrize) / 1e18).toFixed(2);
   const toursFormatted = (Number(toursBonus) / 1e18).toFixed(2);
   context.log.info(`🏆 Lottery winner selected! Round #${roundId}: ${winner.slice(0, 8)}... won ${wmonFormatted} WMON + ${toursFormatted} TOURS bonus (${totalEntries} entries)`);
+});
+
+// ===========================================================================
+// v3 — LicenseRegistry + SalesController (live 2026-08-21)
+// ===========================================================================
+//
+// The shape of the data moved, not just the addresses.
+//
+// V2's `MasterMinted` carried tokenURI, price and royalty. v3's carries none of them:
+//
+//   MasterMinted(uint256 masterTokenId, address artist, uint256 artistFid, address referrer, uint8 nftType)
+//
+// Pricing moved to `SalesController`, and the uri is only reachable by calling `tokenURI()` —
+// ERC721URIStorage's `MetadataUpdate` event carries the token id but not the string. So one
+// schema row is now assembled from two events across two contracts plus two RPC reads.
+//
+// Entity ids are unchanged (`music-<chain>-<tokenId>`), which means a v3 master *supersedes* the
+// legacy row with the same id. That is deliberate: legacy master N was republished as v3 master N,
+// and the app looks tracks up by tokenId. See config.yaml for why it is safe.
+
+// The reads live in ./v3Reads so they can be exercised without the generated Envio types.
+// A wrong ABI decode returns an empty string rather than throwing, which would silently index
+// every master with no audio — exactly the kind of failure that needs a test, not a comment.
+
+LicenseRegistry.MasterMinted.handler(async ({ event, context }) => {
+  const { masterTokenId, artist, artistFid, nftType } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
+  const registry = event.srcAddress;
+
+  const tokenURI = await readTokenUri(registry, masterTokenId, context.log);
+  const royaltyPercent = await readRoyaltyPercent(registry, masterTokenId, context.log);
+  const metadata = tokenURI ? await fetchMetadata(tokenURI, context) : null;
+
+  const isArt = Number(nftType) === 1;
+
+  context.log.info(
+    `🎵 v3 MasterMinted #${masterTokenId} artist=${artist} uri=${tokenURI || "(unreadable)"}`,
+  );
+  if (!tokenURI) {
+    context.log.error(
+      `❌ tokenURI unreadable for v3 master #${masterTokenId} — the row will have no audio`,
+    );
+  }
+
+  // `price` is intentionally 0 here. PricingSet lands in the same transaction and fills it.
+  // Writing a guessed price would be worse than a briefly missing one: the buy path approves
+  // exactly what it reads.
+  await context.MusicNFT.set({
+    id: musicNFTId,
+    tokenId: masterTokenId.toString(),
+    contract: registry.toLowerCase(),
+    artist: artist.toLowerCase(),
+    artistFid: artistFid.toString(),
+    owner: artist.toLowerCase(),
+    tokenURI: tokenURI,
+    price: 0n,
+    totalSold: 0,
+    active: true,
+    coverArt: "",
+    royaltyPercentage: royaltyPercent,
+    name: metadata?.name || `Music NFT #${masterTokenId}`,
+    description: metadata?.description || "",
+    imageUrl: metadata?.imageUrl || "",
+    previewAudioUrl: metadata?.previewAudioUrl || "",
+    fullAudioUrl: metadata?.fullAudioUrl || "",
+    metadataFetched: Boolean(metadata),
+    isArt: isArt || !metadata?.previewAudioUrl,
+    isBurned: false,
+    burnedAt: 0n,
+    burnReason: "",
+    burnType: "",
+    mintedAt: new Date(event.block.timestamp * 1000),
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+});
+
+/**
+ * The only source of price under v3.
+ *
+ * Fires immediately after `MasterCreated` in the same transaction on a fresh mint, and again
+ * whenever the artist repricing. Updates in place rather than creating, so a reprice cannot
+ * resurrect a burned master or clobber indexed metadata.
+ */
+SalesController.PricingSet.handler(async ({ event, context }) => {
+  const { masterTokenId, price } = event.params;
+  const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
+
+  const existing = await context.MusicNFT.get(musicNFTId);
+  if (!existing) {
+    context.log.warn(
+      `PricingSet for #${masterTokenId} with no indexed master — MasterMinted may be out of order`,
+    );
+    return;
+  }
+  await context.MusicNFT.set({ ...existing, price });
+});
+
+/** A licence minted by a purchase, or by the artist. Perpetual in v3 — no expiry. */
+LicenseRegistry.LicenseMinted.handler(async ({ event, context }) => {
+  const { licenseId, masterTokenId, to, isCollector } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  await context.MusicLicense.set({
+    id: `license-${event.chainId}-${licenseId.toString()}`,
+    licenseId: licenseId.toString(),
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: musicNFTId,
+    licensee: to.toLowerCase(),
+    // v3 removed the FID from the buyer path entirely. "0" means no Farcaster account, which is
+    // the whole point of the wallet-only work — not missing data.
+    licenseeFid: "0",
+    isCollector: isCollector,
+    active: true,
+    expiry: 0n, // v3 licences do not expire; V2's did.
+    purchasedAt: timestamp,
+    createdAt: timestamp,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      totalSold: (musicNFT.totalSold || 0) + 1,
+    });
+  }
+});
+
+/**
+ * A V2 licence carried across.
+ *
+ * `mintedAt` is the original purchase time, not the migration time — the whole reason the event
+ * carries it. Recording the migration timestamp would silently rewrite the buyer's history.
+ */
+LicenseRegistry.LegacyLicenseMigrated.handler(async ({ event, context }) => {
+  const { licenseId, masterTokenId, to, mintedAt } = event.params;
+
+  const musicNFTId = `music-${event.chainId}-${masterTokenId.toString()}`;
+  const originalTime = new Date(Number(mintedAt) * 1000);
+
+  await context.MusicLicense.set({
+    id: `license-${event.chainId}-${licenseId.toString()}`,
+    licenseId: licenseId.toString(),
+    masterTokenId: masterTokenId.toString(),
+    masterToken_id: musicNFTId,
+    licensee: to.toLowerCase(),
+    licenseeFid: "0",
+    isCollector: false,
+    active: true,
+    expiry: 0n,
+    purchasedAt: originalTime,
+    createdAt: originalTime,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+  });
+
+  context.log.info(
+    `📦 migrated licence ${licenseId} (master ${masterTokenId}) to ${to}, original mint ${mintedAt}`,
+  );
+});
+
+/** Burns and moderation purges both surface here. */
+LicenseRegistry.TokenBurned.handler(async ({ event, context }) => {
+  const { tokenId } = event.params;
+
+  // Licence ids start at LICENSE_ID_OFFSET (1_000_000); anything below is a master.
+  if (tokenId > 1_000_000n) {
+    const licenseKey = `license-${event.chainId}-${tokenId.toString()}`;
+    const licence = await context.MusicLicense.get(licenseKey);
+    if (licence) await context.MusicLicense.set({ ...licence, active: false });
+    return;
+  }
+
+  const musicNFTId = `music-${event.chainId}-${tokenId.toString()}`;
+  const musicNFT = await context.MusicNFT.get(musicNFTId);
+  if (musicNFT) {
+    await context.MusicNFT.set({
+      ...musicNFT,
+      isBurned: true,
+      burnedAt: BigInt(event.block.timestamp),
+      active: false,
+    });
+  }
 });

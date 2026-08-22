@@ -77,6 +77,56 @@ networks:
               transaction_fields:
                 - hash
 
+      # ---------------------------------------------------------------- v3
+      # Live 2026-08-21. The legacy EmpowerToursNFT above stays indexed: it still holds the
+      # original masters and the four original licences, and nothing rewrites history.
+      #
+      # Master ids deliberately line up — legacy master N was republished as v3 master N — so both
+      # produce the same `music-<chain>-<id>` entity id and the v3 row supersedes the legacy one.
+      # That is what keeps the app's tokenId-based queries and buy path correct across the
+      # cutover. It is only safe because the legacy contract will not mint again; if it ever does,
+      # ids 6+ would collide with unrelated v3 masters and both schemes would need a prefix.
+      - name: LicenseRegistry
+        address:
+          - "0x42EbcD44C2295702130f0A641633c691bA5f9480"
+        handler: src/EventHandlers.ts
+        events:
+          # No tokenURI, price or royalty in this event — v3 dropped them. The handler reads
+          # tokenURI() and royaltyInfo() over RPC, and price arrives via SalesController.PricingSet
+          # in the same transaction.
+          - event: "MasterMinted(uint256 indexed masterTokenId, address indexed artist, uint256 indexed artistFid, address referrer, uint8 nftType)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "LicenseMinted(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed to, bool isCollector)"
+            field_selection:
+              transaction_fields:
+                - hash
+          # The one real outside buyer, carried across from V2 with their original mint date.
+          - event: "LegacyLicenseMigrated(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed to, uint64 mintedAt)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "TokenBurned(uint256 indexed tokenId, address indexed owner)"
+            field_selection:
+              transaction_fields:
+                - hash
+
+      - name: SalesController
+        address:
+          - "0xf824D444AAf251EB2197836FFb218d48927F8cB1"
+        handler: src/EventHandlers.ts
+        events:
+          # Pricing moved out of the NFT contract entirely, so this is the only source of price.
+          - event: "PricingSet(uint256 indexed masterTokenId, uint256 price, uint256 collectorPrice)"
+            field_selection:
+              transaction_fields:
+                - hash
+          - event: "LicensePurchased(uint256 indexed licenseId, uint256 indexed masterTokenId, address indexed buyer, uint256 price, bool isCollector)"
+            field_selection:
+              transaction_fields:
+                - hash
+
       - name: PassportNFTV2
         address:
           - "0x93126e59004692B01961BE505aa04F55d5bd1851"  # Mainnet PassportNFTV3
@@ -168,6 +218,13 @@ networks:
       - name: MusicSubscriptionV5
         address:
           - "0x5372aD0291a69c1EBc0BE2dc6DE9dab224045f19"  # Mainnet MusicSubscriptionV5
+          # V6, live 2026-08-21. Deliberately in the SAME entry rather than its own: 9 of the 11
+          # events below are byte-identical to V5's, including Subscribed, whose keccak topic
+          # hash is 0xbccf673085928ae8da1e9975e5a6f63d58aa3ea09b0261b11189171d396d1577 on both
+          # contracts (an event signature digest, not a secret), so one handler
+          # serves both. The two that differ (SubscriptionRenewed, VoteToFlag) do not exist on
+          # V6 and simply never fire from this address — matching is by topic, not by position.
+          - "0xc7EDB67B59B8B89cF4E9bA9bd7b940052563611B"  # Mainnet MusicSubscriptionV6
         handler: src/EventHandlers.ts
         events:
           # Subscription lifecycle with FID
