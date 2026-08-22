@@ -12,7 +12,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-RPC="https://monad-mainnet.g.alchemy.com/v2/QM9CqBmMU3Bu9ovRgNXZZ"
+# Keyless by default — this repo is public. Override with MONAD_RPC if it rate-limits.
+RPC="${MONAD_RPC:-https://rpc.monad.xyz}"
 PASSPORT=0x4D5533e29Cf190131885Dc7Dbef22e31F4252410
 # The passports stay with the Farcaster wallet that holds them today.
 HOLDER=0x33fFCcb1802e13a7eead232BCd4706a2269582b0

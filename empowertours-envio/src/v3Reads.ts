@@ -18,10 +18,14 @@
  * recoverable, a stalled index is neither.
  */
 
-/** Monad mainnet. Overridable so the indexer is not pinned to one provider. */
-export const V3_RPC =
-  process.env.ENVIO_MONAD_RPC ||
-  "https://monad-mainnet.g.alchemy.com/v2/QM9CqBmMU3Bu9ovRgNXZZ";
+/**
+ * Monad mainnet, keyless by default.
+ *
+ * This repo is public, so a provider URL with an API key in the path cannot live here — set
+ * `ENVIO_MONAD_RPC` in the deployment environment to use a dedicated endpoint. The public one
+ * works but will rate-limit under a full re-index.
+ */
+export const V3_RPC = process.env.ENVIO_MONAD_RPC || "https://rpc.monad.xyz";
 
 export interface ReadLogger {
   warn: (m: string) => void;

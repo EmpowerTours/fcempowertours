@@ -16,7 +16,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-RPC="https://monad-mainnet.g.alchemy.com/v2/QM9CqBmMU3Bu9ovRgNXZZ"
+# Keyless by default. This repo is public, and contracts/foundry.toml — which holds the keyed
+# Alchemy URL — is gitignored precisely so that key never lands in it. Override with MONAD_RPC
+# if the public endpoint rate-limits.
+RPC="${MONAD_RPC:-https://rpc.monad.xyz}"
 
 # Constructor arguments, the same three used for the six already verified on Monadscan.
 export WMON=0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A
