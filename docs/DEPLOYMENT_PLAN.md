@@ -32,6 +32,17 @@ Everything else in the ecosystem is looser than it looks:
   in `recordPlay` gates the *listener's* subscription.
 - **`PlayOracleV3.setMusicSubscription(address)` is `onlyOwner`** — repointing the oracle at V6 is
   one transaction, not a redeploy.
+- **The Safe buys, then hands the licence over.** `SalesController.purchase()` mints to
+  `msg.sender` and takes no recipient argument, unlike V2's
+  `purchaseLicenseFor(masterId, licensee, fid)`. Because the app relays through a Safe, a
+  straight swap would have left the Safe owning what the user paid for. The v3 buy batch is
+  therefore four calls — approve the controller, purchase, `transferFrom` to the buyer, revoke
+  the approval — and the licence id is predicted as
+  `LICENSE_ID_OFFSET + totalLicenses() + 1`. Predicting is safe only because the batch is
+  atomic: if a concurrent buyer takes that id, the transfer reverts and the payment reverts
+  with it. Covered by `contracts/test/SafeRelayedPurchase.t.sol`, which deploys a real Safe
+  through the same proxy factory and 4337 module `permissionless` uses.
+
 - **v3 already removed the FID from the buyer path.** `SalesController.purchase()` has no FID
   parameter; `artistFid` at mint is the only one left.
 

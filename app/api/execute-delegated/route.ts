@@ -1727,42 +1727,176 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           );
         }
 
-        const buyCalls = [
-          {
-            to: WMON_FOR_PURCHASE,
-            value: 0n,
-            data: encodeFunctionData({
+        let buyCalls;
+
+        if (isV3Contracts()) {
+          // v3 splits buying across two contracts and, unlike V2's
+          // `purchaseLicenseFor(masterId, licensee, fid)`, `SalesController.purchase` mints the
+          // licence to **msg.sender** with no way to name a different recipient. Since the Safe
+          // is what sends the transaction, the Safe would end up owning what the user paid for.
+          //
+          // So the Safe buys and then hands it over, in the same batch. Licences are freely
+          // transferable in v3 (only masters are soulbound), which is what makes this possible
+          // without redeploying anything.
+          const salesController = process.env.NEXT_PUBLIC_SALES_CONTROLLER as
+            | Address
+            | undefined;
+          if (!salesController) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "NEXT_PUBLIC_SALES_CONTROLLER is not set. v3 purchases go through the sales controller.",
+              },
+              { status: 500 },
+            );
+          }
+
+          const { createPublicClient: mkClient, http: mkHttp } = await import(
+            "viem"
+          );
+          const { activeChain: chain } = await import("@/app/chains");
+          const readClient = mkClient({ chain, transport: mkHttp() });
+
+          // Whichever Safe `executeTransaction` will send from — that is the account that
+          // `purchase` mints to, and therefore the one the licence has to move *out of*.
+          const safeAddressForPurchase = USE_USER_SAFES
+            ? await getUserSafeAddress(userAddress as Address)
+            : SAFE_ACCOUNT;
+
+          // The licence id `purchase` will mint. Ids run from LICENSE_ID_OFFSET upward, so the
+          // next one is offset + count + 1.
+          //
+          // Predicting it is safe here *because the batch is atomic*: if somebody else buys in
+          // the same block and takes that id, the Safe will not own it, `transferFrom` reverts,
+          // and the whole UserOp — including the payment — rolls back. The buyer loses nothing
+          // and retries. The alternative, splitting into two transactions to read the id from a
+          // receipt, leaves a window where the Safe owns a paid-for licence and the transfer can
+          // fail on its own.
+          const [offset, count] = (await Promise.all([
+            readClient.readContract({
+              address: EMPOWER_TOURS_NFT,
               abi: parseAbi([
-                "function approve(address spender, uint256 amount) external returns (bool)",
+                "function LICENSE_ID_OFFSET() view returns (uint256)",
               ]),
-              functionName: "approve",
-              args: [EMPOWER_TOURS_NFT, approvalAmount],
-            }) as Hex,
-          },
-          {
-            to: EMPOWER_TOURS_NFT,
-            value: 0n,
-            data: encodeFunctionData({
+              functionName: "LICENSE_ID_OFFSET",
+            }),
+            readClient.readContract({
+              address: EMPOWER_TOURS_NFT,
               abi: parseAbi([
-                "function purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) external",
+                "function totalLicenses() view returns (uint256)",
               ]),
-              functionName: "purchaseLicenseFor",
-              args: [tokenId, userAddress as Address, BigInt(buyerFid)],
-            }) as Hex,
-          },
-          {
-            // Leave no standing allowance behind.
-            to: WMON_FOR_PURCHASE,
-            value: 0n,
-            data: encodeFunctionData({
+              functionName: "totalLicenses",
+            }),
+          ])) as [bigint, bigint];
+          const expectedLicenseId = offset + count + 1n;
+
+          // Give the licence the master's own metadata so it displays as the track it licenses.
+          let licenceUri = "";
+          try {
+            licenceUri = (await readClient.readContract({
+              address: EMPOWER_TOURS_NFT,
               abi: parseAbi([
-                "function approve(address spender, uint256 amount) external returns (bool)",
+                "function tokenURI(uint256) view returns (string)",
               ]),
-              functionName: "approve",
-              args: [EMPOWER_TOURS_NFT, 0n],
-            }) as Hex,
-          },
-        ];
+              functionName: "tokenURI",
+              args: [tokenId],
+            })) as string;
+          } catch {
+            // A master with no URI still sells; the licence just carries none.
+          }
+
+          buyCalls = [
+            {
+              to: WMON_FOR_PURCHASE,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function approve(address spender, uint256 amount) external returns (bool)",
+                ]),
+                functionName: "approve",
+                // The sales controller pulls the payment in v3, not the NFT contract.
+                args: [salesController, approvalAmount],
+              }) as Hex,
+            },
+            {
+              to: salesController,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function purchase(uint256 masterTokenId, bool isCollector, string uri) external returns (uint256)",
+                ]),
+                functionName: "purchase",
+                args: [tokenId, false, licenceUri],
+              }) as Hex,
+            },
+            {
+              // Hand it to the person who paid.
+              to: EMPOWER_TOURS_NFT,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function transferFrom(address from, address to, uint256 tokenId) external",
+                ]),
+                functionName: "transferFrom",
+                args: [
+                  safeAddressForPurchase as Address,
+                  userAddress as Address,
+                  expectedLicenseId,
+                ],
+              }) as Hex,
+            },
+            {
+              // Leave no standing allowance behind.
+              to: WMON_FOR_PURCHASE,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function approve(address spender, uint256 amount) external returns (bool)",
+                ]),
+                functionName: "approve",
+                args: [salesController, 0n],
+              }) as Hex,
+            },
+          ];
+        } else {
+          buyCalls = [
+            {
+              to: WMON_FOR_PURCHASE,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function approve(address spender, uint256 amount) external returns (bool)",
+                ]),
+                functionName: "approve",
+                args: [EMPOWER_TOURS_NFT, approvalAmount],
+              }) as Hex,
+            },
+            {
+              to: EMPOWER_TOURS_NFT,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) external",
+                ]),
+                functionName: "purchaseLicenseFor",
+                args: [tokenId, userAddress as Address, BigInt(buyerFid)],
+              }) as Hex,
+            },
+            {
+              // Leave no standing allowance behind.
+              to: WMON_FOR_PURCHASE,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: parseAbi([
+                  "function approve(address spender, uint256 amount) external returns (bool)",
+                ]),
+                functionName: "approve",
+                args: [EMPOWER_TOURS_NFT, 0n],
+              }) as Hex,
+            },
+          ];
+        }
 
         console.log("💳 Executing batched music purchase transaction...");
         const buyTxHash = await executeTransaction(
