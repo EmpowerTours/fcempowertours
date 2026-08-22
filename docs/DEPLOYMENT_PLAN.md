@@ -50,6 +50,14 @@ Everything else in the ecosystem is looser than it looks:
   database. It is arguably better than V2, where one artwork was fixed in storage for every
   edition — `purchase(masterId, isCollector, uri)` takes the licence uri per purchase.
 
+- **Collector editions are buyable.** `buy_music` takes an `isCollector` flag and both
+  generations support it: the legacy contract has always had `purchaseCollectorEditionFor`
+  (which names the recipient, so no handover leg), and v3 passes the flag through `purchase`
+  with the collector artwork as the licence uri. Neither was ever wired up, so until now a
+  collector edition could be minted and then only ever bought at the standard price. The cast
+  reports the price actually paid rather than the indexed standard price — and says WMON, which
+  is what the buyer approves; it said TOURS before, which was simply wrong.
+
 - **The Safe buys, then hands the licence over.** `SalesController.purchase()` mints to
   `msg.sender` and takes no recipient argument, unlike V2's
   `purchaseLicenseFor(masterId, licensee, fid)`. Because the app relays through a Safe, a

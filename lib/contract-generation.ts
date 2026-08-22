@@ -381,3 +381,76 @@ export async function findDuplicateMaster(
     return null;
   }
 }
+
+// --------------------------------------------------- collector edition artwork
+
+const TOKEN_URI_ABI = parseAbi([
+  "function tokenURI(uint256) view returns (string)",
+]);
+
+const COLLECTOR_URI_ABI = parseAbi([
+  "function masterTokens(uint256) view returns (uint256 artistFid, address originalArtist, string tokenURI, string collectorTokenURI, uint256 price, uint256 collectorPrice, uint256 totalSold, uint256 activeLicenses, uint256 maxCollectorEditions, uint256 collectorsMinted, bool active, uint8 nftType, uint96 royaltyPercentage)",
+]);
+
+/** `ipfs://…` → a gateway URL. Left alone if it is already http(s). */
+function toGateway(uri: string): string {
+  if (!uri.startsWith("ipfs://")) return uri;
+  const gateway =
+    process.env.NEXT_PUBLIC_PINATA_GATEWAY || "gateway.pinata.cloud";
+  return `https://${gateway}/ipfs/${uri.slice("ipfs://".length)}`;
+}
+
+/**
+ * The metadata URI for a master's collector edition artwork.
+ *
+ * ## Where it lives, and why that differs by generation
+ *
+ * V2 keeps a second `collectorTokenURI` in contract storage, so this is one call.
+ *
+ * v3 masters carry a single uri — `purchase(masterId, isCollector, uri)` takes the licence uri
+ * from the buyer's call, so there is no master-level field to hold it. The pointer lives in the
+ * master's own metadata document instead, written by the upload route as `collector_token_uri`.
+ * That costs a fetch, but it means the artwork is derivable from the master forever without a
+ * contract field and without a database to keep in sync.
+ *
+ * Returns `""` when there is no collector artwork — a master minted before the field existed, or
+ * simply one with no edition. Callers fall back to the master's own artwork, which is why this
+ * never throws: missing artwork must not block a sale.
+ */
+export async function readCollectorTokenUri(
+  client: PublicClient,
+  opts: { nftAddress: Address; tokenId: bigint },
+): Promise<string> {
+  try {
+    if (!isV3Contracts()) {
+      const master = (await client.readContract({
+        address: opts.nftAddress,
+        abi: COLLECTOR_URI_ABI,
+        functionName: "masterTokens",
+        args: [opts.tokenId],
+      })) as readonly unknown[];
+      // Positional decode: `collectorTokenURI` is index 3. Reading the wrong index here returns
+      // a plausible string (the master uri at 2) rather than an error, so the index matters.
+      return (master[3] as string) ?? "";
+    }
+
+    const masterUri = (await client.readContract({
+      address: opts.nftAddress,
+      abi: TOKEN_URI_ABI,
+      functionName: "tokenURI",
+      args: [opts.tokenId],
+    })) as string;
+    if (!masterUri) return "";
+
+    const res = await fetch(toGateway(masterUri), {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return "";
+    const meta = await res.json();
+    return typeof meta?.collector_token_uri === "string"
+      ? meta.collector_token_uri
+      : "";
+  } catch {
+    return "";
+  }
+}

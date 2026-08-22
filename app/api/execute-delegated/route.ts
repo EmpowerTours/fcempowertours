@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   findDuplicateMaster,
   isV3Contracts,
+  readCollectorTokenUri,
   readMasterPrice,
 } from "@/lib/contract-generation";
 import {
@@ -1572,6 +1573,15 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
         const tokenId = BigInt(params.tokenId);
 
+        // Buying the collector edition rather than a standard licence. Both generations support
+        // it on-chain and neither was ever wired up here, so a collector edition could be minted
+        // and then only ever bought at the standard price.
+        const buyingCollector =
+          params.isCollector === true ||
+          params.isCollector === 1 ||
+          params.isCollector === "1" ||
+          params.isCollector === "true";
+
         // ✅ Check if it's an art NFT first for proper logging + self-purchase prevention
         let isPurchaseArtNFT = false;
         let nftArtistAddress: string | null = null;
@@ -1833,6 +1843,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               | Address
               | undefined,
             tokenId,
+            // A collector buy is charged the collector price; asking for the standard one
+            // would under-approve and revert.
+            isCollector: buyingCollector,
           });
           if (onChainPrice && onChainPrice > 0n) {
             approvalAmount = onChainPrice;
@@ -1916,19 +1929,31 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           ])) as [bigint, bigint];
           const expectedLicenseId = offset + count + 1n;
 
-          // Give the licence the master's own metadata so it displays as the track it licenses.
+          // The licence carries its own metadata in v3. A collector edition should display its
+          // own artwork — the pointer lives in the master's metadata, since v3 has no storage
+          // field for it — and a standard licence displays as the track it licenses.
           let licenceUri = "";
-          try {
-            licenceUri = (await readClient.readContract({
-              address: EMPOWER_TOURS_NFT,
-              abi: parseAbi([
-                "function tokenURI(uint256) view returns (string)",
-              ]),
-              functionName: "tokenURI",
-              args: [tokenId],
-            })) as string;
-          } catch {
-            // A master with no URI still sells; the licence just carries none.
+          if (buyingCollector) {
+            licenceUri = await readCollectorTokenUri(readClient, {
+              nftAddress: EMPOWER_TOURS_NFT,
+              tokenId,
+            });
+          }
+          if (!licenceUri) {
+            // Falls back to the master's own metadata: a collector edition minted before the
+            // pointer existed still sells, it just shows the standard artwork.
+            try {
+              licenceUri = (await readClient.readContract({
+                address: EMPOWER_TOURS_NFT,
+                abi: parseAbi([
+                  "function tokenURI(uint256) view returns (string)",
+                ]),
+                functionName: "tokenURI",
+                args: [tokenId],
+              })) as string;
+            } catch {
+              // A master with no URI still sells; the licence just carries none.
+            }
           }
 
           buyCalls = [
@@ -1952,7 +1977,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                   "function purchase(uint256 masterTokenId, bool isCollector, string uri) external returns (uint256)",
                 ]),
                 functionName: "purchase",
-                args: [tokenId, false, licenceUri],
+                args: [tokenId, buyingCollector, licenceUri],
               }) as Hex,
             },
             {
@@ -2000,13 +2025,23 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
             {
               to: EMPOWER_TOURS_NFT,
               value: 0n,
-              data: encodeFunctionData({
-                abi: parseAbi([
-                  "function purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) external",
-                ]),
-                functionName: "purchaseLicenseFor",
-                args: [tokenId, userAddress as Address, BigInt(buyerFid)],
-              }) as Hex,
+              // The legacy contract has always had a separate entrypoint for collector
+              // editions. Both name the recipient, so no handover leg is needed here.
+              data: buyingCollector
+                ? (encodeFunctionData({
+                    abi: parseAbi([
+                      "function purchaseCollectorEditionFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) external",
+                    ]),
+                    functionName: "purchaseCollectorEditionFor",
+                    args: [tokenId, userAddress as Address, BigInt(buyerFid)],
+                  }) as Hex)
+                : (encodeFunctionData({
+                    abi: parseAbi([
+                      "function purchaseLicenseFor(uint256 masterTokenId, address licensee, uint256 licenseeFid) external",
+                    ]),
+                    functionName: "purchaseLicenseFor",
+                    args: [tokenId, userAddress as Address, BigInt(buyerFid)],
+                  }) as Hex),
             },
             {
               // Leave no standing allowance behind.
@@ -2216,11 +2251,19 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                     }
                   }
 
+                  // Envio indexes the standard price. A collector buy is charged the
+                  // collector price, so announcing the indexed one would advertise a number
+                  // nobody paid. `approvalAmount` is what the batch actually approved.
+                  if (buyingCollector && approvalAmount > 0n) {
+                    songPrice = formatEther(approvalAmount);
+                  }
+
                   console.log("✅ Music data resolved:", {
                     songTitle,
                     songPrice,
                     songArtist,
                     buyerUsername,
+                    isCollector: buyingCollector,
                   });
                 } else {
                   console.warn("⚠️ MusicNFT array empty or not found");
@@ -2245,12 +2288,12 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               ? "🖼️ Enjoy your NFT!"
               : "🎧 Enjoy streaming!";
 
-            const castText = `${nftEmoji} ${nftType} Purchased!
+            const castText = `${nftEmoji} ${nftType}${buyingCollector ? " (Collector Edition)" : ""} Purchased!
 
 "${songTitle}" #${tokenId}
 🎤 ${songArtist}
 🛍️ Buyer: ${buyerUsername}
-💰 ${songPrice} TOURS
+💰 ${songPrice} WMON
 
 ⚡ Gasless transaction powered by @empowertours
 ${enjoyText}
@@ -2302,7 +2345,9 @@ ${enjoyText}
           action,
           userAddress,
           tokenId: tokenId.toString(),
-          message: `NFT purchased for ${userAddress}`,
+          isCollector: buyingCollector,
+          pricePaid: approvalAmount.toString(),
+          message: `${buyingCollector ? "Collector edition" : "NFT"} purchased for ${userAddress}`,
         });
 
       // ==================== SEND TOURS ====================

@@ -54,6 +54,11 @@ interface ISales {
 }
 
 interface IRegistry {
+    function ownerOf(uint256) external view returns (address);
+    function transferFrom(address from, address to, uint256 tokenId) external;
+    function totalLicenses() external view returns (uint256);
+    function LICENSE_ID_OFFSET() external view returns (uint256);
+    function tokenURI(uint256) external view returns (string memory);
     function getMaster(uint256)
         external
         view
@@ -68,7 +73,6 @@ interface IRegistry {
             uint96 royaltyShareBps,
             address royaltyShareSink
         );
-    function ownerOf(uint256) external view returns (address);
 }
 
 /**
@@ -276,5 +280,68 @@ contract CollectorEditionV3Test is Test {
         vm.prank(safe);
         vm.expectRevert();
         ISales(SALES).mintMasterFor(r, sig);
+    }
+
+    /**
+     * @dev The whole collector buy, as the route now encodes it: approve the collector price,
+     *      purchase with `isCollector` true, hand the edition to the buyer, revoke. Until this
+     *      existed a collector edition could be minted and then only ever bought at the standard
+     *      price, because `buy_music` hardcoded `isCollector: false`.
+     */
+    function test_TheCollectorBatchLeavesTheBuyerOwningTheEdition() public onlyForked {
+        uint256 masterId = _relayedMint(MAX_EDITIONS, COLLECTOR_PRICE, 6);
+
+        uint256 predicted =
+            IRegistry(REGISTRY).LICENSE_ID_OFFSET() + IRegistry(REGISTRY).totalLicenses() + 1;
+        uint256 safeBefore = IWmon(WMON).balanceOf(safe);
+        uint256 artistBefore = IWmon(WMON).balanceOf(artist);
+
+        vm.startPrank(safe);
+        IWmon(WMON).approve(SALES, COLLECTOR_PRICE);
+        uint256 licenseId = ISales(SALES).purchase(masterId, true, "ipfs://collector-art");
+        IRegistry(REGISTRY).transferFrom(safe, buyer, predicted);
+        IWmon(WMON).approve(SALES, 0);
+        vm.stopPrank();
+
+        assertEq(licenseId, predicted, "the route's id prediction holds for collector buys too");
+        assertEq(IRegistry(REGISTRY).ownerOf(licenseId), buyer, "the buyer owns the edition");
+        assertEq(
+            safeBefore - IWmon(WMON).balanceOf(safe),
+            COLLECTOR_PRICE,
+            "charged the collector price, not the standard one"
+        );
+
+        // 10% treasury fee is the live setting; the rest is the artist's.
+        assertEq(
+            IWmon(WMON).balanceOf(artist) - artistBefore,
+            COLLECTOR_PRICE - (COLLECTOR_PRICE * 1000) / 10_000,
+            "the artist is paid out of the collector price"
+        );
+
+        // The edition carries its own artwork rather than the master's.
+        assertEq(
+            IRegistry(REGISTRY).tokenURI(licenseId),
+            "ipfs://collector-art",
+            "the licence uri is the collector artwork the route passed"
+        );
+    }
+
+    /**
+     * @dev A standard buy of the same master must still cost the standard price. This is the
+     *      other half of the flag: getting it stuck on would overcharge every ordinary buyer.
+     */
+    function test_AStandardBuyOfACollectorMasterStillCostsTheStandardPrice() public onlyForked {
+        uint256 masterId = _relayedMint(MAX_EDITIONS, COLLECTOR_PRICE, 7);
+        uint256 safeBefore = IWmon(WMON).balanceOf(safe);
+
+        vm.startPrank(safe);
+        IWmon(WMON).approve(SALES, COLLECTOR_PRICE);
+        ISales(SALES).purchase(masterId, false, "ipfs://standard");
+        vm.stopPrank();
+
+        assertEq(safeBefore - IWmon(WMON).balanceOf(safe), STANDARD_PRICE, "standard price");
+
+        (,,,, uint32 minted,,,,) = IRegistry(REGISTRY).getMaster(masterId);
+        assertEq(minted, 0, "a standard buy must not consume an edition");
     }
 }

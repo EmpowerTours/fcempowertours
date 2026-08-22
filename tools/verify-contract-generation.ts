@@ -12,6 +12,13 @@
  * throw. It reports the wrong subscription tier and a wrong flag state, quietly, forever.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..");
+
 const failures: string[] = [];
 let checks = 0;
 
@@ -322,6 +329,148 @@ const main = async () => {
         },
       ),
       3n,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // readCollectorTokenUri
+  //
+  // V2 keeps the collector artwork in contract storage at index 3 of masterTokens; v3 keeps a
+  // pointer in the master's metadata document. Reading the wrong index under V2 returns the master
+  // uri — a plausible string, not an error — so the edition would silently display the wrong art.
+
+  setGeneration(false);
+  {
+    const cg = await load();
+    const calls: StubCall[] = [];
+    const client = stubClient(
+      {
+        masterTokens: () => [
+          0n,
+          ARTIST,
+          "ipfs://master-art",
+          "ipfs://COLLECTOR-art",
+          0n,
+          0n,
+          0n,
+          0n,
+          0n,
+          0n,
+          true,
+          0,
+          0n,
+        ],
+      },
+      calls,
+    );
+    check(
+      "V2 reads collectorTokenURI from storage, not the master uri",
+      await cg.readCollectorTokenUri(client, {
+        nftAddress: "0x1111111111111111111111111111111111111111",
+        tokenId: 1n,
+      }),
+      "ipfs://COLLECTOR-art",
+    );
+    check("V2 does it in one call", calls.length, 1);
+  }
+
+  setGeneration(true);
+  {
+    // v3 fetches the master metadata. Stub fetch so the check does not depend on a gateway.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          name: "x",
+          collector_token_uri: "ipfs://from-metadata",
+        }),
+      )) as typeof fetch;
+    try {
+      const cg = await load();
+      check(
+        "v3 reads the pointer out of the master metadata",
+        await cg.readCollectorTokenUri(
+          stubClient({ tokenURI: () => "ipfs://master-meta" }),
+          {
+            nftAddress: "0x1111111111111111111111111111111111111111",
+            tokenId: 1n,
+          },
+        ),
+        "ipfs://from-metadata",
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+  {
+    // A master minted before the field existed. Must return "" so the caller falls back to the
+    // master artwork — never block a sale over missing art.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ name: "x" }))) as typeof fetch;
+    try {
+      const cg = await load();
+      check(
+        "v3 returns empty when the master predates the pointer",
+        await cg.readCollectorTokenUri(
+          stubClient({ tokenURI: () => "ipfs://master-meta" }),
+          {
+            nftAddress: "0x1111111111111111111111111111111111111111",
+            tokenId: 1n,
+          },
+        ),
+        "",
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+  {
+    // An unreachable gateway must degrade, not throw into the buy path.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("gateway down");
+    }) as typeof fetch;
+    try {
+      const cg = await load();
+      check(
+        "v3 degrades to empty when the gateway is unreachable",
+        await cg.readCollectorTokenUri(
+          stubClient({ tokenURI: () => "ipfs://master-meta" }),
+          {
+            nftAddress: "0x1111111111111111111111111111111111111111",
+            tokenId: 1n,
+          },
+        ),
+        "",
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+
+  // The field name is a contract between two files that never import each other: the upload route
+  // writes it into the master metadata, and `readCollectorTokenUri` reads it back at purchase time.
+  // Rename it in one and the other silently returns "" — the edition quietly shows the wrong
+  // artwork and nothing fails. Pin both against their own source rather than trusting a constant.
+  {
+    const uploadSrc = readFileSync(
+      join(root, "app/api/upload/route.ts"),
+      "utf8",
+    );
+    const readerSrc = readFileSync(
+      join(root, "lib/contract-generation.ts"),
+      "utf8",
+    );
+    check(
+      "the upload route writes metadata.collector_token_uri",
+      uploadSrc.includes("metadata.collector_token_uri ="),
+      true,
+    );
+    check(
+      "and readCollectorTokenUri reads the same field name back",
+      readerSrc.includes("meta?.collector_token_uri"),
+      true,
     );
   }
 
