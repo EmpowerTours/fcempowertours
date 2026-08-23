@@ -10,7 +10,6 @@ import PageTransition, {
   FadeIn,
   ScaleIn,
 } from "@/app/components/animations/PageTransition";
-import AnimatedLoader from "@/app/components/animations/AnimatedLoader";
 import { AnimatedStatCard } from "@/app/components/animations/AnimatedCard";
 import UserSafeWidget from "@/app/components/UserSafeWidget";
 import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";

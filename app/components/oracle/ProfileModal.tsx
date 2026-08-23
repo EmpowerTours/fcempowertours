@@ -112,7 +112,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
-  const [showFullProfile, setShowFullProfile] = useState(false);
   const [safeBalance, setSafeBalance] = useState<SafeBalance | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [selectedPassport, setSelectedPassport] = useState<PassportData | null>(
@@ -397,7 +396,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setSearchedUser(null);
     setSearchQuery("");
     setSearchError(null);
-    setShowFullProfile(false);
   };
 
   if (!mounted) return null;
@@ -597,7 +595,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {searchedUser.walletAddress && onViewUserProfile && (
                     <button
                       onClick={() => {
-                        setShowFullProfile(true);
                         onViewUserProfile(searchedUser.walletAddress!);
                       }}
                       className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors"
