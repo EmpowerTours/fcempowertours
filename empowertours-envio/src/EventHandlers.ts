@@ -202,7 +202,7 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
   await context.MusicNFT.set(musicNFT);
 
   const userId = artist.toLowerCase();
-  let userStats = await context.UserStats.get(userId);
+  const userStats = await context.UserStats.get(userId);
 
   const isNewUser = !userStats;
 
@@ -234,7 +234,7 @@ EmpowerToursNFT.MasterMinted.handler(async ({ event, context }) => {
     });
   }
 
-  let globalStats = await context.GlobalStats.get("global");
+  const globalStats = await context.GlobalStats.get("global");
 
   if (globalStats) {
     await context.GlobalStats.set({
@@ -317,7 +317,7 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
 
   // Update buyer stats
   const buyerId = buyer.toLowerCase();
-  let buyerStats = await context.UserStats.get(buyerId);
+  const buyerStats = await context.UserStats.get(buyerId);
 
   const isNewUser = !buyerStats;
 
@@ -348,7 +348,7 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
   }
 
   // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
+  const globalStats = await context.GlobalStats.get("global");
 
   if (globalStats) {
     await context.GlobalStats.set({
@@ -389,7 +389,7 @@ EmpowerToursNFT.LicensePurchased.handler(async ({ event, context }) => {
 
 // ✅ Handle LicenseSold event (resale/secondary market)
 EmpowerToursNFT.LicenseSold.handler(async ({ event, context }) => {
-  const { licenseId, masterTokenId, seller, buyer, salePrice, royaltyPaid, royaltyRecipient } = event.params;
+  const { licenseId, masterTokenId: _masterTokenId, seller, buyer, salePrice, royaltyPaid, royaltyRecipient } = event.params;
 
   const musicLicenseId = `license-${event.chainId}-${licenseId.toString()}`;
   const timestamp = new Date(event.block.timestamp * 1000);
@@ -417,7 +417,7 @@ EmpowerToursNFT.LicenseSold.handler(async ({ event, context }) => {
 
   // Update buyer stats (increase license count)
   const buyerId = buyer.toLowerCase();
-  let buyerStats = await context.UserStats.get(buyerId);
+  const buyerStats = await context.UserStats.get(buyerId);
   const isNewUser = !buyerStats;
 
   if (buyerStats) {
@@ -502,7 +502,7 @@ EmpowerToursNFT.NFTBurned.handler(async ({ event, context }) => {
 
     // Update user stats - decrement NFT counts
     const userId = musicNFT.owner.toLowerCase();
-    let userStats = await context.UserStats.get(userId);
+    const userStats = await context.UserStats.get(userId);
 
     if (userStats) {
       await context.UserStats.set({
@@ -544,7 +544,7 @@ EmpowerToursNFT.StolenContentBurned.handler(async ({ event, context }) => {
 
     // Update user stats - decrement NFT counts
     const userId = musicNFT.owner.toLowerCase();
-    let userStats = await context.UserStats.get(userId);
+    const userStats = await context.UserStats.get(userId);
 
     if (userStats) {
       await context.UserStats.set({
@@ -591,7 +591,7 @@ EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
 
   // Update song streaming stats with royalty earnings
   const songStatsId = `stats-${event.chainId}-${masterTokenId.toString()}`;
-  let songStats = await context.SongStreamingStats.get(songStatsId);
+  const songStats = await context.SongStreamingStats.get(songStatsId);
 
   if (songStats) {
     await context.SongStreamingStats.set({
@@ -602,7 +602,7 @@ EmpowerToursNFT.RoyaltyPaid.handler(async ({ event, context }) => {
 
   // Update artist streaming stats
   const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
-  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+  const artistStats = await context.ArtistStreamingStats.get(artistStatsId);
 
   if (artistStats) {
     await context.ArtistStreamingStats.set({
@@ -676,7 +676,7 @@ PassportNFTV2.PassportMinted.handler(async ({ event, context }) => {
   await context.PassportNFT.set(passportNFT);
 
   const userId = owner.toLowerCase();
-  let userStats = await context.UserStats.get(userId);
+  const userStats = await context.UserStats.get(userId);
 
   const isNewUser = !userStats;
 
@@ -707,7 +707,7 @@ PassportNFTV2.PassportMinted.handler(async ({ event, context }) => {
     });
   }
 
-  let globalStats = await context.GlobalStats.get("global");
+  const globalStats = await context.GlobalStats.get("global");
 
   if (globalStats) {
     await context.GlobalStats.set({
@@ -766,13 +766,13 @@ PassportNFTV2.Transfer.handler(async ({ event, context }) => {
 
 // ✅ V2: Verification flow handlers (renamed events)
 PassportNFTV2.VerificationProofSubmitted.handler(async ({ event, context }) => {
-  const { tokenId, submitter, proofIPFSHash, timestamp } = event.params;
+  const { tokenId, submitter, proofIPFSHash, timestamp: _timestamp } = event.params;
 
   context.log.info(`📸 Verification proof submitted for Passport #${tokenId} by ${submitter} - proof: ${proofIPFSHash}`);
 });
 
 PassportNFTV2.PassportVerified.handler(async ({ event, context }) => {
-  const { tokenId, verifier, verificationProof, timestamp } = event.params;
+  const { tokenId, verifier, verificationProof, timestamp: _timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
   const passportNFT = await context.PassportNFT.get(passportNFTId);
@@ -833,7 +833,7 @@ PassportNFTV2.VenueStampAdded.handler(async ({ event, context }) => {
 
 // ✅ V2: Itinerary stamp handler (locationName, city, country, placeId, gpsVerified, timestamp)
 PassportNFTV2.ItineraryStampAdded.handler(async ({ event, context }) => {
-  const { tokenId, itineraryId, locationName, city, country, placeId, gpsVerified, timestamp } = event.params;
+  const { tokenId, itineraryId, locationName, city, country, placeId, gpsVerified, timestamp: _timestamp } = event.params;
 
   const passportNFTId = `passport-${event.chainId}-${tokenId.toString()}`;
 
@@ -886,7 +886,7 @@ ItineraryNFTV2.ItineraryCreated.handler(async ({ event, context }) => {
   await context.Itinerary.set(itinerary);
 
   // Update user stats
-  let userStats = await context.UserStats.get(userId);
+  const userStats = await context.UserStats.get(userId);
   const isNewUser = !userStats;
 
   if (userStats) {
@@ -916,7 +916,7 @@ ItineraryNFTV2.ItineraryCreated.handler(async ({ event, context }) => {
   }
 
   // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
+  const globalStats = await context.GlobalStats.get("global");
 
   if (globalStats) {
     await context.GlobalStats.set({
@@ -981,7 +981,7 @@ ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
   }
 
   // Update user stats
-  let userStats = await context.UserStats.get(userId);
+  const userStats = await context.UserStats.get(userId);
   const isNewUser = !userStats;
 
   if (userStats) {
@@ -1011,7 +1011,7 @@ ItineraryNFTV2.ItineraryPurchased.handler(async ({ event, context }) => {
   }
 
   // Update global stats
-  let globalStats = await context.GlobalStats.get("global");
+  const globalStats = await context.GlobalStats.get("global");
 
   if (globalStats) {
     await context.GlobalStats.set({
@@ -1270,7 +1270,7 @@ MusicSubscriptionV5.ArtistToursReward.handler(async ({ event, context }) => {
 
   // Update artist stats with TOURS rewards
   const artistStatsId = `artist-stats-${event.chainId}-${artist.toLowerCase()}`;
-  let artistStats = await context.ArtistStreamingStats.get(artistStatsId);
+  const artistStats = await context.ArtistStreamingStats.get(artistStatsId);
 
   if (artistStats) {
     await context.ArtistStreamingStats.set({
@@ -1350,7 +1350,7 @@ LiveRadioV3.RadioStarted.handler(async ({ event, context }) => {
 LiveRadioV3.RadioStopped.handler(async ({ event, context }) => {
   const statsId = `radio-stats-${event.chainId}`;
 
-  let stats = await context.RadioGlobalStats.get(statsId);
+  const stats = await context.RadioGlobalStats.get(statsId);
   if (stats) {
     await context.RadioGlobalStats.set({
       ...stats,
@@ -1416,7 +1416,7 @@ LiveRadioV3.SongQueued.handler(async ({ event, context }) => {
 
   // Update global stats
   const statsId = `radio-stats-${event.chainId}`;
-  let stats = await context.RadioGlobalStats.get(statsId);
+  const stats = await context.RadioGlobalStats.get(statsId);
   if (stats) {
     await context.RadioGlobalStats.set({
       ...stats,
@@ -1465,7 +1465,7 @@ LiveRadioV3.SongPlayed.handler(async ({ event, context }) => {
 
   // Update global stats
   const statsId = `radio-stats-${event.chainId}`;
-  let stats = await context.RadioGlobalStats.get(statsId);
+  const stats = await context.RadioGlobalStats.get(statsId);
   if (stats) {
     await context.RadioGlobalStats.set({
       ...stats,
@@ -1529,7 +1529,7 @@ LiveRadioV3.VoiceNoteSubmitted.handler(async ({ event, context }) => {
 
   // Update global stats
   const statsId = `radio-stats-${event.chainId}`;
-  let stats = await context.RadioGlobalStats.get(statsId);
+  const stats = await context.RadioGlobalStats.get(statsId);
   if (stats) {
     await context.RadioGlobalStats.set({
       ...stats,
@@ -1559,7 +1559,7 @@ LiveRadioV3.VoiceNotePlayed.handler(async ({ event, context }) => {
 
   // Update listener stats
   const listenerId = `listener-${event.chainId}-${submitter.toLowerCase()}`;
-  let listener = await context.RadioListener.get(listenerId);
+  const listener = await context.RadioListener.get(listenerId);
   if (listener) {
     await context.RadioListener.set({
       ...listener,
@@ -1607,7 +1607,7 @@ LiveRadioV3.ListenerRewarded.handler(async ({ event, context }) => {
 
   // Update global stats
   const statsId = `radio-stats-${event.chainId}`;
-  let stats = await context.RadioGlobalStats.get(statsId);
+  const stats = await context.RadioGlobalStats.get(statsId);
   if (stats) {
     await context.RadioGlobalStats.set({
       ...stats,
@@ -1625,7 +1625,7 @@ LiveRadioV3.StreakBonusClaimed.handler(async ({ event, context }) => {
   const listenerId = `listener-${event.chainId}-${listener.toLowerCase()}`;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  let listenerEntity = await context.RadioListener.get(listenerId);
+  const listenerEntity = await context.RadioListener.get(listenerId);
   if (listenerEntity) {
     const newLongestStreak = Number(streakDays) > listenerEntity.longestStreak
       ? Number(streakDays)
@@ -1662,7 +1662,7 @@ LiveRadioV3.FirstListenerBonus.handler(async ({ event, context }) => {
   });
 
   // Update listener stats
-  let listenerEntity = await context.RadioListener.get(listenerId);
+  const listenerEntity = await context.RadioListener.get(listenerId);
   if (listenerEntity) {
     await context.RadioListener.set({
       ...listenerEntity,
@@ -1695,7 +1695,7 @@ LiveRadioV3.TipReceived.handler(async ({ event, context }) => {
 
   // Update tipper stats
   const listenerId = `listener-${event.chainId}-${tipper.toLowerCase()}`;
-  let listener = await context.RadioListener.get(listenerId);
+  const listener = await context.RadioListener.get(listenerId);
   if (listener) {
     await context.RadioListener.set({
       ...listener,
@@ -1706,7 +1706,7 @@ LiveRadioV3.TipReceived.handler(async ({ event, context }) => {
 
   // Update global stats
   const statsId = `radio-stats-${event.chainId}`;
-  let stats = await context.RadioGlobalStats.get(statsId);
+  const stats = await context.RadioGlobalStats.get(statsId);
   if (stats) {
     await context.RadioGlobalStats.set({
       ...stats,
@@ -1779,7 +1779,7 @@ ClimbingLocationsV2.LocationCreated.handler(async ({ event, context }) => {
 
   // Update climber stats
   const climberId = `climber-${event.chainId}-${creator.toLowerCase()}`;
-  let climberStats = await context.ClimberStats.get(climberId);
+  const climberStats = await context.ClimberStats.get(climberId);
 
   if (climberStats) {
     await context.ClimberStats.set({
@@ -1800,7 +1800,7 @@ ClimbingLocationsV2.LocationCreated.handler(async ({ event, context }) => {
 
   // Update global climbing stats
   const globalStatsId = `climbing-stats-${event.chainId}`;
-  let globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
+  const globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
 
   if (globalStats) {
     await context.ClimbingGlobalStats.set({
@@ -1857,7 +1857,7 @@ ClimbingLocationsV2.AccessBadgeMinted.handler(async ({ event, context }) => {
 
   // Update climber stats
   const climberId = `climber-${event.chainId}-${holder.toLowerCase()}`;
-  let climberStats = await context.ClimberStats.get(climberId);
+  const climberStats = await context.ClimberStats.get(climberId);
 
   if (climberStats) {
     await context.ClimberStats.set({
@@ -1878,7 +1878,7 @@ ClimbingLocationsV2.AccessBadgeMinted.handler(async ({ event, context }) => {
 
   // Update global climbing stats
   const globalStatsId = `climbing-stats-${event.chainId}`;
-  let globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
+  const globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
 
   if (globalStats) {
     await context.ClimbingGlobalStats.set({
@@ -1925,7 +1925,7 @@ ClimbingLocationsV2.ClimbProofMinted.handler(async ({ event, context }) => {
 
   // Update climber stats
   const climberId = `climber-${event.chainId}-${climber.toLowerCase()}`;
-  let climberStats = await context.ClimberStats.get(climberId);
+  const climberStats = await context.ClimberStats.get(climberId);
 
   if (climberStats) {
     await context.ClimberStats.set({
@@ -1948,7 +1948,7 @@ ClimbingLocationsV2.ClimbProofMinted.handler(async ({ event, context }) => {
 
   // Update global climbing stats
   const globalStatsId = `climbing-stats-${event.chainId}`;
-  let globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
+  const globalStats = await context.ClimbingGlobalStats.get(globalStatsId);
 
   if (globalStats) {
     await context.ClimbingGlobalStats.set({
@@ -1967,7 +1967,7 @@ ClimbingLocationsV2.LocationDisabled.handler(async ({ event, context }) => {
   const { locationId } = event.params;
 
   const climbLocationId = `location-${event.chainId}-${locationId.toString()}`;
-  const timestamp = new Date(event.block.timestamp * 1000);
+  const _timestamp = new Date(event.block.timestamp * 1000);
 
   const location = await context.ClimbLocation.get(climbLocationId);
   if (location) {
@@ -2001,7 +2001,7 @@ ToursRewardManager.HalvingTriggered.handler(async ({ event, context }) => {
   });
 
   const configId = `reward-config-${event.chainId}`;
-  let config = await context.RewardManagerConfig.get(configId);
+  const config = await context.RewardManagerConfig.get(configId);
   if (config) {
     await context.RewardManagerConfig.set({
       ...config,
@@ -2037,7 +2037,7 @@ ToursRewardManager.EarlyHalvingTriggered.handler(async ({ event, context }) => {
   });
 
   const configId = `reward-config-${event.chainId}`;
-  let config = await context.RewardManagerConfig.get(configId);
+  const config = await context.RewardManagerConfig.get(configId);
   if (config) {
     await context.RewardManagerConfig.set({
       ...config,
@@ -2103,7 +2103,7 @@ ToursRewardManager.DailyCapUpdated.handler(async ({ event, context }) => {
   const { oldCap, newCap } = event.params;
 
   const configId = `reward-config-${event.chainId}`;
-  let config = await context.RewardManagerConfig.get(configId);
+  const config = await context.RewardManagerConfig.get(configId);
   if (config) {
     await context.RewardManagerConfig.set({
       ...config,
@@ -2119,7 +2119,7 @@ ToursRewardManager.DAOTimelockUpdated.handler(async ({ event, context }) => {
   const { oldTimelock, newTimelock } = event.params;
 
   const configId = `reward-config-${event.chainId}`;
-  let config = await context.RewardManagerConfig.get(configId);
+  const config = await context.RewardManagerConfig.get(configId);
   if (config) {
     await context.RewardManagerConfig.set({
       ...config,
@@ -2224,7 +2224,7 @@ VotingTOURS.DelegateVotesChanged.handler(async ({ event, context }) => {
 // ============================================
 
 EmpowerToursGovernor.ProposalCreated.handler(async ({ event, context }) => {
-  const { proposalId, proposer, targets, values, signatures, calldatas, voteStart, voteEnd, description } = event.params;
+  const { proposalId, proposer, targets: _targets, values: _values, signatures: _signatures, calldatas: _calldatas, voteStart, voteEnd, description } = event.params;
 
   const proposalEntityId = `proposal-${event.chainId}-${proposalId.toString()}`;
 
@@ -2666,7 +2666,7 @@ EmpowerToursDevStudio.CreditsPurchased.handler(async ({ event, context }) => {
     txHash: event.transaction.hash,
   });
 
-  let userStats = await context.DevStudioUser.get(userId);
+  const userStats = await context.DevStudioUser.get(userId);
   if (userStats) {
     await context.DevStudioUser.set({
       ...userStats,
@@ -2688,7 +2688,7 @@ EmpowerToursDevStudio.CreditsPurchased.handler(async ({ event, context }) => {
   }
 
   const globalId = `dev-studio-stats-${event.chainId}`;
-  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  const globalStats = await context.DevStudioGlobalStats.get(globalId);
   if (globalStats) {
     await context.DevStudioGlobalStats.set({
       ...globalStats,
@@ -2728,7 +2728,7 @@ EmpowerToursDevStudio.PromptGenerated.handler(async ({ event, context }) => {
     txHash: event.transaction.hash,
   });
 
-  let userStats = await context.DevStudioUser.get(userId);
+  const userStats = await context.DevStudioUser.get(userId);
   if (userStats) {
     await context.DevStudioUser.set({
       ...userStats,
@@ -2738,7 +2738,7 @@ EmpowerToursDevStudio.PromptGenerated.handler(async ({ event, context }) => {
   }
 
   const globalId = `dev-studio-stats-${event.chainId}`;
-  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  const globalStats = await context.DevStudioGlobalStats.get(globalId);
   if (globalStats) {
     await context.DevStudioGlobalStats.set({
       ...globalStats,
@@ -2766,7 +2766,7 @@ EmpowerToursDevStudio.WhitelistMinted.handler(async ({ event, context }) => {
     txHash: event.transaction.hash,
   });
 
-  let userStats = await context.DevStudioUser.get(userId);
+  const userStats = await context.DevStudioUser.get(userId);
   if (userStats) {
     await context.DevStudioUser.set({
       ...userStats,
@@ -2787,7 +2787,7 @@ EmpowerToursDevStudio.WhitelistMinted.handler(async ({ event, context }) => {
   }
 
   const globalId = `dev-studio-stats-${event.chainId}`;
-  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  const globalStats = await context.DevStudioGlobalStats.get(globalId);
   if (globalStats) {
     await context.DevStudioGlobalStats.set({
       ...globalStats,
@@ -2815,7 +2815,7 @@ EmpowerToursDevStudio.ToursAirdropped.handler(async ({ event, context }) => {
     txHash: event.transaction.hash,
   });
 
-  let userStats = await context.DevStudioUser.get(userId);
+  const userStats = await context.DevStudioUser.get(userId);
   if (userStats) {
     await context.DevStudioUser.set({
       ...userStats,
@@ -2825,7 +2825,7 @@ EmpowerToursDevStudio.ToursAirdropped.handler(async ({ event, context }) => {
   }
 
   const globalId = `dev-studio-stats-${event.chainId}`;
-  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  const globalStats = await context.DevStudioGlobalStats.get(globalId);
   if (globalStats) {
     await context.DevStudioGlobalStats.set({
       ...globalStats,
@@ -2842,7 +2842,7 @@ EmpowerToursDevStudio.WhitelistClosed.handler(async ({ event, context }) => {
   const { finalCount, timestamp: eventTimestamp } = event.params;
 
   const globalId = `dev-studio-stats-${event.chainId}`;
-  let globalStats = await context.DevStudioGlobalStats.get(globalId);
+  const globalStats = await context.DevStudioGlobalStats.get(globalId);
   if (globalStats) {
     await context.DevStudioGlobalStats.set({
       ...globalStats,
@@ -2888,7 +2888,7 @@ DailyLottery.RoundStarted.handler(async ({ event, context }) => {
   });
 
   // Update global stats
-  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  const globalStats = await context.DailyLotteryGlobalStats.get(globalId);
   if (globalStats) {
     await context.DailyLotteryGlobalStats.set({
       ...globalStats,
@@ -2968,7 +2968,7 @@ DailyLottery.TicketPurchased.handler(async ({ event, context }) => {
   }
 
   // Update user stats
-  let userStats = await context.DailyLotteryUserStats.get(userId);
+  const userStats = await context.DailyLotteryUserStats.get(userId);
   if (userStats) {
     await context.DailyLotteryUserStats.set({
       ...userStats,
@@ -2992,7 +2992,7 @@ DailyLottery.TicketPurchased.handler(async ({ event, context }) => {
     });
 
     // Update unique participants in global stats
-    let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+    const globalStats = await context.DailyLotteryGlobalStats.get(globalId);
     if (globalStats) {
       await context.DailyLotteryGlobalStats.set({
         ...globalStats,
@@ -3005,7 +3005,7 @@ DailyLottery.TicketPurchased.handler(async ({ event, context }) => {
   }
 
   // Update global ticket count (for existing users)
-  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  const globalStats = await context.DailyLotteryGlobalStats.get(globalId);
   if (globalStats && userStats) {
     await context.DailyLotteryGlobalStats.set({
       ...globalStats,
@@ -3056,7 +3056,7 @@ DailyLottery.DrawTriggered.handler(async ({ event, context }) => {
   }
 
   // Update trigger user stats
-  let userStats = await context.DailyLotteryUserStats.get(userId);
+  const userStats = await context.DailyLotteryUserStats.get(userId);
   if (userStats) {
     await context.DailyLotteryUserStats.set({
       ...userStats,
@@ -3080,7 +3080,7 @@ DailyLottery.DrawTriggered.handler(async ({ event, context }) => {
   }
 
   // Update global TOURS paidout
-  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  const globalStats = await context.DailyLotteryGlobalStats.get(globalId);
   if (globalStats) {
     await context.DailyLotteryGlobalStats.set({
       ...globalStats,
@@ -3131,7 +3131,7 @@ DailyLottery.WinnerSelected.handler(async ({ event, context }) => {
   });
 
   // Update winner user stats
-  let userStats = await context.DailyLotteryUserStats.get(userId);
+  const userStats = await context.DailyLotteryUserStats.get(userId);
   if (userStats) {
     await context.DailyLotteryUserStats.set({
       ...userStats,
@@ -3157,7 +3157,7 @@ DailyLottery.WinnerSelected.handler(async ({ event, context }) => {
   }
 
   // Update global stats
-  let globalStats = await context.DailyLotteryGlobalStats.get(globalId);
+  const globalStats = await context.DailyLotteryGlobalStats.get(globalId);
   if (globalStats) {
     await context.DailyLotteryGlobalStats.set({
       ...globalStats,
