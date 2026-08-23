@@ -395,8 +395,13 @@ All six, from `0x8dF64bACf6b70F7787f8d14429b258B3fF958ec1`, ~2.08 MON total.
 | `SalesController` | `0xf824D444AAf251EB2197836FFb218d48927F8cB1` |
 | `MusicSubscriptionV6` | `0xc7EDB67B59B8B89cF4E9bA9bd7b940052563611B` |
 | `ProfileRegistry` | `0xf4C27308f2183E7Cb07c32FAF449a259831E16EC` |
-| `PassportNFTV4` | `0x86312a8332a457EbcD3475820AE8AFbcFE032900` |
+| `PassportNFTV4` | ~~`0x86312a8332a457EbcD3475820AE8AFbcFE032900`~~ — **superseded, see below** |
 | `SubscriptionReferrals` | `0x5A1c34124eF5b4eC09Bdf0da5b2cbaEE5BE409B3` |
+
+The passport in that row was **redeployed the same day** to
+`0x4D5533e29Cf190131885Dc7Dbef22e31F4252410`, which is the address the app and the migration
+runbook use. The row above is the first one, kept only so the address in old transactions
+resolves — never paste it into an env var.
 
 Verified on-chain: `registry.controller` → SalesController, `sales.registry` and
 `subscription.registry` → LicenseRegistry, `referrals.subscription` → V6,
@@ -521,23 +526,52 @@ the app calls that contract, so both would be dead work. It also assumes a singl
 relayer, which `USE_USER_SAFES` contradicts — every user's transaction comes from their own Safe.
 Wire the app first, then decide what a trusted relayer even means here.
 
-## NOT YET LIVE — nothing below has been done
+## Cutover status — re-verified on-chain 2026-08-22
 
-Current users are unaffected until these run:
+This section used to read "NOT YET LIVE — nothing below has been done". **That is no longer
+true: the cutover ran, and v3 is what users are on now.** Every line below was read off Monad
+mainnet or off the shipped production bundle on 2026-08-22, not carried forward from the plan.
 
-1. `PlayOracleV3.setMusicSubscription(0xc7EDB67B…)` — still points at V5
-2. `LiveRadioV3.setNFTContract(0x42EbcD44…)` — still points at NFT V2
-3. Fund `SubscriptionReferrals` + `setTrustedRelayer(<relaying Safe>)`
-4. *(optional)* `ToursRewardManagerV2.setDistributor(0xc7EDB67B…, true)` — only if TOURS
-   rewards are wanted; parked, so skip
-5. `migrateLegacy` for licence 1000004 on master 3, then `sealMigration()` (irreversible)
-6. Set the app env vars — see "Env cutover" below. **"Flag last" is wrong** and was corrected
-   2026-08-21: some address vars must change in the *same* deploy as the flag, not before it.
-7. Migrate or lapse the existing V5 subscribers
-8. ~~Verify the six on Monadscan~~ — **DONE 2026-08-21**, all six verified.
+| # | Item | State |
+|---|---|---|
+| 1 | `PlayOracleV3.setMusicSubscription(0xc7EDB67B…)` | **DONE** — `musicSubscription()` returns V6 |
+| 2 | `LiveRadioV3.setNFTContract(0x42EbcD44…)` | **DONE** — `nftContract()` returns the v3 registry |
+| 3 | Fund `SubscriptionReferrals` + `setTrustedRelayer` | **DEFERRED on purpose** — see "Deferred, with a reason" |
+| 4 | `ToursRewardManagerV2.setDistributor` | parked, skip |
+| 5 | `migrateLegacy` for licence 1000004, then the seals | **NOT DONE** — see below |
+| 6 | App env vars + `NEXT_PUBLIC_CONTRACTS_V3` | **DONE** — the flag is on in production |
+| 7 | Migrate or lapse the existing V5 subscribers | **UNVERIFIED** — see below |
+| 8 | Verify the six on Monadscan | **DONE 2026-08-21**, all six |
 
-   `forge verify-contract` cannot do this: foundry 1.5.1 has no entry for chain 143, so
-   `--chain 143` falls back to Sourcify and `--verifier etherscan` ignores `--verifier-url`
-   in favour of its own chain table. Use `tools/verify-monadscan.py`, which posts the
-   standard-json to the Etherscan v2 API directly with `chainid` as a query parameter.
-   Idempotent — re-running reports "already verified".
+**How #6 was confirmed without Railway access.** The flag is a build-time inline, so it cannot
+be read back from `/api/config-check`. But `walletOnlySubscribeBlockedReason` returns the literal
+`"Subscribing currently requires a Farcaster account."` only on the non-v3 branch, and that string
+is **absent** from the production chunks while `MusicSubscriptionModal`'s own strings
+(`"Wrapping MON & Subscribing..."`) are present. The branch was folded away, so the flag was
+`"true"` at build time. `/api/config-check` independently reports `musicSubscription` = V6.
+
+Worth closing properly: nothing in the app reports its own contract generation. Adding
+`contractsV3` to `/api/config-check`, plus a check that the address set matches the generation,
+would turn the silent-mismatch failure this whole file is written around into a visible one.
+
+### What is actually left
+
+- **#5 — licence 1000004 is still unmigrated.** `LicenseRegistry.ownerOf(1000004)` reverts
+  `ERC721NonexistentToken(1000004)`. The five masters *are* in ( `totalMasters()` = 5 ), so only
+  the legacy licence itself is outstanding.
+- **Both seals are unset** — `migrationSealed()` and `passportMigrationSealed()` are both `false`.
+  That is the designed state: they are irreversible and deliberately last. Do not set them until
+  #5 and #7 are finished.
+- **#7 — no evidence either way.** The V5 subscriber set was not enumerated: the public Monad RPC
+  caps `eth_getLogs` at a 100-block range, so it needs the Alchemy key or the Envio indexer, which
+  already covers both subscription addresses under the one `MusicSubscriptionV5` entry. Anyone
+  holding an unexpired *V5* subscription is invisible to the app right now, because the app reads
+  V6. Enumerate before assuming they all lapsed.
+
+### Monadscan verification, for the next contract
+
+`forge verify-contract` cannot do this: foundry 1.5.1 has no entry for chain 143, so
+`--chain 143` falls back to Sourcify and `--verifier etherscan` ignores `--verifier-url` in
+favour of its own chain table. Use `tools/verify-monadscan.py`, which posts the standard-json to
+the Etherscan v2 API directly with `chainid` as a query parameter. Idempotent — re-running
+reports "already verified".
