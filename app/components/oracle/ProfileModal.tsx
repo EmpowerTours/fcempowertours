@@ -3,31 +3,7 @@
 import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import {
-  X,
-  Globe,
-  Music,
-  Palette,
-  MapPin,
-  Ticket,
-  Search,
-  Loader2,
-  User,
-  Wallet,
-  Copy,
-  ExternalLink,
-  FileText,
-  CheckCircle,
-  Edit3,
-  ChevronRight,
-  Play,
-  Users,
-  DollarSign,
-  ChevronDown,
-  Download,
-  Radio,
-  TrendingUp,
-} from "lucide-react";
+import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown, Download, Radio, TrendingUp } from "lucide-react";
 import { getAddressExplorerUrl } from "@/app/chains";
 import { getFlagEmoji, getCountryByCode } from "@/lib/passport/countries";
 import { EPKModal } from "./EPKModal";
@@ -384,7 +360,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         setSearchError(data.error || "User not found");
         setSearchedUser(null);
       }
-    } catch (error) {
+    } catch {
       setSearchError("Search failed");
       setSearchedUser(null);
     } finally {

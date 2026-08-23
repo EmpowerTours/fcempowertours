@@ -29,7 +29,7 @@ const nftAbi = parseAbi([
   'function burnStolenContent(uint256 tokenId, string memory reason) external',
   'function ownerOf(uint256 tokenId) external view returns (address)',
   'function owner() external view returns (address)',
-  'function tokenURI(uint256 tokenId) external view returns (string)',
+  'function _tokenURI(uint256 tokenId) external view returns (string)',
 ]);
 
 interface BurnRequest {
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     // Verify token exists
     let currentOwner: string;
-    let tokenURI: string = '';
+    let _tokenURI: string = '';
     try {
       currentOwner = await publicClient.readContract({
         address: NFT_ADDRESS,
@@ -145,16 +145,16 @@ export async function POST(req: NextRequest) {
       }) as string;
 
       try {
-        tokenURI = await publicClient.readContract({
+        _tokenURI = await publicClient.readContract({
           address: NFT_ADDRESS,
           abi: nftAbi,
-          functionName: 'tokenURI',
+          functionName: '_tokenURI',
           args: [BigInt(tokenId)],
         }) as string;
       } catch {
         // Token URI might fail, continue anyway
       }
-    } catch (error: any) {
+    } catch {
       return NextResponse.json(
         { success: false, error: `Token #${tokenId} does not exist or already burned` },
         { status: 404 }
@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
     }
 
     let owner: string;
-    let tokenURI: string = '';
+    let _tokenURI: string = '';
 
     try {
       owner = await publicClient.readContract({
@@ -246,14 +246,14 @@ export async function GET(req: NextRequest) {
       }) as string;
 
       try {
-        tokenURI = await publicClient.readContract({
+        _tokenURI = await publicClient.readContract({
           address: NFT_ADDRESS,
           abi: nftAbi,
-          functionName: 'tokenURI',
+          functionName: '_tokenURI',
           args: [BigInt(tokenId)],
         }) as string;
       } catch {
-        // Ignore tokenURI errors
+        // Ignore _tokenURI errors
       }
     } catch {
       return NextResponse.json(
@@ -266,7 +266,7 @@ export async function GET(req: NextRequest) {
       success: true,
       tokenId: parseInt(tokenId),
       owner,
-      tokenURI,
+      _tokenURI,
       contract: NFT_ADDRESS,
     });
 

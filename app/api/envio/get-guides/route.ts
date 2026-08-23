@@ -91,7 +91,7 @@ export async function GET() {
       .map((g: any) => g.guideFid);
 
     // Fetch Farcaster profiles from Neynar for guides missing profile data
-    let farcasterProfiles: Record<string, { username: string; displayName: string; pfpUrl: string }> = {};
+    const farcasterProfiles: Record<string, { username: string; displayName: string; pfpUrl: string }> = {};
 
     if (fidsNeedingProfiles.length > 0 && NEYNAR_API_KEY) {
       try {
@@ -314,7 +314,7 @@ async function fetchGuidesFromContract(): Promise<GuideObject[]> {
               pfpUrl = fcUser.pfp_url || '';
             }
           }
-        } catch (neynarError) {
+        } catch {
           console.warn('Failed to fetch Farcaster profile for FID:', fidStr);
         }
 

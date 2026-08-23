@@ -396,7 +396,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const ip = getClientIP(req);
+    const _ip = getClientIP(req);
     const body = await req.json();
     const { userAddress, addPermissions, signature, timestamp, nonce } = body;
 

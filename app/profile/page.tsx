@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
-import { PassportSVG } from "@/components/PassportSVG";
+
 import Link from "next/link";
 import PageTransition, {
   FadeIn,
@@ -85,7 +85,7 @@ async function fetchPassportCountryCode(
       (attr) => attr.trait_type.toLowerCase() === "country code",
     );
     return countryAttr ? countryAttr.value.toUpperCase() : null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -97,7 +97,7 @@ export default function ProfilePage() {
     isMobile,
     isLoading: contextLoading,
     error: contextError,
-    requestWallet,
+    requestWallet: _requestWallet,
   } = useFarcasterContext();
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
@@ -119,21 +119,21 @@ export default function ProfilePage() {
   }>({ mon: "0", tours: "0", wmon: "0" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [musicPage, setMusicPage] = useState(1);
+  const [_musicPage, _setMusicPage] = useState(1);
   const [createdMusicPage, setCreatedMusicPage] = useState(1);
   const [createdArtPage, setCreatedArtPage] = useState(1);
   const [purchasedMusicPage, setPurchasedMusicPage] = useState(1);
   const [purchasedArtPage, setPurchasedArtPage] = useState(1);
   const [passportPage, setPassportPage] = useState(1);
   const [queriedAddresses, setQueriedAddresses] = useState<string[]>([]);
-  const [refreshMessage, setRefreshMessage] = useState<string>("");
+  const [refreshMessage, _setRefreshMessage] = useState<string>("");
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
-  const [stakingNFT, setStakingNFT] = useState<string | null>(null);
+  const [_stakingNFT, setStakingNFT] = useState<string | null>(null);
   const [stakingError, setStakingError] = useState<string | null>(null);
   const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
-  const [stakingInfo, setStakingInfo] = useState<Record<string, any>>({});
-  const [pendingRewards, setPendingRewards] = useState<Record<string, string>>(
+  const [_stakingInfo, _setStakingInfo] = useState<Record<string, any>>({});
+  const [_pendingRewards, _setPendingRewards] = useState<Record<string, string>>(
     {},
   );
   const [collectorInfo, setCollectorInfo] = useState<
@@ -398,7 +398,7 @@ export default function ProfilePage() {
     window.location.href = `/burn-music?${params.toString()}`;
   };
 
-  const handleStakeMusic = async (tokenId: string | number) => {
+  const _handleStakeMusic = async (tokenId: string | number) => {
     if (!walletAddress) {
       setStakingError("Please connect your wallet first");
       return;
@@ -445,7 +445,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUnstakeMusic = async (tokenId: string | number) => {
+  const _handleUnstakeMusic = async (tokenId: string | number) => {
     if (!walletAddress) {
       setStakingError("Please connect your wallet first");
       return;
@@ -493,7 +493,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleClaimRewards = async (tokenId: string | number) => {
+  const _handleClaimRewards = async (_tokenId: string | number) => {
     // Rewards are automatically claimed when you unstake
     setStakingError(
       'Rewards are automatically claimed when you unstake your NFT. Use "Unstake NFT" to withdraw your stake and claim rewards.',
@@ -537,11 +537,11 @@ export default function ProfilePage() {
                 data = safeData;
               }
             }
-          } catch (err) {}
+          } catch {}
         }
         setBalances(data);
       }
-    } catch (error) {}
+    } catch {}
   };
 
   const loadArtistEarnings = async () => {
@@ -834,7 +834,7 @@ export default function ProfilePage() {
       const masterTokenIds = purchasedLicenses
         .map((l: any) => l.masterTokenId)
         .filter((id: any) => id);
-      let masterTokensMap = new Map<string, any>();
+      const masterTokensMap = new Map<string, any>();
       if (masterTokenIds.length > 0) {
         const masterQuery = `
           query GetMasterTokens($tokenIds: [String!]!) {

@@ -38,16 +38,9 @@ const nextConfig = {
     ];
   },
   async headers() {
-    // SECURITY: Whitelist allowed origins instead of using '*'
-    const allowedOrigins = [
-      process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app',
-      'https://warpcast.com',
-      'https://www.warpcast.com',
-      'https://farcaster.xyz',
-      'https://www.farcaster.xyz',
-      // Add your specific domains here
-    ].filter(Boolean).join(', ');
-
+    // NOTE: an `allowedOrigins` whitelist used to be built here and was never read — no
+    // Access-Control-Allow-Origin header is emitted from this file. Removed rather than left
+    // as dead code; if cross-origin API access is wanted, wire it up deliberately.
     return [
       {
         source: '/:path*',

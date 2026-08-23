@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const encoder = new TextEncoder();
+      const _encoder = new TextEncoder();
 
       // Register this client with the SSE broadcaster
       addClient(controller, ['live-radio']);

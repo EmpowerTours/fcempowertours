@@ -93,7 +93,7 @@ export interface SponsorshipVote {
 
 // Redis keys
 const SPONSORSHIPS_KEY = 'sponsorship:all';
-const SPONSORSHIP_PREFIX = 'sponsorship:';
+const _SPONSORSHIP_PREFIX = 'sponsorship:';
 const CLAIM_CODES_KEY = 'sponsorship:codes';
 const VOTES_PREFIX = 'sponsorship:votes:';
 const SPONSOR_HISTORY_PREFIX = 'sponsorship:sponsor:';

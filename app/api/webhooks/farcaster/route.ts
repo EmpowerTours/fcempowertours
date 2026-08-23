@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       `[Webhook] Processing command from FID ${authorFid}: ${text.slice(0, 100)}...`,
     );
 
-    let command = await parseCommand(text, authorFid);
+    const command = await parseCommand(text, authorFid);
 
     let txHash: string | null = null;
     switch (command.type) {
@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function parseCommand(text: string, fid: number) {
+async function parseCommand(text: string, _fid: number) {
   if (process.env.USE_GEMINI === "true") {
     try {
       // SECURITY: Sanitize prompt input
@@ -245,9 +245,8 @@ async function mintNFT(
   extra?: { countryCode: string; countryName: string },
 ) {
   const userAddress = await getUserAddress(fid);
-  let abi: any,
-    address: Address,
-    args: any[] = [userAddress];
+  let abi: any, address: Address;
+  const args: any[] = [userAddress];
 
   switch (type) {
     case "music":

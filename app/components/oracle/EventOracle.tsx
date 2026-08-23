@@ -78,7 +78,7 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose, isDar
   const [activeTab, setActiveTab] = useState<TabType>('events');
   const [events, setEvents] = useState<SponsoredEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<SponsoredEvent | null>(null);
-  const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [_attendees, _setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -183,7 +183,7 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose, isDar
         }));
         setIsCapturingLocation(false);
       },
-      (error) => {
+      (_error) => {
         alert('Could not get location. Please enter coordinates manually.');
         setIsCapturingLocation(false);
       },
@@ -341,7 +341,7 @@ export const EventOracle: React.FC<EventOracleProps> = ({ isOpen, onClose, isDar
   };
 
   // Claim rewards
-  const handleClaimRewards = async (event: SponsoredEvent) => {
+  const _handleClaimRewards = async (event: SponsoredEvent) => {
     if (!isConnected || !address) {
       alert('Please connect your wallet');
       return;

@@ -5,31 +5,10 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useMemo,
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  Send,
-  Sparkles,
-  X,
-  Globe,
-  Loader2,
-  Music2,
-  User,
-  MapPin,
-  CheckCircle2,
-  Coins,
-  BarChart3,
-  Radio,
-  Calendar,
-  Wallet,
-  Copy,
-  ExternalLink,
-  Plus,
-  Sun,
-  Moon,
-} from "lucide-react";
+import { Send, Sparkles, X, Globe, Loader2, User, BarChart3, Radio, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from "lucide-react";
 import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
 import { MusicSubscriptionModal } from "@/app/components/oracle/MusicSubscriptionModal";
 import { MirrorMate } from "@/app/components/oracle/MirrorMate";
@@ -89,7 +68,7 @@ export default function OraclePage() {
   const [clickedMusicNFTs, setClickedMusicNFTs] = useState<NFTObject[]>([]);
   const [nftList, setNftList] = useState<NFTObject[]>([]);
   const [loadingNFTs, setLoadingNFTs] = useState(true);
-  const [playingNFTId, setPlayingNFTId] = useState<string | null>(null);
+  const [_playingNFTId, setPlayingNFTId] = useState<string | null>(null);
   const [playingTokenId, setPlayingTokenId] = useState<string | null>(null);
   const [activeGame, setActiveGame] = useState<"MIRROR" | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
@@ -101,8 +80,8 @@ export default function OraclePage() {
   const pauseRadioAudioRef = useRef<(() => void) | null>(null);
   const pausePlaylistAudioRef = useRef<(() => void) | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
-  const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
+  const [_hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
+  const [_ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showRadioModal, setShowRadioModal] = useState(false);
   const [showEventOracleModal, setShowEventOracleModal] = useState(false);
@@ -184,7 +163,7 @@ export default function OraclePage() {
     [closeNonMinimizableModals, minimizeAllMinimizable],
   );
 
-  const closeAllModals = useCallback(() => {
+  const _closeAllModals = useCallback(() => {
     closeNonMinimizableModals();
     setShowRadioModal(false);
     setRadioMinimized(false);
@@ -395,7 +374,7 @@ export default function OraclePage() {
       );
 
       if (data.success) {
-        const { action, txHash, explorer, requestId } = data;
+        const { action, txHash, explorer, _requestId } = data;
         console.log("[Oracle] Action type:", action.type);
         console.log(
           "[Oracle] Full action object:",
@@ -489,7 +468,7 @@ export default function OraclePage() {
             }
             break;
 
-          case "withdraw":
+          case "withdraw": {
             console.log("[Oracle] WITHDRAW case triggered");
             let withdrawMessage = action.message;
             if (txHash) {
@@ -506,8 +485,9 @@ export default function OraclePage() {
               },
             ]);
             break;
+          }
 
-          case "execute":
+          case "execute": {
             console.log("[Oracle] EXECUTE case triggered");
             let executeMessage = action.message;
             if (txHash) {
@@ -525,6 +505,7 @@ export default function OraclePage() {
               },
             ]);
             break;
+          }
 
           case "create_epk":
             console.log("[Oracle] CREATE_EPK case triggered");

@@ -270,7 +270,7 @@ export function scanBytecode(bytecode: string): SecurityReport {
   const info: SecurityFinding[] = [];
 
   // Normalize bytecode
-  let hex = bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode;
+  const hex = bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode;
   const bytes = Buffer.from(hex, 'hex');
 
   // Size check (EIP-170)

@@ -57,11 +57,11 @@ interface GraphQLResponse {
 
 export default function ArtistProfilePage() {
   const params = useParams();
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const artistAddress = params.address as string;
   const { user, walletAddress, isMobile, requestWallet } = useFarcasterContext();
-  const { executeCommand, loading: commandLoading, error: commandError } = useBotCommand();
+  const { executeCommand, loading: commandLoading, error: _commandError } = useBotCommand();
 
   // Check for autoplay params from frame
   const autoplayTokenId = searchParams.get('tokenId');

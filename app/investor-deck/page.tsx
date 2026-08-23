@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import _Image from 'next/image';
 
 export default function InvestorDeck() {
   const [currentSlide, setCurrentSlide] = useState(0);

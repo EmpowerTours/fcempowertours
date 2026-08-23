@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`🌍 Country validated: ${countryInfo.flag} ${countryInfo.name} (${countryInfo.region}, ${countryInfo.continent})`);
 
-    let recipientAddress = userAddress;
+    const recipientAddress = userAddress;
     let username = "traveler";
 
     // If FID provided, resolve to wallet address
@@ -458,7 +458,7 @@ export async function POST(req: NextRequest) {
           console.log(`🎫 PassportMinted event found! Token ID: ${tokenId}`);
           break;
         }
-      } catch (e) {
+      } catch {
         // Skip logs that don't match
       }
     }

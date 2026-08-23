@@ -65,7 +65,7 @@ export async function GET(
           console.log('[PassportImage] Got passport data from indexer:', { countryCode, countryName, owner: passportOwner });
         }
       }
-    } catch (indexerErr) {
+    } catch {
       console.log('[PassportImage] Indexer passport query failed, trying chain');
     }
 
@@ -89,7 +89,7 @@ export async function GET(
           const country = getCountryByCode(countryCode);
           countryName = country?.name || countryCode;
         }
-      } catch (chainErr) {
+      } catch {
         console.log('[PassportImage] Could not fetch from chain, using defaults');
       }
     }
@@ -142,7 +142,7 @@ export async function GET(
 
         console.log('[PassportImage] Found', stamps.length, 'stamps for passport', tokenId, '(', Object.keys(stampImages).length, 'with AI images)');
       }
-    } catch (indexerErr) {
+    } catch {
       console.log('[PassportImage] Indexer query failed, passport has no stamps');
     }
 
@@ -233,7 +233,7 @@ export async function GET(
           stamps = [...stamps, ...climbStamps].slice(0, 6);
           console.log('[PassportImage] Added', climbStamps.length, 'climbing badges as stamps');
         }
-      } catch (climbErr) {
+      } catch {
         console.log('[PassportImage] Could not fetch climbing badges');
       }
     }

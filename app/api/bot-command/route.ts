@@ -15,7 +15,7 @@ function extractFidFromRequest(req: NextRequest): string | null {
     try {
       const context = JSON.parse(farcasterContext);
       return context.user?.fid?.toString() || null;
-    } catch (e) {
+    } catch {
       // Ignore parsing errors
     }
   }
@@ -29,11 +29,11 @@ export async function POST(req: NextRequest) {
     const {
       command,
       userAddress,
-      location,
+      _location,
       fid: bodyFid,
       imageUrl: imageUrlFromRequest,
-      title: titleFromRequest,
-      tokenURI: tokenURIFromRequest,
+      title: _titleFromRequest,
+      tokenURI: _tokenURIFromRequest,
       is_art,
       rightsDeclaration: rightsDeclarationFromRequest,
       // v3 minting: the artist signs the mint payload and this route only relays it. Both are
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
     const originalCommand = command.trim();
-    let lowerCommand = command.toLowerCase().trim().replace(/_/g, " ");
+    const lowerCommand = command.toLowerCase().trim().replace(/_/g, " ");
 
     // ==================== HELP COMMAND ====================
     if (lowerCommand === "help") {
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
             `${list}\n\n` +
             `▶️ Listen: ${LISTEN_URL}`,
         });
-      } catch (err: any) {
+      } catch {
         return NextResponse.json({
           success: true,
           action: "info",
@@ -520,7 +520,7 @@ Address: ${userAddress.slice(0, 10)}...`,
                 isArtNFT = nft.isArt === true;
               }
             }
-          } catch (err) {
+          } catch {
             console.warn("Could not check NFT type, assuming music");
           }
         }
@@ -846,7 +846,7 @@ Click below to open the transaction page and connect your Farcaster wallet with 
           countryCode = geoData.country || "US";
           countryName = geoData.country_name || "United States";
           console.log(`📍 Detected country: ${countryCode} ${countryName}`);
-        } catch (geoErr) {
+        } catch {
           console.warn("Location detection failed, using default");
         }
 

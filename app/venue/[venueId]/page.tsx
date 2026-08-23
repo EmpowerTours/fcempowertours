@@ -48,7 +48,7 @@ export default function VenuePlayerPage() {
   const apiKey = searchParams.get('key') || '';
 
   const audioRef = useRef<HTMLAudioElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const _canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [venue, setVenue] = useState<VenueInfo | null>(null);
   const [state, setState] = useState<VenuePlaybackState | null>(null);
@@ -101,7 +101,7 @@ export default function VenuePlayerPage() {
       setState(data.state);
       setQueue(data.queue || []);
       setError(null);
-    } catch (err: any) {
+    } catch {
       setError('Failed to connect to venue');
     }
   }, [venueId, apiKey]);

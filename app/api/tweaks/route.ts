@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http } from 'viem';
 
 // EmpowerTweaks API - List and query tweaks
 // GET /api/tweaks - List all tweaks
@@ -7,8 +6,8 @@ import { createPublicClient, http } from 'viem';
 // GET /api/tweaks?developer=0x... - Filter by developer
 // GET /api/tweaks?search=snowboard - Search by name
 
-const EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://mainnet.monad.xyz';
+const _EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
+const _MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://mainnet.monad.xyz';
 
 // For now, use mock data until contract is deployed
 // In production, this would read from the contract + Envio indexer

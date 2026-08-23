@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Play, Pause, SkipForward, SkipBack, Music2, GripVertical, ChevronUp, X, GripHorizontal, Crown } from 'lucide-react';
 
@@ -50,7 +50,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
   const [showQueue, setShowQueue] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const previewTimeLimitRef = useRef<number | null>(null);
+  const _previewTimeLimitRef = useRef<number | null>(null);
   const lastAutoPlayedTokenIdRef = useRef<string | null>(null);
   const clickedNFTsRef = useRef<string>(''); // Track serialized clickedNFTs to detect actual changes
   const [savedPlaylistOrder, setSavedPlaylistOrder] = useState<string[] | null>(null);
@@ -212,7 +212,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
     }
 
     // Create unique key for this play session
-    const playKey = `${song.tokenId}-${Date.now()}`;
+    const _playKey = `${song.tokenId}-${Date.now()}`;
 
     // Don't double-record the same song in the same session
     const sessionKey = `${song.tokenId}-${Math.floor(Date.now() / 60000)}`; // Per-minute key
@@ -348,7 +348,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
                     fallbackSong.artist = metadata.artist || metadata.properties?.artist || 'Unknown Artist';
                   }
                 }
-              } catch (err) {
+              } catch {
                 // Silently fail - song will show but won't play
               }
             }
@@ -357,7 +357,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({ userAddress, use
             clickedSongs.push(fallbackSong);
             lastClickedTokenId = nft.tokenId;
           }
-        } catch (error) {
+        } catch {
           // Skip failed NFTs
         }
       }

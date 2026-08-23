@@ -20,9 +20,7 @@ import {
   getComboMultiplier,
   updateMiningStats,
   VENUE_KEYS,
-  type VenuePlaybackState,
   type VenueSession,
-  type CatalogSong,
 } from '@/lib/venue';
 
 /**
@@ -243,7 +241,7 @@ async function startNewSession(venueId: string): Promise<VenueSession> {
 /**
  * Commit a playlist seed hash on-chain via VenueRegistry.
  */
-async function commitSeedOnChain(venueId: string, sessionId: number, seedHash: string) {
+async function commitSeedOnChain(venueId: string, _sessionId: number, _seedHash: string) {
   if (!VENUE_REGISTRY_ADDRESS || !ORACLE_PRIVATE_KEY) return;
 
   try {
@@ -257,7 +255,7 @@ async function commitSeedOnChain(venueId: string, sessionId: number, seedHash: s
       'function getVenueIdByOwner(address owner) external view returns (uint256)',
       'function commitPlaylistSeed(uint256 venueId, bytes32 seedHash) external',
     ];
-    const registry = new Contract(VENUE_REGISTRY_ADDRESS, registryAbi, wallet);
+    const _registry = new Contract(VENUE_REGISTRY_ADDRESS, registryAbi, wallet);
 
     // For now, commit using the on-chain venue ID
     // The venueId in Redis is a hex string, on-chain it's a uint256
@@ -337,7 +335,7 @@ async function submitBatchPlaysOnChain(
       const receipt = await tx.wait();
 
       // Parse VenueToursEarned event to update off-chain mining stats
-      const toursEarnedTopic = '0x'; // Will match by event name instead
+      const _toursEarnedTopic = '0x'; // Will match by event name instead
       for (const log of receipt.logs || []) {
         try {
           const parsed = registry.interface.parseLog({ topics: log.topics, data: log.data });

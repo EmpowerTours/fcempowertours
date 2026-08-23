@@ -25,7 +25,7 @@ function startHeartbeat() {
     const now = Date.now();
     const deadClients: SSEController[] = [];
 
-    for (const [controller, client] of clients) {
+    for (const [controller, _client] of clients) {
       try {
         controller.enqueue(encoder.encode(`: heartbeat ${now}\n\n`));
       } catch {

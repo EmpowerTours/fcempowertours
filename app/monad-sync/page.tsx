@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import PageTransition from '@/app/components/animations/PageTransition';
-import { parseEther, formatEther } from 'viem';
 
 // Quiz questions with exact scoring from spec
 const QUIZ_QUESTIONS = [
@@ -82,7 +81,7 @@ const QUIZ_QUESTIONS = [
   }
 ];
 
-const PRICES = {
+const _PRICES = {
   takeQuiz: 5,
   revealMonadMirrorNFT: 10,
   dailyPerceptionSpin: 2,

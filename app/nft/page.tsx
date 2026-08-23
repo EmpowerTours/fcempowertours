@@ -16,14 +16,14 @@ const styles = `
 `;
 
 // ✅ EmpowerToursNFTv5 with Music + Art support
-const MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || "";
+const _MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || "";
 
 export default function MusicPage() {
   const {
     user,
     walletAddress,
     isLoading: contextLoading,
-    error: contextError,
+    error: _contextError,
     requestWallet,
   } = useFarcasterContext();
   const {
@@ -310,7 +310,7 @@ export default function MusicPage() {
 
     // ✅ NEW: Support art-only NFTs (cover art + title required, audio optional)
     const isArtOnly = !previewFile && !fullFile;
-    const isMusicNFT = previewFile || fullFile;
+    const _isMusicNFT = previewFile || fullFile;
 
     if (!coverFile || !title) {
       const missing = [];

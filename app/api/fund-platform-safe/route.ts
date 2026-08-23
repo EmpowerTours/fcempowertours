@@ -33,7 +33,7 @@ const ERC20_ABI = [
  *
  * Check the balance of deployer and platform Safe
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const provider = new JsonRpcProvider(MONAD_RPC);
     const toursContract = new Contract(TOURS_TOKEN_ADDRESS, ERC20_ABI, provider);

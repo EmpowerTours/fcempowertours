@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { forwardAuthHeader } from "@/lib/quick-auth";
 import { GoogleGenAI, Type } from "@google/genai";
-import {
-  parseEther,
-  decodeEventLog,
-  encodeFunctionData,
-  type Address,
-  type Hex,
-} from "viem";
+import { encodeFunctionData, type Address, type Hex } from "viem";
 import { sendUserSafeTransaction } from "@/lib/user-safe";
 import { getCountryByCode } from "@/lib/passport/countries";
-import { publicClient } from "@/lib/pimlico-safe-aa";
+
 import { Redis } from "@upstash/redis";
 
 // Redis client, used for per-user dedup caches.
-const redis = Redis.fromEnv();
+const _redis = Redis.fromEnv();
 
 interface OracleAction {
   type:
@@ -133,13 +127,11 @@ export async function POST(req: NextRequest) {
     }
 
     // If payment confirmed, charge the user via delegated transaction (with dedup cache)
-    let paymentTxHash: string | null = null;
+    const _paymentTxHash: string | null = null;
 
     // OSM provider path: search via Nominatim, pass results as context to Gemini
 
-    let systemPrompt: string;
-
-    systemPrompt = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
+    const systemPrompt: string = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
 
 CRITICAL: Function names MUST be exactly as listed. No variations.
 
@@ -343,7 +335,7 @@ Return valid JSON only.`;
     let action: OracleAction;
     try {
       action = JSON.parse(responseText);
-    } catch (parseError) {
+    } catch {
       console.error("Failed to parse AI response:", responseText);
       throw new Error("Invalid JSON response from AI");
     }
@@ -360,7 +352,7 @@ Return valid JSON only.`;
 
     if (action.type === "execute" && action.transaction) {
       // Aggressively extract function name - Gemini often hallucinates extra text
-      let rawFunc = action.transaction.function || "";
+      const rawFunc = action.transaction.function || "";
       let funcName = rawFunc.replace(/[,\s]+$/, "").trim();
 
       // If function starts with buy_music or buy_art, extract just that
@@ -592,7 +584,7 @@ Return valid JSON only.`;
 async function executeDelegatedTransaction(
   transaction: { contract: string; function: string; args: any[] },
   beneficiary: string,
-  userFid: number,
+  _userFid: number,
 ): Promise<string> {
   // Load contract ABI based on contract address
   const { default: abi } = await import(

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { redis } from '@/lib/redis';
 import { addClient, removeClient, sendToClient } from '@/lib/sse-broadcaster';
-import { verifyApiKey, getVenuePlaybackState, getVenueQueue, VENUE_KEYS } from '@/lib/venue';
+import { verifyApiKey, getVenuePlaybackState, getVenueQueue } from '@/lib/venue';
 
 /**
  * GET /api/venue/[venueId]/stream?key=X

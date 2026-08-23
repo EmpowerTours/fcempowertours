@@ -5,15 +5,7 @@ import {
   DISTRIBUTION_SNAPSHOT_KEY,
   LISTENER_STATS_KEY,
 } from "@/lib/listener-points";
-import {
-  createWalletClient,
-  createPublicClient,
-  http,
-  parseAbi,
-  parseEther,
-  formatEther,
-  type Address,
-} from "viem";
+import { createWalletClient, createPublicClient, http, parseAbi, formatEther, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { activeChain } from "@/app/chains";
 
@@ -84,7 +76,7 @@ function verifyAuth(req: NextRequest): boolean {
   const bearerToken = authHeader?.startsWith("Bearer ")
     ? authHeader.slice(7)
     : null;
-  const bodySecret = null; // Will check body in POST handler if needed
+  const _bodySecret = null; // Will check body in POST handler if needed
 
   return (
     (!!CRON_SECRET && cronSecret === CRON_SECRET) ||

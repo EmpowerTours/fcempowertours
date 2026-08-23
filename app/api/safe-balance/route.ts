@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSafeInfo, checkSafeBalance } from '@/lib/safe';
 import { parseEther } from 'viem';
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const info = await getSafeInfo();
     

@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
 
       if (salesData.data) {
         const licenses = salesData.data.MusicLicense || [];
-        const nfts = salesData.data.MusicNFT || [];
+        const _nfts = salesData.data.MusicNFT || [];
 
         // Calculate total sales and artist stats
         let totalSales = BigInt(0);

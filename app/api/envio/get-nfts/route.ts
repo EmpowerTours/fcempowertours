@@ -23,7 +23,7 @@ interface NFTObject {
 }
 
 // Utility function to resolve IPFS URLs with thumbnail optimization
-const resolveIPFS = (url: string, thumbnail: boolean = false): string => {
+const resolveIPFS = (url: string, _thumbnail: boolean = false): string => {
   if (!url) return "";
 
   let resolvedUrl = url;

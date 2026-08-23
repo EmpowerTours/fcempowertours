@@ -32,7 +32,7 @@ const RADIO_STATE_KEY = "live-radio:state";
 const RADIO_QUEUE_KEY = "live-radio:queue";
 const VOICE_NOTES_KEY = "live-radio:voice-notes";
 const LISTENER_STATS_KEY = "live-radio:listener-stats";
-const ACTIVE_LISTENERS_KEY = "live-radio:active-listeners"; // Legacy - individual keys
+const _ACTIVE_LISTENERS_KEY = "live-radio:active-listeners"; // Legacy - individual keys
 const ACTIVE_LISTENERS_ZSET = "live-radio:active-listeners-zset"; // ZSET for efficient counting
 const DAILY_FIRST_LISTENER_KEY = "live-radio:first-listener";
 const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
@@ -775,7 +775,7 @@ export async function POST(req: NextRequest) {
 
       // Update listener stats
       const userKey = userAddress.toLowerCase();
-      let stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
       if (stats) {
         stats.voiceNotesSubmitted++;
         await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
@@ -861,7 +861,7 @@ export async function POST(req: NextRequest) {
 
       // Update listener stats
       const userKey = userAddress.toLowerCase();
-      let stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
       if (stats) {
         stats.voiceNotesSubmitted++;
         await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
@@ -950,7 +950,7 @@ export async function POST(req: NextRequest) {
 
     // Report song ended (client tells server when audio actually finishes)
     if (action === "song_ended") {
-      const { songId, tokenId } = body;
+      const { _songId, tokenId } = body;
 
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (!state) {
@@ -1003,7 +1003,7 @@ export async function POST(req: NextRequest) {
 
     // Heartbeat (listener tracking with rewards)
     if (action === "heartbeat") {
-      const { masterTokenId } = body;
+      const { _masterTokenId } = body;
 
       // The listener address comes from the session, NEVER from the body.
       //
@@ -1061,7 +1061,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Get or create listener stats
-      let stats = (await redis.hget<ListenerStats>(
+      const stats = (await redis.hget<ListenerStats>(
         LISTENER_STATS_KEY,
         userKey,
       )) || {
@@ -1166,7 +1166,7 @@ export async function POST(req: NextRequest) {
 
     // Claim rewards (after successful TOURS transfer)
     if (action === "claim_rewards") {
-      const { txHash, amount } = body;
+      const { txHash, _amount } = body;
       const userKey = userAddress.toLowerCase();
 
       if (!txHash) {

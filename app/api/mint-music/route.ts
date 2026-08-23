@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
       const requestedPrice = parseFloat(price?.toString() || String(MIN_PRICE));
       finalPrice = Math.max(requestedPrice, MIN_PRICE);
       priceInWei = parseEther(String(finalPrice));
-    } catch (err) {
+    } catch {
       console.error('[MintMusic] Invalid price format:', price);
       priceInWei = parseEther(String(MIN_PRICE));
     }
@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
             tokenId = Number(parsed.args[0]);
             break;
           }
-        } catch (e) {
+        } catch {
           // Skip logs that don't match
         }
       }

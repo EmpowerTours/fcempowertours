@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Loader2, CheckCircle, Music, FileText, Hotel, CalendarCheck, RefreshCw, Sparkles } from 'lucide-react';
-import { EVENT_TYPES } from '@/lib/epk/constants';
+
 import type { EPKMetadata } from '@/lib/epk/types';
 
 interface EPKModalProps {

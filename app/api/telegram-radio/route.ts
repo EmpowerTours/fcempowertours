@@ -22,7 +22,7 @@ const SUBSCRIBERS_KEY = 'telegram-radio:subscribers';
 const SUBSCRIBER_DATA_KEY = 'telegram-radio:subscriber-data';
 const KEEPER_SECRET = process.env.KEEPER_SECRET || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const _APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
 interface TelegramSubscriber {
   telegramChatId: string;
@@ -309,7 +309,7 @@ async function sendSongToChat(chatId: string, song: RadioSong): Promise<void> {
   }
 
   const BOT_USERNAME = 'AI_RobotExpert_bot';
-  const MINI_APP_URL = `https://t.me/${BOT_USERNAME}/radio`;
+  const _MINI_APP_URL = `https://t.me/${BOT_USERNAME}/radio`;
 
   // Build inline keyboard
   const inlineKeyboard = {
@@ -384,7 +384,7 @@ async function sendSongToChat(chatId: string, song: RadioSong): Promise<void> {
       // If sendAudio fails, fall through to sendMessage with photo
       console.warn(`[TelegramRadio] sendAudio failed for chat ${chatId}, falling back to message:`, result.description);
     }
-  } catch (err) {
+  } catch {
     // Fall through to message fallback
   }
 

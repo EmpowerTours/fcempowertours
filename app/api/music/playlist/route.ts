@@ -24,7 +24,7 @@ interface PlaylistData {
 async function ensurePlaylistsDir() {
   try {
     await fs.mkdir(PLAYLISTS_DIR, { recursive: true });
-  } catch (error) {
+  } catch {
     // Directory might already exist
   }
 }

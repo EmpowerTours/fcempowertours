@@ -183,7 +183,6 @@ export function useTelegramApp(): TelegramAppState {
       webApp.offEvent('viewportChanged', onViewportChanged);
       webApp.offEvent('mainButtonClicked', onMainButtonClicked);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Actions ---

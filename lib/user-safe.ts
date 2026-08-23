@@ -182,7 +182,7 @@ async function getPimlicoGasPrices(): Promise<{
       maxFeePerGas: BigInt(fast.maxFeePerGas),
       maxPriorityFeePerGas: BigInt(fast.maxPriorityFeePerGas),
     };
-  } catch (error: any) {
+  } catch {
     console.warn('⚠️ Pimlico gas price fetch failed, using fallback');
     const gasPrice = await publicClient.getGasPrice();
     return {

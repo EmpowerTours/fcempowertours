@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     // If deposit amount provided, process on-chain booking
     let txHash: string | null = null;
-    let bookingId: number | null = null;
+    const bookingId: number | null = null;
 
     if (depositAmount && parseFloat(depositAmount) > 0 && EPK_REGISTRY_ADDRESS && WMON_ADDRESS) {
       try {

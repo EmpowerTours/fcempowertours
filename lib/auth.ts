@@ -1,14 +1,6 @@
-import {
-  verifyMessage,
-  recoverMessageAddress,
-  createPublicClient,
-  http,
-  Address,
-  Hex,
-  hashMessage,
-} from "viem";
+import { verifyMessage, recoverMessageAddress, createPublicClient, http, Address, Hex } from "viem";
 import { Redis } from "@upstash/redis";
-import { NextRequest } from "next/server";
+
 import { randomBytes } from "crypto";
 
 /**

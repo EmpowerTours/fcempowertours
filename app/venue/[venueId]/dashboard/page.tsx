@@ -51,7 +51,7 @@ interface HistoryEntry {
 
 export default function VenueDashboardPage() {
   const params = useParams();
-  const venueId = params.venueId as string;
+  const _venueId = params.venueId as string;
   const { address, isConnected } = useAccount();
 
   const [venue, setVenue] = useState<Venue | null>(null);
@@ -84,7 +84,7 @@ export default function VenueDashboardPage() {
         const storedKey = localStorage.getItem(`venue-key:${data.venue.venueId}`);
         if (storedKey) setApiKey(storedKey);
       }
-    } catch (err: any) {
+    } catch {
       setError('Failed to check venue registration');
     } finally {
       setLoading(false);
@@ -553,7 +553,7 @@ export default function VenueDashboardPage() {
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {catalog.map((song, i) => (
+                    {catalog.map((song, _i) => (
                       <div key={song.tokenId} style={{
                         display: 'flex',
                         alignItems: 'center',

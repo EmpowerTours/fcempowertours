@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, ExternalLink, Music, Play, Users, DollarSign, CheckCircle, MapPin } from 'lucide-react';
+import { Download, ExternalLink, Play, CheckCircle, MapPin } from 'lucide-react';
 import type { EPKMetadata, ArtistStreamingStats } from '@/lib/epk/types';
 import { getRumbleEmbedUrl } from '@/lib/epk/utils';
 import BookingForm from './BookingForm';

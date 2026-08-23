@@ -13,7 +13,7 @@ export default function ApproveGaslessPage() {
   const [success, setSuccess] = useState('');
   const [txHash, setTxHash] = useState('');
   const [loading, setLoading] = useState(false);
-  const [hasEthereum, setHasEthereum] = useState(false);
+  const [_hasEthereum, setHasEthereum] = useState(false);
 
   useEffect(() => {
     // Check if window.ethereum is available

@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
     const total = await getTotalSponsorships();
     const all = await getAllSponsorships(total, 0);
 
-    let offers = all.filter(s => s.status === 'AwaitingHost');
-    let requests = all.filter(s => s.status === 'AwaitingSponsor');
+    const offers = all.filter(s => s.status === 'AwaitingHost');
+    const requests = all.filter(s => s.status === 'AwaitingSponsor');
 
     if (type === 'offers') {
       return NextResponse.json({

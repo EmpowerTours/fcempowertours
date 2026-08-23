@@ -3,7 +3,7 @@ import {
   SmartAccountClient,
 } from 'permissionless';
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
-import { createPublicClient, createWalletClient, http, Address, Hex, parseAbi, parseEther, encodePacked, concat, toHex } from 'viem';
+import { createPublicClient, createWalletClient, http, Address, Hex, parseAbi, parseEther, encodePacked } from 'viem';
 import { entryPoint07Address } from 'viem/account-abstraction';
 import { monadMainnet } from '@/app/chains';
 import { privateKeyToAccount, sign } from 'viem/accounts';
@@ -13,7 +13,7 @@ import { env } from '@/lib/env';
 // Monad Mainnet (Chain ID: 143)
 const currentChain = monadMainnet;
 
-const PIMLICO_API_KEY = env.PIMLICO_API_KEY;
+const _PIMLICO_API_KEY = env.PIMLICO_API_KEY;
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
 const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
@@ -106,7 +106,7 @@ export async function createSafeSmartAccountClient(): Promise<SmartAccountClient
         ? ('0x' + storageValue.slice(-40)) as `0x${string}`
         : '0x0000000000000000000000000000000000000000';
       console.log('   Fallback handler:', fallbackHandler);
-    } catch (debugError) {
+    } catch {
       console.warn('   ⚠️ Could not read Safe modules (Safe may not be deployed)');
     }
 
@@ -534,7 +534,7 @@ export async function sendSafeTransaction(
                 `Or use: NFT.setApprovalForAll(${call.to}, true) to approve all NFTs at once.`
               );
             }
-          } catch (extractErr) {
+          } catch {
             // If we can't extract params, fall through to generic error
           }
         }
@@ -560,7 +560,7 @@ export async function sendSafeTransaction(
     let hasApproveSpendPattern = false;
     for (let i = 0; i < calls.length - 1; i++) {
       const currentSelector = calls[i].data.slice(0, 10);
-      const nextSelector = calls[i + 1].data.slice(0, 10);
+      const _nextSelector = calls[i + 1].data.slice(0, 10);
 
       if (currentSelector === '0x095ea7b3') {
         // This is an approve - check if it's followed by a spend operation

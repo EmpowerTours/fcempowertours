@@ -42,7 +42,7 @@ const CACHE_TTL_MS = 10000; // 10 second cache (scheduler runs every 30-60s anyw
 const RADIO_STATE_KEY = "live-radio:state";
 const RADIO_QUEUE_KEY = "live-radio:queue";
 const VOICE_NOTES_KEY = "live-radio:voice-notes";
-const SONG_POOL_KEY = "live-radio:song-pool";
+const _SONG_POOL_KEY = "live-radio:song-pool";
 const SCHEDULER_LOCK_KEY = "live-radio:scheduler-lock";
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
@@ -324,7 +324,7 @@ export async function POST(req: NextRequest) {
 
     try {
       // Get current state (1 Redis command)
-      let state = await redis.get<RadioState>(RADIO_STATE_KEY);
+      const state = await redis.get<RadioState>(RADIO_STATE_KEY);
 
       // Update cache
       cachedState = { data: state, timestamp: now };
@@ -633,7 +633,7 @@ export async function POST(req: NextRequest) {
 }
 
 // GET - Check scheduler status
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const state = await redis.get<RadioState>(RADIO_STATE_KEY);
     const phase = (await redis.get<string>(PLAYBACK_PHASE_KEY)) || "song";

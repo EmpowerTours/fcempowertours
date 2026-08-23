@@ -1,4 +1,4 @@
-import { type WatchContractEventReturnType, formatEther, type Log } from 'viem';
+import { type WatchContractEventReturnType, formatEther } from 'viem';
 import { getWsClient, reconnectWsClient } from './ws-client';
 import { broadcast } from './sse-broadcaster';
 import { redis } from './redis';

@@ -344,7 +344,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     if (state.currentSong) {
       const song = state.currentSong;
       const elapsedSec = Math.floor((Date.now() - song.startedAt) / 1000);
-      const remainingSec = Math.max(0, song.duration - elapsedSec);
+      const _remainingSec = Math.max(0, song.duration - elapsedSec);
 
       const messageLines = [
         `🎵 *Now Playing on EmpowerTours Radio*`,

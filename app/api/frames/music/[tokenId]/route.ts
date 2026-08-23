@@ -60,7 +60,7 @@ async function getNFTData(tokenId: string): Promise<NFTData | null> {
           try {
             const priceNum = Number(BigInt(nft.price)) / 1e18;
             priceDisplay = priceNum.toString();
-          } catch (e) {
+          } catch {
             priceDisplay = String(nft.price);
           }
         }

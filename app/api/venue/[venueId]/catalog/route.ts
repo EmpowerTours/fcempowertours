@@ -41,7 +41,7 @@ export async function GET(
     const allSongs = await fetchClearedCatalog(redis);
 
     // Apply genre filter if provided (future: genre metadata from Envio)
-    let filtered = allSongs;
+    const filtered = allSongs;
     if (genre) {
       // Genre filtering would require genre metadata in Envio
       // For now, return all songs with a note

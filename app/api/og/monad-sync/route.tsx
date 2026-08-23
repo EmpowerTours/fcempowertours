@@ -29,7 +29,7 @@ const MONAD_TIERS: Record<string, { emoji: string; color: string; gradient: stri
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const fid = searchParams.get('fid') || '???';
+    const _fid = searchParams.get('fid') || '???';
     const clarity = searchParams.get('clarity') || '??';
     const tier = searchParams.get('tier') || 'Unknown Monad';
 

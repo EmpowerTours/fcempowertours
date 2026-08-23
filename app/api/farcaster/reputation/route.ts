@@ -50,14 +50,14 @@ interface NeynarUser {
 // Scoring constants (from patent)
 const MAX_AGE_SCORE = 20;
 const MAX_FOLLOWER_SCORE = 30;
-const MAX_CONNECTION_SCORE = 30;
+const _MAX_CONNECTION_SCORE = 30;
 const MAX_ACTIVITY_SCORE = 20;
 
 // Thresholds
 const MIN_REPUTATION_FOR_SUBSCRIPTION = 10; // Minimum score to subscribe
-const DAYS_FOR_MAX_AGE = 365; // 1 year = max age score
+const _DAYS_FOR_MAX_AGE = 365; // 1 year = max age score
 const FOLLOWERS_FOR_MAX_SCORE = 1000; // 1000 followers = max follower score
-const FOLLOWING_FOR_MAX_CONNECTION = 500; // Used with ratio calculation
+const _FOLLOWING_FOR_MAX_CONNECTION = 500; // Used with ratio calculation
 
 export async function GET(req: NextRequest) {
   try {

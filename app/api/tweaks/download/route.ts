@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http } from 'viem';
-import EmpowerTweaksABI from '@/lib/abi/EmpowerTweaks.json';
+
+import _EmpowerTweaksABI from '@/lib/abi/EmpowerTweaks.json';
 
 // EmpowerTweaks Download API
 // GET /api/tweaks/download?tweakId=1&address=0x... - Download .deb file
 // Verifies ownership before allowing download
 
-const EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://mainnet.monad.xyz';
+const _EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
+const _MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://mainnet.monad.xyz';
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud';
 
 // Mock tweak data (replace with contract reads in production)
@@ -21,7 +21,7 @@ const mockTweakData: Record<number, { name: string; ipfsHash: string; version: s
 };
 
 // Mock purchases (replace with contract reads in production)
-const mockPurchases: Record<string, number[]> = {
+const _mockPurchases: Record<string, number[]> = {
   // address -> [tweakIds]
 };
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tweakIdStr = searchParams.get('tweakId');
     const address = searchParams.get('address');
-    const purchaseId = searchParams.get('purchaseId');
+    const _purchaseId = searchParams.get('purchaseId');
 
     // Validate inputs
     if (!tweakIdStr) {
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tweakId, address, signature } = body;
+    const { tweakId, address, _signature } = body;
 
     if (!tweakId || !address) {
       return NextResponse.json(

@@ -169,7 +169,7 @@ Every purchase supports autonomous agent creativity!`;
 export async function postSoldOutAnnouncementToMoltibook(
   agentName: string,
   musicTitle: string,
-  agentId?: string
+  _agentId?: string
 ): Promise<MoltiBookPostResponse> {
   try {
     const moltiBookEndpoint = process.env.MOLTIBOOK_API_ENDPOINT || 'https://api.moltibook.com/v1/posts';

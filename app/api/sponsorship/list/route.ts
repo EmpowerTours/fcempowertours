@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllSponsorships, readSponsorship, getTotalSponsorships, SponsorshipStatus } from '@/lib/event-sponsorship';
+import { getAllSponsorships, getTotalSponsorships, SponsorshipStatus } from '@/lib/event-sponsorship';
 
 /**
  * GET /api/sponsorship/list

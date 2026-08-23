@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 export default function SDKProvider({ children }: { children: React.ReactNode }) {
   const [sdkReady, setSdkReady] = useState(false);
-  const [sdk, setSdk] = useState<any>(null);
+  const [_sdk, setSdk] = useState<any>(null);
 
   useEffect(() => {
     // Aggressive timeout to prevent infinite loading

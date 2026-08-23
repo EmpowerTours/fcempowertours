@@ -65,7 +65,7 @@ export async function handleX402Payment(
   price: string,
   method: 'GET' | 'POST' = 'GET'
 ) {
-  const client = getThirdwebClient();
+  const _client = getThirdwebClient();
   const facilitatorInstance = getX402Facilitator();
   const serverWallet = process.env.THIRDWEB_SERVER_WALLET!;
 

@@ -39,7 +39,7 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
     }
   };
 
-  const getLineColor = (currentStatus: StepStatus, nextStatus: StepStatus) => {
+  const getLineColor = (currentStatus: StepStatus, _nextStatus: StepStatus) => {
     if (currentStatus === 'completed') return 'bg-green-400';
     if (currentStatus === 'active') return 'bg-cyan-400/30';
     if (currentStatus === 'failed') return 'bg-red-400/30';

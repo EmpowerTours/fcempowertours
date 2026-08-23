@@ -24,27 +24,12 @@ import {
   ensureUserSafeCanBurn,
 } from "@/lib/user-safe";
 import { USE_USER_SAFES } from "@/lib/safe-mode";
-import {
-  encodeFunctionData,
-  parseEther,
-  parseUnits,
-  Address,
-  Hex,
-  parseAbi,
-  formatEther,
-  toEventSelector,
-} from "viem";
+import { encodeFunctionData, parseEther, Address, Hex, parseAbi, formatEther, toEventSelector } from "viem";
 import { createShortUrl } from "@/lib/url-shortener";
 // Switchboard removed - using Pyth Entropy for randomness
 import { activeChain } from "@/app/chains";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
-import {
-  validateCountryCode,
-  sanitizeInput,
-  sanitizeErrorForResponse,
-  VALID_COUNTRY_CODES,
-  authenticateAdminAction,
-} from "@/lib/auth";
+import { validateCountryCode, authenticateAdminAction } from "@/lib/auth";
 import {
   storeRightsStatus,
   type RightsDeclaration,
@@ -100,12 +85,12 @@ async function executeTransaction(
 }
 
 // ✅ Helper: Convert price from wei (18 decimals) to readable TOURS
-function convertPriceFromWei(price: string | number | bigint): string {
+function _convertPriceFromWei(price: string | number | bigint): string {
   try {
     const priceBI = BigInt(price);
     const priceNum = Number(priceBI) / 1e18;
     return priceNum.toString();
-  } catch (e) {
+  } catch {
     console.warn("Failed to convert price:", price);
     return String(price);
   }
@@ -332,7 +317,7 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       // ==================== MINT PASSPORT (WITH CAST + FRAME) ====================
-      case "mint_passport":
+      case "mint_passport": {
         console.log("🎫 Action: mint_passport (batched approve + mint)");
 
         // ✅ VALIDATION: Check if contracts are deployed
@@ -382,7 +367,7 @@ export async function POST(req: NextRequest) {
 
         // Check Safe's WMON balance - Passport requires 150 WMON
         // If not enough WMON, check if we can wrap MON to WMON
-        let needsWrap = false;
+        let _needsWrap = false;
         const WMON_CHECK = process.env.NEXT_PUBLIC_WMON as Address;
         const MINT_PRICE_CHECK = parseEther("150");
 
@@ -423,9 +408,9 @@ export async function POST(req: NextRequest) {
                 (Number(wmonNeeded) / 1e18).toFixed(2),
                 "MON to WMON",
               );
-              needsWrap = true;
+              _needsWrap = true;
             } else {
-              const totalNeeded = Number(MINT_PRICE_CHECK) / 1e18;
+              const _totalNeeded = Number(MINT_PRICE_CHECK) / 1e18;
               const haveWmon = Number(wmonBalance) / 1e18;
               const haveMon = Number(monBalance) / 1e18;
               return NextResponse.json(
@@ -756,7 +741,8 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         });
 
       // ==================== MINT MUSIC (WITH CAST + FRAME) ====================
-      case "mint_music":
+      }
+      case "mint_music": {
         // ✅ Determine if it's Art or Music NFT
         const isArtNFT =
           params.is_art === true ||
@@ -1148,6 +1134,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         });
 
       // ==================== MINT COLLECTOR EDITION ====================
+      }
       case "mint_collector": {
         const isCollectorArt =
           params.is_art === true ||
@@ -1486,7 +1473,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           try {
             const isArt = isCollectorArt;
             const shortArtist = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
-            const nftEmoji = isArt ? "🎨" : "🎵";
+            const _nftEmoji = isArt ? "🎨" : "🎵";
             const nftText = isArt ? "Art" : "Music";
 
             const collectorCastText = `👑 New Collector Edition ${nftText} NFT!
@@ -1550,7 +1537,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
       }
 
       // ==================== BUY MUSIC (WITH CAST + FRAME) - FIXED ====================
-      case "buy_music":
+      case "buy_music": {
         if (!params?.tokenId) {
           return NextResponse.json(
             { success: false, error: "Missing tokenId for buy_music" },
@@ -1600,7 +1587,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               nftArtistAddress = nft.artist?.toLowerCase() || null;
             }
           }
-        } catch (err) {
+        } catch {
           console.warn("Could not check purchase NFT type, assuming music");
         }
 
@@ -1761,7 +1748,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                   );
                   const currentMON = (Number(safeMonBalance) / 1e18).toFixed(4);
                   const requiredWMON = (Number(nftPrice) / 1e18).toFixed(4);
-                  const shortfall = (
+                  const _shortfall = (
                     Number(
                       nftPrice - safeWmonBalance - safeMonBalance + gasBuffer,
                     ) / 1e18
@@ -2338,7 +2325,8 @@ ${enjoyText}
         });
 
       // ==================== SEND TOURS ====================
-      case "send_tours":
+      }
+      case "send_tours": {
         console.log("💸 Action: send_tours");
         if (!params?.recipient || !params?.amount) {
           return NextResponse.json(
@@ -2398,7 +2386,8 @@ ${enjoyText}
         });
 
       // ==================== SEND MON ====================
-      case "send_mon":
+      }
+      case "send_mon": {
         console.log("💸 Action: send_mon");
         if (!params?.recipient || !params?.amount) {
           return NextResponse.json(
@@ -2500,7 +2489,8 @@ ${enjoyText}
         });
 
       // ==================== SWAP MON FOR TOURS ====================
-      case "swap_mon_for_tours":
+      }
+      case "swap_mon_for_tours": {
         console.log("💱 Action: swap_mon_for_tours");
         const monAmount = params?.amount
           ? parseEther(params.amount)
@@ -2622,7 +2612,8 @@ ${enjoyText}
         });
 
       // ==================== WRAP MON TO WMON ====================
-      case "wrap_mon":
+      }
+      case "wrap_mon": {
         console.log("🎁 Action: wrap_mon");
         if (!params?.amount) {
           return NextResponse.json(
@@ -2711,7 +2702,8 @@ ${enjoyText}
         });
 
       // ==================== APPROVE WMON FOR PASSPORT ====================
-      case "approve_wmon_for_passport":
+      }
+      case "approve_wmon_for_passport": {
         console.log("🔓 Action: approve_wmon_for_passport");
 
         const WMON_APPROVE = process.env.NEXT_PUBLIC_WMON as Address;
@@ -2753,7 +2745,8 @@ ${enjoyText}
         });
 
       // ==================== WITHDRAW TO USER (Safe → User Wallet) ====================
-      case "withdraw_to_user":
+      }
+      case "withdraw_to_user": {
         console.log("💸 Action: withdraw_to_user (Safe → User Wallet)");
         if (!params?.token || !params?.amount) {
           return NextResponse.json(
@@ -2857,7 +2850,8 @@ ${enjoyText}
         });
 
       // ==================== MUSIC NFT V5: STAKING ====================
-      case "stake_music":
+      }
+      case "stake_music": {
         console.log("🎵 Action: stake_music");
         if (!params?.tokenId) {
           return NextResponse.json(
@@ -2899,7 +2893,8 @@ ${enjoyText}
         });
 
       // ==================== MUSIC NFT V5: UNSTAKING ====================
-      case "unstake_music":
+      }
+      case "unstake_music": {
         console.log("🎵 Action: unstake_music");
         if (!params?.tokenId) {
           return NextResponse.json(
@@ -2941,7 +2936,8 @@ ${enjoyText}
         });
 
       // ==================== MUSIC NFT V7: DELEGATED BURNING ====================
-      case "burn_music":
+      }
+      case "burn_music": {
         console.log("🔥 Action: burn_music (v7 delegated)");
         if (!params?.tokenId) {
           return NextResponse.json(
@@ -2992,6 +2988,7 @@ ${enjoyText}
         });
 
       // ==================== CREATE SINGLE EXPERIENCE (Legacy - uses TOURS token) ====================
+      }
       case "burn_nft": {
         console.log("🔥 Action: burn_nft (delegated burning via User Safe)");
 
@@ -3056,181 +3053,8 @@ ${enjoyText}
       }
 
       // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
-      case "swap_mon_for_tours":
-        console.log("💱 Action: swap_mon_for_tours");
-
-        if (!params?.amount) {
-          return NextResponse.json(
-            { success: false, error: "Missing amount for swap" },
-            { status: 400 },
-          );
-        }
-
-        // TOKEN_SWAP and TOURS_TOKEN already declared at top level
-        if (!TOKEN_SWAP || !TOURS_TOKEN) {
-          return NextResponse.json(
-            { success: false, error: "Swap contract not configured" },
-            { status: 500 },
-          );
-        }
-
-        const swapAmount = parseFloat(params.amount.toString());
-        if (isNaN(swapAmount) || swapAmount <= 0 || swapAmount > 10) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Invalid swap amount. Must be between 0.01 and 10 MON",
-            },
-            { status: 400 },
-          );
-        }
-
-        const swapMonValue = parseEther(swapAmount.toString());
-
-        // Determine the correct Safe address
-        const swapSafe = USE_USER_SAFES
-          ? await getUserSafeAddress(userAddress as Address)
-          : SAFE_ACCOUNT;
-
-        console.log("💱 Executing swap:", {
-          amount: swapAmount,
-          tokenSwap: TOKEN_SWAP,
-          toursToken: TOURS_TOKEN,
-          safeAddress: swapSafe,
-          mode: USE_USER_SAFES ? "User Safe" : "Platform Safe",
-        });
-
-        // Check Safe has enough MON for swap
-        try {
-          const { createPublicClient, http } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const client = createPublicClient({
-            chain: activeChain,
-            transport: http(),
-          });
-
-          const safeMonBalanceSwap = await client.getBalance({
-            address: swapSafe as Address,
-          });
-
-          console.log("💰 Safe MON balance:", safeMonBalanceSwap.toString());
-
-          if (safeMonBalanceSwap < swapMonValue) {
-            const currentMON = (Number(safeMonBalanceSwap) / 1e18).toFixed(4);
-            const requiredMON = swapAmount.toFixed(4);
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Insufficient MON in Safe. Safe has ${currentMON} MON, but swap requires ${requiredMON} MON.`,
-              },
-              { status: 400 },
-            );
-          }
-
-          // Get exchange rate to calculate expected TOURS
-          const exchangeRate = (await client.readContract({
-            address: TOKEN_SWAP,
-            abi: parseAbi([
-              "function exchangeRate() external view returns (uint256)",
-            ]),
-            functionName: "exchangeRate",
-          })) as bigint;
-
-          const expectedTours = (swapMonValue * exchangeRate) / parseEther("1");
-          console.log(
-            "📊 Exchange rate:",
-            formatEther(exchangeRate),
-            "TOURS per MON",
-          );
-          console.log("📊 Expected TOURS:", formatEther(expectedTours));
-
-          // Check swap contract has enough TOURS
-          const swapContractToursBalance = (await client.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi([
-              "function balanceOf(address) view returns (uint256)",
-            ]),
-            functionName: "balanceOf",
-            args: [TOKEN_SWAP],
-          })) as bigint;
-
-          console.log(
-            "💰 Swap contract TOURS balance:",
-            formatEther(swapContractToursBalance),
-          );
-
-          if (swapContractToursBalance < expectedTours) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Swap contract has insufficient TOURS tokens. Please contact support.`,
-                details: `Contract has ${formatEther(swapContractToursBalance)} TOURS, but swap requires ${formatEther(expectedTours)} TOURS`,
-              },
-              { status: 500 },
-            );
-          }
-
-          // IMPORTANT: Batched calls for atomic swap
-          // 1. Platform Safe calls TokenSwap.swap() with MON -> receives TOURS
-          // 2. Platform Safe transfers TOURS to user
-          const swapCalls = [
-            // Call 1: Execute swap (Platform Safe receives TOURS)
-            {
-              to: TOKEN_SWAP,
-              value: swapMonValue,
-              data: encodeFunctionData({
-                abi: parseAbi(["function swap() external payable"]),
-                functionName: "swap",
-                args: [],
-              }) as Hex,
-            },
-            // Call 2: Transfer TOURS from Platform Safe to user
-            {
-              to: TOURS_TOKEN,
-              value: 0n,
-              data: encodeFunctionData({
-                abi: parseAbi([
-                  "function transfer(address to, uint256 amount) external returns (bool)",
-                ]),
-                functionName: "transfer",
-                args: [userAddress as Address, expectedTours],
-              }) as Hex,
-            },
-          ];
-
-          console.log("⚡ Executing batched swap calls...");
-          const swapTxHash = await executeTransaction(
-            swapCalls,
-            userAddress as Address,
-            swapMonValue,
-          );
-          console.log("✅ Swap executed, TX:", swapTxHash);
-
-          await incrementTransactionCount(userAddress);
-          return NextResponse.json({
-            success: true,
-            txHash: swapTxHash,
-            action,
-            userAddress,
-            monSpent: swapAmount,
-            toursReceived: formatEther(expectedTours),
-            exchangeRate: formatEther(exchangeRate),
-            message: `Swapped ${swapAmount} MON for ${formatEther(expectedTours)} TOURS successfully (gasless)`,
-          });
-        } catch (swapErr: any) {
-          console.error("❌ Swap failed:", swapErr);
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Swap failed: ${swapErr.message || "Unknown error"}`,
-              details: swapErr.shortMessage || swapErr.message,
-            },
-            { status: 500 },
-          );
-        }
-
       // ==================== MUSIC BEAT MATCH (V2) ====================
-      case "beat_match_submit_guess":
+      case "beat_match_submit_guess": {
         console.log("🎵 Action: beat_match_submit_guess");
 
         if (!params?.challengeId || !params?.songTitle) {
@@ -3279,7 +3103,8 @@ ${enjoyText}
         });
 
       // ==================== COUNTRY COLLECTOR (V2) ====================
-      case "country_collector_complete":
+      }
+      case "country_collector_complete": {
         console.log("🌍 Action: country_collector_complete");
 
         if (!params?.weekId || !params?.artistIndex || !params?.artistId) {
@@ -3327,7 +3152,8 @@ ${enjoyText}
         });
 
       // ==================== MUSIC SUBSCRIPTION ====================
-      case "music-subscribe":
+      }
+      case "music-subscribe": {
         console.log("🎵 Action: music-subscribe");
 
         const {
@@ -3500,6 +3326,7 @@ ${enjoyText}
         });
 
       // ==================== VENUE REGISTER ====================
+      }
       case "venue_register": {
         console.log("🏢 Action: venue_register");
 
@@ -3682,7 +3509,7 @@ ${enjoyText}
       // Clients sign these with the artist wallet instead — see
       // lib/artist-claim.ts. This case stays only to fail loudly for any stale
       // client still posting here, rather than burning gas to reach a revert.
-      case "claim_artist_payouts":
+      case "claim_artist_payouts": {
         return NextResponse.json(
           {
             success: false,
@@ -3698,6 +3525,7 @@ ${enjoyText}
       // writeContract, which cannot work inside the Farcaster mini app — there is
       // no RainbowKit connection there — so it goes through the Safe like every
       // other mini app transaction.
+      }
       case "claim_listener_wmon": {
         console.log("🎧 Action: claim_listener_wmon");
 
@@ -3777,7 +3605,7 @@ ${enjoyText}
       }
 
       // ==================== WMON FAUCET CLAIM ====================
-      case "faucet_claim":
+      case "faucet_claim": {
         console.log("💧 Action: faucet_claim");
 
         const { fid: faucetFid } = params || {};
@@ -3948,7 +3776,8 @@ ${enjoyText}
         });
 
       // ==================== CREATE ITINERARY ====================
-      case "buy_resale":
+      }
+      case "buy_resale": {
         console.log("🔄 Action: buy_resale");
 
         const {
@@ -4049,6 +3878,7 @@ ${enjoyText}
 
       // ==================== DAO: WRAP TOURS TO vTOURS ====================
       // ==================== DAO: FUND USER SAFE ====================
+      }
       case "dao_fund_safe": {
         console.log("🗳️ Action: dao_fund_safe");
         const { amount } = params || {};
@@ -6257,11 +6087,12 @@ ${enjoyText}
         });
       }
 
-      default:
+      default: {
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
           { status: 400 },
         );
+      }
     }
   } catch (error: any) {
     console.error("❌ [DELEGATED] Execution error:", error.message);

@@ -31,7 +31,7 @@ export default function PassportPage() {
 
   // ✅ Passport collection tracking
   const [userPassports, setUserPassports] = useState<UserPassport[]>([]);
-  const [loadingPassports, setLoadingPassports] = useState(false);
+  const [_loadingPassports, setLoadingPassports] = useState(false);
 
   // ✅ Check if Farcaster app setup is complete
   const [setupComplete, setSetupComplete] = useState(false);

@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  useAccount,
-  useConnect,
-  useDisconnect,
-  useSendTransaction,
-  useWriteContract,
-  useSignTypedData,
-} from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignTypedData } from "wagmi";
 import { useFarcasterContext } from "./useFarcasterContext";
 
 interface WalletContextReturn {

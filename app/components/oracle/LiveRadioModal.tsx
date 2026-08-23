@@ -3,33 +3,7 @@
 import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import {
-  X,
-  Radio,
-  Music2,
-  Mic,
-  Play,
-  Pause,
-  SkipForward,
-  Volume2,
-  VolumeX,
-  Loader2,
-  Coins,
-  Gift,
-  Users,
-  Clock,
-  TrendingUp,
-  Flame,
-  Plus,
-  Check,
-  Minus,
-  Maximize2,
-  Trophy,
-  History,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-} from "lucide-react";
+import { X, Radio, Music2, Mic, Play, Pause, SkipForward, Volume2, VolumeX, Loader2, Coins, Gift, Clock, TrendingUp, Flame, Plus, Check, Minus, Trophy, History, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
 import { useRadioStream } from "@/app/hooks/useRadioStream";
 import { MusicSubscriptionModal } from "./MusicSubscriptionModal";
@@ -1196,7 +1170,7 @@ export function LiveRadioModal({
         await fetchVoiceNotes();
 
         // Show success with tx hash link and queue info
-        const explorerUrl = `https://monadscan.com/tx/${txHash}`;
+        const _explorerUrl = `https://monadscan.com/tx/${txHash}`;
         showToast(
           `Voice ${voiceNoteType} submitted! Will play after current song.`,
           "success",
@@ -1989,7 +1963,7 @@ export function LiveRadioModal({
                         </p>
                       ) : (
                         <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
-                          {recentPlays.map((play, idx) => (
+                          {recentPlays.map((play, _idx) => (
                             <div
                               key={`${play.tokenId}-${play.playedAt}`}
                               className="flex flex-col items-center p-1.5 bg-white/5 rounded-lg"

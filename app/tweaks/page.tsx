@@ -23,7 +23,7 @@ const styles = `
 `;
 
 // Contract address (deploy and update)
-const EMPOWERTWEAKS_ADDRESS =
+const _EMPOWERTWEAKS_ADDRESS =
   process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || "";
 
 // Category icons
@@ -162,13 +162,13 @@ interface Tweak {
 
 export default function TweaksPage() {
   const {
-    user,
+    user: _user,
     walletAddress,
-    isLoading: contextLoading,
+    isLoading: _contextLoading,
     requestWallet,
   } = useFarcasterContext();
 
-  const [tweaks, setTweaks] = useState<Tweak[]>(mockTweaks);
+  const [tweaks, _setTweaks] = useState<Tweak[]>(mockTweaks);
   const [filteredTweaks, setFilteredTweaks] = useState<Tweak[]>(mockTweaks);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -566,7 +566,7 @@ export default function TweaksPage() {
 function UploadTweakModal({ onClose }: { onClose: () => void }) {
   const { walletAddress, requestWallet } = useFarcasterContext();
 
-  const [step, setStep] = useState(1);
+  const [_step, _setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",

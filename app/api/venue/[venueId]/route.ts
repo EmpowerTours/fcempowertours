@@ -13,7 +13,6 @@ import {
   verifyApiKey,
   pickRandomClearedSong,
   type VenueSong,
-  type VenuePlaybackState,
 } from '@/lib/venue';
 
 /**
@@ -22,7 +21,7 @@ import {
  */
 
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE;
-const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION;
+const _MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION;
 const ORACLE_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
 async function authenticateVenueRequest(

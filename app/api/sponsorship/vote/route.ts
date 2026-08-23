@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import {
-  readSponsorship,
-  checkIsCheckedIn,
-  checkHasVoted,
-  eventSponsorshipAbi,
-  getContractAddress,
-  publicClient,
-  monadTestnet,
-} from '@/lib/event-sponsorship';
+import { Address } from 'viem';
+
+import { readSponsorship, checkIsCheckedIn, checkHasVoted, getContractAddress } from '@/lib/event-sponsorship';
 
 /**
  * POST /api/sponsorship/vote
@@ -20,7 +12,7 @@ import {
  * For mainnet: User would sign and submit their own tx
  */
 
-const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
+const _DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
 
 interface VoteRequest {
   sponsorshipId: number;

@@ -3,9 +3,9 @@
 import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, MessageCircle, User, Plane, Calendar, Clock, DollarSign, CheckCircle, XCircle, List, Camera } from 'lucide-react';
+import { X, Heart, Loader2, MapPin, Languages, Car, Star, Edit3, User, Plane, Calendar, Clock, DollarSign, CheckCircle, List, Camera } from 'lucide-react';
 import { usePublicClient, useWalletClient } from 'wagmi';
-import { parseEther, formatEther, type Abi } from 'viem';
+import { formatEther } from 'viem';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 
@@ -107,7 +107,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
   const { user, walletAddress } = useFarcasterContext();
   const { location } = useGeolocation();
   const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
+  const { data: _walletClient } = useWalletClient();
 
   console.log('[MirrorMate] publicClient:', !!publicClient, 'user:', !!user, 'walletAddress:', walletAddress);
 
@@ -116,7 +116,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [txState, setTxState] = useState<TransactionState>('idle');
-  const [txError, setTxError] = useState<string>('');
+  const [_txError, setTxError] = useState<string>('');
   const [userStats, setUserStats] = useState<{ skipCount: number; remainingFreeSkips: number }>({
     skipCount: 0,
     remainingFreeSkips: 20, // TourGuideRegistry has 20 free skips per day
@@ -525,7 +525,7 @@ export function MirrorMate({ onClose, isDarkMode = true }: MirrorMateProps) {
   };
 
   // Fetch guide's verified address from Neynar
-  const fetchGuideVerifiedAddress = async (fid: number): Promise<`0x${string}`> => {
+  const _fetchGuideVerifiedAddress = async (fid: number): Promise<`0x${string}`> => {
     try {
       const response = await fetch(`/api/neynar/v2/farcaster/user/bulk?fids=${fid}`, {
         headers: {

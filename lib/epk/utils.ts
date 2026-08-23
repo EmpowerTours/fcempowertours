@@ -225,7 +225,7 @@ export async function fetchEPKFromIPFS(ipfsCid: string): Promise<EPKMetadata | n
 /**
  * Get Rumble embed URL from a Rumble video page URL
  */
-export function getRumbleEmbedUrl(url: string): string | null {
+export function getRumbleEmbedUrl(_url: string): string | null {
   // Rumble embed IDs differ from page URL slugs, so we can't derive
   // the embed URL from the page URL. Return null to fall back to link.
   return null;

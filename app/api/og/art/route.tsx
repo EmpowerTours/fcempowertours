@@ -27,7 +27,7 @@ function convertPriceFromWei(price: string | number | bigint): string {
     const priceBI = BigInt(price);
     const priceNum = Number(priceBI) / 1e18;
     return priceNum.toString();
-  } catch (e) {
+  } catch {
     console.warn("Failed to convert price:", price);
     return String(price);
   }

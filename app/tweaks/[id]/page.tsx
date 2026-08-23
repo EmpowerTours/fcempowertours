@@ -123,7 +123,7 @@ const mockVersions: Version[] = [
 
 export default function TweakDetailPage() {
   const params = useParams();
-  const router = useRouter();
+  const _router = useRouter();
   const { walletAddress, requestWallet } = useFarcasterContext();
 
   const tweakId = parseInt(params.id as string);

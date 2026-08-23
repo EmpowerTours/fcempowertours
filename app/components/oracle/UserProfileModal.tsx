@@ -3,7 +3,7 @@
 import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Music, Palette, Globe, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2, Crown } from 'lucide-react';
+import { X, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2, Crown } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserProfileModalProps {

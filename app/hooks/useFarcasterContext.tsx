@@ -119,7 +119,7 @@ export function useFarcasterContext() {
               console.log('📋 verified_addresses:', userData.verified_addresses);
 
               // 🔥 IMPORTANT: Prioritize primary address, then verified addresses
-              let address =
+              const address =
                 userData.verified_addresses?.primary?.eth_address ||
                 userData.verifiedAddresses?.primary?.eth_address ||
                 userData.verified_addresses?.eth_addresses?.[0] ||

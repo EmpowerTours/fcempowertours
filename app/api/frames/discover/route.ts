@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const discoverDeepLink = `${APP_URL}/discover`;
     // Dynamic OG image for the cast preview (1200x630)

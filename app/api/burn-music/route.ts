@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
           { status: 403 }
         );
       }
-    } catch (error: any) {
+    } catch {
       return NextResponse.json(
         { success: false, error: 'Token does not exist or has been burned' },
         { status: 404 }

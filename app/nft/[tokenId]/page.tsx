@@ -173,7 +173,7 @@ export default function NFTPage() {
               const priceBI = BigInt(nft.price);
               const priceNum = Number(priceBI) / 1e18;
               priceInTours = priceNum.toString();
-            } catch (e) {
+            } catch {
               console.warn("Failed to convert price:", nft.price);
               priceInTours = String(nft.price);
             }
@@ -270,7 +270,7 @@ export default function NFTPage() {
               const priceBI = BigInt(metadata.price);
               const priceNum = Number(priceBI) / 1e18;
               priceInTours = priceNum.toString();
-            } catch (e) {
+            } catch {
               console.warn("Failed to convert price:", metadata.price);
               priceInTours = String(metadata.price);
             }

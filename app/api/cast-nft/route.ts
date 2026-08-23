@@ -16,18 +16,18 @@ export async function POST(req: NextRequest) {
       countryName,    // For passport
       songTitle,      // For music
       price,          // For music
-      artist,         // For music purchase
+      _artist,         // For music purchase
       // Experience fields
       experienceId,   // For experiences
       title,          // Experience title
       city,           // Experience city
       country,        // Experience country
-      creatorAddress, // Experience creator
-      buyerAddress,   // Experience buyer
+      _creatorAddress, // Experience creator
+      _buyerAddress,   // Experience buyer
       // Play recording / Top artist fields
       params,         // Additional params object for play_recorded and top_artist
       // Radio skip random fields
-      userAddress,    // User's wallet address
+      _userAddress,    // User's wallet address
     } = await req.json();
 
     console.log('🎵 [CAST] Posting cast:', { type, fid, tokenId, countryCode, songTitle });

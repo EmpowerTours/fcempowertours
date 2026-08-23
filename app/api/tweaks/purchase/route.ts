@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, createWalletClient, http, parseEther, encodeFunctionData } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import EmpowerTweaksABI from '@/lib/abi/EmpowerTweaks.json';
+
+import _EmpowerTweaksABI from '@/lib/abi/EmpowerTweaks.json';
 
 // EmpowerTweaks Purchase API
 // POST /api/tweaks/purchase - Execute delegated purchase transaction
 
-const EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://mainnet.monad.xyz';
-const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+const _EMPOWERTWEAKS_ADDRESS = process.env.NEXT_PUBLIC_EMPOWERTWEAKS_CONTRACT || '';
+const _MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://mainnet.monad.xyz';
+const _DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
 // Pimlico for gasless transactions
-const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY || '';
-const BUNDLER_URL = process.env.BUNDLER_URL || '';
+const _PIMLICO_API_KEY = process.env.PIMLICO_API_KEY || '';
+const _BUNDLER_URL = process.env.BUNDLER_URL || '';
 
 interface PurchaseRequest {
   tweakId: number;
@@ -24,7 +23,7 @@ interface PurchaseRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: PurchaseRequest = await request.json();
-    const { tweakId, buyerAddress, paymentType, signature } = body;
+    const { tweakId, buyerAddress, paymentType, signature: _signature } = body;
 
     // Validate inputs
     if (!tweakId || !buyerAddress || !paymentType) {

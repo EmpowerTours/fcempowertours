@@ -1,9 +1,9 @@
-import { createPublicClient, createWalletClient, http, Address, encodeFunctionData, parseEther } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { createPublicClient, http, Address } from 'viem';
+
 import { monadTestnet } from '@/app/chains';
 import { env } from '@/lib/env';
 
-const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
+const _PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
 
 export const publicClient = createPublicClient({

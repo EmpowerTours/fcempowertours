@@ -107,7 +107,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       mouseY = (e.clientY - rect.top) * scaleY;
     };
 
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (_e: MouseEvent) => {
       const currentHovered = hoveredNFTRef.current;
       console.log('[CrystalBall] Canvas clicked, hoveredNFT:', currentHovered);
       if (currentHovered && onNFTClick) {
@@ -142,7 +142,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       }
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
+    const handleTouchEnd = (_e: TouchEvent) => {
       // Small delay to allow the render loop to update hoveredNFTRef
       setTimeout(() => {
         const currentHovered = hoveredNFTRef.current;
