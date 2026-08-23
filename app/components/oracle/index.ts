@@ -1,6 +1,5 @@
 
 // Oracle Components - Other
-export { MapsResultsModal } from "./MapsResultsModal";
 export { CreateNFTModal } from "./CreateNFTModal";
 export { ProfileModal } from "./ProfileModal";
 export { UserProfileModal } from "./UserProfileModal";

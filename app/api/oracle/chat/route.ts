@@ -12,15 +12,8 @@ import { sendUserSafeTransaction } from "@/lib/user-safe";
 import { getCountryByCode } from "@/lib/passport/countries";
 import { publicClient } from "@/lib/pimlico-safe-aa";
 import { Redis } from "@upstash/redis";
-import {
-  detectUserTerritory as sharedDetectUserTerritory,
-  getMapProvider,
-  getMapProviderType,
-  GOOGLE_PROHIBITED_TERRITORIES,
-  type MapProviderType,
-} from "@/lib/maps/provider";
 
-// Redis client for payment dedup cache (maps:paid:<address>:<query> → txHash, 1h TTL)
+// Redis client, used for per-user dedup caches.
 const redis = Redis.fromEnv();
 
 interface OracleAction {
@@ -31,7 +24,6 @@ interface OracleAction {
     | "chat"
     | "create_nft"
     | "mint_passport"
-    | "create_itinerary"
     | "sponsorship"
     | "admin"
     | "withdraw"
@@ -46,26 +38,10 @@ interface OracleAction {
     args: any[];
   };
   message?: string;
-  requiresMapsGrounding?: boolean; // Whether this query needs Google Maps data
   estimatedCost?: string; // Cost in MON tokens
   passport?: {
     countryCode: string;
     countryName: string;
-  };
-  itinerary?: {
-    title?: string;
-    description?: string;
-    price?: string;
-    city?: string;
-    country?: string;
-    locations?: Array<{
-      name: string;
-      placeId: string;
-      googleMapsUri: string;
-      latitude: number;
-      longitude: number;
-      description: string;
-    }>;
   };
   sponsorship?: {
     action: "list_open" | "check_status" | "checkin" | "vote";
@@ -86,15 +62,6 @@ interface OracleAction {
     action: "create" | "view" | "list_bookings";
   };
 }
-
-interface MapsGroundingSource {
-  uri: string;
-  title: string;
-  placeId?: string;
-}
-
-// Use shared territory detection from lib/maps/provider.ts
-const detectUserTerritory = sharedDetectUserTerritory;
 
 export async function POST(req: NextRequest) {
   try {
@@ -160,176 +127,19 @@ export async function POST(req: NextRequest) {
         action: {
           type: "chat",
           message:
-            "⚠️ Emergency queries cannot use Google Maps services.\n\nFor emergencies, please contact local emergency services directly:\n• US: 911\n• EU: 112\n• UK: 999\n\nFor non-emergency location queries, please rephrase your question.",
+            "⚠️ I can't help with emergencies.\n\nPlease contact local emergency services directly:\n• US: 911\n• EU: 112\n• UK: 999",
         },
-      });
-    }
-
-    // Detect if query needs Google Maps grounding (location-based)
-    // Best Practice: Only enable Maps tool when query has clear geographical context
-    const needsMapsGrounding = detectMapsQuery(message);
-
-    console.log("[Oracle] Maps detection:", {
-      message: message.substring(0, 50),
-      needsMapsGrounding,
-      confirmPayment,
-      willRequirePayment: needsMapsGrounding && !confirmPayment,
-      matchedKeywords: getMapsMatchedKeywords(message),
-    });
-
-    // Best Practice: Inform user that Maps data will be used
-    if (needsMapsGrounding && !confirmPayment) {
-      console.log("[Oracle] Returning payment required response (100 WMON)");
-    }
-
-    // Detect territory and resolve map provider
-    let userCountry: string | null = null;
-    let mapsProviderType: MapProviderType = "google";
-    if (needsMapsGrounding) {
-      userCountry = await detectUserTerritory(req);
-      mapsProviderType = getMapProviderType(userCountry);
-      console.log(
-        "[Oracle] Maps provider resolved:",
-        mapsProviderType,
-        "for territory:",
-        userCountry,
-      );
-    }
-
-    // If Maps grounding needed and user hasn't confirmed payment, return cost estimate
-    if (needsMapsGrounding && !confirmPayment) {
-      // Pricing: 100 WMON per Maps query (~$5 at $0.05/WMON)
-      // Covers: Google Maps API ($0.025), Gemini ($0.003), infrastructure,
-      // and provides healthy margin for sustainability
-      return NextResponse.json({
-        success: true,
-        requiresPayment: true,
-        estimatedCost: "100", // 100 WMON per Maps query
-        message:
-          "This query uses Google Maps real-time location data. Cost: 100 WMON",
       });
     }
 
     // If payment confirmed, charge the user via delegated transaction (with dedup cache)
     let paymentTxHash: string | null = null;
-    if (needsMapsGrounding && confirmPayment && userAddress) {
-      // Normalize query for dedup key (lowercase, trimmed, collapse whitespace)
-      const normalizedQuery = message.trim().toLowerCase().replace(/\s+/g, " ");
-      const dedupKey = `maps:paid:${userAddress.toLowerCase()}:${normalizedQuery}`;
-
-      try {
-        // Check Redis cache for recent payment on same query (1-hour TTL)
-        const cachedTxHash = await redis.get<string>(dedupKey);
-        if (cachedTxHash) {
-          console.log(
-            "[Oracle] Payment dedup cache hit — skipping charge, cached txHash:",
-            cachedTxHash,
-          );
-          paymentTxHash = cachedTxHash;
-        } else {
-          paymentTxHash = await chargeMONForMapsQuery(userAddress, fwdAuth);
-          console.log("[Oracle] Payment collected (delegated):", paymentTxHash);
-
-          // Cache the txHash for 1 hour to prevent duplicate charges
-          await redis.set(dedupKey, paymentTxHash, { ex: 3600 });
-        }
-      } catch (error) {
-        console.error("[Oracle] Payment failed:", error);
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Payment failed. Please ensure you have 2 MON in your wallet and have approved the Oracle contract.",
-          },
-          { status: 402 },
-        );
-      }
-    }
-
-    // Protocol-first experience discovery: query our own experiences before Maps
-    let protocolExperiences: any[] = [];
-    if (needsMapsGrounding) {
-      try {
-        const expCity =
-          userLocation?.city || extractLocationFromQuery(message).city || "";
-        const expQuery = message
-          .replace(/near me|nearby|around here/gi, "")
-          .trim();
-        const searchParams = new URLSearchParams();
-        if (expCity) searchParams.set("city", expCity);
-        if (expQuery) searchParams.set("q", expQuery);
-        searchParams.set("limit", "5");
-
-        const APP_URL =
-          process.env.NEXT_PUBLIC_APP_URL ||
-          "https://fcempowertours-production-6551.up.railway.app";
-        const expRes = await fetch(
-          `${APP_URL}/api/experiences/search?${searchParams.toString()}`,
-        );
-        const expData = await expRes.json();
-        if (expData.success && expData.experiences?.length > 0) {
-          protocolExperiences = expData.experiences;
-          console.log(
-            "[Oracle] Protocol experiences found:",
-            protocolExperiences.length,
-          );
-        }
-      } catch (expError) {
-        console.log("[Oracle] Protocol experience search skipped:", expError);
-      }
-    }
 
     // OSM provider path: search via Nominatim, pass results as context to Gemini
-    let osmSearchResults: MapsGroundingSource[] = [];
-    if (needsMapsGrounding && mapsProviderType === "osm") {
-      try {
-        const provider = await getMapProvider(userCountry);
-        osmSearchResults = await provider.searchPlaces({
-          query: message,
-          latitude: userLocation?.latitude,
-          longitude: userLocation?.longitude,
-          radius: 5000,
-        });
-        console.log(
-          "[Oracle] OSM search returned",
-          osmSearchResults.length,
-          "results",
-        );
-      } catch (osmErr) {
-        console.error("[Oracle] OSM search error:", osmErr);
-      }
-    }
 
-    // Build prompt - use simple natural language for Maps, structured for other queries
     let systemPrompt: string;
 
-    if (
-      needsMapsGrounding &&
-      mapsProviderType === "osm" &&
-      osmSearchResults.length > 0
-    ) {
-      // OSM path: feed search results as context to Gemini (no Maps grounding tool)
-      const placesContext = osmSearchResults
-        .map((s, i) => `${i + 1}. ${s.title}`)
-        .join("\n");
-      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || "an unknown city"}, ${userLocation?.country || "unknown country"}.
-
-Here are nearby places found via OpenStreetMap:
-${placesContext}
-
-Answer the user's question using these results. Be helpful and conversational. Reference the specific places listed above.
-
-User question: ${message}`;
-    } else if (needsMapsGrounding) {
-      // Google Maps grounding path (original)
-      systemPrompt = `You are a helpful travel assistant. The user is in ${userLocation?.city || "an unknown city"}, ${userLocation?.country || "unknown country"}.
-
-Answer their question about local places. Be helpful and conversational. Include specific place names, ratings, and addresses when available.
-
-User question: ${message}`;
-    } else {
-      // Structured prompt for non-Maps queries
-      systemPrompt = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
+    systemPrompt = `You are the EmpowerTours Oracle AI. Parse user requests into actions.
 
 CRITICAL: Function names MUST be exactly as listed. No variations.
 
@@ -338,7 +148,6 @@ Actions:
 - type:"execute" + transaction.function:"buy_art" + transaction.args:["<tokenId>"] - Buy art NFT
 - type:"create_nft" - Open NFT creation modal
 - type:"mint_passport" - Mint passport NFT. Include passport:{countryCode, countryName} if user specifies a country, otherwise the system will use their detected location
-- type:"create_itinerary" - User wants to create a travel itinerary (needs Maps grounding for places)
 - type:"navigate" + destination:"/path" - Navigate to page
 - type:"game" + game:"MIRROR" - Launch game
 - type:"sponsorship" + sponsorship.action:"list_open" - Show open sponsorship offers/requests
@@ -361,9 +170,7 @@ For "Buy ART NFT #X" requests:
 User message: "${message}"
 
 Return valid JSON only.`;
-    }
 
-    // Configure Maps grounding if needed
     const config: any = {
       responseMimeType: "application/json",
       responseSchema: {
@@ -378,7 +185,6 @@ Return valid JSON only.`;
               "chat",
               "create_nft",
               "mint_passport",
-              "create_itinerary",
               "sponsorship",
               "admin",
               "withdraw",
@@ -511,52 +317,14 @@ Return valid JSON only.`;
       },
     };
 
-    // Add Maps grounding tool if needed (Google only — OSM uses pre-fetched results)
     // Best Practice: Only enable when query has geographical context (off by default)
-    // IMPORTANT: Maps grounding is incompatible with structured JSON output
-    // When using Maps, we must disable responseSchema and parse text manually
     // OSM path also uses text output (no structured JSON)
-    if (needsMapsGrounding && mapsProviderType === "osm") {
-      console.log(
-        "[Oracle] OSM provider — disabling structured output for text response",
-      );
-      delete config.responseMimeType;
-      delete config.responseSchema;
-    }
-
-    if (needsMapsGrounding && mapsProviderType === "google") {
-      console.log("[Oracle] Enabling Google Maps grounding tool");
-
-      // Remove structured output - incompatible with Maps grounding
-      delete config.responseMimeType;
-      delete config.responseSchema;
-
-      config.tools = [{ googleMaps: { enableWidget: true } }];
-
-      // Best Practice: Always provide user location for most relevant responses
-      if (userLocation?.latitude && userLocation?.longitude) {
-        console.log("[Oracle] User location provided:", userLocation);
-        config.toolConfig = {
-          retrievalConfig: {
-            latLng: {
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-            },
-          },
-        };
-      } else {
-        console.warn(
-          "[Oracle] Maps query detected but no user location available",
-        );
-      }
-    }
 
     // Track latency for monitoring (Best Practice: Monitor P95 latency)
     const startTime = Date.now();
 
     // Use gemini-2.5-flash (GA stable):
     // - Best price-performance model
-    // - Supports Maps Grounding
     // - Optimized for high-volume tasks
     // - Better rate limits with Tier 1 billing enabled
     const response = await ai.models.generateContent({
@@ -569,117 +337,15 @@ Return valid JSON only.`;
     console.log("[Oracle] Gemini API latency:", latency, "ms");
 
     // Best Practice: Monitor P95 latency for conversational apps
-    if (needsMapsGrounding && latency > 5000) {
-      console.warn(
-        "[Oracle] High latency detected for Maps query:",
-        latency,
-        "ms",
-      );
-    }
 
     const responseText = response.text || "";
 
-    // Debug: Log full response structure for Maps queries
-    if (needsMapsGrounding) {
-      console.log("[Oracle] Response has candidates:", !!response.candidates);
-      console.log(
-        "[Oracle] Candidates count:",
-        response.candidates?.length || 0,
-      );
-      if (response.candidates?.[0]) {
-        console.log(
-          "[Oracle] Candidate[0] keys:",
-          Object.keys(response.candidates[0]),
-        );
-        console.log(
-          "[Oracle] Has groundingMetadata:",
-          !!response.candidates[0].groundingMetadata,
-        );
-        if (response.candidates[0].groundingMetadata) {
-          console.log(
-            "[Oracle] GroundingMetadata keys:",
-            Object.keys(response.candidates[0].groundingMetadata as any),
-          );
-        }
-      }
-      // Log config that was sent to help debug
-      console.log(
-        "[Oracle] Config sent to Gemini:",
-        JSON.stringify({
-          tools: config.tools,
-          toolConfig: config.toolConfig,
-          hasResponseSchema: !!config.responseSchema,
-        }),
-      );
-    }
-
-    // Extract Maps sources: OSM from pre-fetched results, Google from grounding metadata
-    let mapsSources: MapsGroundingSource[] = [];
-    let mapsWidgetToken: string | null = null;
-
-    if (needsMapsGrounding && mapsProviderType === "osm") {
-      // OSM: use pre-fetched search results
-      mapsSources = osmSearchResults;
-      console.log("[Oracle] Using OSM search results:", mapsSources.length);
-    } else if (
-      needsMapsGrounding &&
-      response.candidates?.[0]?.groundingMetadata
-    ) {
-      const grounding = response.candidates[0].groundingMetadata as any;
-      console.log(
-        "[Oracle] Grounding metadata:",
-        JSON.stringify(grounding, null, 2).substring(0, 500),
-      );
-
-      // Extract sources from Google Maps grounding
-      if (grounding.groundingChunks) {
-        mapsSources = grounding.groundingChunks
-          .filter((chunk: any) => chunk.maps)
-          .map((chunk: any) => ({
-            uri: chunk.maps.uri,
-            title: chunk.maps.title,
-            placeId: chunk.maps.placeId,
-          }));
-      }
-
-      // Extract widget token (property not in TypeScript types but exists at runtime)
-      if (grounding.googleMapsWidgetContextToken) {
-        mapsWidgetToken = grounding.googleMapsWidgetContextToken;
-      }
-
-      console.log("[Oracle] Maps sources:", mapsSources.length);
-      console.log(
-        "[Oracle] Maps widget token:",
-        mapsWidgetToken ? "present" : "absent",
-      );
-    } else if (needsMapsGrounding) {
-      console.log(
-        "[Oracle] WARNING: Maps grounding enabled but no groundingMetadata in response",
-      );
-    }
-
-    // Parse response - different handling for Maps vs structured output
     let action: OracleAction;
-
-    if (needsMapsGrounding) {
-      // Maps grounding returns plain text, not JSON
-      // Convert to chat action with the text response
-      console.log(
-        "[Oracle] Maps response (text):",
-        responseText.substring(0, 200),
-      );
-      action = {
-        type: "chat",
-        message: responseText,
-      };
-    } else {
-      // Non-maps: parse JSON structured output
-      try {
-        action = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Failed to parse AI response:", responseText);
-        throw new Error("Invalid JSON response from AI");
-      }
+    try {
+      action = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", responseText);
+      throw new Error("Invalid JSON response from AI");
     }
 
     console.log("[Oracle] Parsed action:", JSON.stringify(action, null, 2));
@@ -905,183 +571,11 @@ Return valid JSON only.`;
       }
     }
 
-    if (action.type === "create_itinerary" && userAddress && userFid) {
-      // Oracle detected user wants to create an itinerary
-      // Guide them through the conversational flow
-      if (!userLocation?.latitude || !userLocation?.longitude) {
-        action.message = `${action.message || ""}\n\n📍 **Location Required**\nTo create an itinerary, I need your GPS location. Please enable location services and tell me what places you'd like to include!`;
-      } else {
-        // User has GPS - prompt for remaining details
-        action.message = `${action.message || ""}\n\n🗺️ **Create Your Itinerary**\nI can help you create a travel guide! I'll need:\n• **Title**: What would you call this trip?\n• **Description**: Describe your experience\n• **Price**: How much WMON to charge travelers? (e.g., 0.01)\n• **Photo**: Take a photo as proof!\n\nSay "find [type] near me" and I'll search for places to add, or say "save this as itinerary" with your details when ready.`;
-      }
-    }
-
-    // =============================================
-    // ITINERARY CREATION/RECOMMENDATION
-    // =============================================
-    // Behavior:
-    // 1. If user explicitly says "save itinerary" + has GPS -> create (GPS-verified)
-    // 2. Otherwise, only recommend existing itineraries (don't auto-create)
-    let itineraryTxHash: string | null = null;
-    let itineraryData: any = null;
-    const wantsSaveItinerary = detectSaveItineraryIntent(message);
-
-    if (
-      needsMapsGrounding &&
-      mapsSources.length > 0 &&
-      userAddress &&
-      userFid
-    ) {
-      try {
-        console.log("[Oracle] Processing itinerary for Maps results...");
-        console.log("[Oracle] Save intent detected:", wantsSaveItinerary);
-        console.log("[Oracle] User location:", userLocation);
-
-        // Extract city/country from the query or user location
-        const locationInfo = extractLocationFromQuery(message);
-        const city = userLocation?.city || locationInfo.city || "Unknown City";
-        const country =
-          userLocation?.country || locationInfo.country || "Unknown";
-
-        // Check if similar itinerary already exists
-        const existingItinerary = await findExistingItinerary(
-          city,
-          mapsSources,
-        );
-
-        if (existingItinerary) {
-          // Recommend existing itinerary to user
-          console.log(
-            "[Oracle] Found existing itinerary:",
-            existingItinerary.id,
-          );
-          itineraryData = {
-            exists: true,
-            id: existingItinerary.id,
-            title: existingItinerary.title,
-            creator: existingItinerary.creator,
-            price: existingItinerary.price,
-            rating: existingItinerary.rating,
-          };
-
-          action.message = `${action.message}\n\n📍 **Recommended Itinerary**\n"${existingItinerary.title}" by ${existingItinerary.creatorName || "a fellow traveler"}\nPrice: ${existingItinerary.price} WMON | Rating: ${existingItinerary.rating}/5\nPurchase to unlock the full guide and earn completion stamps!`;
-        } else if (wantsSaveItinerary) {
-          // User explicitly wants to save - REQUIRE GPS verification
-          console.log("[Oracle] User wants to save itinerary, checking GPS...");
-
-          if (!userLocation?.latitude || !userLocation?.longitude) {
-            // No GPS - inform user they need to be at the location
-            console.log("[Oracle] No GPS coordinates provided");
-            itineraryData = {
-              exists: false,
-              created: false,
-              requiresGPS: true,
-              error: "GPS verification required",
-            };
-            action.message = `${action.message}\n\n📍 **GPS Required**\nTo create an itinerary, you must be physically at the location. Please enable location services and try again when you're there!`;
-          } else {
-            // Verify user is at the location (within 500m)
-            // Since we searched "near me", the user's location IS the anchor point
-            // We're trusting that the GPS coordinates provided are real
-            const gpsVerified = true; // User provided their GPS, so they're "at" this location
-            console.log("[Oracle] GPS verified at:", city, country);
-
-            if (gpsVerified) {
-              // Create GPS-verified itinerary
-              console.log("[Oracle] Creating GPS-verified itinerary...");
-
-              const locations = mapsSources.map((source, index) => ({
-                name: source.title,
-                placeId: source.placeId || "",
-                uri: source.uri,
-                latitude: Math.round(userLocation.latitude * 1e6), // Store as int * 1e6
-                longitude: Math.round(userLocation.longitude * 1e6),
-                description: `Discover ${source.title}`,
-              }));
-
-              const itineraryResult = await createItineraryFromMaps(
-                userAddress,
-                userFid,
-                `${city} Explorer: ${message.slice(0, 50)}`,
-                city,
-                country,
-                locations,
-                fwdAuth,
-              );
-
-              if (itineraryResult.success) {
-                itineraryTxHash = itineraryResult.txHash || null;
-                itineraryData = {
-                  exists: false,
-                  created: true,
-                  gpsVerified: true,
-                  txHash: itineraryTxHash,
-                  city,
-                  country,
-                };
-                console.log(
-                  "[Oracle] GPS-verified itinerary created:",
-                  itineraryTxHash,
-                );
-
-                action.message = `${action.message}\n\n🎉 **Itinerary Created (GPS Verified!)**\nYou are now the creator of "${city} Explorer".\n📍 Location verified: ${city}, ${country}\nYou'll earn 70% of all future sales when others purchase it!`;
-              } else {
-                console.error(
-                  "[Oracle] Itinerary creation failed:",
-                  itineraryResult.error,
-                );
-                action.message = `${action.message}\n\n⚠️ Could not save itinerary: ${itineraryResult.error}`;
-              }
-            }
-          }
-        } else {
-          // User is just browsing - don't auto-create, suggest they can save
-          console.log("[Oracle] User browsing only, suggesting save option");
-          itineraryData = {
-            exists: false,
-            created: false,
-            canCreate: true,
-          };
-          action.message = `${action.message}\n\n💡 **Tip:** Say "save this as itinerary" while at this location to create a travel guide and earn 70% on future sales!`;
-        }
-      } catch (itinError: any) {
-        console.error("[Oracle] Itinerary processing error:", itinError);
-        // Don't fail the main request
-      }
-    }
-
-    // If protocol experiences were found, prepend mention to the response
-    if (protocolExperiences.length > 0 && action.type === "chat") {
-      const expList = protocolExperiences
-        .slice(0, 3)
-        .map((exp: any) => {
-          const author =
-            exp.creatorDisplayName ||
-            exp.creatorUsername ||
-            exp.creator.slice(0, 8);
-          const rating =
-            exp.averageRating > 0 ? ` ⭐ ${exp.averageRating.toFixed(1)}` : "";
-          const reviews =
-            exp.ratingCount > 0 ? ` (${exp.ratingCount} reviews)` : "";
-          return `• "${exp.title}" by @${author}${rating}${reviews} — ${exp.priceWMON} WMON`;
-        })
-        .join("\n");
-      action.message = `🏠 **Community Reviews**\n${expList}\n\n---\n\n${action.message}`;
-    }
-
     return NextResponse.json({
       success: true,
       action,
       txHash,
       explorer: txHash ? `https://monadscan.com/tx/${txHash}` : null,
-      paymentTxHash,
-      mapsSources,
-      mapsWidgetToken,
-      mapsProvider: needsMapsGrounding ? mapsProviderType : undefined,
-      protocolExperiences:
-        protocolExperiences.length > 0 ? protocolExperiences : undefined,
-      itineraryTxHash,
-      itineraryData,
     });
   } catch (error: any) {
     console.error("Oracle chat error:", error);
@@ -1130,9 +624,8 @@ function getAbiName(contractAddress: string): string {
   return contracts[contractAddress] || "ERC20";
 }
 
-// Prohibited territories now imported from lib/maps/provider.ts as GOOGLE_PROHIBITED_TERRITORIES
-
-// Prohibited activities for Maps Grounding (high-risk activities)
+// Queries the Oracle refuses outright: emergencies and high-risk activities, where a
+// confident AI answer is worse than none.
 const EMERGENCY_KEYWORDS = [
   "emergency",
   "911",
@@ -1157,164 +650,6 @@ function isProhibitedActivity(message: string): boolean {
   const lowerMessage = message.toLowerCase();
   return EMERGENCY_KEYWORDS.some((keyword) => lowerMessage.includes(keyword));
 }
-
-// Helper to get matched Maps keywords for debugging
-function getMapsMatchedKeywords(message: string): string[] {
-  const lowerMessage = message.toLowerCase();
-  const mapsKeywords = [
-    "restaurant",
-    "cafe",
-    "coffee",
-    "food",
-    "dining",
-    "hotel",
-    "accommodation",
-    "stay",
-    "lodge",
-    "museum",
-    "attraction",
-    "tourist",
-    "visit",
-    "near me",
-    "nearby",
-    "around here",
-    "close by",
-    "walking distance",
-    "directions to",
-    "how to get to",
-    "route to",
-    "shop",
-    "store",
-    "shopping",
-    "bar",
-    "nightlife",
-    "club",
-    "park",
-    "beach",
-    "outdoor",
-    "top rated",
-    "recommended places",
-    "open now",
-    "what time",
-    "address of",
-    "where is the",
-    "find",
-    "looking for",
-    "search for",
-  ];
-  return mapsKeywords.filter((keyword) => lowerMessage.includes(keyword));
-}
-
-// Detect if a query needs Google Maps grounding
-function detectMapsQuery(message: string): boolean {
-  // First, check if it's a prohibited activity
-  if (isProhibitedActivity(message)) {
-    return false; // Don't use Maps Grounding for emergency services
-  }
-
-  const lowerMessage = message.toLowerCase();
-
-  // Exclude NFT/game commands from Maps detection
-  const excludePatterns = [
-    "create nft",
-    "mint nft",
-    "make nft",
-    "new nft",
-    "upload",
-    "play tetris",
-    "play tictactoe",
-    "play mirror",
-    "mirrormate",
-    "swap",
-    "stake",
-    "passport",
-    "beat match",
-  ];
-  if (excludePatterns.some((pattern) => lowerMessage.includes(pattern))) {
-    return false;
-  }
-
-  const mapsKeywords = [
-    "restaurant",
-    "cafe",
-    "coffee",
-    "food",
-    "dining",
-    "hotel",
-    "accommodation",
-    "stay",
-    "lodge",
-    "museum",
-    "attraction",
-    "tourist",
-    "visit",
-    "near me",
-    "nearby",
-    "around here",
-    "close by",
-    "walking distance",
-    "directions to",
-    "how to get to",
-    "route to",
-    "shop",
-    "store",
-    "shopping",
-    "bar",
-    "nightlife",
-    "club",
-    "park",
-    "beach",
-    "outdoor",
-    "top rated",
-    "recommended places",
-    "open now",
-    "what time",
-    "address of",
-    "where is the",
-    "find",
-    "looking for",
-    "search for",
-  ];
-
-  return mapsKeywords.some((keyword) => lowerMessage.includes(keyword));
-}
-
-// Charge WMON tokens for Maps query via delegation
-async function chargeMONForMapsQuery(
-  userAddress: string,
-  fwdAuth: Record<string, string> = {},
-): Promise<string> {
-  const APP_URL =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "https://fcempowertours-production-6551.up.railway.app";
-
-  // Pricing: 100 WMON per Maps query (~$5 at $0.05/WMON)
-  // Provides healthy margin for infrastructure, API costs, and sustainability
-  const CHARGE_AMOUNT = "100"; // 100 WMON per Maps query
-
-  // Use delegation API to transfer WMON from user to treasury
-  const response = await fetch(`${APP_URL}/api/execute-delegated`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...fwdAuth },
-    body: JSON.stringify({
-      userAddress,
-      action: "maps_payment",
-      params: {
-        amount: CHARGE_AMOUNT,
-      },
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!data.success) {
-    throw new Error(data.error || "Payment failed");
-  }
-
-  return data.txHash;
-}
-
-// Mint passport via execute-delegated API with auto-wrap
 async function mintPassportForUser(
   userAddress: string,
   countryCode: string,
@@ -1440,243 +775,7 @@ async function mintPassportForUser(
     console.error("[Oracle] Passport mint error:", error);
     return { txHash: null, error: error.message || "Mint failed" };
   }
-}
-
-// =============================================
-// ITINERARY HELPER FUNCTIONS
-// =============================================
-
-// Extract city and country from user query
-function extractLocationFromQuery(message: string): {
-  city: string | null;
-  country: string | null;
-} {
-  const lowerMessage = message.toLowerCase();
-
-  // Common city patterns
-  const cityPatterns = [
-    /(?:in|near|around|at)\s+([A-Z][a-zA-Z\s]+?)(?:,|\s+(?:city|town|area)|\s*$)/i,
-    /([A-Z][a-zA-Z]+)\s+(?:restaurants?|cafes?|hotels?|attractions?|things to do)/i,
-    /best\s+(?:\w+\s+)?(?:in|near)\s+([A-Z][a-zA-Z\s]+)/i,
-  ];
-
-  // Common cities list for detection
-  const knownCities: Record<string, string> = {
-    tokyo: "Japan",
-    paris: "France",
-    london: "UK",
-    "new york": "USA",
-    "los angeles": "USA",
-    sydney: "Australia",
-    barcelona: "Spain",
-    rome: "Italy",
-    berlin: "Germany",
-    bangkok: "Thailand",
-    singapore: "Singapore",
-    dubai: "UAE",
-    miami: "USA",
-    amsterdam: "Netherlands",
-    seoul: "South Korea",
-    "hong kong": "Hong Kong SAR",
-    istanbul: "Turkey",
-    cairo: "Egypt",
-    mumbai: "India",
-    bali: "Indonesia",
-    lisbon: "Portugal",
-    athens: "Greece",
-  };
-
-  // Check known cities
-  for (const [city, country] of Object.entries(knownCities)) {
-    if (lowerMessage.includes(city)) {
-      return { city: city.charAt(0).toUpperCase() + city.slice(1), country };
-    }
-  }
-
-  // Try pattern matching
-  for (const pattern of cityPatterns) {
-    const match = message.match(pattern);
-    if (match && match[1]) {
-      return { city: match[1].trim(), country: null };
-    }
-  }
-
-  return { city: null, country: null };
-}
-
-// Find existing itinerary matching the city/locations
-async function findExistingItinerary(
-  city: string,
-  sources: MapsGroundingSource[],
-): Promise<{
-  id: number;
-  title: string;
-  creator: string;
-  creatorName?: string;
-  price: string;
-  rating: string;
-} | null> {
-  const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-
-  try {
-    // Query Envio for itineraries in this city
-    const query = `
-      query FindItinerary($city: String!) {
-        ItineraryNFT_ItineraryCreated(
-          where: { city: { _ilike: $city } }
-          order_by: { totalPurchases: desc }
-          limit: 1
-        ) {
-          itineraryId
-          title
-          creator
-          price
-          averageRating
-        }
-      }
-    `;
-
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: { city: `%${city}%` },
-      }),
-    });
-
-    const data = await response.json();
-    const itinerary = data?.data?.ItineraryNFT_ItineraryCreated?.[0];
-
-    if (itinerary) {
-      return {
-        id: itinerary.itineraryId,
-        title: itinerary.title,
-        creator: itinerary.creator,
-        price: (Number(itinerary.price) / 1e18).toFixed(0),
-        rating: (itinerary.averageRating / 100).toFixed(1),
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error("[Oracle] Failed to query existing itineraries:", error);
-    return null;
-  }
-}
-
-// Create itinerary from Maps results via execute-delegated
-async function createItineraryFromMaps(
-  userAddress: string,
-  userFid: number,
-  title: string,
-  city: string,
-  country: string,
-  locations: Array<{
-    name: string;
-    placeId: string;
-    uri: string;
-    latitude: number;
-    longitude: number;
-    description: string;
-  }>,
-  fwdAuth: Record<string, string> = {},
-): Promise<{ success: boolean; txHash?: string; error?: string }> {
-  const APP_URL =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "https://fcempowertours-production-6551.up.railway.app";
-
-  try {
-    const response = await fetch(`${APP_URL}/api/execute-delegated`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...fwdAuth },
-      body: JSON.stringify({
-        userAddress,
-        action: "create_itinerary",
-        params: {
-          creatorFid: userFid,
-          title,
-          description: `Curated travel guide for ${city}`,
-          city,
-          country,
-          price: "10", // 10 WMON default price
-          photoProofIPFS: "",
-          locations,
-        },
-      }),
-    });
-
-    const data = await response.json();
-    return {
-      success: data.success,
-      txHash: data.txHash,
-      error: data.error,
-    };
-  } catch (error: any) {
-    console.error("[Oracle] Create itinerary error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// =============================================
-// SAVE ITINERARY (GPS-VERIFIED) HELPERS
-// =============================================
-
-// Detect if user wants to explicitly save/create an itinerary
-function detectSaveItineraryIntent(message: string): boolean {
-  const lowerMessage = message.toLowerCase();
-
-  const saveKeywords = [
-    "save this",
-    "save as itinerary",
-    "create itinerary",
-    "make itinerary",
-    "add to itinerary",
-    "save itinerary",
-    "save these places",
-    "remember this",
-    "bookmark this",
-    "save my route",
-    "create a guide",
-    "make a guide",
-    "save for later",
-    "create trip",
-    "save trip",
-  ];
-
-  return saveKeywords.some((keyword) => lowerMessage.includes(keyword));
-}
-
-// Minimum distance in meters to be considered "at the location"
-const GPS_VERIFICATION_RADIUS = 500; // 500 meters
-
-// Verify user is at a location using GPS coordinates
-function verifyUserAtLocation(
-  userLat: number,
-  userLon: number,
-  targetLat: number,
-  targetLon: number,
-): { verified: boolean; distance: number } {
-  // Haversine formula for distance calculation
-  const R = 6371e3; // Earth radius in meters
-  const φ1 = (userLat * Math.PI) / 180;
-  const φ2 = (targetLat * Math.PI) / 180;
-  const Δφ = ((targetLat - userLat) * Math.PI) / 180;
-  const Δλ = ((targetLon - userLon) * Math.PI) / 180;
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
-
-  return {
-    verified: distance <= GPS_VERIFICATION_RADIUS,
-    distance: Math.round(distance),
-  };
-}
-
-// =============================================
+} // =============================================
 // SPONSORSHIP ACTIONS
 // =============================================
 

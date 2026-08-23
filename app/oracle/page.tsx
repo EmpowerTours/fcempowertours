@@ -35,7 +35,6 @@ import { MusicSubscriptionModal } from "@/app/components/oracle/MusicSubscriptio
 import { MirrorMate } from "@/app/components/oracle/MirrorMate";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
-import { MapsResultsModal } from "@/app/components/oracle/MapsResultsModal";
 import { ProfileModal } from "@/app/components/oracle/ProfileModal";
 import { DashboardModal } from "@/app/components/oracle/DashboardModal";
 import { UserProfileModal } from "@/app/components/oracle/UserProfileModal";
@@ -60,20 +59,10 @@ interface NFTObject {
   artistUsername?: string;
 }
 
-interface MapsSource {
-  uri: string;
-  title: string;
-  placeId?: string;
-}
-
 interface Message {
   role: "user" | "oracle";
   content: string;
   action?: any;
-  mapsSources?: MapsSource[];
-  mapsWidgetToken?: string;
-  mapsQuery?: string;
-  mapsPaymentTxHash?: string;
   protocolExperiences?: any[];
   txHash?: string;
   explorerUrl?: string;
@@ -106,26 +95,11 @@ export default function OraclePage() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
   const [showPassportMintModal, setShowPassportMintModal] = useState(false);
-  const [paymentRequired, setPaymentRequired] = useState<{
-    message: string;
-    estimatedCost: string;
-  } | null>(null);
-  const [pendingMessage, setPendingMessage] = useState<string>("");
-  const [showMapsResults, setShowMapsResults] = useState(false);
-  const [mapsMinimized, setMapsMinimized] = useState(false);
   const [radioMinimized, setRadioMinimized] = useState(false);
 
   // Audio conflict prevention refs — each stores a pause callback registered by the child
   const pauseRadioAudioRef = useRef<(() => void) | null>(null);
   const pausePlaylistAudioRef = useRef<(() => void) | null>(null);
-  const [mapsResultsData, setMapsResultsData] = useState<{
-    sources: MapsSource[];
-    widgetToken?: string;
-    query: string;
-    paymentTxHash?: string;
-    mapsProvider?: string;
-    protocolExperiences?: any[];
-  } | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [hasPurchasedMusic, setHasPurchasedMusic] = useState(false);
   const [ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
@@ -193,16 +167,14 @@ export default function OraclePage() {
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
     setSelectedNFT(null);
-    setPaymentRequired(null);
   }, []);
 
-  // Minimize all minimizable modals (Radio + Maps)
+  // Minimize all minimizable modals (Radio is the only one left)
   const minimizeAllMinimizable = useCallback(() => {
     if (showRadioModal) setRadioMinimized(true);
-    if (showMapsResults) setMapsMinimized(true);
-  }, [showRadioModal, showMapsResults]);
+  }, [showRadioModal]);
 
-  // Smart modal opener: minimizes Radio/Maps instead of closing, closes everything else
+  // Smart modal opener: minimizes Radio instead of closing, closes everything else
   const openModal = useCallback(
     (openFn: () => void) => {
       closeNonMinimizableModals();
@@ -212,13 +184,10 @@ export default function OraclePage() {
     [closeNonMinimizableModals, minimizeAllMinimizable],
   );
 
-  // Legacy closeAllModals for cases that truly need everything closed (e.g. Maps "View Places" button)
   const closeAllModals = useCallback(() => {
     closeNonMinimizableModals();
     setShowRadioModal(false);
     setRadioMinimized(false);
-    setShowMapsResults(false);
-    setMapsMinimized(false);
   }, [closeNonMinimizableModals]);
 
   // Audio conflict handlers (stable refs to avoid re-renders)
@@ -425,31 +394,8 @@ export default function OraclePage() {
         JSON.stringify(data, null, 2),
       );
 
-      // Handle payment required for Maps query - show confirmation dialog
-      if (data.requiresPayment) {
-        console.log("[Oracle] Payment required for Maps query:", {
-          message: data.message,
-          estimatedCost: data.estimatedCost,
-          userMessage,
-        });
-        setPendingMessage(userMessage);
-        setPaymentRequired({
-          message: data.message,
-          estimatedCost: data.estimatedCost,
-        });
-        setIsThinking(false);
-        return;
-      }
-
       if (data.success) {
-        const {
-          action,
-          txHash,
-          explorer,
-          mapsSources,
-          mapsWidgetToken,
-          requestId,
-        } = data;
+        const { action, txHash, explorer, requestId } = data;
         console.log("[Oracle] Action type:", action.type);
         console.log(
           "[Oracle] Full action object:",
@@ -616,8 +562,6 @@ export default function OraclePage() {
                 role: "oracle",
                 content: action.message,
                 action,
-                mapsSources,
-                mapsWidgetToken,
               },
             ]);
             break;
@@ -691,122 +635,7 @@ export default function OraclePage() {
 
   const closeNFTModal = () => {
     setSelectedNFT(null);
-  };
-
-  // Handle Maps payment confirmation - charges via user safe delegation
-  const handleConfirmPayment = async () => {
-    if (!pendingMessage) return;
-
-    console.log("[Oracle] Confirming payment for Maps query via delegation");
-    const queryMessage = pendingMessage;
-    setPaymentRequired(null);
-    setIsThinking(true);
-
-    try {
-      const response = await fetch("/api/oracle/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
-          message: queryMessage,
-          userAddress: walletAddress,
-          userFid: fid,
-          userLocation: geoLocation
-            ? {
-                latitude: geoLocation.latitude,
-                longitude: geoLocation.longitude,
-                city: geoLocation.city,
-                country: geoLocation.country,
-              }
-            : null,
-          confirmPayment: true,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        const {
-          action,
-          mapsSources,
-          mapsWidgetToken,
-          paymentTxHash,
-          mapsProvider,
-          protocolExperiences,
-        } = data;
-
-        // Add message with Maps data
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "oracle",
-            content:
-              action.message ||
-              `🗺️ Found ${mapsSources?.length || 0} places for "${queryMessage}"`,
-            action,
-            mapsSources,
-            mapsWidgetToken,
-            mapsQuery: queryMessage,
-            mapsPaymentTxHash: paymentTxHash,
-            protocolExperiences,
-          },
-        ]);
-
-        // Show the Maps Results Modal
-        if (mapsSources && mapsSources.length > 0) {
-          setMapsResultsData({
-            sources: mapsSources,
-            widgetToken: mapsWidgetToken,
-            query: queryMessage,
-            paymentTxHash,
-            mapsProvider,
-            protocolExperiences,
-          });
-          setMapsMinimized(false);
-          setShowMapsResults(true);
-        } else {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "oracle",
-              content: action.message || "No places found for your query.",
-              action,
-            },
-          ]);
-        }
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      console.error("[Oracle] Payment failed:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "oracle",
-          content: `❌ Payment failed: ${error.message}. Please ensure your Safe has sufficient WMON balance.`,
-        },
-      ]);
-    } finally {
-      setIsThinking(false);
-      setPendingMessage("");
-    }
-  };
-
-  const handleCancelPayment = () => {
-    setPaymentRequired(null);
-    setPendingMessage("");
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "oracle",
-        content: "❌ Maps query cancelled.",
-      },
-    ]);
-  };
-
-  // Handle deposit to user safe
+  }; // Handle deposit to user safe
   const handleDeposit = async () => {
     if (!userSafeAddress || !depositAmount || !sendTransaction) {
       setDepositError("Missing required information");
@@ -887,7 +716,6 @@ export default function OraclePage() {
       showSubscriptionModal ||
       showCreateNFTModal ||
       showPassportMintModal ||
-      (showMapsResults && !mapsMinimized) ||
       showUserProfileModal ||
       selectedNFT !== null;
 
@@ -1102,36 +930,6 @@ export default function OraclePage() {
                         </button>
                       </div>
                     )}
-
-                    {/* Google Maps Sources - Show "View Places" button */}
-                    {msg.mapsSources && msg.mapsSources.length > 0 && (
-                      <div className="mt-3">
-                        <button
-                          onClick={() => {
-                            closeAllModals();
-                            setMapsResultsData({
-                              sources: msg.mapsSources!,
-                              widgetToken: msg.mapsWidgetToken,
-                              query: msg.mapsQuery || "Places",
-                              paymentTxHash: msg.mapsPaymentTxHash,
-                              protocolExperiences: msg.protocolExperiences,
-                            });
-                            setMapsMinimized(false);
-                            setShowMapsResults(true);
-                          }}
-                          className="w-full py-2 px-4 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm text-white font-semibold transition-all flex items-center justify-center gap-2"
-                        >
-                          <MapPin className="w-4 h-4" />
-                          View {msg.mapsSources.length} Places
-                          {msg.protocolExperiences &&
-                            msg.protocolExperiences.length > 0 && (
-                              <span className="text-[10px] bg-green-500/30 px-1.5 py-0.5 rounded-full">
-                                +{msg.protocolExperiences.length} community
-                              </span>
-                            )}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -1207,9 +1005,8 @@ export default function OraclePage() {
               </button>
               <button
                 onClick={() => {
-                  // Opening Radio: minimize Maps if open, close non-minimizable modals, expand Radio
+                  // Opening Radio: close non-minimizable modals, expand Radio
                   closeNonMinimizableModals();
-                  if (showMapsResults) setMapsMinimized(true);
                   setShowRadioModal(true);
                   setRadioMinimized(false);
                 }}
@@ -1577,163 +1374,6 @@ export default function OraclePage() {
           isDarkMode={isDarkMode}
         />
       )}
-
-      {/* Maps Results Modal */}
-      {showMapsResults &&
-        mapsResultsData &&
-        portalMounted &&
-        createPortal(
-          <MapsResultsModal
-            sources={mapsResultsData.sources}
-            widgetToken={mapsResultsData.widgetToken}
-            query={mapsResultsData.query}
-            paymentTxHash={mapsResultsData.paymentTxHash}
-            mapsProvider={mapsResultsData.mapsProvider as any}
-            protocolExperiences={mapsResultsData.protocolExperiences}
-            minimized={mapsMinimized}
-            setMinimized={(v: boolean) => {
-              if (!v) {
-                // Expanding from minimized: minimize Radio, close non-minimizable modals
-                closeNonMinimizableModals();
-                if (showRadioModal) setRadioMinimized(true);
-              }
-              setMapsMinimized(v);
-            }}
-            userLocation={
-              geoLocation
-                ? {
-                    latitude: geoLocation.latitude,
-                    longitude: geoLocation.longitude,
-                    city: geoLocation.city,
-                    country: geoLocation.country,
-                  }
-                : undefined
-            }
-            onClose={() => {
-              setShowMapsResults(false);
-              setMapsMinimized(false);
-              setMapsResultsData(null);
-            }}
-          />,
-          document.body,
-        )}
-
-      {paymentRequired &&
-        portalMounted &&
-        createPortal(
-          <div
-            className="fixed inset-0 flex items-center justify-center p-4"
-            style={{
-              zIndex: 10001,
-              backgroundColor: isDarkMode
-                ? "rgba(0,0,0,0.95)"
-                : "rgba(255,255,255,0.95)",
-            }}
-            onClick={handleCancelPayment}
-          >
-            <div
-              className={`rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fadeIn ${isDarkMode ? "bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500/50 shadow-cyan-500/20" : "bg-white border border-gray-200"}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-4">🗺️</div>
-                <h2
-                  className={`text-2xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
-                >
-                  Google Maps Search
-                </h2>
-                <p
-                  className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                >
-                  {paymentRequired.message}
-                </p>
-              </div>
-
-              <div
-                className={`rounded-2xl p-4 mb-6 ${isDarkMode ? "bg-gray-800 border border-cyan-500/30" : "bg-gray-50 border border-gray-200"}`}
-              >
-                <div
-                  className={`rounded-lg p-3 mb-3 ${isDarkMode ? "bg-blue-500/10 border border-blue-500/30" : "bg-blue-50 border border-blue-200"}`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-400 text-lg">ℹ️</span>
-                    <div className="flex-1">
-                      <p
-                        className={`text-xs font-semibold mb-1 ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}
-                      >
-                        Real-time Location Data
-                      </p>
-                      <p
-                        className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
-                      >
-                        This query uses Google Maps to find nearby places based
-                        on your location.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    Service Cost
-                  </span>
-                  <span
-                    className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
-                  >
-                    {paymentRequired.estimatedCost} WMON
-                  </span>
-                </div>
-                <div
-                  className={`border-t mt-2 pt-2 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-cyan-500 text-sm font-semibold">
-                      Total (from Safe)
-                    </span>
-                    <span className="text-cyan-500 font-bold text-lg">
-                      {paymentRequired.estimatedCost} WMON
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={handleConfirmPayment}
-                  disabled={isThinking}
-                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                >
-                  {isThinking ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Searching...
-                    </>
-                  ) : (
-                    <>
-                      ✅ Confirm & Search ({paymentRequired.estimatedCost} WMON)
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleCancelPayment}
-                  disabled={isThinking}
-                  className={`w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isDarkMode ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-900"}`}
-                >
-                  Cancel
-                </button>
-              </div>
-
-              <p
-                className={`text-xs text-center mt-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
-              >
-                Payment will be deducted from your Safe wallet via delegation.
-              </p>
-            </div>
-          </div>,
-          document.body,
-        )}
 
       {/* Music Playlist Player - positioned at bottom center */}
       <MusicPlaylist

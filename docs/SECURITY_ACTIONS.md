@@ -5,44 +5,19 @@ against the running deployment on 2026-08-19, not carried over from an older aud
 
 ---
 
-## 1. Google Maps key — split it in two (**console action required**)
+## 1. ~~Google Maps key — split it in two~~ — **closed 2026-08-22 by deletion**
 
-**Verified live 2026-08-19.** Fetched the 31 chunks the homepage loads from
-`fcempowertours-production-6551.up.railway.app`; a key matching `AIzaSy…` is present in
-`/_next/static/chunks/1965-*.js`.
+No Console action is needed any more: the Maps integration is gone. `lib/maps/`,
+`MapsResultsModal`, `PlaceDetailsCard`, `/api/maps/place-details`, the Oracle's Maps grounding
+and the `maps_payment` action were all removed when the app narrowed to music.
 
-**That, on its own, is not the defect.** A Maps JS SDK key *has* to be in the browser — the SDK
-loads via `<script src="…?key=…">`, so it is readable by anyone and no proxy changes that.
-Google's answer for a browser key is an **HTTP-referrer restriction**, not secrecy.
+Nothing in the repo reads `GOOGLE_MAPS_SERVER_KEY` or `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, so the
+browser key that was visible in `/_next/static/chunks/1965-*.js` is no longer emitted and the
+billable server-side APIs are no longer called.
 
-The defect was that the same key was also serving the **billable server-side APIs**. Places
-Details and Directions are called from the Next.js process with no referrer, so a referrer
-restriction cannot protect them — and the key authorising them was sitting in the page source.
-`lib/maps/google.ts` fell back to `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` whenever
-`GOOGLE_MAPS_SERVER_KEY` was unset. **That fallback is now removed.**
-
-### What you need to do in Google Cloud Console
-
-1. **Create a new SERVER key.** Restrict it by API to *Places API (New)* and *Directions API*.
-   Restrict by IP if Railway gives you a stable egress IP; otherwise leave IP unrestricted and
-   rely on the API restriction.
-2. Set it on Railway as **`GOOGLE_MAPS_SERVER_KEY`** — no `NEXT_PUBLIC_` prefix, or Next will
-   compile it straight into the bundle and you are back where you started.
-3. **Restrict the existing browser key** (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`) to *Maps JavaScript
-   API* only, with an HTTP-referrer restriction for
-   `fcempowertours-production-6551.up.railway.app/*` and any custom domain.
-4. **Check billing** for unexpected Places/Directions usage — the key has been public for a
-   while, and that is the endpoint someone would abuse.
-
-> **Deploy note:** maps search and directions now **fail closed** if `GOOGLE_MAPS_SERVER_KEY` is
-> missing, logging exactly that. Set it before or with the next deploy, or place search stops
-> working. Failing closed is deliberate: silently billing against a public key is worse.
-
-`GoogleMapsProvider.getClientConfig()` also embeds the browser key, but it has **no callers**.
-Leave it unwired — if it is ever served from an API route, that is fine for the JS SDK key and
-must never be used for the server key.
-
----
+**Still worth doing once, in the Console:** delete or disable both keys. A key nothing uses is
+not a vulnerability, but a live key that leaked into a public bundle is still a live key — and
+the billing stays enabled until someone turns it off.
 
 ## 2. `ENFORCE_QUICK_AUTH` is still off — the Safe drain is open
 

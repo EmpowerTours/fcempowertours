@@ -214,7 +214,6 @@ export async function POST(req: NextRequest) {
       "faucet_claim", // WMON faucet claim
       "mint_passport", // Daily gate requirement
       "buy_music", // Purchase music NFT license
-      "buy_art", // Purchase art NFT
       "dao_wrap", // Wrap TOURS to vTOURS for DAO voting
       "dao_unwrap", // Unwrap vTOURS back to TOURS
       "dao_delegate", // Delegate voting power
@@ -230,11 +229,6 @@ export async function POST(req: NextRequest) {
       "radio_mark_played", // Live radio mark song as played (scheduler)
       "radio_skip_random", // Live radio skip to random (Pyth Entropy) - user pays 1 MON
       "radio_start", // Start live radio (onlyOwnerOrDAO - platform Safe)
-      "mirrormate_register", // Register as tour guide
-      "mirrormate_update", // Update guide profile
-      "mirrormate_skip", // Skip guide in matching
-      "mirrormate_connect", // Request connection with guide
-      "maps_payment", // Google Maps query payment (from user Safe)
       "withdraw_to_user", // Withdraw from own Safe to own wallet
       "create_climb", // Create climbing location (35 WMON)
       "purchase_climb", // Purchase climbing location access
@@ -256,13 +250,6 @@ export async function POST(req: NextRequest) {
       "unstake_music", // Unstake music NFT and claim rewards
       "burn_music", // Burn music NFT
       "burn_nft", // Generic NFT burn
-      "create_experience", // Create experience NFT
-      "create_single_experience", // Create single experience
-      "mint_itinerary", // Mint itinerary NFT
-      "purchase_itinerary", // Purchase itinerary access
-      "checkin_itinerary", // Check in to itinerary location
-      "complete_location", // Mark location as complete
-      "burn_itinerary", // Burn itinerary NFT
       "buy_resale", // Purchase resale NFT from secondary market
       "book_guide", // Book a MirrorMate tour guide
       "mark_tour_complete", // Mark tour as completed
@@ -3958,132 +3945,6 @@ ${enjoyText}
           wmonAmount: "20 WMON",
           monAmount: "0.5 MON (for gas)",
           message: "WMON claimed directly to your Safe wallet!",
-        });
-
-      // ==================== MAPS PAYMENT ====================
-      case "maps_payment":
-        console.log("🗺️ Action: maps_payment");
-
-        const { amount: mapsAmount } = params || {};
-
-        if (!mapsAmount) {
-          return NextResponse.json(
-            { success: false, error: "Missing required parameter: amount" },
-            { status: 400 },
-          );
-        }
-
-        const TREASURY = (process.env.TREASURY_ADDRESS ||
-          SAFE_ACCOUNT) as Address;
-        const WMON_MAPS = process.env.NEXT_PUBLIC_WMON as Address;
-
-        const mapsAmountWei = parseEther(mapsAmount);
-
-        console.log("🗺️ Maps payment:", {
-          user: userAddress,
-          amount: mapsAmount,
-          treasury: TREASURY,
-          wmon: WMON_MAPS,
-        });
-
-        // First wrap MON to WMON, then transfer WMON to treasury
-        const mapsPaymentCalls: Call[] = [
-          // Step 1: Wrap native MON to WMON
-          {
-            to: WMON_MAPS,
-            value: mapsAmountWei,
-            data: encodeFunctionData({
-              abi: parseAbi(["function deposit() external payable"]),
-              functionName: "deposit",
-              args: [],
-            }) as Hex,
-          },
-          // Step 2: Transfer WMON to treasury
-          {
-            to: WMON_MAPS,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function transfer(address to, uint256 amount) external returns (bool)",
-              ]),
-              functionName: "transfer",
-              args: [TREASURY, mapsAmountWei],
-            }) as Hex,
-          },
-        ];
-
-        const mapsPaymentTxHash = await executeTransaction(
-          mapsPaymentCalls,
-          userAddress as Address,
-          mapsAmountWei,
-        );
-        await incrementTransactionCount(userAddress);
-
-        console.log("✅ Maps payment successful, TX:", mapsPaymentTxHash);
-
-        // Auto-unwrap: if Platform Safe MON is low, unwrap WMON to native MON for gas
-        try {
-          const { createPublicClient, http } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const autoClient = createPublicClient({
-            chain: activeChain,
-            transport: http(),
-          });
-
-          const safeMon = await autoClient.getBalance({
-            address: SAFE_ACCOUNT,
-          });
-          const MIN_MON_THRESHOLD = parseEther("3");
-          const UNWRAP_AMOUNT = parseEther("2");
-
-          if (safeMon < MIN_MON_THRESHOLD) {
-            const safeWmon = (await autoClient.readContract({
-              address: WMON_MAPS,
-              abi: parseAbi([
-                "function balanceOf(address) view returns (uint256)",
-              ]),
-              functionName: "balanceOf",
-              args: [SAFE_ACCOUNT],
-            })) as bigint;
-
-            const unwrapAmount =
-              safeWmon >= UNWRAP_AMOUNT ? UNWRAP_AMOUNT : safeWmon;
-            if (unwrapAmount > 0n) {
-              console.log(
-                "⛽ Auto-unwrapping",
-                (Number(unwrapAmount) / 1e18).toFixed(2),
-                "WMON → MON for Platform Safe gas",
-              );
-              await sendSafeTransaction([
-                {
-                  to: WMON_MAPS,
-                  value: 0n,
-                  data: encodeFunctionData({
-                    abi: parseAbi([
-                      "function withdraw(uint256 amount) external",
-                    ]),
-                    functionName: "withdraw",
-                    args: [unwrapAmount],
-                  }) as Hex,
-                },
-              ]);
-              console.log("✅ Platform Safe auto-funded with native MON");
-            }
-          }
-        } catch (autoFundErr: any) {
-          console.warn(
-            "⚠️ Auto-unwrap failed (non-blocking):",
-            autoFundErr.message,
-          );
-        }
-
-        return NextResponse.json({
-          success: true,
-          txHash: mapsPaymentTxHash,
-          action,
-          userAddress,
-          amount: mapsAmount,
-          message: "Maps query payment processed!",
         });
 
       // ==================== CREATE ITINERARY ====================
