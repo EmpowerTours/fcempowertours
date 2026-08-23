@@ -46,7 +46,12 @@ echo "🤖 Checking commit author..."
 STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -20 || true)
 if [ -n "$STAGED_TS" ]; then
   echo "📝 Type checking TypeScript files..."
-  if ! npx tsc --noEmit --skipLibCheck 2>&1 | head -30; then
+  # `npx tsc | head` reports HEAD's exit status, not tsc's, and head always succeeds — so the
+  # old `if ! ... | head -30` could never be true and this step passed unconditionally while
+  # printing the errors. Capture first, then decide.
+  TS_OUT=$(npx tsc --noEmit --skipLibCheck 2>&1) || TS_FAILED=1
+  if [ -n "$TS_FAILED" ]; then
+    echo "$TS_OUT" | head -30
     echo "❌ TypeScript errors found. Fix them before committing."
     exit 1
   fi
@@ -57,9 +62,23 @@ fi
 STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx)$' || true)
 if [ -n "$STAGED_JS" ]; then
   echo "🧹 Linting staged files..."
-  echo "$STAGED_JS" | xargs npx eslint --max-warnings=0 2>&1 | head -50
-  # Non-blocking - just warn
-  echo "✅ Lint check complete"
+  # Blocking as of 2026-08-23, after the repo was taken from 4,181 lint errors to 0.
+  #
+  # Errors block; warnings do not. 82 warnings remain, 56 of them @next/next/no-img-element —
+  # a performance suggestion, not a defect. Blocking on those would make the gate fire on
+  # nearly every UI commit, and a gate that cries wolf is one people learn to bypass, which is
+  # worse than no gate. So --max-warnings=0 is deliberately gone.
+  #
+  # Same capture-then-decide shape as the tsc step above: piping to head would hide the
+  # exit status.
+  LINT_OUT=$(echo "$STAGED_JS" | xargs npx eslint 2>&1) || LINT_FAILED=1
+  if [ -n "$LINT_FAILED" ]; then
+    echo "$LINT_OUT" | head -50
+    echo "❌ ESLint errors found. Fix them before committing."
+    exit 1
+  fi
+  echo "$LINT_OUT" | head -20
+  echo "✅ Lint check passed"
 fi
 
 # 4. Check for large files (>1MB)
