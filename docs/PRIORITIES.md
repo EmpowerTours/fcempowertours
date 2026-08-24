@@ -38,6 +38,20 @@ make the gate fail-closed so an unset variable can never mean "allow".
 
 Effort: high. Biggest security item open.
 
+### 3. The Envio indexer has been dead since 2026-08-01 — but consider leaving instead
+
+**Scoped 2026-08-24: see `ENVIO_EXIT.md`.** Dropping Envio is now the recommended path rather
+than restarting it, which makes this item a migration instead of a repair. The short version:
+Multicall3 is on Monad, `licensesHeld` is keyed owner→master so licences need 5 reads not
+enumeration, and the passport lookup resolves in one 195-call multicall (measured: 1202ms cold,
+returns the right three passports). The only real loss is per-play radio history.
+
+Note the licences view is broken for a second reason a healthy indexer would not fix — the
+cutover split licence data across the legacy and v3 contracts.
+
+If restarting the indexer is faster in the moment, that is still fine; the exit work is not
+wasted either way.
+
 ### 3. The Envio indexer has been dead since 2026-08-01
 
 `lastUpdated: 2026-08-01T17:09:19`, roughly **2.98M blocks behind** a head of ~98.62M. The
