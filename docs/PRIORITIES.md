@@ -52,28 +52,28 @@ cutover split licence data across the legacy and v3 contracts.
 If restarting the indexer is faster in the moment, that is still fine; the exit work is not
 wasted either way.
 
-### 3. The Envio indexer has been dead since 2026-08-01
+**The current state.** `lastUpdated: 2026-08-01T17:09:19`, roughly **2.98M blocks behind** a head
+of ~98.62M. The chain fallback from `7134adb` is why the catalogue still loads, and why this went
+unnoticed for three weeks. What it is breaking meanwhile:
 
-`lastUpdated: 2026-08-01T17:09:19`, roughly **2.98M blocks behind** a head of ~98.62M. The
-chain fallback from `7134adb` is why the catalogue still loads, and why this went unnoticed for
-three weeks.
-
-What it is actually breaking:
-
-- `get-user-licenses` still queries Envio and logs `Licenses matching query address: 0`. The
-  licences view serves stale, empty data.
-- It is why the V5 subscriber set (#4) cannot be enumerated.
+- `get-user-licenses` queries Envio and logs `Licenses matching query address: 0` — the licences
+  view serves empty data.
 - `[StreamingStats]` and the dashboard read the same stale rows.
 
-Effort: medium. Restart/redeploy the indexer, then confirm `lastUpdated` tracks the head.
+It is **not** why #4 is blocked. Enumerating V5 subscribers needs `eth_getLogs` and the Alchemy
+key regardless of the indexer, because the public RPC caps at a 100-block range.
 
 ### 4. V5 subscribers — unverified, and someone may be paying for nothing
 
 The app reads `MusicSubscriptionV6`. Anyone holding an unexpired **V5** subscription is invisible
 to it. The set was never enumerated: the public Monad RPC caps `eth_getLogs` at a **100-block
-range**, so it needs the Alchemy key or a working indexer (#3).
+range**, so it needs the **Alchemy key**.
 
-This is the only item where a paying user may already be losing something. Do it right after #3.
+Corrected 2026-08-24: this was previously written as blocked on #3. It is not — a healthy indexer
+would help, but the Alchemy key alone is sufficient and is the shorter path. Do not wait on the
+Envio decision for this one.
+
+This is the only item where a paying user may already be losing something.
 
 ### 5. `/api/register-user-safe` is unauthenticated and spends platform gas
 
