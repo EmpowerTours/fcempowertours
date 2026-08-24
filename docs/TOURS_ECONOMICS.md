@@ -8,6 +8,40 @@ Token: `ToursTokenV2` — `0x45b76a127167fD7FC7Ed264ad490144300eCfcBF`, "Empower
 
 ---
 
+## 0b. Re-verified 2026-08-24, after the v3 cutover
+
+Everything below this section was measured before `MusicSubscriptionV6` went live. Three things
+changed, and one of them moves in the wrong direction.
+
+| Reading | 2026-08-16 | 2026-08-24 |
+|---|---|---|
+| V2 `totalSupply` | 100,000,000,000 | 100,000,000,000 (unchanged, still == MAX_SUPPLY) |
+| deployer | 99,998,978,800 | 99,998,978,800 |
+| `ToursRewardManagerV2` | 1,000,000 | 1,000,000 |
+| **platform Safe `0xf3b9…25bA`** | 912.6 | **898.8** |
+| `totalDistributed` / `currentEpoch` | 0 / 0 | **still 0 / 0** |
+
+**The 13.8 TOURS that left the Safe is the whole live economy.** It was one listener claim on
+2026-08-24 (5 first-listener + 88 songs x 0.1), paid by a direct ERC-20 `transfer` from the
+platform Safe. Section 3 called that out as bypassing the reward manager; it is worth restating
+as a number: **the faucet is a 900-token Safe balance, and the 1,000,000 in the authorized
+reward manager has still never moved.**
+
+`authorizedDistributors`: `LiveRadioV3` = **true**, `MusicSubscriptionV6` = **false**. So
+section 5's defect 2 was not fixed by the cutover — it was carried forward onto the new
+subscription contract.
+
+**The cutover reset the play history.** `artistLifetimePlays` reads **19 on V5 and 0 on V6**.
+Section 5's defect 1 said the only artist had 5 masters and 19 plays against thresholds of 10
+and 100. Post-cutover it is 5 masters and **0** plays, so `isArtistEligible` is further from
+true than before, not closer. Nothing was lost that pays out — the artist TOURS bonus never
+worked — but the WMON payout path counts plays per month, not lifetime, so check month
+accounting separately before assuming this is cosmetic.
+
+One thing section 3 does NOT need to worry about: the claim handler zeroes the Redis pending
+balance before transferring, but it restores it in a `catch` if the transfer reverts. Verified
+in `execute-delegated`. When the Safe runs dry, users will see a failed claim, not a silent loss.
+
 ## 0a. RESOLVED 2026-08-21: TOURS V1 is retired
 
 Two mainnet transactions, from the deployer:
