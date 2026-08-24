@@ -9,6 +9,7 @@ import { monadMainnet } from '@/app/chains';
 import { privateKeyToAccount, sign } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
 import { env } from '@/lib/env';
+import { redact } from '@/lib/redact';
 
 // Monad Mainnet (Chain ID: 143)
 const currentChain = monadMainnet;
@@ -623,22 +624,26 @@ export async function sendSafeTransaction(
           typeof v === 'bigint' ? v.toString() : v
         ));
       } catch (gasErr: any) {
-      console.error('❌ Manual gas estimation failed:', {
+      // redact(): viem folds the full bundler URL — `?apikey=<secret>` and all — into
+      // RpcRequestError.metaMessages and .message, so logging `cause` verbatim published a live
+      // Pimlico key to the Railway logs on 2026-08-23. The host-only guard at the top of this
+      // file was correct and did not cover this, because the string is viem's, not ours.
+      console.error('❌ Manual gas estimation failed:', redact({
         message: gasErr.message,
         shortMessage: gasErr.shortMessage,
         details: gasErr.details,
         cause: gasErr.cause,
-      });
+      }));
 
       // ✅ ENHANCED: Extract more details from nested errors
       if (gasErr.walk) {
         const baseError = gasErr.walk();
-        console.error('   Base error:', {
+        console.error('   Base error:', redact({
           name: baseError.name,
           message: baseError.message,
           code: baseError.code,
           data: baseError.data,
-        });
+        }));
       }
 
       // ✅ ENHANCED: Try to extract revert data from the RPC error
@@ -686,11 +691,11 @@ export async function sendSafeTransaction(
           typeof v === 'bigint' ? v.toString() : v
         ));
       } catch (retryErr: any) {
-        console.error('❌ Gas estimation failed even with maximum limits:', {
+        console.error('❌ Gas estimation failed even with maximum limits:', redact({
           message: retryErr.message,
           shortMessage: retryErr.shortMessage,
           details: retryErr.details,
-        });
+        }));
 
         // Extract more specific error information
         let errorDetails = retryErr.shortMessage || retryErr.message;
