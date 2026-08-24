@@ -35,6 +35,7 @@ import {
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
 import { authorizeUserAddress } from "@/lib/quick-auth";
+import { getResolvedTrack } from "@/lib/catalogue-resolved";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
 // ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
@@ -45,7 +46,6 @@ const TRANSFER_TOPIC = toEventSelector("Transfer(address,address,uint256)");
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
   "https://fcempowertours-production-6551.up.railway.app";
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address;
 
 // Type definition for Safe transaction calls
@@ -1557,32 +1557,14 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         let isPurchaseArtNFT = false;
         let nftArtistAddress: string | null = null;
         try {
-          const typeCheckQuery = `
-            query CheckPurchaseNFTType($tokenId: String!) {
-              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-                tokenId
-                isArt
-                artist
-              }
-            }
-          `;
-
-          const typeCheckRes = await fetch(ENVIO_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: typeCheckQuery,
-              variables: { tokenId: tokenId.toString() },
-            }),
-          });
-
-          if (typeCheckRes.ok) {
-            const typeCheckData = await typeCheckRes.json();
-            const nft = typeCheckData.data?.MusicNFT?.[0];
-            if (nft) {
-              isPurchaseArtNFT = nft.isArt === true;
-              nftArtistAddress = nft.artist?.toLowerCase() || null;
-            }
+          // Read the type and artist from the contracts. This used to query the indexer, and
+          // `nftArtistAddress` gates the self-purchase guard below — so a stale indexer left the
+          // address null and silently switched that guard off. It has been stale since
+          // 2026-08-01.
+          const track = await getResolvedTrack(String(tokenId));
+          if (track) {
+            isPurchaseArtNFT = track.isArt === true;
+            nftArtistAddress = track.artist?.toLowerCase() || null;
           }
         } catch {
           console.warn("Could not check purchase NFT type, assuming music");
@@ -1614,36 +1596,21 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
         // ✅ Check Safe has enough TOURS before purchase
         try {
-          // First, get the NFT price from Envio
-          const priceQuery = `
-            query GetNFTPrice($tokenId: String!) {
-              MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-                tokenId
-                price
-              }
-            }
-          `;
+          // Read the price from the contracts, not the indexer.
+          //
+          // Two reasons this mattered more than the other call sites. The indexer has been stale
+          // since 2026-08-01, and a stale PRICE is not a stale display — it is the number this
+          // balance check is run against. And under v3 pricing moved to `SalesController`:
+          // `masterTokens` survives only as a compatibility view whose price fields are
+          // hardcoded 0, so an indexer row predating the cutover is wrong in a way that reads as
+          // "free". `getResolvedCatalogue` goes through `readMasterPrice`, which knows which
+          // generation is live.
+          {
+            const priceTrack = await getResolvedTrack(String(tokenId));
 
-          const priceRes = await fetch(ENVIO_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: priceQuery,
-              variables: { tokenId: tokenId.toString() },
-            }),
-          });
-
-          if (priceRes.ok) {
-            const priceData = await priceRes.json();
-            const nft = priceData.data?.MusicNFT?.[0];
-
-            if (nft?.price) {
-              const nftPrice = BigInt(nft.price);
-              console.log(
-                "💰 NFT Price from Envio:",
-                nftPrice.toString(),
-                "wei",
-              );
+            if (priceTrack?.price) {
+              const nftPrice = BigInt(priceTrack.price);
+              console.log("💰 NFT price from chain:", nftPrice.toString(), "wei");
 
               // Now check Safe's WMON balance (using WMON for payments, not TOURS)
               const { createPublicClient, http } = await import("viem");
@@ -2102,42 +2069,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
             }
 
             try {
-              const query = `
-                query GetMusicNFT($tokenId: String!) {
-                  MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-                    tokenId
-                    name
-                    price
-                    artist
-                    isArt
-                  }
-                }
-              `;
-
-              console.log("📤 Envio query variables:", {
-                tokenId: tokenId.toString(),
-              });
-
-              const envioRes = await fetch(ENVIO_ENDPOINT, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  query,
-                  variables: { tokenId: tokenId.toString() },
-                }),
-              });
-
-              console.log("📥 Envio response status:", envioRes.status);
-
-              if (envioRes.ok) {
-                const envioData = await envioRes.json();
-                console.log(
-                  "📥 Envio data:",
-                  JSON.stringify(envioData).substring(0, 200),
-                );
-
-                const musicNFT = envioData.data?.MusicNFT?.[0];
-                console.log("🎵 Found MusicNFT:", musicNFT);
+              // Read from the contracts. This block builds the cast text for a purchase, so a
+              // stale row here announces the wrong title or price to a public feed.
+              {
+                const musicNFT = await getResolvedTrack(String(tokenId));
+                console.log("🎵 Found track:", musicNFT?.name);
 
                 if (musicNFT) {
                   songTitle = musicNFT.name || "Track";
@@ -2237,15 +2173,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
                     isCollector: buyingCollector,
                   });
                 } else {
-                  console.warn("⚠️ MusicNFT array empty or not found");
+                  console.warn("⚠️ Track not found in the catalogue");
                 }
-              } else {
-                console.warn("⚠️ Envio not ok:", envioRes.status);
-                const text = await envioRes.text();
-                console.warn("⚠️ Response:", text.substring(0, 200));
               }
             } catch (envioErr: any) {
-              console.error("❌ Envio fetch failed:", envioErr.message);
+              console.error("❌ Catalogue read failed:", envioErr.message);
               console.error("❌ Stack:", envioErr.stack);
             }
 

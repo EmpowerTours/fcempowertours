@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeUserAddress, forwardAuthHeader } from "@/lib/quick-auth";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
+import { getResolvedCatalogue, getResolvedTrack } from "@/lib/catalogue-resolved";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -421,54 +422,27 @@ Address: ${userAddress.slice(0, 10)}...`,
           console.log(`[BOT] Searching for NFT: "${searchSongName}"`);
 
           try {
-            // ✅ CORRECTED: Query MusicNFT (singular) with correct field names including isArt
-            const searchQuery = `
-              query SearchMusicByName($name: String!) {
-                MusicNFT(
-                  where: {name: {_ilike: $name}}
-                  limit: 1
-                  order_by: {mintedAt: desc}
-                ) {
-                  tokenId
-                  name
-                  price
-                  artist
-                  isArt
-                }
-              }
-            `;
+            // Search the resolved catalogue rather than the indexer. With five masters this is
+            // a find() over an already-cached list, and it keeps working when the indexer is
+            // stale — which it has been since 2026-08-01.
+            const { tracks } = await getResolvedCatalogue();
+            const needle = searchSongName.toLowerCase();
 
-            const searchRes = await fetch(ENVIO_ENDPOINT, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                query: searchQuery,
-                variables: { name: `%${searchSongName}%` },
-              }),
-            });
+            // Exact match first, so "Killah" cannot be beaten by a longer title containing it.
+            const match =
+              tracks.find((t) => t.name.toLowerCase() === needle) ??
+              tracks.find((t) => t.name.toLowerCase().includes(needle));
 
-            if (!searchRes.ok) {
-              throw new Error(
-                `GraphQL query failed with status ${searchRes.status}`,
-              );
-            }
-
-            const searchData = await searchRes.json();
-            console.log("[BOT] Envio search response:", searchData);
-
-            // ✅ CORRECTED: Direct array access, not nested in items
-            const musicNFT = searchData.data?.MusicNFT?.[0];
-
-            if (!musicNFT) {
+            if (!match) {
               return NextResponse.json({
                 success: false,
                 message: `NFT "${searchSongName}" not found. Try: "buy music <tokenId>" or browse on /discover`,
               });
             }
 
-            tokenId = parseInt(musicNFT.tokenId);
-            songTitle = musicNFT.name;
-            isArtNFT = musicNFT.isArt === true; // ✅ Check if it's art
+            tokenId = parseInt(String(match.tokenId));
+            songTitle = match.name;
+            isArtNFT = match.isArt === true;
             console.log(
               `[BOT] Found "${songTitle}" with tokenId: ${tokenId} (isArt: ${isArtNFT})`,
             );
@@ -491,35 +465,12 @@ Address: ${userAddress.slice(0, 10)}...`,
       }
 
       try {
-        // ✅ Query Envio to check if it's an art NFT before logging
+        // Confirm the NFT type when the buy came in by token id rather than by name, where
+        // the search above already knew it.
         if (!isArtNFT) {
-          // Only query if we haven't already checked
           try {
-            const checkQuery = `
-              query CheckNFTType($tokenId: String!) {
-                MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-                  tokenId
-                  isArt
-                }
-              }
-            `;
-
-            const checkRes = await fetch(ENVIO_ENDPOINT, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                query: checkQuery,
-                variables: { tokenId: tokenId.toString() },
-              }),
-            });
-
-            if (checkRes.ok) {
-              const checkData = await checkRes.json();
-              const nft = checkData.data?.MusicNFT?.[0];
-              if (nft) {
-                isArtNFT = nft.isArt === true;
-              }
-            }
+            const track = await getResolvedTrack(tokenId);
+            if (track) isArtNFT = track.isArt === true;
           } catch {
             console.warn("Could not check NFT type, assuming music");
           }
