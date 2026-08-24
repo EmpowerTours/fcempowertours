@@ -3,6 +3,7 @@ import { Redis } from "@upstash/redis";
 import { broadcastRadioUpdate } from "@/lib/event-manager";
 import { hasRightsClearance } from "@/lib/rights-declaration";
 import { recordPlaysForListeners } from "@/lib/play-recording";
+import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
 
 /**
  * Live Radio Scheduler
@@ -74,7 +75,6 @@ async function getKnownDuration(tokenId: string): Promise<number | null> {
 }
 
 const KEEPER_SECRET = process.env.KEEPER_SECRET || "";
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface RadioState {
   isLive: boolean;
@@ -145,38 +145,25 @@ interface SongFromEnvio {
   duration?: number; // May not be available from Envio, will default to 600s (client reports actual end)
 }
 
-// Fetch songs from Envio for random selection (only Music NFTs with audio)
+// The radio's song pool, read from the contracts with the indexer used only while it is
+// demonstrably fresh. Art NFTs are excluded by `isArt`, and anything without resolvable audio
+// is dropped — a silent track would stall the scheduler on a song that never ends.
 async function fetchSongPool(): Promise<SongFromEnvio[]> {
   try {
-    // Only fetch NFTs that have fullAudioUrl (music NFTs, not art NFTs)
-    const query = `
-      query GetMusicNFTs {
-        MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 100) {
-          tokenId
-          name
-          artist
-          artistFid
-          fullAudioUrl
-          imageUrl
-        }
-      }
-    `;
+    const { tracks } = await getResolvedCatalogue();
 
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
-
-    const data = await response.json();
-    const songs = data.data?.MusicNFT || [];
-
-    // Map fullAudioUrl to audioUrl and filter out any without valid audio
-    const allSongs = songs
-      .filter((song: any) => song.fullAudioUrl && song.fullAudioUrl.length > 0)
-      .map((song: any) => ({
-        ...song,
-        audioUrl: song.fullAudioUrl,
+    const allSongs: SongFromEnvio[] = tracks
+      .filter((t) => !t.isArt && t.audioUrl)
+      .map((t) => ({
+        tokenId: String(t.tokenId),
+        name: t.name,
+        artist: t.artist,
+        audioUrl: t.audioUrl!,
+        imageUrl: t.imageUrl,
+        // The contracts do not carry the artist's FID; it is a Farcaster concern resolved
+        // elsewhere. 0 reads as "unknown", which is what the old query returned for a
+        // wallet-only artist anyway.
+        artistFid: 0,
       }));
 
     // Filter out songs with revoked rights status
@@ -196,7 +183,7 @@ async function fetchSongPool(): Promise<SongFromEnvio[]> {
 
     return clearedSongs;
   } catch (error) {
-    console.error("[RadioScheduler] Failed to fetch song pool:", error);
+    console.error("[RadioScheduler] Failed to build song pool:", error);
     return [];
   }
 }

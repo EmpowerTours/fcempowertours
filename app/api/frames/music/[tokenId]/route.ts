@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { escapeHtml, sanitizeGraphQLInput } from "@/lib/auth";
+import { escapeHtml } from "@/lib/auth";
+import { getResolvedTrack } from "@/lib/catalogue-resolved";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
   "https://fcempowertours-production-6551.up.railway.app";
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-const PINATA_GATEWAY = "harlequin-used-hare-224.mypinata.cloud";
 
 interface Params {
   tokenId: string;
@@ -21,63 +20,25 @@ interface NFTData {
 
 async function getNFTData(tokenId: string): Promise<NFTData | null> {
   try {
-    const query = `
-      query GetMusicNFT {
-        MusicNFT(where: { tokenId: { _eq: "${sanitizeGraphQLInput(tokenId)}" } }, limit: 1) {
-          tokenId
-          name
-          imageUrl
-          previewAudioUrl
-          artist
-          price
-        }
-      }
-    `;
+    // Reads the contracts, with the indexer used only while it is demonstrably fresh. The
+    // previous version queried Envio directly and had no fallback, so a stale indexer served a
+    // stale frame — and a frame is cached by the client that renders it.
+    const track = await getResolvedTrack(tokenId);
+    if (!track) return null;
 
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-      cache: "no-store",
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const nft = data.data?.MusicNFT?.[0];
-      if (nft) {
-        // Convert IPFS URLs to HTTP
-        const imageUrl = nft.imageUrl?.startsWith("ipfs://")
-          ? `https://${PINATA_GATEWAY}/ipfs/${nft.imageUrl.replace("ipfs://", "")}`
-          : nft.imageUrl || "";
-
-        const previewUrl = nft.previewAudioUrl?.startsWith("ipfs://")
-          ? `https://${PINATA_GATEWAY}/ipfs/${nft.previewAudioUrl.replace("ipfs://", "")}`
-          : nft.previewAudioUrl || "";
-
-        // Convert price from wei
-        let priceDisplay = "0";
-        if (nft.price) {
-          try {
-            const priceNum = Number(BigInt(nft.price)) / 1e18;
-            priceDisplay = priceNum.toString();
-          } catch {
-            priceDisplay = String(nft.price);
-          }
-        }
-
-        return {
-          name: nft.name || "Untitled",
-          imageUrl,
-          previewUrl,
-          artist: nft.artist || "Unknown Artist",
-          price: priceDisplay,
-        };
-      }
-    }
+    return {
+      name: track.name,
+      imageUrl: track.imageUrl,
+      // The frame plays a preview, so `audioUrl` is what belongs here. It is the full track when
+      // the metadata offers one; a 3s `animation_url` is the fallback, not the preference.
+      previewUrl: track.audioUrl ?? "",
+      artist: track.artist || "Unknown Artist",
+      price: track.price ? String(Number(track.price) / 1e18) : "0",
+    };
   } catch (error) {
     console.error("❌ Failed to fetch NFT data:", error);
+    return null;
   }
-  return null;
 }
 
 export async function GET(
