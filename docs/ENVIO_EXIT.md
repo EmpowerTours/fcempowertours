@@ -38,7 +38,23 @@ returns `1`, matching licence 1000004 in the logs.
 
 ---
 
-## Group E — delete, do not migrate (9 files)
+## Group E — DONE 2026-08-24 (`a3e5d29`)
+
+3,509 lines out. The scope grew once: `/api/envio/get-guides` could not be deleted alone because
+**MirrorMate still called it**, and MirrorMate turned out to be already broken — every backing
+route and all four `mirrormate_*` executor actions were removed by `3b833d4`/`10052d8`, while the
+Oracle still advertised `game:"MIRROR"` and the page still rendered it. A user asking for it got a
+working modal in which nothing worked.
+
+Also swept: the `game` action type (leaving it would have the model emit an action nothing
+handles), three `TourGuideRegistry` executor actions `10052d8` missed, and `EnvioDashboard.tsx`,
+which nothing rendered.
+
+Verified: tsc clean, 0 eslint errors, seven verify suites pass, build exits 0 at 101 static pages
+(down from 103), and in a browser all four oracle modals still open with `/dashboard` and
+`/profile` — the two pages that lost query fragments, state and JSX — still rendering.
+
+### Original scope (9 files)
 
 These query entities for the travel features removed in `3b833d4`. Dead queries against a dead
 indexer for a dead product.
