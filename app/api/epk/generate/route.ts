@@ -132,68 +132,46 @@ async function fetchFarcasterProfile(fid?: number): Promise<FarcasterProfile | n
 }
 
 async function fetchGenresFromChain(artistAddress: string): Promise<string[]> {
-  if (!ENVIO_ENDPOINT) return [];
-
   try {
-    // Query MusicNFT for this artist's songs with tokenURIs
-    const query = `
-      query ArtistNFTs($artist: String!) {
-        MusicNFT(
-          where: { artist: { _eq: $artist }, isArt: { _eq: false } }
-          limit: 3
-        ) {
-          tokenId
-          tokenURI
-          title
-        }
-      }
-    `;
+    // Read the artist's tracks from the contracts, then read genre out of the metadata the
+    // catalogue layer has already fetched and cached — no second network round trip per track.
+    const { getResolvedCatalogue, fetchTrackMetadata } = await import(
+      "@/lib/catalogue-resolved"
+    );
+    const { tracks } = await getResolvedCatalogue();
+    const mine = tracks
+      .filter(
+        (t) => !t.isArt && t.artist?.toLowerCase() === artistAddress.toLowerCase(),
+      )
+      .slice(0, 3);
 
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables: { artist: artistAddress.toLowerCase() } }),
-    });
+    if (mine.length === 0) return [];
 
-    const data = await response.json();
-    const nfts = data?.data?.MusicNFT || [];
-
-    if (nfts.length === 0) return [];
-
-    // Fetch up to 3 IPFS metadata files to detect genres
     const genres = new Set<string>();
-    const gateway = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
+    for (const track of mine) {
+      const meta = await fetchTrackMetadata(track.tokenURI);
+      const doc = meta.raw;
+      if (!doc) continue;
 
-    for (const nft of nfts.slice(0, 3)) {
-      if (!nft.tokenURI) continue;
-
-      try {
-        // Convert ipfs:// to gateway URL
-        let metadataUrl = nft.tokenURI;
-        if (metadataUrl.startsWith('ipfs://')) {
-          metadataUrl = `https://${gateway}/ipfs/${metadataUrl.replace('ipfs://', '')}`;
-        }
-
-        const metaRes = await fetch(metadataUrl, {
-          signal: AbortSignal.timeout(5000),
+      if (doc.genre) {
+        (Array.isArray(doc.genre) ? doc.genre : [doc.genre]).forEach((g) => {
+          if (typeof g === "string" && g.trim()) genres.add(g);
         });
-
-        if (metaRes.ok) {
-          const metadata = await metaRes.json();
-          // Look for genre in attributes or properties
-          if (metadata.genre) {
-            (Array.isArray(metadata.genre) ? metadata.genre : [metadata.genre]).forEach((g: string) => genres.add(g));
-          }
-          if (metadata.attributes) {
-            for (const attr of metadata.attributes) {
-              if (attr.trait_type?.toLowerCase() === 'genre' && attr.value) {
-                genres.add(attr.value);
-              }
-            }
+      }
+      // Genre also travels as an OpenSea-style attribute, which is how most minting tools
+      // write it.
+      if (Array.isArray(doc.attributes)) {
+        for (const attr of doc.attributes as Array<Record<string, unknown>>) {
+          const trait = attr?.trait_type;
+          if (
+            typeof trait === "string" &&
+            trait.toLowerCase() === "genre" &&
+            typeof attr.value === "string" &&
+            attr.value.trim()
+          ) {
+            genres.add(attr.value);
           }
         }
-      } catch {
-        // Skip failed metadata fetches
       }
     }
 

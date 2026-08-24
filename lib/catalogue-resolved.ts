@@ -42,6 +42,14 @@ export interface TrackMetadata {
   name?: string;
   imageUrl?: string;
   audioUrl?: string;
+  /**
+   * The metadata document as fetched.
+   *
+   * Exposed so consumers needing fields this interface does not name — genre, attributes — can
+   * read them without a second network fetch, and so they share this cache rather than building
+   * a parallel one. Untrusted: anyone who can mint sets it.
+   */
+  raw?: Record<string, unknown>;
 }
 
 export interface ResolvedTrack extends CatalogueRow {
@@ -96,6 +104,7 @@ export async function fetchTrackMetadata(
       name: typeof doc.name === "string" ? doc.name : undefined,
       imageUrl: doc.image ? resolveIPFS(doc.image) : undefined,
       audioUrl: rawAudio ? resolveIPFS(rawAudio) : undefined,
+      raw: doc && typeof doc === "object" ? doc : undefined,
     };
     metadataCache.set(tokenURI, meta);
     failureCache.delete(tokenURI);

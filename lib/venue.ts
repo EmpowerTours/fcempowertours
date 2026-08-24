@@ -291,7 +291,6 @@ export async function getVenueHistory(
 // CLEARED CATALOG
 // ============================================================================
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 export interface CatalogSong {
   tokenId: string;
@@ -310,42 +309,27 @@ export interface CatalogSong {
  */
 export async function fetchClearedCatalog(redis: Redis): Promise<CatalogSong[]> {
   try {
-    const query = `
-      query GetMusicNFTs {
-        MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 200) {
-          tokenId
-          name
-          artist
-          artistFid
-          fullAudioUrl
-          imageUrl
-        }
-      }
-    `;
-
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
-
-    const data = await response.json();
-    const songs = data.data?.MusicNFT || [];
+    // Read the catalogue from the contracts. Art NFTs and anything without resolvable audio
+    // are dropped — a venue cannot play a track with no file.
+    const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
+    const { tracks } = await getResolvedCatalogue();
+    const songs = tracks.filter((t) => !t.isArt && t.audioUrl);
 
     // Filter to only songs with explicit rights clearance
     const cleared: CatalogSong[] = [];
     for (const song of songs) {
-      if (!song.fullAudioUrl) continue;
       const status = await getRightsStatus(redis, song.tokenId);
       // VENUE ONLY: require explicit cleared status (no legacy pass-through)
       if (status && status.status === 'cleared') {
         cleared.push({
-          tokenId: song.tokenId,
-          name: song.name || `Song #${song.tokenId}`,
+          tokenId: String(song.tokenId),
+          name: song.name,
           artist: song.artist || 'Unknown Artist',
-          artistFid: song.artistFid || 0,
-          audioUrl: song.fullAudioUrl,
-          imageUrl: song.imageUrl || '',
+          // The contracts do not carry a Farcaster id; 0 reads as "unknown", which is what the
+          // indexer returned for a wallet-only artist anyway.
+          artistFid: 0,
+          audioUrl: song.audioUrl!,
+          imageUrl: song.imageUrl,
         });
       }
     }

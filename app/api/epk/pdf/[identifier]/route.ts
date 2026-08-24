@@ -6,7 +6,6 @@ import type { EPKMetadata } from '@/lib/epk/types';
 
 const redis = Redis.fromEnv();
 const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || '';
-const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
 
 // Safe string coercion for IPFS data
 const s = (val: unknown): string => (val == null ? '' : String(val));
@@ -18,12 +17,6 @@ interface NFTTrack {
   imageBuffer: Buffer | null;
 }
 
-function resolveIpfsUrl(uri: string): string {
-  if (!uri) return '';
-  if (uri.startsWith('ipfs://')) return `https://${PINATA_GATEWAY}/ipfs/${uri.slice(7)}`;
-  if (/^(Qm|bafy|bafk)/i.test(uri)) return `https://${PINATA_GATEWAY}/ipfs/${uri}`;
-  return uri;
-}
 
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {
   if (!url) return null;
@@ -59,50 +52,28 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
   return null;
 }
 
-async function fetchArtistNFTs(
-  artistAddress: string,
-  envioEndpoint: string
-): Promise<NFTTrack[]> {
-  if (!envioEndpoint) return [];
-
-  const query = `
-    query ArtistNFTs($artist: String!) {
-      MusicNFT(
-        where: { artist: { _eq: $artist }, isBurned: { _eq: false } }
-        order_by: { tokenId: desc }
-        limit: 1
-      ) {
-        tokenId
-        name
-        imageUrl
-      }
-    }
-  `;
-
+async function fetchArtistNFTs(artistAddress: string): Promise<NFTTrack[]> {
   try {
-    const res = await fetch(envioEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables: { artist: artistAddress.toLowerCase() } }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const data = await res.json();
-    const nfts: any[] = data?.data?.MusicNFT || [];
+    const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
+    const { tracks } = await getResolvedCatalogue();
 
-    console.log(`[EPK PDF] NFTs from Envio for ${artistAddress}:`, nfts.map((n: any) => ({ id: n.tokenId, name: n.name, imageUrl: n.imageUrl })));
+    // Newest first, matching the `order_by: {tokenId: desc}, limit: 1` this replaces.
+    const mine = tracks
+      .filter(
+        (t) =>
+          !t.isArt &&
+          t.artist?.toLowerCase() === artistAddress.toLowerCase(),
+      )
+      .sort((a, b) => Number(b.tokenId) - Number(a.tokenId))
+      .slice(0, 1);
 
-    // Fetch cover images in parallel (failures return null)
     return await Promise.all(
-      nfts.map(async (nft) => {
-        const resolvedUrl = resolveIpfsUrl(nft.imageUrl || '');
-        console.log(`[EPK PDF] Fetching cover for token #${nft.tokenId}: raw="${nft.imageUrl}" resolved="${resolvedUrl}"`);
-        return {
-          tokenId: nft.tokenId,
-          title: nft.name || `Track #${nft.tokenId}`,
-          coverImage: nft.imageUrl || '',
-          imageBuffer: await fetchImageBuffer(resolvedUrl),
-        };
-      })
+      mine.map(async (track) => ({
+        tokenId: Number(track.tokenId),
+        title: track.name,
+        coverImage: track.imageUrl,
+        imageBuffer: await fetchImageBuffer(track.imageUrl),
+      })),
     );
   } catch (err) {
     console.warn('[EPK PDF] NFT fetch failed:', (err as Error).message);
@@ -352,7 +323,7 @@ export async function GET(
     }
 
     // Fetch NFTs in parallel with PDF generation prep
-    const nfts = await fetchArtistNFTs(artistAddress, ENVIO_ENDPOINT);
+    const nfts = await fetchArtistNFTs(artistAddress);
 
     const pdfBuffer = await generatePDFBuffer(epkMetadata, nfts);
 

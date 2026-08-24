@@ -110,6 +110,31 @@ check("empty stays empty", resolveIPFS(""), "");
   );
 }
 
+// ---------------------------------------------------------------- raw document passthrough
+
+{
+  _resetCatalogueMetadataCache();
+  const s = stubFetch(() =>
+    json({
+      name: "Tagged",
+      genre: ["Alternative Hip-Hop"],
+      attributes: [{ trait_type: "Genre", value: "Experimental" }],
+    }),
+  );
+  const meta = await fetchTrackMetadata("ipfs://QmTagged");
+  s.restore();
+  check(
+    "fields this interface does not name survive on raw",
+    (meta.raw as Record<string, unknown>)?.genre,
+    ["Alternative Hip-Hop"],
+  );
+  check(
+    "attributes survive too, so genre detection needs no second fetch",
+    ((meta.raw as Record<string, unknown>)?.attributes as unknown[])?.length,
+    1,
+  );
+}
+
 // ---------------------------------------------------------------- caching
 
 {
